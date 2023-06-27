@@ -34,12 +34,14 @@ class ShippingOrder extends DefaultTable {
 
     batchReadV(connectionConfig, nodeConfig, offset, pageSize, batchReadSender) {
         offset = this.defaultBatchReadOffset(offset);
-        this.read(false, connectionConfig, nodeConfig, offset, pageSize, batchReadSender, (orderInfo, offset1) => {
+        this.read(false, connectionConfig, nodeConfig, offset, pageSize, batchReadSender, (baseInfo, offset1, submitInfo, isOne) => {
             //let baseInfo = orderInfo.baseInfo;
-            let orderId = orderInfo.get('交易ID') + orderInfo.get('skuID');
-            let addTime = orderInfo.get('创建时间');
-            let updateTime = orderInfo.get('修改时间');
-
+            let orderId = submitInfo.get('商品明细条目ID') + baseInfo.idOfStr;
+            //let addTime = orderInfo.get('创建时间');
+            //let updateTime = orderInfo.get('修改时间');
+            let addTime = baseInfo.createTime;//订单创建时间
+            let updateTime = baseInfo.modifyTime;//订单修改时间
+            //if (!isOne) {
             let cacheKey = orderId + "_C" + addTime + "_U" + updateTime;
             if (addTime === this.time){
                 if (this.currentTableNoHistory.includes(cacheKey)){
@@ -52,9 +54,10 @@ class ShippingOrder extends DefaultTable {
                 this.currentTableNoHistory = [];
                 this.currentTableNoHistory.push(cacheKey);
             }
+            //}
 
             batchReadSender.send({
-                "afterData": orderInfo,
+                "afterData": submitInfo,
                 "eventType": "i",
                 "tableName": this.tableName
             }, this.tableName, offset1);
@@ -63,12 +66,14 @@ class ShippingOrder extends DefaultTable {
 
     streamReadV(connectionConfig, nodeConfig, offset, pageSize, streamReadSender) {
         offset = this.defaultStreamReadOffset(offset);
-        this.read(true, connectionConfig, nodeConfig, offset, pageSize, streamReadSender, (orderInfo, offset1) => {
+        this.read(true, connectionConfig, nodeConfig, offset, pageSize, streamReadSender, (baseInfo, offset1, submitInfo, isOne) => {
             //let baseInfo = orderInfo.baseInfo;//订单基础信息
-            let orderNo = orderInfo.get('交易ID') + orderInfo.get('skuID');//订单ID
-            let addTime = orderInfo.get('创建时间');//订单创建时间
-            let updateTime = orderInfo.get('修改时间');//订单修改时间
-
+            let orderNo = submitInfo.get('商品明细条目ID') + baseInfo.idOfStr;//订单ID
+            //let addTime = orderInfo.get('创建时间');//订单创建时间
+            //let updateTime = orderInfo.get('修改时间');//订单修改时间
+            let addTime = baseInfo.createTime;
+            let updateTime = baseInfo.modifyTime;
+            //if (!isOne) {
             let cacheKey = orderNo + "_C" + addTime + "_U" + updateTime;
             if (updateTime === this.time){
                 if (this.currentTableNoHistory.includes(cacheKey)){
@@ -84,8 +89,9 @@ class ShippingOrder extends DefaultTable {
 
 
             offset1[this.tableName].updateTimeStart = updateTime;
+            //}
             streamReadSender.send({
-                "afterData": orderInfo,
+                "afterData": submitInfo,
                 "eventType": !isValue(updateTime) || updateTime === addTime ? "i" : "u",
                 "tableName": this.tableName,
             }, this.tableName, offset1);
@@ -297,55 +303,29 @@ class ShippingOrder extends DefaultTable {
 
                 let orderInfo = this.csv(record);
                 let afterEvent = [];
-                for (let index = 0; index < orderInfo.length; index++) {
-                    let finalHandle1 = this.finalHandle(orderInfo[index]);
+                let isOne = false;
+                for (let indexX = 0; indexX < orderInfo.length; indexX++) {
+                    if (!isOne) isOne = true;
+                    let finalHandle1 = this.finalHandle(orderInfo[indexX]);
                     afterEvent.push(finalHandle1);
-                    eventHandle(finalHandle1, offset);
+                    eventHandle(record, offset, finalHandle1, isOne);
                 }
 
                 if (isValue(nodeConfig.logCompile) && nodeConfig.logCompile) {
-                    log.info("Before: {} \nAfter: {}", JSON.stringify(pageList[index]), tapUtil.fromJson(afterEvent.length === 1? afterEvent[0] : afterEvent))
+                    log.warn("Original data about 订单编号={}: {}", record.idOfStr, JSON.stringify(pageList[index]))
+                    log.warn("After data about 订单编号={}: {}", record.idOfStr, tapUtil.fromJson(afterEvent.length === 1? afterEvent[0] : afterEvent))
                 }
             }
         }
     }
 
     csv(record) {
-        function convertDateStr(dateStr) {
-            if(!dateStr)
-                return null;
-            try {
-                // 定义正则表达式
-                // 匹配日期字符串，并提取年、月、日、小时、分钟、秒、毫秒和时区信息
-                let year = dateStr.substr(0, 4);
-                let month = dateStr.substr(4, 6);
-                let day = dateStr.substr(6, 8);
-                let hours = dateStr.substr(8, 10);
-                let minutes = dateStr.substr(10, 12);
-                let seconds = dateStr.substr(12, 14);
-                let milliseconds = dateStr.substr(14, 7);
-                let timezone = dateStr.substr(17, dateStr.length);
-
-                let str = year + "-" + month + "-" + day + " " + hours + ":" + minutes + ":" + ":" + seconds + "." + milliseconds;
-                log.info("str " + str);
-                let zone = parseInt(timezone.substring(0, 3), 10)
-                log.info("zone " + zone);
-                let date = dateUtils.parseDate(str, 'yyyy-MM-dd hh:mm:ss.sss', zone);
-                log.info("date " + date);
-                // 创建日期对象
-                return date.getTime();
-            } catch(t) {
-                log.warn("convertDateStr failed " + t);
-            }
-            return dateStr;
-        }
-
         let newRecord = new LinkedHashMap();
-        newRecord.put('订单编号', record.idOfStr);
-        newRecord.put('买家主账号ID', bigintConvert(record.buyerID));
-        newRecord.put('交易ID', bigintConvert(record.id));
-        newRecord.put('卖家主账号ID', bigintConvert(record.sellerID));
-        newRecord.put('采购账号', bigintConvert(record.buyerLoginId));
+        newRecord.put('订单编号', bigintConvertAsString(record.idOfStr));
+        newRecord.put('买家主账号ID', bigintConvertAsString(record.buyerID));
+        newRecord.put('交易ID',  bigintConvertAsString(record.id));
+        newRecord.put('卖家主账号ID', bigintConvertAsString(record.sellerID));
+        newRecord.put('采购账号', record.buyerLoginId);
         newRecord.put('发货时间', convertDateStr(record.allDeliveredTime));
         newRecord.put('买家备忘信息', record.buyerMemo);
         newRecord.put('完成时间', convertDateStr(record.completeTime));
@@ -416,7 +396,7 @@ class ShippingOrder extends DefaultTable {
 
         if(record.info_tradeTerms && record.info_tradeTerms.length > 0) {
             let tradeTerm = record.info_tradeTerms[0];
-            newRecord.put('阶段', tradeTerm.phase);
+            newRecord.put('阶段', '' + bigintConvert(tradeTerm.phase));
         }
         if(record.info_overseasExtraAddress){
             newRecord.put('跨境地址扩展信息', JSON.stringify(record.info_overseasExtraAddress));
@@ -456,7 +436,7 @@ class ShippingOrder extends DefaultTable {
             }
             newRecord.put('发票类型', invoiceTypeName);
             newRecord.put('本地发票号', record.info_orderInvoiceInfo.localInvoiceId);
-            newRecord.put('订单ID', bigintConvert(record.info_orderInvoiceInfo.orderId));
+            newRecord.put('订单ID', bigintConvertAsString(record.info_orderInvoiceInfo.orderId));
 
             newRecord.put('（收件人）址区域编码', record.info_orderInvoiceInfo.receiveCode);
             newRecord.put('（收件人）省市区编码对应的文案', record.info_orderInvoiceInfo.receiveCodeText);
@@ -546,7 +526,7 @@ class ShippingOrder extends DefaultTable {
             let hasShippingFee = false;
             items.forEach(r => {
                 let sub = new LinkedHashMap();
-                let keys = newRecord.keySet();//Object.keys(newRecord);
+                let keys = tapUtil.keysFromMap(newRecord);//Object.keys(newRecord);
                 for(let index = 0 ;index < keys.length; index++){
                     let key = keys[index];
                     sub.put(key, newRecord.get(key));
@@ -558,10 +538,10 @@ class ShippingOrder extends DefaultTable {
                 }
                 sub.put('单品货号', r.cargoNumber);
                 sub.put('描述', r.description);
-                sub.put('实付金额', r.itemAmount);
+                sub.put('实付金额（元）', r.itemAmount);
                 sub.put('商品名称', r.name);
                 sub.put('原始单价（元）', r.price);
-                sub.put('产品ID（非在线产品为空）', bigintConvert(r.productID));
+                sub.put('产品ID（非在线产品为空）', bigintConvertAsString(r.productID));
                 if(r.productImgUrl){
                     let urls = r.productImgUrl;
                     let allUrl = '';
@@ -576,17 +556,17 @@ class ShippingOrder extends DefaultTable {
                 sub.put('产品快照url', r.productSnapshotUrl);
                 sub.put('数量', r.quantity);
                 sub.put('退款金额（元）', r.refund);
-                sub.put('skuID', bigintConvert(r.skuID));
+                sub.put('skuID', bigintConvertAsString(r.skuID));
                 sub.put('排序字段', r.sort);
                 // sub['子订单状态'] = r.status);
-                sub.put('商品明细条目ID', bigintConvert(r.subItemID));
+                sub.put('商品明细条目ID', bigintConvertAsString(r.subItemID));
                 // sub['类型'] = r.type;
                 sub.put('售卖单位', r.unit);
                 sub.put('重量', r.weight);
                 sub.put('重量单位', r.weightUnit);
                 sub.put('商品货号', r.productCargoNumber);
                 sub.put('订单明细涨价或降价的金额', r.entryDiscount / 100);
-                sub.put('订单销售属性ID', bigintConvert(r.specId));
+                sub.put('订单销售属性ID', bigintConvertAsString(r.specId));
                 sub.put('精度系数', r.quantityFactor);
                 sub.put('子订单状态描述', r.statusStr);
 
@@ -609,7 +589,6 @@ class ShippingOrder extends DefaultTable {
                 }
                 sub.put('退货状态', stName);
 
-                st = r.refundStatus;
                 sub.put('关闭原因', r.closeReason);
 
                 // st = r.logisticsStatus;
@@ -642,48 +621,48 @@ class ShippingOrder extends DefaultTable {
                     let logistics = record.logistics;
                     logistics.forEach(logi => {
                         if(logi.sendGoods && logi.sendGoods.length > 0) {
-                            var sendGoods = logi.sendGoods;
+                            let sendGoods = logi.sendGoods;
                             sendGoods.forEach(good => {
                                 if(good.goodName === r.name) {
                                     sub.put("货物单位", good.unit);
                                     sub.put("货物数量", good.quantity);
-                                    sub.put("货物名称", good.goodName);
+                                    sub.put("货物名称", bigintConvertAsString(good.goodName));
                                 } else {
                                     return;
                                 }
-                            })
-                        } else {
-                            return;
-                        }
-                        if(logi.receiver) {
-                            let receiver = logi.receiver;
-                            //sub.put("收货人", receiver.receiverName);
-                            sub.put("收货地址", receiver.receiverProvince + " "
-                                + receiver.receiverCity + " "
-                                + receiver.receiverCounty + " "
-                                + receiver.receiverAddress);
-                            sub.put("收货人", receiver.receiverName);
-                            sub.put("收货区号", receiver.receiverCountyCode);
-                            sub.put("收货手机号码", receiver.receiverMobile);
-                        }
-                        if(logi.sender) {
-                            let sender = logi.sender;
-                            sub.put("发货人", sender.senderName);
-                            sub.put("发货地址", sender.senderProvince + " "
-                                + sender.senderCity + " "
-                                + sender.senderCounty + " "
-                                + sender.senderAddress);
-                            sub.put("发货电话", sender.senderMobile);
-                            sub.put("发货区号", sender.senderCountyCode);
-                        }
-                        // log.info("logistics " + JSON.stringify(Pretty(logistics));
-                        // log.info("logistics.sendGoods " + logistics.sendGoods);
+                            });
 
-                        sub.put("物流公司", logi.logisticsCompanyName);
-                        sub.put("物流单号", logi.logisticsId);
-                        sub.put("物流公司ID", bigintConvert(logi.logisticsCompanyId));
-                        sub.put("物流账单号", logi.logisticsBillNo);
-                        var lstatus = logi.status;
+                            if(logi.receiver) {
+                                let receiver = logi.receiver;
+                                //sub.put("收货人", receiver.receiverName);
+                                sub.put("收货地址", bigintConvertAsString(receiver.receiverProvince) + " "
+                                    + bigintConvertAsString(receiver.receiverCity) + " "
+                                    + bigintConvertAsString(receiver.receiverCounty) + " "
+                                    + bigintConvertAsString(receiver.receiverAddress));
+                                sub.put("收货人", bigintConvertAsString(receiver.receiverName));
+                                sub.put("收货区号", bigintConvertAsString(receiver.receiverCountyCode));
+                                sub.put("收货手机号码", bigintConvertAsString(receiver.receiverMobile));
+                            }
+                            if(logi.sender) {
+                                let sender = logi.sender;
+                                sub.put("发货人", bigintConvertAsString(sender.senderName));
+                                sub.put("发货地址", bigintConvertAsString(sender.senderProvince) + " "
+                                    + bigintConvertAsString(sender.senderCity) + " "
+                                    + bigintConvertAsString(sender.senderCounty) + " "
+                                    + bigintConvertAsString(sender.senderAddress));
+                                sub.put("发货电话", bigintConvertAsString(sender.senderMobile));
+                                sub.put("发货区号", bigintConvertAsString(sender.senderCountyCode));
+                            }
+                            // log.info("logistics " + JSON.stringify(Pretty(logistics));
+                            // log.info("logistics.sendGoods " + logistics.sendGoods);
+
+                            sub.put("物流公司", bigintConvertAsString(logi.logisticsCompanyName));
+                            sub.put("物流单号", bigintConvertAsString(logi.logisticsId));
+                            sub.put("物流公司ID", bigintConvertAsString(logi.logisticsCompanyId));
+                            sub.put("物流账单号", bigintConvertAsString(logi.logisticsBillNo));
+                        }
+
+                        let lstatus = logi.status;
                         //物流状态。WAITACCEPT:未受理;CANCEL:已撤销;ACCEPT:已受理;
                         // TRANSPORT:运输中;NOGET:揽件失败;SIGN:已签收;UNSIGN:签收异常
                         let statusName = '';
@@ -713,16 +692,16 @@ class ShippingOrder extends DefaultTable {
         //计算单价
         let total = 0;
         try{
-            total = isValue(record['实付金额']) ? parseFloat(record['实付金额']) : 0;//实付金额
+            total = isValue(record['实付金额（元）']) ? parseFloat(record['实付金额（元）']) : 0;//实付金额
         } catch (e){
             total = 0;
         }
         let number = 0;
         try{
             number = isValue(record['数量']) ? parseInt(record['数量']) : 0;//运费
-            record.put("实际单价", "" + (total / number));//.toFixed(2))
+            record.put("实际单价（元）", (total / (number * 1.00)));//.toFixed(2))
         }catch (e ) {
-            log.info("Error to set '实际单价' into record, '数量' is an invalid argument ");
+            log.info("Error to set '实际单价（元）' into record, '数量' is an invalid argument ");
         }
 
 
@@ -848,4 +827,38 @@ function bigintConvert(value){
     if (typeof value === 'bigint') return BigInt('' + value);
     if (!isNaN(value)) return BigInt("" + value);
     return value;
+}
+
+function bigintConvertAsString(value) {
+    if (!isValue(value)) return "";
+    return typeof value === "string" ? value : ("" + value);
+}
+
+function convertDateStr(dateStr) {
+    if(!dateStr)
+        return null;
+    try {
+        // 定义正则表达式
+        // 匹配日期字符串，并提取年、月、日、小时、分钟、秒、毫秒和时区信息
+        let year = dateStr.substr(0, 4);
+        let month = dateStr.substr(4, 2);
+        let day = dateStr.substr(6, 2);
+        let hours = dateStr.substr(8, 2);
+        let minutes = dateStr.substr(10, 2);
+        let seconds = dateStr.substr(12, 2);
+        let milliseconds = dateStr.substr(14, 3);
+        let timezone = dateStr.substr(17, dateStr.length-17);
+
+        let str = year + "-" + month + "-" + day + " " + hours + ":" + minutes + ":" + seconds + "." + milliseconds;
+        //log.info("str " + str);
+        let zone = parseInt(timezone.substring(0, 3), 10)
+        //log.info("zone " + zone);
+        let date = dateUtils.parseDate(str, 'yyyy-MM-dd hh:mm:ss.sss', zone);
+        //log.info("date " + date);
+        // 创建日期对象
+        return date.getTime();
+    } catch(t) {
+        log.warn("convertDateStr failed " + t);
+    }
+    return dateStr;
 }

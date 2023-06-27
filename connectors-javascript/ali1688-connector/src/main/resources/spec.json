@@ -185,5 +185,95 @@
       "open_log_compile": "開啟數據比對",
       "log_compile_tip": "開啟開關後可在日誌清單中以Info級別日誌的展示數據欄位前的原始數據和處理後的拍平格式數據 "
     }
+  },
+  "dataTypes": {
+    "Object": {
+      "to": "TapMap"
+    },
+    "Null": {
+      "to": "TapArray"
+    },
+    "Number": {
+      "precision": [
+        1,
+        1000
+      ],
+      "scale": [
+        0,
+        1000
+      ],
+      "fixed": true,
+      "preferPrecision": 20,
+      "preferScale": 8,
+      "priority": 1,
+      "to": "TapNumber"
+    },
+    "DateTime0": {
+      "range": [
+        "1000-01-01 00:00:00",
+        "9999-12-31 23:59:59"
+      ],
+      "defaultFraction": 3,
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "priority": 1,
+      "to": "TapDateTime"
+    },
+    "DateTime": {
+      "range": [
+        "1000-01-01 00:00:00.000",
+        "9999-12-31 23:59:59.999"
+      ],
+      "pattern": "yyyy-MM-dd hh:mm:ss.sss",
+      "fraction": [
+        0,
+        9
+      ],
+      "defaultFraction": 3,
+      "withTimeZone": false,
+      "priority": 2,
+      "to": "TapDateTime"
+    },
+    "Long": {
+      "bit": 64,
+      "priority": 10,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ],
+      "scale": 0,
+      "to": "TapNumber"
+    },
+    "Boolean": {
+      "to": "TapBoolean"
+    },
+    "String": {
+      "byte": 1024,
+      "priority": 1,
+      "defaultByte": 512,
+      "preferByte": 1024,
+      "to": "TapString"
+    },
+    "Array": {
+      "to": "TapArray"
+    },
+    "Float": {
+      "to": "TapNumber",
+      "bit": 64,
+      "scale": [
+        0,
+        6
+      ],
+      "fixed": false
+    },
+    "Money": {
+      "to": "TapNumber",
+      "precision": [
+        1,
+        65
+      ],
+      "scale": 2,
+      "defaultPrecision": 10,
+      "defaultScale": 2
+    }
   }
 }

@@ -19,7 +19,7 @@ function handleRecord(order){
         if (!isValue(element)) continue;
         if ("baseInfo" === key) {
             for (let subKey of Object.keys(element)) {
-                newRecord[subKey] = "id" === subKey ? BigInt(element[subKey]) : element[subKey];
+                newRecord[subKey] = ("id" === subKey ? BigInt(element[subKey]) : element[subKey]);
             }
         } else {
             newRecord["info_" + key] = order[key];
@@ -197,148 +197,128 @@ var csvTableConfig = {
         "supportRead": true,
         "supportWrite": false,
         "fields":{
-            // "baseInfo":{
-            //     'type': 'Object',
-            //     'comment': '订单基本信息，包括订单号、订单创建时间......',
-            //     'nullable': true
-            // },
-            // "info_nativeLogistics":{
-            //     'type': 'Object',
-            //     'comment': '',
-            //     'nullable': true
-            // },
-            // "info_orderRateInfo":{
-            //     "type": "Object",
-            //     "comment": "",
-            //     "nullable": false
-            // },
-            // "info_productItems": {
-            //     "type": "Array",
-            //     "comment": "商品信息列表",
-            //     "nullable": true
-            // },
-            // "info_tradeTerms": {
-            //     "type": "Array",
-            //     "comment": "",
-            //     "nullable": false
-            // },
-            "订单编号":{
-                'type': 'String',
-                'comment': '订单编号-idOfStr'
-            },
             "商品明细条目ID":{
                 "type":"String",
                 "comment":"商品明细条目ID",
                 "isPrimaryKey": true,
                 "primaryKeyPos": 1
             },
+            "订单编号":{
+                'type': 'String',
+                'comment': '订单编号-idOfStr'
+            },
             "交易ID":{
-                'type': 'Long',
+                'type': 'String',
                 'comment': '交易ID-id',
                 // 'nullable': true,
             },
             "skuID":{
-                "type":"Long",
+                "type":"String",
                 "comment":"skuID",
                 // "isPrimaryKey": true,
                 // "primaryKeyPos": 2
             },
+
+            "商品名称":{
+                "type":"String",
+                "comment":"商品名称"
+            },
+            "实付金额（元）":{
+                "type":"Money",
+                "comment":"实付金额"
+            },
+            "订单明细涨价或降价的金额":{
+                "type":"Float",
+                "comment":"订单明细涨价或降价的金额"
+            },
+            "折扣信息":{
+                'type': 'Number',
+                'comment': '折扣信息（元）-discount'
+            },
+            "原始单价（元）":{
+                "type":"Money",
+                "comment":"原始单价（元）"
+            },
+            "实际单价（元）":{
+                "type":"Money",
+                "comment":"实际单价"
+            },
+            "数量":{
+                "type":"Number",
+                "comment":"数量"
+            },
+            "货品金额总计（不包含运费）":{
+                'type': 'Money',
+                'comment': '货品金额总计（不包含运费）-sumProductPayment'
+            },
+            "运费（元）":{
+                "type":"Money",
+                "comment":"运费（元）-shippingFee"
+            },
+            "售卖单位":{
+                "type":"String",
+                "comment":"售卖单位"
+            },
+            "描述":{
+                "type":"String",
+                "comment":"描述"
+            },
+
+            "单品货号":{
+                "type":"String",
+                "comment":"单品货号"
+            },
+            "产品ID（非在线产品为空）":{
+                "type":"String",
+                "comment":"产品ID（非在线产品为空）"
+            },
+            "商品图片url":{
+                "type":"String",
+                "comment":"商品图片url"
+            },
+            "产品快照url":{
+                "type":"String",
+                "comment":"产品快照url"
+            },
+
             "发货时间":{
-                'type': 'String',
+                'type': 'DateTime0',
                 'comment': '发货时间-allDeliveredTime'
             },
             "付款时间":{
-                'type': 'String',
+                'type': 'DateTime0',
                 'comment': '付款时间-payTime'
             },
-            // "receiverInfo":{
-            //     'type': 'Object',
-            //     'comment': '-'
-            // },
-            "折扣信息（元）":{
-                'type': 'Long',
-                'comment': '折扣信息（元）-discount'
-            },
-            // "alipayTradeId":{
-            //     'type': 'String',
-            //     'comment': '-'
-            // },
-            "订单备注":{
-                'type': 'String',
-                'comment': '订单备注-remark'
-            },
-            "货品金额总计（不包含运费）":{
-                'type': 'Number',
-                'comment': '货品金额总计（不包含运费）-sumProductPayment'
-            },
-            // "buyerFeedback":{
-            //     'type': 'Number',
-            //     'comment': '-'
-            // },
-            "采购账号":{
-                'type': 'Number',
-                'comment': '采购账号-buyerLoginId'
-            },
             "修改时间":{
-                'type': 'Number',
+                'type': 'DateTime0',
                 'comment': '修改时间-modifyTime'
             },
             "订单最后修改时间":{
-                'type': 'Number',
+                'type': 'DateTime0',
                 'comment': '修改时间-modifyTime'
             },
-            // "tradeType":{
-            //     'type': 'Number',
-            //     'comment': '-'
-            // },
-            // "buyerContact":{
-            //     'type': 'Object',
-            //     'comment': '-'
-            // },
-            // "sellerAlipayId":{
-            //     'type': 'String',
-            //     'comment': '-'
-            // },
-            // "stepPayAll":{
-            //     'type': 'Boolean',
-            //     'comment': '-'
-            // },
-            // "sellerLoginId":{
-            //     'type': 'String',
-            //     'comment': '-'
-            // },
-            // "sellerUserId":{
-            //     'type': 'Number',
-            //     'comment': '-'
-            // },
+
+            "采购账号":{
+                'type': 'String',
+                'comment': '采购账号-buyerLoginId'
+            },
+
             "买家主账号ID":{
                 'type': 'String',
                 'comment': '买家主账号ID-buyerID'
             },
-            // "buyerAlipayId":{
-            //     'type': 'String',
-            //     'comment': '-'
-            // },
             "应付款总金额（元）":{
-                'type': 'Number',
+                'type': 'Money',
                 'comment': '应付款总金额（元）-totalAmount'
             },
             "卖家主账号ID":{
-                'type': 'Long',
+                'type': 'String',
                 'comment': '卖家主账号ID-sellerID'
             },
-            // "shippingFee":{
-            //     'type': 'Number',
-            //     'comment': '-'
-            // },
             "创建时间":{
-                'type': 'String',
+                'type': 'DateTime0',
                 'comment': '创建时间-createTime'
             },
-            // "buyerUserId":{
-            //     'type': 'Number',
-            //     'comment': '-'
-            // },
             "业务类型":{
                 'type': 'String',
                 'comment': '业务类型-businessType'
@@ -347,10 +327,6 @@ var csvTableConfig = {
             //     'type': 'Boolean',
             //     'comment': '-'
             // },
-            "退款金额（元）":{
-                'type': 'Float',
-                'comment': '退款金额（元）-refund'
-            },
             "交易状态":{
                 'type': 'String',
                 'comment': '交易状态-status'
@@ -368,29 +344,150 @@ var csvTableConfig = {
                 'comment': '买家备忘信息-buyerMemo'
             },
             "完成时间":{
-                'type': 'String',
+                'type': 'DateTime0',
                 'comment': '完成时间-completeTime'
             },
             "收货时间":{
-                "type":"String",
+                "type":"DateTime0",
                 "comment":"收货时间-receivingTime"
             },
-            "运费（元）":{
-                "type":"Float",
-                "comment":"运费（元）-shippingFee"
-            },
+
             "买家备忘标志":{
                 "type":"String",
                 "comment":"买家备忘标志-buyerRemarkIcon"
             },
-            "币种":{
-                "type":"String",
-                "comment":"币种-currency"
-            },
+
             "阶段":{
                 "type":"String",
                 "comment":"阶段-tradeTerms.phase"
             },
+            "商品货号":{
+                "type":"String",
+                "comment":"商品货号"
+            },
+            "订单销售属性ID":{
+                "type":"String",
+                "comment":"订单销售属性ID"
+            },
+            "精度系数":{
+                "type":"Float",
+                "comment":"精度系数"
+            },
+            "子订单状态描述":{
+                "type":"String",
+                "comment":"子订单状态描述"
+            },
+            "退货状态":{
+                "type":"String",
+                "comment":"退货状态"
+            },
+            "退款金额（元）":{
+                "type":"Money",
+                "comment":"退款金额（元）"
+            },
+            "关闭原因":{
+                "type":"String",
+                "comment":"关闭原因"
+            },
+            "售中退款单号":{
+                "type":"String",
+                "comment":"售中退款单号"
+            },
+            "售后退款单号":{
+                "type":"String",
+                "comment":"售后退款单号"
+            },
+            "子订单关联码":{
+                "type":"String",
+                "comment":"子订单关联码"
+            },
+            "SKU属性描述":{
+                "type":"String",
+                "comment":"SKU属性描述"
+            },
+            "货物单位":{
+                "type":"String",
+                "comment":"货物单位"
+            },
+            "货物数量":{
+                "type":"String",
+                "comment":"货物数量"
+            },
+            "货物名称":{
+                "type":"String",
+                "comment":"货物名称"
+            },
+            "收货人":{
+                "type":"String",
+                "comment":"收货人"
+            },
+            "收货地址":{
+                "type":"String",
+                "comment":"收货地址"
+            },
+            "收货区号":{
+                "type":"String",
+                "comment":"收货区号"
+            },
+            "收货手机号码":{
+                "type":"String",
+                "comment":"收货手机号码"
+            },
+            "发货人":{
+                "type":"String",
+                "comment":"发货人"
+            },
+            "发货地址":{
+                "type":"String",
+                "comment":"发货地址"
+            },
+            "发货电话":{
+                "type":"String",
+                "comment":"发货电话"
+            },
+            "发货区号":{
+                "type":"String",
+                "comment":"发货区号"
+            },
+            "物流公司":{
+                "type":"String",
+                "comment":"物流公司"
+            },
+            "物流单号":{
+                "type":"String",
+                "comment":"物流单号"
+            },
+            "物流公司ID":{
+                "type":"String",
+                "comment":"物流公司ID"
+            },
+            "物流账单号":{
+                "type":"String",
+                "comment":"物流账单号"
+            },
+            "物流状态":{
+                "type":"String",
+                "comment":"物流状态"
+            },
+
+            "币种":{
+                "type":"String",
+                "comment":"币种-currency"
+            },
+            "订单备注":{
+                'type': 'String',
+                'comment': '订单备注-remark'
+            },
+            "重量":{
+                "type":"Money",
+                "comment":"重量"
+            },
+            "重量单位":{
+                "type":"String",
+                "comment":"重量单位"
+            },
+
+
             "跨境地址扩展信息":{
                 "type":"String",
                 "comment":"跨境地址扩展信息-overseasExtraAddress"
@@ -483,182 +580,11 @@ var csvTableConfig = {
                 "type":"String",
                 "comment":"供应商联系人-sellerContact.name"
             },
-            "单品货号":{
-                "type":"String",
-                "comment":"单品货号"
-            },
-            "描述":{
-                "type":"String",
-                "comment":"描述"
-            },
-            "数量":{
-                "type":"Number",
-                "comment":"数量"
-            },
-            "实付金额":{
-                "type":"Float",
-                "comment":"实付金额"
-            },
-            "实际单价":{
-                "type":"Float",
-                "comment":"实际单价"
-            },
-            "运费（元）":{
-                "type":"Number",
-                "comment":"运费（元）"
-            },
-            "单价（元）":{
-                "type":"Number",
-                "comment":"单价（元）"
-            },
-            "商品名称":{
-                "type":"String",
-                "comment":"商品名称"
-            },
-            "原始单价（元）":{
-                "type":"Float",
-                "comment":"原始单价（元）"
-            },
-            "产品ID（非在线产品为空）":{
-                "type":"Long",
-                "comment":"产品ID（非在线产品为空）"
-            },
-            "商品图片url":{
-                "type":"String",
-                "comment":"商品图片url"
-            },
-            "产品快照url":{
-                "type":"String",
-                "comment":"产品快照url"
-            },
-            "退款金额（元）":{
-                "type":"Float",
-                "comment":"退款金额（元）"
-            },
+
             "排序字段":{
                 "type":"String",
                 "comment":"排序字段"
             },
-            "售卖单位":{
-                "type":"String",
-                "comment":"售卖单位"
-            },
-            "重量":{
-                "type":"Float",
-                "comment":"重量"
-            },
-            "重量单位":{
-                "type":"String",
-                "comment":"重量单位"
-            },
-            "商品货号":{
-                "type":"String",
-                "comment":"商品货号"
-            },
-            "订单明细涨价或降价的金额":{
-                "type":"Float",
-                "comment":"订单明细涨价或降价的金额"
-            },
-            "订单销售属性ID":{
-                "type":"String",
-                "comment":"订单销售属性ID"
-            },
-            "精度系数":{
-                "type":"Float",
-                "comment":"精度系数"
-            },
-            "子订单状态描述":{
-                "type":"String",
-                "comment":"子订单状态描述"
-            },
-            "退货状态":{
-                "type":"String",
-                "comment":"退货状态"
-            },
-            "关闭原因":{
-                "type":"String",
-                "comment":"关闭原因"
-            },
-            "售中退款单号":{
-                "type":"String",
-                "comment":"售中退款单号"
-            },
-            "售后退款单号":{
-                "type":"String",
-                "comment":"售后退款单号"
-            },
-            "子订单关联码":{
-                "type":"String",
-                "comment":"子订单关联码"
-            },
-            "SKU属性描述":{
-                "type":"String",
-                "comment":"SKU属性描述"
-            },
-            "货物单位":{
-                "type":"String",
-                "comment":"货物单位"
-            },
-            "货物数量":{
-                "type":"Number",
-                "comment":"货物数量"
-            },
-            "货物名称":{
-                "type":"String",
-                "comment":"货物名称"
-            },
-            "收货人":{
-                "type":"String",
-                "comment":"收货人"
-            },
-            "收货地址":{
-                "type":"String",
-                "comment":"收货地址"
-            },
-            "收货区号":{
-                "type":"String",
-                "comment":"收货区号"
-            },
-            "收货手机号码":{
-                "type":"String",
-                "comment":"收货手机号码"
-            },
-            "发货人":{
-                "type":"String",
-                "comment":"发货人"
-            },
-            "发货地址":{
-                "type":"String",
-                "comment":"发货地址"
-            },
-            "发货电话":{
-                "type":"String",
-                "comment":"发货电话"
-            },
-            "发货区号":{
-                "type":"String",
-                "comment":"发货区号"
-            },
-            "物流公司":{
-                "type":"String",
-                "comment":"物流公司"
-            },
-            "物流单号":{
-                "type":"String",
-                "comment":"物流单号"
-            },
-            "物流公司ID":{
-                "type":"String",
-                "comment":"物流公司ID"
-            },
-            "物流账单号":{
-                "type":"String",
-                "comment":"物流账单号"
-            },
-            "物流状态":{
-                "type":"String",
-                "comment":"物流状态"
-            }
         }
     }
 }
