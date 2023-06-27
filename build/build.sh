@@ -110,6 +110,7 @@ build() {
         docker run --name=tapdata-build-container -v $sourcepath:/tapdata-source/ -i $tapdata_build_image bash
       fi
     fi
+    docker exec -e PRODUCT=idaas -i tapdata-build-container bash -c "cd /tapdata-source && bash build/build.sh -c true"
   fi
   # 2. run check_env function to check if java and mvn installed.
   check_env
