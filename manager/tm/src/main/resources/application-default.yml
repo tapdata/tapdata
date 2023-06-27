@@ -17,7 +17,7 @@ spring:
     encoding: UTF-8
 
   mvc:
-    static-path-pattern: /static/**
+    static-path-pattern: /**
     format:
       date-time: yyyyMM-dd HH:mm:ss
   resources:
