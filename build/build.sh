@@ -52,7 +52,6 @@ while getopts 'c:p:o:d::t:' OPT; do
 		;;
 	'o')
     output="$OPTARG"
-    is_package="true"
 		;;
   ?)
     usage
@@ -175,7 +174,8 @@ package_outputs() {
   # 2. Package Iengine outputs.
   # 3. Package Manager outputs.
   # 4. Package Connector outputs.
-  # 5. Print cost time.
+  # 5. package pdk.jar outputs.
+  # 6. Print cost time.
   #
   # Package all the outputs from various components and copy them to the "dist" directory to make a tarball or docker image.
 
@@ -189,7 +189,9 @@ package_outputs() {
   cp -r $sourcepath/manager/dist/* $sourcepath/dist/manager/
   # 4. Package Connector outputs.
   cp -r $sourcepath/connectors/dist.tar.gz $sourcepath/dist/connectors/
-  # 5. Print cost time.
+  # 5. package pdk.jar outputs.
+  cp -r $sourcepath/tapdata-cli/target/pdk.jar $sourcepath/dist/
+  # 6. Print cost time.
   END_TIME=`date '+%s'`
   DURATION=`expr $END_TIME - $START_TIME`
   info "package outputs success, cost time: $DURATION seconds"
@@ -210,7 +212,7 @@ make_image() {
   fi
   # 2. Cp image directory to dist directory.
   mkdir -p $sourcepath/dist/image
-  cp -r $sourcepath/image/* $sourcepath/dist/
+  cp -r $sourcepath/build/image/* $sourcepath/dist/
   # 3. Make docker image.
   cd $sourcepath/dist && bash build.sh
 }
