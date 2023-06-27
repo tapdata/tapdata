@@ -30,14 +30,6 @@ jobs:
               ref: develop-v3.2
               token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
               path: tapdata-enterprise-web
-        - name: Checkout Enterprise Repo
-          uses: actions/checkout@v3
-          with:
-            fetch-depth: 0
-            repository: tapdata/tapdata-enterprise
-            ref: develop-v3.2
-            token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-            path: tapdata-enterprise
         - name: Checkout Opensource Repo
           uses: actions/checkout@v3
           with:
