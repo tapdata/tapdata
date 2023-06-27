@@ -491,12 +491,14 @@ public class LdpServiceImpl implements LdpService {
         try {
             DAG dag = task.getDag();
             if (dag != null) {
-                LinkedList<DatabaseNode> sourceNode = dag.getSourceNode();
+                List<Node> sourceNode = dag.getSourceNodes();
                 if (sourceNode != null) {
-                    DatabaseNode first = sourceNode.getFirst();
-                    String connectionId = first.getConnectionId();
-                    String type = generateLdpTaskType(connectionId, user);
-                    task.setType(type);
+                    Node node = sourceNode.get(0);
+                    if (node instanceof TableNode) {
+                        String connectionId = ((TableNode) node).getConnectionId();
+                        String type = generateLdpTaskType(connectionId, user);
+                        task.setType(type);
+                    }
                 }
             }
             taskSaveService.supplementAlarm(task, user);
