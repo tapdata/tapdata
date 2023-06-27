@@ -107,7 +107,7 @@ build() {
         docker start tapdata-build-container
       else
         info "no tapdata build container find, try run a new one..."
-        docker run --name=tapdata-build-container -v $sourcepath:/tapdata-source/ -id $tapdata_build_image "while true; do sleep 1; done"
+        docker run --name=tapdata-build-container -v $sourcepath:/tapdata-source/ -id $tapdata_build_image bash -c "sleep infinity"
       fi
     fi
     docker exec -e PRODUCT=idaas -i tapdata-build-container bash -c "cd /tapdata-source && bash build/build.sh -c true"
