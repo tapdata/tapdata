@@ -95,7 +95,7 @@ var dateUtils = {
         //return tapUtil.longToDateStr(time);
     },
 
-    parseDate(dataStr, format, timeZoneNumber){
+    parseDate: function (dataStr, format, timeZoneNumber){
         return tapUtil.parseDate(dataStr, format, timeZoneNumber);
     }
 };

@@ -8,6 +8,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 
 public class JsUtil {
@@ -210,7 +211,7 @@ public class JsUtil {
         System.out.println(util.timeStamp2Date(System.currentTimeMillis(), "yyyyMMddHHmmsssss"));
     }
 
-    public static Date parseDate(String dataStr, String format, int timeZone){
+    public Date parseDate(String dataStr, String format, int timeZone){
         //SimpleDateFormat 格式化日期所用到的类
         try {
             SimpleDateFormat simpleDateFormat = new SimpleDateFormat(format);
@@ -220,5 +221,13 @@ public class JsUtil {
         } catch (Exception e){
             return null;
         }
+    }
+
+    public List<String> keysFromMap(Object map){
+        if (map instanceof Map) {
+            Map<String, Object> objectMap = (Map<String, Object>) map;
+            return objectMap.keySet().stream().filter(Objects::nonNull).collect(Collectors.toList());
+        }
+        return new ArrayList<>();
     }
 }
