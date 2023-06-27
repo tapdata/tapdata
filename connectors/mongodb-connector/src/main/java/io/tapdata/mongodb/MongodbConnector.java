@@ -781,6 +781,10 @@ public class MongodbConnector extends ConnectorBase {
 		if (CollectionUtils.isNotEmpty(indexList)) {
 			for (TapIndex tapIndex : indexList) {
 				// TODO: when name starts with __t__, skip it
+				if (tapIndex.getName() == null) {
+					continue;
+				}
+
 				if (tapIndex.getName().startsWith("__t__")) {
 					continue;
 				}
