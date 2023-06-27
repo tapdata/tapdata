@@ -1,5 +1,6 @@
 package com.tapdata.tm.ds.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.lang.Assert;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -1958,6 +1959,18 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		Query query = new Query(criteria);
 		query.fields().include("_id", "name", "status", "syncType");
 		return query;
+	}
+
+
+	public DataSourceConnectionDto findById(ObjectId id, String... fields) {
+		com.tapdata.tm.base.dto.Field field = new com.tapdata.tm.base.dto.Field();
+		if (fields != null && fields.length > 0) {
+			for (String f : fields) {
+				field.put(f, true);
+			}
+		}
+		return repository.findById(id, field).map(v ->
+				BeanUtil.copyProperties(v, DataSourceConnectionDto.class)).orElse(null);
 	}
 
 }

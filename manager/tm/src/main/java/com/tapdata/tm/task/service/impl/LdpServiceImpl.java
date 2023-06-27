@@ -233,7 +233,7 @@ public class LdpServiceImpl implements LdpService {
         Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(sourceConnId));
         Query conQuery = new Query(criteria);
         conQuery.fields().include("database_type", "response_body");
-        DataSourceConnectionDto connection = dataSourceService.findOne(conQuery);
+        DataSourceConnectionDto connection = dataSourceService.findById(MongoUtils.toObjectId(sourceConnId), "database_type", "response_body");
         dataSourceService.buildDefinitionParam(Lists.newArrayList(connection), user);
         List<Capability> capabilities = connection.getCapabilities();
         if (CollectionUtils.isEmpty(capabilities)) {
