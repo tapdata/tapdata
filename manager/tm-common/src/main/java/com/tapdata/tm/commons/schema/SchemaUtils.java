@@ -5,6 +5,8 @@ import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
@@ -22,11 +24,19 @@ import java.util.stream.Stream;
 public class SchemaUtils {
 
     private static Logger log = LoggerFactory.getLogger(SchemaUtils.class);
-    private static Map<String, Integer> createSourcePriority = new HashMap<String, Integer>(){{
-        put("manual", 3);
-        put("auto", 2);
-        put("job_analyze", 1);
-    }};
+
+    private enum PriorityEnum {
+        manual(3),
+        auto(2),
+        job_analyze(1),
+        ;
+        @Getter
+        private final int v;
+
+        PriorityEnum(int v) {
+            this.v = v;
+        }
+    }
 
     /**
      * 多个模型合并为一个
@@ -46,12 +56,8 @@ public class SchemaUtils {
      * @return 合并后的模型
      */
     public static Schema mergeSchema(List<Schema> inputSchemas, Schema schema, boolean logicInput) {
-
-
         List<Schema> _inputSchemas = inputSchemas.stream().filter(Objects::nonNull).collect(Collectors.toList());
         Schema targetSchema = cloneSchema(schema);
-
-
 
         if (targetSchema == null) {
             if (_inputSchemas.size() > 0) {
@@ -74,6 +80,7 @@ public class SchemaUtils {
                 }
             }
         }
+
         if (targetSchema == null) {
             log.warn("Can't merge non schema.");
             return null;
@@ -88,53 +95,23 @@ public class SchemaUtils {
             }
         }
 
-
-//        List<String> inputSchemaFieldIds = _inputSchemas.stream().flatMap(s -> s.getFields().stream())
-//                .map(Field::getId).filter(Objects::nonNull).collect(Collectors.toList());
-//
-//        Map<String, Field> inputSchemaFieldMap = _inputSchemas.stream().flatMap(s -> s.getFields().stream())
-//                .filter(Objects::nonNull).collect(
-//                        Collectors.toMap(Field::getId, f->f, (v, m) -> getPriority(v.getSource()) > getPriority(m.getSource()) ? v : m));
-//
-//            List<Field> targetFields = targetSchema.getFields();
-//        List<String> targetSchemaFieldIds = targetFields != null ? targetFields.stream().filter(Objects::nonNull)
-//                .map(Field::getId).collect(Collectors.toList()) : new ArrayList<>();
-//        Map<String, Field> targetSchemaFieldMap = targetFields != null ?
-//                targetFields.stream().filter(Objects::nonNull).collect(
-//                        Collectors.toMap(Field::getId, f->f, (v, m) -> getPriority(v.getSource()) > getPriority(m.getSource()) ? v : m)) :
-//                new HashMap<>();
-        Map<String, Field> fields = Stream.concat(
-                _inputSchemas.stream().flatMap(m ->
-                        (m != null && m.getFields() != null) ? m.getFields().stream() : Stream.empty()),
+        Map<String, Field> fields = Stream
+                .concat(_inputSchemas.stream().flatMap(m ->
+                                        (m != null && m.getFields() != null)
+                                        ? m.getFields().stream() :
+                                        Stream.empty()),
                 targetSchema.getFields() != null ? targetSchema.getFields().stream(): Stream.empty())
                 .collect(Collectors.toMap(Field::getFieldName, f -> f, (v, m) -> {
-
-                    // 根据 模型来源优先级(create_source) 控制是否覆盖策略
-                    // is_auto_allowed(字段配置) > 人工修改 > 加载模型 > 模型推演
-                    //                            manual / auto / job_analyze
-//                    if (v.getIsAutoAllowed())
-//                        return v;
-//                    if (m.getIsAutoAllowed())
-//                        return m;
                     int vPriority = getPriority(v.getSource());
                     int mPriority = getPriority(m.getSource());
                     Field field;
                     //都为手动修改的时候，取后者更合理
-                    if (mPriority == 3 && vPriority == 3) {
+                    if (mPriority == PriorityEnum.manual.v && vPriority == PriorityEnum.manual.v) {
                         field = m;
                     } else {
                         field = getPriority(v.getSource()) >= getPriority(m.getSource()) ? v : m;
                     }
-//                    List<String> oldIdList = field.getOldIdList();
-//
-//                    if (oldIdList == null) {
-//                        oldIdList = new ArrayList<>();
-//                    }
-//
-//                    oldIdList.add(v.getId());
-//                    oldIdList.add(m.getId());
                     return field;
-
                 }));
 
         targetSchema.setFields(new ArrayList<>(fields.values()));
@@ -147,7 +124,16 @@ public class SchemaUtils {
     }
 
     private static int getPriority(String source) {
-        return source != null ? createSourcePriority.get(source) : 0;
+        if (StringUtils.isBlank(source)) {
+            return 0;
+        }
+        for (PriorityEnum value : PriorityEnum.values()) {
+            if (value.name().equals(source)) {
+                return value.v;
+            }
+        }
+
+        return 0;
     }
 
     /**
