@@ -16,11 +16,14 @@ import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.partition.DatabaseReadPartitionSplitter;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -259,8 +262,53 @@ public class MysqlConnector extends CommonDbConnector {
         return new MysqlColumn(dataMap).getTapField();
     }
 
-    protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
+    private List<TapIndex> discoverIndex(String tableName) {
+        List<TapIndex> tapIndexList = TapSimplify.list();
+        List<DataMap> indexList;
+        try {
+            indexList = jdbcContext.queryAllIndexes(Collections.singletonList(tableName));
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        Map<String, List<DataMap>> indexMap = indexList.stream()
+                .collect(Collectors.groupingBy(idx -> idx.getString("indexName"), LinkedHashMap::new, Collectors.toList()));
+        indexMap.forEach((key, value) -> tapIndexList.add(makeTapIndex(key, value)));
+        return tapIndexList;
+    }
+
+    private String getCreateIndexSql(TapTable tapTable, TapIndex tapIndex) {
+        StringBuilder sb = new StringBuilder("create ");
+        char escapeChar = commonDbConfig.getEscapeChar();
+        if (tapIndex.isUnique()) {
+            sb.append("unique ");
+        }
+        sb.append("index ");
+        if (EmptyKit.isNotBlank(tapIndex.getName())) {
+            sb.append(escapeChar).append(tapIndex.getName()).append(escapeChar);
+        } else {
+            sb.append(escapeChar).append(DbKit.buildIndexName(tapTable.getId())).append(escapeChar);
+        }
+        sb.append(" on ").append(getSchemaAndTable(tapTable.getId())).append('(')
+                .append(tapIndex.getIndexFields().stream().map(f -> escapeChar + f.getName() + escapeChar + " " + (f.getFieldAsc() ? "asc" : "desc"))
+                        .collect(Collectors.joining(","))).append(')');
+        return sb.toString();
+    }
+
+    protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws SQLException {
         CreateTableOptions createTableOptions = new CreateTableOptions();
+
+        if (tapConnectorContext.getNodeConfig().getValue("syncIndex", false)) {
+            List<String> sqlList = TapSimplify.list();
+            List<TapIndex> indexList = tapCreateTableEvent.getTable().getIndexList().stream().filter(v -> discoverIndex(tapCreateTableEvent.getTable().getId()).stream()
+                    .noneMatch(i -> DbKit.ignoreCreateIndex(i, v))).collect(Collectors.toList());
+            TapLogger.info(TAG, "Index list: {}", indexList);
+            if (EmptyKit.isNotEmpty(indexList)) {
+                indexList.stream().filter(i -> !i.isPrimary()).forEach(i ->
+                        sqlList.add(getCreateIndexSql(tapCreateTableEvent.getTable(), i)));
+            }
+            jdbcContext.batchExecute(sqlList);
+        }
+
         try {
             if (mysqlJdbcContext.queryAllTables(Collections.singletonList(tapCreateTableEvent.getTableId())).size() > 0) {
                 DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
