@@ -27,6 +27,15 @@ is_build="false"
 is_package="false"
 output=""
 
+clean() {
+  # Clean all the outputs from various components.
+  rm -rf $sourcepath/dist
+  rm -rf $sourcepath/iengine/dist
+  rm -rf $sourcepath/manager/dist
+  rm -rf $sourcepath/connectors/dist
+  rm -rf $sourcepath/connectors/dist.tar.gz
+}
+
 usage() {
     echo "Usage: $0 [-c] [-p] [-o jar|tar|docker] [-d] [-t image]"
     echo "  -c: build project, default is false"
@@ -220,15 +229,6 @@ make_image() {
   cp -r $sourcepath/build/image/* $sourcepath/dist/
   # 3. Make docker image.
   cd $sourcepath/dist && bash build.sh
-}
-
-clean() {
-  # Clean all the outputs from various components.
-  rm -rf $sourcepath/dist
-  rm -rf $sourcepath/iengine/dist
-  rm -rf $sourcepath/manager/dist
-  rm -rf $sourcepath/connectors/dist
-  rm -rf $sourcepath/connectors/dist.tar.gz
 }
 
 if [[ $is_build == "true" ]]; then
