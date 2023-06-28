@@ -444,10 +444,10 @@
           "x-index": 12,
           "x-reactions": [
             {
-              "dependencies": ["$outputs"],
+              "dependencies": ["$inputs"],
               "fulfill": {
                 "state": {
-                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                  "display": "{{!$deps[0].length ? \"visible\":\"hidden\"}}"
                 }
               }
             }
