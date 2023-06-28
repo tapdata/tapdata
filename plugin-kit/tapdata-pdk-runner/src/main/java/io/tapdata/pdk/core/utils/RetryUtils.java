@@ -149,23 +149,27 @@ public class RetryUtils extends CommonUtils {
 	}
 
 	private static RetryOptions callErrorHandleFunctionIfNeed(PDKMethod method, String message, Throwable errThrowable, ErrorHandleFunction function, TapConnectionContext tapConnectionContext) {
+		RetryOptions retryOptions = null;
+		if (null != function) {
+			try {
+				retryOptions = function.needRetry(tapConnectionContext, method, errThrowable);
+			} catch (Throwable e) {
+				throw new TapCodeException(TapPdkRunnerExCode_18.CALL_ERROR_HANDLE_API_ERROR, "Call error handle function failed", e);
+			}
+		}
+		if (null == retryOptions) {
+			retryOptions = RetryOptions.create();
+		}
 		if (errThrowable instanceof TapCodeException) {
 			String code = ((TapCodeException) errThrowable).getCode();
 			ErrorCodeEntity errorCode = ErrorCodeConfig.getInstance().getErrorCode(code);
-			if (null != errorCode && !errorCode.isRecoverable()) {
-				return RetryOptions.create().beforeRetryMethod(() -> {
-				}).needRetry(false);
+			if (errorCode.isRecoverable()) {
+				retryOptions.needRetry(true);
+			} else {
+				if (!TapPdkRunnerExCode_18.UNKNOWN_ERROR.equals(code)) {
+					retryOptions.needRetry(false);
+				}
 			}
-		}
-
-		if (null == function) {
-			return null;
-		}
-		RetryOptions retryOptions;
-		try {
-			retryOptions = function.needRetry(tapConnectionContext, method, errThrowable);
-		} catch (Throwable e) {
-			throw new TapCodeException(TapPdkRunnerExCode_18.CALL_ERROR_HANDLE_API_ERROR, "Call error handle function failed", e);
 		}
 		return retryOptions;
 	}
