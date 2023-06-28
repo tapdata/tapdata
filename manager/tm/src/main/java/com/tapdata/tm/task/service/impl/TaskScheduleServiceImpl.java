@@ -94,7 +94,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
         if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
                 && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
-            int num = taskService.runningTaskNum(taskDto.getAgentId());
+            int num = taskService.runningTaskNum(taskDto.getAgentId(), user);
             WorkerDto workerDto = workerService.findByProcessId(taskDto.getAgentId(), user, "user_id","agentTags", "process_id");
             int limitTaskNum = workerService.getLimitTaskNum(workerDto, user);
             if (limitTaskNum <= num) {
@@ -107,7 +107,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
 
-        if (StringUtils.isBlank(taskDto.getAgentId()) && calculationEngineVo.getTaskAvailable() != calculationEngineVo.getAvailable()) {
+        if (StringUtils.isBlank(taskDto.getAgentId()) && calculationEngineVo.getRunningNum() > calculationEngineVo.getTaskLimit()) {
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
             if (stateMachineResult.isOk()) {
                 throw new BizException("Task.ScheduleLimit");

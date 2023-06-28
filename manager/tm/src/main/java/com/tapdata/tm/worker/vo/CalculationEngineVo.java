@@ -12,5 +12,6 @@ public class CalculationEngineVo {
     private ArrayList<BasicDBObject> threadLog;
     private int available;
     private boolean manually;
-    private int taskAvailable;
+    private int taskLimit;
+    private int runningNum;
 }
