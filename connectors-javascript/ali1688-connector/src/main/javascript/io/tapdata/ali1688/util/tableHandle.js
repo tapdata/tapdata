@@ -265,6 +265,8 @@ class ShippingOrder extends DefaultTable {
             for (let index = 0; index < pageList.length; index++) {
                 let record = handleRecord(pageList[index]);
 
+                let idOfStr = record.idOfStr;
+
                 //获取物流信息
                 let needLogistics = connectionConfig.getLogistics;
                 if (!(isValue(needLogistics) && !needLogistics)){
@@ -299,6 +301,10 @@ class ShippingOrder extends DefaultTable {
                             }
                         }
                     }
+                }
+                let filter = nodeConfig.filter;
+                if (isValue(filter) && filter.search(idOfStr) > 0) {
+                    log.warn("SHOW: {}", JSON.stringify(pageList[index]));
                 }
 
                 let orderInfo = this.csv(record);

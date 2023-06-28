@@ -23,6 +23,14 @@
             "tooltip": "${log_compile_tip}"
           },
           "x-index": 10
+        },
+        "filter": {
+          "type": "String",
+          "title": "Filter and show Record",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "",
+          "x-index": 999998
         }
       }
     },

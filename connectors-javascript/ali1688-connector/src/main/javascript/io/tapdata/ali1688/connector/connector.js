@@ -6,7 +6,7 @@ config.setStreamReadIntervalSeconds(2*60);
 
 function discoverSchema(connectionConfig) {
     let tableType = connectionConfig.tableType;
-    if (isValue(tableType) && "" === tableType){
+    if (isValue(tableType) && "Document" === tableType){
         return Object.values(globalTableConfig);
     }
     return Object.values(csvTableConfig);
