@@ -297,13 +297,18 @@ public class TicketsSchema extends Schema implements SchemaLoader {
     public void read(int readSize, Object offsetState, BiConsumer<List<TapEvent>, Object> consumer,boolean isStreamRead ){
         final List<TapEvent>[] events = new List[]{new ArrayList<>()};
         int pageSize = Math.min(readSize, this.batchReadMaxPageSize);
+
+        TapConnectionContext context = this.ticketLoader.getContext();
+        ContextConfig contextConfig = ticketLoader.veryContextConfigAndNodeConfig();
+
         HttpEntity<String, Object> tickPageParam = ticketLoader.getTickPageParam()
                 .build("limit", pageSize);
-        if (!isStreamRead) {
-            tickPageParam.build("sortBy", "createdTime");
-        }
+
+        String fields = contextConfig.fields();
+        Optional.ofNullable(fields).ifPresent(f -> tickPageParam.build("fields", f));
+        tickPageParam.build("sortBy", (contextConfig.sortType() ? "-" : "" )+ (isStreamRead ? "modifiedTime" : "createdTime"));
+
         int fromPageIndex = 1;//从第几个工单开始分页
-        TapConnectionContext context = this.ticketLoader.getContext();
         String modeName = context.getConnectionConfig().getString("connectionMode");
         ConnectionMode connectionMode = ConnectionMode.getInstanceByName(context, modeName);
         if (null == connectionMode){
@@ -312,22 +317,27 @@ public class TicketsSchema extends Schema implements SchemaLoader {
         String tableName =  Schemas.Tickets.getTableName();
         if (Checker.isEmpty(offsetState)) offsetState = ZoHoOffset.create(new HashMap<>());
         final Object offset = offsetState;
+
+        boolean finalNeedDetail = contextConfig.needDetailObj();
         while (isAlive()){
             tickPageParam.build("from", fromPageIndex);
             List<Map<String, Object>> list = ticketLoader.list(tickPageParam);
             if (Checker.isEmpty(list) || list.isEmpty()) break;
             fromPageIndex += pageSize;
-            list.stream().filter(Objects::nonNull).forEach(ticket->{
+            list.stream().filter(Objects::nonNull).forEach(ticket -> {
                 if (!isAlive()) return;
-                Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,tableName,ticketLoader);
-                if (Checker.isEmpty(oneTicket) || oneTicket.isEmpty()) return;
-                Object modifiedTimeObj = isStreamRead?null:oneTicket.get("modifiedTime");//stream read is sort by "modifiedTime",batch read is sort by "createdTime"
-                long referenceTime = System.currentTimeMillis();
-                if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
-                    referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);
-                    ((ZoHoOffset) offset).getTableUpdateTimeMap().put(tableName, referenceTime);
-                }
-                events[0].add(TapSimplify.insertRecordEvent(oneTicket,tableName).referenceTime(referenceTime));
+                    Map<String, Object> oneTicket = finalNeedDetail ?
+                            connectionMode.attributeAssignment(ticket, tableName, ticketLoader)
+                            : ticket;
+                    if (Checker.isEmpty(oneTicket) || oneTicket.isEmpty()) return;
+                    Object modifiedTimeObj = isStreamRead ? oneTicket.get("modifiedTime") : oneTicket.get("createdTime");//stream read is sort by "modifiedTime",batch read is sort by "createdTime"
+                    long referenceTime = System.currentTimeMillis();
+                    if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
+                        referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);
+                        ((ZoHoOffset) offset).getTableUpdateTimeMap().put(tableName, referenceTime);
+                    }
+                    events[0].add(TapSimplify.insertRecordEvent(oneTicket,tableName).referenceTime(referenceTime));
+
                 if (events[0].size() != readSize) return;
                 consumer.accept(events[0], offset);
                 events[0] = new ArrayList<>();

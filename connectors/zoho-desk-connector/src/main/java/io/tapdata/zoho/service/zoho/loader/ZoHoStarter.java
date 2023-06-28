@@ -16,6 +16,8 @@ import io.tapdata.zoho.utils.ZoHoHttp;
 
 import java.util.Map;
 
+import static io.tapdata.base.ConnectorBase.toJson;
+
 public class ZoHoStarter {
     private static final String TAG = ZoHoStarter.class.getSimpleName();
 
@@ -98,6 +100,11 @@ public class ZoHoStarter {
                 .generateCode(generateCode)
                 .connectionMode(connectionMode);
         if (this.tapConnectionContext instanceof TapConnectorContext) {
+
+            DataMap nodeConfig = this.tapConnectionContext.getNodeConfig();
+            config.fields(nodeConfig.get("customFieldKeys"))
+                    .needDetailObj(nodeConfig.get("needDetail"))
+                    .sortType(nodeConfig.get("sortType"));
             KVMap<Object> stateMap = ((TapConnectorContext) this.tapConnectionContext).getStateMap();
             if (null != stateMap) {
                 Object refreshTokenObj = stateMap.get("refreshToken");
@@ -186,6 +193,10 @@ public class ZoHoStarter {
             if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) ){// || Checker.isEmpty(((Map<String,Object>)httpResult.getResult()).get("data"))){
                 throw new CoreException("AccessToken refresh succeed, but retry http failed. ");
             }
+        }
+        if ("ERROR".equals(httpResult.getCode())) {
+            String msg = toJson(httpResult.getResult());
+            throw new CoreException(msg);
         }
         return httpResult;
     }

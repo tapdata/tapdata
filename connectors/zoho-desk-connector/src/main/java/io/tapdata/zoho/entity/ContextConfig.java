@@ -1,5 +1,13 @@
 package io.tapdata.zoho.entity;
 
+import io.tapdata.entity.error.CoreException;
+
+import java.util.Collection;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.StringJoiner;
+
 public class ContextConfig {
     public static ContextConfig create(){
         return new ContextConfig();
@@ -12,6 +20,9 @@ public class ContextConfig {
     private String generateCode;
     private String connectionMode;
     private String streamReadType;
+    private boolean sortType;
+    private String fields;
+    private boolean needDetailObj;
 
     public ContextConfig refreshToken(String refreshToken){
         this.refreshToken = refreshToken;
@@ -46,6 +57,54 @@ public class ContextConfig {
         this.generateCode = generateCode;
         return this;
     }
+    public ContextConfig fields(Object fieldObj){
+        //List<Map<String,Object>>
+        if (fieldObj instanceof Collection) {
+            Collection<Object> objects = (Collection<Object>) fieldObj;
+            StringJoiner joiner = new StringJoiner(",");
+            for (Object f : objects) {
+                if (null == f) continue;
+                if (f instanceof Map){
+                    Map<String, Object> map = (Map<String, Object>) f;
+                    Optional.ofNullable(map.get("keyName")).ifPresent(name -> {
+                        String n = String.valueOf(name);
+                        if (!"".equals(n.trim()) && joiner.length() <= (100-n.length())){
+                            joiner.add(n);
+                        } else {
+                            throw new CoreException("".equals(n.trim()) ? "An error custom field name, field name can not be empty" : "An error custom field name, the cumulative length of all field names cannot exceed 100");
+                        }
+                    });
+                }
+            }
+            fields = joiner.toString();
+        } else {
+            fields = null;
+        }
+        return this;
+    }
+    public ContextConfig sortType(Object sortObj){
+        this.sortType = true;
+        try {
+            if (sortObj instanceof Boolean) {
+                this.sortType = (Boolean)sortObj;
+            } else if (sortObj instanceof String){
+                this.sortType = Boolean.getBoolean((String) sortObj);
+            }
+        }catch (Exception ignore) {}
+        return this;
+    }
+    public ContextConfig needDetailObj(Object needDetailObj){
+        this.needDetailObj = true;
+        try {
+            if (needDetailObj instanceof Boolean) {
+                this.needDetailObj = (Boolean)needDetailObj;
+            } else if (needDetailObj instanceof String){
+                this.needDetailObj = Boolean.getBoolean((String) needDetailObj);
+            }
+        }catch (Exception ignore) {}
+        return this;
+    }
+
     public String refreshToken(){
         return this.refreshToken;
     }
@@ -70,5 +129,15 @@ public class ContextConfig {
     }
     public String generateCode(){
         return this.generateCode;
+    }
+
+    public boolean sortType(){
+        return this.sortType;
+    }
+    public boolean needDetailObj(){
+        return this.needDetailObj;
+    }
+    public String fields(){
+        return this.fields;
     }
 }
