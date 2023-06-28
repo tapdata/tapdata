@@ -175,7 +175,7 @@ public class MongodbConnector extends ConnectorBase {
 							// add a empty tapIndexField
 							TapIndexField tapIndexField = new TapIndexField();
 							tapIndex.indexField(tapIndexField);
-							TapLogger.info(TAG, "MongodbConnector discoverSchema index {}", tapIndex.toString());
+							TapLogger.info(TAG, "MongodbConnector discoverSchema table: {} index {}",name, ((Document) index).toJson());
 							table.add(tapIndex);
 						});
 
@@ -480,6 +480,11 @@ public class MongodbConnector extends ConnectorBase {
 		if (mongoConfig.isSyncIndex()) {
 			TapLogger.info(TAG, "sync index enabled, will create index for table: " + table.getName());
 			// TODO: TapIndex is not common struct, we can not use it to create index
+			if (table.getIndexList() == null) {
+				TapLogger.info(TAG, "table: " + table.getName() + " has no index");
+				return createTableOptions;
+			}
+
 			table.getIndexList().forEach(index -> {
 				TapLogger.info(TAG, "find index: " + index.getName());
 				try {
