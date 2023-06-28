@@ -207,8 +207,9 @@ public class TapdataTaskScheduler {
 					taskId = startTaskOperation.getTaskDto().getId().toHexString();
 					Object lock = lockTask(taskId);
 					synchronized (lock) {
+						TaskDto taskDto = startTaskOperation.getTaskDto();
 						try {
-							startTask(startTaskOperation.getTaskDto());
+							startTask(taskDto);
 						} finally {
 							unlockTask(taskId);
 						}
