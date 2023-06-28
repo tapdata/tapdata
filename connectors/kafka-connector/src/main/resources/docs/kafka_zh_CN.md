@@ -70,12 +70,12 @@
 
 ##### **3.1 公共配置**
 
-| 字段名 (UI 表单参数名) | 类型   | 是否必填 | 备注                | 默认值 | 校验                                                                                     | UI 表单字段 名称 | UI 表单 字段组件          |
-| ---------------------- | ------ | -------- | ------------------- | ------ | ---------------------------------------------------------------------------------------- | ---------------- | ------------------------- |
-| kafkaBootstrapServers  | String | 是       | Broker 地址列表     | -      | host1:port,host2:port,host3:port (如 192.168.1.1:9092,192.168.1.2:9092,192.168.1.3:9092) | 主机列表         | `<input type="text" />`   |
-| databaseType           | String | 是       | 数据库类型          | -      | 固定值: kafka                                                                            | 无               | `<input type="hidden" />` |
-| connection_type        | String | 是       | 链接类型            | -      | 枚举值: source \| target \| source_and_target                                            | 链接类型         | `<select />`              |
-| kafkaPatternTopics     | String | 是       | 主题名称正则表达式, | -      | 文本长度大于 0，小于 256                                                                 | 主题正则表达式   | `<input type="text" />`   |
+| 字段名 (UI 表单参数名) | 类型   | 是否必填 | 备注          | 默认值 | 校验                                                                                     | UI 表单字段 名称 | UI 表单 字段组件          |
+| ---------------------- | ------ | -------- |-------------| ------ | ---------------------------------------------------------------------------------------- |------------| ------------------------- |
+| kafkaBootstrapServers  | String | 是       | Broker 地址列表 | -      | host1:port,host2:port,host3:port (如 192.168.1.1:9092,192.168.1.2:9092,192.168.1.3:9092) | 主机列表       | `<input type="text" />`   |
+| databaseType           | String | 是       | 数据库类型       | -      | 固定值: kafka                                                                            | 无          | `<input type="hidden" />` |
+| connection_type        | String | 是       | 链接类型        | -      | 枚举值: source \| target \   | source_and_target                                            | 链接类型         | `<select />`              |
+| kafkaPatternTopics     | String | 是       | 主题名称通配表达式,  | -      | 文本长度大于 0，小于 256                                                                 | 主题通配表达式    | `<input type="text" />`   |
 
 ##### **3.2 Source (Kafka Consumer)**
 
