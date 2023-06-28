@@ -711,13 +711,13 @@ public class MongodbConnector extends ConnectorBase {
 	protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
 		if (null != matchThrowable(throwable, MongoNotPrimaryException.class)) {
 			try {
-				if (null != mongoClient) {
-					mongoClient.close();
-				}
-			} catch (Exception e) {
-				TapLogger.warn(TAG, "Close mongo client failed, ignore it...", e);
+				onStop(tapConnectionContext);
+			} catch (Throwable ignore) {
 			}
-			mongoClient = MongodbUtil.createMongoClient(mongoConfig);
+			try {
+				onStart(tapConnectionContext);
+			} catch (Throwable ignore) {
+			}
 		}
 
 		RetryOptions retryOptions = RetryOptions.create();
