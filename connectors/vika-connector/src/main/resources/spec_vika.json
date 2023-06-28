@@ -89,6 +89,44 @@
       ],
       "to": "TapNumber"
     },
+    "Number0":{
+      "to": "TapNumber",
+      "precision": [1, 65],
+      "value": [-999999999, 999999999],
+      "scale": 0,
+      "defaultPrecision": 10,
+      "defaultScale": 0
+    },
+    "Number1":{
+      "to": "TapNumber",
+      "precision": [1, 65],
+      "value": [-999999999.9, 999999999.9],
+      "scale": 1,
+      "defaultPrecision": 10,
+      "defaultScale": 1
+    },
+    "Number2": {
+      "to": "TapNumber",
+      "precision": [1, 65],
+      "value": [-999999999.99, 999999999.99],
+      "scale": 2
+    },
+    "Number3": {
+      "to": "TapNumber",
+      "precision": [1, 65],
+      "value": [-999999999.999, 999999999.999],
+      "scale": 3,
+      "defaultPrecision": 10,
+      "defaultScale": 3
+    },
+    "Number4": {
+      "to": "TapNumber",
+      "precision": [1, 65],
+      "value": [-999999999.9999, 999999999.9999],
+      "scale": 4,
+      "defaultPrecision": 10,
+      "defaultScale": 4
+    },
     "DateTime": {
       "range": [
         "1000-01-01 00:00:00",
