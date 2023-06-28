@@ -1481,7 +1481,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			MetadataInstancesDto newModel = newMap.get(metadataInstancesDto.getQualifiedName());
 			if (newModel != null) {
 				newModel.getFields().forEach(field -> {
-					if(map.containsKey(field.getId())) {
+					if(map.containsKey(field.getFieldName())) {
 						field.setDescription(map.get(field.getFieldName()));
 					}
 				});
