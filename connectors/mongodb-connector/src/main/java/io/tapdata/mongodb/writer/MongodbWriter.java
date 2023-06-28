@@ -18,6 +18,7 @@ import io.tapdata.mongodb.MongodbUtil;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.reader.MongodbV4StreamReader;
 import io.tapdata.mongodb.util.MongodbLookupUtil;
+import io.tapdata.mongodb.writer.BulkWriteModel;
 import io.tapdata.mongodb.writer.error.BulkWriteErrorCodeHandlerEnum;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;

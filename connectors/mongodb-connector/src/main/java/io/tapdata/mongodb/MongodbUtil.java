@@ -30,6 +30,7 @@ import java.security.SecureRandom;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -262,170 +263,217 @@ public class MongodbUtil {
 		return key;
 	}
 
-	public static MongoClient createMongoClient(MongodbConfig mongodbConfig) {
-		CodecRegistry defaultCodecRegistry = MongoClientSettings.getDefaultCodecRegistry();
-		CodecRegistry codecRegistry = CodecRegistries.fromRegistries(CodecRegistries.fromCodecs(
-				new TapdataBigDecimalCodec(),
-				new TapdataBigIntegerCodec()
-		), defaultCodecRegistry);
-		final MongoClientSettings.Builder builder = MongoClientSettings.builder().codecRegistry(codecRegistry);
-		String mongodbUri = mongodbConfig.getUri();
-		if (null == mongodbUri || "".equals(mongodbUri)) {
-			throw new RuntimeException("Create MongoDB client failed, error: uri is blank");
+	// 写一个方法, 接收 mongoUri, 如果参数里没有包含 replicaSet, 返回 mongoUri, 但是里面只有主节点的地址
+	private static String getPrimaryUri(String mongoUri) {
+		if (mongoUri.contains("replicaSet")) {
+			return mongoUri;
 		}
-		builder.applyConnectionString(new ConnectionString(mongodbUri));
 
-		if (mongodbConfig.isSsl()) {
-			if (EmptyKit.isNotEmpty(mongodbUri) &&
-					(mongodbUri.indexOf("tlsAllowInvalidCertificates=true") > 0 ||
-							mongodbUri.indexOf("sslAllowInvalidCertificates=true") > 0)) {
-				builder.applyToSslSettings(sslSettingBuilder -> {
+		AtomicReference<String> primaryHost = new AtomicReference<>();
+		ConnectionString connectionString = new ConnectionString(mongoUri);
+		try {
+			List<String> hosts = connectionString.getHosts();
+			if (EmptyKit.isNotEmpty(hosts)) {
+				hosts.forEach(host -> {
+					MongoClient client = null;
+					try {
+						client = MongoClients.create("mongodb://" + host);
+						MongoDatabase database = client.getDatabase("admin");
+						Document result = database.runCommand(new Document("isMaster", 1));
+						if (result.getBoolean("ismaster")) {
+							primaryHost.set(host);
+						}
+					} finally {
+						if (client != null) {
+							try {
+								client.close();
+							} catch (Exception ignored) {
+							}
+						}
+					}
+					});
+				}
+			} catch (Exception ignored) {
+		}
+
+		if (primaryHost.get() != null) {
+			// oriHosts 为 connectionString.getHosts() 用 , 连接
+			String oriHosts = String.join(",", connectionString.getHosts());
+			mongoUri = mongoUri.replace(oriHosts, primaryHost.get());
+		}
+
+		return mongoUri;
+	}
+
+
+		public static MongoClient createMongoClient(MongodbConfig mongodbConfig) {
+			CodecRegistry defaultCodecRegistry = MongoClientSettings.getDefaultCodecRegistry();
+			CodecRegistry codecRegistry = CodecRegistries.fromRegistries(CodecRegistries.fromCodecs(
+					new TapdataBigDecimalCodec(),
+					new TapdataBigIntegerCodec()
+			), defaultCodecRegistry);
+			final MongoClientSettings.Builder builder = MongoClientSettings.builder().codecRegistry(codecRegistry);
+			String mongodbUri = mongodbConfig.getUri();
+			if (null == mongodbUri || "".equals(mongodbUri)) {
+				throw new RuntimeException("Create MongoDB client failed, error: uri is blank");
+			}
+
+			// if mongodbUri not contains replicaSet, then only connect to primary node
+			mongodbUri = getPrimaryUri(mongodbUri);
+
+			builder.applyConnectionString(new ConnectionString(mongodbUri));
+
+			if (mongodbConfig.isSsl()) {
+				if (EmptyKit.isNotEmpty(mongodbUri) &&
+						(mongodbUri.indexOf("tlsAllowInvalidCertificates=true") > 0 ||
+								mongodbUri.indexOf("sslAllowInvalidCertificates=true") > 0)) {
+					builder.applyToSslSettings(sslSettingBuilder -> {
+						SSLContext sslContext = null;
+						try {
+							sslContext = SSLContext.getInstance("SSL");
+						} catch (NoSuchAlgorithmException e) {
+							throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
+						}
+						try {
+							sslContext.init(null, new TrustManager[]{new X509TrustManager() {
+								@Override
+								public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+								}
+
+								@Override
+								public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+								}
+
+								@Override
+								public X509Certificate[] getAcceptedIssuers() {
+									return null;
+								}
+							}}, new SecureRandom());
+						} catch (KeyManagementException e) {
+							throw new RuntimeException(String.format("Initialize ssl context failed %s", e.getMessage()), e);
+						}
+						sslSettingBuilder.enabled(true).context(sslContext).invalidHostNameAllowed(true);
+					});
+
+				} else {
+					sslMongoClientOption(mongodbConfig.isSslValidate(), mongodbConfig.getSslCA(), mongodbConfig.getSslCA(),
+							mongodbConfig.getSslKey(), mongodbConfig.getSslPass(), mongodbConfig.getCheckServerIdentity(), builder);
+				}
+			}
+
+			return MongoClients.create(builder.build());
+		}
+
+		public static void sslMongoClientOption(boolean sslValidate, String sslCA, String sslCert, String sslKeyStr, String sslPass,
+		boolean checkServerIdentity, MongoClientSettings.Builder builder) {
+
+
+			List<String> certificates = SSLUtil.retriveCertificates(sslCert);
+			String sslKey = SSLUtil.retrivePrivateKey(sslKeyStr);
+			if (EmptyKit.isNotBlank(sslKey) && CollectionUtils.isNotEmpty(certificates)) {
+
+				builder.applyToSslSettings(sslSettingsBuilder -> {
+					List<String> trustCertificates = null;
+					if (sslValidate) {
+						trustCertificates = SSLUtil.retriveCertificates(sslCA);
+					}
 					SSLContext sslContext = null;
 					try {
-						sslContext = SSLContext.getInstance("SSL");
-					} catch (NoSuchAlgorithmException e) {
+						sslContext = SSLUtil.createSSLContext(sslKey, certificates, trustCertificates, sslPass);
+					} catch (Exception e) {
 						throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
 					}
-					try {
-						sslContext.init(null, new TrustManager[]{new X509TrustManager() {
-							@Override
-							public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-							}
-
-							@Override
-							public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-							}
-
-							@Override
-							public X509Certificate[] getAcceptedIssuers() {
-								return null;
-							}
-						}}, new SecureRandom());
-					} catch (KeyManagementException e) {
-						throw new RuntimeException(String.format("Initialize ssl context failed %s", e.getMessage()), e);
-					}
-					sslSettingBuilder.enabled(true).context(sslContext).invalidHostNameAllowed(true);
+					sslSettingsBuilder.context(sslContext);
+					sslSettingsBuilder.enabled(true);
+					sslSettingsBuilder.invalidHostNameAllowed(!checkServerIdentity);
 				});
-
-			} else {
-				sslMongoClientOption(mongodbConfig.isSslValidate(), mongodbConfig.getSslCA(), mongodbConfig.getSslCA(),
-						mongodbConfig.getSslKey(), mongodbConfig.getSslPass(), mongodbConfig.getCheckServerIdentity(), builder);
 			}
 		}
 
-		return MongoClients.create(builder.build());
-	}
+		public static String getSimpleMongodbUri(ConnectionString connectionString) {
+			if (connectionString == null) {
+				return "";
+			}
 
-	public static void sslMongoClientOption(boolean sslValidate, String sslCA, String sslCert, String sslKeyStr, String sslPass,
-											boolean checkServerIdentity, MongoClientSettings.Builder builder) {
+			String uri = "mongodb://";
 
+			uri += connectionString.getHosts().stream().collect(Collectors.joining(",")).trim();
 
-		List<String> certificates = SSLUtil.retriveCertificates(sslCert);
-		String sslKey = SSLUtil.retrivePrivateKey(sslKeyStr);
-		if (EmptyKit.isNotBlank(sslKey) && CollectionUtils.isNotEmpty(certificates)) {
+			if (EmptyKit.isNotBlank(connectionString.getDatabase())) {
+				uri += "/" + connectionString.getDatabase();
+			}
 
-			builder.applyToSslSettings(sslSettingsBuilder -> {
-				List<String> trustCertificates = null;
-				if (sslValidate) {
-					trustCertificates = SSLUtil.retriveCertificates(sslCA);
+			return uri;
+		}
+
+		/**
+		 * If the association condition does not contain the _id and the write circuit is empty, the _id needs to be removed.
+		 * When the record _id of the source database is changed (written again), the target mongodb _id cannot be updated.
+		 *
+		 * @param pks
+		 * @param value
+		 */
+		public static void removeIdIfNeed(Collection<String> pks, Map<String, Object> value) {
+			if (EmptyKit.isEmpty(pks)) {
+				return;
+			}
+			if (!pks.contains("_id")) {
+				if (EmptyKit.isNotEmpty(value) && value.containsKey("_id")) {
+					value.remove("_id");
 				}
-				SSLContext sslContext = null;
-				try {
-					sslContext = SSLUtil.createSSLContext(sslKey, certificates, trustCertificates, sslPass);
-				} catch (Exception e) {
-					throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
+			}
+		}
+
+		/**
+		 * If the association condition does not contain the _id and the write circuit is empty,
+		 * the _id needs to be removed.
+		 * (When the record _id of the source database is changed (written again), the target mongodb _id cannot be updated.)
+		 *
+		 * @param joinCondition
+		 * @param targetPath    Position to write to the catalog
+		 * @param value
+		 */
+		public static void removeIdIfNeed(List<Map<String, String>> joinCondition, String targetPath, Map<String, Object> value) {
+			// 写入内嵌字段时，不会发生_id冲突的问题，无需移除
+			if (EmptyKit.isNotBlank(targetPath)) {
+				return;
+			}
+			if (!MongodbUtil.containIdInCondition(joinCondition)) {
+				if (EmptyKit.isNotEmpty(value) && value.containsKey("_id")) {
+					value.remove("_id");
 				}
-				sslSettingsBuilder.context(sslContext);
-				sslSettingsBuilder.enabled(true);
-				sslSettingsBuilder.invalidHostNameAllowed(!checkServerIdentity);
-			});
-		}
-	}
-
-	public static String getSimpleMongodbUri(ConnectionString connectionString) {
-		if (connectionString == null) {
-			return "";
-		}
-
-		String uri = "mongodb://";
-
-		uri += connectionString.getHosts().stream().collect(Collectors.joining(",")).trim();
-
-		if (EmptyKit.isNotBlank(connectionString.getDatabase())) {
-			uri += "/" + connectionString.getDatabase();
-		}
-
-		return uri;
-	}
-
-	/**
-	 * If the association condition does not contain the _id and the write circuit is empty, the _id needs to be removed.
-	 * When the record _id of the source database is changed (written again), the target mongodb _id cannot be updated.
-	 *
-	 * @param pks
-	 * @param value
-	 */
-	public static void removeIdIfNeed(Collection<String> pks, Map<String, Object> value) {
-		if (EmptyKit.isEmpty(pks)) {
-			return;
-		}
-		if (!pks.contains("_id")) {
-			if (EmptyKit.isNotEmpty(value) && value.containsKey("_id")) {
-				value.remove("_id");
 			}
 		}
-	}
 
-	/**
-	 * If the association condition does not contain the _id and the write circuit is empty,
-	 * the _id needs to be removed.
-	 * (When the record _id of the source database is changed (written again), the target mongodb _id cannot be updated.)
-	 *
-	 * @param joinCondition
-	 * @param targetPath    Position to write to the catalog
-	 * @param value
-	 */
-	public static void removeIdIfNeed(List<Map<String, String>> joinCondition, String targetPath, Map<String, Object> value) {
-		// 写入内嵌字段时，不会发生_id冲突的问题，无需移除
-		if (EmptyKit.isNotBlank(targetPath)) {
-			return;
-		}
-		if (!MongodbUtil.containIdInCondition(joinCondition)) {
-			if (EmptyKit.isNotEmpty(value) && value.containsKey("_id")) {
-				value.remove("_id");
-			}
-		}
-	}
+		/**
+		 * Check whether the association condition contains the _id field
+		 *
+		 * @param joinCondition
+		 * @return
+		 */
+		public static boolean containIdInCondition(List<Map<String, String>> joinCondition) {
+			boolean containId = false;
 
-	/**
-	 * Check whether the association condition contains the _id field
-	 *
-	 * @param joinCondition
-	 * @return
-	 */
-	public static boolean containIdInCondition(List<Map<String, String>> joinCondition) {
-		boolean containId = false;
+			if (CollectionUtils.isNotEmpty(joinCondition)) {
+				for (Map<String, String> condition : joinCondition) {
+					for (Map.Entry<String, String> entry : condition.entrySet()) {
+						String fieldName = entry.getValue();
+						if ("_id".equals(fieldName)) {
+							containId = true;
+							break;
+						}
+					}
 
-		if (CollectionUtils.isNotEmpty(joinCondition)) {
-			for (Map<String, String> condition : joinCondition) {
-				for (Map.Entry<String, String> entry : condition.entrySet()) {
-					String fieldName = entry.getValue();
-					if ("_id".equals(fieldName)) {
-						containId = true;
+					if (containId) {
 						break;
 					}
 				}
-
-				if (containId) {
-					break;
-				}
 			}
+			return containId;
 		}
-		return containId;
-	}
 
-	/**
-	 * @param commandStr: db.test.find({}), db.getCollection('test').find({})
-	 * @return
-	 */
+		/**
+		 * @param commandStr: db.test.find({}), db.getCollection('test').find({})
+		 * @return
+		 */
 }

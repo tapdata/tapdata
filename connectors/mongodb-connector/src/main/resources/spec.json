@@ -261,6 +261,26 @@
     },
     "node":{
       "properties": {
+        "syncIndex": {
+          "title": "${syncIndex}",
+          "type": "boolean",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-decorator-props": {
+            "layout": "horizontal"
+          },
+          "default": false,
+          "x-reactions": {
+            "dependencies": [
+              "$inputs"
+            ],
+            "fulfill": {
+              "state": {
+                "visible": "{{$deps[0].length>0}}"
+              }
+            }
+          }
+        },
         "enableSaveDeleteData": {
           "title": "${saveData}",
           "type": "boolean",
@@ -352,7 +372,8 @@
       "dataForm_form_sslCA": "Certificate Authority",
       "saveData": "Save Delete Data",
       "FillingModifiedData": "Filling Modified Data",
-      "noCursorTimeout": "No Cursor Timeout"
+      "noCursorTimeout": "No Cursor Timeout",
+      "syncIndex": "Sync Index",
     },
     "zh_CN": {
       "doc": "docs/mongodb_zh_CN.md",
@@ -380,7 +401,8 @@
       "dataForm_form_sslCA": "证书颁发机构",
       "saveData": "保存删除数据",
       "FillingModifiedData": "补充更新数据的完整字段",
-      "noCursorTimeout": "禁用游标超时"
+      "noCursorTimeout": "禁用游标超时",
+      "syncIndex": "同步索引"
     },
     "zh_TW": {
       "doc": "docs/mongodb_zh_TW.md",
@@ -408,7 +430,8 @@
       "dataForm_form_sslCA": "證書頒發機構",
       "saveData": "保存刪除數據",
       "FillingModifiedData": "補充更新數據的完整字段",
-      "noCursorTimeout": "禁用游標超時"
+      "noCursorTimeout": "禁用游標超時",
+      "syncIndex": "同步索引"
 
     }
   },

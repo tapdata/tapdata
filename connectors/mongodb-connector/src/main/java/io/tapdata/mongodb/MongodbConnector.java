@@ -144,7 +144,7 @@ import static java.util.Collections.singletonList;
 @TapConnectorClass("spec.json")
 public class MongodbConnector extends ConnectorBase {
 
-	private static final int SAMPLE_SIZE_BATCH_SIZE = 100;
+	private static final int SAMPLE_SIZE_BATCH_SIZE = 1000;
 	private static final String COLLECTION_ID_FIELD = "_id";
 	public static final String TAG = MongodbConnector.class.getSimpleName();
 	private final AtomicLong counter = new AtomicLong();
@@ -220,8 +220,9 @@ public class MongodbConnector extends ConnectorBase {
 					List<TapTable> list = list();
 					nameList.forEach(name -> {
 						TapTable table = table(name).defaultPrimaryKeys("_id");
+						MongoCollection collection = documentMap.get(name);
 						try {
-							MongodbUtil.sampleDataRow(documentMap.get(name), SAMPLE_SIZE_BATCH_SIZE, (dataRow) -> {
+							MongodbUtil.sampleDataRow(collection, SAMPLE_SIZE_BATCH_SIZE, (dataRow) -> {
 								Set<String> fieldNames = dataRow.keySet();
 								for (String fieldName : fieldNames) {
 									BsonValue value = dataRow.get(fieldName);
@@ -232,6 +233,14 @@ public class MongodbConnector extends ConnectorBase {
 							TapLogger.error(TAG, "Use $sample load mongo connection {}'s {} schema failed {}, will use first row as data schema.",
 									MongodbUtil.maskUriPassword(mongoConfig.getUri()), name, e.getMessage(), e);
 						}
+
+						collection.listIndexes().forEach(index -> {
+							TapIndex tapIndex = new TapIndex();
+							// TODO: TapIndex struct not enough to represent index, so we encode index info in name
+							tapIndex.setName(index.toString());
+							tapIndex.setIndexFields(null);
+							table.add(tapIndex);
+						});
 
 						if (!Objects.isNull(table.getNameFieldMap()) && !table.getNameFieldMap().isEmpty()) {
 							list.add(table);
@@ -513,7 +522,7 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
-		// TODO: 为 分片集群建表, schema 约束建表预留位置
+		// TODO: mongodb create table, will do db / collection shard
 		CreateTableOptions createTableOptions = new CreateTableOptions();
 		createTableOptions.setTableExists(false);
 
@@ -529,6 +538,68 @@ public class MongodbConnector extends ConnectorBase {
 			}
 			TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent().indexList(tapIndices);
 			createIndex(tapConnectorContext, table, tapCreateIndexEvent);
+		}
+
+		if (mongoConfig.isSyncIndex()) {
+			// TODO: TapIndex is not common struct, we can not use it to create index
+			table.getIndexList().forEach(index -> {
+				try {
+					Document dIndex = Document.parse(index.getName());
+					if (dIndex == null) {
+						return;
+					}
+					MongoCollection<Document> targetCollection = mongoDatabase.getCollection(table.getName());
+					IndexOptions indexOptions = new IndexOptions();
+					// 1. 遍历 index, 生成 indexOptions
+					dIndex.forEach((key, value) -> {
+						if ("unique".equals(key)) {
+							indexOptions.unique((Boolean) value);
+						} else if ("sparse".equals(key)) {
+							indexOptions.sparse((Boolean) value);
+						} else if ("expireAfterSeconds".equals(key)) {
+							indexOptions.expireAfter(((Double) value).longValue(), java.util.concurrent.TimeUnit.SECONDS);
+						} else if ("background".equals(key)) {
+							indexOptions.background((Boolean) value);
+						} else if ("partialFilterExpression".equals(key)) {
+							indexOptions.partialFilterExpression((Bson) value);
+						} else if ("defaultLanguage".equals(key)) {
+							indexOptions.defaultLanguage((String) value);
+						} else if ("languageOverride".equals(key)) {
+							indexOptions.languageOverride((String) value);
+						} else if ("textVersion".equals(key)) {
+							indexOptions.textVersion((Integer) value);
+						} else if ("weights".equals(key)) {
+							indexOptions.weights((Bson) value);
+						} else if ("sphereVersion".equals(key)) {
+							indexOptions.sphereVersion((Integer) value);
+						} else if ("bits".equals(key)) {
+							indexOptions.bits((Integer) value);
+						} else if ("min".equals(key)) {
+							indexOptions.min((Double) value);
+						} else if ("max".equals(key)) {
+							indexOptions.max((Double) value);
+						} else if ("bucketSize".equals(key)) {
+							indexOptions.bucketSize((Double) value);
+						} else if ("storageEngine".equals(key)) {
+							indexOptions.storageEngine((Bson) value);
+						} else if ("wildcardProjection".equals(key)) {
+							indexOptions.wildcardProjection((Bson) value);
+						} else if ("hidden".equals(key)) {
+							indexOptions.hidden((Boolean) value);
+						} else if ("version".equals(key)) {
+							indexOptions.version((Integer) value);
+						} else if ("partialFilterExpression".equals(key)) {
+							indexOptions.partialFilterExpression((Bson) value);
+						}
+					});
+					try {
+						targetCollection.createIndex(dIndex.get("key", Document.class), indexOptions);
+					} catch (Exception ignored) {
+					}
+				} catch (Exception ignored) {
+					// TODO: 如果解码失败, 说明这个索引不应该在这里创建, 忽略掉
+				}
+			});
 		}
 		return createTableOptions;
 	}
@@ -731,6 +802,11 @@ public class MongodbConnector extends ConnectorBase {
 		if (CollectionUtils.isNotEmpty(indexList)) {
 			for (TapIndex tapIndex : indexList) {
 				final List<TapIndexField> indexFields = tapIndex.getIndexFields();
+				// TODO: when indexFields is empty, skip it, this kind of index will create in cerateTable method
+				if (indexFields == null) {
+					continue;
+				}
+
 				if (CollectionUtils.isNotEmpty(indexFields)) {
 					final MongoCollection<Document> collection = mongoDatabase.getCollection(table.getName());
 					Document keys = new Document();
