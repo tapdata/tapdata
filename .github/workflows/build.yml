@@ -68,3 +68,4 @@ jobs:
           run: |
             docker_tag=`cat tapdata/build/image/tag`
             docker push $docker_tag
+
