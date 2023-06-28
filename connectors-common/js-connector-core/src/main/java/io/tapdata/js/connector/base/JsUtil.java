@@ -5,6 +5,8 @@ import io.tapdata.js.connector.base.ali.SecurityUtil;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.math.BigDecimal;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Function;
@@ -230,4 +232,152 @@ public class JsUtil {
         }
         return new ArrayList<>();
     }
+
+    public Object parse(Object dateObj) {
+        Date date = null;
+        if (dateObj == null) {
+            return date;
+        }
+        try {
+            if (dateObj instanceof String) {
+                String dateFormat = determineDateFormat((String) dateObj);
+
+                SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateFormat);
+                date = simpleDateFormat.parse((String) dateObj);
+
+            } else {
+                // only can convert from long value.
+                date = new Date(new BigDecimal(String.valueOf(dateObj)).longValue());
+            }
+        } catch (Exception e) {
+            return dateObj;
+        }
+        return date;
+    }
+    public static Date parse(String dateString, String dateFormat, TimeZone timeZone) throws ParseException {
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateFormat);
+        //simpleDateFormat.setLenient(false); // Don't automatically convert invalid date.
+        if (timeZone == null) {
+            timeZone = TimeZone.getDefault();
+        }
+        simpleDateFormat.setTimeZone(timeZone);
+        return simpleDateFormat.parse(dateString);
+    }
+    public Object parse(Object dateObj, Integer timezone) {
+        Date date = null;
+        if (dateObj == null) {
+            return date;
+        }
+        try {
+            if (timezone == null) {
+                timezone = 8;
+            }
+            TimeZone timeZone = getTimeZone(timezone);
+            if (dateObj instanceof String) {
+                String dateFormat = determineDateFormat((String) dateObj);
+
+                date = parse((String) dateObj, dateFormat, timeZone);
+
+            } else {
+                // only can convert from long value.
+                date = new Date(new BigDecimal(String.valueOf(dateObj)).longValue());
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+                String formatStr = sdf.format(date);
+                date = (Date) parse(formatStr, timezone);
+//                Calendar calendar = toCalendar(date)
+//                calendar.setTimeZone(timeZone);
+//                date = calendar.getTime();
+            }
+        } catch (Exception e) {
+            return dateObj;
+        }
+        return date;
+    }
+
+    public static String determineDateFormat(String dateString) {
+        for (String regexp : DATE_FORMAT_REGEXPS.keySet()) {
+            if (dateString.matches(regexp)) {
+                return DATE_FORMAT_REGEXPS.get(regexp);
+            }
+        }
+        return null; // Unknown format.
+    }
+    public static TimeZone getTimeZone(Integer timeZoneOffset) {
+        if (timeZoneOffset == null) {
+            return TimeZone.getDefault();
+        }
+        StringBuilder sb = new StringBuilder("GMT");
+        String str = String.valueOf(timeZoneOffset);
+        if (str.length() <= 1 || (str.contains("-") && str.length() <= 2)) {
+            if (str.contains("-")) {
+                sb.append("-0").append(Math.abs(timeZoneOffset));
+            } else {
+                sb.append("+0").append(timeZoneOffset);
+            }
+        } else {
+            sb.append(str);
+        }
+        sb.append(":00");
+
+        return TimeZone.getTimeZone(sb.toString());
+    }
+    private static final Map<String, String> DATE_FORMAT_REGEXPS = new HashMap<String, String>() {{
+        put("^\\d{8}$", "yyyyMMdd");
+        put("^\\d{1,2}-\\d{1,2}-\\d{4}$", "dd-MM-yyyy");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}$", "yyyy-MM-dd");
+        put("^\\d{1,2}/\\d{1,2}/\\d{4}$", "MM/dd/yyyy");
+        put("^\\d{4}/\\d{1,2}/\\d{1,2}$", "yyyy/MM/dd");
+        put("^\\d{1,2}\\s[a-z]{3}\\s\\d{4}$", "dd MMM yyyy");
+        put("^\\d{1,2}\\s[a-z]{4,}\\s\\d{4}$", "dd MMMM yyyy");
+        put("^\\d{12}$", "yyyyMMddHHmm");
+        put("^\\d{8}\\s\\d{4}$", "yyyyMMdd HHmm");
+        put("^\\d{1,2}-\\d{1,2}-\\d{4}\\s\\d{1,2}:\\d{2}$", "dd-MM-yyyy HH:mm");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}$", "yyyy-MM-dd HH:mm");
+        put("^\\d{1,2}/\\d{1,2}/\\d{4}\\s\\d{1,2}:\\d{2}$", "MM/dd/yyyy HH:mm");
+        put("^\\d{4}/\\d{1,2}/\\d{1,2}\\s\\d{1,2}:\\d{2}$", "yyyy/MM/dd HH:mm");
+        put("^\\d{1,2}\\s[a-z]{3}\\s\\d{4}\\s\\d{1,2}:\\d{2}$", "dd MMM yyyy HH:mm");
+        put("^\\d{1,2}\\s[a-z]{4,}\\s\\d{4}\\s\\d{1,2}:\\d{2}$", "dd MMMM yyyy HH:mm");
+        put("^\\d{14}$", "yyyyMMddHHmmss");
+        put("^\\d{8}\\s\\d{6}$", "yyyyMMdd HHmmss");
+        put("^\\d{1,2}-\\d{1,2}-\\d{4}\\s\\d{1,2}:\\d{2}:\\d{2}$", "dd-MM-yyyy HH:mm:ss"); // Oracle Date增量更新格式
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}$", "yyyy-MM-dd HH:mm:ss");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}.\\d{1}$", "yyyy-MM-dd HH:mm:ss.S");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}.\\d{2}$", "yyyy-MM-dd HH:mm:ss.SS");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}.\\d{3}$", "yyyy-MM-dd HH:mm:ss.SSS");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}.\\d{4}$", "yyyy-MM-dd HH:mm:ss.SSSS");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}.\\d{5}$", "yyyy-MM-dd HH:mm:ss.SSSSS");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}.\\d{6}$", "yyyy-MM-dd HH:mm:ss.SSSSSS");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}.\\d{7}$", "yyyy-MM-dd HH:mm:ss.SSSSSSS");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}.\\d{8}$", "yyyy-MM-dd HH:mm:ss.SSSSSSSS");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}.\\d{9}$", "yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
+        put("^\\d{4}/\\d{1,2}/\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}$", "yyyy/MM/dd HH:mm:ss");
+        put("^\\d{4}/\\d{1,2}/\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}\\.\\d{1,6}$", "yyyy/MM/dd HH:mm:ss.SSSSSS");
+        put("^\\d{4}/\\d{1,2}/\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}\\.\\d{7,9}$", "yyyy/MM/dd HH:mm:ss.SSSSSSSSS");
+        put("^\\d{1,2}\\s[a-z]{3}\\s\\d{4}\\s\\d{1,2}:\\d{2}:\\d{2}$", "dd MMM yyyy HH:mm:ss");
+        put("^\\d{1,2}\\s[a-z]{4,}\\s\\d{4}\\s\\d{1,2}:\\d{2}:\\d{2}$", "dd MMMM yyyy HH:mm:ss");
+        put("^\\d{1,2}/(0?[1-9]|1[012])/\\d{4}\\s\\d{1,2}:\\d{2}:\\d{2}$", "dd/MM/yyyy HH:mm:ss");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}T\\d{1,2}:\\d{2}:\\d{2}Z$", "yyyy-MM-dd'T'HH:mm:ss'Z'");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}T\\d{1,2}:\\d{2}:\\d{2}\\.\\d{1}Z$", "yyyy-MM-dd'T'HH:mm:ss.S'Z'");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}T\\d{1,2}:\\d{2}:\\d{2}\\.\\d{2}Z$", "yyyy-MM-dd'T'HH:mm:ss.SS'Z'");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}T\\d{1,2}:\\d{2}:\\d{2}\\.\\d{3}Z$", "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+        // 4 and 5 precision is provided because formatter with 7 precision will break precision 4 and 5
+        // more detail at: https://stackoverflow.com/questions/68411113/text-2021-06-22t182703-5577z-could-not-be-parsed-at-index-20
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}T\\d{1,2}:\\d{2}:\\d{2}\\.\\d{4}Z$", "yyyy-MM-dd'T'HH:mm:ss.SSSS'Z'");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}T\\d{1,2}:\\d{2}:\\d{2}\\.\\d{5}Z$", "yyyy-MM-dd'T'HH:mm:ss.SSSSS'Z'");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}T\\d{1,2}:\\d{2}:\\d{2}\\.\\d{6,7}Z$", "yyyy-MM-dd'T'HH:mm:ss.SSSSSSS'Z'");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}T\\d{1,2}:\\d{2}:\\d{2}\\.\\d{1,3}[+-]\\d{2}$", "yyyy-MM-dd'T'HH:mm:ss.SSSX");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}T\\d{1,2}:\\d{2}:\\d{2}\\.\\d{1,3}[+-]\\d{4}$", "yyyy-MM-dd'T'HH:mm:ss.SSSXX");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}\\s[+-]\\d{2}:\\d{2}$", "yyyy-MM-dd HH:mm:ss Z");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}\\.\\s[+-]\\d{2}:\\d{2}$", "yyyy-MM-dd HH:mm:ss. Z");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}\\.\\d{1}\\s[+-]\\d{2}:\\d{2}$", "yyyy-MM-dd HH:mm:ss.S XXX");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}\\.\\d{2}\\s[+-]\\d{2}:\\d{2}$", "yyyy-MM-dd HH:mm:ss.SS XXX");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}\\.\\d{3}\\s[+-]\\d{2}:\\d{2}$", "yyyy-MM-dd HH:mm:ss.SSS XXX");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}\\.\\d{4}\\s[+-]\\d{2}:\\d{2}$", "yyyy-MM-dd HH:mm:ss.SSSS XXX");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}\\.\\d{5}\\s[+-]\\d{2}:\\d{2}$", "yyyy-MM-dd HH:mm:ss.SSSSS XXX");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}\\.\\d{6}\\s[+-]\\d{2}:\\d{2}$", "yyyy-MM-dd HH:mm:ss.SSSSSS XXX");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}\\.\\d{7}\\s[+-]\\d{2}:\\d{2}$", "yyyy-MM-dd HH:mm:ss.SSSSSSS XXX");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}\\.\\d{8}\\s[+-]\\d{2}:\\d{2}$", "yyyy-MM-dd HH:mm:ss.SSSSSSSS XXX");
+        put("^\\d{4}-\\d{1,2}-\\d{1,2}\\s\\d{1,2}:\\d{2}:\\d{2}\\.\\d{9}\\s[+-]\\d{2}:\\d{2}$", "yyyy-MM-dd HH:mm:ss.SSSSSSSSS XXX");
+        put("^([a-zA-Z]{3})\\s([a-zA-Z]{3})\\s(\\d{2})\\s(\\d{2}):(\\d{2}):(\\d{2})\\s(([a-zA-Z]+)|(GMT(\\+|-)\\d{2}:00))\\s(\\d{4})$", "EEE MMM dd HH:mm:ss zzz yyyy");
+    }};
 }
