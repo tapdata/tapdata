@@ -144,7 +144,11 @@ public class TryRun implements Command {
             Invocable invocable = (Invocable) scriptEngine;
             beforeData.stream().filter(Objects::nonNull).forEach(data -> {
                 try {
-                    ListUtil.addObjToList(afterData, invocable.invokeFunction(ConnectionConfig.EVENT_FUNCTION_NAME, data));
+                    ListUtil.addObjToList(afterData,
+                            invocable.invokeFunction(
+                                ConnectionConfig.EVENT_FUNCTION_NAME,
+                                data
+                            ));
                 } catch (ScriptException e) {
                     logger.warn("[{}] Occur exception When execute script, error message: {}", TAG, e.getMessage());
                     throw new CoreException(e.getMessage(), e);
