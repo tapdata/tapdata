@@ -30,6 +30,7 @@ import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.github.openlg.graphlib.Graph;
@@ -296,6 +297,10 @@ public class TaskController extends BaseController {
                 if (Objects.nonNull(taskRecord)) {
                     taskDto.setStartTime(taskRecord.getStartTime());
                 }
+            }
+
+            if (StringUtils.isNotBlank(taskDto.getCrontabScheduleMsg())) {
+                taskDto.setCrontabScheduleMsg(MessageUtil.getMessage(taskDto.getCrontabScheduleMsg()));
             }
         }
         return success(taskDto);

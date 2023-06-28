@@ -38,7 +38,7 @@ public class ScheduleService{
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, userDetail, "task", taskDto.getName());
         if (StringUtils.isBlank(taskDto.getAgentId()) && calculationEngineVo.getTaskAvailable() != calculationEngineVo.getAvailable()) {
             // 调度失败
-            taskDto.setCrontabSchduleMsg("Task.ScheduleLimit");
+            taskDto.setCrontabScheduleMsg("Task.ScheduleLimit");
             taskService.save(taskDto, userDetail);
             return;
         }
@@ -70,7 +70,7 @@ public class ScheduleService{
         Long scheduleDate = taskDto.getScheduleDate();
         if (scheduleDate == null || newScheduleDate < scheduleDate) {
             taskDto.setScheduleDate(newScheduleDate);
-            taskDto.setCrontabSchduleMsg("");
+            taskDto.setCrontabScheduleMsg("");
             taskService.save(taskDto, userDetail);
             return;
         }
@@ -92,7 +92,7 @@ public class ScheduleService{
             taskDto.setTaskRecordId(objectId.toString());
             taskDto.setAttrs(new HashMap<>());
             taskDto.setScheduleDate(newScheduleDate);
-            taskDto.setCrontabSchduleMsg("");
+            taskDto.setCrontabScheduleMsg("");
             taskService.save(taskDto, userDetail);
             // 执行记录
             taskService.start(taskDto.getId(), userDetail);

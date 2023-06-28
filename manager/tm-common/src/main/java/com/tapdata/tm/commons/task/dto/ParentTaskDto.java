@@ -33,7 +33,7 @@ public class ParentTaskDto extends SchedulableDto {
     /** crontab表达式开关 */
     @EqField
     private Boolean crontabExpressionFlag;
-    private String crontabSchduleMsg;
+    private String crontabScheduleMsg;
 
     /**去重写入机制   intelligent 智能去重， force 强制去重 */
     @EqField

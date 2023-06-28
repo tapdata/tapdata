@@ -23,7 +23,7 @@ public class MigrateDagSchedule {
     }
 
     @Scheduled(fixedDelay = 10 * 1000)
-    @SchedulerLock(name = "startPlanCronTaskLock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    @SchedulerLock(name = "startPlanCronTaskLock_1", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void startPlanCronTask() {
         FunctionUtils.ignoreAnyError(() -> taskService.startPlanCronTask());
     }

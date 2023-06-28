@@ -566,6 +566,7 @@ public class MailUtils {
      * 发送HTML邮件
      */
     public static void sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
+        if (CollectionUtils.isEmpty(adressees)) return;
         boolean flag = true;
         if (StringUtils.isAnyBlank(parms.getHost(), parms.getFrom(),parms.getUser(), parms.getPass()) || CollectionUtils.isEmpty(adressees)) {
             log.error("mail account info empty, params:{}", JSON.toJSONString(parms));

@@ -1457,8 +1457,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     //产品认为不把STATUS_SCHEDULE_FAILED  展现到页面上，STATUS_SCHEDULE_FAILED就直接转为error状态
                     item.setStatus(TaskStatusEnum.getMapStatus(item.getStatus()));
 
-                    if (StringUtils.isNotBlank(item.getCrontabSchduleMsg())) {
-                        item.setCrontabSchduleMsg(MessageUtil.getMessage(item.getCrontabSchduleMsg()));
+                    if (StringUtils.isNotBlank(item.getCrontabScheduleMsg())) {
+                        item.setCrontabScheduleMsg(MessageUtil.getMessage(item.getCrontabScheduleMsg()));
                     }
                 }
             } else {
@@ -1466,8 +1466,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     item.setTransformProcess(0);
                     item.setTransformStatus(MetadataTransformerDto.StatusEnum.running.name());
 
-                    if (StringUtils.isNotBlank(item.getCrontabSchduleMsg())) {
-                        item.setCrontabSchduleMsg(MessageUtil.getMessage(item.getCrontabSchduleMsg()));
+                    if (StringUtils.isNotBlank(item.getCrontabScheduleMsg())) {
+                        item.setCrontabScheduleMsg(MessageUtil.getMessage(item.getCrontabScheduleMsg()));
                     }
                 }
             }
