@@ -2,9 +2,9 @@ name: Docker Image Construction
 
 on:
   push:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*", "build-with-frontend" ]
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
   pull_request:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*", "build-with-frontend" ]
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
 
 env:
   REGISTRY: ghcr.io
@@ -27,7 +27,7 @@ jobs:
           with:
               fetch-depth: 0
               repository: tapdata/tapdata-enterprise-web
-              ref: develop-v3.2
+              ref: ${{ env.CURRENT_BRANCH }}
               token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
               path: tapdata-enterprise-web
         - name: Checkout Opensource Repo
