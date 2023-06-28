@@ -30,14 +30,18 @@ print_message() {
 }
 
 get_env() {
+    # Set default env
+
     MONGO_URI=${MONGO_URI}  # mongodb uri
     ACCESS_CODE=${ACCESS_CODE:-"3324cfdf-7d3e-4792-bd32-571638d4562f"}  # access code
 
-    print_message "MONGO_URI: $MONGO_URI" "blue" false
-    print_message "ACCESS_CODE: $ACCESS_CODE" "blue" false
+    print_message "MONGO_URI  :   $MONGO_URI" "blue" false
+    print_message "ACCESS_CODE:   $ACCESS_CODE" "blue" false
 }
 
 start_mongo() {
+    # start a mongodb replSet
+
     mkdir -p /tapdata/data/logs
     mongod --dbpath=/tapdata/data/db/ --replSet=rs0 --wiredTigerCacheSizeGB=1 --bind_ip_all --logpath=/tapdata/data/logs/mongod.log --fork
     while [[ 1 ]]; do
@@ -65,59 +69,83 @@ start_mongo() {
     mongo --quiet --eval 'db.getSiblingDB("tapdata").getCollection("AccessToken").exists()'|grep -v null &> /dev/null
 }
 
+wait_tm_start() {
+    local timeout=$((SECONDS + 120))  # timeout 120 seconds
+    local counter=0
+    while [[ $SECONDS -lt $timeout ]]; do
+        local seconds_left=$((timeout - SECONDS))
+        printf "\r* Wait Starting, Cost %02d / 120 Seconds..." "$seconds_left"
+        sleep 1
+        curl "http://localhost:3000" &> /dev/null
+        if [[ $? -ne 0 ]]; then
+            continue
+        else
+            printf "\n~ Manager server started\n"
+            return 0
+        fi
+        counter=$((counter + 1))
+    done
+    printf "\n~ Manager Starting Timeout\n"
+    return 1
+}
+
+exec_with_log() {
+    command=$1
+    log=$2
+    color=$3
+
+    print_message "~ $log" "$color" false
+    eval $command
+    if [[ $? -ne 0 ]]; then
+        print_message "~ $log Failed" "red" false
+        return 1
+    else
+        print_message "~ $log Success" "$color" false
+    fi
+}
+
+register_connectors() {
+    for i in `ls /tapdata/apps/connectors/dist/`; do
+        print_message "* Register Connector: $i" "blue" false
+        java -jar /tapdata/apps/lib/pdk.jar register -a $ACCESS_CODE -t http://localhost:3000 /tapdata/apps/connectors/dist/$i > /dev/null
+        if [[ $? -ne 0 ]]; then
+            print_message "* Register Connector: $i Failed" "red" false
+            exit 1
+        else
+            print_message "* Register Connector: $i Success" "blue" false
+        fi
+    done
+}
+
 start_server() {
     # 1. start manager server
     # 2. register all connectors
     # 3. start iengine server
     #
     # 1. start manager server
-    print_message "Start manager server" "yellow" false
-    cd /tapdata/apps/manager/ && bash bin/start.sh $MONGO_URI
-    if [[ $? -ne 0 ]]; then
-        print_message "Start manager server failed" "red" false
-        exit 1
-    else
-        print_message "Start manager server success" "green" false
-    fi
+    exec_with_log "cd /tapdata/apps/manager/ && bash bin/start.sh $MONGO_URI" "Start Manager Server" "blue" || return 1
     # 2. register all connectors
     # waiting for manager server start
-    print_message "Waiting for manager server start" "green" false
-    while [[ 1 ]]; do
-        sleep 2
-        curl "http://localhost:3000" &> /dev/null
-        if [[ $? -ne 0 ]]; then
-            continue
-        else
-            print_message "Manager server started" "green" false
-            break
-        fi
-    done
-    print_message "Register all connectors" "yellow" false
-    for i in `ls /tapdata/apps/connectors/dist/`; do
-        print_message "Register connector: $i" "cyan" false
-        java -jar /tapdata/apps/lib/pdk.jar register -a $ACCESS_CODE -t http://localhost:3000 /tapdata/apps/connectors/dist/$i
-        if [[ $? -ne 0 ]]; then
-            print_message "Register connector: $i failed" "red" false
-            exit 1
-        else
-            print_message "Register connector: $i success" "green" false
-        fi
-    done
+    exec_with_log wait_tm_start "Waiting for Manager Server Start" "blue" || return 1
+    # Register all connectors
+    exec_with_log register_connectors "Register all connectors" "blue" || return 1
     # 3. start iengine server
-    print_message "Start iengine server" "yellow" false
-    cd /tapdata/apps/iengine/ && bash bin/start.sh
-    if [[ $? -ne 0 ]]; then
-        print_message "Start iengine server failed" "red" false
-        exit 1
-    else
-        print_message "Start iengine server success" "green" false
-    fi
+    exec_with_log "cd /tapdata/apps/iengine/ && bash bin/start.sh" "Start Iengine Server" "blue" || return 1
 }
 
 unzip_files() {
     tar xzf /tapdata/apps/connectors/dist.tar.gz -C /tapdata/apps/connectors
     rm -rf /tapdata/apps/connectors/dist.tar.gz
 }
+
+cat << "EOF"
+  _______       _____  _____       _______
+ |__   __|/\   |  __ \|  __ \   /\|__   __|/\
+    | |  /  \  | |__) | |  | | /  \  | |  /  \
+    | | / /\ \ |  ___/| |  | |/ /\ \ | | / /\ \
+    | |/ ____ \| |    | |__| / ____ \| |/ ____ \
+    |_/_/    \_\_|    |_____/_/    \_\_/_/    \_\
+EOF
 
 _main() {
     # 1. get env settings
@@ -127,38 +155,36 @@ _main() {
     # 5. hold the container
     #
     # 1. get env settings
-    print_message "Get env settings" "green" true
+    print_message ">>> Get Env Settings [START]" "green" true
     get_env
+    print_message "<<< Get Env Settings [SUCCESS]" "green" true
     # 2. unzip connectors
-    print_message "Unzip connectors" "green" true
+    print_message ">>> Unzip Connectors [START]" "green" true
     unzip_files
+    print_message "<<< Unzip Connectors [SUCCESS]" "green" true
     # 3. start mongo if $MONGO_URI is not set
-    print_message "Start mongo" "green" true
+    print_message ">>> Start Mongo [START]" "green" true
     if [[ -z $MONGO_URI ]]; then
         start_mongo
     fi
     if [[ $? -ne 0 ]]; then
-        print_message "Start mongo failed" "red" true
+        print_message "~ Start Mongo [FAILED]" "red" false
         ps -ef | grep -v grep | grep mongo > /dev/null
-        if [[ $? -eq 0 ]]; then
-            print_message "Mongodb is already start" "green" false
-        else
-            print_message "Mongodb is not start" "red" false
+        if [[ $? -ne 0 ]]; then
+            print_message "<<< Mongodb is Not Running" "red" true
             exit 1
         fi
         MONGO_URI="mongodb://127.0.0.1:27017/tapdata"
-    else
-        print_message "Start mongo success" "green" true
     fi
+    print_message "<<< Mongodb is Already Running" "green" true
     # 4. start tm server, register connectors and start iengine
-    print_message "Start tm server, register connectors and start iengine" "green" true
+    print_message ">>> Start Server [START]" "green" true
     start_server
     if [[ $? -ne 0 ]]; then
-        print_message "Start tm server, register connectors and start iengine failed" "red" true
+        print_message "<<< Start Server [FAILED]" "red" true
         exit 1
-    else
-        print_message "Start tm server, register connectors and start iengine success" "green" true
     fi
+    print_message "<<< Start Server [SUCCESS]" "green" true
 
     # 5. hold the container
     sleep infinity
