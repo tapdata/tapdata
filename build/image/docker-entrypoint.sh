@@ -185,6 +185,8 @@ _main() {
         exit 1
     fi
     print_message "<<< Start Server [SUCCESS]" "green" true
+    # Print Visit Url
+    print_message "All Done, Please Visit http://localhost:3000" "green" true
 
     # 5. hold the container
     sleep infinity
