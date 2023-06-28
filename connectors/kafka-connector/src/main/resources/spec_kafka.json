@@ -24,6 +24,9 @@
           "type": "string",
           "title": "${mqTopicString}",
           "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "tooltip": "${mqTopicStringTooltip}"
+          },
           "x-component": "Input",
           "apiServerKey": "mq_topics",
           "x-index": 2
@@ -219,6 +222,7 @@
       "doc": "docs/kafka_en_US.md",
       "nameSrvAddr": "DB Host",
       "mqTopicString": "topic expression",
+      "mqTopicStringTooltip": "Multiple topics are separated by commas, support *? wildcard expression (non regular)",
       "krb5": "kerberos authentication",
       "krb5Keytab": "Key representation file",
       "krb5Conf": "Configuration file",
@@ -240,6 +244,7 @@
       "doc": "docs/kafka_zh_CN.md",
       "nameSrvAddr": "数据库地址",
       "mqTopicString": "主题表达式",
+      "mqTopicStringTooltip": "多个主题用逗号分隔，支持*?通配表达式（非正则）",
       "krb5": "kerberos 认证",
       "krb5Keytab": "密钥表示文件",
       "krb5Conf": "配置文件",
@@ -261,6 +266,7 @@
       "doc": "docs/kafka_zh_TW.md",
       "nameSrvAddr": "數據庫地址",
       "mqTopicString": "主題表達式",
+      "mqTopicStringTooltip": "多個主題用逗號分隔，支持*?通配運算式（非正則）",
       "krb5": "kerberos 認證",
       "krb5Keytab": "密鑰表示文件",
       "krb5Conf": "配置文件",
