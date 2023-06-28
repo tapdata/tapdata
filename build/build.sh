@@ -61,6 +61,8 @@ while getopts 'c:p:o:d::t:' OPT; do
 done
 
 cat <<_END_
+sourcepath:           $sourcepath
+basepath:             $basepath
 tapdata build env:    $tapdata_build_env
 tapdata build image:  $tapdata_build_image
 tapdata build output: $output
