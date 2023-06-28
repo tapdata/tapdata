@@ -97,6 +97,7 @@ build() {
   #   $tapdata_build_env: docker or local
   #   $_in_docker: if in docker, this variable will be set to yes
   #   $tapdata_build_image: the docker build image which cached all dependencies
+
   # 1. Build project in docker.
   if [[ $tapdata_build_env == "docker" && $_in_docker == "" ]]; then
     # if tapdata-build-container not running
@@ -113,11 +114,12 @@ build() {
       fi
     fi
     docker exec -e PRODUCT=idaas -i tapdata-build-container bash -c "cd /tapdata-source && bash build/build.sh -c true"
+  else
+    # 2. run check_env function to check if java and mvn installed.
+    check_env
+    # 3. Run build command in local.
+    cd $sourcepath && mvn clean install -DskipTests
   fi
-  # 2. run check_env function to check if java and mvn installed.
-  check_env
-  # 3. Run build command in local.
-  cd $sourcepath && mvn clean install -DskipTests
 }
 
 make_iengine_dist() {
