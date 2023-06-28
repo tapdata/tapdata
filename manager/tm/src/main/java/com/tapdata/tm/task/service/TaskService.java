@@ -94,6 +94,7 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
 import io.tapdata.common.sample.request.Sample;
+import io.tapdata.exception.TapCodeException;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -3769,11 +3770,22 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             Map<String, UserDetail> finalUserMap = userMap;
             for (TaskDto taskDto : taskList) {
-                start(taskDto, finalUserMap.get(taskDto.getUserId()), "11");
-                //启动过后，应该更新掉这个自动启动计划
-                Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
-                updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
-            }
+							UserDetail userDetail = finalUserMap.get(taskDto.getUserId());
+							try {
+								start(taskDto, userDetail, "11");
+								//启动过后，应该更新掉这个自动启动计划
+								Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
+								updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
+							} catch (Exception e) {
+								log.warn("Start plan migrate task Failed: {}", e.getMessage(), e);
+								stateMachineService.executeAboutTask(taskDto, DataFlowEvent.ERROR, userDetail);
+								if (e instanceof TapCodeException) {
+									monitoringLogsService.startTaskErrorStackTrace(taskDto, userDetail, e, Level.ERROR);
+								} else {
+									monitoringLogsService.startTaskErrorStackTrace(taskDto, userDetail, new TapCodeException("0000", e), Level.ERROR);
+								}
+							}
+						}
         }
     }
 
