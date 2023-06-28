@@ -1,9 +1,9 @@
 ##創建飛書資料來源（目標）
 
 您需要前往 https://open.feishu.cn/app 找到對應的應用，並在應用的***憑證與基礎資訊***中找到：
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/findApp.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/step_0.PNG)
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/appIdAndSecret.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/step_1.PNG)
 
 1.獲取到***App ID***，並填寫到此處。
 
@@ -21,6 +21,6 @@
 
 審批類型Code需要在飛書管理員後臺獲取，如圖所示位置：
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/LarkApproval/doc/ht.jpg)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/approval/approval_2.jpg)
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/LarkApproval/doc/code.jpg)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/approval_1/approval_1.jpg)

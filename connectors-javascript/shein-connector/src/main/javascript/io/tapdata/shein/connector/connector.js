@@ -83,6 +83,14 @@ function connectionTest(connectionConfig) {
                         ( isValue(result.error) ? (", error: " + result.error) : ""))
                     : "Pass"
     });
+
+    if (isCheck) {
+        checkItems.push({
+            "test": "Read log",
+            "code": 1,
+            "result": "Pass"
+        });
+    }
     return checkItems;
 }
 

@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.bean.FdmBatchStartDto;
 import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
+import com.tapdata.tm.task.bean.MultiSearchDto;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -82,6 +83,12 @@ public class LdpController extends BaseController {
     public ResponseMessage<List<LdpFuzzySearchVo>> fuzzySearch(@RequestParam("key") String key,
                                                                @RequestParam(value = "connectType", required = false) List<String> connectType) {
         return success(ldpService.fuzzySearch(key, connectType, getLoginUser()));
+    }
+
+    @Operation(summary = "Query fdm task by tags")
+    @PostMapping("multi/search")
+    public ResponseMessage<List<LdpFuzzySearchVo>> multiSearch(@RequestBody List<MultiSearchDto> multiSearchDtos) {
+        return success(ldpService.multiSearch(multiSearchDtos, getLoginUser()));
     }
 
 

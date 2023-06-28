@@ -153,14 +153,14 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 			tableFieldInfoMap = Optional.ofNullable(node.getFieldsMapping()).map(tableFieldInfos -> {
 				Map<String, TableFieldInfo> tableMap = new HashMap<>();
 				for (TableFieldInfo info : tableFieldInfos) {
-					tableMap.put(info.getOriginTableName(), info);
+					tableMap.put(info.getPreviousTableName(), info);
 					Map<String, FieldInfo> fieldMap = new HashMap<>();
 					if (null != info.getFields()) {
 						for (FieldInfo fieldInfo : info.getFields()) {
 							fieldMap.put(fieldInfo.getSourceFieldName(), fieldInfo);
 						}
 					}
-					fieldInfoMaps.put(info.getOriginTableName(), fieldMap);
+					fieldInfoMaps.put(info.getPreviousTableName(), fieldMap);
 				}
 				return tableMap;
 			}).orElse(new HashMap<>());

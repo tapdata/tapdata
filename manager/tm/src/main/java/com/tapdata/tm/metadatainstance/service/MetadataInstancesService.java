@@ -2367,7 +2367,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Set<String> set = new HashSet<>();
         metadataInstancesDtos.forEach(metadataInstancesDto -> {
             metadataInstancesDto.getFields().forEach(field -> {
-                set.add(RemoveBracketsUtil.removeBrackets(field.getOriginalDataType()));
+                set.add(RemoveBracketsUtil.removeBrackets(field.getDataType()));
             });
         });
     return set;

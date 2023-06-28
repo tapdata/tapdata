@@ -1,6 +1,7 @@
 package io.tapdata.connector.mysql.config;
 
 import io.tapdata.common.CommonDbConfig;
+import io.tapdata.kit.EmptyKit;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.HashMap;
@@ -27,8 +28,8 @@ public class MysqlConfig extends CommonDbConfig {
     @Override
     public MysqlConfig load(Map<String, Object> map) {
         MysqlConfig config = (MysqlConfig) super.load(map);
-        setUser((String) map.get("username"));
-        setExtParams((String) map.get("addtionalString"));
+        setUser(EmptyKit.isBlank(getUser()) ? (String) map.get("username") : getUser());
+        setExtParams(EmptyKit.isBlank(getExtParams()) ? (String) map.get("addtionalString") : getExtParams());
         setSchema(getDatabase());
         return config;
     }

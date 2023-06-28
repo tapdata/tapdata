@@ -35,14 +35,14 @@ public class FieldModTypeFilterNode extends ProcessorNode{
     public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
         Schema outputSchema = super.mergeSchema(inputSchemas, schema, options);
             List<Field> fields = outputSchema.getFields();
-            String ancestorsName = outputSchema.getAncestorsName();
+            String ancestorsName = outputSchema.getName();
             Map<String, FieldInfo> filterFields = new HashMap<>();
             for (Field field : fields) {
-                Boolean show = filterTypes.contains(RemoveBracketsUtil.removeBrackets(field.getOriginalDataType()));
+                Boolean show = filterTypes.contains(RemoveBracketsUtil.removeBrackets(field.getDataType()));
                 if (Objects.nonNull(show) && show) {
                     field.setDeleted(true);
-                    FieldInfo fieldInfo = new FieldInfo(field.getFieldName(),null,false,field.getOriginalDataType());
-                    filterFields.put(field.getOriginalFieldName(),fieldInfo);
+                    FieldInfo fieldInfo = new FieldInfo(field.getFieldName(),null,false,field.getDataType());
+                    filterFields.put(field.getFieldName(),fieldInfo);
                 }
             }
         fieldTypeFilterMap.put(ancestorsName,filterFields);
