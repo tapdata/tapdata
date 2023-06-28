@@ -8,43 +8,14 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.TapArray;
-import io.tapdata.entity.schema.type.TapBinary;
-import io.tapdata.entity.schema.type.TapBoolean;
-import io.tapdata.entity.schema.type.TapDate;
-import io.tapdata.entity.schema.type.TapDateTime;
-import io.tapdata.entity.schema.type.TapMap;
-import io.tapdata.entity.schema.type.TapNumber;
-import io.tapdata.entity.schema.type.TapRaw;
-import io.tapdata.entity.schema.type.TapString;
-import io.tapdata.entity.schema.type.TapTime;
-import io.tapdata.entity.schema.type.TapType;
-import io.tapdata.entity.schema.type.TapYear;
-import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.entity.schema.value.TapArrayValue;
-import io.tapdata.entity.schema.value.TapBinaryValue;
-import io.tapdata.entity.schema.value.TapBooleanValue;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDateValue;
-import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapNumberValue;
-import io.tapdata.entity.schema.value.TapRawValue;
-import io.tapdata.entity.schema.value.TapStringValue;
-import io.tapdata.entity.schema.value.TapTimeValue;
-import io.tapdata.entity.schema.value.TapValue;
-import io.tapdata.entity.schema.value.TapYearValue;
+import io.tapdata.entity.schema.type.*;
+import io.tapdata.entity.schema.value.*;
+import lombok.SneakyThrows;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class SampleMockUtil {
@@ -68,6 +39,7 @@ public class SampleMockUtil {
 	}
 
 
+	@SneakyThrows
 	public static void mock(TapTable tapTable, Map<String, Object> map) {
 		if (tapTable == null || tapTable.getNameFieldMap() == null || map == null) {
 			throw new IllegalArgumentException("tapTable or map is null");
@@ -79,11 +51,12 @@ public class SampleMockUtil {
 			if (field instanceof TapFieldEx && ((TapFieldEx) field).isDeleted()) {
 				continue;
 			}
-			Object v = map.get(name);
+			Object v = MapUtil.getValueByKey(map, name);
 			if (v == null) {
 				TapType type = field.getTapType();
 				TapValue tapValue = sampleDateMap.get(type.getClass());
-				map.put(name, tapValue);
+//				map.put(name, tapValue);
+				MapUtil.putValueInMap(map, name, tapValue);
 				logger.info("field {} mock sample --> {}", name, tapValue.getValue());
 			}
 		}
