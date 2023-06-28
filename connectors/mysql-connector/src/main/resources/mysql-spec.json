@@ -202,8 +202,30 @@
           ]
         }
       }
-    }
-  },
+    },
+    "node":{
+      "properties": {
+        "syncIndex": {
+          "title": "${syncIndex}",
+          "type": "boolean",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-decorator-props": {
+            "layout": "horizontal"
+          },
+          "default": false,
+          "x-reactions": {
+            "dependencies": [
+              "$inputs"
+            ],
+            "fulfill": {
+              "state": {
+                "visible": "{{$deps[0].length>0}}"
+              }
+            }
+          }
+        }
+      },
   "messages": {
     "default": "en_US",
     "en_US": {
@@ -214,7 +236,8 @@
       "password": "password",
       "addtionalString": "Connection Parameter String",
       "timezone": "timezone",
-      "doc": "docs/mysql_en_US.md"
+      "doc": "docs/mysql_en_US.md",
+      "syncIndex": "Sync Index"
     },
     "zh_CN": {
       "host": "地址",
@@ -224,7 +247,8 @@
       "password": "密码",
       "addtionalString": "连接参数",
       "timezone": "时区",
-      "doc": "docs/mysql_zh_CN.md"
+      "doc": "docs/mysql_zh_CN.md",
+      "syncIndex": "同步索引"
     },
     "zh_TW": {
       "host": "地址",
@@ -234,7 +258,8 @@
       "password": "密碼",
       "addtionalString": "連接參數",
       "timezone": "時區",
-      "doc": "docs/mysql_zh_TW.md"
+      "doc": "docs/mysql_zh_TW.md",
+      "syncIndex": "同步索引"
     }
   },
   "dataTypes": {
