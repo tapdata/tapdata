@@ -146,9 +146,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				scriptCacheService,
 				new ObsScriptLogger(obsLogger, logger),
 				this.standard);
-		TaskDto taskDto = processorBaseContext.getTaskDto();
-		this.globalTaskContent = Optional.ofNullable(taskDto.getGlobalTaskContext()).orElse(new HashMap<>());
 		this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
+		this.globalTaskContent = new HashMap<>();
 	}
 
 	@Override
