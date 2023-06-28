@@ -557,8 +557,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 									.withTaskConfig(taskConfig)
 									.build()
 					);
-				}
-				else {
+				} else {
 					throw new RuntimeException("un support AutoInspect node " + connection.getPdkType());
 				}
 				break;
