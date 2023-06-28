@@ -167,11 +167,15 @@ public class MongodbConnector extends ConnectorBase {
 									MongodbUtil.maskUriPassword(mongoConfig.getUri()), name, e.getMessage(), e);
 						}
 
-						collection.listIndexes().forEach(index -> {
+						collection.listIndexes().forEach((index) -> {;
 							TapIndex tapIndex = new TapIndex();
 							// TODO: TapIndex struct not enough to represent index, so we encode index info in name
-							tapIndex.setName(index.toString());
-							tapIndex.setIndexFields(null);
+							tapIndex.setName("__t__" + ((Document) index).toJson());
+
+							// add a empty tapIndexField
+							TapIndexField tapIndexField = new TapIndexField();
+							tapIndex.indexField(tapIndexField);
+							TapLogger.info(TAG, "MongodbConnector discoverSchema index {}", tapIndex.toString());
 							table.add(tapIndex);
 						});
 
@@ -474,10 +478,18 @@ public class MongodbConnector extends ConnectorBase {
 		}
 
 		if (mongoConfig.isSyncIndex()) {
+			TapLogger.info(TAG, "sync index enabled, will create index for table: " + table.getName());
 			// TODO: TapIndex is not common struct, we can not use it to create index
 			table.getIndexList().forEach(index -> {
+				TapLogger.info(TAG, "find index: " + index.getName());
 				try {
-					Document dIndex = Document.parse(index.getName());
+					String name = index.getName();
+					// 去除 __t__ 前缀
+					if (!name.startsWith("__t__")) {
+						return;
+					}
+					name = name.substring(5);
+					Document dIndex = Document.parse(name);
 					if (dIndex == null) {
 						return;
 					}
@@ -528,8 +540,10 @@ public class MongodbConnector extends ConnectorBase {
 					try {
 						targetCollection.createIndex(dIndex.get("key", Document.class), indexOptions);
 					} catch (Exception ignored) {
+						TapLogger.warn(TAG, "create index failed 1: " + ignored.getMessage());
 					}
 				} catch (Exception ignored) {
+					TapLogger.warn(TAG, "create index failed 2: " + ignored.getMessage());
 					// TODO: 如果解码失败, 说明这个索引不应该在这里创建, 忽略掉
 				}
 			});
@@ -695,6 +709,17 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+		if (null != matchThrowable(throwable, MongoNotPrimaryException.class)) {
+			try {
+				if (null != mongoClient) {
+					mongoClient.close();
+				}
+			} catch (Exception e) {
+				TapLogger.warn(TAG, "Close mongo client failed, ignore it...", e);
+			}
+			mongoClient = MongodbUtil.createMongoClient(mongoConfig);
+		}
+
 		RetryOptions retryOptions = RetryOptions.create();
 		if (null != matchThrowable(throwable, MongoClientException.class)
 				|| null != matchThrowable(throwable, MongoSocketException.class)
@@ -719,6 +744,7 @@ public class MongodbConnector extends ConnectorBase {
 			retryOptions.needRetry(true);
 			return retryOptions;
 		}
+
 		if (null != matchThrowable(throwable, MongoCommandException.class)) {
 			MongoCommandException mongoCommandException = (MongoCommandException) throwable;
 			Pattern pattern = Pattern.compile("Cache Reader No keys found for .* that is valid for time.*");
@@ -734,11 +760,12 @@ public class MongodbConnector extends ConnectorBase {
 		final List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
 		if (CollectionUtils.isNotEmpty(indexList)) {
 			for (TapIndex tapIndex : indexList) {
-				final List<TapIndexField> indexFields = tapIndex.getIndexFields();
-				// TODO: when indexFields is empty, skip it, this kind of index will create in cerateTable method
-				if (indexFields == null) {
+				// TODO: when name starts with __t__, skip it
+				if (tapIndex.getName().startsWith("__t__")) {
 					continue;
 				}
+
+				final List<TapIndexField> indexFields = tapIndex.getIndexFields();
 
 				if (CollectionUtils.isNotEmpty(indexFields)) {
 					final MongoCollection<Document> collection = mongoDatabase.getCollection(table.getName());

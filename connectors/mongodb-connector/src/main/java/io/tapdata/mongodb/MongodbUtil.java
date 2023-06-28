@@ -295,10 +295,15 @@ public class MongodbUtil {
 				}
 			} catch (Exception ignored) {
 		}
+		// 如果 primaryHost 为空, 给第一个地址, 等报错后续继续选择
+		if (primaryHost.get() == null) {
+			primaryHost.set(connectionString.getHosts().get(0));
+		}
 
 		if (primaryHost.get() != null) {
 			// oriHosts 为 connectionString.getHosts() 用 , 连接
 			String oriHosts = String.join(",", connectionString.getHosts());
+			TapLogger.info("mongoUri: {} not contains replicaSet, only connect to primary node: {}", mongoUri, primaryHost.get());
 			mongoUri = mongoUri.replace(oriHosts, primaryHost.get());
 		}
 
