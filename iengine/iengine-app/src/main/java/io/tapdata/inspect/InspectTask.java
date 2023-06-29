@@ -342,6 +342,7 @@ public abstract class InspectTask implements Runnable {
 			inspectService.upsertInspectResult(inspectResult);
 			synchronized (inspectDetailQueue) {
 				inspectService.insertInspectDetails(inspectDetailQueue);
+				inspectDetailQueue.clear();
 			}
 
 			if (InspectStatus.ERROR.getCode().equals(inspectResult.getStatus())) {

@@ -3,7 +3,6 @@ package io.tapdata.connector.postgres.converters;
 import io.debezium.spi.converter.RelationalColumn;
 import org.apache.kafka.connect.data.SchemaBuilder;
 
-import javax.annotation.Nonnull;
 import java.time.OffsetTime;
 import java.util.Properties;
 
@@ -25,7 +24,7 @@ public class TimeTZConverter extends BaseTapdataConverter {
     }
 
     @Override
-    Object convert(@Nonnull Object data) {
+    Object convert(Object data) {
         OffsetTime offsetTime = (OffsetTime) data;
         return offsetTime.toLocalTime().toSecondOfDay() * 1000000L + offsetTime.getNano() / 1000;
     }
