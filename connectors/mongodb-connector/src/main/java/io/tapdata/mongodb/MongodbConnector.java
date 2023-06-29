@@ -2,12 +2,7 @@ package io.tapdata.mongodb;
 
 import com.mongodb.*;
 import com.mongodb.bulk.BulkWriteError;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
-import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.MongoIterable;
+import com.mongodb.client.*;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Sorts;
 import io.tapdata.base.ConnectorBase;
@@ -20,26 +15,13 @@ import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.schema.TapField;
-import io.tapdata.entity.schema.TapIndex;
-import io.tapdata.entity.schema.TapIndexEx;
-import io.tapdata.entity.schema.TapIndexField;
-import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.*;
 import io.tapdata.entity.schema.type.TapNumber;
-import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.entity.schema.value.TapBinaryValue;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDateValue;
-import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapNumberValue;
-import io.tapdata.entity.schema.value.TapStringValue;
-import io.tapdata.entity.schema.value.TapTimeValue;
-import io.tapdata.entity.schema.value.TapYearValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ParagraphFormatter;
-import io.tapdata.exception.TapPdkRetryableEx;
 import io.tapdata.exception.TapPdkTerminateByServerEx;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.mongodb.entity.MongodbConfig;
@@ -52,17 +34,7 @@ import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
-import io.tapdata.pdk.apis.entity.ExecuteResult;
-import io.tapdata.pdk.apis.entity.FilterResults;
-import io.tapdata.pdk.apis.entity.Projection;
-import io.tapdata.pdk.apis.entity.QueryOperator;
-import io.tapdata.pdk.apis.entity.SortOn;
-import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
-import io.tapdata.pdk.apis.entity.TapExecuteCommand;
-import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -75,30 +47,13 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.BsonArray;
-import org.bson.BsonDocument;
-import org.bson.BsonString;
-import org.bson.BsonType;
-import org.bson.BsonValue;
-import org.bson.Document;
+import org.bson.*;
 import org.bson.conversions.Bson;
-import org.bson.types.Binary;
-import org.bson.types.Code;
-import org.bson.types.Decimal128;
-import org.bson.types.ObjectId;
-import org.bson.types.Symbol;
+import org.bson.types.*;
 
 import java.io.Closeable;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -112,12 +67,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static com.mongodb.client.model.Filters.and;
-import static com.mongodb.client.model.Filters.eq;
-import static com.mongodb.client.model.Filters.gt;
-import static com.mongodb.client.model.Filters.gte;
-import static com.mongodb.client.model.Filters.lt;
-import static com.mongodb.client.model.Filters.lte;
+import static com.mongodb.client.model.Filters.*;
 import static java.util.Collections.singletonList;
 
 /**
@@ -813,8 +763,6 @@ public class MongodbConnector extends ConnectorBase {
 		} catch (Throwable e) {
 			if (e instanceof MongoTimeoutException) {
 				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
-			} else if (e instanceof MongoSocketReadException) {
-				throw new TapPdkRetryableEx(connectorContext.getId(), e);
 			} else if (e instanceof MongoBulkWriteException) {
 				MongoBulkWriteException mongoBulkWriteException = (MongoBulkWriteException) e;
 				List<BulkWriteError> writeErrors = mongoBulkWriteException.getWriteErrors();
@@ -1034,26 +982,29 @@ public class MongodbConnector extends ConnectorBase {
 	private void batchRead(TapConnectorContext connectorContext, TapTable table, Object offset, int eventBatchSize, BiConsumer<List<TapEvent>, Object> tapReadOffsetConsumer) throws Throwable {
 		try {
 			List<TapEvent> tapEvents = list();
-			MongoCursor<Document> mongoCursor;
 			MongoCollection<Document> collection = getMongoCollection(table.getId());
 			final int batchSize = eventBatchSize > 0 ? eventBatchSize : 5000;
+			FindIterable<Document> findIterable;
 			if (offset == null) {
-				mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
+				findIterable = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize);
 			} else {
 				MongoBatchOffset mongoOffset = (MongoBatchOffset) offset;//fromJson(offset, MongoOffset.class);
 				Object offsetValue = mongoOffset.value();
 				if (offsetValue != null) {
-					mongoCursor = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
-							.batchSize(batchSize).iterator();
+					findIterable = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
+									.batchSize(batchSize);
 				} else {
-					mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
+					findIterable = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize);
 					TapLogger.warn(TAG, "Offset format is illegal {}, no offset value has been found. Final offset will be null to do the batchRead", offset);
 				}
+			}
+			if (mongoConfig.isNoCursorTimeout()) {
+				findIterable.noCursorTimeout(true).maxTime(30, TimeUnit.MINUTES);
 			}
 
 			Document lastDocument;
 
-			try {
+			try (MongoCursor<Document> mongoCursor = findIterable.iterator()) {
 				while (mongoCursor.hasNext()) {
 					if (!isAlive()) return;
 					lastDocument = mongoCursor.next();
@@ -1167,7 +1118,17 @@ public class MongodbConnector extends ConnectorBase {
 	private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) throws Throwable {
 		String database = mongoConfig.getDatabase();
 		List<String> temp = new ArrayList<>();
-		for (String tableName : mongoClient.getDatabase(database).listCollectionNames()) {
+		for (Document collection : mongoClient.getDatabase(database).listCollections()) {
+			// 去除视图表
+			if (collection.get("type", "").equals("view")) {
+				continue;
+			}
+			String tableName = collection.getString("name");
+			// 如果 tableName 以 "system." 开头, 则跳过(这是一些系统表)
+			if (tableName.startsWith("system.")) {
+				continue;
+			}
+
 			if (getMongoCollection(tableName).estimatedDocumentCount() <= 0) {
 				continue;
 			}

@@ -18,6 +18,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
@@ -152,9 +153,12 @@ public class RabbitmqService extends AbstractMqService {
         AtomicLong delete = new AtomicLong(0);
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
         Channel channel = rabbitmqConnection.createChannel();
-        // 如果 tapTable 为 null, 直接返回
-        if (tapTable == null) {
-            writeListResultConsumer.accept(listResult.insertedCount(0).modifiedCount(0).removedCount(0));
+        if (EmptyKit.isNull(channel)) {
+            ErrorKit.ignoreAnyError(rabbitmqConnection::close);
+            rabbitmqConnection = connectionFactory.newConnection();
+            channel = rabbitmqConnection.createChannel();
+        }
+        if (EmptyKit.isNull(tapTable)) {
             return;
         }
         channel.queueDeclare(tapTable.getId(), true, false, false, null);

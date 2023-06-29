@@ -12,6 +12,7 @@ import com.hazelcast.config.SerializerConfig;
 import com.hazelcast.config.TcpIpConfig;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.spi.properties.ClusterProperty;
 import com.tapdata.cache.hazelcast.HazelcastCacheStats;
 import com.tapdata.cache.hazelcast.serializer.HazelcastCacheStatsSerializer;
 import com.tapdata.cache.hazelcast.serializer.HazelcastDataFlowCacheConfigSerializer;
@@ -25,6 +26,7 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -32,12 +34,15 @@ import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.io.File;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 import static com.hazelcast.client.properties.ClientProperty.HAZELCAST_CLOUD_DISCOVERY_TOKEN;
 import static com.hazelcast.client.properties.ClientProperty.METRICS_ENABLED;
@@ -52,11 +57,12 @@ public class HazelcastUtil {
 	private final static String KEYSTORE_DIR = ".keystore";
 	private final static String KEYSTORE_SUFFIX = ".keystore";
 	private final static String TRUSTSTORE_SUFFIX = ".truststore";
-
+	private static final String DEFAULT_CALL_TIMEOUT = String.valueOf(TimeUnit.MINUTES.toMillis(5L));
+	public static final HZLoggingType DEFAULT_HZ_LOGGING_TYPE = HZLoggingType.LOG4J2;
 	private static Logger logger = LogManager.getLogger(HazelcastUtil.class);
 
 	public static Config getConfig(String instanceName) {
-		return getConfig(instanceName, HZLoggingType.LOG4J2);
+		return getConfig(instanceName, DEFAULT_HZ_LOGGING_TYPE);
 	}
 
 	public static Config getConfig(String instanceName, HZLoggingType hzLoggingType) {
@@ -68,12 +74,28 @@ public class HazelcastUtil {
 		networkConfig.setJoin(joinConfig);
 		config.setNetworkConfig(networkConfig);
 		config.setInstanceName(instanceName);
-		config.setProperty("hazelcast.logging.type", hzLoggingType.getType());
+		setSystemProperties(config, hzLoggingType);
 		SerializerConfig hazelcastCacheStatsSerializer = new SerializerConfig().setImplementation(new HazelcastCacheStatsSerializer()).setTypeClass(HazelcastCacheStats.class);
 		SerializerConfig hazelcastDataFlowCacheConfigSerializer = new SerializerConfig().setImplementation(new HazelcastDataFlowCacheConfigSerializer()).setTypeClass(DataFlowCacheConfig.class);
 		config.getSerializationConfig().addSerializerConfig(hazelcastCacheStatsSerializer);
 		config.getSerializationConfig().addSerializerConfig(hazelcastDataFlowCacheConfigSerializer);
 		return config;
+	}
+
+	private static void setSystemProperties(Config config, HZLoggingType hzLoggingType) {
+		if (null == config) {
+			return;
+		}
+		config.setProperty(ClusterProperty.OPERATION_CALL_TIMEOUT_MILLIS.getName(), CommonUtils.getProperty(ClusterProperty.OPERATION_CALL_TIMEOUT_MILLIS.getName(), DEFAULT_CALL_TIMEOUT));
+		config.setProperty(ClusterProperty.LOGGING_TYPE.getName(), hzLoggingType.getType());
+		Properties properties = config.getProperties();
+		StringWriter stringWriter = new StringWriter();
+		try (
+				PrintWriter printWriter = new PrintWriter(stringWriter)
+		) {
+			properties.list(printWriter);
+			logger.info(stringWriter.toString());
+		}
 	}
 
 	/**

@@ -854,13 +854,22 @@ function connectionTest(connectionConfig) {
     try {
         invoke = invoker.invoke('Opportunity', clientInfo);
         httpCode = invoke.httpCode;
-        return [
+        let items = [
             {
                 "test": "Permission check",
                 "code": exceptionUtil.statusCode(httpCode),
                 "result": result(invoke, httpCode)
             }
         ];
+        if (exceptionUtil.statusCode(httpCode) === 1) {
+            items.push({
+                "test": "Read log",
+                "code": 1,
+                "result": "Pass"
+            });
+        }
+
+        return items;
     } catch (e) {
         return [
             {

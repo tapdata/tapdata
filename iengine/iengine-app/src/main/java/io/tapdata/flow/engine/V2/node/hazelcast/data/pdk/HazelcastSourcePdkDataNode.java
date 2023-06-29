@@ -217,7 +217,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 	private void waitAllSnapshotCompleteIfNeed() {
 		while (isRunning()) {
-			if (hasMergeNode()) {
+			if (hasMergeNode() && need2InitialSync(syncProgress)) {
 				Predicate<TaskDto> mergeWaitPredicate = taskDto -> {
 					Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
 					Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);

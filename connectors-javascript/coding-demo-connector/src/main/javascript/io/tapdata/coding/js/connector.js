@@ -48,11 +48,19 @@ function connectionTest(connectionConfig) {
         "SortKey": 'UPDATED_AT',
         "Conditions": [{"Key": 'UPDATED_AT', "Value": batchStart + '_' + dateUtils.nowDate()}],
         "SortValue": 'ASC'});
-    return [{
+    let items = [{
         "test": " Check whether the interface call passes of Issues List API.",
         "code": issuesList ? 1 : -1,
         "result": issuesList ? "Pass" : "Not pass"
     }];
+    if (issuesList) {
+        items.push({
+            "test": "Read log",
+            "code": 1,
+            "result": "Pass"
+        });
+    }
+    return items;
 }
 
 function read(urlName, offset, sender, isStreamRead) {

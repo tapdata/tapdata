@@ -15,6 +15,7 @@ import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.OEMReplaceUtil;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -69,10 +70,11 @@ public class PkdSourceService {
 			throw new BizException("Invalid jar file, please upload a valid jar file.");
 		}
 
-		for (PdkSourceDto pdkSourceDto : pdkSourceDtos) {
-			// try to verify the version
-			String version = pdkSourceDto.getVersion();
-			Integer pdkAPIBuildNumber = pdkSourceDto.getPdkAPIBuildNumber();
+        Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("connector/replace.json");
+        for(PdkSourceDto pdkSourceDto : pdkSourceDtos) {
+            // try to verify the version
+            String version  = pdkSourceDto.getVersion();
+            Integer pdkAPIBuildNumber = pdkSourceDto.getPdkAPIBuildNumber();
 
 			// 只有 admin 用户的为 public 的 scope
 			String scope = "customer";
@@ -145,18 +147,22 @@ public class PkdSourceService {
 					if (!langMap.isEmpty()) {
 						List<String> pathList = langMap.values().stream().distinct().collect(Collectors.toList());
 
-						Map<String, ObjectId> pathMap = new HashMap<>();
-						pathList.forEach(path -> {
-							if (docMap.containsKey(path)) {
-								CommonsMultipartFile doc = docMap.getOrDefault(path, null);
-								try {
-									ObjectId docId = fileService.storeFile(doc.getInputStream(), doc.getOriginalFilename(), null, fileInfo);
-									pathMap.put(path, docId);
-								} catch (IOException e) {
-									throw new BizException(e);
-								}
-							}
-						});
+                        Map<String, ObjectId> pathMap = new HashMap<>();
+                        pathList.forEach(path -> {
+                            if (docMap.containsKey(path)) {
+                                CommonsMultipartFile doc = docMap.getOrDefault(path, null);
+                                try {
+                                    ObjectId docId = fileService.storeFile(
+                                            OEMReplaceUtil.replace(doc.getInputStream(), oemConfig),
+                                            doc.getOriginalFilename(),
+                                            null,
+                                            fileInfo );
+                                    pathMap.put(path, docId);
+                                } catch (IOException e) {
+                                    throw new BizException(e);
+                                }
+                            }
+                        });
 
 						pdkSourceDto.getMessages().forEach((k, v) -> {
 							if (v instanceof Map && Objects.nonNull(((Map<?, ?>) v).get("doc"))) {

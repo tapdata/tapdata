@@ -37,6 +37,7 @@ import com.tapdata.tm.task.vo.JsResultVo;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.OEMReplaceUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -64,21 +65,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import javax.servlet.http.HttpServletRequest;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.StringJoiner;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -86,9 +73,7 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static io.tapdata.entity.simplify.TapSimplify.entry;
 import static io.tapdata.entity.simplify.TapSimplify.fromJson;
-import static io.tapdata.entity.simplify.TapSimplify.map;
 
 @Service
 @Slf4j
@@ -756,10 +741,41 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             Response response = call.execute();
             int code = response.code();
             return 200 >= code && code < 300 ?
-                    (Map<String, Object>) fromJson(response.body().string())
+                    (Map<String, Object>) fromJson(OEMReplaceUtil.replace(response.body().string(), "connector/replace.json"))
                     : resultMap(testTaskId, false, "Access remote service error, http code: " + code);
         }catch (Exception e){
             return resultMap(testTaskId, false, e.getMessage());
+        }
+    }
+
+    private Map.Entry<String, Map<String, Object>> getLoginUserAttributes() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+        HttpServletRequest request = attributes.getRequest();
+
+        String userIdFromHeader = request.getHeader("user_id");
+        Map<String, Object> ent = new HashMap<>();
+        if (!com.tapdata.manager.common.utils.StringUtils.isBlank(userIdFromHeader)) {
+            ent.put("user_id", userIdFromHeader);
+            return new AbstractMap.SimpleEntry<>("Header", ent);
+        } else if((request.getQueryString() != null ? request.getQueryString() : "").contains("access_token")) {
+            Map<String, String> queryMap = Arrays.stream(request.getQueryString().split("&"))
+                    .filter(s -> s.startsWith("access_token"))
+                    .map(s -> s.split("=")).collect(Collectors.toMap(a -> a[0], a -> {
+                        try {
+                            return URLDecoder.decode(a[1], "UTF-8");
+                        } catch (UnsupportedEncodingException e) {
+                            e.printStackTrace();
+                            return a[1];
+                        }
+                    }, (a, b) -> a));
+            String accessToken = queryMap.get("access_token");
+            ent.put("access_token", accessToken);
+            return new AbstractMap.SimpleEntry<>("Param", ent);
+        } else if (request.getHeader("authorization") != null) {
+            ent.put("authorization", request.getHeader("authorization").trim());
+            return new AbstractMap.SimpleEntry<>("Header", ent);
+        } else {
+            throw new BizException("NotLogin");
         }
     }
 

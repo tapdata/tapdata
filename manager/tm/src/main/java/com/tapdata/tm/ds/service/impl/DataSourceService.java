@@ -881,16 +881,16 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
                     ProxyService proxyService = InstanceFactory.bean(ProxyService.class);
 
-                    String token = null;
-                    if (productList != null && productList.contains("dfs")) {
-                        if (!StringUtils.isBlank(gatewaySecret))
-                            token = proxyService.generateStaticToken(user.getUserId(), gatewaySecret);
-                        else
-                            throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
-                    }
-                    SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, user, token, requestURI);
-                    String webHookUrl = keyValue.substring(0, lastCharIndex) + subscribeResponseDto.getToken();
-                    config.put(key, webHookUrl);
+						String token = null;
+						if(productList != null && productList.contains("dfs")) {
+							if(!StringUtils.isBlank(gatewaySecret))
+								token = proxyService.generateStaticToken(user.getUserId(), gatewaySecret);
+							else
+								throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
+						}
+						SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, token);
+						String webHookUrl = keyValue.substring(0, lastCharIndex) + subscribeResponseDto.getToken();
+						config.put(key, webHookUrl);
 
                     repository.update(new Query(Criteria.where("_id").is(entityId)), entity);
                 }
