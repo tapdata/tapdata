@@ -118,14 +118,15 @@ public class SelectDbStreamLoader extends Throwable {
         int statusCode = response.code();
         try {
             if (!(statusCode >= 200 && statusCode < 300) || null == selectDBCopyIntoLog.get("State") || null == selectDBCopyIntoLog.get("JobId")) {
-                throw new CoreException(connectorContext.getId(), new Throwable("HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId")));
+                throw new CoreException(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_STATE_NULL, "HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId"));
             }
         } catch (Throwable e) {
             catchCount++;
-            if (catchCount > 20) {
-                throw new CoreException(connectorContext.getId(), new Throwable("HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId")));
+            if (catchCount > 30) {
+                catchCount = 0;
+                throw new CoreException(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_STATE_NULL, "HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId"));
             }
-            sleep(150000);
+            sleep(60000);
             connectorContext.getLog().warn("Data source upload retry: {}", catchCount);
             writeRecord(connectorContext, tapRecordEvents, table);
         }
