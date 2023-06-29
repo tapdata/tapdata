@@ -125,6 +125,13 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                     boolean streamReadNotMatch = taskDto.getType().contains("cdc") && !capList.contains("stream_read_function");
                     boolean batchReadNotMatch = taskDto.getType().contains("initial_sync") && !capList.contains("batch_read_function");
 
+										if (node instanceof TableNode) {
+											String cdcMode = ((TableNode) node).getCdcMode();
+											if ("polling".equals(cdcMode)) {
+												streamReadNotMatch = capList.contains("query_by_advance_filter_function");
+											}
+										}
+
                     if (streamReadNotMatch || batchReadNotMatch) {
                         List<String> caps = capList.stream().map(keyName -> MessageUtil.getDagCheckMsg(locale, StringUtils.upperCase(keyName))).collect(Collectors.toList());
                         List<String> syncType = Lists.newArrayList();
