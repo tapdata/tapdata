@@ -656,7 +656,7 @@ public class LdpServiceImpl implements LdpService {
             Query queryOldTask = new Query(criteriaOld);
             queryOldTask.fields().include("listtags", "qualified_name");
             oldMetaDatas = metadataInstancesService.findAllDto(queryOldTask, user);
-            oldMetaMap = oldMetaDatas.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m, (k1, k2) -> k1));
+            oldMetaMap = oldMetaDatas.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (k1, k2) -> k1));
         }
         if (TaskDto.LDP_TYPE_FDM.equals(task.getLdpType())) {
 
