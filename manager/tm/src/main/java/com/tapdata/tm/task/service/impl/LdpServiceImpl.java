@@ -40,6 +40,7 @@ import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
 import com.tapdata.tm.task.bean.MultiSearchDto;
 import com.tapdata.tm.task.constant.LdpDirEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
+import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
@@ -1159,6 +1160,84 @@ public class LdpServiceImpl implements LdpService {
         }
 
         return tableStatusMap;
+    }
+
+
+    @Override
+    public Set<String> belongLdpIds(String connectionId, List<MetadataInstancesDto> metas, UserDetail user) {
+        Set<String> newTables = new HashSet<>();
+        if (CollectionUtils.isEmpty(metas)) {
+            return newTables;
+        }
+        Set<String> tableNames = metas.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toSet());
+        Criteria criteria = Criteria.where("ldpType").in(TaskDto.LDP_TYPE_FDM, TaskDto.LDP_TYPE_MDM)
+                .and("dag.nodes.connectionId").is(connectionId)
+                .and("is_deleted").ne(true)
+                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            criteria.orOperator(new Criteria().and("dag.nodes.tableName").in(tableNames),
+                    new Criteria().and("dag.nodes.syncObjects.objectNames").in(tableNames)
+            );
+        }
+
+        Query query = new Query(criteria);
+        List<TaskDto> tasks = taskService.findAllDto(query, user);
+        if (CollectionUtils.isEmpty(tasks)) {
+            return newTables;
+        }
+
+        List<TaskDto> newTasks = new ArrayList<>();
+        for (TaskDto task : tasks) {
+            DAG dag = task.getDag();
+            if (dag != null) {
+                List<Node> targets = dag.getTargets();
+                if (CollectionUtils.isNotEmpty(targets)) {
+                    for (Node target : targets) {
+                        if (target instanceof DataParentNode) {
+                            if (connectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
+                                newTasks.add(task);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for (TaskDto newTask : newTasks) {
+            if (CollectionUtils.isEmpty(tableNames)) {
+                break;
+            }
+            List<Node> targets = newTask.getDag().getTargets();
+            if (TaskDto.LDP_TYPE_FDM.equals(newTask.getLdpType())) {
+                Node node = targets.get(0);
+                List<SyncObjects> syncObjects = ((DatabaseNode) node).getSyncObjects();
+                List<String> ldpNewTables = newTask.getLdpNewTables();
+                if (CollectionUtils.isNotEmpty(syncObjects)) {
+                    SyncObjects syncObjects1 = syncObjects.get(0);
+
+                    List<String> objectNames = syncObjects1.getObjectNames();
+                    for (String tableName : tableNames) {
+                        if (objectNames.contains(tableName)) {
+                            newTables.add(tableName);
+                        }
+                    }
+                }
+            } else {
+                for (Node target : targets) {
+                    if (target instanceof TableNode && connectionId.equals(((TableNode) target).getConnectionId())) {
+                        String tableName = ((TableNode) target).getTableName();
+                        if (tableNames.contains(tableName)) {
+                            newTables.add(tableName);
+                        }
+                    }
+                }
+            }
+
+            tableNames.removeAll(newTables);
+        }
+
+        return newTables;
     }
 
     @Override
