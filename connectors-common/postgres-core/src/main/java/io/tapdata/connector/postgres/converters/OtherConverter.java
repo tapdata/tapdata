@@ -3,7 +3,6 @@ package io.tapdata.connector.postgres.converters;
 import io.debezium.spi.converter.RelationalColumn;
 import org.apache.kafka.connect.data.SchemaBuilder;
 
-import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
@@ -28,7 +27,7 @@ public class OtherConverter extends BaseTapdataConverter {
     }
 
     @Override
-    Object convert(@Nonnull Object data) {
+    Object convert(Object data) {
         return data.toString();
     }
 }
