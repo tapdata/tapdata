@@ -169,8 +169,4 @@ public interface PDKExCode_10 {
 			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}
 	)
 	String DB_CDC_CONFIG_INVALID = "10011";
-
-
-	@TapExCode(recoverable = true)
-	String RETRYABLE_ERROR = "10012";
 }

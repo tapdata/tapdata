@@ -210,6 +210,9 @@ public class KafkaService extends AbstractMqService {
                         }
                         topics.remove(record.topic());
                     }
+                    if (EmptyKit.isEmpty(topics)) {
+                        break;
+                    }
                     kafkaConsumer.subscribe(topics);
                 }
                 topics.stream().map(TapTable::new).forEach(tableList::add);
