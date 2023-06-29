@@ -793,39 +793,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         messageQueueService.sendMessage(queueDto);
         return new HashMap<>();
     }
-
-    private Map.Entry<String, Map<String, Object>> getLoginUserAttributes() {
-        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
-        HttpServletRequest request = attributes.getRequest();
-
-        String userIdFromHeader = request.getHeader("user_id");
-        Map<String, Object> ent = new HashMap<>();
-        if (!com.tapdata.manager.common.utils.StringUtils.isBlank(userIdFromHeader)) {
-            ent.put("user_id", userIdFromHeader);
-            return new AbstractMap.SimpleEntry<>("Header", ent);
-        } else if((request.getQueryString() != null ? request.getQueryString() : "").contains("access_token")) {
-            Map<String, String> queryMap = Arrays.stream(request.getQueryString().split("&"))
-                    .filter(s -> s.startsWith("access_token"))
-                    .map(s -> s.split("=")).collect(Collectors.toMap(a -> a[0], a -> {
-                        try {
-                            return URLDecoder.decode(a[1], "UTF-8");
-                        } catch (UnsupportedEncodingException e) {
-                            e.printStackTrace();
-                            return a[1];
-                        }
-                    }, (a, b) -> a));
-            String accessToken = queryMap.get("access_token");
-            ent.put("access_token", accessToken);
-            return new AbstractMap.SimpleEntry<>("Param", ent);
-        } else if (request.getHeader("authorization") != null) {
-            ent.put("authorization", request.getHeader("authorization").trim());
-            return new AbstractMap.SimpleEntry<>("Header", ent);
-        } else {
-            throw new BizException("NotLogin");
-        }
-    }
-
-
     private Map<String,Object> resultMap(String testTaskId, boolean isSucceed, String message){
         Map<String, Object> errorMap = new HashMap<>();
         errorMap.put("taskId", testTaskId);
