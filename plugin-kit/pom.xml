@@ -104,6 +104,11 @@
 				<artifactId>error-code-scanner</artifactId>
 				<version>${error-code-scanner.version}</version>
 			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>pdk-error-code</artifactId>
+				<version>${error-code-core.version}</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 
