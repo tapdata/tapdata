@@ -3,7 +3,6 @@ package io.tapdata.connector.postgres.converters;
 import io.debezium.spi.converter.RelationalColumn;
 import org.apache.kafka.connect.data.SchemaBuilder;
 
-import javax.annotation.Nonnull;
 import java.time.Duration;
 import java.util.Properties;
 
@@ -25,7 +24,7 @@ public class TimeConverter extends BaseTapdataConverter {
     }
 
     @Override
-    Object convert(@Nonnull Object data) {
+    Object convert(Object data) {
         //for pg<=9.4
         if (data instanceof String) {
             double microsecond = 0;

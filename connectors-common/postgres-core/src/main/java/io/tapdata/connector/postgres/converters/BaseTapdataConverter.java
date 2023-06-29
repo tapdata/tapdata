@@ -5,7 +5,6 @@ import io.debezium.spi.converter.RelationalColumn;
 import io.tapdata.kit.EmptyKit;
 import org.apache.kafka.connect.data.SchemaBuilder;
 
-import javax.annotation.Nonnull;
 import java.util.Properties;
 import java.util.function.Function;
 
@@ -25,7 +24,7 @@ public abstract class BaseTapdataConverter implements CustomConverter<SchemaBuil
 
     abstract boolean needConvert(RelationalColumn column);
 
-    abstract Object convert(@Nonnull Object data);
+    abstract Object convert(Object data);
 
     @Override
     public final void configure(Properties props) {
