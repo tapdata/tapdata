@@ -1,34 +1,32 @@
 package io.tapdata.connector.postgres.converters;
 
-import io.debezium.spi.converter.CustomConverter;
 import io.debezium.spi.converter.RelationalColumn;
-import io.tapdata.kit.EmptyKit;
 import org.apache.kafka.connect.data.SchemaBuilder;
 
+import javax.annotation.Nonnull;
 import java.time.Instant;
 import java.util.Properties;
 
-public class TimestampConverter implements CustomConverter<SchemaBuilder, RelationalColumn> {
-
-    private SchemaBuilder timestampSchema;
+public class TimestampConverter extends BaseTapdataConverter {
 
     @Override
-    public void configure(Properties props) {
-        timestampSchema = SchemaBuilder.int64().name(props.getProperty("schema.name"));
+    SchemaBuilder initSchemaBuilder(Properties props) {
+        return SchemaBuilder.int64().name(props.getProperty("schema.name"));
     }
 
     @Override
-    public void converterFor(RelationalColumn column,
-                             ConverterRegistration<SchemaBuilder> registration) {
+    Object initDefaultValue() {
+        return 0L;
+    }
 
-        if ("timestamp".equals(column.typeName())) {
-            registration.register(timestampSchema, x -> {
-                if (EmptyKit.isNull(x)) {
-                    return null;
-                }
-                Instant instant = (Instant) x;
-                return (instant.getEpochSecond() * 1000000 + instant.getNano() / 1000) / (long) Math.pow(10, 6 - column.scale().orElse(6));
-            });
-        }
+    @Override
+    boolean needConvert(RelationalColumn column) {
+        return "timestamp".equals(column.typeName());
+    }
+
+    @Override
+    Object convert(@Nonnull Object data) {
+        Instant instant = (Instant) data;
+        return (instant.getEpochSecond() * 1000000 + instant.getNano() / 1000) / (long) Math.pow(10, 6 - column.scale().orElse(6));
     }
 }
