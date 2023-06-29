@@ -3,7 +3,6 @@ package io.tapdata.connector.postgres.converters;
 import io.debezium.spi.converter.RelationalColumn;
 import org.apache.kafka.connect.data.SchemaBuilder;
 
-import javax.annotation.Nonnull;
 import java.time.Instant;
 import java.util.Properties;
 
@@ -25,7 +24,7 @@ public class TimestampConverter extends BaseTapdataConverter {
     }
 
     @Override
-    Object convert(@Nonnull Object data) {
+    Object convert(Object data) {
         Instant instant = (Instant) data;
         return (instant.getEpochSecond() * 1000000 + instant.getNano() / 1000) / (long) Math.pow(10, 6 - column.scale().orElse(6));
     }
