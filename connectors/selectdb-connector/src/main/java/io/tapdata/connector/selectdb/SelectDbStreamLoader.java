@@ -30,6 +30,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static io.tapdata.entity.simplify.TapSimplify.sleep;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 
@@ -53,6 +54,7 @@ public class SelectDbStreamLoader extends Throwable {
     private SelectDbJdbcContext selectDbJdbcContext;
     private Future<CloseableHttpResponse> pendingLoadFuture;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private int catchCount = 0;
 
     public SelectDbStreamLoader(SelectDbContext selectDbContext, CloseableHttpClient httpClient) {
         this.selectDbContext = selectDbContext;
@@ -115,8 +117,18 @@ public class SelectDbStreamLoader extends Throwable {
                     + "]   CreateTime:" + selectDBCopyIntoLog.get("CreateTime"));
         }
         int statusCode = response.code();
-        if (!(statusCode >= 200 && statusCode < 300) || null == selectDBCopyIntoLog.get("State") || null == selectDBCopyIntoLog.get("JobId")) {
-            throw new TapPdkRetryableEx(connectorContext.getId(), new Throwable("HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId")));
+        try {
+            if (!(statusCode >= 200 && statusCode < 300) || null == selectDBCopyIntoLog.get("State") || null == selectDBCopyIntoLog.get("JobId")) {
+                throw new TapPdkRetryableEx(connectorContext.getId(), new Throwable("HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId")));
+            }
+        } catch (Throwable e) {
+            catchCount++;
+            if (catchCount > 20) {
+                throw new TapPdkRetryableEx(connectorContext.getId(), new Throwable("HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId")));
+            }
+            sleep(150000);
+            connectorContext.getLog().warn("Data source upload retry: {}", catchCount);
+            writeRecord(connectorContext, tapRecordEvents, table);
         }
         return listResult;
     }
