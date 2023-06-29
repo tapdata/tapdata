@@ -297,17 +297,7 @@ public class MysqlConnector extends CommonDbConnector {
     protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws SQLException {
         CreateTableOptions createTableOptions = new CreateTableOptions();
 
-        if (tapConnectorContext.getNodeConfig().getValue("syncIndex", false)) {
-            List<String> sqlList = TapSimplify.list();
-            List<TapIndex> indexList = tapCreateTableEvent.getTable().getIndexList().stream().filter(v -> discoverIndex(tapCreateTableEvent.getTable().getId()).stream()
-                    .noneMatch(i -> DbKit.ignoreCreateIndex(i, v))).collect(Collectors.toList());
-            TapLogger.info(TAG, "Index list: {}", indexList);
-            if (EmptyKit.isNotEmpty(indexList)) {
-                indexList.stream().filter(i -> !i.isPrimary()).forEach(i ->
-                        sqlList.add(getCreateIndexSql(tapCreateTableEvent.getTable(), i)));
-            }
-            jdbcContext.batchExecute(sqlList);
-        }
+
 
         try {
             if (mysqlJdbcContext.queryAllTables(Collections.singletonList(tapCreateTableEvent.getTableId())).size() > 0) {
@@ -327,11 +317,56 @@ public class MysqlConnector extends CommonDbConnector {
                 mysqlJdbcContext.batchExecute(Arrays.asList(createTableSqls));
                 createTableOptions.setTableExists(false);
             }
-            return createTableOptions;
+
         } catch (Throwable t) {
             exceptionCollector.collectWritePrivileges("createTable", Collections.emptyList(), t);
             throw new RuntimeException("Create table failed, message: " + t.getMessage(), t);
         }
+
+        if (tapConnectorContext.getNodeConfig().getValue("syncIndex", false)) {
+            List<String> sqlList = TapSimplify.list();
+            List<TapIndex> indexList = tapCreateTableEvent.getTable().getIndexList();
+            List<TapIndex> createIndexList = new ArrayList<>();
+            List<TapIndex> existsIndexList = discoverIndex(tapCreateTableEvent.getTable().getId());
+            // 如果索引已经存在，就不再创建; 名字相同视为存在; 字段以及顺序相同, 也视为存在
+            if (EmptyKit.isNotEmpty(existsIndexList)) {
+                for (TapIndex tapIndex : indexList) {
+                    boolean exists = false;
+                    for (TapIndex existsIndex : existsIndexList) {
+                        if (tapIndex.getName().equals(existsIndex.getName())) {
+                            exists = true;
+                            break;
+                        }
+                        if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
+                            boolean same = true;
+                            for (int i = 0; i < tapIndex.getIndexFields().size(); i++) {
+                                if (!tapIndex.getIndexFields().get(i).getName().equals(existsIndex.getIndexFields().get(i).getName())
+                                        || tapIndex.getIndexFields().get(i).getFieldAsc() != existsIndex.getIndexFields().get(i).getFieldAsc()) {
+                                    same = false;
+                                    break;
+                                }
+                            }
+                            if (same) {
+                                exists = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!exists) {
+                        createIndexList.add(tapIndex);
+                    }
+                }
+            } else {
+                createIndexList.addAll(indexList);
+            }
+            TapLogger.info(TAG, "Table: {} will create Index list: {}", tapCreateTableEvent.getTable().getName(), createIndexList);
+            if (EmptyKit.isNotEmpty(createIndexList)) {
+                createIndexList.stream().filter(i -> !i.isPrimary()).forEach(i ->
+                        sqlList.add(getCreateIndexSql(tapCreateTableEvent.getTable(), i)));
+            }
+            jdbcContext.batchExecute(sqlList);
+        }
+        return createTableOptions;
     }
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
