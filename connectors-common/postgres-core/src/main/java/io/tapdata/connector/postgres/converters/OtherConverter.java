@@ -1,30 +1,34 @@
 package io.tapdata.connector.postgres.converters;
 
-import io.debezium.spi.converter.CustomConverter;
 import io.debezium.spi.converter.RelationalColumn;
-import io.tapdata.kit.EmptyKit;
 import org.apache.kafka.connect.data.SchemaBuilder;
 
+import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
-public class OtherConverter implements CustomConverter<SchemaBuilder, RelationalColumn> {
+public class OtherConverter extends BaseTapdataConverter {
 
-    private SchemaBuilder otherSchema;
     private final List<String> otherTypes = Arrays.asList("bit", "varbit", "tsvector", "tsquery", "regproc", "regprocedure", "regoper", "regoperator", "regclass", "regtype", "regconfig", "regdictionary", "pg_lsn");
 
     @Override
-    public void configure(Properties props) {
-        otherSchema = SchemaBuilder.string().name(props.getProperty("schema.name"));
+    SchemaBuilder initSchemaBuilder(Properties props) {
+        return SchemaBuilder.string().name(props.getProperty("schema.name"));
     }
 
     @Override
-    public void converterFor(RelationalColumn column,
-                             ConverterRegistration<SchemaBuilder> registration) {
+    Object initDefaultValue() {
+        return "";
+    }
 
-        if (otherTypes.contains(column.typeName())) {
-            registration.register(otherSchema, x -> EmptyKit.isNull(x) ? null : x.toString());
-        }
+    @Override
+    boolean needConvert(RelationalColumn column) {
+        return otherTypes.contains(column.typeName());
+    }
+
+    @Override
+    Object convert(@Nonnull Object data) {
+        return data.toString();
     }
 }
