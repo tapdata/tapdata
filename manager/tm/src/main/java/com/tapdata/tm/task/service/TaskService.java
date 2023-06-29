@@ -69,6 +69,7 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.schedule.ChartSchedule;
 import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
@@ -1958,7 +1959,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         resultChart.put("chart3", getDataDevChart(synList));
 //        resultChart.put("chart4", dataDev);
         resultChart.put("chart5", inspectChart(user));
-        resultChart.put("chart6", chart6(user));
+        Chart6Vo chart6Vo = ChartSchedule.cache.get(user.getUserId());
+        if (chart6Vo == null) {
+            chart6Vo = chart6(user);
+            ChartSchedule.put(user.getUserId(), chart6Vo);
+        }
+        resultChart.put("chart6", chart6Vo);
         return resultChart;
     }
 
@@ -3909,7 +3915,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         updateById(taskObjectId, update, userDetail);
     }
 
-    public Map<String, BigInteger> chart6(UserDetail user) {
+    public Chart6Vo chart6(UserDetail user) {
         Criteria criteria = Criteria.where("is_deleted").ne(true).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE);
         Query query = new Query(criteria);
         query.fields().include("_id");
@@ -3918,7 +3924,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         List<MeasurementEntity>  allMeasurements = new ArrayList<>();
         if (CollectionUtils.isNotEmpty(ids)) {
-            ids.parallelStream().forEach(id -> {
+            ids.stream().forEach(id -> {
                 MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
                 if (measurement != null) {
                     allMeasurements.add(measurement);
@@ -3973,13 +3979,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
         }
 
-        Map<String, BigInteger> chart6Map = new HashMap<>();
-        chart6Map.put("outputTotal", output);
-        chart6Map.put("inputTotal", input);
-        chart6Map.put("insertedTotal", insert);
-        chart6Map.put("updatedTotal", update);
-        chart6Map.put("deletedTotal", delete);
-        return chart6Map;
+
+        Chart6Vo chart6Vo = Chart6Vo.builder().outputTotal(output).inputTotal(input)
+                .insertedTotal(insert).updatedTotal(update).deletedTotal(delete)
+                .build();
+        return chart6Vo;
     }
 
     public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {
