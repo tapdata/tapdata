@@ -198,6 +198,14 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 					syncType = taskDto.getSyncType();
 				}
 				if (null != this.shareCdcContext.getCdcStartTs() && this.shareCdcContext.getCdcStartTs().compareTo(0L) > 0) {
+					// Dynamic add table to share task, maybe RingBuffer is uninitialized. check and wait to initialized
+					while (true) {
+						if (!running.get()) throw new RuntimeException("Check table start point failed, because is stopping");
+						if (constructRingBuffer.getRingbuffer().tailSequence() >= 0) break;
+
+						Thread.sleep(1000L);
+					}
+
 					ConstructIterator<Document> iterator = constructRingBuffer.find();
 					Document firstLogDocument = iterator.peek(15L, TimeUnit.SECONDS);
 					if (null != firstLogDocument) {
