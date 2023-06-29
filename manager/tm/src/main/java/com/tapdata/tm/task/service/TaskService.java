@@ -3782,7 +3782,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 								if (e instanceof TapCodeException) {
 									monitoringLogsService.startTaskErrorStackTrace(taskDto, userDetail, e, Level.ERROR);
 								} else {
-									monitoringLogsService.startTaskErrorStackTrace(taskDto, userDetail, new BizException("Task.Plan.StartFailed", e), Level.ERROR);
+									monitoringLogsService.startTaskErrorStackTrace(taskDto, userDetail, new BizException("Task.PlanStart.Failed", e), Level.ERROR);
 								}
 							}
 						}
