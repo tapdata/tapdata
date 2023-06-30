@@ -23,6 +23,12 @@ public class HttpEntity<K,V>{
         this.entity.put(key,value);
         return this;
     }
+
+    public HttpEntity remove(K key){
+        this.entity.remove(key);
+        return this;
+    }
+
     public HttpEntity build(Map.Entry<K,V> entry){
         this.entity.put(entry.getKey(),entry.getValue());
         return this;
@@ -32,5 +38,13 @@ public class HttpEntity<K,V>{
     }
     public V get(K key){
         return this.entity.get(key);
+    }
+
+    public Map<K, V> getEntity() {
+        return entity;
+    }
+
+    public void setEntity(Map<K, V> entity) {
+        this.entity = entity;
     }
 }

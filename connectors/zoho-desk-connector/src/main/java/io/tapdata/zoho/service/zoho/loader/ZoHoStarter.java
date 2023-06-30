@@ -180,21 +180,23 @@ public class ZoHoStarter {
     public HttpResult readyAccessToken(ZoHoHttp http){
         HttpEntity header = http.getHeard();
         HttpResult httpResult = http.http();
-        if (Checker.isEmpty(httpResult) ){
+        if (Checker.isEmpty(httpResult) ) {
             TapLogger.debug(TAG,"Try to send once HTTP request, but AccessToken is timeout.");
         }
         String code = httpResult.getCode();
+        header.build("Authorization",http.getHeard());
         if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
             //重新获取超时的AccessToken，并添加到stateMap
             String newAccessToken = this.refreshAndBackAccessToken();
             this.addNewAccessTokenToStateMap(newAccessToken);
             header.build("Authorization",newAccessToken);
+            tapConnectionContext.getLog().warn(toJson(header));
             httpResult = http.http();
             if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) ){// || Checker.isEmpty(((Map<String,Object>)httpResult.getResult()).get("data"))){
                 throw new CoreException("AccessToken refresh succeed, but retry http failed. ");
             }
         }
-        if ("ERROR".equals(httpResult.getCode())) {
+        if ("ERROR".equals(httpResult.getCode()) && (httpResult.httpCode() >= 300 || httpResult.httpCode() < 200)) {
             String msg = toJson(httpResult.getResult());
             throw new CoreException(msg);
         }

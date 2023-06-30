@@ -4,9 +4,9 @@ import io.tapdata.entity.error.CoreException;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.StringJoiner;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ContextConfig {
     public static ContextConfig create(){
@@ -62,16 +62,20 @@ public class ContextConfig {
         if (fieldObj instanceof Collection) {
             Collection<Object> objects = (Collection<Object>) fieldObj;
             StringJoiner joiner = new StringJoiner(",");
+            AtomicInteger num = new AtomicInteger();
             for (Object f : objects) {
                 if (null == f) continue;
                 if (f instanceof Map){
                     Map<String, Object> map = (Map<String, Object>) f;
                     Optional.ofNullable(map.get("keyName")).ifPresent(name -> {
                         String n = String.valueOf(name);
-                        if (!"".equals(n.trim()) && joiner.length() <= (100-n.length())){
+                        if (!"".equals(n.trim()) && num.get() < 30){//joiner.length() <= (100-n.length())){
                             joiner.add(n);
+                            num.getAndIncrement();
                         } else {
-                            throw new CoreException("".equals(n.trim()) ? "An error custom field name, field name can not be empty" : "An error custom field name, the cumulative length of all field names cannot exceed 100");
+                            throw new CoreException("".equals(n.trim()) ?
+                                    "An error custom field name, field name can not be empty"
+                                    : "An error custom field name, the cumulative count of all field names cannot exceed 30");
                         }
                     });
                 }
