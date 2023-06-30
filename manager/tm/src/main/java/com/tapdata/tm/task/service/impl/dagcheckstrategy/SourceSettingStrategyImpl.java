@@ -115,7 +115,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 
                 if (CollectionUtils.isNotEmpty(dto.getCapabilities())) {
                     List<String> capList = dto.getCapabilities().stream().map(Capability::getId)
-                            .filter(id -> Lists.of("stream_read_function", "batch_read_function").contains(id)).collect(Collectors.toList());
+                            .filter(id -> Lists.of("stream_read_function", "batch_read_function", "query_by_advance_filter_function").contains(id)).collect(Collectors.toList());
 
                     if (Lists.of("Tidb", "Doris").contains(connectionDto.getDatabase_type()) &&
                             connectionDto.getConfig().containsKey("enableIncrement") &&
@@ -129,7 +129,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 										if (node instanceof TableNode) {
 											String cdcMode = ((TableNode) node).getCdcMode();
 											if ("polling".equals(cdcMode)) {
-												streamReadNotMatch = capList.contains("query_by_advance_filter_function");
+												streamReadNotMatch = !capList.contains("query_by_advance_filter_function");
 											}
 										}
 
