@@ -260,13 +260,12 @@ public class LdpServiceImpl implements LdpService {
             }
 
         }
-        for (Capability capability : capabilities) {
-            if (!CapabilityEnum.STREAM_READ_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
-                streamRead = false;
-            }
-            if (!CapabilityEnum.BATCH_READ_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
-                batchRead = false;
-            }
+        Set<String> capabilityIds = capabilities.stream().map(Capability::getId).collect(Collectors.toSet());
+        if (!capabilityIds.contains(CapabilityEnum.STREAM_READ_FUNCTION.name().toLowerCase())) {
+            streamRead = false;
+        }
+        if (!capabilityIds.contains(CapabilityEnum.BATCH_READ_FUNCTION.name().toLowerCase())) {
+            batchRead = false;
         }
 
         if (batchRead && streamRead) {
