@@ -2610,11 +2610,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
-                Map<String, Object> attrs = taskDto.getAttrs();
-                if (attrs != null) {
-                    attrs.remove("edgeMilestones");
-                    attrs.remove("syncProgress");
-                }
+							taskDto.setAttrs(new HashMap<>()); // 导出任务不保留运行时信息
                 jsonList.add(new TaskUpAndLoadDto("Task", JsonUtil.toJsonUseJackson(taskDto)));
                 DAG dag = taskDto.getDag();
                 List<Node> nodes = dag.getNodes();
@@ -2781,6 +2777,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             taskDto.setAccessNodeProcessId(null);
             taskDto.setAccessNodeProcessIdList(new ArrayList<>());
             taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+						taskDto.setTaskRecordId(new ObjectId().toHexString()); // 导入后不读旧指标数据
 
             Map<String, Object> attrs = taskDto.getAttrs();
             if (attrs != null) {
