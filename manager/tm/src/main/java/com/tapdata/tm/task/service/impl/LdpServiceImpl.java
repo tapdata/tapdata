@@ -1291,7 +1291,6 @@ public class LdpServiceImpl implements LdpService {
         for (TaskDto taskDto : taskDtos) {
             switch (taskDto.getStatus()) {
                 case TaskDto.STATUS_COMPLETE:
-                case TaskDto.STATUS_EDIT:
                 case TaskDto.STATUS_ERROR:
                 case TaskDto.STATUS_RENEW_FAILED:
                 case TaskDto.STATUS_SCHEDULE_FAILED:
