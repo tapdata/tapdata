@@ -132,7 +132,7 @@ public class VikaConnector extends ConnectorBase {
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        List<Node> nodes = vikaApiClient.getNodeApi().getNodes(spaceId);
+        List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId));
         if (EmptyKit.isNotEmpty(nodes)) {
             List<Node> nodeList = nodes.stream().filter(node -> "Datasheet".equals(node.getType())).collect(Collectors.toList());
             List<List<Node>> partition = Lists.partition(nodeList, tableSize);
@@ -202,7 +202,7 @@ public class VikaConnector extends ConnectorBase {
 
             AtomicInteger count = new AtomicInteger();
 
-            List<Node> nodes = vikaApiClient.getNodeApi().getNodes(spaceId);
+            List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId));
             if (EmptyKit.isNotEmpty(nodes)) {
                 List<String> datasheetIds = nodes.stream().filter(node -> "Datasheet".equals(node.getType())).map(Node::getId).collect(Collectors.toList());
                 if (EmptyKit.isNotEmpty(datasheetIds)) {
