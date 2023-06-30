@@ -704,12 +704,40 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		tapdataStartedCdcEvent.setSyncStage(SyncStage.CDC);
 		Node<?> node = getNode();
 		if (node.isLogCollectorNode()) {
-			LogCollectorNode logCollectorNode = (LogCollectorNode) node;
-			tapdataStartedCdcEvent.setType(SyncProgress.Type.LOG_COLLECTOR);
-			tapdataStartedCdcEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, dataProcessorContext.getConnections().getId());
-			tapdataStartedCdcEvent.addInfo(TapdataEvent.TABLE_NAMES_INFO_KEY, logCollectorNode.getTableNames());
+			List<Connections> connections = ShareCdcUtil.getConnectionIds(getNode(), ids -> {
+				Query connectionQuery = new Query(where("_id").in(ids));
+				connectionQuery.fields().include("config").include("pdkHash");
+				return clientMongoOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+			});
+			if(CollectionUtils.isNotEmpty(connections)){
+				connections.forEach(connection -> {
+					LogCollectorNode logCollectorNode = (LogCollectorNode) node;
+					List<String> logNameSpaces = logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getNamespace();
+					logNameSpaces.forEach(logNameSpace ->{
+						connection.getNamespace().forEach(nameSpace ->{
+							if(logNameSpace.equals(nameSpace)){
+								TapdataStartedCdcEvent startedCdcEvent = TapdataStartedCdcEvent.create();
+								startedCdcEvent.setCdcStartTime(System.currentTimeMillis());
+								startedCdcEvent.setSyncStage(SyncStage.CDC);
+								startedCdcEvent.setType(SyncProgress.Type.LOG_COLLECTOR);
+								startedCdcEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connection.getId());
+								startedCdcEvent.addInfo(TapdataEvent.TABLE_NAMES_INFO_KEY, logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getTableNames());
+								enqueue(startedCdcEvent);
+							}
+						});
+					});
+
+				});
+			}else{
+				LogCollectorNode logCollectorNode = (LogCollectorNode) node;
+				tapdataStartedCdcEvent.setType(SyncProgress.Type.LOG_COLLECTOR);
+				tapdataStartedCdcEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, dataProcessorContext.getConnections().getId());
+				tapdataStartedCdcEvent.addInfo(TapdataEvent.TABLE_NAMES_INFO_KEY, logCollectorNode.getTableNames());
+				enqueue(tapdataStartedCdcEvent);
+			}
+		}else{
+			enqueue(tapdataStartedCdcEvent);
 		}
-		enqueue(tapdataStartedCdcEvent);
 	}
 
 	private void doShareCdc() throws Exception {
