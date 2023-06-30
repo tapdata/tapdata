@@ -8,10 +8,12 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -144,21 +146,58 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					if (!isRunning()) {
 						return;
 					}
-					TapTable tapTable = tapTableMap.get(tableId);
-					if (null == tapTable) {
-						TapCodeException e = new TapCodeException(TaskTargetProcessorExCode_15.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: " + tableId);
-						if (null != funcAspect) funcAspect.setThrowable(e);
-						throw e;
+					createTable(tapTableMap, funcAspect, node, existsDataProcessEnum, tableId);
+				}
+			}
+
+			//对于复制任务停下来后新增表的建表。
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
+			if (taskDto != null && TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+				List<String> ldpNewTables = taskDto.getLdpNewTables();
+				if (CollectionUtils.isNotEmpty(ldpNewTables)) {
+					DAG dag = taskDto.getDag();
+					if (dag != null) {
+						LinkedList<DatabaseNode> targetNode = dag.getTargetNode();
+						if (CollectionUtils.isNotEmpty(targetNode)) {
+							DatabaseNode last = targetNode.getLast();
+							if (last != null) {
+								Map<String, String> sourceAndTargetMap = new HashMap<>();
+								List<SyncObjects> syncObjects = last.getSyncObjects();
+								SyncObjects syncObjects1 = syncObjects.get(0);
+								LinkedHashMap<String, String> tableNameRelation = syncObjects1.getTableNameRelation();
+								if (tableNameRelation != null && tableNameRelation.size() > 0) {
+									sourceAndTargetMap = syncObjects1.getTableNameRelation();
+								}
+								for (String ldpNewTable : ldpNewTables) {
+									String tableId = sourceAndTargetMap.get(ldpNewTable);
+									if (tableId != null) {
+										if (!isRunning()) {
+											return;
+										}
+										createTable(tapTableMap, funcAspect, node, existsDataProcessEnum, tableId);
+									}
+								}
+							}
+						}
 					}
-					dropTable(existsDataProcessEnum, tableId);
-					boolean createdTable = createTable(tapTable);
-					clearData(existsDataProcessEnum, tableId);
-					createTargetIndex(node, tableId, tapTable, createdTable);
-					if (null != funcAspect)
-						funcAspect.state(TableInitFuncAspect.STATE_PROCESS).completed(tableId, createdTable);
 				}
 			}
 		}));
+	}
+
+	private void createTable(TapTableMap<String, TapTable> tapTableMap, TableInitFuncAspect funcAspect, Node<?> node, ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
+		TapTable tapTable = tapTableMap.get(tableId);
+		if (null == tapTable) {
+			TapCodeException e = new TapCodeException(TaskTargetProcessorExCode_15.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: " + tableId);
+			if (null != funcAspect) funcAspect.setThrowable(e);
+			throw e;
+		}
+		dropTable(existsDataProcessEnum, tableId);
+		boolean createdTable = createTable(tapTable);
+		clearData(existsDataProcessEnum, tableId);
+		createTargetIndex(node, tableId, tapTable, createdTable);
+		if (null != funcAspect)
+			funcAspect.state(TableInitFuncAspect.STATE_PROCESS).completed(tableId, createdTable);
 	}
 
 	private void createTargetIndex(Node node, String tableId, TapTable tapTable, boolean createdTable) {
