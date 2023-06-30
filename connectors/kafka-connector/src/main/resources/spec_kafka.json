@@ -26,7 +26,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "mq_topics",
-          "x-index": 2
+          "x-index": 6
         },
         "krb5": {
           "type": "boolean",
@@ -53,8 +53,37 @@
               }
             }
           ],
+          "x-index": 7
+        },
+        "schemaRegister": {
+          "type": "boolean",
+          "title": "${schemaRegister}",
+          "default": false,
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "apiServerKey": "schemaRegister",
+          "x-reactions": [
+            {
+              "target": "*(schemaRegisterUrl)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===true}}"
+                }
+              }
+            }
+          ],
+          "x-index": 2
+        },
+        "schemaRegisterUrl": {
+          "required": true,
+          "type": "string",
+          "title": "${schemaRegisterUrl}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "schemaRegisterUrl",
           "x-index": 3
         },
+
         "krb5Keytab": {
           "type": "string",
           "title": "${krb5Keytab}",
@@ -66,7 +95,7 @@
           "apiServerKey": "krb5Keytab",
           "fileNameField": "krb5KeytabFile",
           "required": true,
-          "x-index": 4
+          "x-index": 20
         },
         "krb5Conf": {
           "type": "string",
@@ -79,7 +108,7 @@
           "apiServerKey": "krb5Conf",
           "fileNameField": "krb5ConfFile",
           "required": true,
-          "x-index": 5
+          "x-index": 30
         },
         "krb5Principal": {
           "type": "string",
@@ -88,7 +117,7 @@
           "x-component": "Input",
           "apiServerKey": "krb5Principal",
           "required": true,
-          "x-index": 6
+          "x-index": 40
         },
         "krb5ServiceName": {
           "type": "string",
@@ -97,7 +126,7 @@
           "x-component": "Input",
           "apiServerKey": "krb5ServiceName",
           "required": true,
-          "x-index": 7
+          "x-index": 50
         },
         "mqUsername": {
           "type": "string",
@@ -105,7 +134,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "mq_username",
-          "x-index": 8
+          "x-index": 60
         },
         "mqPassword": {
           "type": "string",
@@ -113,7 +142,7 @@
           "x-decorator": "FormItem",
           "x-component": "Password",
           "apiServerKey": "mq_password",
-          "x-index": 9
+          "x-index": 70
         },
         "kafkaSaslMechanism": {
           "type": "string",
@@ -122,7 +151,7 @@
           "x-decorator": "FormItem",
           "x-component": "Select",
           "apiServerKey": "kafkaSaslMechanism",
-          "x-index": 10,
+          "x-index": 80,
           "enum": [
             {
               "label": "PLAIN",
@@ -145,7 +174,7 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "apiServerKey": "kafkaIgnoreInvalidRecord",
-          "x-index": 11
+          "x-index": 90
         },
         "kafkaAcks": {
           "type": "string",
@@ -154,7 +183,7 @@
           "x-decorator": "FormItem",
           "x-component": "Select",
           "apiServerKey": "kafkaAcks",
-          "x-index": 12,
+          "x-index": 100,
           "enum": [
             {
               "label": "${not_sure}",
@@ -181,7 +210,7 @@
           "x-decorator": "FormItem",
           "x-component": "Select",
           "apiServerKey": "kafkaCompressionType",
-          "x-index": 13,
+          "x-index": 110,
           "enum": [
             {
               "label": "gzip",
@@ -208,7 +237,7 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "apiServerKey": "kafkaIgnorePushError",
-          "x-index": 14
+          "x-index": 120
         }
       }
     }
@@ -234,7 +263,9 @@
       "write_most_isr": "Write to most ISR partitions",
       "write_all_isr": "Write to all ISR partitions",
       "kafkaCompressionType": "Message compression type",
-      "kafkaIgnorePushError": "Ignore push message exception"
+      "kafkaIgnorePushError": "Ignore push message exception",
+      "schemaRegister": "schemaRegister",
+      "schemaRegisterUrl": "schemaRegisterUrl"
     },
     "zh_CN": {
       "doc": "docs/kafka_zh_CN.md",
@@ -255,7 +286,9 @@
       "write_most_isr": "写入大多数ISR分区",
       "write_all_isr": "写入所有ISR分区",
       "kafkaCompressionType": "消息压缩类型",
-      "kafkaIgnorePushError": "忽略推送消息异常"
+      "kafkaIgnorePushError": "忽略推送消息异常",
+      "schemaRegister": "模式注册",
+      "schemaRegisterUrl": "模式注册地址"
     },
     "zh_TW": {
       "doc": "docs/kafka_zh_TW.md",
@@ -276,7 +309,10 @@
       "write_most_isr": "寫入大多數ISR分區",
       "write_all_isr": "寫入所有ISR分區",
       "kafkaCompressionType": "消息壓縮類型",
-      "kafkaIgnorePushError": "忽略推理消息異常"
+      "kafkaIgnorePushError": "忽略推理消息異常",
+      "schemaRegister": "模式註冊",
+      "schemaRegisterUrl": "模式註冊地址"
+
     }
   },
   "dataTypes": {
