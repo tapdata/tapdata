@@ -175,7 +175,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         List<String> currentTableList = Lists.newArrayList();
         if (StringUtils.isNotBlank(searchTableName)) {
             currentTableList.add(searchTableName);
-            tableNames = tableNames.stream().filter(s -> s.contains(searchTableName)).collect(Collectors.toList());
+            tableNames = tableNames.stream().filter(s -> s.toUpperCase().contains(searchTableName.toUpperCase())).collect(Collectors.toList());
         }
 
         if (CollectionUtils.isEmpty(tableNames)) {

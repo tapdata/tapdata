@@ -77,6 +77,7 @@ import org.springframework.util.Assert;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.*;
@@ -1593,11 +1594,12 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     queryMetadata.fields().include(fieldArrays);
                 }
                 if (node instanceof MigrateProcessorNode) {
-//                    queryMetadata.addCriteria(criteriaNode);
-//                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
-//                    criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
-//                            .and("is_deleted").ne(true);
-                    Query nodeQuery = new Query(Criteria.where("nodeId").is(nodeId).and("is_deleted").ne(true));
+                    Criteria criteria = Criteria.where("nodeId").is(nodeId).and("is_deleted").ne(true);
+                    if (StringUtils.isNotBlank(tableFilter)) {
+                        Pattern pattern = Pattern.compile(tableFilter, Pattern.CASE_INSENSITIVE);
+                        criteria.and("originalName").regex(pattern);
+                    }
+                    Query nodeQuery = new Query(criteria);
                     List<MetadataInstancesDto> all = findAll(nodeQuery);
                     Map<String, MetadataInstancesDto> currentMap = all.stream()
                             .collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
@@ -1676,8 +1678,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                                 .and("is_deleted").ne(true);
 
                         if (StringUtils.isNotBlank(tableFilter)) {
-                            tableNames = tableNames.stream().filter(s -> s.toUpperCase().contains(tableFilter.toUpperCase())).collect(Collectors.toList());
-                            criteriaTable.and("originalName").in(tableNames);
+                            Pattern pattern = Pattern.compile(tableFilter, Pattern.CASE_INSENSITIVE);
+                            criteriaTable.and("originalName").regex(pattern);
                         }
 
                         metadatas = findAllDto(queryMetadata, user);
