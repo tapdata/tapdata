@@ -85,7 +85,10 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 		Map<String, Object> connectorConfig = (Map<String, Object>) testConnectionConfig.computeIfAbsent("config", s -> new LinkedHashMap<>());
 		if (null == externalStorageId) {
 			// 新配置
-			BiFunction<String, Object, Object> boolSetter = (k, v) -> Boolean.TRUE.equals(v);
+			BiFunction<String, Object, Object> boolSetter = (k, v) -> {
+				connectorConfig.put(k, Boolean.TRUE.equals(v));
+				return v;
+			};
 			BiFunction<String, Object, Object> stringSetter = (k, v) -> {
 				if (null != v) connectorConfig.put(k, v);
 				return v;

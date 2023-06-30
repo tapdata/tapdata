@@ -349,9 +349,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 if (CollectionUtils.isNotEmpty(fields)) {
                     Map<String, Boolean> fieldMap = mappingMap.get(instance.getAncestorsName());
                     for (Field field : fields) {
-                        if (field.isDeleted()) {
-                            continue;
-                        }
+//                        if (field.isDeleted()) {
+//                            continue;
+//                        }
                         String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
                         int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
 
@@ -498,9 +498,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                             .collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()));
                 }
                 for (Field field : fields) {
-                    if (field.isDeleted()) {
-                        continue;
-                    }
+//                    if (field.isDeleted()) {
+//                        continue;
+//                    }
                     String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
                     if (StringUtils.isBlank(defaultValue) && field.getUseDefaultValue()) {
                         defaultValue = Objects.isNull(field.getOriginalDefaultValue()) ? "" : field.getOriginalDefaultValue().toString();

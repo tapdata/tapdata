@@ -40,6 +40,7 @@ import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
 import com.tapdata.tm.task.bean.MultiSearchDto;
 import com.tapdata.tm.task.constant.LdpDirEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
+import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
@@ -654,9 +655,9 @@ public class LdpServiceImpl implements LdpService {
         if (CollectionUtils.isNotEmpty(oldQualifiedNames)) {
             Criteria criteriaOld = Criteria.where("qualified_name").in(oldQualifiedNames).and("is_deleted").ne(true);
             Query queryOldTask = new Query(criteriaOld);
-            queryOldTask.fields().include("listtags", "qualified_name");
+            queryOldTask.fields().include("listtags", "qualified_name", "source");
             oldMetaDatas = metadataInstancesService.findAllDto(queryOldTask, user);
-            oldMetaMap = oldMetaDatas.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m, (k1, k2) -> k1));
+            oldMetaMap = oldMetaDatas.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (k1, k2) -> k1));
         }
         if (TaskDto.LDP_TYPE_FDM.equals(task.getLdpType())) {
 
@@ -664,7 +665,8 @@ public class LdpServiceImpl implements LdpService {
             Node sourceNode = sources.get(0);
             String sourceCon = ((DataParentNode) sourceNode).getConnectionId();
 
-            Criteria criteria = Criteria.where("linkId").is(sourceCon).and("item_type").is(MetadataDefinitionDto.LDP_ITEM_FDM);
+            Tag fdmTag = getfdmTag(user);
+            Criteria criteria = Criteria.where("linkId").is(sourceCon).and("item_type").is(MetadataDefinitionDto.LDP_ITEM_FDM).and("parent_id").is(fdmTag.getId());
             MetadataDefinitionDto tag = metadataDefinitionService.findOne(new Query(criteria), user);
             Tag conTag = new Tag(tag.getId().toHexString(), tag.getValue());
             List<MetadataInstancesDto> saveMetaDatas = new ArrayList<>();
@@ -678,7 +680,7 @@ public class LdpServiceImpl implements LdpService {
                 MetadataInstancesDto metadataInstancesDto = buildSourceMeta(conTag, metaData, oldMeta);
                 saveMetaDatas.add(metadataInstancesDto);
             }
-            metadataInstancesService.bulkUpsetByWhere(metaDatas, user);
+            metadataInstancesService.bulkUpsetByWhere(saveMetaDatas, user);
         } else {
 
             List<String> tagIds = oldMetaDatas.stream()
@@ -766,6 +768,13 @@ public class LdpServiceImpl implements LdpService {
 
     public Tag getMdmTag(UserDetail user) {
         Criteria mdmCriteria = Criteria.where("value").is("MDM").and("parent_id").exists(false);
+        Query query = new Query(mdmCriteria);
+        MetadataDefinitionDto mdmTag = metadataDefinitionService.findOne(query, user);
+        return new Tag(mdmTag.getId().toHexString(), mdmTag.getValue());
+    }
+
+    private Tag getfdmTag(UserDetail user) {
+        Criteria mdmCriteria = Criteria.where("value").is("FDM").and("parent_id").exists(false);
         Query query = new Query(mdmCriteria);
         MetadataDefinitionDto mdmTag = metadataDefinitionService.findOne(query, user);
         return new Tag(mdmTag.getId().toHexString(), mdmTag.getValue());
@@ -1146,7 +1155,89 @@ public class LdpServiceImpl implements LdpService {
 
         }
 
+        for (String tableName : tableNames) {
+            tableStatusMap.putIfAbsent(tableName, "noRunning");
+        }
+
         return tableStatusMap;
+    }
+
+
+    @Override
+    public Set<String> belongLdpIds(String connectionId, List<MetadataInstancesDto> metas, UserDetail user) {
+        Set<String> newTables = new HashSet<>();
+        if (CollectionUtils.isEmpty(metas)) {
+            return newTables;
+        }
+        Set<String> tableNames = metas.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toSet());
+        Criteria criteria = Criteria.where("ldpType").in(TaskDto.LDP_TYPE_FDM, TaskDto.LDP_TYPE_MDM)
+                .and("dag.nodes.connectionId").is(connectionId)
+                .and("is_deleted").ne(true)
+                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            criteria.orOperator(new Criteria().and("dag.nodes.tableName").in(tableNames),
+                    new Criteria().and("dag.nodes.syncObjects.objectNames").in(tableNames)
+            );
+        }
+
+        Query query = new Query(criteria);
+        List<TaskDto> tasks = taskService.findAllDto(query, user);
+        if (CollectionUtils.isEmpty(tasks)) {
+            return newTables;
+        }
+
+        List<TaskDto> newTasks = new ArrayList<>();
+        for (TaskDto task : tasks) {
+            DAG dag = task.getDag();
+            if (dag != null) {
+                List<Node> targets = dag.getTargets();
+                if (CollectionUtils.isNotEmpty(targets)) {
+                    for (Node target : targets) {
+                        if (target instanceof DataParentNode) {
+                            if (connectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
+                                newTasks.add(task);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for (TaskDto newTask : newTasks) {
+            if (CollectionUtils.isEmpty(tableNames)) {
+                break;
+            }
+            List<Node> targets = newTask.getDag().getTargets();
+            if (TaskDto.LDP_TYPE_FDM.equals(newTask.getLdpType())) {
+                Node node = targets.get(0);
+                List<SyncObjects> syncObjects = ((DatabaseNode) node).getSyncObjects();
+                List<String> ldpNewTables = newTask.getLdpNewTables();
+                if (CollectionUtils.isNotEmpty(syncObjects)) {
+                    SyncObjects syncObjects1 = syncObjects.get(0);
+
+                    List<String> objectNames = syncObjects1.getObjectNames();
+                    for (String tableName : tableNames) {
+                        if (objectNames.contains(tableName)) {
+                            newTables.add(tableName);
+                        }
+                    }
+                }
+            } else {
+                for (Node target : targets) {
+                    if (target instanceof TableNode && connectionId.equals(((TableNode) target).getConnectionId())) {
+                        String tableName = ((TableNode) target).getTableName();
+                        if (tableNames.contains(tableName)) {
+                            newTables.add(tableName);
+                        }
+                    }
+                }
+            }
+
+            tableNames.removeAll(newTables);
+        }
+
+        return newTables;
     }
 
     @Override
