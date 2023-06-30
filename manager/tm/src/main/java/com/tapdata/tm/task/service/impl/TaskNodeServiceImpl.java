@@ -488,7 +488,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             // || CollectionUtils.isEmpty(metaMap.get(tableName).getFields())
 
             List<Field> fields = metadataInstancesDto.getFields().stream()
-                    .sorted((f1, f2) ->{
+                    .sorted((Field f1, Field f2) ->{
                         int f1pos = f1.getColumnPosition() == null ? -1 : f1.getColumnPosition();
                         int f2pos = f2.getColumnPosition() == null ? -1 : f2.getColumnPosition();
                         if (f1pos >= f2pos) {
