@@ -16,6 +16,8 @@ public class KafkaConfig extends MqConfig {
     private String krb5Conf;
     private String krb5Principal;
     private String krb5ServiceName;
+    private Boolean schemaRegister;
+    private String schemaRegisterUrl;
 
     /**
      * kafka source (Consumer)
@@ -43,6 +45,7 @@ public class KafkaConfig extends MqConfig {
     private String kafkaCompressionType = "";
     private String kafkaPartitionKey = "";
     private Boolean kafkaIgnorePushError = false;
+
 
     public Set<String> getKafkaRawTopics() {
         return kafkaRawTopics;
@@ -238,6 +241,22 @@ public class KafkaConfig extends MqConfig {
 
     public String getKafkaCompressionType() {
         return kafkaCompressionType;
+    }
+
+    public Boolean getSchemaRegister() {
+        return schemaRegister;
+    }
+
+    public void setSchemaRegister(Boolean schemaRegister) {
+        this.schemaRegister = schemaRegister;
+    }
+
+    public String getSchemaRegisterUrl() {
+        return schemaRegisterUrl;
+    }
+
+    public void setSchemaRegisterUrl(String schemaRegisterUrl) {
+        this.schemaRegisterUrl = schemaRegisterUrl;
     }
 
     public void setKafkaCompressionType(String kafkaCompressionType) {

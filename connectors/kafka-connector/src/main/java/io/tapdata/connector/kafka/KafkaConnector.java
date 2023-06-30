@@ -5,6 +5,7 @@ import io.tapdata.common.CommonDbConfig;
 import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -24,9 +25,16 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Properties;
+import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -37,11 +45,19 @@ public class KafkaConnector extends ConnectorBase {
     public static final String TAG = KafkaConnector.class.getSimpleName();
 
     private KafkaService kafkaService;
+    private KafkaSRService kafkaSRService;
     private KafkaConfig kafkaConfig;
+    private Boolean isSchemaRegister;
 
     private void initConnection(TapConnectionContext connectorContext) {
         kafkaConfig = (KafkaConfig) new KafkaConfig().load(connectorContext.getConnectionConfig());
-        kafkaService = new KafkaService(kafkaConfig);
+        this.isSchemaRegister = kafkaConfig.getSchemaRegister();
+        if (!this.isSchemaRegister) {
+            kafkaService = new KafkaService(kafkaConfig);
+        } else {
+            kafkaSRService = new KafkaSRService(kafkaConfig, connectorContext);
+
+        }
         kafkaService.setTapLogger(connectorContext.getLog());
         kafkaService.setConnectorId(connectorContext.getId());
         kafkaService.init();
@@ -78,6 +94,23 @@ public class KafkaConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportCreateTableV2(this::createTableV2);
+    }
+
+    private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws ExecutionException, InterruptedException {
+        if (this.isSchemaRegister) {
+            int numPartitions = 3;
+            short replicationFactor = 1;
+            TapTable tapTable = tapCreateTableEvent.getTable();
+            Properties properties = new Properties();
+            properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getConnectionString());
+            AdminClient adminClient = AdminClient.create(properties);
+            NewTopic newTopic = new NewTopic(tapTable.getId(), numPartitions, replicationFactor);
+            adminClient.createTopics(Collections.singletonList(newTopic)).all().get();
+            return null;
+        } else {
+            return null;
+        }
     }
 
     private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
@@ -86,7 +119,11 @@ public class KafkaConnector extends ConnectorBase {
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        kafkaService.loadTables(tableSize, consumer);
+        if (!this.isSchemaRegister) {
+            kafkaService.loadTables(tableSize, consumer);
+        } else {
+            kafkaSRService.loadTables(tableSize, consumer);
+        }
     }
 
     @Override
@@ -98,8 +135,8 @@ public class KafkaConnector extends ConnectorBase {
             onStart(connectionContext);
             CommonDbConfig config = new CommonDbConfig();
             config.set__connectionType(kafkaConfig.get__connectionType());
-            KafkaTest kafkaTest = new KafkaTest(kafkaConfig, consumer, kafkaService, config);
-            kafkaTest.testOneByOne();
+                KafkaTest kafkaTest = new KafkaTest(kafkaConfig, consumer, kafkaService, config);
+                kafkaTest.testOneByOne();
         } catch (Throwable throwable) {
             TapLogger.error(TAG, throwable.getMessage());
             consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Failed, " + throwable.getMessage()));
@@ -121,7 +158,11 @@ public class KafkaConnector extends ConnectorBase {
     }
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
-        kafkaService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
+        if (!this.isSchemaRegister) {
+            kafkaService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
+        } else {
+            kafkaSRService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
+        }
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) {
