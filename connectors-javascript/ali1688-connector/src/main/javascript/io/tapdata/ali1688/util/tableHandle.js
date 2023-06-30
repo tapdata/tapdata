@@ -152,6 +152,7 @@ class ShippingOrder extends DefaultTable {
             log.error("The App Secret has expired. Please contact technical support personnel");
             return null;
         }
+        let apiFactoryImpl = new APIFactoryImpl(connectionConfig, nodeConfig);
 
         while(isAlive() && offset[this.tableName].hasNext){
             let timeStamp = new Date().getTime();
@@ -302,10 +303,10 @@ class ShippingOrder extends DefaultTable {
                         }
                     }
                 }
-                let filter = nodeConfig.filter;
-                if (isValue(filter) && filter.search(idOfStr) > 0) {
-                    log.warn("SHOW: {}", JSON.stringify(pageList[index]));
-                }
+
+                //获取订单详情
+                //let detail = apiFactoryImpl.getOrderDetail(idOfStr);
+                //let orderMixedDetail = apiFactoryImpl.setOrderDetailToOrderInfo(record, detail);
 
                 let orderInfo = this.csv(record);
                 let afterEvent = [];
@@ -318,8 +319,16 @@ class ShippingOrder extends DefaultTable {
                 }
 
                 if (isValue(nodeConfig.logCompile) && nodeConfig.logCompile) {
-                    log.warn("Original data about 订单编号={}: {}", record.idOfStr, JSON.stringify(pageList[index]))
-                    log.warn("After data about 订单编号={}: {}", record.idOfStr, tapUtil.fromJson(afterEvent.length === 1? afterEvent[0] : afterEvent))
+                    log.warn("Original data of Simple about 订单编号={}: {}", idOfStr, JSON.stringify(pageList[index]))
+                    //log.warn("Original data of Detail about 订单编号={}: {}", idOfStr, JSON.stringify(orderMixedDetail))
+                    log.warn("After data about 订单编号={}: {}", idOfStr, tapUtil.fromJson(afterEvent.length === 1? afterEvent[0] : afterEvent))
+                } else {
+                    let filterOrders = nodeConfig.filter.split(",");
+                    if (filterOrders.includes(idOfStr)) {
+                        log.warn("Original data of Simple about 订单编号={}: {}", idOfStr, JSON.stringify(pageList[index]))
+                        //log.warn("Original data of Detail about 订单编号={}: {}", idOfStr, JSON.stringify(orderMixedDetail))
+                        log.warn("After data about 订单编号={}: {}", idOfStr, tapUtil.fromJson(afterEvent.length === 1 ? afterEvent[0] : afterEvent))
+                    }
                 }
             }
         }
@@ -339,15 +348,16 @@ class ShippingOrder extends DefaultTable {
         newRecord.put('修改时间', convertDateStr(record.modifyTime));
         newRecord.put('付款时间', convertDateStr(record.payTime));
         newRecord.put('收货时间', convertDateStr(record.receivingTime));
-        newRecord.put('退款金额（元）', record.refund);
-        newRecord.put('订单备注', record.remark);
-        newRecord.put('运费（元）', record.shippingFee);
-        newRecord.put('应付款总金额（元）', record.totalAmount);
+        newRecord.put('退款金额（元）', coverFloat(record.refund));
+        newRecord.put('买家留言', record.buyerFeedback);//remark
+        newRecord.put('运费（元）', coverFloat(record.shippingFee));
+        newRecord.put('应付款总金额（元）', coverFloat(record.totalAmount));
         newRecord.put('买家备忘标志', record.buyerRemarkIcon);
-        newRecord.put('折扣信息（元）',record.discount / 100);
-        newRecord.put('货品金额总计（不包含运费）', record.sumProductPayment);
+        newRecord.put('折扣信息（元）',coverFloat(record.discount / 100));
+        //newRecord.put('子单实付金额（不包含运费）', record.sumProductPayment);
         newRecord.put('币种', record.currency);
         newRecord.put('订单最后修改时间', convertDateStr(record.modifyTime));
+        newRecord.put('供应商旺旺号', bigintConvertAsString(record.sellerLoginId));
 
         //业务类型。
         //国际站：ta(信保),wholesale(在线批发)。
@@ -518,13 +528,19 @@ class ShippingOrder extends DefaultTable {
         //     '预订单不为当前查询的通过当前查询的ERP创建';
         //   }
         // }
-        if(record.info_sellerContact) {
+        if(record.sellerContact) {
             let sellerContact = record.sellerContact;
             newRecord.put("供应商", sellerContact.companyName);
+            newRecord.put("供应商座机",  sellerContact.phone);
             newRecord.put("供应商手机号码", sellerContact.mobile);
             newRecord.put("供应商旺旺号", sellerContact.imInPlatform);
             newRecord.put("供应商联系人", sellerContact.name);
         }
+
+        // if (record.nativeLogistics) {
+        //     let logistics = record.nativeLogistics;
+        //
+        // }
 
         if(record.info_productItems){
             let items = record.info_productItems;
@@ -544,9 +560,9 @@ class ShippingOrder extends DefaultTable {
                 }
                 sub.put('单品货号', r.cargoNumber);
                 sub.put('描述', r.description);
-                sub.put('实付金额（元）', r.itemAmount);
+                sub.put('子单实付金额（不包含运费）', r.itemAmount);
                 sub.put('商品名称', r.name);
-                sub.put('原始单价（元）', r.price);
+                sub.put('子单原始单价（元）', r.price);
                 sub.put('产品ID（非在线产品为空）', bigintConvertAsString(r.productID));
                 if(r.productImgUrl){
                     let urls = r.productImgUrl;
@@ -560,7 +576,7 @@ class ShippingOrder extends DefaultTable {
                     sub.put('商品图片url', allUrl);
                 }
                 sub.put('产品快照url', r.productSnapshotUrl);
-                sub.put('数量', r.quantity);
+                sub.put('子单数量', r.quantity);
                 sub.put('退款金额（元）', r.refund);
                 sub.put('skuID', bigintConvertAsString(r.skuID));
                 sub.put('排序字段', r.sort);
@@ -571,7 +587,7 @@ class ShippingOrder extends DefaultTable {
                 sub.put('重量', r.weight);
                 sub.put('重量单位', r.weightUnit);
                 sub.put('商品货号', r.productCargoNumber);
-                sub.put('订单明细涨价或降价的金额', r.entryDiscount / 100);
+                sub.put('子单涨价或折扣', r.entryDiscount / 100);
                 sub.put('订单销售属性ID', bigintConvertAsString(r.specId));
                 sub.put('精度系数', r.quantityFactor);
                 sub.put('子订单状态描述', r.statusStr);
@@ -663,9 +679,9 @@ class ShippingOrder extends DefaultTable {
                             // log.info("logistics.sendGoods " + logistics.sendGoods);
 
                             sub.put("物流公司", bigintConvertAsString(logi.logisticsCompanyName));
-                            sub.put("物流单号", bigintConvertAsString(logi.logisticsId));
+                            sub.put("物流编号", bigintConvertAsString(logi.logisticsId));
                             sub.put("物流公司ID", bigintConvertAsString(logi.logisticsCompanyId));
-                            sub.put("物流账单号", bigintConvertAsString(logi.logisticsBillNo));
+                            sub.put("运单号码", bigintConvertAsString(logi.logisticsBillNo));
                         }
 
                         let lstatus = logi.status;
@@ -684,6 +700,7 @@ class ShippingOrder extends DefaultTable {
                             default: statusName = logi.message;
                         }
                         sub.put("物流状态", statusName);
+                        sub.put("物流备注", bigintConvertAsString(logi.remarks));
                     });
 
                 }
@@ -696,18 +713,24 @@ class ShippingOrder extends DefaultTable {
 
     finalHandle(record){
         //计算单价
+        let price = coverFloat(record['子单原始单价（元）']);
+        let quantity = coverFloat(record['子单数量']);
+        let entryDiscount = coverFloat(record['子单涨价或折扣']);
+        let itemAmount = coverFloat(record['子单实付金额（元）']);
+        let redPackage = coverFloat(((price * quantity) + entryDiscount) - itemAmount);
         let total = 0;
         try{
-            total = isValue(record['实付金额（元）']) ? parseFloat(record['实付金额（元）']) : 0;//实付金额
+            total = isValue(record['子单实付金额（元）']) ? parseFloat(record['子单实付金额（元）']) : 0;//实付金额
         } catch (e){
             total = 0;
         }
         let number = 0;
         try{
-            number = isValue(record['数量']) ? parseInt(record['数量']) : 0;//运费
-            record.put("实际单价（元）", (total / (number * 1.00)));//.toFixed(2))
+            number = isValue(record['子单数量']) ? parseInt(record['子单数量']) : 0;//运费
+            record.put("子单实际单价（元）", coverFloat(((total + redPackage) / (number * 1.00))));//.toFixed(2))
+            record.put("子单优惠金额（元）", -1 * (redPackage > 0 ? redPackage : 0));
         }catch (e ) {
-            log.info("Error to set '实际单价（元）' into record, '数量' is an invalid argument ");
+            log.info("Error to set '子单实际单价（元）' into record, '子单数量' is an invalid argument ");
         }
 
 
@@ -812,7 +835,7 @@ class CallCommandWithLogisticsInfos extends ExecuateCommand {
         let logisticsResList = logisticsRes.result;
         if (!isValue(logisticsResList)){
             let errorCode = isValue(logisticsRes.error_code) ? logisticsRes.error_code : (isValue(logisticsRes.errorCode) ? logisticsRes.errorCode : "0")
-            log.warn("Can not get logistics list, http code {}{}{}{}",
+            log.info("Can not get logistics list, http code {}{}{}{}",
                 logistics.httpCode,
                 isValue(logisticsRes.error_code) ? ( ", error_code:" + logisticsRes.error_code) : (isValue(logisticsRes.errorCode) ? ( ", error_code:" + logisticsRes.errorCode) : ""),
                 isValue(logisticsRes.error_message) ? (", error_message: " + logisticsRes.error_message) : (isValue(logisticsRes.errorMessage) ? (", error_message: " + logisticsRes.errorMessage) : ""),
@@ -824,6 +847,89 @@ class CallCommandWithLogisticsInfos extends ExecuateCommand {
             }];
         }
         return logisticsResList;
+    }
+}
+
+class APIFactoryImpl {
+    connectionConfig;
+    nodeConfig;
+
+    constructor(connectionConfig, nodeConfig) {
+        this.connectionConfig = connectionConfig;
+        this.nodeConfig = nodeConfig;
+    }
+
+    getOrderList(){
+
+    }
+
+    getOrderDetail(orderId){
+        if (!isValue(orderId)) {
+            log.error("Order ID can not be empty");
+            return null;
+        }
+        let timeStamp = new Date().getTime();
+        let accessToken = getConfig("access_token");
+        let apiKey = this.connectionConfig.appKey;
+        if (!isParam(apiKey) || null == apiKey || "" === apiKey.trim()){
+            log.error("Can not get order detail with order ID {}, the App Key has expired. Please contact technical support personnel", orderId);
+            return null;
+        }
+        let secretKey = this.connectionConfig.secretKey;
+        if (!isParam(secretKey) || null == secretKey || "" === secretKey.trim()){
+            log.error("Can not get order detail with order ID {}, the App Secret has expired. Please contact technical support personnel", orderId);
+            return null;
+        }
+        let apiConfig = {
+            "_aop_signature": "",
+            "_aop_timestamp": BigInt(timeStamp),
+            "orderId": orderId,
+            "webSite": "1688"
+        };
+        let singMap = {
+            "_aop_timestamp": BigInt(timeStamp),
+            "orderId": orderId,
+            "webSite": "1688",
+            "access_token": accessToken,
+        }
+
+        apiConfig._aop_signature = getSignatureRules(secretKey, "param2/1/com.alibaba.trade/alibaba.trade.get.buyerView/" + apiKey, singMap);
+
+        let orders = invoker.invoke("getLogisticsInfos" , apiConfig);
+
+        if (!isParam(orders) || null == orders){
+            log.warn("Can not get order detail with order ID {}, http response is empty.", orderId);
+            return null;
+        }
+        let httpRes = orders.result;
+        if (!isParam(httpRes) || null == httpRes){
+            log.warn("Can not get order detail with order ID {}, response body is empty.", orderId);
+            return null;
+        }
+        let pageList = httpRes.result;
+        //log.warn("{}", JSON.stringify(orders.result));
+        if (!isValue(pageList)){
+            log.warn("Can not get order detail with order ID {}, http code {}{}{}{}",
+                orderId,
+                orders.httpCode,
+                isValue(httpRes.error_code)?(", error_code:" + httpRes.error_code) : "",
+                isValue(httpRes.error_message)? (", error_message: " + httpRes.error_message) : "",
+                isValue(httpRes.exception) ? (", exception: " + httpRes.exception) : ""
+            );
+            return null;
+        }
+        return httpRes;
+    }
+
+    setOrderDetailToOrderInfo(simpleInfo, detailInfo){
+        simpleInfo.guaranteesTerms = detailInfo.guaranteesTerms;
+        simpleInfo.nativeLogistics = detailInfo.nativeLogistics;
+        simpleInfo.orderBizInfo = detailInfo.orderBizInfo;
+        simpleInfo.productItems = detailInfo.productItems;
+        simpleInfo.tradeTerms = detailInfo.tradeTerms;
+        simpleInfo.receiverInfo = detailInfo.baseInfo.receiverInfo;
+        simpleInfo.payChannelList = detailInfo.baseInfo.payChannelList;
+        simpleInfo.sellerContact = detailInfo.baseInfo.sellerContact;
     }
 }
 
@@ -867,4 +973,20 @@ function convertDateStr(dateStr) {
         log.warn("convertDateStr failed " + t);
     }
     return dateStr;
+}
+
+function coverFloat(value) {
+    if (!isValue(value)) return 0.0;
+    if (typeof value == 'number'){
+        return value;
+    } else {
+        if (typeof value !== 'string'){
+            value = '' + value;
+        }
+        try {
+            return parseFloat(value);
+        }catch (e) {
+            return 0.0;
+        }
+    }
 }
