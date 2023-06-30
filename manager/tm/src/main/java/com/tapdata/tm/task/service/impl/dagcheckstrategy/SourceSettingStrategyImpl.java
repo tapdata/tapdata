@@ -113,8 +113,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
 
                 if (CollectionUtils.isNotEmpty(dto.getCapabilities())) {
-                    List<String> capList = dto.getCapabilities().stream().map(Capability::getId)
-                            .filter(id -> Lists.of("stream_read_function", "batch_read_function").contains(id)).collect(Collectors.toList());
+                    List<String> capList = dto.getCapabilities().stream().map(Capability::getId).collect(Collectors.toList());
 
                     if (Lists.of("Tidb", "Doris").contains(connectionDto.getDatabase_type()) &&
                             connectionDto.getConfig().containsKey("enableIncrement") &&
@@ -128,7 +127,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                     if (node instanceof TableNode) {
                         String cdcMode = ((TableNode) node).getCdcMode();
                         if ("polling".equals(cdcMode)) {
-                            streamReadNotMatch = capList.contains("query_by_advance_filter_function");
+                            streamReadNotMatch = !capList.contains("query_by_advance_filter_function");
                         }
                     }
 
@@ -208,9 +207,11 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
     private void checkSourceSupportCdcByTestConnectionResult(TaskDto taskDto, Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, Node node, String nodeId, DataSourceConnectionDto dto, List<String> capList) {
         if (taskDto.getType().contains("cdc")) {
             // first check field polling cdc
-            if (node instanceof TableNode && ((TableNode) node).getCdcMode().equals("polling") && !capList.contains("query_by_advance_filter_function")) {
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), node.getName());
-                result.add(log);
+            if (node instanceof TableNode && ((TableNode) node).getCdcMode().equals("polling")) {
+                if (!capList.contains("query_by_advance_filter_function")) {
+                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), node.getName());
+                    result.add(log);
+                }
             } else if (capList.contains("stream_read_function")) {
                 ResponseBody responseBody = dto.getResponse_body();
                 if (taskDto.getType().contains("cdc") && responseBody != null) {
