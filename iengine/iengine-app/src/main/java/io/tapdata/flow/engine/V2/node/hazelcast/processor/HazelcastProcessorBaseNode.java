@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -9,6 +10,7 @@ import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
+import io.tapdata.flow.engine.V2.util.DelayHandler;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -33,8 +35,13 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	 */
 	private boolean ignore;
 
+	private final DelayHandler delayHandler;
+
 	public HazelcastProcessorBaseNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
+		Node<?> node = processorBaseContext.getNode();
+		String tag = node.getId() + "-" + node.getName();
+		this.delayHandler = new DelayHandler(obsLogger, tag);
 	}
 
 	@Override
@@ -98,7 +105,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			if (CollectionUtils.isNotEmpty(processedEventList)) {
 				for (TapdataEvent event : processedEventList) {
 					while (isRunning()) {
-						if (offer(event)) {
+						if (delayHandler.process(() -> this.offer(event))) {
 							break;
 						}
 					}
