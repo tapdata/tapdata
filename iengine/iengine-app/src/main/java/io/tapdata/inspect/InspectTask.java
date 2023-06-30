@@ -31,6 +31,7 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -163,7 +164,10 @@ public abstract class InspectTask implements Runnable {
 					inspectService.upsertInspectResult(inspectResult, false);
 					throw new Exception(errorMsg);
 				}
+				inspectResult.setId(null); // 使用新ID保存差异结果
 				inspectResult.setInspect(lastInspectResult.getInspect());
+				Map<String, com.tapdata.entity.inspect.InspectTask> configTaskMap = new HashMap<>();
+				inspect.getTasks().forEach(configTask -> configTaskMap.put(configTask.getTaskId(), configTask));
 				inspectResult.getInspect().getTasks().forEach(task -> {
 					InspectResultStats stats = new InspectResultStats();
 
@@ -173,6 +177,12 @@ public abstract class InspectTask implements Runnable {
 					stats.setTaskId(task.getTaskId());
 					stats.setSource(task.getSource());
 					stats.setTarget(task.getTarget());
+
+					configTaskMap.computeIfPresent(task.getTaskId(), (k, v) -> {
+						task.getSource().setNodeId(v.getSource().getNodeId());
+						task.getTarget().setNodeId(v.getTarget().getNodeId());
+						return v;
+					});
 
 					inspectResult.getStats().add(stats);
 				});
@@ -389,15 +399,28 @@ public abstract class InspectTask implements Runnable {
 	private Map<String, ConnectorNode> initConnectorNodeMap(Map<String, Connections> connectionsMap) {
 		Map<String, ConnectorNode> connectorNodeMap = new HashMap<>();
 		for (com.tapdata.entity.inspect.InspectTask task : inspect.getTasks()) {
-			String sourceKey = task.getSource().getNodeId();
+			// Init source ConnectorNode
+			String sourceNodeId = task.getSource().getNodeId();
+			String sourceKey = sourceNodeId;
+			if (StringUtils.isBlank(sourceKey)) {
+				sourceKey = ObjectId.get().toHexString();
+				task.getSource().setNodeId(sourceKey);
+			}
 			Connections sourceConn = connectionsMap.get(task.getSource().getConnectionId());
 			if (!connectorNodeMap.containsKey(sourceKey)) {
-				connectorNodeMap.put(sourceKey, initConnectorNode(sourceKey, sourceConn));
+				connectorNodeMap.put(sourceKey, initConnectorNode(sourceNodeId, sourceConn));
 			}
-			String targetKey = task.getTarget().getNodeId();
+
+			// Init target ConnectorNode
+			String targetNodeId = task.getTarget().getNodeId();
+			String targetKey = targetNodeId;
+			if (StringUtils.isBlank(targetKey)) {
+				targetKey = ObjectId.get().toHexString();
+				task.getTarget().setNodeId(targetKey);
+			}
 			Connections targetConn = connectionsMap.get(task.getTarget().getConnectionId());
 			if (!connectorNodeMap.containsKey(targetKey)) {
-				connectorNodeMap.put(targetKey, initConnectorNode(targetKey, targetConn));
+				connectorNodeMap.put(targetKey, initConnectorNode(targetNodeId, targetConn));
 			}
 		}
 		return connectorNodeMap;
