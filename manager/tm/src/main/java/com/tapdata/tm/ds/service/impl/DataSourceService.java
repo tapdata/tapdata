@@ -472,12 +472,22 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		}
 		List<String> databaseTypes = items.stream().map(DataSourceConnectionDto::getDatabase_type).collect(Collectors.toList());
 		List<DataSourceDefinitionDto> definitionDtoList = dataSourceDefinitionService.getByDataSourceType(databaseTypes, user);
-		Map<String, DataSourceDefinitionDto> definitionMap = definitionDtoList.stream().collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, Function.identity(), (f1, f2) -> f1));
+		Map<String, DataSourceDefinitionDto> definitionMap = new HashMap<>();
+		for (DataSourceDefinitionDto definitionDto : definitionDtoList) {
+			definitionMap.put(definitionDto.getPdkHash(), definitionDto);
+			definitionMap.put(definitionDto.getType(), definitionDto);
+		}
 
 		for (DataSourceConnectionDto item : items) {
+			DataSourceDefinitionDto definitionDto = null;
+			if (StringUtils.isNotBlank(item.getPdkHash())) {
+				definitionDto = definitionMap.get(item.getPdkHash());
+			}
+			if (definitionDto == null) {
+				definitionDto = definitionMap.get(item.getDatabase_type());
+			}
 			//不需要这个操作了。引擎会更新这个东西，另外每次更新databasetypes的时候，需要更新这个  参考： updateCapabilities方法
-			if (definitionMap.containsKey(item.getDatabase_type())) {
-				DataSourceDefinitionDto definitionDto = definitionMap.get(item.getPdkHash());
+			if (definitionDto != null) {
 				item.setCapabilities(definitionDto.getCapabilities());
 				item.setDefinitionPdkId(definitionDto.getPdkId());
 				item.setPdkType(definitionDto.getPdkType());
