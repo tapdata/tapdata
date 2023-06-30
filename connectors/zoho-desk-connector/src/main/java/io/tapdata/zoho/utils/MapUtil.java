@@ -124,9 +124,9 @@ public class MapUtil {
             else if ((value instanceof JSONObject) || (value instanceof Map)){
                 Map<String,Object> obj = (Map<String,Object>)value;
                 return getValue(nextKey,split,obj);
-            }else if(value instanceof JSONArray || value instanceof List){
+            }else if(value instanceof JSONArray || value instanceof Collection){
                 try {
-                    List<Map<String, Object>> list = (List<Map<String, Object>>) value;
+                    Collection<Map<String, Object>> list = (Collection<Map<String, Object>>) value;
                     StringJoiner joiner = new StringJoiner(Constants.ARRAY_SPLIT_CHAR);
                     list.forEach(l->{
                         Object nextKeyObj = l.get(nextKey);

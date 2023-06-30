@@ -16,6 +16,8 @@ import io.tapdata.zoho.utils.ZoHoHttp;
 
 import java.util.Map;
 
+import static io.tapdata.base.ConnectorBase.toJson;
+
 public class ZoHoStarter {
     private static final String TAG = ZoHoStarter.class.getSimpleName();
 
@@ -98,6 +100,11 @@ public class ZoHoStarter {
                 .generateCode(generateCode)
                 .connectionMode(connectionMode);
         if (this.tapConnectionContext instanceof TapConnectorContext) {
+
+            DataMap nodeConfig = this.tapConnectionContext.getNodeConfig();
+            config.fields(nodeConfig.get("customFieldKeys"))
+                    .needDetailObj(nodeConfig.get("needDetail"))
+                    .sortType(nodeConfig.get("sortType"));
             KVMap<Object> stateMap = ((TapConnectorContext) this.tapConnectionContext).getStateMap();
             if (null != stateMap) {
                 Object refreshTokenObj = stateMap.get("refreshToken");
@@ -173,19 +180,25 @@ public class ZoHoStarter {
     public HttpResult readyAccessToken(ZoHoHttp http){
         HttpEntity header = http.getHeard();
         HttpResult httpResult = http.http();
-        if (Checker.isEmpty(httpResult) ){
+        if (Checker.isEmpty(httpResult) ) {
             TapLogger.debug(TAG,"Try to send once HTTP request, but AccessToken is timeout.");
         }
         String code = httpResult.getCode();
+        header.build("Authorization",http.getHeard());
         if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
             //重新获取超时的AccessToken，并添加到stateMap
             String newAccessToken = this.refreshAndBackAccessToken();
             this.addNewAccessTokenToStateMap(newAccessToken);
             header.build("Authorization",newAccessToken);
+            tapConnectionContext.getLog().warn(toJson(header));
             httpResult = http.http();
             if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) ){// || Checker.isEmpty(((Map<String,Object>)httpResult.getResult()).get("data"))){
                 throw new CoreException("AccessToken refresh succeed, but retry http failed. ");
             }
+        }
+        if ("ERROR".equals(httpResult.getCode()) && (httpResult.httpCode() >= 300 || httpResult.httpCode() < 200)) {
+            String msg = toJson(httpResult.getResult());
+            throw new CoreException(msg);
         }
         return httpResult;
     }

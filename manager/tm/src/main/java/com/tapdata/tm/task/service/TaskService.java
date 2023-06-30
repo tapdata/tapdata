@@ -69,6 +69,7 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.schedule.ChartSchedule;
 import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
@@ -94,6 +95,7 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
 import io.tapdata.common.sample.request.Sample;
+import io.tapdata.exception.TapCodeException;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -1957,7 +1959,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         resultChart.put("chart3", getDataDevChart(synList));
 //        resultChart.put("chart4", dataDev);
         resultChart.put("chart5", inspectChart(user));
-        resultChart.put("chart6", chart6(user));
+        Chart6Vo chart6Vo = ChartSchedule.cache.get(user.getUserId());
+        if (chart6Vo == null) {
+            chart6Vo = chart6(user);
+            ChartSchedule.put(user.getUserId(), chart6Vo);
+        }
+        resultChart.put("chart6", chart6Vo);
         return resultChart;
     }
 
@@ -2603,11 +2610,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
-                Map<String, Object> attrs = taskDto.getAttrs();
-                if (attrs != null) {
-                    attrs.remove("edgeMilestones");
-                    attrs.remove("syncProgress");
-                }
+							taskDto.setAttrs(new HashMap<>()); // 导出任务不保留运行时信息
                 jsonList.add(new TaskUpAndLoadDto("Task", JsonUtil.toJsonUseJackson(taskDto)));
                 DAG dag = taskDto.getDag();
                 List<Node> nodes = dag.getNodes();
@@ -2774,6 +2777,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             taskDto.setAccessNodeProcessId(null);
             taskDto.setAccessNodeProcessIdList(new ArrayList<>());
             taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+						taskDto.setTaskRecordId(new ObjectId().toHexString()); // 导入后不读旧指标数据
 
             Map<String, Object> attrs = taskDto.getAttrs();
             if (attrs != null) {
@@ -3769,11 +3773,22 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             Map<String, UserDetail> finalUserMap = userMap;
             for (TaskDto taskDto : taskList) {
-                start(taskDto, finalUserMap.get(taskDto.getUserId()), "11");
-                //启动过后，应该更新掉这个自动启动计划
-                Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
-                updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
-            }
+							UserDetail userDetail = finalUserMap.get(taskDto.getUserId());
+							try {
+								start(taskDto, userDetail, "11");
+								//启动过后，应该更新掉这个自动启动计划
+								Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
+								updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
+							} catch (Exception e) {
+								log.warn("Start plan migrate task Failed: {}", e.getMessage(), e);
+								stateMachineService.executeAboutTask(taskDto, DataFlowEvent.ERROR, userDetail);
+								if (e instanceof TapCodeException) {
+									monitoringLogsService.startTaskErrorStackTrace(taskDto, userDetail, e, Level.ERROR);
+								} else {
+									monitoringLogsService.startTaskErrorStackTrace(taskDto, userDetail, new BizException("Task.PlanStart.Failed", e), Level.ERROR);
+								}
+							}
+						}
         }
     }
 
@@ -3897,7 +3912,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         updateById(taskObjectId, update, userDetail);
     }
 
-    public Map<String, BigInteger> chart6(UserDetail user) {
+    public Chart6Vo chart6(UserDetail user) {
         Criteria criteria = Criteria.where("is_deleted").ne(true).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE);
         Query query = new Query(criteria);
         query.fields().include("_id");
@@ -3906,7 +3921,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         List<MeasurementEntity>  allMeasurements = new ArrayList<>();
         if (CollectionUtils.isNotEmpty(ids)) {
-            ids.parallelStream().forEach(id -> {
+            ids.stream().forEach(id -> {
                 MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
                 if (measurement != null) {
                     allMeasurements.add(measurement);
@@ -3961,13 +3976,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
         }
 
-        Map<String, BigInteger> chart6Map = new HashMap<>();
-        chart6Map.put("outputTotal", output);
-        chart6Map.put("inputTotal", input);
-        chart6Map.put("insertedTotal", insert);
-        chart6Map.put("updatedTotal", update);
-        chart6Map.put("deletedTotal", delete);
-        return chart6Map;
+
+        Chart6Vo chart6Vo = Chart6Vo.builder().outputTotal(output).inputTotal(input)
+                .insertedTotal(insert).updatedTotal(update).deletedTotal(delete)
+                .build();
+        return chart6Vo;
     }
 
     public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {

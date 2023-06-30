@@ -119,7 +119,20 @@ public class Granularity {
             default:
                 throw new RuntimeException(String.format(INVALID_GRANULARITY_ERR_FORMAT, granularity));
         }
-
     }
 
+	public static long calculateGranularityStart(String granularity, long times) {
+		switch (granularity) {
+			case Granularity.GRANULARITY_MINUTE:
+				return times - times % GRANULARITY_MILLIS_INTERVAL_MINUTE;
+			case Granularity.GRANULARITY_HOUR:
+				return times - times % GRANULARITY_MILLIS_INTERVAL_HOUR;
+			case Granularity.GRANULARITY_DAY:
+				return times - times % GRANULARITY_MILLIS_INTERVAL_DAY;
+			case Granularity.GRANULARITY_MONTH:
+				throw new RuntimeException("Not support start times calculate when granularity is month.");
+			default:
+				throw new RuntimeException(String.format(INVALID_GRANULARITY_ERR_FORMAT, granularity));
+		}
+	}
 }

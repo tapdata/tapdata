@@ -1255,7 +1255,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             tableStatus = ldpService.ldpTableStatus(definitionDto.getLinkId(), collect, TaskDto.LDP_TYPE_FDM, user);
 
         } else if (definitionDto != null && ldpService.queryTagBelongMdm(definitionDto.getId().toHexString(), user, null)) {
-            tableStatus = ldpService.ldpTableStatus(definitionDto.getLinkId(), collect, TaskDto.LDP_TYPE_FDM, user);
+            tableStatus = ldpService.ldpTableStatus(definitionDto.getLinkId(), collect, TaskDto.LDP_TYPE_MDM, user);
         }
         if (tableStatus != null) {
             for (DataDirectoryDto item : items) {

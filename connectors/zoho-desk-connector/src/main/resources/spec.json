@@ -12,6 +12,105 @@
     "node": {
       "type": "object",
       "properties": {
+        "needDetail": {
+          "type": "boolean",
+          "title": "${open_detail_compile}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "default": true,
+          "x-decorator-props": {
+            "colon": false,
+            "tooltip": "${log_detail_tip}"
+          },
+          "x-reactions": [
+            {
+              "target": "customFieldKeys",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===false}}"
+                }
+              }
+            }
+          ],
+          "x-index": 10
+        },
+        "sortType": {
+          "type": "boolean",
+          "title": "${sort_type}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "default": true,
+          "x-decorator-props": {
+            "colon": false,
+            "tooltip": "${sort_type_tip}"
+          },
+          "x-index": 20,
+          "x-display": "hidden"
+        },
+        "customFieldKeys": {
+          "type": "array",
+          "title": "${custom_field_keys_arr}",
+          "x-decorator": "FormItem",
+          "x-component": "ArrayTable",
+          "x-index": 30,
+          "default": [],
+          "x-decorator-props": {
+            "colon": false,
+            "tooltip": "${custom_field_keys_tip}"
+          },
+          "items": {
+            "type": "object",
+            "properties": {
+              "c1": {
+                "type": "void",
+                "x-component": "ArrayTable.Column",
+                "x-index": 38,
+                "x-component-props": {
+                  "title": "${custom_field_keys}"
+                },
+                "properties": {
+                  "keyName": {
+                    "type": "string",
+                    "required": true,
+                    "x-decorator": "FormItem",
+                    "x-component": "Input",
+                    "default": ""
+                  }
+                }
+              },
+              "c2": {
+                "type": "void",
+                "x-component": "ArrayTable.Column",
+                "x-index": 33,
+                "x-component-props": {
+                  "width": 100,
+                  "title": "${node_custom_field_operator}",
+                  "prop": "operations",
+                  "fixed": "right"
+                },
+                "properties": {
+                  "operator": {
+                    "type": "void",
+                    "x-component": "FormItem",
+                    "properties": {
+                      "removeKey": {
+                        "type": "void",
+                        "x-component": "ArrayTable.Remove"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "properties": {
+            "addKey": {
+              "type": "void",
+              "x-component": "ArrayTable.Addition",
+              "title": "${df_table_field_btn_add}"
+            }
+          }
+        }
       }
     },
     "connection": {
@@ -279,6 +378,22 @@
       "webHookRead": "Web Hook",
       "pollingRead": "Polling Read",
 
+      "custom_field_keys_arr": "Name of custom field list",
+      "custom_field_keys": "Name of custom field",
+      "custom_field_keys_tip": "The name of a custom field can be up to 30 characters long, and the total length of all names cannot exceed 100 characters",
+
+      "sort_type": "Full Descending Query",
+      "sort_type_tip": "The sorting method for querying data throughout the entire process, which is enabled and queried in descending order based on the recorded creation events",
+
+      "filter_title": "Filter",
+      "node_receiver_field_name": " Filter Fields ",
+      "node_receiver_type": " Filter Criteria ",
+      "node_filed_operator": "Filter Values",
+      "node_custom_field_operator": "Operate",
+
+      "open_detail_compile": "Enable detailed query",
+      "log_detail_tip": "After closing, the details field of the modification time will not be obtained. After confirming the closure, all records will be processed as insertion events",
+
 
       "df_initial_totals": "Initial data amount",
       "df_incremental_interval": "Incremental interval (ms)",
@@ -297,7 +412,7 @@
       "df_table_field_default": "Default value",
       "df_table_field_primary": "Primary Key",
       "df_table_field_operator": "Operation",
-      "df_table_field_btn_add": "Add field"
+      "df_table_field_btn_add": "Add"
     },
     "zh_CN": {
       "clientID": "客户端ID码",
@@ -323,6 +438,22 @@
       "webHookRead": "Web Hook",
       "pollingRead": "轮询式",
 
+      "custom_field_keys_arr": "自定义字段的名称列表",
+      "custom_field_keys": "自定义字段的名称",
+      "custom_field_keys_tip": "自定义字段的名称，最多输入30个，所有名称长度合计不能超过100个字符",
+      "node_custom_field_operator": "操作",
+
+      "sort_type": "全量降序查询",
+      "sort_type_tip": "全量过程的查询数据的排序方式，开启后按记录的创建事件降序查询",
+
+      "filter_title": "筛选条件",
+      "node_receiver_field_name": "筛选字段",
+      "node_receiver_type": "筛选条件",
+      "node_filed_operator": "筛选值",
+
+      "open_detail_compile": "开启详情查询",
+      "log_detail_tip": "关闭后将获取不到修改时间的详情字段，确认关闭后，所有记录将作为插入事件处理",
+
       "doc": "docs/zoho_zh_CN.md",
       "df_initial_totals": "初始化数据量",
       "df_incremental_interval": "增量间隔（毫秒）",
@@ -341,7 +472,7 @@
       "df_table_field_default": "默认值",
       "df_table_field_primary": "主键",
       "df_table_field_operator": "操作",
-      "df_table_field_btn_add": "增加字段"
+      "df_table_field_btn_add": "增加"
     },
     "zh_TW": {
       "clientID": "用戶端ID碼",
@@ -363,9 +494,25 @@
       "document": "普通文檔格式",
       "csv": "CSV格式",
 
+      "filter_title": "篩選準則",
+      "node_receiver_field_name": "篩選欄位",
+      "node_receiver_type": "篩選條件",
+      "node_filed_operator": "篩選值",
+
+      "node_custom_field_operator": "操作",
+      "open_detail_compile": "開啟詳情査詢",
+      "log_detail_tip": "關閉後將獲取不到修改時間的詳情欄位，確認關閉後，所有記錄將作為插入事件處理",
+
       "streamReadType": "增量方式",
       "webHookRead": "Web Hook",
       "pollingRead": "輪詢式",
+
+      "custom_field_keys_arr": "自定義欄位的名稱清單",
+      "custom_field_keys": "自定義欄位的名稱",
+      "custom_field_keys_tip":" 自定義欄位的名稱，最多輸入30個，所有名稱長度合計不能超過100個字元 ",
+
+      "sort_type": "全量降序査詢",
+      "sort_type_tip": "全量過程的査詢數據的排序方式，開啟後按記錄的創建事件降序査詢 ",
 
       "doc": "docs/zoho_zh_TW.md",
       "df_initial_totals": "初始化數據量",
@@ -385,7 +532,7 @@
       "df_table_field_default": "默認值",
       "df_table_field_primary": "主鍵",
       "df_table_field_operator": "操作",
-      "df_table_field_btn_add": "增加字段"
+      "df_table_field_btn_add": "增加"
     }
   },
   "dataTypes": {

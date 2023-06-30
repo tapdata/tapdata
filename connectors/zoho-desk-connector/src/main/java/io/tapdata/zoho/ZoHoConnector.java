@@ -69,6 +69,7 @@ public class ZoHoConnector extends ConnectorBase {
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
+		connectionContext.getLog().warn("Start");
 		//TicketLoader.create(connectionContext).verifyConnectionConfig();
 		//DataMap connectionConfig = connectionContext.getConnectionConfig();
 		//String streamReadType = connectionConfig.getString("streamReadType");

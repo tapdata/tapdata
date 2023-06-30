@@ -55,7 +55,6 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 		}
 
 		List<Field> fields;
-		String ancestorsName;
 		ApplyConfig apply = new ApplyConfig(this);
 		IOperator<Field> fieldIOperator = new IOperator<Field>() {
 			@Override
@@ -72,10 +71,10 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 			if (null == schema.getFields()) continue;
 
 			fields = schema.getFields();
-			ancestorsName = schema.getAncestorsName();
+			String tableName = schema.getOriginalName();
 
 			for (Field field : fields) {
-				apply.apply(ancestorsName, field.getPreviousFieldName(), field, fieldIOperator);
+				apply.apply(tableName, field.getPreviousFieldName(), field, fieldIOperator);
 			}
 		}
 
@@ -153,14 +152,14 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 			tableFieldInfoMap = Optional.ofNullable(node.getFieldsMapping()).map(tableFieldInfos -> {
 				Map<String, TableFieldInfo> tableMap = new HashMap<>();
 				for (TableFieldInfo info : tableFieldInfos) {
-					tableMap.put(info.getOriginTableName(), info);
+					tableMap.put(info.getPreviousTableName(), info);
 					Map<String, FieldInfo> fieldMap = new HashMap<>();
 					if (null != info.getFields()) {
 						for (FieldInfo fieldInfo : info.getFields()) {
 							fieldMap.put(fieldInfo.getSourceFieldName(), fieldInfo);
 						}
 					}
-					fieldInfoMaps.put(info.getOriginTableName(), fieldMap);
+					fieldInfoMaps.put(info.getPreviousTableName(), fieldMap);
 				}
 				return tableMap;
 			}).orElse(new HashMap<>());
