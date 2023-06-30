@@ -487,7 +487,16 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
             // || CollectionUtils.isEmpty(metaMap.get(tableName).getFields())
 
-            List<Field> fields = metadataInstancesDto.getFields().stream().sorted(Comparator.comparing(Field::getColumnPosition)).collect(Collectors.toList());
+            List<Field> fields = metadataInstancesDto.getFields().stream()
+                    .sorted((f1, f2) ->{
+                        int f1pos = f1.getColumnPosition() == null ? -1 : f1.getColumnPosition();
+                        int f2pos = f2.getColumnPosition() == null ? -1 : f2.getColumnPosition();
+                        if (f1pos >= f2pos) {
+                            return 1;
+                        }
+                        return -1;
+                    })
+                    .collect(Collectors.toList());
 
             // TableRenameProcessNode not need fields
             if (!(currentNode instanceof TableRenameProcessNode)) {
