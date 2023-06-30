@@ -99,24 +99,60 @@ class ShippingOrder extends DefaultTable {
     }
 
     defaultBatchReadOffset(offset) {
-        if (!isValue(offset)){
+        try{
+            if (isValue(offset)) {
+                if (isValue(offset.get(this.tableName))) {
+                    let off = offset.get(this.tableName);
+                    if (isValue(off.get("hasNext")) && !off.get("hasNext")) {
+                        offset = {};
+                        offset[this.tableName] = {
+                            "hasNext": true,
+                            "page": 1,
+                            "pageSize": 50,
+                            "createEndTime": dateUtils.timeStamp2Date(BigInt(new Date().getTime()), "yyyyMMddHHmmsssss") + "+0800",
+                            "createStartTime": "19700101000000000+0800"
+                        };
+                        this.currentTableNoHistory = [];
+                        this.time = "0";
+                        return offset;
+                    } else {
+                        let newOffset = {};
+                        newOffset[this.tableName] = {
+                            "hasNext": off.get("hasNext"),
+                            "page": off.get("page"),
+                            "pageSize": off.get("pageSize"),
+                            "createEndTime": off.get("createEndTime"),
+                            "createStartTime": off.get("createStartTime")
+                        };
+                        return newOffset;
+                    }
+                } else {
+                    //@TODO 不是ShippingOrder表就重置
+                    throw ("empty offset");
+                }
+            } else {
+                throw ("empty offset");
+            }
+        } catch (e) {
             offset = {};
-        }
-        if (!isValue(offset[this.tableName])){
-            offset[this.tableName] = {
-                    "hasNext":true,
+            if (!isValue(offset[this.tableName])) {
+                offset[this.tableName] = {
+                    "hasNext": true,
                     "page": 1,
                     "pageSize": 50,
                     "createEndTime": dateUtils.timeStamp2Date(BigInt(new Date().getTime()), "yyyyMMddHHmmsssss") + "+0800",
-                    "createStartTime":"19700101000000000+0800"
+                    "createStartTime": "19700101000000000+0800"
                 };
+                this.currentTableNoHistory = [];
+                this.time = "0";
+            }
+            if (!isValue(offset[this.tableName].hasNext) || !(typeof (offset[this.tableName].hasNext) === 'boolean')) offset[this.tableName].hasNext = true;
+            if (!isValue(offset[this.tableName].page) || !(typeof (offset[this.tableName].page) === 'number')) offset[this.tableName].page = 1;
+            if (!isValue(offset[this.tableName].pageSize) || !(typeof (offset[this.tableName].pageSize) === 'number')) offset[this.tableName].pageSize = 200;
+            if (!isValue(offset[this.tableName].createEndTime)) offset[this.tableName].createEndTime = dateUtils.timeStamp2Date(BigInt(new Date().getTime()), "yyyyMMddHHmmsssss") + "+0800";
+            if (!isValue(offset[this.tableName].createStartTime)) offset[this.tableName].createStartTime = '19700101000000000+0800';
+            return offset;
         }
-        if (!isValue(offset[this.tableName].hasNext) || !(typeof (offset[this.tableName].hasNext) === 'boolean')) offset[this.tableName].hasNext = true;
-        if (!isValue(offset[this.tableName].page) || !(typeof (offset[this.tableName].page) === 'number')) offset[this.tableName].page = 1;
-        if (!isValue(offset[this.tableName].pageSize) || !(typeof (offset[this.tableName].pageSize) === 'number')) offset[this.tableName].pageSize = 200;
-        if (!isValue(offset[this.tableName].createEndTime)) offset[this.tableName].createEndTime = dateUtils.timeStamp2Date(BigInt(new Date().getTime()), "yyyyMMddHHmmsssss") + "+0800";
-        if (!isValue(offset[this.tableName].createStartTime)) offset[this.tableName].createStartTime = '19700101000000000+0800';
-        return offset;
     }
 
     defaultStreamReadOffset(offset){
@@ -152,7 +188,7 @@ class ShippingOrder extends DefaultTable {
             log.error("The App Secret has expired. Please contact technical support personnel");
             return null;
         }
-        let apiFactoryImpl = new APIFactoryImpl(connectionConfig, nodeConfig);
+        //let apiFactoryImpl = new APIFactoryImpl(connectionConfig, nodeConfig);
 
         while(isAlive() && offset[this.tableName].hasNext){
             let timeStamp = new Date().getTime();
@@ -970,7 +1006,7 @@ function convertDateStr(dateStr) {
         // 创建日期对象
         return date.getTime();
     } catch(t) {
-        log.warn("convertDateStr failed " + t);
+        log.warn("Convert date string failed {}, data string: {}", t, dateStr);
     }
     return dateStr;
 }

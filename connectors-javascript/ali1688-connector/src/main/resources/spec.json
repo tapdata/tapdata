@@ -275,13 +275,9 @@
     },
     "Money": {
       "to": "TapNumber",
-      "precision": [
-        1,
-        65
-      ],
-      "scale": 2,
-      "defaultPrecision": 10,
-      "defaultScale": 2
+      "precision": [1, 65],
+      "value": [-999999999.99, 999999999.99],
+      "scale": 2
     }
   }
 }
