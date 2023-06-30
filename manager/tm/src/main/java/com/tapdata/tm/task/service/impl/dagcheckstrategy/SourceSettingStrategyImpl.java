@@ -206,7 +206,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 Map<String, ValidateDetail> map = new HashMap<>();
                 if (CollectionUtils.isNotEmpty(validateDetails)) {
                     // list to map
-                    map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity()));
+                    map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity(), (key1, key2) -> key2));
                 }
                 boolean cdcOk = true;
                 if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
