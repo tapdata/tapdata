@@ -69,6 +69,8 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -346,8 +348,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         int availableNum;
         int taskLimit = 0;
         int runningNum = 0;
-        WorkSchedule workSchedule = new WorkSchedule();
+
         ArrayList<WorkSchedule> threadLog = new ArrayList<>();
+
+        AtomicReference<String> scheduleAgentId = new AtomicReference<>("");
 
         Object jobHeartTimeout = settingsService.getByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT).getValue();
         Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
@@ -371,27 +375,28 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             if (Objects.nonNull(worker)) {
                 availableNum = 1;
                 taskLimit = getLimitTaskNum(worker, userDetail);
-                if (taskLimit > runningNum || !type.equals("task")) {
-                    calculationEngineVo.setProcessId(agentId);
-                    calculationEngineVo.setManually(true);
 
-                    calculationEngineVo.setFilter(where.toString());
+                calculationEngineVo.setProcessId(agentId);
+                scheduleAgentId.set(agentId);
+                calculationEngineVo.setManually(true);
 
-                    workSchedule.setProcessId(worker.getProcessId());
-                    workSchedule.setWeight(worker.getWeight());
-                    workSchedule.setTaskRunNum(runningNum);
-                    workSchedule.setTaskLimit(taskLimit);
-                    threadLog.add(workSchedule);
-                    calculationEngineVo.setThreadLog(threadLog);
+                calculationEngineVo.setFilter(where.toString());
 
-                    entity.setAgentId(calculationEngineVo.getProcessId());
-                    entity.setScheduleTime(System.currentTimeMillis());
+                WorkSchedule workSchedule = new WorkSchedule();
+                workSchedule.setProcessId(worker.getProcessId());
+                workSchedule.setWeight(worker.getWeight());
+                workSchedule.setTaskRunNum(runningNum);
+                workSchedule.setTaskLimit(taskLimit);
+                threadLog.add(workSchedule);
+                calculationEngineVo.setThreadLog(threadLog);
 
-                    calculationEngineVo.setAvailable(availableNum);
-                    calculationEngineVo.setTaskLimit(taskLimit);
-                    calculationEngineVo.setRunningNum(runningNum);
-                    return calculationEngineVo;
-                }
+                entity.setAgentId(calculationEngineVo.getProcessId());
+                entity.setScheduleTime(System.currentTimeMillis());
+
+                calculationEngineVo.setAvailable(availableNum);
+                calculationEngineVo.setTaskLimit(taskLimit);
+                calculationEngineVo.setRunningNum(runningNum);
+                return calculationEngineVo;
             }
         }
         // 53迭代Task上增加了指定Flow Engine的功能 --end
@@ -430,36 +435,47 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         Query query = Query.query(where);
         List<WorkerDto> workers = findAll(query);
         availableNum = workers.size();
+
+        AtomicInteger scheduleWeight = new AtomicInteger();
+        AtomicInteger scheduleRunNum = new AtomicInteger();
+        AtomicInteger scheduleTaskLimit = new AtomicInteger();
+
         for (int i = 0; i < workers.size(); i++) {
             WorkerDto worker = workers.get(i);
             FunctionUtils.isTureOrFalse(worker.getUserId().equals(userDetail.getUserId())).trueOrFalseHandle(() -> worker.setWeight(99), () -> worker.setWeight(1));
 
-            runningNum = taskService.runningTaskNum(worker.getProcessId(), userDetail);
+            String processId = worker.getProcessId();
+            runningNum = taskService.runningTaskNum(processId, userDetail);
             taskLimit = getLimitTaskNum(worker, userDetail);
             Integer weight = worker.getWeight();
 
-            if (i == 0 || workSchedule.getProcessId() == null) {
-                workSchedule.setProcessId(worker.getProcessId());
-                workSchedule.setTaskRunNum(runningNum);
-                workSchedule.setTaskLimit(taskLimit);
-            } else if (worker.getWeight() > workSchedule.getWeight()) {
-                workSchedule.setProcessId(worker.getProcessId());
-                workSchedule.setTaskRunNum(runningNum);
-                workSchedule.setTaskLimit(taskLimit);
-            } else if (worker.getWeight().equals(workSchedule.getWeight()) && runningNum < workSchedule.getTaskRunNum()) {
-                workSchedule.setProcessId(worker.getProcessId());
-                workSchedule.setTaskRunNum(runningNum);
-                workSchedule.setTaskLimit(taskLimit);
-            } else {
-                workSchedule.setProcessId(worker.getProcessId());
-                workSchedule.setTaskRunNum(runningNum);
-                workSchedule.setTaskLimit(taskLimit);
-            }
+            WorkSchedule workSchedule = new WorkSchedule();
+            workSchedule.setProcessId(processId);
+            workSchedule.setWeight(weight);
+            workSchedule.setTaskRunNum(runningNum);
+            workSchedule.setTaskLimit(taskLimit);
             threadLog.add(workSchedule);
+
+            if (i == 0 || workSchedule.getProcessId() == null) {
+                scheduleAgentId.set(processId);
+                scheduleWeight.set(weight);
+                scheduleRunNum.set(runningNum);
+                scheduleTaskLimit.set(taskLimit);
+            } else if (worker.getWeight() > scheduleWeight.get()) {
+                scheduleAgentId.set(processId);
+                scheduleWeight.set(weight);
+                scheduleRunNum.set(runningNum);
+                scheduleTaskLimit.set(taskLimit);
+            } else if (worker.getWeight().equals(scheduleWeight.get()) && runningNum < scheduleRunNum.get()) {
+                scheduleAgentId.set(processId);
+                scheduleWeight.set(weight);
+                scheduleRunNum.set(runningNum);
+                scheduleTaskLimit.set(taskLimit);
+            }
         }
 
         filter = where.toString();
-        String processId = workSchedule.getProcessId();
+        String processId = scheduleAgentId.get();
 
         entity.setAgentId(processId);
         entity.setScheduleTime(System.currentTimeMillis());
@@ -469,8 +485,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         calculationEngineVo.setThreadLog(threadLog);
         calculationEngineVo.setAvailable(availableNum);
         calculationEngineVo.setManually(false);
-        calculationEngineVo.setTaskLimit(taskLimit);
-        calculationEngineVo.setRunningNum(runningNum);
+        calculationEngineVo.setTaskLimit(scheduleTaskLimit.get());
+        calculationEngineVo.setRunningNum(scheduleRunNum.get());
 
         return calculationEngineVo;
     }

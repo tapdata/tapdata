@@ -125,12 +125,12 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                     boolean streamReadNotMatch = taskDto.getType().contains("cdc") && !capList.contains("stream_read_function");
                     boolean batchReadNotMatch = taskDto.getType().contains("initial_sync") && !capList.contains("batch_read_function");
 
-										if (node instanceof TableNode) {
-											String cdcMode = ((TableNode) node).getCdcMode();
-											if ("polling".equals(cdcMode)) {
-												streamReadNotMatch = capList.contains("query_by_advance_filter_function");
-											}
-										}
+                    if (node instanceof TableNode) {
+                        String cdcMode = ((TableNode) node).getCdcMode();
+                        if ("polling".equals(cdcMode)) {
+                            streamReadNotMatch = capList.contains("query_by_advance_filter_function");
+                        }
+                    }
 
                     if (streamReadNotMatch || batchReadNotMatch) {
                         List<String> caps = capList.stream().map(keyName -> MessageUtil.getDagCheckMsg(locale, StringUtils.upperCase(keyName))).collect(Collectors.toList());
@@ -206,25 +206,31 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
     }
 
     private void checkSourceSupportCdcByTestConnectionResult(TaskDto taskDto, Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, Node node, String nodeId, DataSourceConnectionDto dto, List<String> capList) {
-        if (taskDto.getType().contains("cdc") && capList.contains("stream_read_function")) {
-            ResponseBody responseBody = dto.getResponse_body();
-            if (taskDto.getType().contains("cdc") && responseBody != null) {
-                List<ValidateDetail> validateDetails = responseBody.getValidateDetails();
-                Map<String, ValidateDetail> map = new HashMap<>();
-                if (CollectionUtils.isNotEmpty(validateDetails)) {
-                    // list to map
-                    map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity(), (key1, key2) -> key2));
-                }
-                boolean cdcOk = true;
-                if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
-                    cdcOk = false;
-                }
+        if (taskDto.getType().contains("cdc")) {
+            // first check field polling cdc
+            if (node instanceof TableNode && ((TableNode) node).getCdcMode().equals("polling") && !capList.contains("query_by_advance_filter_function")) {
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), node.getName());
+                result.add(log);
+            } else if (capList.contains("stream_read_function")) {
+                ResponseBody responseBody = dto.getResponse_body();
+                if (taskDto.getType().contains("cdc") && responseBody != null) {
+                    List<ValidateDetail> validateDetails = responseBody.getValidateDetails();
+                    Map<String, ValidateDetail> map = new HashMap<>();
+                    if (CollectionUtils.isNotEmpty(validateDetails)) {
+                        // list to map
+                        map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity(), (key1, key2) -> key2));
+                    }
+                    boolean cdcOk = true;
+                    if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
+                        cdcOk = false;
+                    }
 
-                if (!cdcOk) {
-                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), node.getName());
-                    result.add(log);
-                }
+                    if (!cdcOk) {
+                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), node.getName());
+                        result.add(log);
+                    }
 
+                }
             }
         }
     }
