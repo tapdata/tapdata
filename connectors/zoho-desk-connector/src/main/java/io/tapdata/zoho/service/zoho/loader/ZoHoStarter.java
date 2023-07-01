@@ -190,7 +190,6 @@ public class ZoHoStarter {
             String newAccessToken = this.refreshAndBackAccessToken();
             this.addNewAccessTokenToStateMap(newAccessToken);
             header.build("Authorization",newAccessToken);
-            tapConnectionContext.getLog().warn(toJson(header));
             httpResult = http.http();
             if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) ){// || Checker.isEmpty(((Map<String,Object>)httpResult.getResult()).get("data"))){
                 throw new CoreException("AccessToken refresh succeed, but retry http failed. ");
