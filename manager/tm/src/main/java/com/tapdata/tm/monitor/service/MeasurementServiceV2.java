@@ -41,6 +41,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import oshi.driver.mac.net.NetStat;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -817,6 +818,34 @@ public class MeasurementServiceV2 {
         });
 
         return new Long[]{inputTotal.get(), outputTotal.get()};
+    }
+
+
+    public List<String> findRunTable(String taskId, String taskRecordId) {
+        List<String> runTables = new ArrayList<>();
+
+        if (StringUtils.isBlank(taskRecordId)) {
+            return runTables;
+        }
+
+        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
+                .and("tags.taskRecordId").is(taskRecordId)
+                .and("tags.type").is("table")
+                .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+
+        Query query = new Query(criteria);
+        query.fields().include("tags.table");
+        List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+        if (CollectionUtils.isNotEmpty(measurementEntities)) {
+            for (MeasurementEntity measurementEntity : measurementEntities) {
+                Map<String, String> tags = measurementEntity.getTags();
+                if (tags != null && tags.get("table") != null) {
+                    runTables.add(tags.get("table"));
+                }
+            }
+        }
+
+        return runTables;
     }
 
     public Page<TableSyncStaticVo> querySyncStatic(TableSyncStaticDto dto, UserDetail userDetail) {
