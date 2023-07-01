@@ -23,6 +23,7 @@ public class MysqlConfig extends CommonDbConfig {
         put("allowPublicKeyRetrieval", "true");
         put("useTimezone", "false");
         put("tinyInt1isBit", "false");
+        put("autoReconnect", "true");
     }};
 
     @Override
