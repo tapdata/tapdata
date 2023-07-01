@@ -328,6 +328,16 @@
       ],
       "unsigned": "unsigned"
     },
+    "tinyint($zerofill) [unsigned] [zerofill]": {
+      "to": "TapNumber",
+      "bit": 8,
+      "precision": 3,
+      "value": [
+        0,
+        255
+      ],
+      "unsigned": "unsigned"
+    },
     "smallint[($zerofill)]": {
       "to": "TapNumber",
       "bit": 16,
