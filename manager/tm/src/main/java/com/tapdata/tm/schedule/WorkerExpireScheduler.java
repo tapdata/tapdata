@@ -15,8 +15,11 @@ public class WorkerExpireScheduler {
 
     private WorkerService workerService;
 
-    @Scheduled(cron = "0 0/30 * * * ? ")
-    @SchedulerLock(name = "checkWorkerExpire", lockAtMostFor = "PT1M", lockAtLeastFor = "PT1M")
+    /**
+     * 每9分钟运行一次
+     */
+    @Scheduled(cron = "0 0/9 * * * ?")
+    @SchedulerLock(name = "checkWorkerExpire", lockAtMostFor = "PT5M", lockAtLeastFor = "PT5M")
     public void checkWorkerExpire() {
         workerService.checkWorkerExpire();
     }
