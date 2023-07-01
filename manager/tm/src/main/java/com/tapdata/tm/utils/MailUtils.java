@@ -7,8 +7,10 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.TMApplication;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
+import com.tapdata.tm.message.service.BlacklistService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -16,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 import javax.mail.Message;
@@ -29,6 +32,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 
 /**
@@ -61,11 +65,19 @@ public class MailUtils {
     @Autowired
     SettingsService settingsService;
 
+    @Autowired
+    BlacklistService blacklistService;
+
     /**
      * 发送html形式的邮件
      */
     @Deprecated
     public SendStatus sendHtmlMail(String subject, String to, String username, String agentName, String emailHref, String maiContent) {
+
+        if (blacklistService.inBlacklist(to)) {
+            return new SendStatus("false", String.format("Email %s in blacklist.", to));
+        }
+
         SendStatus sendStatus = new SendStatus("false", "");
         // 读取html模板
         String html = readHtmlToString("mailTemplate.html");
@@ -135,6 +147,11 @@ public class MailUtils {
      * 发送html形式的邮件
      */
     public SendStatus sendHtmlMail(String to, String username, String agentName, String emailHref, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum) {
+
+        if (blacklistService.inBlacklist(to)) {
+            return new SendStatus("false", String.format("Email %s in blacklist.", to));
+        }
+
         SendStatus sendStatus = new SendStatus("false", "");
         // 读取html模板
         String html = readHtmlToString("mailTemplate.html");
@@ -208,6 +225,10 @@ public class MailUtils {
      * 发送html形式的邮件
      */
     public SendStatus sendHtmlMail(String to, String username, String agentName, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum, String sourceId) {
+        if (blacklistService.inBlacklist(to)) {
+            return new SendStatus("false", String.format("Email %s in blacklist.", to));
+        }
+
         SendStatus sendStatus = new SendStatus("false", "");
         if (StringUtils.isEmpty(to)) {
             sendStatus.setErrorMessage("mail is null");
@@ -288,6 +309,9 @@ public class MailUtils {
      * 企业版发送的通知邮件，没有点击连接
      */
     public SendStatus sendHtmlMail(String to, String username, String serverName, String title, String mailContent ) {
+        if (blacklistService.inBlacklist(to)) {
+            return new SendStatus("false", String.format("Email %s in blacklist.", to));
+        }
         return new SendStatus("true", "");
     }
 
@@ -570,6 +594,21 @@ public class MailUtils {
      */
     public static void sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
         if (CollectionUtils.isEmpty(adressees)) return;
+
+        BlacklistService blacklistService = SpringContextHelper.getBean(BlacklistService.class);
+        if (blacklistService != null) {
+            List<String> blacklist = adressees.stream().filter(to -> {
+                if (blacklistService.inBlacklist(to)) {
+                    return true;
+                }
+                return false;
+            }).collect(Collectors.toList());
+            adressees.removeAll(blacklist);
+            if (CollectionUtils.isEmpty(adressees)) {
+                return;
+            }
+        }
+
         boolean flag = true;
         if (StringUtils.isAnyBlank(parms.getHost(), parms.getFrom(),parms.getUser(), parms.getPass()) || CollectionUtils.isEmpty(adressees)) {
             log.error("mail account info empty, params:{}", JSON.toJSONString(parms));
