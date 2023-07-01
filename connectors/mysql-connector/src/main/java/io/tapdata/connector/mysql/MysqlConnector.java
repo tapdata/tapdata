@@ -323,7 +323,7 @@ public class MysqlConnector extends CommonDbConnector {
             throw new RuntimeException("Create table failed, message: " + t.getMessage(), t);
         }
 
-        if (tapConnectorContext.getNodeConfig().getValue("syncIndex", false)) {
+        if (tapConnectorContext.getNodeConfig() != null && tapConnectorContext.getNodeConfig().getValue("syncIndex", false)) {
             List<String> sqlList = TapSimplify.list();
             List<TapIndex> indexList = tapCreateTableEvent.getTable().getIndexList();
             if (indexList == null || indexList.isEmpty()) {
