@@ -124,8 +124,10 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -154,8 +156,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MetaDataHistoryService historyService;
     private WorkerService workerService;
     private FileService fileService1;
-    private MongoTemplate mongoTemplate;
-    private static ThreadPoolExecutor completableFutureThreadPool;
     private UserLogService userLogService;
     private MessageQueueService messageQueueService;
     private UserService userService;
@@ -163,12 +163,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MonitoringLogsService monitoringLogsService;
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
     private TaskSaveService taskSaveService;
-    private SettingsService settingsService;
     private MeasurementServiceV2 measurementServiceV2;
 
     private LogCollectorService logCollectorService;
-
-    private static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private TaskResetLogService taskResetLogService;
 
@@ -185,8 +182,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     private InspectResultService inspectResultService;
 
-    public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
-
     private CustomNodeService customNodeService;
 
     private ExternalStorageService externalStorageService;
@@ -200,6 +195,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private TaskUpdateDagService taskUpdateDagService;
 
     private DateNodeService dateNodeService;
+
+    private final Map<String, ReentrantLock> scheduleLockMap = new ConcurrentHashMap<>();
+
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
     }
@@ -3248,21 +3246,30 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param user
      */
     public void run(TaskDto taskDto, UserDetail user) {
-        StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.START, user);
-        if (stateMachineResult.isFail()) {
-            //如果更新失败，则表示可能为并发启动操作，本次不做处理
-            log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
-            return;
-        }
-        Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
-        //需要将重启标识清除
-        Update set = Update.update("isEdit", false)
-                .set("restartFlag", false)
-                .set("stopRetryTimes", 0);
-        update(query, set, user);
-        taskScheduleService.scheduling(taskDto, user);
-    }
+        ReentrantLock lock = scheduleLockMap.computeIfAbsent(user.getUserId(), k -> new ReentrantLock());
+        lock.lock();
 
+        try {
+            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.START, user);
+            if (stateMachineResult.isFail()) {
+                //如果更新失败，则表示可能为并发启动操作，本次不做处理
+                log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
+                return;
+            }
+            Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
+            //需要将重启标识清除
+            Update set = Update.update("isEdit", false)
+                    .set("restartFlag", false)
+                    .set("stopRetryTimes", 0);
+            update(query, set, user);
+            taskScheduleService.scheduling(taskDto, user);
+        } finally {
+            lock.unlock();
+            if (!lock.isLocked()) {
+                scheduleLockMap.remove(user.getUserId());
+            }
+        }
+    }
 
     /**
      * @see DataFlowEvent#SCHEDULE_SUCCESS

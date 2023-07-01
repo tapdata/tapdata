@@ -7,7 +7,6 @@ import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
-import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
@@ -102,8 +101,6 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     private MongoTemplate mongoTemplate;
 
     private final MultiTaggedCounter workerPing;
-
-
 
     public WorkerService(@NonNull WorkerRepository repository) {
         super(repository, WorkerDto.class, Worker.class);
