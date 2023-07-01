@@ -107,7 +107,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
 
-        if (StringUtils.isBlank(taskDto.getAgentId()) && calculationEngineVo.getRunningNum() > calculationEngineVo.getTaskLimit()) {
+        if (StringUtils.isNotBlank(taskDto.getAgentId()) && calculationEngineVo.getRunningNum() > calculationEngineVo.getTaskLimit()) {
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
             if (stateMachineResult.isOk()) {
                 throw new BizException("Task.ScheduleLimit");
