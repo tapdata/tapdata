@@ -8,6 +8,7 @@ import java.util.Date;
 @Data
 public class WorkerExpireDto {
     private String userId;
+    private String subscribeId;
     private String shareUser;
     private String shareTmUserId;
     private String shareTcmUserId;
