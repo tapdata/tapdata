@@ -15,6 +15,7 @@ import java.util.Date;
 public class WorkerExpire extends BaseEntity {
     @Indexed(unique = true)
     private String userId;
+    private String subscribeId;
     private String shareUser;
     private String shareTmUserId;
     private String shareTcmUserId;

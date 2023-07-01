@@ -731,6 +731,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         workerExpire.setShareTmUserId(userDetail.getUserId());
         workerExpire.setShareTcmUserId(userDetail.getTcmUserId());
         workerExpire.setExpireTime(DateUtil.offsetDay(date, shareAgentDays));
+        workerExpire.setSubscribeId(workerExpireDto.getSubscribeId());
 
         mongoTemplate.insert(workerExpire);
     }

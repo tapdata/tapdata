@@ -3726,6 +3726,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void startPlanMigrateDagTask() {
         Criteria migrateCriteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_START)
                 .and("planStartDateFlag").is(true)
+                .and("crontabScheduleMsg").is(null)
                 .and("planStartDate").lte(DateUtil.current());
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
@@ -3754,6 +3755,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void startPlanCronTask() {
         Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
                 .and("type").is(TaskDto.TYPE_INITIAL_SYNC)
+                .and("crontabScheduleMsg").is(null)
                 .and("crontabExpression").exists(true)
                 .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
