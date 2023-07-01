@@ -297,8 +297,6 @@ public class MysqlConnector extends CommonDbConnector {
     protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws SQLException {
         CreateTableOptions createTableOptions = new CreateTableOptions();
 
-
-
         try {
             if (mysqlJdbcContext.queryAllTables(Collections.singletonList(tapCreateTableEvent.getTableId())).size() > 0) {
                 DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
