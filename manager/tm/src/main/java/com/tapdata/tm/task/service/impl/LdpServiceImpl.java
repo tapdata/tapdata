@@ -532,17 +532,18 @@ public class LdpServiceImpl implements LdpService {
         if (CollectionUtils.isNotEmpty(oldQualifiedNames)) {
             Criteria criteriaOld = Criteria.where("qualified_name").in(oldQualifiedNames).and("is_deleted").ne(true);
             Query queryOldTask = new Query(criteriaOld);
-            queryOldTask.fields().include("listtags", "qualified_name");
+            queryOldTask.fields().include("listtags", "qualified_name", "source");
             oldMetaDatas = metadataInstancesService.findAllDto(queryOldTask, user);
-            oldMetaMap = oldMetaDatas.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m, (k1, k2) -> k1));
-        }
+            oldMetaMap = oldMetaDatas.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (k1, k2) -> k1));        }
         if (TaskDto.LDP_TYPE_FDM.equals(task.getLdpType())) {
 
             List<Node> sources = dag.getSources();
             Node sourceNode = sources.get(0);
             String sourceCon = ((DataParentNode) sourceNode).getConnectionId();
 
-            Criteria criteria = Criteria.where("linkId").is(sourceCon).and("item_type").is(MetadataDefinitionDto.LDP_ITEM_FDM);
+            Tag fdmTag = getfdmTag(user);
+            Criteria criteria = Criteria.where("linkId").is(sourceCon).and("item_type").is(MetadataDefinitionDto.LDP_ITEM_FDM).and("parent_id").is(fdmTag.getId());
+
             MetadataDefinitionDto tag = metadataDefinitionService.findOne(new Query(criteria), user);
             Tag conTag = new Tag(tag.getId().toHexString(), tag.getValue());
             List<MetadataInstancesDto> saveMetaDatas = new ArrayList<>();
@@ -556,7 +557,7 @@ public class LdpServiceImpl implements LdpService {
                 MetadataInstancesDto metadataInstancesDto = buildSourceMeta(conTag, metaData, oldMeta);
                 saveMetaDatas.add(metadataInstancesDto);
             }
-            metadataInstancesService.bulkUpsetByWhere(metaDatas, user);
+            metadataInstancesService.bulkUpsetByWhere(saveMetaDatas, user);
         } else {
 
             List<String> tagIds = oldMetaDatas.stream()
@@ -610,6 +611,13 @@ public class LdpServiceImpl implements LdpService {
             }
 
         }
+    }
+
+    private Tag getfdmTag(UserDetail user) {
+        Criteria mdmCriteria = Criteria.where("value").is("FDM").and("parent_id").exists(false);
+        Query query = new Query(mdmCriteria);
+        MetadataDefinitionDto mdmTag = metadataDefinitionService.findOne(query, user);
+        return new Tag(mdmTag.getId().toHexString(), mdmTag.getValue());
     }
 
     @Override
