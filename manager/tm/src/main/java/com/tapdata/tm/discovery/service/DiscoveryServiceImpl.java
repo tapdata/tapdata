@@ -637,7 +637,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
 
-        List<DataDiscoveryDto> dataDiscoveryDtos = unionQueryResults.stream().map(this::convertToDataDiscovery).collect(Collectors.toList());
+        Set<ObjectId> objectIds = unionQueryResults.stream().filter(u -> u.getSource() != null && StringUtils.isNotBlank(u.getSource().get_id())).map(u -> MongoUtils.toObjectId(u.getSource().get_id())).collect(Collectors.toSet());
+        Criteria criteria = Criteria.where("_id").in(objectIds).and("is_deleted").ne(false);
+        Query query = new Query(criteria);
+        query.fields().include("_id", "config", "database_type");
+        List<DataSourceConnectionDto> connections = dataSourceService.findAllDto(query, user);
+        final Map<String, DataSourceConnectionDto> connectionMap = connections.stream().collect(Collectors.toMap(k -> k.getId().toHexString(), v -> v, (k1, k2) -> k1));
+        List<DataDiscoveryDto> dataDiscoveryDtos = unionQueryResults.stream().map(u -> convertToDataDiscovery(u, connectionMap)).collect(Collectors.toList());
 
         for (DataDiscoveryDto dataDiscoveryDto : dataDiscoveryDtos) {
             List<Tag> listtags = dataDiscoveryDto.getListtags();
@@ -693,8 +699,17 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         dto.setCategory(DataObjCategoryEnum.storage);
         dto.setType(metadataInstancesDto.getMetaType());
         dto.setSourceCategory(DataSourceCategoryEnum.connection);
-        dto.setSourceInfo(getConnectInfo(metadataInstancesDto.getSource(), metadataInstancesDto.getOriginalName()));
-        dto.setDescription(metadataInstancesDto.getDescription());
+        if (metadataInstancesDto.getSource() != null && StringUtils.isNotBlank(metadataInstancesDto.getSource().get_id())) {
+            String conId = metadataInstancesDto.getSource().get_id();
+            DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(conId), user);
+            dto.setSourceInfo(getConnectInfo(connectionDto, metadataInstancesDto.getOriginalName()));
+        }
+        if(StringUtils.isBlank(metadataInstancesDto.getDescription()) && StringUtils.isNotBlank(metadataInstancesDto.getComment())){
+            dto.setDescription(metadataInstancesDto.getComment());
+        }else {
+            dto.setDescription(metadataInstancesDto.getDescription());
+        }
+
         //dto.setSourceInfo();
         //dto.setBusinessName();
         //dto.setBusinessDesc();
@@ -865,10 +880,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 }
                 String connectionId = ((DataParentNode<?>) node).getConnectionId();
                 DataSourceConnectionDto connectionDto = dataSourceConnectionDtoMap.get(connectionId);
-
-                taskConnectionsDto.setConnectionName(connectionDto.getName());
-                SourceDto sourceDto = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(connectionDto), SourceDto.class);
-                taskConnectionsDto.setConnectionInfo(getConnectInfo(sourceDto, null));
+                taskConnectionsDto.setConnectionInfo(getConnectInfo(connectionDto, null));
             } else {
                 taskConnectionsDto.setType("calculate");
             }
@@ -1650,7 +1662,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     }
 
 
-    private String getConnectInfo(SourceDto source, String name) {
+    private String getConnectInfo(DataSourceConnectionDto source, String name) {
         if (source == null) {
             return null;
         }
@@ -1749,7 +1761,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
     }
 
-    private DataDiscoveryDto convertToDataDiscovery(UnionQueryResult unionQueryResult) {
+    private DataDiscoveryDto convertToDataDiscovery(UnionQueryResult unionQueryResult, Map<String, DataSourceConnectionDto> connectionMap) {
         DataDiscoveryDto dataDiscoveryDto = new DataDiscoveryDto();
         dataDiscoveryDto.setId(unionQueryResult.get_id().toHexString());
         List listtagsOld = unionQueryResult.getListtags();
@@ -1758,7 +1770,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dataDiscoveryDto.setType(unionQueryResult.getMeta_type());
             dataDiscoveryDto.setSourceCategory(DataSourceCategoryEnum.connection);
             dataDiscoveryDto.setSourceType(unionQueryResult.getSource() != null ? unionQueryResult.getSource().getDatabase_type() : null);
-            dataDiscoveryDto.setSourceInfo(getConnectInfo(unionQueryResult.getSource(), unionQueryResult.getOriginal_name()));
+            dataDiscoveryDto.setSourceInfo(getConnectInfo(connectionMap.get(unionQueryResult.getSource().get_id()), unionQueryResult.getOriginal_name()));
             dataDiscoveryDto.setName(unionQueryResult.getOriginal_name());
         } else if (StringUtils.isNotBlank(unionQueryResult.getSyncType())) {
             dataDiscoveryDto.setCategory(DataObjCategoryEnum.job);
