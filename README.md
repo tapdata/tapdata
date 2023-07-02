@@ -2,7 +2,7 @@
     <img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
 </p>
 <p align="center">
-    Tapdata is a **Real-Time** data integration platform that enables data to be synchronized in real-time among various systems such as databases, SaaS services, applications, and files.
+    Tapdata is a **Real Time** data integration platform that enables data to be synchronized in real-time among various systems such as databases, SaaS services, applications, and files.
 </p>
 
 <p align="center">
@@ -14,11 +14,10 @@
     <img src="https://github.com/tapdata/tapdata/actions/workflows/build.yml/badge.svg" alt="build status"></a>
 </p>
 
-Synchronization tasks can be easily built through drag-and-drop operations, from table creation to full and incremental synchronization, all processes are fully automated.
-
-Once the MongoDB-based data centralized storage feature is enabled, Tapdata immediately transforms into an integrated data service platform. Through a user-friendly visual interface, you can form real-time, complete, and accurate document-based data in MongoDB from dispersed but interrelated data from various sources. This allows business developers to develop their applications more quickly, and data analysis engineers can rapidly construct their own metrics systems. Once integrated, the data can be used ubiquitously.
+Not satisfied with data synchronization delays of several minutes, Tapdata Data Integration Platform is specifically designed for real-time data integration. Based on a log parsing solution, it reduces data synchronization latency to a few seconds, while offering a visual task builder. Start your real-time data journey now with Tapdata Data Integration Platform.
 
 ![](./assets/mysql-mongodb-monitor.png)
+**From <a href="https://cloud.tapdata.io/">Tapdata Cloud Service</a>**
 
 ## Online Document: https://docs.tapdata.io/
 ## Cloud Service: https://cloud.tapdata.io/
