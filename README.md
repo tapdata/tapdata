@@ -1,4 +1,4 @@
-<img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
+<img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="200px"/>
 <p align="center">
     <a href="https://github.com/tapdata/tapdata/graphs/contributors" alt="Contributors">
         <img src="https://img.shields.io/github/contributors/tapdata/tapdata" /></a>
