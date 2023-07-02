@@ -1,10 +1,18 @@
-<img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
-<a href="https://github.com/tapdata/tapdata/graphs/contributors" alt="Contributors">
-<img src="https://img.shields.io/github/contributors/tapdata/tapdata" /></a>
-<a href="https://github.com/tapdata/tapdata/pulse" alt="Activity">
-<img src="https://img.shields.io/github/commit-activity/m/tapdata/tapdata" /></a>
-<a href="https://tapdata.github.io/tapdata">
-<img src="https://github.com/tapdata/tapdata/actions/workflows/docker-image.yml/badge.svg" alt="build status"></a>
+<p align="center">
+    <img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
+</p>
+<p align="center">
+    Tapdata is a real-time data integration platform that enables data to be synchronized in real-time among various systems such as databases, SaaS services, applications, and files.
+</p>
+
+<p align="center">
+    <a href="https://github.com/tapdata/tapdata/graphs/contributors" alt="Contributors">
+    <img src="https://img.shields.io/github/contributors/tapdata/tapdata" /></a>
+    <a href="https://github.com/tapdata/tapdata/pulse" alt="Activity">
+    <img src="https://img.shields.io/github/commit-activity/m/tapdata/tapdata" /></a>
+    <a href="https://tapdata.github.io/tapdata">
+    <img src="https://github.com/tapdata/tapdata/actions/workflows/docker-image.yml/badge.svg" alt="build status"></a>
+</p>
 
 ## Online Document: https://docs.tapdata.io/
 ## Cloud Service: https://cloud.tapdata.io/
