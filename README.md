@@ -2,7 +2,7 @@
     <img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
 </p>
 <p align="center">
-    Tapdata is a real-time data integration platform that enables data to be synchronized in real-time among various systems such as databases, SaaS services, applications, and files.
+    Tapdata is a **Real-Time** data integration platform that enables data to be synchronized in real-time among various systems such as databases, SaaS services, applications, and files.
 </p>
 
 <p align="center">
@@ -11,8 +11,14 @@
     <a href="https://github.com/tapdata/tapdata/pulse" alt="Activity">
     <img src="https://img.shields.io/github/commit-activity/m/tapdata/tapdata" /></a>
     <a href="https://tapdata.github.io/tapdata">
-    <img src="https://github.com/tapdata/tapdata/actions/workflows/docker-image.yml/badge.svg" alt="build status"></a>
+    <img src="https://github.com/tapdata/tapdata/actions/workflows/build.yml/badge.svg" alt="build status"></a>
 </p>
+
+Synchronization tasks can be easily built through drag-and-drop operations, from table creation to full and incremental synchronization, all processes are fully automated.
+
+Once the MongoDB-based data centralized storage feature is enabled, Tapdata immediately transforms into an integrated data service platform. Through a user-friendly visual interface, you can form real-time, complete, and accurate document-based data in MongoDB from dispersed but interrelated data from various sources. This allows business developers to develop their applications more quickly, and data analysis engineers can rapidly construct their own metrics systems. Once integrated, the data can be used ubiquitously.
+
+![cluster status](./assets/cluster-status.png)
 
 ## Online Document: https://docs.tapdata.io/
 ## Cloud Service: https://cloud.tapdata.io/
@@ -34,7 +40,6 @@ Through a user-friendly visual interface, you can form real-time, complete, and 
 
 ### Example Usage
 Before starting the task, please ensure that you can see the following content through your browser.
-![cluster status](./assets/cluster-status.png)
 
 #### Sync Data From Mysql To MongoDB
 1. Add Mysql Connection
