@@ -1,12 +1,10 @@
-<img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="200px"/>
-<p align="center">
-    <a href="https://github.com/tapdata/tapdata/graphs/contributors" alt="Contributors">
-        <img src="https://img.shields.io/github/contributors/tapdata/tapdata" /></a>
-    <a href="https://github.com/tapdata/tapdata/pulse" alt="Activity">
-        <img src="https://img.shields.io/github/commit-activity/m/tapdata/tapdata" /></a>
-    <a href="https://tapdata.github.io/tapdata">
-        <img src="https://github.com/tapdata/tapdata/actions/workflows/docker-image.yml/badge.svg" alt="build status"></a>
-</p>
+<img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
+<a href="https://github.com/tapdata/tapdata/graphs/contributors" alt="Contributors">
+<img src="https://img.shields.io/github/contributors/tapdata/tapdata" /></a>
+<a href="https://github.com/tapdata/tapdata/pulse" alt="Activity">
+<img src="https://img.shields.io/github/commit-activity/m/tapdata/tapdata" /></a>
+<a href="https://tapdata.github.io/tapdata">
+<img src="https://github.com/tapdata/tapdata/actions/workflows/docker-image.yml/badge.svg" alt="build status"></a>
 
 ## Online Document: https://docs.tapdata.io/
 ## Cloud Service: https://cloud.tapdata.io/
