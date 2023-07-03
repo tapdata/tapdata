@@ -34,7 +34,7 @@ public class MetadataInstancesRepository extends BaseRepository<MetadataInstance
 
 
 
-    @Value("${compression.fields.length:5}")
+    @Value("${compression.fields.length:2000}")
     private int compressionFieldsLength;
     public MetadataInstancesRepository(MongoTemplate mongoOperations) {
         super(MetadataInstancesEntity.class, mongoOperations);
