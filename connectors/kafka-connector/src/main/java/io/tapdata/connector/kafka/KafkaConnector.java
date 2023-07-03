@@ -2,8 +2,6 @@ package io.tapdata.connector.kafka;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConfig;
-import io.tapdata.common.ddl.DDLFactory;
-import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
@@ -41,20 +39,21 @@ public class KafkaConnector extends ConnectorBase {
     private KafkaService kafkaService;
     private KafkaConfig kafkaConfig;
 
-    private void initConnection(TapConnectionContext connectorContext) throws Throwable {
+    private void initConnection(TapConnectionContext connectorContext) {
         kafkaConfig = (KafkaConfig) new KafkaConfig().load(connectorContext.getConnectionConfig());
         kafkaService = new KafkaService(kafkaConfig);
+        kafkaService.setTapLogger(connectorContext.getLog());
         kafkaService.setConnectorId(connectorContext.getId());
         kafkaService.init();
     }
 
     @Override
-    public void onStart(TapConnectionContext connectionContext) throws Throwable {
+    public void onStart(TapConnectionContext connectionContext) {
         initConnection(connectionContext);
     }
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) throws Throwable {
+    public void onStop(TapConnectionContext connectionContext) {
         kafkaService.close();
     }
 
@@ -91,7 +90,7 @@ public class KafkaConnector extends ConnectorBase {
     }
 
     @Override
-    public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+    public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) {
         kafkaConfig = (KafkaConfig) new KafkaConfig().load(connectionContext.getConnectionConfig());
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(kafkaConfig.getConnectionString());
@@ -121,15 +120,15 @@ public class KafkaConnector extends ConnectorBase {
         return kafkaService.countTables();
     }
 
-    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
         kafkaService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
     }
 
-    private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+    private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) {
         kafkaService.consumeOne(tapTable, eventBatchSize, eventsOffsetConsumer);
     }
 
-    private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
+    private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) {
         kafkaService.streamConsume(tableList, recordSize, consumer);
     }
 

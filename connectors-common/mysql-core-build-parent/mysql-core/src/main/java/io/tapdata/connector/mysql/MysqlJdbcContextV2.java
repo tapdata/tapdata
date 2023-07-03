@@ -20,8 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class MysqlJdbcContextV2 extends JdbcContext {
 
@@ -46,18 +44,13 @@ public class MysqlJdbcContextV2 extends JdbcContext {
     }
 
     public TimeZone queryTimeZone() throws SQLException {
-        AtomicReference<String> timezone = new AtomicReference<>();
-        queryWithNext(MYSQL_TIMEZONE, resultSet -> timezone.set(resultSet.getString("Value")));
-        String reg = "[+\\-](\\d+):00";
-        Pattern pattern = Pattern.compile(reg);
-        Matcher matcher = pattern.matcher(timezone.get());
+        AtomicReference<Long> timeOffset = new AtomicReference<>();
+        queryWithNext(MYSQL_TIMEZONE, resultSet -> timeOffset.set(resultSet.getLong(1)));
         DecimalFormat decimalFormat = new DecimalFormat("00");
-        if (matcher.find()) {
-            int hour = Integer.parseInt(matcher.group(1));
-            ZoneId zoneId = ZoneId.of(timezone.get().replaceAll(matcher.group(1), decimalFormat.format(hour)));
-            return TimeZone.getTimeZone(zoneId);
+        if (timeOffset.get() >= 0) {
+            return TimeZone.getTimeZone(ZoneId.of("+" + decimalFormat.format(timeOffset.get()) + ":00"));
         } else {
-            return TimeZone.getDefault();
+            return TimeZone.getTimeZone(ZoneId.of(decimalFormat.format(timeOffset.get()) + ":00"));
         }
     }
 
@@ -227,7 +220,7 @@ public class MysqlJdbcContextV2 extends JdbcContext {
 
     private final static String MYSQL_VERSION = "SELECT VERSION()";
 
-    private final static String MYSQL_TIMEZONE = "SHOW VARIABLES LIKE 'time_zone'";
+    private final static String MYSQL_TIMEZONE = "SELECT TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW()) as timeoffset";
 
     private static final String GET_TABLE_INFO_SQL = "SELECT TABLE_ROWS,DATA_LENGTH  FROM information_schema.tables WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'";
 

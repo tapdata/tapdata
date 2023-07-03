@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.metadatainstance.bean.MultiPleTransformReq;
 import com.tapdata.tm.metadatainstance.bean.NodeInfoPage;
 import com.tapdata.tm.metadatainstance.dto.*;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
@@ -821,7 +822,10 @@ public class MetadataInstancesController extends BaseController {
 
     }
 
-
-
-
+    @Operation(summary = "目标模型支持系数调整的模型展示")
+    @PostMapping("multi/transform")
+    public ResponseMessage<MetadataInstancesDto> multiTransform(@RequestBody MultiPleTransformReq multiPleTransformReq) {
+        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.multiTransform(multiPleTransformReq, getLoginUser());
+        return success(metadataInstancesDto);
+    }
 }

@@ -1026,6 +1026,12 @@ public class LogCollectorService {
             DAG build = DAG.build(dag1);
             TaskDto taskDto = new TaskDto();
             taskDto.setName("来自" + dataSource.getName() + "的共享挖掘任务");
+            int i = 1;
+            String taskName = taskDto.getName();
+            while (taskService.checkTaskNameNotError(taskDto.getName(), user, null)) {
+                taskDto.setName(taskName + " (" + i + ")");
+                i++;
+            }
             taskDto.setDag(build);
             taskDto.setType("cdc");
             taskDto.setSyncType("logCollector");
@@ -1378,6 +1384,7 @@ public class LogCollectorService {
         Query query = new Query(criteria);
         query.fields().include("_id", "uniqueName", "database_type", "name", "capabilities", "heartbeatEnable", "pdkHash");
         List<DataSourceConnectionDto> dataSourceDtos = dataSourceService.findAllDto(query, user);
+        dataSourceService.buildDefinitionParam(dataSourceDtos, user);
         return dataSourceDtos;
     }
 

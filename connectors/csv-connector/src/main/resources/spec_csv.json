@@ -342,10 +342,10 @@
           "x-index": 2,
           "x-reactions": [
             {
-              "dependencies": ["$outputs"],
+              "dependencies": ["$inputs"],
               "fulfill": {
                 "state": {
-                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                  "display": "{{!$deps[0].length ? \"visible\":\"hidden\"}}"
                 }
               }
             }
@@ -363,10 +363,10 @@
           "x-index": 3,
           "x-reactions": [
             {
-              "dependencies": ["$outputs"],
+              "dependencies": ["$inputs"],
               "fulfill": {
                 "state": {
-                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                  "display": "{{!$deps[0].length ? \"visible\":\"hidden\"}}"
                 }
               }
             }
@@ -384,10 +384,10 @@
           "x-index": 4,
           "x-reactions": [
             {
-              "dependencies": ["$outputs"],
+              "dependencies": ["$inputs"],
               "fulfill": {
                 "state": {
-                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                  "display": "{{!$deps[0].length ? \"visible\":\"hidden\"}}"
                 }
               }
             }
@@ -434,10 +434,10 @@
           "x-index": 7,
           "x-reactions": [
             {
-              "dependencies": ["$outputs"],
+              "dependencies": ["$inputs"],
               "fulfill": {
                 "state": {
-                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                  "display": "{{!$deps[0].length ? \"visible\":\"hidden\"}}"
                 }
               }
             }
@@ -455,10 +455,10 @@
           "x-index": 8,
           "x-reactions": [
             {
-              "dependencies": ["$outputs", ".offStandard"],
+              "dependencies": ["$inputs", ".offStandard"],
               "fulfill": {
                 "state": {
-                  "display": "{{($deps[0].length > 0 && $deps[1]) ? \"visible\":\"hidden\"}}"
+                  "display": "{{(!$deps[0].length && $deps[1]) ? \"visible\":\"hidden\"}}"
                 }
               }
             }
@@ -500,10 +500,10 @@
           "x-index": 11,
           "x-reactions": [
             {
-              "dependencies": ["$outputs"],
+              "dependencies": ["$inputs"],
               "fulfill": {
                 "state": {
-                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                  "display": "{{!$deps[0].length ? \"visible\":\"hidden\"}}"
                 }
               }
             }
@@ -521,10 +521,10 @@
           "x-index": 12,
           "x-reactions": [
             {
-              "dependencies": ["$outputs"],
+              "dependencies": ["$inputs"],
               "fulfill": {
                 "state": {
-                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                  "display": "{{!$deps[0].length ? \"visible\":\"hidden\"}}"
                 }
               }
             }

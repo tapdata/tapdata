@@ -360,8 +360,7 @@
   "dataTypes": {
     "boolean": {
       "bit": 8,
-      "unsigned" : "",
-      "to": "TapNumber"
+      "to": "TapBoolean"
     },
     "tinyint[($zerofill)]": {
       "to": "TapNumber",

@@ -51,14 +51,14 @@ public class MigrateTypeFilterProcessorNode extends MigrateProcessorNode {
 
         inputSchemas.get(0).forEach(schema -> {
             List<Field> fields = schema.getFields();
-            String ancestorsName = schema.getAncestorsName();
+            String ancestorsName = schema.getName();
                 Map<String, FieldInfo> filterFields = new HashMap<>();
                 for (Field field : fields) {
-                    Boolean show = filterTypes.contains(RemoveBracketsUtil.removeBrackets(field.getOriginalDataType()));
+                    Boolean show = filterTypes.contains(RemoveBracketsUtil.removeBrackets(field.getDataType()));
                     if (Objects.nonNull(show) && show) {
                         field.setDeleted(true);
-                        FieldInfo fieldInfo = new FieldInfo(field.getFieldName(),null,false,field.getOriginalDataType());
-                        filterFields.put(field.getOriginalFieldName(),fieldInfo);
+                        FieldInfo fieldInfo = new FieldInfo(field.getFieldName(),null,false,field.getDataType());
+                        filterFields.put(field.getFieldName(),fieldInfo);
                     }
 
                 }

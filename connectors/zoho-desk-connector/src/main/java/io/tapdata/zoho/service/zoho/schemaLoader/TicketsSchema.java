@@ -297,13 +297,16 @@ public class TicketsSchema extends Schema implements SchemaLoader {
     public void read(int readSize, Object offsetState, BiConsumer<List<TapEvent>, Object> consumer,boolean isStreamRead ){
         final List<TapEvent>[] events = new List[]{new ArrayList<>()};
         int pageSize = Math.min(readSize, this.batchReadMaxPageSize);
-        HttpEntity<String, Object> tickPageParam = ticketLoader.getTickPageParam()
-                .build("limit", pageSize);
-        if (!isStreamRead) {
-            tickPageParam.build("sortBy", "createdTime");
-        }
-        int fromPageIndex = 1;//从第几个工单开始分页
+
         TapConnectionContext context = this.ticketLoader.getContext();
+        ContextConfig contextConfig = ticketLoader.veryContextConfigAndNodeConfig();
+
+        HttpEntity<String, Object> tickPageParam = ticketLoader.getTickPageParam().build("limit", pageSize);
+
+        tickPageParam.build("sortBy", (contextConfig.sortType() ? "-" : "" )+ (isStreamRead ? "modifiedTime" : "createdTime"));
+        tickPageParam.build("include", "contacts,products,departments,team,isRead,assignee");
+
+        int fromPageIndex = 1;//从第几个工单开始分页
         String modeName = context.getConnectionConfig().getString("connectionMode");
         ConnectionMode connectionMode = ConnectionMode.getInstanceByName(context, modeName);
         if (null == connectionMode){
@@ -312,22 +315,49 @@ public class TicketsSchema extends Schema implements SchemaLoader {
         String tableName =  Schemas.Tickets.getTableName();
         if (Checker.isEmpty(offsetState)) offsetState = ZoHoOffset.create(new HashMap<>());
         final Object offset = offsetState;
+
+        boolean finalNeedDetail = contextConfig.needDetailObj();
+
+        String fields = contextConfig.fields();
+
         while (isAlive()){
             tickPageParam.build("from", fromPageIndex);
             List<Map<String, Object>> list = ticketLoader.list(tickPageParam);
             if (Checker.isEmpty(list) || list.isEmpty()) break;
+            Map<String, List<Map<String, Object>>> idGroupOfCf = new HashMap<>();
+            if (!finalNeedDetail) {
+                Optional.ofNullable(fields).ifPresent(f -> tickPageParam.build("fields", f));
+                List<Map<String, Object>> cfList = ticketLoader.list(tickPageParam);
+                tickPageParam.remove("fields");
+                idGroupOfCf.putAll(cfList.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(x -> String.valueOf(x.get("id")))));
+            }
             fromPageIndex += pageSize;
-            list.stream().filter(Objects::nonNull).forEach(ticket->{
-                if (!isAlive()) return;
-                Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,tableName,ticketLoader);
-                if (Checker.isEmpty(oneTicket) || oneTicket.isEmpty()) return;
-                Object modifiedTimeObj = isStreamRead?null:oneTicket.get("modifiedTime");//stream read is sort by "modifiedTime",batch read is sort by "createdTime"
-                long referenceTime = System.currentTimeMillis();
-                if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
-                    referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);
-                    ((ZoHoOffset) offset).getTableUpdateTimeMap().put(tableName, referenceTime);
+            list.stream().filter(Objects::nonNull).forEach(ticket -> {
+                Object id = ticket.get("id");
+                List<Map<String, Object>> cfMaps = idGroupOfCf.get(String.valueOf(id));
+
+                boolean thisRecordNeedDetail = null == cfMaps || cfMaps.isEmpty();
+                if (!finalNeedDetail && !thisRecordNeedDetail) {
+                    for (Map<String, Object> cfMap : cfMaps) {
+                        if (null != cfMap && !cfMap.isEmpty() && null != cfMap.get("cf")){
+                            ticket.putAll(cfMap);
+                        }
+                    }
                 }
-                events[0].add(TapSimplify.insertRecordEvent(oneTicket,tableName).referenceTime(referenceTime));
+
+                if (!isAlive()) return;
+                    Map<String, Object> oneTicket = finalNeedDetail || thisRecordNeedDetail ?
+                            connectionMode.attributeAssignment(ticket, tableName, ticketLoader)
+                            : ticket;
+                    if (Checker.isEmpty(oneTicket) || oneTicket.isEmpty()) return;
+                    Object modifiedTimeObj = isStreamRead ? oneTicket.get("modifiedTime") : oneTicket.get("createdTime");//stream read is sort by "modifiedTime",batch read is sort by "createdTime"
+                    long referenceTime = System.currentTimeMillis();
+                    if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
+                        referenceTime = this.parseZoHoDatetime((String) modifiedTimeObj);
+                        ((ZoHoOffset) offset).getTableUpdateTimeMap().put(tableName, referenceTime);
+                    }
+                    events[0].add(TapSimplify.insertRecordEvent(oneTicket,tableName).referenceTime(referenceTime));
+
                 if (events[0].size() != readSize) return;
                 consumer.accept(events[0], offset);
                 events[0] = new ArrayList<>();

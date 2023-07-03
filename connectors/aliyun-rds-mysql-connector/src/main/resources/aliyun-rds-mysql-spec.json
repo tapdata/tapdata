@@ -57,7 +57,7 @@
           "x-index": 3,
           "required": true
         },
-        "user": {
+        "username": {
           "type": "string",
           "title": "${username}",
           "x-decorator": "FormItem",
@@ -74,12 +74,13 @@
           "apiServerKey": "database_password",
           "x-index": 5
         },
-        "extParams": {
+        "addtionalString": {
           "type": "string",
-          "title": "${extParams}",
+          "title": "${addtionalString}",
+          "default": "useUnicode=yes&characterEncoding=UTF-8",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "extParams",
+          "apiServerKey": "additionalString",
           "x-index": 6
         },
         "timezone": {
@@ -318,6 +319,16 @@
       ]
     },
     "tinyint[($zerofill)] unsigned": {
+      "to": "TapNumber",
+      "bit": 8,
+      "precision": 3,
+      "value": [
+        0,
+        255
+      ],
+      "unsigned": "unsigned"
+    },
+    "tinyint($zerofill) [unsigned] [zerofill]": {
       "to": "TapNumber",
       "bit": 8,
       "precision": 3,

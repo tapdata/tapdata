@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class StringKit {
@@ -297,5 +298,11 @@ public class StringKit {
         } catch (NoSuchAlgorithmException var6) {
             return null;
         }
+    }
+
+    public static boolean matchReg(String str, String reg) {
+        String newReg = reg.replaceAll("\\*", ".*");
+        Pattern pattern = Pattern.compile(newReg);
+        return pattern.matcher(str).matches();
     }
 }

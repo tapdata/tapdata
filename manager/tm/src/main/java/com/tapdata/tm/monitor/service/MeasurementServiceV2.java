@@ -41,6 +41,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import oshi.driver.mac.net.NetStat;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -296,13 +297,16 @@ public class MeasurementServiceV2 {
             }
         }
 
+			long fixTimes = 0;
+			String granularity = Granularity.GRANULARITY_MINUTE;
         AtomicReference<Date> startDate = new AtomicReference<>();
         AtomicReference<Date>  endDate = new AtomicReference<>();
         if (start != null) {
-            startDate.set(new Date(start));
+					fixTimes = Granularity.calculateGranularityStart(granularity, start) - start;
+					startDate.set(new Date(start + fixTimes));
         }
         if (end != null) {
-            endDate.set(new Date(end));
+					endDate.set(new Date(end - fixTimes));
         }
 
         if (typeIsTask && StringUtils.isNotBlank(taskId) && (ObjectUtils.anyNull(start, end) || Objects.equals(start, end))) {
@@ -327,7 +331,7 @@ public class MeasurementServiceV2 {
         }
 
         criteria = criteria.gte(startDate.get()).lte(endDate.get());
-        criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+        criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(granularity);
         SortOperation sort;
         long time;
         if (padding.equals(INSTANT_PADDING_LEFT)) {
@@ -404,20 +408,19 @@ public class MeasurementServiceV2 {
 
         Map<String, Sample> data = new HashMap<>();
         for (String hash : endSamples.keySet()) {
-            if (!startSamples.containsKey(hash)) {
-                continue;
+            Sample startSample;
+            if (startSamples.containsKey(hash)) {
+                startSample = startSamples.get(hash);
+            } else {
+                startSample = new Sample();
             }
 
             Sample ret = new Sample();
             ret.setVs(new HashMap<>());
-            Sample startSample = startSamples.get(hash);
             Sample endSample = endSamples.get(hash);
             for (String key : endSample.getVs().keySet()) {
-                if (!startSample.getVs().containsKey(key)) {
-                    continue;
-                }
+                Number startNum = startSample.getVs() == null ? 0 : startSample.getVs().getOrDefault(key, 0);
                 Number endNum = endSample.getVs().get(key);
-                Number startNum = startSample.getVs().get(key);
                 Number diff;
                 if (ObjectUtils.anyNull(startNum, endNum)) {
                     diff = 0;
@@ -815,6 +818,34 @@ public class MeasurementServiceV2 {
         });
 
         return new Long[]{inputTotal.get(), outputTotal.get()};
+    }
+
+
+    public List<String> findRunTable(String taskId, String taskRecordId) {
+        List<String> runTables = new ArrayList<>();
+
+        if (StringUtils.isBlank(taskRecordId)) {
+            return runTables;
+        }
+
+        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
+                .and("tags.taskRecordId").is(taskRecordId)
+                .and("tags.type").is("table")
+                .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+
+        Query query = new Query(criteria);
+        query.fields().include("tags.table");
+        List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+        if (CollectionUtils.isNotEmpty(measurementEntities)) {
+            for (MeasurementEntity measurementEntity : measurementEntities) {
+                Map<String, String> tags = measurementEntity.getTags();
+                if (tags != null && tags.get("table") != null) {
+                    runTables.add(tags.get("table"));
+                }
+            }
+        }
+
+        return runTables;
     }
 
     public Page<TableSyncStaticVo> querySyncStatic(TableSyncStaticDto dto, UserDetail userDetail) {

@@ -15,7 +15,6 @@ import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.entity.MysqlStreamEvent;
 import io.tapdata.connector.mysql.entity.MysqlStreamOffset;
 import io.tapdata.connector.mysql.util.MysqlBinlogPositionUtil;
-import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.connector.mysql.util.StringCompressUtil;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -35,7 +34,6 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
-import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -53,7 +51,10 @@ import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.sql.ResultSetMetaData;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -254,9 +255,9 @@ public class MysqlReader implements Closeable {
 //					.with("time.type", "io.tapdata.connector.mysql.converters.TimeConverter")
 //					.with("time.schema.name", "io.debezium.mysql.type.Time")
                     .with("snapshot.locking.mode", "none");
-            if (EmptyKit.isNotBlank(mysqlConfig.getTimezone())) {
-                builder.with("database.serverTimezone", mysqlJdbcContext.queryTimeZone());
-            }
+//            if (EmptyKit.isNotBlank(mysqlConfig.getTimezone())) {
+//                builder.with("database.serverTimezone", mysqlJdbcContext.queryTimeZone());
+//            }
             List<String> dbTableNames = tables.stream().map(t -> mysqlConfig.getDatabase() + "." + t).collect(Collectors.toList());
             builder.with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, mysqlConfig.getDatabase());
             builder.with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, String.join(",", dbTableNames));
@@ -624,9 +625,17 @@ public class MysqlReader implements Closeable {
         if (null == tapField) return value;
         TapType tapType = tapField.getTapType();
         if (tapType instanceof TapDateTime) {
-            if (((TapDateTime) tapType).getFraction().equals(0) && value instanceof Long) {
-                value = MysqlUtil.convertTimestamp((Long) value, DB_TIME_ZONE, TimeZone.getTimeZone("GMT"));
-                value = ((Long) value) / 1000;
+            if (value instanceof Long) {
+                int fraction = ((TapDateTime) tapType).getFraction();
+                LocalDateTime dt = LocalDateTime.now();
+                ZonedDateTime fromZonedDateTime = dt.atZone(DB_TIME_ZONE.toZoneId());
+                ZonedDateTime toZonedDateTime = dt.atZone(TimeZone.getTimeZone("GMT").toZoneId());
+                long diff = Duration.between(toZonedDateTime, fromZonedDateTime).toMillis();
+                if (fraction > 3) {
+                    value = ((Long) value + diff * 1000) / (long) Math.pow(10, 6 - fraction);
+                } else {
+                    value = ((Long) value + diff) / (long) Math.pow(10, 3 - fraction);
+                }
             } else if (value instanceof String) {
                 try {
                     value = Instant.parse((CharSequence) value);

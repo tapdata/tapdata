@@ -2,7 +2,11 @@
 config.setStreamReadIntervalSeconds(2*60);
 
 function discoverSchema(connectionConfig) {
-    return Object.values(globalTableConfig);
+    let tableType = connectionConfig.tableType;
+    if (isValue(tableType) && "Document" === tableType){
+        return Object.values(globalTableConfig);
+    }
+    return Object.values(globalCSVTableConfig);
 }
 
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
@@ -83,6 +87,14 @@ function connectionTest(connectionConfig) {
                         ( isValue(result.error) ? (", error: " + result.error) : ""))
                     : "Pass"
     });
+
+    if (isCheck) {
+        checkItems.push({
+            "test": "Read log",
+            "code": 1,
+            "result": "Pass"
+        });
+    }
     return checkItems;
 }
 

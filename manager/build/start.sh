@@ -13,7 +13,8 @@ function start()
         echo "Maybe $appName is running, please check it..."
     else
         echo "The $appName is starting..."
-        nohup java -jar -server ${lib}/tm-*.jar --spring.config.additional-location=file:${conf}/ --logging.config=file:${conf}/logback.xml -Dspring.data.mongodb.uri=${mongouri} &> logs/nohup.out &
+        touch logs/nohup.out
+        nohup java -jar -server ${lib}/tm-*.jar --spring.config.additional-location=file:${conf}/ --logging.config=file:${conf}/logback.xml --spring.data.mongodb.default.uri=${mongouri} --spring.data.mongodb.obs.uri=${mongouri} --spring.data.mongodb.log.uri=${mongouri} &> logs/nohup.out &
     fi
 }
 

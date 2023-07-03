@@ -9,4 +9,5 @@ public enum TerminalMode {
 	STOP_GRACEFUL,
 	ERROR,
 	COMPLETE,
+	INTERNAL_STOP
 }
