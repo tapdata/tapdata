@@ -127,7 +127,7 @@ import static java.util.Collections.singletonList;
 @TapConnectorClass("spec.json")
 public class MongodbConnector extends ConnectorBase {
 
-	private static final int SAMPLE_SIZE_BATCH_SIZE = 100;
+	private static final int SAMPLE_SIZE_BATCH_SIZE = 1000;
 	private static final String COLLECTION_ID_FIELD = "_id";
 	public static final String TAG = MongodbConnector.class.getSimpleName();
 	private final AtomicLong counter = new AtomicLong();

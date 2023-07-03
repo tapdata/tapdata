@@ -36,6 +36,7 @@ import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
 import com.tapdata.tm.task.bean.MultiSearchDto;
 import com.tapdata.tm.task.constant.LdpDirEnum;
@@ -111,6 +112,10 @@ public class LdpServiceImpl implements LdpService {
 
     @Autowired
     private MessageQueueService messageQueueService;
+
+
+    @Autowired
+    private MeasurementServiceV2 measurementServiceV2;
 
     @Override
     @Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
@@ -197,14 +202,14 @@ public class LdpServiceImpl implements LdpService {
 
         TaskDto taskDto;
         if (oldTask != null) {
-            sourceTableNames.removeAll(oldTableNames);
-            if (CollectionUtils.isNotEmpty(sourceTableNames)) {
-                if (CollectionUtils.isNotEmpty(oldTask.getLdpNewTables())) {
-                    List<String> ldpNewTables = oldTask.getLdpNewTables();
-                    ldpNewTables.addAll(sourceTableNames);
-                    task.setLdpNewTables(ldpNewTables);
-                } else {
-                    task.setLdpNewTables(sourceTableNames);
+            List<String> runTable = measurementServiceV2.findRunTable(oldTask.getId().toHexString(), oldTask.getTaskRecordId());
+            if (CollectionUtils.isEmpty(runTable)) {
+                sourceTableNames.removeAll(runTable);
+                task.setLdpNewTables(sourceTableNames);
+            } else {
+                List<String> ldpNewTables = oldTask.getLdpNewTables();
+                if (CollectionUtils.isNotEmpty(ldpNewTables)) {
+                    task.setLdpNewTables(null);
                 }
             }
             taskDto = taskService.updateById(task, user);
@@ -1211,7 +1216,6 @@ public class LdpServiceImpl implements LdpService {
             if (TaskDto.LDP_TYPE_FDM.equals(newTask.getLdpType())) {
                 Node node = targets.get(0);
                 List<SyncObjects> syncObjects = ((DatabaseNode) node).getSyncObjects();
-                List<String> ldpNewTables = newTask.getLdpNewTables();
                 if (CollectionUtils.isNotEmpty(syncObjects)) {
                     SyncObjects syncObjects1 = syncObjects.get(0);
 

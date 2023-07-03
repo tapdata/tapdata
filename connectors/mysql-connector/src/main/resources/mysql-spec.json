@@ -79,6 +79,7 @@
           "title": "${addtionalString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "default": "useUnicode=yes&characterEncoding=UTF-8",
           "apiServerKey": "addtionalString",
           "x-index": 6
         },
@@ -318,6 +319,16 @@
       ]
     },
     "tinyint[($zerofill)] unsigned": {
+      "to": "TapNumber",
+      "bit": 8,
+      "precision": 3,
+      "value": [
+        0,
+        255
+      ],
+      "unsigned": "unsigned"
+    },
+    "tinyint($zerofill) [unsigned] [zerofill]": {
       "to": "TapNumber",
       "bit": 8,
       "precision": 3,
