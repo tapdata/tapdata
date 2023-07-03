@@ -102,7 +102,7 @@ public class HttpReceiverController extends BaseController {
             if (!StringUtils.isBlank(gatewaySecret)) {
                 token = proxyService.generateStaticToken(userId, gatewaySecret);
             } else
-                throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
+                throw new BizException("gatewaySecret can not be read from gateway secret");
         }
 
         //@TODO 获取连接信息，对比connection config中的配置，去重
@@ -167,6 +167,12 @@ public class HttpReceiverController extends BaseController {
         if (null == connection) {
             return failed("401", "Not fund any service");
         }
+
+        if (null == subscribeToken.getRandomId()) {
+            response.sendError(401, "The token is illegal. Please use a valid token to access this interface");
+            return failed("illegal_token", "The token is illegal. Please use a valid token to access this interface");
+        }
+
         //并检查是否包含这个供应商
         if (subscribeServer.existSupplier(connection, subscribeToken)) {
             response.sendError(401, "The refresh url has expired or expired. Please contact your system contact person");
@@ -181,7 +187,6 @@ public class HttpReceiverController extends BaseController {
         subscribeDto.setSubscribeId(connectionId);
         subscribeDto.setService(service);
         subscribeDto.setSupplierKey(subscribeToken.getSupplierKey());
-
         //RefreshURLResultDto responseDto = new RefreshURLResultDto();
         //responseDto.setToken(dto.getToken());
         //responseDto.setExpireSeconds("" + subscribeToken.getExpireSeconds());
