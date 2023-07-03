@@ -205,6 +205,10 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
     }
 
     private void checkSourceSupportCdcByTestConnectionResult(TaskDto taskDto, Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, Node node, String nodeId, DataSourceConnectionDto dto, List<String> capList) {
+        if (Lists.of("Dummy").contains(dto.getDatabase_type())) {
+            return;
+        }
+
         if (taskDto.getType().contains("cdc")) {
             // first check field polling cdc
             if (node instanceof TableNode && "polling".equals(((TableNode) node).getCdcMode())) {
