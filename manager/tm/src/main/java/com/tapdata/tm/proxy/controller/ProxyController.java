@@ -225,7 +225,7 @@ public class ProxyController extends BaseController {
         if (!proxyService.validateSubscribeToken(subscribeToken, token, response, TAG)) {
             return;
         }
-        if (subscribeToken.getType() != 0 || null != subscribeToken.getRandomId()) {
+        if (null != subscribeToken.getRandomId()) {
             response.sendError(SC_UNAUTHORIZED, "The token is illegal. Please use a valid token to access this interface");
             return;
         }
