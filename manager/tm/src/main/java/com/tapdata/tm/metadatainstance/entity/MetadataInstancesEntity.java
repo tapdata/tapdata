@@ -52,6 +52,7 @@ public class MetadataInstancesEntity extends BaseEntity {
     @Field("fields_lienage")
     private String fieldsLienage;
     private List<com.tapdata.tm.commons.schema.Field> fields;
+    private String compressionFields;
     private boolean hasPrimaryKey;
     private Object indexes;
     @Field("source")
