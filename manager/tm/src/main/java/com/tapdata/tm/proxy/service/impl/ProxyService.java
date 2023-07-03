@@ -126,6 +126,7 @@ public class ProxyService {
         } else {
             subscribeToken.setExpireSeconds(Long.parseLong(String.valueOf(Integer.MAX_VALUE)));
         }
+        subscribeToken.setType(1);
 
         byte[] tokenBytes;
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
