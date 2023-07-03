@@ -30,7 +30,8 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "default": "",
-          "x-index": 999998
+          "x-index": 999998,
+          "x-display": "hidden"
         }
       }
     },
