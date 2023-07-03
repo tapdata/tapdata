@@ -166,6 +166,7 @@ public class LdpServiceImpl implements LdpService {
             }
 
 
+            String initType = task.getType();
             if (StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
                 mergeAllTable(user, connectionId, oldTask, oldTableNames);
                 task = oldTask;
@@ -176,6 +177,7 @@ public class LdpServiceImpl implements LdpService {
             } else {
                 task = createNew(task, dag, oldTask);
             }
+            task.setType(initType);
         } else if (StringUtils.isNotBlank(databaseNode.getTableExpression())) {
             mergeAllTable(user, connectionId, task, null);
         } else {
@@ -202,16 +204,6 @@ public class LdpServiceImpl implements LdpService {
 
         TaskDto taskDto;
         if (oldTask != null) {
-            List<String> runTable = measurementServiceV2.findRunTable(oldTask.getId().toHexString(), oldTask.getTaskRecordId());
-            if (CollectionUtils.isEmpty(runTable)) {
-                sourceTableNames.removeAll(runTable);
-                task.setLdpNewTables(sourceTableNames);
-            } else {
-                List<String> ldpNewTables = oldTask.getLdpNewTables();
-                if (CollectionUtils.isNotEmpty(ldpNewTables)) {
-                    task.setLdpNewTables(null);
-                }
-            }
             taskDto = taskService.updateById(task, user);
         } else {
             taskDto = taskService.confirmById(task, user, true);
