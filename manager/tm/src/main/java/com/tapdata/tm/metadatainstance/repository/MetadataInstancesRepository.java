@@ -9,10 +9,8 @@ import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
-import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.GZIPUtil;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.net.util.Base64;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
@@ -36,7 +34,7 @@ public class MetadataInstancesRepository extends BaseRepository<MetadataInstance
 
 
 
-    @Value("${compression.fields.length:2000}")
+    @Value("${compression.fields.length:5}")
     private int compressionFieldsLength;
     public MetadataInstancesRepository(MongoTemplate mongoOperations) {
         super(MetadataInstancesEntity.class, mongoOperations);
@@ -372,7 +370,7 @@ public class MetadataInstancesRepository extends BaseRepository<MetadataInstance
                 String json = JsonUtil.toJsonUseJackson(entity.getFields());
                 if (StringUtils.isNotBlank(json)) {
                     byte[] gzip = GZIPUtil.gzip(json.getBytes());
-                    byte[] encode = java.util.Base64.getEncoder().encode(gzip);
+                    byte[] encode = Base64.getEncoder().encode(gzip);
                     String dataString = new String(encode, StandardCharsets.UTF_8);
                     entity.setCompressionFields(dataString);
                     entity.setFields(null);
@@ -386,8 +384,8 @@ public class MetadataInstancesRepository extends BaseRepository<MetadataInstance
     public void unzipFields(MetadataInstancesEntity entity) {
         if (entity != null && StringUtils.isNotBlank(entity.getCompressionFields())) {
             String encryptFields = entity.getCompressionFields();
-            byte[] uncompressEncryptData = GZIPUtil.unGzip(Base64.decodeBase64(encryptFields));
-            String decryptFromUncompressData = AES256Util.Aes256Decode(new String(uncompressEncryptData, StandardCharsets.UTF_8));
+            byte[] uncompressEncryptData = GZIPUtil.unGzip(Base64.getDecoder().decode(encryptFields));
+            String decryptFromUncompressData = new String(uncompressEncryptData, StandardCharsets.UTF_8);
 
             entity.setFields(JsonUtil.parseJsonUseJackson(decryptFromUncompressData, new TypeReference<List<com.tapdata.tm.commons.schema.Field>>() {}));
             entity.setCompressionFields(null);
