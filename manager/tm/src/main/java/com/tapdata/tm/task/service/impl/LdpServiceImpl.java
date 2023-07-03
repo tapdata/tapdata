@@ -752,11 +752,13 @@ public class LdpServiceImpl implements LdpService {
         for (TaskDto taskDto : taskDtos) {
             DAG dag = taskDto.getDag();
             Node node = dag.getSources().get(0);
-            String connectionId = ((DatabaseNode) node).getConnectionId();
-            String tagId = tagMap.get(connectionId);
-            if (StringUtils.isNotBlank(tagId)) {
-                List<TaskDto> tasks = result.computeIfAbsent(tagId, k -> new ArrayList<>());
-                tasks.add(taskDto);
+            if (node instanceof DatabaseNode) {
+                String connectionId = ((DatabaseNode) node).getConnectionId();
+                String tagId = tagMap.get(connectionId);
+                if (StringUtils.isNotBlank(tagId)) {
+                    List<TaskDto> tasks = result.computeIfAbsent(tagId, k -> new ArrayList<>());
+                    tasks.add(taskDto);
+                }
             }
         }
         return result;
