@@ -113,7 +113,8 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
 
                 if (CollectionUtils.isNotEmpty(dto.getCapabilities())) {
-                    List<String> capList = dto.getCapabilities().stream().map(Capability::getId).collect(Collectors.toList());
+                    List<String> capList = dto.getCapabilities().stream().map(Capability::getId)
+                            .filter(id -> Lists.of("stream_read_function", "batch_read_function", "query_by_advance_filter_function").contains(id)).collect(Collectors.toList());
 
                     if (Lists.of("Tidb", "Doris").contains(connectionDto.getDatabase_type()) &&
                             connectionDto.getConfig().containsKey("enableIncrement") &&
