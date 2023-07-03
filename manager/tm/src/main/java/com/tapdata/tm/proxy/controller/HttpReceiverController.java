@@ -85,13 +85,13 @@ public class HttpReceiverController extends BaseController {
         String token = null;
 
         if (null == subscribeURLDto.getSupplierKey()) {
-            response.sendError(400, "SupplierKey can not be empty");
-            return failed("SupplierKey can not be empty");
+            response.sendError(400, "Supplier key can not be empty");
+            return failed("Supplier key can not be empty");
         }
 
         if (null == subscribeURLDto.getRandomId()) {
-            response.sendError(400, "RandomId can not be empty");
-            return failed("RandomId can not be empty");
+            response.sendError(400, "Random id can not be empty");
+            return failed("Random id can not be empty");
         }
 
         String userId = userDetail.getUserId();
@@ -102,7 +102,7 @@ public class HttpReceiverController extends BaseController {
             if (!StringUtils.isBlank(gatewaySecret)) {
                 token = proxyService.generateStaticToken(userId, gatewaySecret);
             } else
-                throw new BizException("gatewaySecret can not be read from gateway secret");
+                throw new BizException("gateway secret can not be read from gateway secret");
         }
 
         //@TODO 获取连接信息，对比connection config中的配置，去重
