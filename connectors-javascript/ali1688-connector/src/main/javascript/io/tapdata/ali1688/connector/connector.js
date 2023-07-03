@@ -5,32 +5,37 @@ var invoker = loadAPI();
 config.setStreamReadIntervalSeconds(2*60);
 
 function discoverSchema(connectionConfig) {
-    return Object.values(globalTableConfig);
+    let tableType = connectionConfig.tableType;
+    if (isValue(tableType) && "Document" === tableType){
+        return Object.values(globalTableConfig);
+    }
+    return Object.values(csvTableConfig);
 }
 
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
+    //log.warn("nodeConfig.logCompile: {}, ", nodeConfig.logCompile);
     tableHandle.handle(tableName).batchReadV(connectionConfig, nodeConfig, offset, pageSize, batchReadSender);
 }
 
-function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
-    if (!isValue(tableNameList)){
-        throw ("Can not get any table name, table name list is empty");
-    }
-    let tableHandles = [];
-    for (let index = 0; index < tableNameList.length; index++) {
-        let handle = tableHandle.handle(tableNameList[index]);
-        if (null == handle){
-            log.warn("Table can not be support stream read, and will ignore table which name is {}", tableNameList[index]);
-            continue;
-        }
-        tableHandles.push(handle);
-    }
-    for (let index = 0; index < tableHandles.length; index++) {
-        if (!isAlive()) break;
-        let tableHandel = tableHandles[index];
-        tableHandel.streamReadV(connectionConfig, nodeConfig, offset, pageSize, streamReadSender);
-    }
-}
+// function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
+//     if (!isValue(tableNameList)){
+//         throw ("Can not get any table name, table name list is empty");
+//     }
+//     let tableHandles = [];
+//     for (let index = 0; index < tableNameList.length; index++) {
+//         let handle = tableHandle.handle(tableNameList[index]);
+//         if (null == handle){
+//             log.warn("Table can not be support stream read, and will ignore table which name is {}", tableNameList[index]);
+//             continue;
+//         }
+//         tableHandles.push(handle);
+//     }
+//     for (let index = 0; index < tableHandles.length; index++) {
+//         if (!isAlive()) break;
+//         let tableHandel = tableHandles[index];
+//         tableHandel.streamReadV(connectionConfig, nodeConfig, offset, pageSize, streamReadSender);
+//     }
+// }
 
 function connectionTest(connectionConfig) {
     let appKey = connectionConfig.appKey;

@@ -8,6 +8,37 @@
     "tags": ["SaaS"]
   },
   "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+        "ignoreFields": {
+          "type": "string",
+          "title": "${ignore_if_exist_field_name}",
+          "required": true,
+          "default": null,
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "wrapperWidth": 300
+          },
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": true,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "fulfill": {
+                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}"
+              }
+            }
+          ]
+        }
+        }
+    },
     "connection": {
       "type": "object",
       "properties": {
@@ -48,19 +79,23 @@
       "doc": "docs/vika_en_US.md",
       "credential": "Your API Key",
       "hostUrl": "Host Url",
-      "spaceId": "Space Id"
+      "spaceId": "Space Id",
+      "ignore_if_exist_field_name": "Ignore if value exist of fields when update"
     },
     "zh_CN": {
       "doc": "docs/vika_zh_CN.md",
       "credential": "凭证",
       "hostUrl": "服务地址和端口",
-      "spaceId": "空间站ID"
+      "spaceId": "空间站ID",
+      "ignore_if_exist_field_name": "字段中存在值时更新时忽略 "
     },
     "zh_TW": {
       "doc": "docs/vika_zh_TW.md",
       "credential": "凭证",
       "hostUrl": "服务地址和端口",
-      "spaceId": "空间站ID"
+      "spaceId": "空间站ID",
+      "ignore_if_exist_field_name": "欄位中存在值時更新時忽略"
+
     }
   },
   "dataTypes": {
@@ -79,7 +114,53 @@
         -9223372036854775808,
         9223372036854775807
       ],
+      "precision": [
+        1,
+        65
+      ],
+      "scale": [
+        0,
+        4
+      ],
       "to": "TapNumber"
+    },
+    "Number0":{
+      "to": "TapNumber",
+      "precision": [1, 65],
+      "value": [-999999999, 999999999],
+      "scale": 0,
+      "defaultPrecision": 10,
+      "defaultScale": 0
+    },
+    "Number1":{
+      "to": "TapNumber",
+      "precision": [1, 65],
+      "value": [-999999999.9, 999999999.9],
+      "scale": 1,
+      "defaultPrecision": 10,
+      "defaultScale": 1
+    },
+    "Number2": {
+      "to": "TapNumber",
+      "precision": [1, 65],
+      "value": [-999999999.99, 999999999.99],
+      "scale": 2
+    },
+    "Number3": {
+      "to": "TapNumber",
+      "precision": [1, 65],
+      "value": [-999999999.999, 999999999.999],
+      "scale": 3,
+      "defaultPrecision": 10,
+      "defaultScale": 3
+    },
+    "Number4": {
+      "to": "TapNumber",
+      "precision": [1, 65],
+      "value": [-999999999.9999, 999999999.9999],
+      "scale": 4,
+      "defaultPrecision": 10,
+      "defaultScale": 4
     },
     "DateTime": {
       "range": [
@@ -89,6 +170,16 @@
       "defaultFraction": 3,
       "pattern": "yyyy-MM-dd HH:mm:ss",
       "priority": 1,
+      "to": "TapDateTime"
+    },
+    "Date": {
+      "range": [
+        "1000-01-01",
+        "9999-12-31"
+      ],
+      "defaultFraction": 3,
+      "pattern": "yyyy-MM-dd",
+      "priority": 2,
       "to": "TapDateTime"
     }
   }

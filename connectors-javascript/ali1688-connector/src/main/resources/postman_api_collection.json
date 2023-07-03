@@ -393,6 +393,38 @@
 				}
 			},
 			"response": []
+		},
+		{
+			"name": "ShoppingDetail",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{}",
+					"options": {"raw": {"language": "json"}}
+				},
+				"url": {
+					"raw": "http://gw.open.1688.com:80/openapi/param2/1/com.alibaba.trade/alibaba.trade.get.buyerView/:appKey?_aop_timestamp={{_aop_timestamp}}&access_token={{access_token}}&_aop_signature={{_aop_signature}}&orderId={orderId}&webSite=1688",
+					"protocol": "https",
+					"host": ["gw", "open", "1688", "com"],
+					"path": ["param2", "1", "cn.alibaba.open", "com.alibaba.trade", "alibaba.trade.get.buyerView", ":appKey"],
+					"query": [{
+						"key": "_aop_timestamp",
+						"value": "{{_aop_timestamp}}"}, {
+						"key": "access_token",
+						"value": "{{access_token}}"}, {
+						"key": "_aop_signature",
+						"value": "{{_aop_signature}}"},{
+						"key": "webSite",
+						"value": "1688"}, {
+						"key": "orderId",
+						"value": "200"}
+					],
+					"variable": [{"key": "appKey", "value": ""}]
+				}
+			},
+			"response": []
 		}
 	],
 	"event": [],

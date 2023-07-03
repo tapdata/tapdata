@@ -302,7 +302,19 @@ public class PostManAnalysis {
     public APIResponse http(String uriOrName, String method, Map<String, Object> params) {
         try {
             Request request = this.httpPrepare(uriOrName, method, params);
-            APIResponse http = this.http(request);
+            APIResponse http = null;
+            for (int i = 1; ; i++) {
+                try {
+                    http = this.http(request);
+                    break;
+                } catch (Exception e) {
+                    if (i >= 3) {
+                        throw e;
+                    }
+                    TapLogger.warn(TAG, "JS Connector exec postman api occur an error of method: "+ uriOrName + ", error: " + e.getMessage() + ", will retry 3 times, it's " + i);
+                    Thread.sleep(100);
+                }
+            }
             String property = System.getProperty("show_api_invoker_result", "1");
             if (!"1".equals(property)) {
                 System.out.printf("Http Result: Post Man: %s url - %s, method - %s, params - %s\n\t%s%n", uriOrName, request.url(), method, toJson(params), toJson(http.result().get("data"), JsonParser.ToJsonFeature.PrettyFormat));
