@@ -94,9 +94,18 @@ function connectionTest(connectionConfig) {
             log.warn("Cannot get Application info, and application name will be empty now.")
             isApp = -1;
         }
-        return [{"test": "Get App info", "code": isApp,
+        let result = [{
+            "test": "Get App info", "code": isApp,
             "result": isApp === 1 ? "App name is:" + app.data.app.app_name : "Can not get App info, please check you App ID and App Secret."
         }];
+        if (isApp === 1){
+            result.push({
+                "test": "Read log",
+                "code": 1,
+                "result": "Pass"
+            });
+        }
+        return result;
     }catch (e){
         return [{"test":" Input parameter check ", "code": -1,
             "result": "Can not get App info, please check you App ID and App Secret."

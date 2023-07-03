@@ -24,6 +24,7 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.OEMReplaceUtil;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -64,6 +65,8 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
 
     private final MongoTemplate mongoOperations;
 
+    private final Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("log/replace.json");
+
     public MonitoringLogsService(@NonNull MonitoringLogsRepository repository,@Qualifier(value = "logMongoTemplate") CompletableFuture<MongoTemplate> mongoTemplateCompletableFuture) throws ExecutionException, InterruptedException {
         super(repository, MonitoringLogsDto.class, MonitoringLogsEntity.class);
         this.mongoOperations = mongoTemplateCompletableFuture.get();
@@ -77,6 +80,10 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
 
         BulkOperations bulkOperations = repository.getMongoOperations().bulkOps(BulkOperations.BulkMode.UNORDERED, MonitoringLogsEntity.class);
         for (MonitoringLogsDto monitoringLoge : monitoringLoges) {
+            String message = OEMReplaceUtil.replace(monitoringLoge.getMessage(), oemConfig);
+            monitoringLoge.setMessage(message);
+            String errorStack = OEMReplaceUtil.replace(monitoringLoge.getErrorStack(), oemConfig);
+            monitoringLoge.setErrorStack(errorStack);
             beforeSave(monitoringLoge, user);
         }
 
@@ -86,7 +93,8 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             monitoringLogsEntity.setTimestamp(System.currentTimeMillis());
             repository.applyUserDetail(monitoringLogsEntity, user);
             if (Objects.nonNull(monitoringLogsEntity.getData())) {
-                monitoringLogsEntity.setDataJson(JSON.toJSONString(monitoringLogsEntity.getData()));
+                String jsonData = OEMReplaceUtil.replace(JSON.toJSONString(monitoringLogsEntity.getData()), oemConfig);
+                monitoringLogsEntity.setDataJson(jsonData);
             }
             bulkOperations.insert(monitoringLogsEntity);
         }
@@ -194,7 +202,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
     }
 
     public List<MonitoringLogCountVo> count(String taskId, String taskRecordId) {
-       List<MonitoringLogCountVo> data = new ArrayList<>();
+        List<MonitoringLogCountVo> data = new ArrayList<>();
         if (null == taskId || null == taskRecordId) {
             return data;
         }
@@ -279,7 +287,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             message = MessageFormat.format(template, user.getUsername(), event.getName(), stateMachineResult.getCode(),
                     stateMachineResult.getBefore(), stateMachineResult.getAfter(), cost);
         }
-
+        message = OEMReplaceUtil.replace(message, oemConfig);
         save(builder.message(message).build(), user);
     }
 
@@ -292,7 +300,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
                 .timestamp(System.currentTimeMillis())
                 .level("INFO")
                 .message("Start task...")
-                ;
+        ;
 
 
         save(builder.build(), user);
@@ -317,6 +325,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         } else {
             msg = e.toString();
         }
+        msg = OEMReplaceUtil.replace(msg, oemConfig);
 
         save(builder.message(msg).build(), user);
     }
@@ -356,7 +365,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
                 // 2022-12-08 18:56:44【新任务@14:19:54】【模型推演检测】：
                 String date = DateUtil.toLocalDateTime(log.getDate()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN));
                 String message = "{0}【{1}】【{2}节点】{3}";
-							info.setLog(MessageFormat.format(message, date, taskName, nodeName, log.getMessage() + (StringUtils.isNotEmpty(log.getErrorStack()) ? "\n" + log.getErrorStack() : "")));
+                info.setLog(MessageFormat.format(message, date, taskName, nodeName, log.getMessage() + (StringUtils.isNotEmpty(log.getErrorStack()) ? "\n" + log.getErrorStack() : "")));
                 info.setGrade(Level.valueOf(log.getLevel()));
                 info.setCreateAt(log.getDate());
                 info.setId(log.getId());

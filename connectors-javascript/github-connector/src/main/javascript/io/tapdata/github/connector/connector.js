@@ -342,7 +342,12 @@ function connectionTest(connectionConfig) {
                 "test": "Get User Repos",
                 "code": 1,
                 "result": "Pass"
-            })
+            });
+            res.push({
+                "test": "Read log",
+                "code": 1,
+                "result": "Pass"
+            });
         } else {
             res.push({
                 "test": "Get User Repos",

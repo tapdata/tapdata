@@ -391,7 +391,11 @@ public class CustomConnector extends ConnectorBase {
         TestItem testScript = customTest.testScript();
         consumer.accept(testScript);
         if (!ConnectionTypeEnum.TARGET.getType().equals(customConfig.get__connectionType()) && (testScript.getResult() != TestItem.RESULT_FAILED)) {
-            consumer.accept(customTest.testBuildSchema());
+            TestItem testItem = customTest.testBuildSchema();
+            consumer.accept(testItem);
+            if (TestItem.RESULT_SUCCESSFULLY == testItem.getResult()) {
+                consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY));
+            }
         }
         return ConnectionOptions.create().connectionString("Custom Connection: " +
                 (ConnectionTypeEnum.TARGET.getType().equals(customConfig.get__connectionType()) ? ConnectionTypeEnum.TARGET.getType() : "source[" + customConfig.getCollectionName() + "]"));

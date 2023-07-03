@@ -315,6 +315,9 @@ public class CodingConnector extends ConnectorBase {
 
         TestItem testProject = testConnection.testProject();
         consumer.accept(testProject);
+        if (TestItem.RESULT_SUCCESSFULLY == testProject.getResult()) {
+            consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY));
+        }
         return connectionOptions;
     }
 

@@ -32,7 +32,7 @@ public class TableFields {
         // default value
         String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
         if (Checker.isNotEmpty(defaultValue)) {
-            defaultValue.replaceAll("'", "\\'");
+            defaultValue = defaultValue.replace("'", "''");
             if (tapField.getTapType() instanceof TapNumber) {
                 defaultValue = defaultValue.trim();
             }
@@ -43,7 +43,7 @@ public class TableFields {
         String comment = tapField.getComment();
         if (Checker.isNotEmpty(comment)) {
             // try to escape the single quote in comments
-            comment = comment.replace("'", "\\'");
+            comment = comment.replace("'", "''");
             fieldSql += " comment '" + comment + "'";
         }
 
