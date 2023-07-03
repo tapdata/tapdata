@@ -24,6 +24,7 @@ public enum NodeEnum {
     date_processor("开发日期编辑节点"),
     join_processor("Join节点"),
     js_processor("增强JS节点"),
+    py_processor("Python节点"),
     standard_js_processor("标准JS节点"),
     merge_table_processor("多表合并节点"),
     row_filter_processor("Row Filter节点"),

@@ -60,15 +60,12 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
     private static final Logger logger = LogManager.getLogger(HazelcastPythonProcessNode.class);
     public static final String TAG = HazelcastPythonProcessNode.class.getSimpleName();
-
-    private final Invocable engine;
-
     private ScriptExecutorsManager scriptExecutorsManager;
-
-    private final ThreadLocal<Map<String, Object>> processContextThreadLocal;
     private ScriptExecutorsManager.ScriptExecutor source;
     private ScriptExecutorsManager.ScriptExecutor target;
+    private final ThreadLocal<Map<String, Object>> processContextThreadLocal;
     private final Map<String, Object> globalMap;
+    private final Invocable engine;
 
     @SneakyThrows
     public HazelcastPythonProcessNode(ProcessorBaseContext processorBaseContext) {
@@ -97,6 +94,29 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                 new ObsScriptLogger(obsLogger, logger));
         this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
         this.globalMap = new HashMap<>();
+    }
+
+    @Override
+    protected void doInit(@NotNull Context context) throws Exception {
+        super.doInit(context);
+        Node<?> node = getNode();
+        this.scriptExecutorsManager = new ScriptExecutorsManager(
+            new ObsScriptLogger(obsLogger),
+            clientMongoOperator,
+            jetContext.hazelcastInstance(),
+            node.getTaskId(),
+            node.getId(),
+            StringUtils.equalsAnyIgnoreCase(
+                processorBaseContext.getTaskDto().getSyncType(),
+                TaskDto.SYNC_TYPE_TEST_RUN,
+                TaskDto.SYNC_TYPE_DEDUCE_SCHEMA
+            )
+        );
+        ((PyScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
+        this.source = getDefaultScriptExecutor(GraphUtil.predecessors(node, Node::isDataNode), "source");
+        this.target = getDefaultScriptExecutor(GraphUtil.successors(node, Node::isDataNode), "target");
+        ((PyScriptEngine) this.engine).put("source", source);
+        ((PyScriptEngine) this.engine).put("target", target);
     }
 
     @SneakyThrows
@@ -144,7 +164,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
         contextMap.put("global", this.globalMap);
         Map<String, Object> context = this.processContextThreadLocal.get();
         context.putAll(contextMap);
-        ((ScriptEngine) this.engine).put("context", context);
+        //((ScriptEngine) this.engine).put("context", context);
         AtomicReference<Object> scriptInvokeResult = new AtomicReference<>();
         if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
                 TaskDto.SYNC_TYPE_TEST_RUN,
@@ -155,7 +175,10 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
             Thread thread = new Thread(() -> {
                 Thread.currentThread().setName("Python-Test-Runner");
                 try {
-                    scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord));
+                    //function process(record, context){
+                    //	return record;
+                    //}
+                    scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord, context));
                 } catch (Throwable throwable) {
                     errorAtomicRef.set(throwable);
                 } finally {
@@ -168,11 +191,11 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                 thread.interrupt();
             }
             if (errorAtomicRef.get() != null) {
-                throw new TapCodeException(TaskProcessorExCode_11.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get());
+                throw new TapCodeException(TaskProcessorExCode_11.PYTHON_PROCESS_FAILED, errorAtomicRef.get());
             }
 
         } else {
-            scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record));
+            scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record, context));
         }
 
         if (StringUtils.isNotEmpty((CharSequence) context.get("op"))) {
@@ -208,25 +231,6 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
         }
     }
 
-
-    @Override
-    protected void doInit(@NotNull Context context) throws Exception {
-        super.doInit(context);
-        Node<?> node = getNode();
-        this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
-                node.getTaskId(), node.getId(),
-                StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-                        TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA));
-        ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
-        List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
-        List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
-
-        this.source = getDefaultScriptExecutor(predecessors, "source");
-        this.target = getDefaultScriptExecutor(successors, "target");
-        ((ScriptEngine) this.engine).put("source", source);
-        ((ScriptEngine) this.engine).put("target", target);
-    }
-
     @Override
     protected void doClose() throws Exception {
         try {
@@ -243,9 +247,8 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
         }
     }
 
-
     private ScriptExecutorsManager.ScriptExecutor getDefaultScriptExecutor(List<Node<?>> nodes, String flag) {
-        if (nodes != null && nodes.size() > 0) {
+        if (nodes != null && !nodes.isEmpty()) {
             Node<?> node = nodes.get(0);
             if (node instanceof DataParentNode) {
                 String connectionId = ((DataParentNode<?>) node).getConnectionId();
@@ -253,7 +256,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                         ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
                 if (connections != null) {
                     if (nodes.size() > 1) {
-                        obsLogger.warn("Use the first node as the default python script executor, please use it with caution.");
+                        obsLogger.warn("Use the first node as the default python executor, please use it with caution.");
                     }
                     return this.scriptExecutorsManager.create(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(obsLogger));
                 }
@@ -284,7 +287,6 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                 throw new IllegalArgumentException("Unsupported operation type: " + op);
         }
         tapEvent.clone(result);
-
         return result;
     }
 

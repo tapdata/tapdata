@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag.process.script.py;
 
+import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.process.script.ScriptProcessNode;
 import lombok.Getter;
@@ -15,7 +16,7 @@ import lombok.Setter;
 @Setter
 public class PyProcessNode extends ScriptProcessNode {
     public PyProcessNode() {
-        super("py_processor");
+        super(NodeEnum.py_processor.getNodeName());
     }
 
     public PyProcessNode(String type) {

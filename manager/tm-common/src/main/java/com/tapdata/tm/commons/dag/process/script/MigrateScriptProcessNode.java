@@ -248,7 +248,7 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
                             originField.setPrimaryKey(field.getPrimaryKey());
                             BeanUtil.copyProperties(originField, field);
 
-//                            field.setId(new ObjectId().toHexString());
+                            //field.setId(new ObjectId().toHexString());
                             field.setDataTypeTemp(originField.getDataType());
                             field.setOriginalDataType(originField.getDataType());
                             field.setOriginalFieldName(originField.getOriginalFieldName());
@@ -305,7 +305,7 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
         }
 
         if (o instanceof MigrateJsProcessorNode) {
-            Class className = MigrateJsProcessorNode.class;
+            Class<?> className = MigrateJsProcessorNode.class;
             for (; className != Object.class; className = className.getSuperclass()) {
                 java.lang.reflect.Field[] declaredFields = className.getDeclaredFields();
                 for (java.lang.reflect.Field declaredField : declaredFields) {
@@ -318,8 +318,7 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
                             if (!b) {
                                 return false;
                             }
-                        } catch (IllegalAccessException e) {
-                        }
+                        } catch (IllegalAccessException ignored) { }
                     }
                 }
             }
@@ -330,21 +329,16 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
 
     @Override
     protected List<Schema> saveSchema(Collection<String> predecessors, String nodeId, List<Schema> schema, DAG.Options options) {
-
         schema.forEach(s -> {
             //s.setTaskId(taskId);
             s.setNodeId(nodeId);
         });
-
         return service.createOrUpdateSchema(ownerId(), toObjectId(getConnectId()), schema, options, this);
     }
 
     @Override
     protected List<Schema> cloneSchema(List<Schema> schemas) {
-        if (schemas == null) {
-            return Collections.emptyList();
-        }
-        return SchemaUtils.cloneSchema(schemas);
+        return  schemas == null ? Collections.emptyList() : SchemaUtils.cloneSchema(schemas);
     }
 
     protected String getConnectId() {

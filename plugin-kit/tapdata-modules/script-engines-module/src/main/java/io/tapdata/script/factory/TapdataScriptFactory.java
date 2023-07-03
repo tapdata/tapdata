@@ -15,12 +15,8 @@ import org.apache.commons.io.FilenameUtils;
 import javax.script.ScriptEngine;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URL;
 import java.util.Enumeration;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -52,51 +48,51 @@ public class TapdataScriptFactory implements ScriptFactory {
 		return null;
     }
 
-//    		try {
-//		if (!Application.class.getResource("").getProtocol().equals("jar")) {
-//			// 以 idea 的方式运行
-//			//ClassLoader defaultClassLoader = Application.class.getClassLoader();
-//			//InputStream inputStreamPy = defaultClassLoader.getResourceAsStream("BOOT-INF/lib/jython-standalone-2.7.2.jar");
-//			//InputStream inputStreamEngine = defaultClassLoader.getResourceAsStream("BOOT-INF/lib/script-engine-module-1.0-SNAPSHOT.jar");
-//		} else {
-//			// 以 jar 的方式运行
-//			String sc = null;
-//			try {
-//				//假设读取META-INF/MANIFEST.MF文件
-//				Enumeration<URL> urls = Application.class.getClassLoader().getResources("META-INF/MANIFEST.MF");
-//				while (urls.hasMoreElements() && null == sc) {
-//					URL url = urls.nextElement();
-//					String path = url.getPath();
-//					if (path.contains("script-engine-module-1.0-SNAPSHOT.jar")) {
-//						sc = path;
-//					}
-//				}
-//			} catch (IOException e) { }
-//			if (sc != null) {
-//				String jarPath = sc;
-//				String scPath = sc.replace("file://", "").replace("/script-engine-module-1.0-SNAPSHOT.jar!/META-INF/MANIFEST.MF", "");
-//				File scFile = new File(scPath);
-//				JarFile jar = new JarFile(jarPath);
-//				Enumeration<?> entries = jar.entries();
-//				while (entries.hasMoreElements()) {
-//					JarEntry entry = (JarEntry) entries.nextElement();
-//					if (entry.getName().endsWith("Lib.jar")) {
-//						try (InputStream inputStream = jar.getInputStream(entry); OutputStream scStream = FileUtils.openOutputStream(scFile)) {
-//							org.apache.commons.io.IOUtils.copyLarge(inputStream, scStream);
-//						} catch (Exception e){
-//							e.printStackTrace();
-//						}
-//						break;
-//					}
-//				}
-//
-//			}
-//		}
-//		MyService bean = BeanUtil.getBean(MyService.class);
-//		bean.readResourceFile("script-engine-module-1.0-SNAPSHOT.jar");
-//	}catch (Exception e){
-//
-//	}
+	//    		try {
+	//		if (!Application.class.getResource("").getProtocol().equals("jar")) {
+	//			// 以 idea 的方式运行
+	//			//ClassLoader defaultClassLoader = Application.class.getClassLoader();
+	//			//InputStream inputStreamPy = defaultClassLoader.getResourceAsStream("BOOT-INF/lib/jython-standalone-2.7.2.jar");
+	//			//InputStream inputStreamEngine = defaultClassLoader.getResourceAsStream("BOOT-INF/lib/script-engine-module-1.0-SNAPSHOT.jar");
+	//		} else {
+	//			// 以 jar 的方式运行
+	//			String sc = null;
+	//			try {
+	//				//假设读取META-INF/MANIFEST.MF文件
+	//				Enumeration<URL> urls = Application.class.getClassLoader().getResources("META-INF/MANIFEST.MF");
+	//				while (urls.hasMoreElements() && null == sc) {
+	//					URL url = urls.nextElement();
+	//					String path = url.getPath();
+	//					if (path.contains("script-engine-module-1.0-SNAPSHOT.jar")) {
+	//						sc = path;
+	//					}
+	//				}
+	//			} catch (IOException e) { }
+	//			if (sc != null) {
+	//				String jarPath = sc;
+	//				String scPath = sc.replace("file://", "").replace("/script-engine-module-1.0-SNAPSHOT.jar!/META-INF/MANIFEST.MF", "");
+	//				File scFile = new File(scPath);
+	//				JarFile jar = new JarFile(jarPath);
+	//				Enumeration<?> entries = jar.entries();
+	//				while (entries.hasMoreElements()) {
+	//					JarEntry entry = (JarEntry) entries.nextElement();
+	//					if (entry.getName().endsWith("Lib.jar")) {
+	//						try (InputStream inputStream = jar.getInputStream(entry); OutputStream scStream = FileUtils.openOutputStream(scFile)) {
+	//							org.apache.commons.io.IOUtils.copyLarge(inputStream, scStream);
+	//						} catch (Exception e){
+	//							e.printStackTrace();
+	//						}
+	//						break;
+	//					}
+	//				}
+	//
+	//			}
+	//		}
+	//		MyService bean = BeanUtil.getBean(MyService.class);
+	//		bean.readResourceFile("script-engine-module-1.0-SNAPSHOT.jar");
+	//	}catch (Exception e){
+	//
+	//	}
 
 	public static void unzip(File zipFile, File outputDir) {
 		if (zipFile == null || outputDir == null)

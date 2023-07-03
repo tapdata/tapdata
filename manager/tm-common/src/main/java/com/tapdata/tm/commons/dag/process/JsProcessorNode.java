@@ -1,6 +1,5 @@
 package com.tapdata.tm.commons.dag.process;
 
-import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.process.script.ScriptProcessNode;
 import lombok.Getter;

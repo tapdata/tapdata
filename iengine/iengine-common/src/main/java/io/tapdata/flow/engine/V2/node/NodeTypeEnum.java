@@ -24,6 +24,7 @@ public enum NodeTypeEnum {
 	UNION_PROCESSOR("union_processor"),
 
 	MIGRATE_JS_PROCESSOR("migrate_js_processor"),
+	MIGRATE_PYTHON_PROCESS("migrate_python_process"),
 	STANDARD_MIGRATE_JS_PROCESSOR("standard_migrate_js_processor"),
 	FIELD_PROCESSOR("field_processor"),
 	AGGREGATION_PROCESSOR("aggregation_processor"),

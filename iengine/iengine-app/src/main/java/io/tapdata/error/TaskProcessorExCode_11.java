@@ -35,4 +35,14 @@ public interface TaskProcessorExCode_11 {
 			solutionCN = "1. 检查代码并修正错误"
 	)
 	String JAVA_SCRIPT_PROCESS_FAILED = "11004";
+
+	@TapExCode(
+			describe = "Python node processing error.\n" +
+					"Reason\n1. The Python code has an error",
+			solution = "1. Review the code and fix errors",
+			describeCN = "Python节点处理出错。\n" +
+					"原因\n1. Python代码存在错误",
+			solutionCN = "1. 检查代码并修正错误"
+	)
+	String PYTHON_PROCESS_FAILED = "11005";
 }
