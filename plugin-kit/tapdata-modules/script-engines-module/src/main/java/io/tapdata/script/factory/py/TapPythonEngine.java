@@ -1,14 +1,8 @@
 package io.tapdata.script.factory.py;
 
-import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.script.factory.script.TapRunScriptEngine;
-import org.graalvm.polyglot.Context;
-import org.graalvm.polyglot.Engine;
-import org.graalvm.polyglot.HostAccess;
-import org.graalvm.polyglot.Value;
 import org.python.jsr223.PyScriptEngineFactory;
 
 import javax.script.Bindings;
@@ -22,7 +16,6 @@ import javax.script.SimpleScriptContext;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.Reader;
-import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 
@@ -32,10 +25,10 @@ import java.util.concurrent.Callable;
  * @create 2023/6/13 15:58
  **/
 public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
-    private ScriptEngine scriptEngine;
+    private final ScriptEngine scriptEngine;
     private final Invocable invocable;
     private final String buildInScript;
-    private ClassLoader classLoader;
+    private final ClassLoader classLoader;
 
     public Invocable invocable() {
         return this.invocable;
@@ -182,8 +175,8 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     public void close() throws IOException {
         String tag = this.getClass().getSimpleName();
         CommonUtils.ignoreAnyError(() -> {
-            if (this.scriptEngine instanceof GraalJSScriptEngine) {
-                ((GraalJSScriptEngine) this.scriptEngine).close();
+            if (this.scriptEngine instanceof org.python.jsr223.PyScriptEngine) {
+                ((org.python.jsr223.PyScriptEngine) this.scriptEngine).close();
             }
         }, tag);
     }

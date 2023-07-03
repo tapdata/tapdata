@@ -18,7 +18,7 @@ public class PyInstall {
             ,"-s","D:\\GavinData\\kitSpace\\tapdata\\plugin-kit\\tapdata-modules\\script-engines-module\\target\\script-engine-module-1.0-SNAPSHOT.jar"
             ,"-j","jython-standalone-2.7.2.jar"
             ,"-p","C:\\Users\\Gavin'Xiao\\.m2\\repository\\org\\python\\jython-standalone\\2.7.2\\"
-            ,"-g","D:\\GavinData\\kitSpace\\tapdata\\plugin-kit\\tapdata-modules\\script-engines-module\\src\\main\\resources\\pip-packages"
+            ,"-g","D:\\GavinData\\kitSpace\\tapdata\\plugin-kit\\tapdata-modules\\script-engines-module\\src\\main\\resources\\pip-package\\"
         );
 
 

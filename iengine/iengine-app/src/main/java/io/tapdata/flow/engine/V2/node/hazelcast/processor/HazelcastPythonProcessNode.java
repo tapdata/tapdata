@@ -96,7 +96,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                 scriptCacheService,
                 new ObsScriptLogger(obsLogger, logger));
         this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
-        this.globalMap = Optional.ofNullable(processorBaseContext.getTaskDto().getGlobalTaskContext()).orElse(new HashMap<>());
+        this.globalMap = new HashMap<>();
     }
 
     @SneakyThrows

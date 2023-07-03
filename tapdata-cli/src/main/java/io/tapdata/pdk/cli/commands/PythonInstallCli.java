@@ -3,9 +3,7 @@ package io.tapdata.pdk.cli.commands;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.cli.CommonCli;
 import io.tapdata.pdk.cli.utils.ZipUtils;
-import io.tapdata.pdk.core.connector.TapConnectorManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.supervisor.convert.entity.ClassModifier;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.util.ClassUtils;
@@ -14,14 +12,14 @@ import picocli.CommandLine;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.net.URI;
-import java.util.Arrays;
-import java.util.Optional;
-import java.util.UUID;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.util.StringJoiner;
 
 /**
  * @author GavinXiao
@@ -47,18 +45,18 @@ public class PythonInstallCli extends CommonCli {
     private String pyJarPath ;
 
     @CommandLine.Option(names = {"-g", "--packages"}, description = "")
-    private String packagesPath ;
+    private String packagesPath = "pip-install";
 
     @CommandLine.Option(names = {"-h", "--help"}, usageHelp = true, description = "Tapdata cli help")
     private boolean helpRequested = false;
 
     public Integer execute() throws Exception {
         if (null == selfJarPath) {
-            TapLogger.error(TAG, "Miss script-engine-module.jar path");
+            TapLogger.error(TAG, "Miss tapdata-cli-1.0-SNAPSHOT.jar path");
             return -1;
         }
         if (null == pyJarPath) {
-            TapLogger.error(TAG, "Miss jython-standalone.jar path");
+            TapLogger.error(TAG, "Miss jython-standalone-2.7.2.jar path");
             return -1;
         }
         if (null == packagesPath){
@@ -71,8 +69,8 @@ public class PythonInstallCli extends CommonCli {
             return -2;
         }
 
-        final String jarPath = pyJarPath + jarName;
-        final String libPath = pyJarPath + "Lib";
+        final String jarPath = pyJarPath.endsWith(jarName) ? pyJarPath : pyJarPath + jarName;
+        final String libPath = (pyJarPath.endsWith(jarName) ? pyJarPath.replace(jarName, "") : pyJarPath ) + "Lib";
         File file = new File(jarPath);
         if (null == file || !file.exists() || !file.isFile()){
             TapLogger.error(TAG, "Miss jython-standalone.jar path: " + jarPath);
@@ -91,6 +89,9 @@ public class PythonInstallCli extends CommonCli {
 
         final String libJarName = FilenameUtils.concat(pyJarPath, "Lib.jar");
         final String libPathName = FilenameUtils.concat(pyJarPath, "temp_engine");
+
+        String batPath = pyJarPath + "cmd_bat.bat";
+        File bat = new File(batPath);
         try {
             //依次执行命令
             File[] files = path.listFiles();
@@ -103,7 +104,7 @@ public class PythonInstallCli extends CommonCli {
                         String[] split = name.split("\\.");
                         if (split.length <= 0 ) continue;
                         try {
-                           ZipUtils.unzip(packageItem.getAbsolutePath(), path.getAbsolutePath()+ "/" + split[0]);
+                           ZipUtils.unzip(packageItem.getAbsolutePath(), path.getAbsolutePath()+ "\\" + split[0]);
                            if (packageItem.exists()) {
                                FileUtils.deleteQuietly(packageItem);
                            }
@@ -112,24 +113,40 @@ public class PythonInstallCli extends CommonCli {
                            continue;
                        }
                     }
-                    String setUpPyPath = packageItem.getAbsolutePath() + (absolutePath.endsWith("/") ? "" : "/") + "setup.py";
+                    String setUpPyPath = packageItem.getAbsolutePath() + (absolutePath.endsWith("\\") ? "" : "\\") + "setup.py";
                     File setup = null;
                     try {
                         setup = new File(setUpPyPath);
                     }catch (Exception e){
                         TapLogger.error(TAG, "Can not find file {}, error: {}", setUpPyPath, e.getMessage());
                     }
-
+//C:\Users\Gavin'Xiao\.m2\repository\org\python\jython-standalone\2.7.2
                     if (null == setup || !setup.exists() || !setup.isFile()) {
                         continue;
                     }
+
                     try {
+                        try(Writer writer = new FileWriter(bat)) {
+                            writer.write(
+//                            "cd D: \n " +
+                                "cd "+ packageItem.getAbsolutePath() + " \r\n "+
+                                String.format(
+                                    "java -jar %s %s install"
+                                    , path(jarPath)
+                                    , "setup.py")//path(setUpPyPath) )
+                                );
+                        } catch (IOException e) {
+                            TapLogger.warn(TAG, "Can't create bat file {}, error: {}", batPath, e.getMessage());
+                        }
                         // java -jar /usr/local/lib/jython-standalone-2.7.2.jar setup.py install
-                        cmdRunJar(String.format(
-                                "java -jar %s %s install"
-                                , jarPath
-                                , setUpPyPath
-                        ));
+                        cmdRunJar(
+                            "cmd -c start " + path(batPath)
+//                            "cd "+ packageItem.getAbsolutePath() + " & "+
+//                            String.format(
+//                                "java -jar %s %s install"
+//                                , path(jarPath)
+//                                , path(setUpPyPath) )
+                        );
                     }catch (Exception e){
                         TapLogger.warn(TAG, "Can't import {}, error: {}", setUpPyPath, e.getMessage());
                     }
@@ -182,6 +199,8 @@ public class PythonInstallCli extends CommonCli {
                     File temp1 = new File(libPathName);
                     if (temp1.exists())
                         FileUtils.deleteQuietly(temp1);
+                    if (bat.exists())
+                        FileUtils.deleteQuietly(bat);
                 }
 
             } else {
@@ -194,13 +213,15 @@ public class PythonInstallCli extends CommonCli {
         return 0;
     }
 
-    public static void cmdRunJar(String cmd) throws Exception {
-        if (null == cmd || "".equals(cmd.trim())) return;
+    public static void cmdRunJar(String ... cmd) throws Exception {
+        if (null == cmd || cmd.length <= 0) return;
         BufferedReader br = null;
         try {
-            Process process = new ProcessBuilder(cmd).start();//Runtime.getRuntime().exec(cmd);
+            ProcessBuilder processBuilder = new ProcessBuilder(cmd);
+            Process process = processBuilder.start();
+//            Process process = Runtime.getRuntime().exec(cmd);
             InputStream is = process.getInputStream();
-            br = new BufferedReader(new InputStreamReader(is,"GBK"));
+            br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
             StringBuffer sb = new StringBuffer();
             String content = br.readLine();
             if (null != content && "".equals(content.trim())) {
@@ -226,40 +247,14 @@ public class PythonInstallCli extends CommonCli {
         }
     }
 
-    public static void cmdTerminateJar(int port) {
-        String os = System.getProperties().getProperty("os.name");
-        String path = ClassUtils.getDefaultClassLoader().getResource("").getPath();
-        String cmd = null;
-        if(os.contains("win")) {
-            cmd = path+"stopJar.bat "+ port;
-        } else {
-            cmd = path + "" + port;
+    private String path(String path) {
+        String[] split = path.split("\\\\");
+        //C:\Users\Gavin'Xiao\.m2\repository\org\python\jython-standalone\2.7.2/jython-standalone-2.7.2.jar
+        StringJoiner builder = new StringJoiner("\"\\\\\"");
+        for (int index = 1; index < split.length; index++) {
+            builder.add(split[index]);
         }
-        BufferedReader br = null;
-        try {
-            Process process = Runtime.getRuntime().exec(cmd);
-            InputStream is = process.getInputStream();
-            br = new BufferedReader(new InputStreamReader(is,"GBK"));
-            StringBuffer sb = new StringBuffer();
-            sb.append(br.readLine());
-            String content;
-            while ((content = br.readLine()) != null) {
-                content = br.readLine();
-                sb.append(content);
-            }
-            br.close();
-            br = null;
-            //log.info(content);
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if(null!=br) {
-                try {
-                    br.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
+        return split[0] + "\\\"" + builder.toString() + "\"";
     }
+
 }
