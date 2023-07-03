@@ -1,11 +1,16 @@
 package io.tapdata.connector.kafka;
 
 import com.google.common.collect.Lists;
-import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.constant.MqOp;
+import io.tapdata.connector.kafka.admin.Admin;
+import io.tapdata.connector.kafka.admin.DefaultAdmin;
+import io.tapdata.connector.kafka.config.AdminConfiguration;
 import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.connector.kafka.config.ProducerConfiguration;
 import io.tapdata.connector.kafka.config.SchemaConfiguration;
+import io.tapdata.connector.kafka.util.SchemaRegisterUtil;
+import io.tapdata.connector.kafka.util.Krb5Util;
+import io.tapdata.constant.MqTestItem;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
@@ -30,10 +35,7 @@ import org.apache.avro.SchemaBuilder;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.kafka.clients.producer.Callback;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.Producer;
-import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.*;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 
 import java.io.BufferedReader;
@@ -52,6 +54,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.tapdata.base.ConnectorBase.table;
+import static io.tapdata.connector.kafka.util.SchemaRegisterUtil.parseJsonArray;
 
 /**
  * Author:Skeet
@@ -69,10 +72,10 @@ public class KafkaSRService extends KafkaService {
         super();
     }
 
-    public KafkaSRService(KafkaConfig mqConfig, TapConnectionContext connectionContext) {
-        this.mqConfig = mqConfig;
+    public KafkaSRService(KafkaConfig kafkaConfig, TapConnectionContext connectionContext) {
+        this.kafkaConfig = kafkaConfig;
         this.tapConnectionContext = connectionContext;
-        ProducerConfiguration producerConfiguration = new ProducerConfiguration(mqConfig, connectorId);
+        ProducerConfiguration producerConfiguration = new ProducerConfiguration(kafkaConfig, connectorId);
         try {
             kafkaProducer = new KafkaProducer<>(producerConfiguration.build());
         } catch (Exception e) {
@@ -84,7 +87,7 @@ public class KafkaSRService extends KafkaService {
 
     @Override
     public void setConnectorId(String connectorId) {
-        super.setConnectorId(connectorId);
+        this.connectorId = connectorId;
     }
 
     @Override
@@ -99,7 +102,29 @@ public class KafkaSRService extends KafkaService {
 
     @Override
     public TestItem testConnect() {
-        return super.testConnect();
+        if ((kafkaConfig).getKrb5()) {
+            try {
+                Krb5Util.checkKDCDomainsBase64(((KafkaConfig) kafkaConfig).getKrb5Conf());
+                return new TestItem(MqTestItem.KAFKA_BASE64_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
+            } catch (Exception e) {
+                return new TestItem(MqTestItem.KAFKA_BASE64_CONNECTION.getContent(), TestItem.RESULT_FAILED, e.getMessage());
+            }
+        }
+        AdminConfiguration configuration = new AdminConfiguration(kafkaConfig, connectorId);
+        try (Admin admin = new DefaultAdmin(configuration)) {
+            if (admin.isClusterConnectable()) {
+                if (SchemaRegisterUtil.sendHttpRequest("http://" + tapConnectionContext.getConnectionConfig().getString("schemaRegisterUrl") + "/subjects") == 200) {
+                    return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
+                } else {
+                    return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "The Schema Register service is invalid. Please check the service address.");
+                }
+            } else {
+                return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "cluster is not connectable");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "when connect to cluster, error occurred");
+        }
     }
 
     @Override
@@ -119,9 +144,10 @@ public class KafkaSRService extends KafkaService {
 
     @Override
     public void loadTables(int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        String schemaRegistryUrl = "http://" + this.kafkaConfig.getSchemaRegisterUrl() + "/subjects";
         BufferedReader reader = null;
         HttpURLConnection connection = null;
+        String schemaRegistryUrl = "http://" + tapConnectionContext.getConnectionConfig().getString("schemaRegisterUrl") + "/subjects";
+
         try {
             URL url = new URL(schemaRegistryUrl);
             connection = (HttpURLConnection) url.openConnection();
@@ -160,20 +186,6 @@ public class KafkaSRService extends KafkaService {
         }
     }
 
-    private static List<String> parseJsonArray(String jsonArray) {
-        List<String> result = new ArrayList<>();
-        jsonArray = jsonArray.trim();
-        if (jsonArray.startsWith("[") && jsonArray.endsWith("]")) {
-            jsonArray = jsonArray.substring(1, jsonArray.length() - 1);
-            String[] elements = jsonArray.split(",");
-            for (String element : elements) {
-                String subject = element.trim().replaceAll("\"", "");
-                result.add(subject);
-            }
-        }
-        return result;
-    }
-
     @Override
     protected void submitPageTables(int tableSize, Consumer<List<TapTable>> consumer, SchemaConfiguration schemaConfiguration, Set<String> destinationSet) {
         super.submitPageTables(tableSize, consumer, schemaConfiguration, destinationSet);
@@ -206,12 +218,9 @@ public class KafkaSRService extends KafkaService {
                     data = new HashMap<>();
                 }
                 properties.put("bootstrap.servers", kafkaConfig.getNameSrvAddr());
-                //
                 properties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-                //
-                properties.put("value.serializer", "io.confluent.kafka.serializers.KafkaAvroSerializer");
-                //
-                properties.put("schema.registry.url", kafkaConfig.getSchemaRegisterUrl());
+                properties.put("value.serializer", io.confluent.kafka.serializers.KafkaAvroSerializer.class);
+                properties.put("schema.registry.url", "http://" + kafkaConfig.getSchemaRegisterUrl());
 
                 SchemaBuilder.RecordBuilder<Schema> recordBuilder = SchemaBuilder.record(tapTable.getId());
                 SchemaBuilder.FieldAssembler<Schema> fieldAssembler = recordBuilder.fields();
@@ -223,15 +232,13 @@ public class KafkaSRService extends KafkaService {
                     if (StringUtils.isBlank(columnType)) {
                         continue;
                     }
+                    nameFieldMap.get(columnName).getTapType().getType();
                     // 根据列的类型映射为 Avro 模式的类型
                     Schema.Field field = createAvroField(columnName, columnType);
                     fieldAssembler.name(columnName).type(field.schema()).noDefault();
                 }
-                Schema schema = fieldAssembler.endRecord();
-                String avroSchemaString = "{\"schema\":" + schema.toString() + "}";
-
                 Schema.Parser parser = new Schema.Parser();
-                Schema avroSchema = parser.parse(avroSchemaString);
+                Schema avroSchema = parser.parse(fieldAssembler.endRecord().toString());
                 Producer<String, GenericRecord> producer = new KafkaProducer<>(properties);
                 GenericRecord record = new GenericData.Record(avroSchema);
                 for (Map.Entry<String, Object> entry : data.entrySet()) {
@@ -262,10 +269,14 @@ public class KafkaSRService extends KafkaService {
                     }
                 };
 
-                ProducerRecord<byte[], GenericRecord> producerRecord = new ProducerRecord<>(tapTable.getId(),
-                        null, event.getTime(), getKafkaMessageKey(data, tapTable), record,
-                        new RecordHeaders().add("mqOp", mqOp.getOp().getBytes()));
-                kafkaProducer.send(producerRecord, callback);
+//                ProducerRecord<byte[], GenericRecord> producerRecord = new ProducerRecord<>(tapTable.getId(),
+//                        null, event.getTime(), getKafkaMessageKey(data, tapTable), record,
+//                        new RecordHeaders().add("mqOp", mqOp.getOp().getBytes()));
+                ProducerRecord<String, GenericRecord> producerRecord = new ProducerRecord<>(
+                        tapTable.getId(),
+                        record
+                );
+                producer.send(producerRecord, callback);
             }
         } catch (RejectedExecutionException e) {
             tapLogger.warn("task stopped, some data produce failed!", e);
@@ -301,8 +312,12 @@ public class KafkaSRService extends KafkaService {
             case "TapBoolean":
                 avroType = SchemaBuilder.builder().booleanType();
                 break;
+            case "NUMBER":
             case "TapNumber":
                 avroType = SchemaBuilder.builder().doubleType();
+                break;
+            case "INTEGER":
+                avroType = SchemaBuilder.builder().intType();
                 break;
             case "TapString":
             case "TapArray":

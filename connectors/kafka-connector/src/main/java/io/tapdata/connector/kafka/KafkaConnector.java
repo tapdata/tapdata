@@ -4,6 +4,7 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConfig;
 import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
@@ -30,6 +31,7 @@ import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -38,6 +40,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static io.tapdata.connector.kafka.util.SchemaRegisterUtil.*;
 import static io.tapdata.pdk.apis.entity.ConnectionOptions.*;
 
 @TapConnectorClass("spec_kafka.json")
@@ -52,15 +55,16 @@ public class KafkaConnector extends ConnectorBase {
     private void initConnection(TapConnectionContext connectorContext) {
         kafkaConfig = (KafkaConfig) new KafkaConfig().load(connectorContext.getConnectionConfig());
         this.isSchemaRegister = kafkaConfig.getSchemaRegister();
-        if (!this.isSchemaRegister) {
-            kafkaService = new KafkaService(kafkaConfig);
-        } else {
-            kafkaSRService = new KafkaSRService(kafkaConfig, connectorContext);
-
-        }
+        kafkaService = new KafkaService(kafkaConfig);
         kafkaService.setTapLogger(connectorContext.getLog());
         kafkaService.setConnectorId(connectorContext.getId());
         kafkaService.init();
+        if (this.isSchemaRegister) {
+            kafkaSRService = new KafkaSRService(kafkaConfig, connectorContext);
+            kafkaSRService.setTapLogger(connectorContext.getLog());
+            kafkaSRService.setConnectorId(connectorContext.getId());
+            kafkaSRService.init();
+        }
     }
 
     @Override
@@ -71,6 +75,9 @@ public class KafkaConnector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) {
         kafkaService.close();
+        if (this.isSchemaRegister) {
+            kafkaSRService.close();
+        }
     }
 
     @Override
@@ -97,20 +104,28 @@ public class KafkaConnector extends ConnectorBase {
         connectorFunctions.supportCreateTableV2(this::createTableV2);
     }
 
-    private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws ExecutionException, InterruptedException {
-        if (this.isSchemaRegister) {
-            int numPartitions = 3;
-            short replicationFactor = 1;
-            TapTable tapTable = tapCreateTableEvent.getTable();
-            Properties properties = new Properties();
-            properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getConnectionString());
-            AdminClient adminClient = AdminClient.create(properties);
-            NewTopic newTopic = new NewTopic(tapTable.getId(), numPartitions, replicationFactor);
-            adminClient.createTopics(Collections.singletonList(newTopic)).all().get();
-            return null;
-        } else {
-            return null;
+    private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws ExecutionException, InterruptedException, IOException {
+        TapTable tapTable = tapCreateTableEvent.getTable();
+        CreateTableOptions createTableOptions = new CreateTableOptions();
+        if (checkTopicExists(kafkaConfig.getConnectionString(), tapTable.getId())) {
+            createTableOptions.setTableExists(true);
+            return createTableOptions;
         }
+        try {
+            if (this.isSchemaRegister) {
+                int numPartitions = 3;
+                short replicationFactor = 1;
+                Properties properties = new Properties();
+                properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getConnectionString());
+                AdminClient adminClient = AdminClient.create(properties);
+                NewTopic newTopic = new NewTopic(tapTable.getId(), numPartitions, replicationFactor);
+                adminClient.createTopics(Collections.singletonList(newTopic)).all().get();
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage());
+        }
+        createTableOptions.setTableExists(false);
+        return createTableOptions;
     }
 
     private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
@@ -135,8 +150,8 @@ public class KafkaConnector extends ConnectorBase {
             onStart(connectionContext);
             CommonDbConfig config = new CommonDbConfig();
             config.set__connectionType(kafkaConfig.get__connectionType());
-                KafkaTest kafkaTest = new KafkaTest(kafkaConfig, consumer, kafkaService, config);
-                kafkaTest.testOneByOne();
+            KafkaTest kafkaTest = new KafkaTest(kafkaConfig, consumer, this.kafkaService, config, isSchemaRegister, kafkaSRService);
+            kafkaTest.testOneByOne();
         } catch (Throwable throwable) {
             TapLogger.error(TAG, throwable.getMessage());
             consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Failed, " + throwable.getMessage()));
