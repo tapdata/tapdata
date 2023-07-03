@@ -36,7 +36,6 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.producer.*;
-import org.apache.kafka.common.header.internals.RecordHeaders;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -44,9 +43,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -64,9 +61,8 @@ public class KafkaSRService extends KafkaService {
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
     private KafkaConfig kafkaConfig;
     private String connectorId;
-    private KafkaProducer<byte[], GenericRecord> kafkaProducer;
+    private KafkaProducer<String, GenericRecord> kafkaProducer;
     private TapConnectionContext tapConnectionContext;
-
 
     public KafkaSRService() {
         super();
@@ -200,6 +196,13 @@ public class KafkaSRService extends KafkaService {
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
         CountDownLatch countDownLatch = new CountDownLatch(tapRecordEvents.size());
         try {
+            properties.put("bootstrap.servers", kafkaConfig.getNameSrvAddr());
+            properties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+            properties.put("value.serializer", io.confluent.kafka.serializers.KafkaAvroSerializer.class);
+            properties.put("schema.registry.url", "http://" + kafkaConfig.getSchemaRegisterUrl());
+//            properties.put("basic.auth.credentials.source", "USER_INFO");
+//            properties.put("basic.auth.user.info", "itsm:itsm_123321");
+            kafkaProducer = new KafkaProducer<>(properties);
             for (TapRecordEvent event : tapRecordEvents) {
                 if (null != isAlive && !isAlive.get()) {
                     break;
@@ -217,10 +220,6 @@ public class KafkaSRService extends KafkaService {
                 } else {
                     data = new HashMap<>();
                 }
-                properties.put("bootstrap.servers", kafkaConfig.getNameSrvAddr());
-                properties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-                properties.put("value.serializer", io.confluent.kafka.serializers.KafkaAvroSerializer.class);
-                properties.put("schema.registry.url", "http://" + kafkaConfig.getSchemaRegisterUrl());
 
                 SchemaBuilder.RecordBuilder<Schema> recordBuilder = SchemaBuilder.record(tapTable.getId());
                 SchemaBuilder.FieldAssembler<Schema> fieldAssembler = recordBuilder.fields();
@@ -232,14 +231,12 @@ public class KafkaSRService extends KafkaService {
                     if (StringUtils.isBlank(columnType)) {
                         continue;
                     }
-                    nameFieldMap.get(columnName).getTapType().getType();
                     // 根据列的类型映射为 Avro 模式的类型
                     Schema.Field field = createAvroField(columnName, columnType);
                     fieldAssembler.name(columnName).type(field.schema()).noDefault();
                 }
                 Schema.Parser parser = new Schema.Parser();
                 Schema avroSchema = parser.parse(fieldAssembler.endRecord().toString());
-                Producer<String, GenericRecord> producer = new KafkaProducer<>(properties);
                 GenericRecord record = new GenericData.Record(avroSchema);
                 for (Map.Entry<String, Object> entry : data.entrySet()) {
                     String fieldName = entry.getKey();
@@ -276,7 +273,7 @@ public class KafkaSRService extends KafkaService {
                         tapTable.getId(),
                         record
                 );
-                producer.send(producerRecord, callback);
+                kafkaProducer.send(producerRecord, callback);
             }
         } catch (RejectedExecutionException e) {
             tapLogger.warn("task stopped, some data produce failed!", e);
@@ -306,22 +303,19 @@ public class KafkaSRService extends KafkaService {
 
     private static Schema.Field createAvroField(String columnName, String columnType) {
         Schema avroType;
-
-
         switch (columnType) {
-            case "TapBoolean":
+            case "BOOLEAN":
                 avroType = SchemaBuilder.builder().booleanType();
                 break;
             case "NUMBER":
-            case "TapNumber":
                 avroType = SchemaBuilder.builder().doubleType();
                 break;
             case "INTEGER":
-                avroType = SchemaBuilder.builder().intType();
+                avroType = SchemaBuilder.builder().longType();
                 break;
-            case "TapString":
-            case "TapArray":
-            case "TapMap":
+            case "STRING":
+            case "ARRAY":
+            case "TEXT":
             default:
                 avroType = SchemaBuilder.builder().stringType();
                 break;
@@ -348,6 +342,9 @@ public class KafkaSRService extends KafkaService {
     @Override
     public void close() {
         super.close();
+        if (EmptyKit.isNotNull(kafkaProducer)) {
+            kafkaProducer.close();
+        }
     }
 
     @Override
