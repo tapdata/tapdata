@@ -9,21 +9,13 @@ var tableHandle = {
 }
 
 class DefaultTable {
-    batchReadV(connectionConfig, nodeConfig, offset, pageSize, batchReadSender) {
+    batchReadV(connectionConfig, nodeConfig, offset, pageSize, batchReadSender) {}
 
-    }
+    streamReadV(connectionConfig, nodeConfig, offset, pageSize, streamReadSender) {}
 
-    streamReadV(connectionConfig, nodeConfig, offset, pageSize, streamReadSender) {
+    defaultBatchReadOffset(offset) {}
 
-    }
-
-    defaultBatchReadOffset(offset) {
-
-    }
-
-    defaultStreamReadOffset(offset) {
-
-    }
+    defaultStreamReadOffset(offset) {}
 }
 
 class ShippingOrder extends DefaultTable {
@@ -43,8 +35,8 @@ class ShippingOrder extends DefaultTable {
             let updateTime = baseInfo.modifyTime;//订单修改时间
             //if (!isOne) {
             let cacheKey = orderId + "_C" + addTime + "_U" + updateTime;
-            if (addTime === this.time){
-                if (this.currentTableNoHistory.includes(cacheKey)){
+            if (addTime === this.time) {
+                if (this.currentTableNoHistory.includes(cacheKey)) {
                     log.info("The current data has been processed and is about to be ignored. Please be informed: OrderNo{}", cacheKey);
                     return;
                 }
@@ -55,7 +47,6 @@ class ShippingOrder extends DefaultTable {
                 this.currentTableNoHistory.push(cacheKey);
             }
             //}
-
             batchReadSender.send({
                 "afterData": submitInfo,
                 "eventType": "i",
@@ -75,8 +66,8 @@ class ShippingOrder extends DefaultTable {
             let updateTime = baseInfo.modifyTime;
             //if (!isOne) {
             let cacheKey = orderNo + "_C" + addTime + "_U" + updateTime;
-            if (updateTime === this.time){
-                if (this.currentTableNoHistory.includes(cacheKey)){
+            if (updateTime === this.time) {
+                if (this.currentTableNoHistory.includes(cacheKey)) {
                     log.info("The current data has been processed and is about to be ignored. Please be informed: OrderNo{}", cacheKey);
                     return;
                 }
@@ -86,8 +77,6 @@ class ShippingOrder extends DefaultTable {
                 this.currentTableNoHistory = [];
                 this.currentTableNoHistory.push(cacheKey);
             }
-
-
             offset1[this.tableName].updateTimeStart = updateTime;
             //}
             streamReadSender.send({
@@ -179,18 +168,18 @@ class ShippingOrder extends DefaultTable {
 
     read(isStreamRead, connectionConfig, nodeConfig, offset, pageSize, streamReadSender, eventHandle){
         let apiKey = connectionConfig.appKey;
-        if (!isParam(apiKey) || null == apiKey || "" === apiKey.trim()){
+        if (!isParam(apiKey) || null == apiKey || "" === apiKey.trim()) {
             log.error("The App Key has expired. Please contact technical support personnel");
             return null;
         }
         let secretKey = connectionConfig.secretKey;
-        if (!isParam(secretKey) || null == secretKey || "" === secretKey.trim()){
+        if (!isParam(secretKey) || null == secretKey || "" === secretKey.trim()) {
             log.error("The App Secret has expired. Please contact technical support personnel");
             return null;
         }
         //let apiFactoryImpl = new APIFactoryImpl(connectionConfig, nodeConfig);
 
-        while(isAlive() && offset[this.tableName].hasNext){
+        while(isAlive() && offset[this.tableName].hasNext) {
             let timeStamp = new Date().getTime();
             let accessToken = getConfig("access_token");
             let apiConfig = {
@@ -213,7 +202,7 @@ class ShippingOrder extends DefaultTable {
                 "needMemoInfo": true
                 //"bizTypes": "[\"yp\",\"cn\",\"ws\",\"yf\",\"fs\",\"cz\",\"ag\",\"hp\",\"gc\",\"supply\",\"nyg\",\"factory\",\"quick\",\"xiangpin\",\"nest\",\"f2f\",\"cyfw\",\"sp\",\"wg\",\"factorysamp\",\"factorybig\"]"
             }
-            if (isStreamRead){
+            if (isStreamRead) {
                 apiConfig.modifyStartTime = offset[this.tableName].modifyStartTime;
                 apiConfig.modifyEndTime = offset[this.tableName].modifyEndTime;
                 if (apiConfig.createStartTime)
@@ -228,7 +217,7 @@ class ShippingOrder extends DefaultTable {
                 if (singMap.createEndTime)
                     delete singMap.createEndTime;
                 //modifyStartTime={{modifyStartTime}}&modifyEndTime={{modifyEndTime}}
-            }else {
+            } else {
                 apiConfig.createStartTime = offset[this.tableName].createStartTime;
                 apiConfig.createEndTime = offset[this.tableName].createEndTime;
                 if (apiConfig.modifyStartTime)
@@ -247,31 +236,31 @@ class ShippingOrder extends DefaultTable {
 
             apiConfig._aop_signature = getSignatureRules(secretKey, "param2/1/com.alibaba.trade/alibaba.trade.getBuyerOrderList/" + apiKey, singMap);
 
-            if (isStreamRead){
+            if (isStreamRead) {
                 apiConfig.modifyStartTime = offset[this.tableName].modifyStartTime.replace("+","%2B");
                 apiConfig.modifyEndTime = offset[this.tableName].modifyEndTime.replace("+","%2B");
-            }else {
+            } else {
                 apiConfig.createStartTime = offset[this.tableName].createStartTime.replace("+","%2B");
                 apiConfig.createEndTime = offset[this.tableName].createEndTime.replace("+","%2B");
             }
             let orders = invoker.invoke("OrderListOfBuyer-" + (!isStreamRead ?  "batch" : "stream"), apiConfig);
 
-            if (!isParam(orders) || null == orders){
+            if (!isParam(orders) || null == orders) {
                 log.warn("Can not get any order with http response.");
                 return null;
             }
             let httpRes = orders.result;
-            if (!isParam(httpRes) || null == httpRes){
+            if (!isParam(httpRes) || null == httpRes) {
                 log.warn("Can not get any order in response body.");
                 return null;
             }
             let pageList = httpRes.result;
             //log.warn("{}", JSON.stringify(orders.result));
-            if (!isValue(pageList)){
+            if (!isValue(pageList)) {
                 log.warn("Can not get order list, http code {}{}{}{}",
                     orders.httpCode,
-                    isValue(httpRes.error_code)?(", error_code:" + httpRes.error_code) : "",
-                    isValue(httpRes.error_message)? (", error_message: " + httpRes.error_message) : "",
+                    isValue(httpRes.error_code) ? (", error_code:" + httpRes.error_code) : "",
+                    isValue(httpRes.error_message) ? (", error_message: " + httpRes.error_message) : "",
                     isValue(httpRes.exception) ? (", exception: " + httpRes.exception) : ""
                 );
                 return null;
@@ -280,33 +269,31 @@ class ShippingOrder extends DefaultTable {
             let count = 0;
             try {
                 count = !isNaN(httpRes.totalRecord) ? httpRes.totalRecord : parseInt(httpRes.totalRecord);
-            }catch (e){
+            } catch (e) {
                 log.warn(exceptionUtil.eMessage(e));
                 return null;
             }
             let pageSize = offset[this.tableName].pageSize;
 
-            try{
+            try {
                 offset[this.tableName].page = !isNaN(pageNo) ? (pageNo + 1) : (parseInt(pageNo) + 1);
                 //log.warn("index: {}, size: {}" , offset[this.tableName].pageIndex, pageList.length)
                 offset[this.tableName].hasNext = (((pageNo - 1) * pageSize + pageList.length) < count);
                 //log.warn("Has next: {}" , offset[this.tableName].hasNext)
-            }catch (e){
+            } catch (e) {
                 log.warn(exceptionUtil.eMessage(e));
                 return null;
             }
-            if(!isValue(pageList)){
+            if(!isValue(pageList)) {
                 log.warn("Can not get order list in http result, list data is empty.");
                 continue;
             }
             for (let index = 0; index < pageList.length; index++) {
                 let record = handleRecord(pageList[index]);
-
                 let idOfStr = record.idOfStr;
-
                 //获取物流信息
                 let needLogistics = connectionConfig.getLogistics;
-                if (!(isValue(needLogistics) && !needLogistics)){
+                if (!(isValue(needLogistics) && !needLogistics)) {
                     let commandInfo = {
                         "command": "executeQuery",
                         "params": {
@@ -326,7 +313,6 @@ class ShippingOrder extends DefaultTable {
                                     it.orderEntryIds = it.order;
                                     it.logisticsId = it.order;
                                     delete it.order;
-
                                     it.status = "NONE";
                                     //物流状态。WAITACCEPT:未受理;CANCEL:已撤销;ACCEPT:已受理;TRANSPORT:运输中;NOGET:揽件失败;SIGN:已签收;UNSIGN:签收异常
                                 }
@@ -343,7 +329,6 @@ class ShippingOrder extends DefaultTable {
                 //获取订单详情
                 //let detail = apiFactoryImpl.getOrderDetail(idOfStr);
                 //let orderMixedDetail = apiFactoryImpl.setOrderDetailToOrderInfo(record, detail);
-
                 let orderInfo = this.csv(record);
                 let afterEvent = [];
                 let isOne = false;
@@ -426,12 +411,11 @@ class ShippingOrder extends DefaultTable {
             default: typeName = '-';
         }
         newRecord.put('业务类型', typeName);
-
         //交易状态，waitbuyerpay:等待买家付款;waitsellersend:等待卖家发货;waitlogisticstakein:等待物流公司揽件;
         //waitbuyerreceive:等待买家收货;waitbuyersign:等待买家签收;signinsuccess:买家已签收;confirm_goods:已收货;
         //success:交易成功;cancel:交易取消;terminated:交易终止;未枚举:其他状态
         let status = record.status;
-        switch(status){
+        switch(status) {
             case 'waitbuyerpay': typeName = '等待买家付款';break;
             case 'waitsellersend': typeName = '等待卖家发货';break;
             case 'waitlogisticstakein': typeName = '等待物流公司揽件';break;
@@ -445,43 +429,39 @@ class ShippingOrder extends DefaultTable {
             default: typeName = '其他状态';
         }
         newRecord.put('交易状态', typeName);
-
         if(record.info_tradeTerms && record.info_tradeTerms.length > 0) {
             let tradeTerm = record.info_tradeTerms[0];
             newRecord.put('阶段', '' + bigintConvert(tradeTerm.phase));
         }
-        if(record.info_overseasExtraAddress){
+        if(record.info_overseasExtraAddress) {
             newRecord.put('跨境地址扩展信息', JSON.stringify(record.info_overseasExtraAddress));
         }
-        if(record.info_customs){
+        if(record.info_customs) {
             newRecord.put('跨境报关信息', JSON.stringify(record.info_customs));
         }
-
-        // if(record.info_orderRateInfo){
+        // if(record.info_orderRateInfo) {
         //   let rate = record.info_orderRateInfo.buyerRateStatus;
         //   //4:已评论,5:未评论,6;不需要评论
-        //   switch(rate){
+        //   switch(rate) {
         //     case 4:newRecord['买家评价状态', '已评论';break;
         //     case 5:newRecord['买家评价状态','未评论'; break;
         //     case 6:newRecord['买家评价状态','不需要评论'; break;
         //     default:newRecord['买家评价状态','-'; break;
         //   }
-
         //   rate = record.info_orderRateInfo.sellerRateStatus;
-        //   switch(rate){
+        //   switch(rate) {
         //     case 4:newRecord['卖家评价状态', '已评论';break;
         //     case 5:newRecord['卖家评价状态','未评论'; break;
         //     case 6:newRecord['卖家评价状态','不需要评论'; break;
         //     default:newRecord['卖家评价状态','-'; break;
         //   }
         // }
-
-        if(record.info_orderInvoiceInfo){
+        if(record.info_orderInvoiceInfo) {
             newRecord.put('发票公司', record.info_orderInvoiceInfo.invoiceCompanyName);
             let invoiceType = record.info_orderInvoiceInfo.invoiceType;
             let invoiceTypeName = '-';
             //0：普通发票，1:增值税发票，9未知类型
-            switch(invoiceType){
+            switch(invoiceType) {
                 case '0':invoiceTypeName = '普通发票';break;
                 case '1':invoiceTypeName = '增值税发票';break;
                 default:invoiceTypeName = '未知类型';break;
@@ -489,7 +469,6 @@ class ShippingOrder extends DefaultTable {
             newRecord.put('发票类型', invoiceTypeName);
             newRecord.put('本地发票号', record.info_orderInvoiceInfo.localInvoiceId);
             newRecord.put('订单ID', bigintConvertAsString(record.info_orderInvoiceInfo.orderId));
-
             newRecord.put('（收件人）址区域编码', record.info_orderInvoiceInfo.receiveCode);
             newRecord.put('（收件人）省市区编码对应的文案', record.info_orderInvoiceInfo.receiveCodeText);
             newRecord.put('发票收货人手机', record.info_orderInvoiceInfo.receiveMobile);
@@ -505,8 +484,7 @@ class ShippingOrder extends DefaultTable {
             newRecord.put('街道地址（增值税发票信息）', record.info_orderInvoiceInfo.registerStreet);
             newRecord.put('纳税人识别号（增值税发票信息）', record.info_orderInvoiceInfo.taxpayerIdentify);
         }
-
-        // if(record.info_nativeLogistics){
+        // if(record.info_nativeLogistics) {
         //   newRecord['物流地址', record.info_nativeLogistics.address;
         //   newRecord['县/区（物流）', record.info_nativeLogistics.area;
         //   newRecord['省/市/区编码（物流）', record.info_nativeLogistics.areaCode;
@@ -520,13 +498,12 @@ class ShippingOrder extends DefaultTable {
         //   newRecord['镇/街道地址码（物流）', record.info_nativeLogistics.townCode;
         //   newRecord['镇/街道地址码（物流）', record.info_nativeLogistics.town;
         // }
-
-        // if(record.info_guaranteesTerms){
+        // if(record.info_guaranteesTerms) {
         //   newRecord['保障条款', record.info_guaranteesTerms.assuranceInfo;
         //   let assuranceType = record.info_guaranteesTerms.assuranceType;
         //   let assuranceName = '';
         //   //国际站：TA(信保)
-        //   switch(assuranceName){
+        //   switch(assuranceName) {
         //     case 'TA': assuranceName = '信保';break;
         //     default: assuranceName = '-'
         //   }
@@ -534,7 +511,7 @@ class ShippingOrder extends DefaultTable {
         //   assuranceType = record.info_guaranteesTerms.qualityAssuranceType;
         //   assuranceName = '';
         //   //质量保证类型。国际站：pre_shipment(发货前),post_delivery(发货后)
-        //   switch(assuranceName){
+        //   switch(assuranceName) {
         //     case 'pre_shipment': assuranceName = '发货前';break;
         //     case 'post_delivery': assuranceName = '发货后';break;
         //     default: assuranceName = '-'
@@ -542,11 +519,11 @@ class ShippingOrder extends DefaultTable {
         //   newRecord['质量保证类型（保障条款）', assuranceName;
         // }
 
-        // if(record.info_orderBizInfo){
+        // if(record.info_orderBizInfo) {
         //   newRecord['是否采源宝订单(诚e赊)', record.info_nativeLogistics.odsCyd ? "是" : "否";
         //   newRecord['账期交易到账时间(诚e赊)', convertDateStr(record.info_nativeLogistics.accountPeriodTime);
         //   newRecord['诚e赊交易方式(诚e赊)', record.info_nativeLogistics.creditOrder ? "采用" : "未采用";
-        //   if(record.info_orderBizInfo.creditOrderDetail){
+        //   if(record.info_orderBizInfo.creditOrderDetail) {
         //     let creditOrderDetail = record.info_orderBizInfo.creditOrderDetail;
         //     newRecord['订单金额(诚e赊)', creditOrderDetail.payAmount;
         //     newRecord['支付时间(诚e赊)', convertDateStr(creditOrderDetail.createTime);
@@ -555,7 +532,7 @@ class ShippingOrder extends DefaultTable {
         //     newRecord['状态描述(诚e赊)', creditOrderDetail.statusStr;
         //     newRecord['应还金额(诚e赊)', creditOrderDetail.restRepayAmount;
         //   }
-        //   if(record.info_orderBizInfo.preOrderInfo){
+        //   if(record.info_orderBizInfo.preOrderInfo) {
         //     let preOrderInfo = record.info_orderBizInfo.preOrderInfo;
         //     newRecord['创建预订单的appkey', preOrderInfo.appkey;
         //     newRecord['传入市场名', preOrderInfo.marketName;
@@ -572,20 +549,18 @@ class ShippingOrder extends DefaultTable {
             newRecord.put("供应商旺旺号", sellerContact.imInPlatform);
             newRecord.put("供应商联系人", sellerContact.name);
         }
-
         // if (record.nativeLogistics) {
         //     let logistics = record.nativeLogistics;
         //
         // }
-
-        if(record.info_productItems){
+        if(record.info_productItems) {
             let items = record.info_productItems;
             let records = [];
             let hasShippingFee = false;
             items.forEach(r => {
                 let sub = new LinkedHashMap();
                 let keys = tapUtil.keysFromMap(newRecord);//Object.keys(newRecord);
-                for(let index = 0 ;index < keys.length; index++){
+                for(let index = 0 ;index < keys.length; index++) {
                     let key = keys[index];
                     sub.put(key, newRecord.get(key));
                 }
@@ -595,15 +570,15 @@ class ShippingOrder extends DefaultTable {
                     sub.put('运费（元）', 0);
                 }
                 sub.put('单品货号', r.cargoNumber);
-                sub.put('描述', r.description);
+                sub.put('订单描述', r.description);
                 sub.put('子单实付金额（不包含运费）', r.itemAmount);
                 sub.put('商品名称', r.name);
                 sub.put('子单原始单价（元）', r.price);
                 sub.put('产品ID（非在线产品为空）', bigintConvertAsString(r.productID));
-                if(r.productImgUrl){
+                if(r.productImgUrl) {
                     let urls = r.productImgUrl;
                     let allUrl = '';
-                    for(let index = 0; index < urls.length; index++){
+                    for(let index = 0; index < urls.length; index++) {
                         allUrl = allUrl + urls[index] + "; ";
                         // if(urls.length > index + 1){
                         //   allUrl + ', ';
@@ -623,11 +598,10 @@ class ShippingOrder extends DefaultTable {
                 sub.put('重量', r.weight);
                 sub.put('重量单位', r.weightUnit);
                 sub.put('商品货号', r.productCargoNumber);
-                sub.put('子单涨价或折扣', r.entryDiscount / 100);
+                sub.put('子单涨价或折扣', coverFloat(r.entryDiscount / 100));
                 sub.put('订单销售属性ID', bigintConvertAsString(r.specId));
                 sub.put('精度系数', r.quantityFactor);
                 sub.put('子订单状态描述', r.statusStr);
-
                 //WAIT_SELLER_AGREE 等待卖家同意
                 //REFUND_SUCCESS 退款成功
                 //REFUND_CLOSED 退款关闭
@@ -636,7 +610,7 @@ class ShippingOrder extends DefaultTable {
                 //WAIT_SELLER_RECEIVE 等待卖家确认收货
                 let st = r.refundStatus;
                 let stName = '';
-                switch(st){
+                switch(st) {
                     case 'WAIT_SELLER_AGREE': stName = '等待卖家同意';break;
                     case 'REFUND_SUCCESS': stName = '退款成功';break;
                     case 'REFUND_CLOSED': stName = '退款关闭';break;
@@ -646,9 +620,7 @@ class ShippingOrder extends DefaultTable {
                     default: stName = '-';
                 }
                 sub.put('退货状态', stName);
-
                 sub.put('关闭原因', r.closeReason);
-
                 // st = r.logisticsStatus;
                 // //1 未发货 2 已发货 3 已收货 4 已经退货
                 // //5 部分发货 8 还未创建物流订单
@@ -666,9 +638,7 @@ class ShippingOrder extends DefaultTable {
                 sub.put('售中退款单号', r.refundId);
                 sub.put('售后退款单号', r.refundIdForAs);
                 sub.put('子订单关联码', r.relatedCode);
-
-
-                if(r.skuInfos){
+                if(r.skuInfos) {
                     let infoStr = "";
                     r.skuInfos.forEach(skuInfo => {
                         infoStr = infoStr + skuInfo.name + ": " + skuInfo.value + "; "
@@ -685,8 +655,6 @@ class ShippingOrder extends DefaultTable {
                                     sub.put("货物单位", good.unit);
                                     sub.put("货物数量", good.quantity);
                                     sub.put("货物名称", bigintConvertAsString(good.goodName));
-                                } else {
-                                    return;
                                 }
                             });
 
@@ -713,7 +681,6 @@ class ShippingOrder extends DefaultTable {
                             }
                             // log.info("logistics " + JSON.stringify(Pretty(logistics));
                             // log.info("logistics.sendGoods " + logistics.sendGoods);
-
                             sub.put("物流公司", bigintConvertAsString(logi.logisticsCompanyName));
                             sub.put("物流编号", bigintConvertAsString(logi.logisticsId));
                             sub.put("物流公司ID", bigintConvertAsString(logi.logisticsCompanyId));
@@ -724,7 +691,7 @@ class ShippingOrder extends DefaultTable {
                         //物流状态。WAITACCEPT:未受理;CANCEL:已撤销;ACCEPT:已受理;
                         // TRANSPORT:运输中;NOGET:揽件失败;SIGN:已签收;UNSIGN:签收异常
                         let statusName = '';
-                        switch(lstatus){
+                        switch(lstatus) {
                             case 'WAITACCEPT': statusName = '未受理';break;
                             case 'CANCEL': statusName = '已撤销';break;
                             case 'ACCEPT': statusName = '已受理';break;
@@ -732,13 +699,11 @@ class ShippingOrder extends DefaultTable {
                             case 'NOGET': statusName = '揽件失败';break;
                             case 'SIGN': statusName = '已签收';break;
                             case 'UNSIGN': statusName = '签收异常';break;
-                            case 'NONE': statusName = '订单尚未发货';break;
                             default: statusName = logi.message;
                         }
                         sub.put("物流状态", statusName);
                         sub.put("物流备注", bigintConvertAsString(logi.remarks));
                     });
-
                 }
                 records.push(sub);
             });
@@ -747,31 +712,43 @@ class ShippingOrder extends DefaultTable {
         return [newRecord];
     }
 
-    finalHandle(record){
+    finalHandle(record) {
         //计算单价
         let price = coverFloat(record['子单原始单价（元）']);
         let quantity = coverFloat(record['子单数量']);
         let entryDiscount = coverFloat(record['子单涨价或折扣']);
-        let itemAmount = coverFloat(record['子单实付金额（元）']);
-        let redPackage = coverFloat(((price * quantity) + entryDiscount) - itemAmount);
         let total = 0;
-        try{
-            total = isValue(record['子单实付金额（元）']) ? parseFloat(record['子单实付金额（元）']) : 0;//实付金额
-        } catch (e){
+        try {
+            total = isValue(record['子单实付金额（不包含运费）']) ? parseFloat(record['子单实付金额（不包含运费）']) : 0;//实付金额
+        } catch (e) {
             total = 0;
         }
+        let redPackage = coverFloat(((price * quantity) + entryDiscount) - total);
         let number = 0;
-        try{
+        try {
             number = isValue(record['子单数量']) ? parseInt(record['子单数量']) : 0;//运费
-            record.put("子单实际单价（元）", coverFloat(((total + redPackage) / (number * 1.00))));//.toFixed(2))
-            record.put("子单优惠金额（元）", -1 * (redPackage > 0 ? redPackage : 0));
-        }catch (e ) {
+            let finalUtil = coverFloat((total / (number * 1.00)));
+            record.put("子单实际单价（元）", judgeDivisor(finalUtil * 1000, 10) ? finalUtil : coverFloat(((total + redPackage) / (number * 1.00))) );//.toFixed(2))
+            record.put("优惠券", -1 * (redPackage > 0 ? redPackage : 0));
+        } catch (e ) {
             log.info("Error to set '子单实际单价（元）' into record, '子单数量' is an invalid argument ");
         }
-
-
         return record;
     }
+}
+
+function judgeDivisor(m, n) {
+    let num = {};
+    let i = 0;
+    //let x = parseInt(m / n);
+    m = m % n;
+    let result = "";
+    while (m !== 0 && !(m in num)) {
+        num[m] = i++;
+        result += parseInt((m * 10) / n);
+        m = m * 10 % n;
+    }
+    return m === 0;
 }
 
 
@@ -782,16 +759,16 @@ var execCommand = {
         switch (type) {
             case 'executeQuery': {
                 let params = commandInfo.params;
-                if (!isParam(params) || null == params){
+                if (!isParam(params) || null == params) {
                     log.error("The funcName is empty in params map. Please contact technical support personnel");
                     return null;
                 }
                 let funcName = params.funcName;
-                if (!isParam(funcName) || null == funcName || "" === funcName.trim()){
+                if (!isParam(funcName) || null == funcName || "" === funcName.trim()) {
                     log.error("The funcName is empty. Please contact technical support personnel");
                     return null;
                 }
-                switch (funcName){
+                switch (funcName) {
                     case 'getLogisticsInfos': return new CallCommandWithLogisticsInfos(connectionConfig, nodeConfig, params);
                 }
             }
@@ -808,10 +785,7 @@ class ExecuateCommand {
         this.connectionConfig = connectionConfig;
         this.nodeConfig = nodeConfig;
     }
-
-    command(){
-
-    }
+    command() {}
 }
 
 class CallCommandWithLogisticsInfos extends ExecuateCommand {
@@ -820,25 +794,25 @@ class CallCommandWithLogisticsInfos extends ExecuateCommand {
     // ● funcName: getLogisticsInfos
     // ● params: 传入的参数
     //   orderId : id
-    command(){
+    command() {
         let apiKey = this.connectionConfig.appKey;
-        if (!isParam(apiKey) || null == apiKey || "" === apiKey.trim()){
+        if (!isParam(apiKey) || null == apiKey || "" === apiKey.trim()) {
             log.error("The App Key has expired. Please contact technical support personnel");
             return null;
         }
         let secretKey = this.connectionConfig.secretKey;
-        if (!isParam(secretKey) || null == secretKey || "" === secretKey.trim()){
+        if (!isParam(secretKey) || null == secretKey || "" === secretKey.trim()) {
             log.error("The App Secret has expired. Please contact technical support personnel");
             return null;
         }
 
         let params = this.commandInfo.params;
-        if (!isParam(params) || null == params){
+        if (!isParam(params) || null == params) {
             log.error("The commandInfo has expired. Please contact technical support personnel");
             return null;
         }
         let orderId = params.orderId;
-        if (!isParam(orderId) || null == orderId){
+        if (!isParam(orderId) || null == orderId) {
             log.error("The Order id is empty, can not get LogisticsInfos. Please contact technical support personnel");
             return null;
         }
@@ -859,17 +833,17 @@ class CallCommandWithLogisticsInfos extends ExecuateCommand {
             apiConfig
         );
         let logistics = invoker.invoke('getLogisticsInfos', apiConfig);
-        if (!isParam(logistics) || null == logistics){
+        if (!isParam(logistics) || null == logistics) {
             log.warn("Can not get any logistics with Order id is {}, no http result.", orderId);
             return null;
         }
         let logisticsRes = logistics.result;
-        if (!isParam(logisticsRes) || null == logisticsRes){
+        if (!isParam(logisticsRes) || null == logisticsRes) {
             log.warn("Can not get any logistics with Order id is {}, no http result.", orderId);
             return null;
         }
         let logisticsResList = logisticsRes.result;
-        if (!isValue(logisticsResList)){
+        if (!isValue(logisticsResList)) {
             let errorCode = isValue(logisticsRes.error_code) ? logisticsRes.error_code : (isValue(logisticsRes.errorCode) ? logisticsRes.errorCode : "0")
             log.info("Can not get logistics list, http code {}{}{}{}",
                 logistics.httpCode,
@@ -895,11 +869,9 @@ class APIFactoryImpl {
         this.nodeConfig = nodeConfig;
     }
 
-    getOrderList(){
+    getOrderList(){}
 
-    }
-
-    getOrderDetail(orderId){
+    getOrderDetail(orderId) {
         if (!isValue(orderId)) {
             log.error("Order ID can not be empty");
             return null;
@@ -907,12 +879,12 @@ class APIFactoryImpl {
         let timeStamp = new Date().getTime();
         let accessToken = getConfig("access_token");
         let apiKey = this.connectionConfig.appKey;
-        if (!isParam(apiKey) || null == apiKey || "" === apiKey.trim()){
+        if (!isParam(apiKey) || null == apiKey || "" === apiKey.trim()) {
             log.error("Can not get order detail with order ID {}, the App Key has expired. Please contact technical support personnel", orderId);
             return null;
         }
         let secretKey = this.connectionConfig.secretKey;
-        if (!isParam(secretKey) || null == secretKey || "" === secretKey.trim()){
+        if (!isParam(secretKey) || null == secretKey || "" === secretKey.trim()) {
             log.error("Can not get order detail with order ID {}, the App Secret has expired. Please contact technical support personnel", orderId);
             return null;
         }
@@ -928,23 +900,20 @@ class APIFactoryImpl {
             "webSite": "1688",
             "access_token": accessToken,
         }
-
         apiConfig._aop_signature = getSignatureRules(secretKey, "param2/1/com.alibaba.trade/alibaba.trade.get.buyerView/" + apiKey, singMap);
-
         let orders = invoker.invoke("getLogisticsInfos" , apiConfig);
-
-        if (!isParam(orders) || null == orders){
+        if (!isParam(orders) || null == orders) {
             log.warn("Can not get order detail with order ID {}, http response is empty.", orderId);
             return null;
         }
         let httpRes = orders.result;
-        if (!isParam(httpRes) || null == httpRes){
+        if (!isParam(httpRes) || null == httpRes) {
             log.warn("Can not get order detail with order ID {}, response body is empty.", orderId);
             return null;
         }
         let pageList = httpRes.result;
         //log.warn("{}", JSON.stringify(orders.result));
-        if (!isValue(pageList)){
+        if (!isValue(pageList)) {
             log.warn("Can not get order detail with order ID {}, http code {}{}{}{}",
                 orderId,
                 orders.httpCode,
@@ -957,7 +926,7 @@ class APIFactoryImpl {
         return httpRes;
     }
 
-    setOrderDetailToOrderInfo(simpleInfo, detailInfo){
+    setOrderDetailToOrderInfo(simpleInfo, detailInfo) {
         simpleInfo.guaranteesTerms = detailInfo.guaranteesTerms;
         simpleInfo.nativeLogistics = detailInfo.nativeLogistics;
         simpleInfo.orderBizInfo = detailInfo.orderBizInfo;
@@ -969,7 +938,7 @@ class APIFactoryImpl {
     }
 }
 
-function bigintConvert(value){
+function bigintConvert(value) {
     if (!isValue(value)) return null;
     if (typeof value === 'string') return value;
     if (typeof value === 'bigint') return BigInt('' + value);
@@ -1013,15 +982,15 @@ function convertDateStr(dateStr) {
 
 function coverFloat(value) {
     if (!isValue(value)) return 0.0;
-    if (typeof value == 'number'){
+    if (typeof value == 'number') {
         return value;
     } else {
-        if (typeof value !== 'string'){
+        if (typeof value !== 'string') {
             value = '' + value;
         }
         try {
             return parseFloat(value);
-        }catch (e) {
+        } catch (e) {
             return 0.0;
         }
     }
