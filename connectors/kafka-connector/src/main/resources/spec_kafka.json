@@ -5,7 +5,10 @@
     "doc": "${doc}",
     "id": "kafka",
     "authentication": "Alpha",
-    "tags": ["Database", "schema-free"]
+    "tags": [
+      "Database",
+      "schema-free"
+    ]
   },
   "configOptions": {
     "connection": {
@@ -20,13 +23,87 @@
           "apiServerKey": "mq_nameSrvAddr",
           "x-index": 1
         },
+        "schemaRegister": {
+          "type": "boolean",
+          "title": "${schemaRegister}",
+          "default": false,
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "apiServerKey": "schemaRegister",
+          "x-reactions": [
+            {
+              "target": "*(schemaRegisterUrl,authCredentialsSource,authUserName,authPassword)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===true}}"
+                }
+              }
+            }
+          ],
+          "x-index": 2
+        },
+        "basicAuth": {
+          "type": "boolean",
+          "title": "${basicAuth}",
+          "default": false,
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "apiServerKey": "basicAuth",
+          "x-reactions": [
+            {
+              "target": "*(authCredentialsSource,authUserName,authPassword)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===true}}"
+                }
+              }
+            }
+          ],
+          "x-index": 4
+        },
+        "schemaRegisterUrl": {
+          "required": true,
+          "type": "string",
+          "title": "${schemaRegisterUrl}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "schemaRegisterUrl",
+          "x-index": 3
+        },
+        "authCredentialsSource": {
+          "required": true,
+          "type": "string",
+          "title": "${authCredentialsSource}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "authCredentialsSource",
+          "x-index": 5
+        },
+        "authUserName": {
+          "required": true,
+          "type": "string",
+          "title": "${authUserName}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_username",
+          "x-index": 6
+        },
+        "authPassword": {
+          "required": true,
+          "type": "string",
+          "title": "${authPassword}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "database_password",
+          "x-index": 7
+        },
         "mqTopicString": {
           "type": "string",
           "title": "${mqTopicString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "mq_topics",
-          "x-index": 6
+          "x-index": 8
         },
         "krb5": {
           "type": "boolean",
@@ -53,37 +130,8 @@
               }
             }
           ],
-          "x-index": 7
+          "x-index": 9
         },
-        "schemaRegister": {
-          "type": "boolean",
-          "title": "${schemaRegister}",
-          "default": false,
-          "x-decorator": "FormItem",
-          "x-component": "Switch",
-          "apiServerKey": "schemaRegister",
-          "x-reactions": [
-            {
-              "target": "*(schemaRegisterUrl)",
-              "fulfill": {
-                "state": {
-                  "visible": "{{$self.value===true}}"
-                }
-              }
-            }
-          ],
-          "x-index": 2
-        },
-        "schemaRegisterUrl": {
-          "required": true,
-          "type": "string",
-          "title": "${schemaRegisterUrl}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "schemaRegisterUrl",
-          "x-index": 3
-        },
-
         "krb5Keytab": {
           "type": "string",
           "title": "${krb5Keytab}",
@@ -265,7 +313,11 @@
       "kafkaCompressionType": "Message compression type",
       "kafkaIgnorePushError": "Ignore push message exception",
       "schemaRegister": "schemaRegister",
-      "schemaRegisterUrl": "schemaRegisterUrl"
+      "schemaRegisterUrl": "schemaRegisterUrl",
+      "authCredentialsSource": "authCredentialsSource",
+      "authUserName": "authUserName",
+      "authPassword": "authPassword",
+      "basicAuth": "basicAuth"
     },
     "zh_CN": {
       "doc": "docs/kafka_zh_CN.md",
@@ -288,7 +340,11 @@
       "kafkaCompressionType": "消息压缩类型",
       "kafkaIgnorePushError": "忽略推送消息异常",
       "schemaRegister": "模式注册",
-      "schemaRegisterUrl": "模式注册地址"
+      "schemaRegisterUrl": "模式注册地址",
+      "authCredentialsSource": "认证凭据来源",
+      "authUserName": "认证用户名",
+      "authPassword": "认证密码",
+      "basicAuth": "基本认证"
     },
     "zh_TW": {
       "doc": "docs/kafka_zh_TW.md",
@@ -311,8 +367,11 @@
       "kafkaCompressionType": "消息壓縮類型",
       "kafkaIgnorePushError": "忽略推理消息異常",
       "schemaRegister": "模式註冊",
-      "schemaRegisterUrl": "模式註冊地址"
-
+      "schemaRegisterUrl": "模式註冊地址",
+      "authCredentialsSource": "認證憑據來源",
+      "authUserName": "認證用戶名",
+      "authPassword": "認證密碼",
+      "basicAuth": "基本認證"
     }
   },
   "dataTypes": {

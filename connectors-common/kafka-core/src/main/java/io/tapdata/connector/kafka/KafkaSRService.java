@@ -63,6 +63,7 @@ public class KafkaSRService extends KafkaService {
     private String connectorId;
     private KafkaProducer<String, GenericRecord> kafkaProducer;
     private TapConnectionContext tapConnectionContext;
+    private Boolean isBasicAuth;
 
     public KafkaSRService() {
         super();
@@ -70,6 +71,7 @@ public class KafkaSRService extends KafkaService {
 
     public KafkaSRService(KafkaConfig kafkaConfig, TapConnectionContext connectionContext) {
         this.kafkaConfig = kafkaConfig;
+        this.isBasicAuth = kafkaConfig.getBasicAuth();
         this.tapConnectionContext = connectionContext;
         ProducerConfiguration producerConfiguration = new ProducerConfiguration(kafkaConfig, connectorId);
         try {
@@ -200,8 +202,10 @@ public class KafkaSRService extends KafkaService {
             properties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
             properties.put("value.serializer", io.confluent.kafka.serializers.KafkaAvroSerializer.class);
             properties.put("schema.registry.url", "http://" + kafkaConfig.getSchemaRegisterUrl());
-//            properties.put("basic.auth.credentials.source", "USER_INFO");
-//            properties.put("basic.auth.user.info", "itsm:itsm_123321");
+            if (this.isBasicAuth){
+                properties.put("basic.auth.credentials.source", kafkaConfig.getAuthCredentialsSource());
+                properties.put("basic.auth.user.info", kafkaConfig.getAuthUserName() + ":" + kafkaConfig.getAuthPassword());
+            }
             kafkaProducer = new KafkaProducer<>(properties);
             for (TapRecordEvent event : tapRecordEvents) {
                 if (null != isAlive && !isAlive.get()) {

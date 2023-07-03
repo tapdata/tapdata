@@ -18,6 +18,44 @@ public class KafkaConfig extends MqConfig {
     private String krb5ServiceName;
     private Boolean schemaRegister;
     private String schemaRegisterUrl;
+    private Boolean basicAuth;
+
+    public String getAuthCredentialsSource() {
+        return authCredentialsSource;
+    }
+
+    public void setAuthCredentialsSource(String authCredentialsSource) {
+        this.authCredentialsSource = authCredentialsSource;
+    }
+
+    public String getAuthUserName() {
+        return authUserName;
+    }
+
+    public void setAuthUserName(String authUserName) {
+        this.authUserName = authUserName;
+    }
+
+    public String getAuthPassword() {
+        return authPassword;
+    }
+
+    public void setAuthPassword(String authPassword) {
+        this.authPassword = authPassword;
+    }
+
+    private String authCredentialsSource;
+    private String authUserName;
+    private String authPassword;
+
+    public Boolean getBasicAuth() {
+        return basicAuth;
+    }
+
+    public void setBasicAuth(Boolean basicAuth) {
+        this.basicAuth = basicAuth;
+    }
+
 
     /**
      * kafka source (Consumer)

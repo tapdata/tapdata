@@ -4,7 +4,6 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConfig;
 import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
