@@ -9,6 +9,7 @@ import com.tapdata.tm.livedataplatform.constant.ModeEnum;
 import com.tapdata.tm.livedataplatform.dto.LiveDataPlatformDto;
 import com.tapdata.tm.livedataplatform.entity.LiveDataPlatformEntity;
 import com.tapdata.tm.livedataplatform.repository.LiveDataPlatformRepository;
+import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
@@ -36,8 +37,13 @@ public class LiveDataPlatformService extends BaseService<LiveDataPlatformDto, Li
 
     @Override
     public LiveDataPlatformDto save(LiveDataPlatformDto dto, UserDetail user) {
-        upsert(new Query(), dto, user);
-        return findOne(new Query(), user);
+        Query query = new Query();
+        query.fields().include("_id");
+        LiveDataPlatformDto old = findOne(new Query(), user);
+        if (old != null) {
+            dto.setId(old.getId());
+        }
+        return super.save(dto, user);
     }
 
     public Page<LiveDataPlatformDto> findData(Filter filter, UserDetail userDetail) {
