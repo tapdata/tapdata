@@ -39,6 +39,7 @@ public class ExternalStorageDto extends BaseDto {
 
 	private Integer inMemSize;
 	private String maxSizePolicy;
+	private Integer writeDelaySeconds;
 
 	public String maskUriPassword() {
 		if (ExternalStorageType.mongodb.name().equals(type) && StringUtils.isNotBlank(uri)) {

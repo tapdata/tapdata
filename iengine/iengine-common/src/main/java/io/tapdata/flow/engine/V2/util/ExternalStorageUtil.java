@@ -43,8 +43,9 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class ExternalStorageUtil {
 	private final static String LOG_PREFIX = "[Hazelcast IMDG Persistence] - ";
 	private static final Logger logger = LogManager.getLogger(ExternalStorageUtil.class);
-	public static final int DEFAULT_IN_MEM_SIZE = 100;
+	public static final int DEFAULT_IN_MEM_SIZE = 1000;
 	public static final String DEFAULT_MAX_SIZE_POLICY = "USED_HEAP_SIZE";
+	public static final int DEFAULT_WRITE_DELAY_SECONDS = 0;
 
 	public synchronized static void initHZMapStorage(ExternalStorageDto externalStorageDto, String referenceId, String name, Config config) {
 		addConfig(externalStorageDto, ConstructType.IMAP, name);
@@ -89,8 +90,6 @@ public class ExternalStorageUtil {
 		switch (externalStorageType) {
 			case memory:
 				persistenceStorageAbstractConfig = PersistenceInMemConfig.create(constructType, constructName);
-				persistenceStorageAbstractConfig.setMaxSizePolicy(StringUtils.isEmpty(externalStorageDto.getMaxSizePolicy()) ? DEFAULT_MAX_SIZE_POLICY : externalStorageDto.getMaxSizePolicy());
-				persistenceStorageAbstractConfig.setInMemSize(externalStorageDto.getInMemSize() != null ? externalStorageDto.getInMemSize() : DEFAULT_IN_MEM_SIZE);
 				break;
 			case mongodb:
 				persistenceStorageAbstractConfig = getMongoDBConfig(externalStorageDto, constructType, constructName);
@@ -104,6 +103,9 @@ public class ExternalStorageUtil {
 			default:
 				throw new RuntimeException("Nonsupport external storage type: " + externalStorageDto.getType());
 		}
+		persistenceStorageAbstractConfig.setMaxSizePolicy(StringUtils.isEmpty(externalStorageDto.getMaxSizePolicy()) ? DEFAULT_MAX_SIZE_POLICY : externalStorageDto.getMaxSizePolicy());
+		persistenceStorageAbstractConfig.setInMemSize(externalStorageDto.getInMemSize() != null ? externalStorageDto.getInMemSize() : DEFAULT_IN_MEM_SIZE);
+		persistenceStorageAbstractConfig.setWriteDelaySeconds(externalStorageDto.getWriteDelaySeconds() != null ? externalStorageDto.getWriteDelaySeconds() : DEFAULT_WRITE_DELAY_SECONDS);
 		return persistenceStorageAbstractConfig;
 	}
 
@@ -114,7 +116,6 @@ public class ExternalStorageUtil {
 		}
 		PersistenceRocksDBConfig rocksDBConfig = PersistenceRocksDBConfig.create(constructType, constructName)
 				.path(rocksdbPath);
-		rocksDBConfig.setInMemSize(DEFAULT_IN_MEM_SIZE);
 		return rocksDBConfig;
 	}
 
@@ -146,7 +147,6 @@ public class ExternalStorageUtil {
 				.sslPass(externalStorageDto.getSslPass())
 				.sslValidate(externalStorageDto.isSslValidate())
 				.checkServerIdentity(externalStorageDto.isCheckServerIdentity());
-		mongoDBConfig.setInMemSize(DEFAULT_IN_MEM_SIZE);
 		return mongoDBConfig;
 	}
 
@@ -160,7 +160,6 @@ public class ExternalStorageUtil {
 		PersistenceHttpConfig httpConfig = PersistenceHttpConfig.create(constructType, constructName, externalStorageDto.getBaseURLs(), externalStorageDto.getAccessToken())
 				.connectTimeoutMs(externalStorageDto.getConnectTimeoutMs())
 				.readTimeoutMs(externalStorageDto.getReadTimeoutMs());
-		httpConfig.setInMemSize(DEFAULT_IN_MEM_SIZE);
 		return httpConfig;
 	}
 
