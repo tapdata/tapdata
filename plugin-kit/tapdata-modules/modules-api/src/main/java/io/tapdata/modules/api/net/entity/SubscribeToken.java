@@ -5,6 +5,7 @@ import io.tapdata.entity.serializer.JavaCustomSerializer;
 import java.io.*;
 
 public class SubscribeToken implements JavaCustomSerializer {
+	protected String randomId;
 	protected String supplierKey;
 	protected String subscribeId;
 	protected String service;
@@ -59,5 +60,13 @@ public class SubscribeToken implements JavaCustomSerializer {
 
 	public void setSupplierKey(String supplierKey) {
 		this.supplierKey = supplierKey;
+	}
+
+	public String getRandomId() {
+		return randomId;
+	}
+
+	public void setRandomId(String randomId) {
+		this.randomId = randomId;
 	}
 }

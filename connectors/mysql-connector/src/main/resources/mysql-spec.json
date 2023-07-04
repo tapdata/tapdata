@@ -79,6 +79,7 @@
           "title": "${addtionalString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "default": "useUnicode=yes&characterEncoding=UTF-8",
           "apiServerKey": "addtionalString",
           "x-index": 6
         },
