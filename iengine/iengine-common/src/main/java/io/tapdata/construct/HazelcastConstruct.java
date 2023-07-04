@@ -2,6 +2,7 @@ package io.tapdata.construct;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -70,6 +71,10 @@ public interface HazelcastConstruct<T> {
 	}
 
 	default ConstructIterator<T> find(Map<String, Object> filter) throws Exception {
+		throw new UnsupportedOperationException();
+	}
+
+	default Map<String, Object> findAll(Set<String> keys) {
 		throw new UnsupportedOperationException();
 	}
 

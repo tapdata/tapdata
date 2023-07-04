@@ -167,6 +167,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			initTargetConcurrentProcessorIfNeed();
 			initTapEventFilter();
 		});
+		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 	}
 
 	private void initExactlyOnceWriteIfNeed() {
@@ -324,7 +325,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	final public void process(int ordinal, @NotNull Inbox inbox) {
 		try {
-			Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 			if (!inbox.isEmpty()) {
 				List<TapdataEvent> tapdataEvents = new ArrayList<>();
 				final int count = inbox.drainTo(tapdataEvents, targetBatch);
