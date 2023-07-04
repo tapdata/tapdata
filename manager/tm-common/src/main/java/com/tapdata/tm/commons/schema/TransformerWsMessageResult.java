@@ -1,5 +1,9 @@
 package com.tapdata.tm.commons.schema;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.tapdata.tm.commons.base.convert.DagDeserialize;
+import com.tapdata.tm.commons.base.convert.DagSerialize;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.task.dto.Message;
 import lombok.Data;
@@ -19,6 +23,8 @@ public class TransformerWsMessageResult {
     private List<MetadataTransformerDto> upsertTransformer;
     private Map<String, List<Message>> transformSchema;
     private String taskId;
+    @JsonSerialize( using = DagSerialize.class)
+    @JsonDeserialize( using = DagDeserialize.class)
     private DAG dag;
     private String transformUuid;
 }
