@@ -19,7 +19,6 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -270,8 +269,6 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
-		} finally {
-			ThreadContext.clearAll();
 		}
 		return result.get();
 	}
@@ -419,8 +416,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			List<BatchEventWrapper> tapdataEvents = new ArrayList<>();
 			try {
 				Queues.drain(tapdataEventQueue, tapdataEvents, BATCH_SIZE, BATCH_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-			} catch (InterruptedException e) {
-				throw new RuntimeException(e);
+			} catch (InterruptedException ignored) {
 			}
 			return tapdataEvents;
 		}
