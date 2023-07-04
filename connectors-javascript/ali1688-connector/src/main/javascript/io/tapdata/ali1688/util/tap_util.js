@@ -197,12 +197,6 @@ var csvTableConfig = {
         "supportRead": true,
         "supportWrite": false,
         "fields":{
-            "商品明细条目ID":{
-                "type":"String",
-                "comment":"商品明细条目ID",
-                "isPrimaryKey": true,
-                "primaryKeyPos": 1
-            },
             "创建时间":{
                 'type': 'DateTime0',
                 'comment': '创建时间-createTime'
@@ -232,11 +226,11 @@ var csvTableConfig = {
                 "comment":"数量"
             },
             "折扣信息（元）":{
-                'type': 'Number',
+                'type': 'Money',
                 'comment': '折扣信息（元）-discount'
             },
             "子单涨价或折扣":{
-                "type":"Float",
+                "type":"Money",
                 "comment":"子单涨价或降价的金额"
             },
             "子单优惠金额（元）":{
@@ -388,6 +382,12 @@ var csvTableConfig = {
             "供应商联系人":{
                 "type":"String",
                 "comment":"供应商联系人-sellerContact.name"
+            },
+            "商品明细条目ID":{
+                "type":"String",
+                "comment":"商品明细条目ID",
+                "isPrimaryKey": true,
+                "primaryKeyPos": 1
             },
 
 
