@@ -9,6 +9,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ErrorUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.monitoringlogs.entity.MonitoringLogsEntity;
@@ -25,6 +26,7 @@ import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.OEMReplaceUtil;
+import io.tapdata.exception.TapCodeException;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -329,6 +331,35 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
 
         save(builder.message(msg).build(), user);
     }
+
+    public void startTaskErrorStackTrace(TaskDto taskDto, UserDetail user, Throwable e, Level level) {
+			MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
+			builder.taskId(taskDto.getId().toHexString())
+				.taskName(taskDto.getName())
+				.taskRecordId(taskDto.getTaskRecordId())
+				.date(DateUtil.date())
+				.timestamp(System.currentTimeMillis())
+				.level(level.name())
+			;
+
+			String msg;
+			if (e instanceof BizException) {
+				builder.errorCode(((BizException) e).getErrorCode());
+				msg = MessageUtil.getMessage(((BizException) e).getErrorCode());
+			} else if (e instanceof TapCodeException) {
+				builder.errorCode(((TapCodeException) e).getCode());
+				msg = e.getMessage();
+			} else {
+				msg = e.getMessage();
+			}
+			msg = OEMReplaceUtil.replace(msg, oemConfig);
+			builder.message(msg);
+
+			String errorStack = ErrorUtil.getStackString(e);
+			errorStack = OEMReplaceUtil.replace(errorStack, oemConfig);
+			builder.errorStack(errorStack);
+			save(builder.build(), user);
+		}
 
     public void agentAssignMonitoringLog(TaskDto taskDto, String assigned, Integer available, UserDetail user, Date now) {
         MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();

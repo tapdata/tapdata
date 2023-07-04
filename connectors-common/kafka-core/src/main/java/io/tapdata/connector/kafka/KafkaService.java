@@ -20,6 +20,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.ErrorKit;
+import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
@@ -129,44 +130,38 @@ public class KafkaService extends AbstractMqService {
 
     @Override
     public int countTables() throws Throwable {
-        int tableCount;
-        if (EmptyKit.isEmpty(mqConfig.getMqTopicSet())) {
-            AdminConfiguration configuration = new AdminConfiguration(((KafkaConfig) mqConfig), connectorId);
-            Admin admin = new DefaultAdmin(configuration);
-            tableCount = admin.listTopics().size();
-            admin.close();
-        } else {
-            tableCount = mqConfig.getMqTopicSet().size();
+        AdminConfiguration configuration = new AdminConfiguration(((KafkaConfig) mqConfig), connectorId);
+        try (
+                Admin admin = new DefaultAdmin(configuration)
+        ) {
+            Set<String> topicSet = admin.listTopics();
+            if (EmptyKit.isEmpty(mqConfig.getMqTopicSet())) {
+                return topicSet.size();
+            } else {
+                return (int) topicSet.stream().filter(topic -> mqConfig.getMqTopicSet().stream().anyMatch(reg -> StringKit.matchReg(topic, reg))).count();
+            }
         }
-        return tableCount;
     }
 
     @Override
     public void loadTables(int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
         AdminConfiguration configuration = new AdminConfiguration(((KafkaConfig) mqConfig), connectorId);
-        Admin admin = new DefaultAdmin(configuration);
-        Set<String> existTopicSet = admin.listTopics();
         Set<String> destinationSet = new HashSet<>();
-        Set<String> existTopicNameSet = new HashSet<>();
-        if (EmptyKit.isEmpty(mqConfig.getMqTopicSet())) {
-            destinationSet.addAll(existTopicSet);
-        } else {
-            //query queue which exists
-            for (String topic : existTopicSet) {
-                if (mqConfig.getMqTopicSet().contains(topic)) {
-                    destinationSet.add(topic);
-                    existTopicNameSet.add(topic);
+        try (
+                Admin admin = new DefaultAdmin(configuration)
+        ) {
+            Set<String> existTopicSet = admin.listTopics();
+            if (EmptyKit.isEmpty(mqConfig.getMqTopicSet())) {
+                destinationSet.addAll(existTopicSet);
+            } else {
+                //query queue which exists
+                for (String topic : existTopicSet) {
+                    if (mqConfig.getMqTopicSet().stream().anyMatch(reg -> StringKit.matchReg(topic, reg))) {
+                        destinationSet.add(topic);
+                    }
                 }
             }
-            //create queue which not exists
-            Set<String> needCreateTopicSet = mqConfig.getMqTopicSet().stream()
-                    .filter(i -> !existTopicNameSet.contains(i)).collect(Collectors.toSet());
-            if (EmptyKit.isNotEmpty(needCreateTopicSet)) {
-                admin.createTopics(needCreateTopicSet);
-                destinationSet.addAll(needCreateTopicSet);
-            }
         }
-        admin.close();
         SchemaConfiguration schemaConfiguration = new SchemaConfiguration(((KafkaConfig) mqConfig), connectorId);
         submitPageTables(tableSize, consumer, schemaConfiguration, destinationSet);
     }

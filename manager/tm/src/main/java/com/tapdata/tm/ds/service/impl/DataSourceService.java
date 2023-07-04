@@ -20,7 +20,9 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.classification.dto.ClassificationDto;
 import com.tapdata.tm.classification.service.ClassificationService;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
@@ -40,12 +42,17 @@ import com.tapdata.tm.ds.repository.DataSourceRepository;
 import com.tapdata.tm.ds.utils.UriRootConvertUtils;
 import com.tapdata.tm.ds.vo.SupportListVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
+import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
+import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.job.dto.JobDto;
 import com.tapdata.tm.job.service.JobService;
 import com.tapdata.tm.libSupported.entity.LibSupportedsEntity;
 import com.tapdata.tm.libSupported.repository.LibSupportedsRepository;
+import com.tapdata.tm.livedataplatform.dto.LiveDataPlatformDto;
+import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
@@ -54,6 +61,7 @@ import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
@@ -144,6 +152,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
     @Autowired
     @Lazy
     private LogCollectorService logCollectorService;
+	@Autowired
+	private ExternalStorageService externalStorageService;
+
+	@Autowired
+	private LiveDataPlatformService liveDataPlatformService;
+
+	@Autowired
+	private LdpService ldpService;
 
     public DataSourceService(@NonNull DataSourceRepository repository) {
         super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
@@ -449,25 +465,28 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
     }
 
-    private Map<ObjectId, DataSourceConnectionDto> buildFindResult(boolean noSchema, List<DataSourceConnectionDto> items, UserDetail user) {
-        Map<String, DataSourceConnectionDto> connectMap = new HashMap<>();
-        Map<ObjectId, DataSourceConnectionDto> newResultObj = new HashMap<>();
-
-        Set<String> databaseTypes = items.stream().map(DataSourceConnectionDto::getDatabase_type).collect(Collectors.toSet());
-        List<DataSourceDefinitionDto> definitionDtoList = dataSourceDefinitionService.getByDataSourceType(new ArrayList<>(databaseTypes), user);
-        Map<String, DataSourceDefinitionDto> definitionMap = definitionDtoList.stream().collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, Function.identity(), (f1, f2) -> f1));
+    public void buildDefinitionParam( List<DataSourceConnectionDto> items, UserDetail user) {
+        if (CollectionUtils.isEmpty(items)) {
+        return;
+		}
+        List<String> databaseTypes = items.stream().map(DataSourceConnectionDto::getDatabase_type).collect(Collectors.toList());
+        List<DataSourceDefinitionDto> definitionDtoList = dataSourceDefinitionService.getByDataSourceType(databaseTypes, user);
+        Map<String, DataSourceDefinitionDto> definitionMap = new HashMap<>();
+		for (DataSourceDefinitionDto definitionDto : definitionDtoList) {
+			definitionMap.put(definitionDto.getPdkHash(), definitionDto);
+			definitionMap.put(definitionDto.getType(), definitionDto);
+		}
 
         for (DataSourceConnectionDto item : items) {
-            if (!isAgentReq()) {
-                if ((DataSourceEnum.isMongoDB(item.getDatabase_type()) || DataSourceEnum.isGridFs(item.getDatabase_type()))
-                        && StringUtils.isNotBlank(item.getDatabase_uri())) {
-                    item.setDatabase_uri(UriRootConvertUtils.hidePassword(item.getDatabase_uri()));
+            DataSourceDefinitionDto definitionDto = null;
+                if (StringUtils.isNotBlank(item.getPdkHash())) {
+                    definitionDto = definitionMap.get(item.getPdkHash());
                 }
-            }
-
+            if (definitionDto == null) {
+				definitionDto = definitionMap.get(item.getDatabase_type());
+			}
             //不需要这个操作了。引擎会更新这个东西，另外每次更新databasetypes的时候，需要更新这个  参考： updateCapabilities方法
-            if (definitionMap.containsKey(item.getDatabase_type())) {
-                DataSourceDefinitionDto definitionDto = definitionMap.get(item.getPdkHash());
+            if (definitionDto != null) {
                 item.setCapabilities(definitionDto.getCapabilities());
                 item.setDefinitionPdkId(definitionDto.getPdkId());
                 item.setPdkType(definitionDto.getPdkType());
@@ -478,9 +497,23 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
                 item.setDefinitionScope(definitionDto.getScope());
                 item.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
                 item.setDefinitionTags(definitionDto.getTags());
-            }
+            }}
+	}
 
-            desensitizeMongoConnection(item);
+	private Map<ObjectId, DataSourceConnectionDto> buildFindResult(boolean noSchema, List<DataSourceConnectionDto> items, UserDetail user) {
+		Map<String, DataSourceConnectionDto> connectMap = new HashMap<>();
+		Map<ObjectId, DataSourceConnectionDto> newResultObj = new HashMap<>();
+
+            buildDefinitionParam(items, user);
+
+		for (DataSourceConnectionDto item : items) {
+			if (!isAgentReq()) {
+				if ((DataSourceEnum.isMongoDB(item.getDatabase_type()) || DataSourceEnum.isGridFs(item.getDatabase_type()))
+						&& StringUtils.isNotBlank(item.getDatabase_uri())) {
+					item.setDatabase_uri(UriRootConvertUtils.hidePassword(item.getDatabase_uri()));
+				}
+			}
+			desensitizeMongoConnection(item);
 
             hiddenMqPasswd(item);
 
@@ -1161,10 +1194,28 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
                     .and("lastUpdate").ne(schemaVersion).and("taskId").exists(false).and("meta_type").ne("database");
             log.info("Delete metadata update filter: {}", criteria);
             Query query = new Query(criteria);
-            Update update = Update.update("is_deleted", true);
-            UpdateResult updateResult = metadataInstancesService.update(query, update, user);
+            LiveDataPlatformDto liveDataPlatformDto = liveDataPlatformService.findOne(new Query(), user);
+			if (liveDataPlatformDto != null && (datasourceId.equals(liveDataPlatformDto.getMdmStorageConnectionId())
+					|| datasourceId.equals(liveDataPlatformDto.getFdmStorageConnectionId()))) {
+				query.fields().include("original_name");
+				List<MetadataInstancesDto> metas = metadataInstancesService.findAllDto(query, user);
+				Set<String> tableNames = ldpService.belongLdpIds(datasourceId, metas, user);
+				Set<ObjectId> objectIds = metas.stream()
+						.filter(m -> !tableNames.contains(m.getOriginalName()))
+						.map(BaseDto::getId)
+						.collect(Collectors.toSet());
+				if (CollectionUtils.isNotEmpty(objectIds)) {
+					Criteria id = Criteria.where("_id").in(objectIds);
+					query = new Query(id);Update update = Update.update("is_deleted", true);
+             metadataInstancesService.update(query, update, user);
         }
-    }
+    }else {
+
+				Update update = Update.update("is_deleted", true);
+				metadataInstancesService.update(query, update, user);
+			}
+		}
+	}
 
 
     public void sendTestConnection(DataSourceConnectionDto connectionDto, boolean updateSchema, Boolean submit, UserDetail user) {
@@ -1445,9 +1496,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
             oldConnectionDto.setLoadSchemaField(loadSchemaField);
             List<MetadataInstancesDto> newModelList = metadataUtil.modelNext(newModels, oldConnectionDto, databaseId, user);
 
-            Pair<Integer, Integer> pair = metadataInstancesService.bulkUpsetByWhere(newModelList, user);
+
             List<String> qualifiedNames = newModelList.stream().filter(Objects::nonNull).map(MetadataInstancesDto::getQualifiedName)
-                    .filter(StringUtils::isNotBlank).collect(Collectors.toList());
+                    .filter(StringUtils::isNotBlank).collect(Collectors.toList());Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames).and("is_deleted").ne(true);
+			Query query = new Query(criteria);
+			List<MetadataInstancesDto> oldModelList = metadataInstancesService.findAllDto(query,user);
+			setDescription(newModelList,oldModelList);
+			Pair<Integer, Integer> pair = metadataInstancesService.bulkUpsetByWhere(newModelList, user);
             metadataInstancesService.qualifiedNameLinkLogic(qualifiedNames, user);
             String name = newModelList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList()).toString();
             log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
@@ -1455,7 +1510,24 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
         }
     }
 
-    private Document setToDocumentByJsonParser(Document update) {
+    private void setDescription(List<MetadataInstancesDto> newModelList ,List<MetadataInstancesDto> oldModelList ){
+		Map<String, MetadataInstancesDto> newMap = newModelList.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, v -> v, (k1, k2) -> k1));
+		for (MetadataInstancesDto metadataInstancesDto : oldModelList) {
+			Map<String, String> map = new HashMap<>();
+			for (Field field : metadataInstancesDto.getFields()) {
+				map.put(field.getFieldName(),field.getDescription());
+			}
+
+			MetadataInstancesDto newModel = newMap.get(metadataInstancesDto.getQualifiedName());
+			if (newModel != null) {
+				newModel.getFields().forEach(field -> {
+					if(map.containsKey(field.getFieldName())) {
+						field.setDescription(map.get(field.getFieldName()));
+					}
+				});
+			}
+		}
+	}private Document setToDocumentByJsonParser(Document update) {
         Document set;
         String setJson = JsonUtil.toJsonUseJackson(update.get("$set"));
         set = InstanceFactory.instance(JsonParser.class).fromJson(setJson, Document.class);
@@ -1612,7 +1684,15 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
                 while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
                     connectionDto.setName(connectionDto.getName() + "_import");
                 }
-                connection = importEntity(connectionDto, user);
+                if(StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())){
+					ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(connectionDto.getShareCDCExternalStorageId()));
+					if(externalStorageDto == null){
+						Query query1 = new Query(Criteria.where("defaultStorage").is(true));
+						ExternalStorageDto defaultExternalStorage = externalStorageService.findOne(query1);
+						connectionDto.setShareCDCExternalStorageId(defaultExternalStorage.getId().toString());
+					}
+
+				}connection = importEntity(connectionDto, user);
             } else {
                 if (cover) {
                     ObjectId objectId = connection.getId();
@@ -1933,5 +2013,17 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
         return repository.findById(id, new com.tapdata.tm.base.dto.Field()).map(v ->
                 BeanUtil.copyProperties(v, DataSourceConnectionDto.class)).orElse(null);
     }
+
+
+	public DataSourceConnectionDto findById(ObjectId id, String... fields) {
+		com.tapdata.tm.base.dto.Field field = new com.tapdata.tm.base.dto.Field();
+		if (fields != null && fields.length > 0) {
+			for (String f : fields) {
+				field.put(f, true);
+			}
+		}
+		return repository.findById(id, field).map(v ->
+				BeanUtil.copyProperties(v, DataSourceConnectionDto.class)).orElse(null);
+	}
 
 }

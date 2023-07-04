@@ -25,6 +25,7 @@ public class FieldChangeRule implements Serializable {
 
     public enum Type {
         DataType,
+        MutiDataType,
         ;
     }
 
@@ -33,6 +34,7 @@ public class FieldChangeRule implements Serializable {
     private String[] namespace;//[nodeId,qualifiedName,fieldName]
     private Type type;
     private String accept;
+    private Double multiple;
     private Map<String, String> result;
 
 

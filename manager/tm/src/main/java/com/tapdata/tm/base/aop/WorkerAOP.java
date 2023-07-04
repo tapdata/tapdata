@@ -43,9 +43,11 @@ public class WorkerAOP {
 
         Map<String, Object> param = Maps.newHashMap();
         String alarmDate = DateUtil.now();
+        param.put("agentName", processId);
         param.put("alarmDate", alarmDate);
 
         alarmInfos.forEach(alarmInfo -> {
+					param.put("taskName", alarmInfo.getName());
             String summary = "SYSTEM_FLOW_EGINGE_RECOVER";
             alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
             alarmInfo.setParam(param);

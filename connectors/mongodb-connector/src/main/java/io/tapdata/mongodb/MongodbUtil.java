@@ -317,7 +317,7 @@ public class MongodbUtil {
 				});
 
 			} else {
-				sslMongoClientOption(mongodbConfig.isSslValidate(), mongodbConfig.getSslCA(), mongodbConfig.getSslCA(),
+				sslMongoClientOption(mongodbConfig.isSslValidate(), mongodbConfig.getSslCA(),
 						mongodbConfig.getSslKey(), mongodbConfig.getSslPass(), mongodbConfig.getCheckServerIdentity(), builder);
 			}
 		}
@@ -325,13 +325,13 @@ public class MongodbUtil {
 		return MongoClients.create(builder.build());
 	}
 
-	public static void sslMongoClientOption(boolean sslValidate, String sslCA, String sslCert, String sslKeyStr, String sslPass,
+	public static void sslMongoClientOption(boolean sslValidate, String sslCA, String sslClientPem, String sslPass,
 											boolean checkServerIdentity, MongoClientSettings.Builder builder) {
 
 
-		List<String> certificates = SSLUtil.retriveCertificates(sslCert);
-		String sslKey = SSLUtil.retrivePrivateKey(sslKeyStr);
-		if (EmptyKit.isNotBlank(sslKey) && CollectionUtils.isNotEmpty(certificates)) {
+		List<String> clientCertificates = SSLUtil.retriveCertificates(sslClientPem);
+		String clientPrivateKey = SSLUtil.retrivePrivateKey(sslClientPem);
+		if (EmptyKit.isNotBlank(clientPrivateKey) && CollectionUtils.isNotEmpty(clientCertificates)) {
 
 			builder.applyToSslSettings(sslSettingsBuilder -> {
 				List<String> trustCertificates = null;
@@ -340,7 +340,7 @@ public class MongodbUtil {
 				}
 				SSLContext sslContext = null;
 				try {
-					sslContext = SSLUtil.createSSLContext(sslKey, certificates, trustCertificates, sslPass);
+					sslContext = SSLUtil.createSSLContext(clientPrivateKey, clientCertificates, trustCertificates, sslPass);
 				} catch (Exception e) {
 					throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
 				}

@@ -114,6 +114,8 @@ public class PostgresConnector extends CommonDbConnector {
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> postgresJdbcContext.getConnection(), this::isAlive, c));
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
+        connectorFunctions.supportCountRawCommandFunction(this::countRawCommand);
+//        connectorFunctions.supportCountByPartitionFilterFunction(this::countByAdvanceFilter);
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null) return toJson(tapRawValue.getValue());

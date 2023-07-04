@@ -331,7 +331,9 @@ public class MysqlConnector extends CommonDbConnector {
 				Object value;
 				if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
 					value = resultSet.getString(i + 1);
-				} else {
+				} else if ("DATE".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
+                    value = resultSet.getString(i + 1);
+                } else {
 					value = resultSet.getObject(i + 1);
 					if (null == value && dateTypeSet.contains(columnName)) {
 						value = resultSet.getString(i + 1);

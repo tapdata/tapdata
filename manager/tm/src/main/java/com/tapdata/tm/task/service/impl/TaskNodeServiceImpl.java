@@ -160,10 +160,44 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 //            if (CollectionUtils.isEmpty(metaInstances)) {
 //                metaInstances = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(), null, userDetail);
 //            }
+					Function<MetadataInstancesDto, Boolean> filterTableByNoPrimaryKey = Optional
+						.of(NoPrimaryKeyTableSelectType.parse(sourceNode.getNoPrimaryKeyTableSelectType()))
+						.map(type -> {
+							switch (type) {
+								case HasKeys:
+									return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
+										if (null != metadataInstancesDto.getFields()) {
+											for (Field field : metadataInstancesDto.getFields()) {
+												if (Boolean.TRUE.equals(field.getPrimaryKey())) return false;
+											}
+										}
+										return true;
+									};
+								case NoKeys:
+									return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
+										if (null != metadataInstancesDto.getFields()) {
+											for (Field field : metadataInstancesDto.getFields()) {
+												if (Boolean.TRUE.equals(field.getPrimaryKey())) return true;
+											}
+										}
+										return false;
+									};
+								default:
+							}
+							return null;
+						}).orElse(metadataInstancesDto -> false);
+
             tableNames = metaInstances.stream()
-                    .map(MetadataInstancesDto::getOriginalName)
+							.map(metadataInstancesDto -> {
+								if (filterTableByNoPrimaryKey.apply(metadataInstancesDto)) {
+									return null;
+								}
+								return metadataInstancesDto.getOriginalName();
+							})
                     .filter(originalName -> {
-                        if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
+											if (null == originalName) {
+												return false;
+											} else if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
                             return false;
                         } else {
                             return Pattern.matches(sourceNode.getTableExpression(), originalName);
@@ -299,6 +333,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 if (CollectionUtils.isNotEmpty(fields)) {
                     Map<String, Boolean> fieldMap = mappingMap.get(instance.getAncestorsName());
                     for (Field field : fields) {
+//                        if (field.isDeleted()) {
+//                            continue;
+//                        }
                         String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
                         int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
 
@@ -434,7 +471,16 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
             // || CollectionUtils.isEmpty(metaMap.get(tableName).getFields())
 
-            List<Field> fields = metadataInstancesDto.getFields().stream().sorted(Comparator.comparing(Field::getColumnPosition)).collect(Collectors.toList());
+            List<Field> fields = metadataInstancesDto.getFields().stream()
+                    .sorted((Field f1, Field f2) ->{
+                        int f1pos = f1.getColumnPosition() == null ? -1 : f1.getColumnPosition();
+                        int f2pos = f2.getColumnPosition() == null ? -1 : f2.getColumnPosition();
+                        if (f1pos >= f2pos) {
+                            return 1;
+                        }
+                        return -1;
+                    })
+                    .collect(Collectors.toList());
 
             // TableRenameProcessNode not need fields
             if (!(currentNode instanceof TableRenameProcessNode)) {
@@ -445,16 +491,20 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                             .collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()));
                 }
                 for (Field field : fields) {
+//                    if (field.isDeleted()) {
+//                        continue;
+//                    }
                     String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
                     if (StringUtils.isBlank(defaultValue) && field.getUseDefaultValue()) {
                         defaultValue = Objects.isNull(field.getOriginalDefaultValue()) ? "" : field.getOriginalDefaultValue().toString();
                     }
                     int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
-                    String fieldName = field.getOriginalFieldName();
+                    String previousFieldName = field.getPreviousFieldName();
+                    String fieldName = field.getFieldName();
                     String finalDefaultValue = defaultValue;
                     FieldsMapping mapping = FieldsMapping.builder()
                             .targetFieldName(fieldName)
-                            .sourceFieldName(fieldName)
+                            .sourceFieldName(previousFieldName)
                             .sourceFieldType(field.getDataType())
                             .type("auto")
                             .isShow(true)
@@ -463,14 +513,13 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                             .useDefaultValue(field.getUseDefaultValue())
                             .defaultValue(finalDefaultValue).build();
 
-                    if (Objects.nonNull(fieldInfoMap) && fieldInfoMap.containsKey(fieldName)) {
-                        FieldInfo fieldInfo = fieldInfoMap.get(fieldName);
+                    if (Objects.nonNull(fieldInfoMap) && fieldInfoMap.containsKey(mapping.getSourceFieldName())) {
+                        FieldInfo fieldInfo = fieldInfoMap.get(mapping.getSourceFieldName());
 
                         if (!(currentNode instanceof MigrateFieldRenameProcessorNode) && !fieldInfo.getIsShow()) {
                             continue;
                         }
 
-                        mapping.setTargetFieldName(fieldInfo.getTargetFieldName());
                         mapping.setIsShow(fieldInfo.getIsShow());
                         mapping.setMigrateType(fieldInfo.getType());
                         mapping.setTargetFieldName(fieldInfo.getTargetFieldName());
@@ -793,6 +842,39 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         messageQueueService.sendMessage(queueDto);
         return new HashMap<>();
     }
+
+    private Map.Entry<String, Map<String, Object>> getLoginUserAttributes() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+        HttpServletRequest request = attributes.getRequest();
+
+        String userIdFromHeader = request.getHeader("user_id");
+        Map<String, Object> ent = new HashMap<>();
+        if (!com.tapdata.manager.common.utils.StringUtils.isBlank(userIdFromHeader)) {
+            ent.put("user_id", userIdFromHeader);
+            return new AbstractMap.SimpleEntry<>("Header", ent);
+        } else if((request.getQueryString() != null ? request.getQueryString() : "").contains("access_token")) {
+            Map<String, String> queryMap = Arrays.stream(request.getQueryString().split("&"))
+                    .filter(s -> s.startsWith("access_token"))
+                    .map(s -> s.split("=")).collect(Collectors.toMap(a -> a[0], a -> {
+                        try {
+                            return URLDecoder.decode(a[1], "UTF-8");
+                        } catch (UnsupportedEncodingException e) {
+                            e.printStackTrace();
+                            return a[1];
+                        }
+                    }, (a, b) -> a));
+            String accessToken = queryMap.get("access_token");
+            ent.put("access_token", accessToken);
+            return new AbstractMap.SimpleEntry<>("Param", ent);
+        } else if (request.getHeader("authorization") != null) {
+            ent.put("authorization", request.getHeader("authorization").trim());
+            return new AbstractMap.SimpleEntry<>("Header", ent);
+        } else {
+            throw new BizException("NotLogin");
+        }
+    }
+
+
     private Map<String,Object> resultMap(String testTaskId, boolean isSucceed, String message){
         Map<String, Object> errorMap = new HashMap<>();
         errorMap.put("taskId", testTaskId);

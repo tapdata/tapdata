@@ -222,6 +222,8 @@ public class PdkSchemaConvert {
                 tapField.setDataTypeTemp(field.getDataTypeTemp());
                 tapField.setOriginalDefaultValue(field.getOriginalDefaultValue());
                 tapField.setFieldName(field.getFieldName());
+                tapField.setPreviousFieldName(field.getPreviousFieldName());
+                tapField.setPreviousDataType(field.getPreviousDataType());
                 tapField.setForeignKeyPosition(field.getForeignKeyPosition());
                 tapField.setAnalyze(field.getIsAnalyze());
                 tapField.setAutoAllowed(field.getIsAutoAllowed());
@@ -236,6 +238,7 @@ public class PdkSchemaConvert {
                 tapField.setPkConstraintName1(field.getPkConstraintName1());
                 tapField.setForeignKey(field.getForeignKey());
                 tapField.setForeignKeyColumn(field.getForeignKeyColumn());
+                tapField.setDescription(field.getDescription());
                 tapField.setTableName(field.getTableName());
                 tapField.setColumnPosition(field.getColumnPosition());
                 tapField.setDefaultValue(field.getDefaultValue());
@@ -344,6 +347,8 @@ public class PdkSchemaConvert {
                     field.setDataTypeTemp(tapField1.getDataTypeTemp());
                     field.setOriginalDefaultValue(tapField1.getOriginalDefaultValue());
                     field.setFieldName(tapField1.getFieldName());
+                    field.setPreviousFieldName(tapField1.getPreviousFieldName());
+                    field.setPreviousDataType(tapField1.getPreviousDataType());
                     field.setForeignKeyPosition(tapField1.getForeignKeyPosition());
                     field.setIsAnalyze(tapField1.getAnalyze());
                     field.setIsAutoAllowed(tapField1.getAutoAllowed());
@@ -358,6 +363,7 @@ public class PdkSchemaConvert {
                     field.setPkConstraintName1(tapField1.getPkConstraintName1());
                     field.setForeignKey(tapField1.getForeignKey());
                     field.setForeignKeyColumn(tapField1.getForeignKeyColumn());
+                    field.setDescription(tapField1.getDescription());
                     field.setTableName(tapField1.getTableName());
                     field.setColumnPosition(tapField1.getColumnPosition());
                     field.setDefaultValue(tapField1.getDefaultValue());
@@ -497,6 +503,8 @@ public class PdkSchemaConvert {
                     field.setDataTypeTemp(tapField1.getDataTypeTemp());
                     field.setOriginalDefaultValue(tapField1.getOriginalDefaultValue());
                     field.setFieldName(tapField1.getFieldName());
+                    field.setPreviousFieldName(tapField1.getPreviousFieldName());
+                    field.setPreviousDataType(tapField1.getPreviousDataType());
                     field.setForeignKeyPosition(tapField1.getForeignKeyPosition());
                     field.setIsAnalyze(tapField1.getAnalyze());
                     field.setIsAutoAllowed(tapField1.getAutoAllowed());
@@ -511,6 +519,7 @@ public class PdkSchemaConvert {
                     field.setPkConstraintName1(tapField1.getPkConstraintName1());
                     field.setForeignKey(tapField1.getForeignKey());
                     field.setForeignKeyColumn(tapField1.getForeignKeyColumn());
+                    field.setDescription(tapField1.getDescription());
                     field.setTableName(tapField1.getTableName());
                     field.setColumnPosition(tapField1.getColumnPosition());
                     field.setDefaultValue(tapField1.getDefaultValue());

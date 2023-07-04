@@ -22,6 +22,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ParagraphFormatter;
+import io.tapdata.exception.TapPdkRetryableEx;
 import io.tapdata.exception.TapPdkTerminateByServerEx;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.mongodb.entity.MongodbConfig;
@@ -77,7 +78,7 @@ import static java.util.Collections.singletonList;
 @TapConnectorClass("spec.json")
 public class MongodbConnector extends ConnectorBase {
 
-	private static final int SAMPLE_SIZE_BATCH_SIZE = 100;
+	private static final int SAMPLE_SIZE_BATCH_SIZE = 1000;
 	private static final String COLLECTION_ID_FIELD = "_id";
 	public static final String TAG = MongodbConnector.class.getSimpleName();
 	private final AtomicLong counter = new AtomicLong();
@@ -763,6 +764,8 @@ public class MongodbConnector extends ConnectorBase {
 		} catch (Throwable e) {
 			if (e instanceof MongoTimeoutException) {
 				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
+			} else if (e instanceof MongoSocketReadException) {
+				throw new TapPdkRetryableEx(connectorContext.getId(), e);
 			} else if (e instanceof MongoBulkWriteException) {
 				MongoBulkWriteException mongoBulkWriteException = (MongoBulkWriteException) e;
 				List<BulkWriteError> writeErrors = mongoBulkWriteException.getWriteErrors();
@@ -992,7 +995,7 @@ public class MongodbConnector extends ConnectorBase {
 				Object offsetValue = mongoOffset.value();
 				if (offsetValue != null) {
 					findIterable = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
-									.batchSize(batchSize);
+							.batchSize(batchSize);
 				} else {
 					findIterable = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize);
 					TapLogger.warn(TAG, "Offset format is illegal {}, no offset value has been found. Final offset will be null to do the batchRead", offset);
@@ -1030,7 +1033,7 @@ public class MongodbConnector extends ConnectorBase {
 		} catch (Exception e) {
 			if (e instanceof MongoTimeoutException) {
 				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
-			}else if (e instanceof MongoQueryException) {
+			} else if (e instanceof MongoQueryException) {
 				String message = e.getMessage();
 				int code = ((MongoQueryException) e).getCode();
 				Throwable throwable = null;

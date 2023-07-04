@@ -1,6 +1,7 @@
 package com.tapdata.tm.utils;
 
 import com.alibaba.fastjson.JSON;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import org.springframework.core.io.ClassPathResource;
 

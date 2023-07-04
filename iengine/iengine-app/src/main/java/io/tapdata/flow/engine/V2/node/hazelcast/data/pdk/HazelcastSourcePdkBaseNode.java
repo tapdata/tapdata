@@ -3,19 +3,8 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.tapdata.constant.ConnectionUtil;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.ExecutorUtil;
-import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.MapUtil;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataShareLogEvent;
-import com.tapdata.entity.TapdataTaskErrorEvent;
+import com.tapdata.constant.*;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -25,6 +14,7 @@ import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -36,6 +26,7 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceDynamicTableAspect;
@@ -43,8 +34,10 @@ import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -86,29 +79,16 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 /**
  * @author samuel
@@ -595,6 +575,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected boolean handleNewTables(List<String> addList) {
 		if (CollectionUtils.isNotEmpty(addList)) {
 			List<String> loadedTableNames;
+			final List<String> noPrimaryKeyTableNames = new ArrayList<>();
 			obsLogger.info("Found new table(s): " + addList);
 			List<TapTable> addTapTables = new ArrayList<>();
 			List<TapdataEvent> tapdataEvents = new ArrayList<>();
@@ -602,7 +583,33 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (obsLogger.isDebugEnabled()) {
 				obsLogger.debug("Starting load new table(s) schema: {}", addList);
 			}
-			LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, addTapTables::add);
+			Function<TapTable, Boolean> filterTableByNoPrimaryKey = Optional.ofNullable(getNode()).map(node->{
+				if (node instanceof DatabaseNode) {
+					DatabaseNode databaseNode = (DatabaseNode) node;
+					if ("expression".equals(databaseNode.getMigrateTableSelectType())) {
+						NoPrimaryKeyTableSelectType type = NoPrimaryKeyTableSelectType.parse(databaseNode.getNoPrimaryKeyTableSelectType());
+						switch (type) {
+							case HasKeys:
+								// filter no hove primary key tables
+								return (Function<TapTable, Boolean>)tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
+							case NoKeys:
+								// filter has primary key tables
+								return (Function<TapTable, Boolean>)tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
+							default:
+								break;
+						}
+					}
+				}
+				return null;
+			}).orElse(tapTable -> false);
+			LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, tapTable -> {
+				if (filterTableByNoPrimaryKey.apply(tapTable)) {
+					logger.warn("Ignore DDL no primary key table '{}'", tapTable.getId());
+					noPrimaryKeyTableNames.add(tapTable.getId());
+					return;
+				}
+				addTapTables.add(tapTable);
+			});
 			if (obsLogger.isDebugEnabled()) {
 				if (CollectionUtils.isNotEmpty(addTapTables)) {
 					addTapTables.forEach(tapTable -> obsLogger.debug("Loaded new table schema: {}", tapTable));
@@ -612,7 +619,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			loadedTableNames = addTapTables.stream().map(TapTable::getId).collect(Collectors.toList());
 			List<String> missingTableNames = new ArrayList<>();
 			addList.forEach(tableName -> {
-				if (!loadedTableNames.contains(tableName)) {
+				if (!noPrimaryKeyTableNames.contains(tableName) && !loadedTableNames.contains(tableName)) {
 					missingTableNames.add(tableName);
 				}
 			});
@@ -635,6 +642,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						errorHandle(new RuntimeException(error), error);
 						return true;
 					}
+
 					tapdataEvents.add(tapdataEvent);
 				}
 				if (!isRunning()) {
@@ -737,8 +745,34 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			case LOG_COLLECTOR:
 				tapdataEvent = new TapdataShareLogEvent();
 				Connections connections = dataProcessorContext.getConnections();
-				if (null != connections) {
-					tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
+				Node<?> node = getNode();
+				if (node.isLogCollectorNode()) {
+					List<Connections> connectionList = ShareCdcUtil.getConnectionIds(getNode(), ids -> {
+						Query connectionQuery = new Query(where("_id").in(ids));
+						connectionQuery.fields().include("config").include("pdkHash");
+						return clientMongoOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+					});
+  					if(CollectionUtils.isNotEmpty(connectionList) && tapEvent instanceof TapBaseEvent){
+						TapdataEvent finalTapdataEvent = tapdataEvent;
+							TapBaseEvent baseEvent = (TapBaseEvent) tapEvent;
+							connectionList.forEach(connection -> {
+								LogCollectorNode logCollectorNode = (LogCollectorNode) node;
+								List<String> logNameSpaces = logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getNamespace();
+								List<String> tableNames = logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getTableNames();
+								if(logNameSpaces.contains(baseEvent.getNamespaces().get(0))&& tableNames.contains(baseEvent.getTableId())){
+									finalTapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connection.getId());
+								}
+
+							});
+					}else{
+						if (null != connections) {
+							tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
+						}
+					}
+				}else{
+					if (null != connections) {
+						tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
+					}
 				}
 				break;
 		}

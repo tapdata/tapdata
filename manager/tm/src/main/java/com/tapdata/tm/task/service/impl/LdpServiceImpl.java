@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service.impl;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -11,31 +12,41 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.TableIndex;
-import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.bean.ResponseBody;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
+import com.tapdata.tm.commons.schema.bean.ValidateDetail;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.CapabilityEnum;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.livedataplatform.dto.LiveDataPlatformDto;
 import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
 import com.tapdata.tm.lock.annotation.Lock;
 import com.tapdata.tm.lock.constant.LockType;
+import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
+import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
+import com.tapdata.tm.task.bean.MultiSearchDto;
 import com.tapdata.tm.task.constant.LdpDirEnum;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.TestItem;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -47,14 +58,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -74,6 +79,8 @@ public class LdpServiceImpl implements LdpService {
 
 	@Autowired
 	private DataSourceService dataSourceService;
+    @Autowired
+    private DataSourceDefinitionService definitionService;
 
 
 	@Autowired
@@ -90,9 +97,20 @@ public class LdpServiceImpl implements LdpService {
 	@Autowired
 	private SettingsService settingsService;
 
-	@Override
+	@Autowired
+    private WorkerService workerService;
+
+
+    @Autowired
+    private MessageQueueService messageQueueService;
+
+
+    @Autowired
+    private MeasurementServiceV2 measurementServiceV2;
+
+    @Override
 	@Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
-	public TaskDto createFdmTask(TaskDto task, UserDetail user) {
+	public TaskDto createFdmTask(TaskDto task, boolean start, UserDetail user) {
 		//check fdm task
 		String fdmConnId = checkFdmTask(task, user);
 		task.setLdpType(TaskDto.LDP_TYPE_FDM);
@@ -101,12 +119,19 @@ public class LdpServiceImpl implements LdpService {
 		DatabaseNode databaseNode = (DatabaseNode) dag.getSources().get(0);
 		String connectionId = databaseNode.getConnectionId();
 
-		Criteria criteria = Criteria.where("ldpType").is(TaskDto.LDP_TYPE_FDM)
-				.and("dag.nodes.connectionId").is(connectionId)
-				.and("is_deleted").ne(true)
-				.and("status").nin(Lists.newArrayList(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED));
+		String type = generateLdpTaskType(connectionId, user);
+        task.setType(type);
+
+
+        Criteria criteria = fdmTaskCriteria(connectionId);
+				criteria.and("fdmMain").is(true)
+				;
 		Query query = new Query(criteria);
-		TaskDto oldTask = taskService.findOne(query, user);
+		TaskDto oldTask = taskService.findOne(query, user);if (oldTask == null) {
+            criteria = fdmTaskCriteria(connectionId);
+            criteria.and("name").regex("Clone_To_FDM");
+            oldTask = taskService.findOne(query, user);
+        }
 
 
 		List<String> oldTableNames = new ArrayList<>();
@@ -132,10 +157,10 @@ public class LdpServiceImpl implements LdpService {
 			}
 
 
-			if (StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
+			String initType = task.getType();if (StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
 				mergeAllTable(user, connectionId, oldTask, oldTableNames);
 				task = oldTask;
-				databaseNode = (DatabaseNode) task.getDag().getSources().get(0);
+
 			} else if ((StringUtils.isNotBlank(databaseNode.getTableExpression()))) {
 				mergeAllTable(user, connectionId, task, oldTableNames);
 				oldTask.setDag(task.getDag());
@@ -143,11 +168,12 @@ public class LdpServiceImpl implements LdpService {
 			} else {
 				task = createNew(task, dag, oldTask);
 			}
-		} else if (StringUtils.isNotBlank(databaseNode.getTableExpression())) {
+		task.setType(initType);} else if (StringUtils.isNotBlank(databaseNode.getTableExpression())) {
 			mergeAllTable(user, connectionId, task, null);
 		} else {
-			task = createNew(task, dag, oldTask);
-		}
+			task = createNew(task, dag, null);
+        }
+		task.setFdmMain(true);
 
 		databaseNode = (DatabaseNode) task.getDag().getSources().get(0);
 		List<String> sourceTableNames = new ArrayList<>(databaseNode.getTableNames());
@@ -167,16 +193,7 @@ public class LdpServiceImpl implements LdpService {
 
 		TaskDto taskDto;
 		if (oldTask != null) {
-			sourceTableNames.removeAll(oldTableNames);
-			if (CollectionUtils.isNotEmpty(sourceTableNames)) {
-				if (CollectionUtils.isNotEmpty(oldTask.getLdpNewTables())) {
-					List<String> ldpNewTables = oldTask.getLdpNewTables();
-					ldpNewTables.addAll(sourceTableNames);
-					task.setLdpNewTables(ldpNewTables);
-				} else {
-					task.setLdpNewTables(sourceTableNames);
-				}
-			}
+
 			taskDto = taskService.updateById(task, user);
 		} else {
 			taskDto = taskService.confirmById(task, user, true);
@@ -184,7 +201,7 @@ public class LdpServiceImpl implements LdpService {
 		//创建fdm的分类
 		createFdmTags(taskDto, user);
 
-		if (oldTask != null) {
+		if (start) {if (oldTask != null) {
 			if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
 				taskService.pause(taskDto, user, false, true);
 			} else {
@@ -192,12 +209,65 @@ public class LdpServiceImpl implements LdpService {
 			}
 		} else {
 			taskService.start(taskDto, user, "00");
-		}
+		}}
 
 		return taskDto;
 	}
 
-	@Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
+	public String generateLdpTaskType(String sourceConnId, UserDetail user) {
+        Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(sourceConnId));
+        Query conQuery = new Query(criteria);
+        conQuery.fields().include("database_type", "response_body");
+        DataSourceConnectionDto connection = dataSourceService.findById(MongoUtils.toObjectId(sourceConnId), "database_type", "response_body");
+        dataSourceService.buildDefinitionParam(Lists.newArrayList(connection), user);
+        List<Capability> capabilities = connection.getCapabilities();
+        if (CollectionUtils.isEmpty(capabilities)) {
+            return ParentTaskDto.TYPE_INITIAL_SYNC_CDC;
+        }
+
+        boolean streamRead = true;
+        boolean batchRead = true;
+        ResponseBody responseBody = connection.getResponse_body();
+        if (responseBody != null) {
+            List<ValidateDetail> validateDetails = responseBody.getValidateDetails();
+            Map<String, ValidateDetail> map = new HashMap<>();
+            if (org.apache.commons.collections.CollectionUtils.isNotEmpty(validateDetails)) {
+                // list to map
+                map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity()));
+            }
+            if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
+                streamRead = false;
+            }
+
+            if (!map.containsKey(TestItem.ITEM_READ) || !"passed".equals(map.get(TestItem.ITEM_READ).getStatus())) {
+                batchRead = false;
+            }
+
+        }
+        Set<String> capabilityIds = capabilities.stream().map(Capability::getId).collect(Collectors.toSet());
+        if (!capabilityIds.contains(CapabilityEnum.STREAM_READ_FUNCTION.name().toLowerCase())) {
+            streamRead = false;
+        }
+        if (!capabilityIds.contains(CapabilityEnum.BATCH_READ_FUNCTION.name().toLowerCase())) {
+            batchRead = false;
+        }
+
+        if (batchRead && streamRead) {
+            return ParentTaskDto.TYPE_INITIAL_SYNC_CDC;
+        }
+
+        if (streamRead) {
+            return ParentTaskDto.TYPE_CDC;
+        }
+        return ParentTaskDto.TYPE_INITIAL_SYNC;
+    }
+
+    private Criteria fdmTaskCriteria(String connectionId) {
+        return  Criteria.where("ldpType").is(TaskDto.LDP_TYPE_FDM)
+                .and("dag.nodes.connectionId").is(connectionId)
+                .and("is_deleted").ne(true)
+                .and("status").nin(Lists.newArrayList(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED));
+    }@Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
 	public void syncStart(UserDetail user, TaskDto taskDto) {
 		if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
 			taskService.pause(taskDto, user, false, true);
@@ -401,7 +471,18 @@ public class LdpServiceImpl implements LdpService {
 	public TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user, boolean confirmTable, boolean start) {
 
 		try {
-			taskSaveService.supplementAlarm(task, user);
+			DAG dag = task.getDag();
+            if (dag != null) {
+                List<Node> sourceNode = dag.getSourceNodes();
+                if (sourceNode != null) {
+                    Node node = sourceNode.get(0);
+                    if (node instanceof TableNode) {
+                        String connectionId = ((TableNode) node).getConnectionId();
+                        String type = generateLdpTaskType(connectionId, user);
+                        task.setType(type);
+                    }
+                }
+            }taskSaveService.supplementAlarm(task, user);
 			//check mdm task
 			checkMdmTask(task, user, confirmTable);
 			//add mmd type
@@ -436,7 +517,20 @@ public class LdpServiceImpl implements LdpService {
 	public void afterLdpTask(String taskId, UserDetail user) {
 		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
 		taskService.updateAfter(taskDto, user);
-		createLdpMetaByTask(taskDto, user);
+		LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
+        if (platformDto == null) {
+            return;
+        }
+
+        String mdmStorageConnectionId = platformDto.getMdmStorageConnectionId();
+        String fdmStorageConnectionId = platformDto.getFdmStorageConnectionId();
+
+        String ldpType = ldpTask(taskDto.getDag(), fdmStorageConnectionId, mdmStorageConnectionId);
+        taskDto.setLdpType(ldpType);
+
+        if (TaskDto.LDP_TYPE_FDM.equals(ldpType)) {
+            createFdmTags(taskDto, user);
+        }createLdpMetaByTask(taskDto, user);
 	}
 
 	private boolean checkNoPrimaryKey(TaskDto taskDto, UserDetail user) {
@@ -539,9 +633,9 @@ public class LdpServiceImpl implements LdpService {
 		if (CollectionUtils.isNotEmpty(oldQualifiedNames)) {
 			Criteria criteriaOld = Criteria.where("qualified_name").in(oldQualifiedNames).and("is_deleted").ne(true);
 			Query queryOldTask = new Query(criteriaOld);
-			queryOldTask.fields().include("listtags", "qualified_name");
+			queryOldTask.fields().include("listtags", "qualified_name", "source");
 			oldMetaDatas = metadataInstancesService.findAllDto(queryOldTask, user);
-			oldMetaMap = oldMetaDatas.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m, (k1, k2) -> k1));
+			oldMetaMap = oldMetaDatas.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (k1, k2) -> k1));
 		}
 		if (TaskDto.LDP_TYPE_FDM.equals(task.getLdpType())) {
 
@@ -549,7 +643,8 @@ public class LdpServiceImpl implements LdpService {
 			Node sourceNode = sources.get(0);
 			String sourceCon = ((DataParentNode) sourceNode).getConnectionId();
 
-			Criteria criteria = Criteria.where("linkId").is(sourceCon).and("item_type").is(MetadataDefinitionDto.LDP_ITEM_FDM);
+			Tag fdmTag = getfdmTag(user);
+            Criteria criteria = Criteria.where("linkId").is(sourceCon).and("item_type").is(MetadataDefinitionDto.LDP_ITEM_FDM).and("parent_id").is(fdmTag.getId());
 			MetadataDefinitionDto tag = metadataDefinitionService.findOne(new Query(criteria), user);
 			Tag conTag = new Tag(tag.getId().toHexString(), tag.getValue());
 			List<MetadataInstancesDto> saveMetaDatas = new ArrayList<>();
@@ -563,7 +658,7 @@ public class LdpServiceImpl implements LdpService {
 				MetadataInstancesDto metadataInstancesDto = buildSourceMeta(conTag, metaData, oldMeta);
 				saveMetaDatas.add(metadataInstancesDto);
 			}
-			metadataInstancesService.bulkUpsetByWhere(metaDatas, user);
+			metadataInstancesService.bulkUpsetByWhere(saveMetaDatas, user);
 		} else {
 
 			List<String> tagIds = oldMetaDatas.stream()
@@ -619,10 +714,9 @@ public class LdpServiceImpl implements LdpService {
 	}
 
 	@Override
-	public Map<String, TaskDto> queryFdmTaskByTags(List<String> tagIds, UserDetail user) {
-		Map<String, TaskDto> result = new HashMap<>();
+	public Map<String, List<TaskDto>> queryFdmTaskByTags(List<String> tagIds, UserDetail user) {
+		Map<String, List<TaskDto>> result = new HashMap<>();
 		if (CollectionUtils.isEmpty(tagIds)) {
-
 			return result;
 		}
 
@@ -639,10 +733,12 @@ public class LdpServiceImpl implements LdpService {
 		for (TaskDto taskDto : taskDtos) {
 			DAG dag = taskDto.getDag();
 			Node node = dag.getSources().get(0);
-			String connectionId = ((DatabaseNode) node).getConnectionId();
-			String linkId = tagMap.get(connectionId);
-			if (StringUtils.isNotBlank(linkId)) {
-				result.put(tagMap.get(connectionId), taskDto);
+			if (node instanceof DatabaseNode) {String connectionId = ((DatabaseNode) node).getConnectionId();
+			String tagId = tagMap.get(connectionId);
+			if (StringUtils.isNotBlank(tagId)) {
+				List<TaskDto> tasks = result.computeIfAbsent(tagId, k -> new ArrayList<>());
+                    tasks.add(taskDto);
+                }
 			}
 		}
 		return result;
@@ -655,9 +751,27 @@ public class LdpServiceImpl implements LdpService {
 		return new Tag(mdmTag.getId().toHexString(), mdmTag.getValue());
 	}
 
-	private Map<String, Boolean> queryTagBelongMdm(List<String> tagIds, UserDetail user, String mdmTags) {
-		Map<String, Boolean> mdmMap = new HashMap<>();
+	private Tag getfdmTag(UserDetail user) {
+        Criteria mdmCriteria = Criteria.where("value").is("FDM").and("parent_id").exists(false);
+        Query query = new Query(mdmCriteria);
+        MetadataDefinitionDto mdmTag = metadataDefinitionService.findOne(query, user);
+        return new Tag(mdmTag.getId().toHexString(), mdmTag.getValue());
+    }
 
+    public boolean queryTagBelongMdm(String tagId, UserDetail user, String mdmTags) {
+        if (StringUtils.isBlank(mdmTags)) {
+            Tag mdmTag = getMdmTag(user);
+            mdmTags = mdmTag.getId();
+        }
+        Map<String, Boolean> map = queryTagBelongMdm(Lists.newArrayList(tagId), user, mdmTags);
+        Boolean b = map.get(tagId);
+        return b != null && b;
+
+    }private Map<String, Boolean> queryTagBelongMdm(List<String> tagIds, UserDetail user, String mdmTags) {
+		Map<String, Boolean> mdmMap = new HashMap<>();if (StringUtils.isBlank(mdmTags)) {
+            Tag mdmTag = getMdmTag(user);
+            mdmTags = mdmTag.getId();
+        }
 		if (CollectionUtils.isEmpty(tagIds)) {
 			return mdmMap;
 		}
@@ -780,7 +894,12 @@ public class LdpServiceImpl implements LdpService {
 			criteria.and("source.connection_type").in(connectType);
 		}
 
-		Query query = new Query(criteria);
+		return getLdpFuzzySearchVos(user, criteria);
+    }
+
+    @NotNull
+    private List<LdpFuzzySearchVo> getLdpFuzzySearchVos(UserDetail user, Criteria criteria) {
+        Query query = new Query(criteria);
         /*query.fields().include("qualified_name", "meta_type", "is_deleted", "original_name", "ancestorsName", "dev_version", "databaseId",
                 "schemaVersion", "version", "comment", "name", )*/
 		List<MetadataInstancesDto> metadatas = metadataInstancesService.findAllDto(query, user);
@@ -815,7 +934,25 @@ public class LdpServiceImpl implements LdpService {
 		return fuzzySearchList;
 	}
 
-	@Override
+	public List<LdpFuzzySearchVo> multiSearch(List<MultiSearchDto> multiSearchDtos, UserDetail loginUser) {
+        Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name());
+        if (multiSearchDtos == null) {
+            return new ArrayList<>();
+        }
+
+        List<Criteria> or = new ArrayList<>();
+        for (MultiSearchDto multiSearchDto : multiSearchDtos) {
+            Criteria criteriaMulti = Criteria.where("source._id").is(multiSearchDto.getConnectionId())
+                    .and("original_name").in(multiSearchDto.getTableNames());
+            or.add(criteriaMulti);
+        }
+
+        if (CollectionUtils.isNotEmpty(or)) {
+            criteria.orOperator(or);
+        }
+
+        return getLdpFuzzySearchVos(loginUser, criteria);
+    }@Override
 	public void addLdpDirectory(UserDetail user) {
 		Map<String, String> oldLdpMap = metadataDefinitionService.ldpDirKvs();
 		addLdpDirectory(user, oldLdpMap);
@@ -902,7 +1039,339 @@ public class LdpServiceImpl implements LdpService {
 		}
 	}
 
-	private void supplementaryLdpTaskByOld(UserDetail user) {
+	@Override
+    public Map<String, String> ldpTableStatus(String connectionId, List<String> tableNames, String ldpType, UserDetail user) {
+        Map<String, String> tableStatusMap = new HashMap<>();
+        if (TaskDto.LDP_TYPE_FDM.equals(ldpType)) {
+            Criteria criteria = fdmTaskCriteria(connectionId);
+            List<TaskDto> taskDtos = taskService.findAllDto(new Query(criteria), user);
+            for (TaskDto taskDto : taskDtos) {
+                DAG dag = taskDto.getDag();
+                if (dag != null) {
+                    LinkedList<DatabaseNode> targetNode = dag.getTargetNode();
+                    DatabaseNode last = targetNode.getFirst();
+                    if (last != null) {
+                        List<SyncObjects> syncObjects = last.getSyncObjects();
+                        SyncObjects syncObjects1 = syncObjects.get(0);
+                        Map<String, String> map = new HashMap<>();
+                        LinkedHashMap<String, String> tableNameRelation = syncObjects1.getTableNameRelation();
+                        tableNameRelation.forEach((k, v) -> {
+                            map.put(v, k);
+                        });
+
+                        List<String> ldpNewTables = taskDto.getLdpNewTables();
+                        if (ldpNewTables == null) {
+                            ldpNewTables = new ArrayList<>();
+                        }
+                        if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+                            String state = "running";
+                            for (String tableName : tableNames) {
+                                if (map.containsKey(tableName)) {
+                                    if (!ldpNewTables.contains(map.get(tableName))) {
+                                        tableStatusMap.put(tableName, state);
+                                    } else {
+                                        if (!"running".equals(tableStatusMap.get(tableName))) {
+                                            tableStatusMap.put(tableName, "noRunning");
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            for (String tableName : tableNames) {
+                                if (map.containsKey(tableName)) {
+                                    if (!"running".equals(tableStatusMap.get(tableName))) {
+                                        tableStatusMap.put(tableName, "noRunning");
+                                    }
+                                }
+                            }
+
+                        }
+
+                    }
+                }
+
+
+            }
+
+        } else {
+            Criteria criteria = Criteria.where("ldpType").is(TaskDto.LDP_TYPE_MDM)
+                    .and("dag.nodes.tableName").in(tableNames)
+                    .and("is_deleted").ne(true)
+                    .and("status").nin(Lists.newArrayList(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED));
+
+
+            List<TaskDto> taskDtos = taskService.findAllDto(new Query(criteria), user);
+            for (TaskDto taskDto : taskDtos) {
+                DAG dag = taskDto.getDag();
+                if (dag != null) {
+                    List<Node> targets = dag.getTargets();
+                    for (Node target : targets) {
+                        if (target instanceof TableNode) {
+                            String tableName = ((TableNode) target).getTableName();
+                            if (tableNames.contains(tableName)) {
+                                if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+                                    tableStatusMap.put(tableName, "running");
+                                } else {
+                                    if (!"running".equals(tableStatusMap.get(tableName))) {
+                                        tableStatusMap.put(tableName, "noRunning");
+                                    }
+                                }
+                            }
+
+                        }
+                    }
+                }
+            }
+
+        }
+
+        for (String tableName : tableNames) {
+            tableStatusMap.putIfAbsent(tableName, "noRunning");
+        }
+
+        return tableStatusMap;
+    }
+
+
+    @Override
+    public Set<String> belongLdpIds(String connectionId, List<MetadataInstancesDto> metas, UserDetail user) {
+        Set<String> newTables = new HashSet<>();
+        if (CollectionUtils.isEmpty(metas)) {
+            return newTables;
+        }
+        Set<String> tableNames = metas.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toSet());
+        Criteria criteria = Criteria.where("ldpType").in(TaskDto.LDP_TYPE_FDM, TaskDto.LDP_TYPE_MDM)
+                .and("dag.nodes.connectionId").is(connectionId)
+                .and("is_deleted").ne(true)
+                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            criteria.orOperator(new Criteria().and("dag.nodes.tableName").in(tableNames),
+                    new Criteria().and("dag.nodes.syncObjects.objectNames").in(tableNames)
+            );
+        }
+
+        Query query = new Query(criteria);
+        List<TaskDto> tasks = taskService.findAllDto(query, user);
+        if (CollectionUtils.isEmpty(tasks)) {
+            return newTables;
+        }
+
+        List<TaskDto> newTasks = new ArrayList<>();
+        for (TaskDto task : tasks) {
+            DAG dag = task.getDag();
+            if (dag != null) {
+                List<Node> targets = dag.getTargets();
+                if (CollectionUtils.isNotEmpty(targets)) {
+                    for (Node target : targets) {
+                        if (target instanceof DataParentNode) {
+                            if (connectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
+                                newTasks.add(task);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for (TaskDto newTask : newTasks) {
+            if (CollectionUtils.isEmpty(tableNames)) {
+                break;
+            }
+            List<Node> targets = newTask.getDag().getTargets();
+            if (TaskDto.LDP_TYPE_FDM.equals(newTask.getLdpType())) {
+                Node node = targets.get(0);
+                List<SyncObjects> syncObjects = ((DatabaseNode) node).getSyncObjects();
+                if (CollectionUtils.isNotEmpty(syncObjects)) {
+                    SyncObjects syncObjects1 = syncObjects.get(0);
+
+                    List<String> objectNames = syncObjects1.getObjectNames();
+                    for (String tableName : tableNames) {
+                        if (objectNames.contains(tableName)) {
+                            newTables.add(tableName);
+                        }
+                    }
+                }
+            } else {
+                for (Node target : targets) {
+                    if (target instanceof TableNode && connectionId.equals(((TableNode) target).getConnectionId())) {
+                        String tableName = ((TableNode) target).getTableName();
+                        if (tableNames.contains(tableName)) {
+                            newTables.add(tableName);
+                        }
+                    }
+                }
+            }
+
+            tableNames.removeAll(newTables);
+        }
+
+        return newTables;
+    }
+
+    @Override
+    public boolean checkFdmTaskStatus(String tagId, UserDetail user) {
+        MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(tagId), user);
+        if (definitionDto == null || StringUtils.isBlank(definitionDto.getLinkId())) {
+            return true;
+        }
+        String connectionId = definitionDto.getLinkId();
+        Criteria criteria = fdmTaskCriteria(connectionId);
+        criteria.and("fdmMain").is(true);
+        Query query = new Query(criteria);
+        TaskDto fdmTask = taskService.findOne(query, user);
+        if (fdmTask == null) {
+            criteria = fdmTaskCriteria(connectionId);
+            criteria.and("name").regex("Clone_To_FDM");
+            fdmTask = taskService.findOne(query, user);
+        }
+
+        if (fdmTask == null) {
+            return true;
+        }
+
+        switch (fdmTask.getStatus()) {
+            case TaskDto.STATUS_RUNNING:
+            case TaskDto.STATUS_COMPLETE:
+            case TaskDto.STATUS_EDIT:
+            case TaskDto.STATUS_ERROR:
+            case TaskDto.STATUS_RENEW_FAILED:
+            case TaskDto.STATUS_SCHEDULE_FAILED:
+            case TaskDto.STATUS_STOP:
+            case TaskDto.STATUS_WAIT_START:
+                return false;
+            default:
+                return true;
+        }
+    }
+
+    @Override
+    public void fdmBatchStart(String tagId, List<String> taskIds, UserDetail user) {
+        Map<String, List<TaskDto>> taskMap = queryFdmTaskByTags(Lists.newArrayList(tagId), user);
+        List<TaskDto> taskDtos = taskMap.get(tagId);
+        if (CollectionUtils.isEmpty(taskDtos)) {
+            return;
+        }
+
+        if (CollectionUtils.isNotEmpty(taskIds)) {
+            taskDtos = taskDtos.stream().filter(t -> taskIds.contains(t.getId().toHexString())).collect(Collectors.toList());
+        }
+
+        for (TaskDto taskDto : taskDtos) {
+            switch (taskDto.getStatus()) {
+                case TaskDto.STATUS_COMPLETE:
+                case TaskDto.STATUS_ERROR:
+                case TaskDto.STATUS_RENEW_FAILED:
+                case TaskDto.STATUS_SCHEDULE_FAILED:
+                case TaskDto.STATUS_STOP:
+                case TaskDto.STATUS_WAIT_START:
+                    taskService.start(taskDto, user, "11");
+                    break;
+                case TaskDto.STATUS_RUNNING:
+                    taskService.pause(taskDto, user, false, true);
+                default:
+                    log.info("fdm task status can't do anything, name = {}, status = {}", taskDto.getName(), taskDto.getStatus());
+
+            }
+        }
+
+    }
+
+    @Override
+    public void deleteMdmTable(String id, UserDetail user) {
+
+        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(id), user);
+
+        if (metadataInstancesDto == null) {
+            return;
+        }
+
+        if (CollectionUtils.isEmpty(metadataInstancesDto.getListtags())) {
+            throw new BizException("Ldp.DeleteMdmTableFailed");
+        }
+
+        List<String> tagIds = metadataInstancesDto.getListtags().stream().map(Tag::getId).collect(Collectors.toList());
+        Map<String, Boolean> map = queryTagBelongMdm(tagIds, user, null);
+        boolean belongMdm = false;
+        for (String tagId : tagIds) {
+            if (map.get(tagId) != null && map.get(tagId)) {
+                belongMdm = true;
+                break;
+            }
+        }
+        if (!belongMdm) {
+            throw new BizException("Ldp.DeleteMdmTableFailed");
+        }
+
+        LiveDataPlatformDto liveDataPlatformDto = liveDataPlatformService.findOne(new Query(), user);
+
+        if (liveDataPlatformDto == null) {
+            throw new BizException("SystemError", "Ldp config error");
+        }
+        String mdmStorageConnectionId = liveDataPlatformDto.getMdmStorageConnectionId();
+        Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(mdmStorageConnectionId));
+        Query query = new Query(criteria);
+        query.fields().include("_id", "name", "config", "encryptConfig", "database_type");
+
+        DataSourceConnectionDto connectionDto = dataSourceService.findOne(query, user);
+
+        if (connectionDto == null) {
+            throw new BizException("SystemError", "mdm connection is null");
+        }
+        DataSourceDefinitionDto dataSourceDefinitionDto = definitionService.getByDataSourceType(connectionDto.getDatabase_type(), user);
+
+        if (dataSourceDefinitionDto != null) {
+            connectionDto.setPdkHash(dataSourceDefinitionDto.getPdkHash());
+        }
+
+
+        String agent = findAgent(connectionDto, user);
+        if (agent == null) {
+            throw new BizException("Task.AgentNotFound");
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("tableName", metadataInstancesDto.getName());
+        String json = JsonUtil.toJsonUseJackson(connectionDto);
+        Map connections = JsonUtil.parseJsonUseJackson(json, Map.class);
+        data.put("connections", connections);
+
+        data.put("type", "dropTable");
+        MessageQueueDto queueDto = new MessageQueueDto();
+        queueDto.setReceiver(agent);
+        queueDto.setData(data);
+        queueDto.setType("pipe");
+
+        log.info("build send test connection websocket context, processId = {}, userId = {}", agent, user.getUserId());
+        messageQueueService.sendMessage(queueDto);
+        metadataInstancesService.deleteById(MongoUtils.toObjectId(id), user);
+    }
+
+    private String findAgent(DataSourceConnectionDto connectionDto, UserDetail user) {
+        if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), connectionDto.getAccessNodeType())
+                && CollectionUtils.isNotEmpty(connectionDto.getAccessNodeProcessIdList())) {
+
+            List<Worker> availableAgent = workerService.findAvailableAgent(user);
+            List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
+            String agentId = null;
+            for (String p : connectionDto.getAccessNodeProcessIdList()) {
+                if (processIds.contains(p)) {
+                    agentId = p;
+                    break;
+                }
+            }
+
+            return agentId;
+
+        } else {
+            List<Worker> availableAgent = workerService.findAvailableAgent(user);
+            if (CollectionUtils.isNotEmpty(availableAgent)) {
+                Worker worker = availableAgent.get(0);
+                return worker.getProcessId();
+            }
+        }
+        return null;
+    }private void supplementaryLdpTaskByOld(UserDetail user) {
 		Criteria criteria = Criteria.where("ldpType").in(TaskDto.LDP_TYPE_FDM, TaskDto.LDP_TYPE_MDM)
 				.and("is_deleted").ne(true);
 
@@ -944,7 +1413,7 @@ public class LdpServiceImpl implements LdpService {
 		if (CollectionUtils.isEmpty(tasks)) {
 			return;
 		}
-		tasks = tasks.stream().filter(t -> isTargetNode(t.getDag(), fdmStorageConnectionId)).collect(Collectors.toList());
+		tasks = tasks.stream().filter(t -> fdmTask(t.getDag(), fdmStorageConnectionId)).collect(Collectors.toList());
 
 		for (TaskDto task : tasks) {
 			task.setLdpType(TaskDto.LDP_TYPE_FDM);
@@ -978,7 +1447,7 @@ public class LdpServiceImpl implements LdpService {
 		if (CollectionUtils.isEmpty(tasks)) {
 			return;
 		}
-		tasks = tasks.stream().filter(t -> isTargetNode(t.getDag(), mdmStorageConnectionId)).collect(Collectors.toList());
+		tasks = tasks.stream().filter(t -> mdmTask(t.getDag(), mdmStorageConnectionId)).collect(Collectors.toList());
 
 		for (TaskDto task : tasks) {
 			task.setLdpType(TaskDto.LDP_TYPE_MDM);
@@ -987,22 +1456,35 @@ public class LdpServiceImpl implements LdpService {
 		}
 	}
 
-	private boolean isTargetNode(DAG dag, String fdmStorageConnectionId) {
+	private boolean fdmTask(DAG dag, String fdmStorageConnectionId) {
+        String ldpType = ldpTask(dag, fdmStorageConnectionId, null);
+        return TaskDto.LDP_TYPE_FDM.equals(ldpType);
+    }
+
+    private boolean mdmTask(DAG dag, String mdmStorageConnectionId) {
+        String ldpType = ldpTask(dag, null, mdmStorageConnectionId);
+        return TaskDto.LDP_TYPE_MDM.equals(ldpType);
+    }
+
+    private String ldpTask(DAG dag, String fdmStorageConnectionId, String mdmStorageConnectionId) {
 		if (dag == null) {
-			return false;
+			return null;
 		}
 		List<Node> targets = dag.getTargets();
 		if (CollectionUtils.isEmpty(targets)) {
-			return false;
+			return null;
 		}
 
 		for (Node target : targets) {
 			if (target instanceof DataParentNode) {
-				if (fdmStorageConnectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
-					return true;
+				if (target instanceof DatabaseNode && fdmStorageConnectionId != null && fdmStorageConnectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
+					return TaskDto.LDP_TYPE_FDM;
+                }
+                if (target instanceof TableNode && mdmStorageConnectionId != null && mdmStorageConnectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
+                    return TaskDto.LDP_TYPE_MDM;
 				}
 			}
 		}
-		return false;
+		return null;
 	}
 }

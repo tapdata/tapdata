@@ -218,7 +218,7 @@
                         "x-reactions": {
                           "fulfill": {
                             "state": {
-                              "display": "{{$self.value ? \"visible\" : \"hidden\"}}",
+                              "display": "{{$self.value ? \"visible\" : \"hidden\"}}"
                             }
                           }
                         }

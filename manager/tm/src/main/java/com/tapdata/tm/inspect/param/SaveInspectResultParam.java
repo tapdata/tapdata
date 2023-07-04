@@ -2,7 +2,6 @@ package com.tapdata.tm.inspect.param;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.inspect.bean.Stats;
-import com.tapdata.tm.inspect.dto.InspectDto;
 import lombok.Data;
 
 import java.util.Date;
@@ -33,9 +32,11 @@ public class SaveInspectResultParam {
     /**  */
     private Double progress;
     /**  */
-    private Long source_total=0L;
+		@JsonProperty("source_total")
+    private Long sourceTotal =0L;
     /**  */
-    private Long target_total=0L;
+		@JsonProperty("target_total")
+    private Long targetTotal=0L;
 
 
     private Long firstSourceTotal=0L;       // ": 0, // rr源总数=所有源表数据和

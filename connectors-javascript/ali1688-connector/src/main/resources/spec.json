@@ -12,6 +12,27 @@
     "node": {
       "type": "object",
       "properties": {
+        "logCompile": {
+          "type": "boolean",
+          "title": "${open_log_compile}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "default": false,
+          "x-decorator-props": {
+            "colon": false,
+            "tooltip": "${log_compile_tip}"
+          },
+          "x-index": 10
+        },
+        "filter": {
+          "type": "String",
+          "title": "Filter and show Record",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "",
+          "x-index": 999998,
+          "x-display": "hidden"
+        }
       }
     },
     "connection": {
@@ -26,7 +47,7 @@
             "style": {"display": "none"}
           },
           "apiServerKey": "code",
-          "x-index": 30,
+          "x-index": 10,
           "required": true
         },
         "line": {
@@ -47,7 +68,7 @@
               "x-index": 20,
               "x-component-props": {
                 "type": "primary",
-                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'ali1688', oauthUrl: 'https://auth.1688.com/oauth/authorize?client_id={{client_id}}&site=1688&redirect_uri=https://redirect.tapdata.io/oauth/complete/ali1688&state=1688'})}}"
+                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'ali1688', oauthUrl: 'https://auth.1688.com/oauth/authorize?client_id=8668585&site=1688&redirect_uri=https://redirect.tapdata.io/oauth/complete/ali1688&state=1688&_aop_signature=186DE0E262390646944ADBDB671EE2346759E18E53423B34E834932A9EAAB224'})}}"
               },
               "x-decorator-props":{"style":{"width":"120px"}}
             },
@@ -66,6 +87,56 @@
             }
           },
           "x-index": 20
+        },
+        "appKey": {
+          "type": "String",
+          "title": "Api Key",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "8668585",
+          "x-index": 999998,
+          "required": true,
+          "x-display": "hidden"
+        },
+        "secretKey": {
+          "type": "String",
+          "title": "Secret Key",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "J8uHFtF3MHy",
+          "x-index": 999999,
+          "required": true,
+          "x-display": "hidden"
+        },
+        "tableType": {
+          "type": "String",
+          "default": "CSV",
+          "title": "${tableType}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-display": "hidden",
+          "enum": [
+            {
+              "label": "${table_csv}",
+              "value": "CSV"
+            },
+            {
+              "label": "${table_document}",
+              "value": "Document"
+            }
+          ],
+          "x-index": 9999,
+          "required": false
+        },
+        "getLogistics": {
+          "type": "boolean",
+          "title": "${Logistics}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "default": true,
+          "x-index": 99999,
+          "x-display": "hidden",
+          "required": false
         }
       }
     }
@@ -77,21 +148,137 @@
       "code": "Authorize",
       "OAuthButtonTitle": "Authorize",
       "OAuthButton": "Please authorize before connection test and save",
-      "OAuthButtonOK": "Authorization successfully"
+      "OAuthButtonOK": "Authorization successfully",
+
+      "tableType": "Data type",
+      "table_csv": "CSV",
+      "table_document": "Document",
+
+      "Logistics": "Logistics",
+
+
+      "open_log_compile": "Enable data comparison ",
+      "log_compile_tip": "After the switch is turned on, the original data in front of the data field displayed in the Info level log and the flattened data after processing can be displayed in the log list"
     },
     "zh_CN": {
       "doc": "doc/alibaba_zh_CN.md",
       "code": "授权",
       "OAuthButtonTitle": "授权",
       "OAuthButton": "请先授权成功再点击连接测试或保存",
-      "OAuthButtonOK": "授权成功"
+      "OAuthButtonOK": "授权成功",
+
+      "tableType": "Data type",
+      "table_csv": "CSV",
+      "table_document": "文档模式",
+
+      "Logistics": "是否自动获取物流信息",
+
+
+      "open_log_compile": "开启数据比对",
+      "log_compile_tip": "开启开关后可在日志列表中以Info级别日志的展示数据字段前的原始数据和处理后的拍平格式数据"
     },
     "zh_TW": {
       "doc": "doc/alibaba_zh_TW.md",
       "code": "授權",
       "OAuthButtonTitle": "授權",
       "OAuthButton": "請先授權成功再點擊鏈接測試或保存",
-      "OAuthButtonOK": "授權成功"
+      "OAuthButtonOK": "授權成功",
+
+      "tableType": "Data type",
+      "table_csv": "CSV",
+      "table_document": "檔案模式",
+
+      "Logistics": "是否自动获取物流信息",
+
+
+      "open_log_compile": "開啟數據比對",
+      "log_compile_tip": "開啟開關後可在日誌清單中以Info級別日誌的展示數據欄位前的原始數據和處理後的拍平格式數據 "
+    }
+  },
+  "dataTypes": {
+    "Object": {
+      "to": "TapMap"
+    },
+    "Null": {
+      "to": "TapArray"
+    },
+    "Number": {
+      "precision": [
+        1,
+        1000
+      ],
+      "scale": [
+        0,
+        1000
+      ],
+      "fixed": true,
+      "preferPrecision": 20,
+      "preferScale": 8,
+      "priority": 1,
+      "to": "TapNumber"
+    },
+    "DateTime0": {
+      "range": [
+        "1000-01-01 00:00:00",
+        "9999-12-31 23:59:59"
+      ],
+      "defaultFraction": 3,
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "priority": 1,
+      "to": "TapDateTime"
+    },
+    "DateTime": {
+      "range": [
+        "1000-01-01 00:00:00.000",
+        "9999-12-31 23:59:59.999"
+      ],
+      "pattern": "yyyy-MM-dd hh:mm:ss.sss",
+      "fraction": [
+        0,
+        9
+      ],
+      "defaultFraction": 3,
+      "withTimeZone": false,
+      "priority": 2,
+      "to": "TapDateTime"
+    },
+    "Long": {
+      "bit": 64,
+      "priority": 10,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ],
+      "scale": 0,
+      "to": "TapNumber"
+    },
+    "Boolean": {
+      "to": "TapBoolean"
+    },
+    "String": {
+      "byte": 1024,
+      "priority": 1,
+      "defaultByte": 512,
+      "preferByte": 1024,
+      "to": "TapString"
+    },
+    "Array": {
+      "to": "TapArray"
+    },
+    "Float": {
+      "to": "TapNumber",
+      "bit": 64,
+      "scale": [
+        0,
+        6
+      ],
+      "fixed": false
+    },
+    "Money": {
+      "to": "TapNumber",
+      "precision": [1, 65],
+      "value": [-999999999.99, 999999999.99],
+      "scale": 2
     }
   }
 }

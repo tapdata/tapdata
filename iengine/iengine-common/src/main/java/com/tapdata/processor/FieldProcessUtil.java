@@ -27,14 +27,8 @@ import org.apache.logging.log4j.Logger;
 
 import java.math.BigDecimal;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -53,11 +47,18 @@ public class FieldProcessUtil {
 	public static void filedProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess, String fieldsNameTransform) throws Exception {
 		// 记录字段改名的隐射关系
 		Map<String, String> renameMapping = new HashMap<>();
+		final Set<String> renameOpFields = CollectionUtils.isEmpty(fieldsProcess) ? new HashSet<>()
+				: fieldsProcess.stream()
+				.filter(p -> FieldProcess.FieldOp.fromOperation(p.getOp()).equals(FieldProcess.FieldOp.OP_RENAME))
+				.map(FieldProcess::getField).collect(Collectors.toSet());
 
 		if (StringUtils.isNotBlank(fieldsNameTransform)) {
 			Map<String, Object> newRecord = MapUtil.recursiveMap(record, (key, value, parentKey) -> {
 				String allPathKey;
 				String allPathNewKey;
+				if (renameOpFields.contains(key)) {
+					return new MapUtil.MapEntry(key, value);
+				}
 				String newKey = Capitalized.convert(key, fieldsNameTransform);
 				if (StringUtils.isNotBlank(parentKey)) {
 					allPathKey = parentKey + "." + key;
@@ -465,19 +466,19 @@ public class FieldProcessUtil {
 				break;
 			case "INT":
 			case "INTEGER":
-				value = new BigDecimal(String.valueOf(value)).intValue();
+				value = convertNumber(value, s -> new BigDecimal(s).intValue());
 				break;
 			case "DOUBLE":
-				value = new BigDecimal(String.valueOf(value)).doubleValue();
+				value = convertNumber(value, s -> new BigDecimal(s).doubleValue());
 				break;
 			case "SHORT":
-				value = new BigDecimal(String.valueOf(value)).shortValue();
+				value = convertNumber(value, s -> new BigDecimal(s).shortValue());
 				break;
 			case "FLOAT":
-				value = new BigDecimal(String.valueOf(value)).floatValue();
+				value = convertNumber(value, s -> new BigDecimal(s).floatValue());
 				break;
 			case "LONG":
-				value = new BigDecimal(String.valueOf(value)).longValue();
+				value = convertNumber(value, s -> new BigDecimal(s).longValue());
 				break;
 			case "DATE":
 				DateTime dateTime = AnyTimeToDateTime.toDateTime(value);
@@ -530,5 +531,13 @@ public class FieldProcessUtil {
 		}
 
 		return value;
+	}
+
+	private static  <T> T convertNumber(Object value, Function<String, T> fn) {
+		String str = String.valueOf(value);
+		if (StringUtils.isBlank(str)) {
+			return null;
+		}
+		return fn.apply(str);
 	}
 }

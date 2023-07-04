@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag;
 
+import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.exception.DDLException;
@@ -9,6 +10,7 @@ import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.commons.util.CapitalizedEnum;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
@@ -184,6 +186,36 @@ public abstract class Node<S> extends Element{
         boolean mergedSchema = false;   // 输入模型为null，不进行merge操作，不需要执行保存更新
         if (inputSchemas != null && inputSchemas.size() > 0) {
             inputSchemas = inputSchemas.stream().map(this::cloneSchema).collect(Collectors.toList());
+
+
+            //这一步将下一个节点设置 「前置节点的字段名，字段类型」
+            List<Field> fields = new ArrayList<>();
+            for (S inputSchema : inputSchemas) {
+                if (inputSchema instanceof  List) {
+                    for (Object o : ((List<?>) inputSchema)) {
+                        Schema s = (Schema) o;
+                        List<Field> fieldList = s.getFields();
+                        fieldList = fieldList.stream().filter(f -> !f.isDeleted()).collect(Collectors.toList());
+                        s.setFields(fieldList);
+                        if (CollectionUtils.isNotEmpty(fieldList)) {
+                            fields.addAll(fieldList);
+                        }
+
+                    }
+                } else if (inputSchema instanceof Schema) {
+                    List<Field> fieldList = ((Schema) inputSchema).getFields();
+                    fieldList = fieldList.stream().filter(f -> !f.isDeleted()).collect(Collectors.toList());
+                    ((Schema) inputSchema).setFields(fieldList);
+                    if (CollectionUtils.isNotEmpty(fieldList)) {
+                        fields.addAll(fieldList);
+                    }
+                }
+            }
+
+            for (Field field : fields) {
+                field.setPreviousFieldName(field.getFieldName());
+                field.setPreviousDataType(field.getDataType());
+            }
 
             if ("all".equals(options.getRollback())) {
                 if (schema instanceof List) {
@@ -455,24 +487,33 @@ public abstract class Node<S> extends Element{
 
 
     protected void fieldNameUpLow(List<String> inputFields, List<Field> fields, String fieldsNameTransform) {
-        if (fieldsNameTransform != null) {
-            if ("toUpperCase".equalsIgnoreCase(fieldsNameTransform)) {
-                fields.forEach(field -> {
-                    if (inputFields.contains(field.getOriginalFieldName()) && !field.isDeleted()) {
-                        String fieldName = field.getFieldName();
-                        fieldName = fieldName.toUpperCase();
-                        field.setFieldName(fieldName);
+        if (StringUtils.isNotBlank(fieldsNameTransform)) {
+            CapitalizedEnum capitalizedEnum = CapitalizedEnum.fromValue(fieldsNameTransform.trim());
+
+            fields.forEach(field -> {
+                if (inputFields.contains(field.getFieldName()) && !field.isDeleted()) {
+                    String fieldName = field.getFieldName();
+
+                    switch (capitalizedEnum) {
+                        case UPPER:
+                            fieldName = StringUtils.upperCase(fieldName);
+                            break;
+                        case LOWER:
+                            fieldName = StringUtils.lowerCase(fieldName);
+                            break;
+                        case SNAKE:
+                            fieldName = StrUtil.toUnderlineCase(fieldName);
+                            break;
+                        case CAMEL:
+                            fieldName = StrUtil.toCamelCase(fieldName);
+                            break;
+                        default:
+                            break;
+
                     }
-                });
-            } else if ("toLowerCase".equalsIgnoreCase(fieldsNameTransform)) {
-                fields.forEach(field -> {
-                    if (inputFields.contains(field.getOriginalFieldName()) && !field.isDeleted()) {
-                        String fieldName = field.getFieldName();
-                        fieldName = fieldName.toLowerCase();
-                        field.setFieldName(fieldName);
-                    }
-                });
-            }
+                    field.setFieldName(fieldName);
+                }
+            });
         }
 
     }
@@ -482,8 +523,8 @@ public abstract class Node<S> extends Element{
         if (fieldsNameTransform != null) {
             if ("".equals(fieldsNameTransform)) {
                 fields.forEach(field -> {
-                    if (inputFields.contains(field.getOriginalFieldName())) {
-                        field.setFieldName(field.getOriginalFieldName());
+                    if (inputFields.contains(field.getPreviousFieldName())) {
+                        field.setFieldName(field.getPreviousFieldName());
                     }
                 });
             }

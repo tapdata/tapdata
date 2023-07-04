@@ -176,7 +176,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 		}
 
 		if (Objects.nonNull(data.get("msg"))){
-			Map<String, Object> msg = testConnectErrorData(data.get("id").toString(), data.get("msg").toString());
+			Map<String, Object> msg = testConnectErrorData(String.valueOf(data.get("id")), data.get("msg").toString());
 			context.getMessageInfo().setData(msg);
 
 			sendMessage(context.getSender(), context);

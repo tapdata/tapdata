@@ -24,6 +24,7 @@ import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.*;
+import com.tapdata.tm.discovery.entity.FieldBusinessDescEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
@@ -32,6 +33,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.task.repository.TaskCollectionObjRepository;
+import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskCollectionObjService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
@@ -46,6 +48,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -77,6 +80,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     private WorkerService workerService;
 
     private ApiServerService apiServerService;
+
+    private LdpService ldpService;
 
     /**
      * 查询对象概览列表
@@ -637,7 +642,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
 
-        List<DataDiscoveryDto> dataDiscoveryDtos = unionQueryResults.stream().map(this::convertToDataDiscovery).collect(Collectors.toList());
+        Set<ObjectId> objectIds = unionQueryResults.stream().filter(u -> u.getSource() != null && StringUtils.isNotBlank(u.getSource().get_id())).map(u -> MongoUtils.toObjectId(u.getSource().get_id())).collect(Collectors.toSet());
+        Criteria criteria = Criteria.where("_id").in(objectIds).and("is_deleted").ne(false);
+        Query query = new Query(criteria);
+        query.fields().include("_id", "config", "database_type");
+        List<DataSourceConnectionDto> connections = dataSourceService.findAllDto(query, user);
+        final Map<String, DataSourceConnectionDto> connectionMap = connections.stream().collect(Collectors.toMap(k -> k.getId().toHexString(), v -> v, (k1, k2) -> k1));
+        List<DataDiscoveryDto> dataDiscoveryDtos = unionQueryResults.stream().map(u -> convertToDataDiscovery(u, connectionMap)).collect(Collectors.toList());
 
         for (DataDiscoveryDto dataDiscoveryDto : dataDiscoveryDtos) {
             List<Tag> listtags = dataDiscoveryDto.getListtags();
@@ -687,21 +698,29 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dto.setSourceType(source.getDatabase_type());
 
         }
-        dto.setComment(metadataInstancesDto.getComment());
+        dto.setComment(StringUtils.isNotBlank(metadataInstancesDto.getComment()) ? metadataInstancesDto.getComment():"");
         dto.setId(metadataInstancesDto.getId().toHexString());
         dto.setName(metadataInstancesDto.getOriginalName());
         dto.setCategory(DataObjCategoryEnum.storage);
         dto.setType(metadataInstancesDto.getMetaType());
         dto.setSourceCategory(DataSourceCategoryEnum.connection);
-        dto.setSourceInfo(getConnectInfo(metadataInstancesDto.getSource(), metadataInstancesDto.getOriginalName()));
-        dto.setDescription(metadataInstancesDto.getDescription());
+        if (metadataInstancesDto.getSource() != null && StringUtils.isNotBlank(metadataInstancesDto.getSource().get_id())) {
+            String conId = metadataInstancesDto.getSource().get_id();
+            DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(conId), user);
+            dto.setSourceInfo(getConnectInfo(connectionDto, metadataInstancesDto.getOriginalName()));
+        }
+        if(StringUtils.isBlank(metadataInstancesDto.getDescription()) && StringUtils.isNotBlank(metadataInstancesDto.getComment())){
+            dto.setDescription(metadataInstancesDto.getComment());
+        }else {
+            dto.setDescription(metadataInstancesDto.getDescription());
+        }
+
         //dto.setSourceInfo();
         //dto.setBusinessName();
         //dto.setBusinessDesc();
         dto.setListtags(metadataInstancesDto.getListtags());
         //dto.setAllTags();
         List<Field> fields = metadataInstancesDto.getFields();
-
         List<TableIndex> indices = metadataInstancesDto.getIndices();
         Set<String> indexNames = new HashSet<>();
         if (CollectionUtils.isNotEmpty(indices)) {
@@ -718,6 +737,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         if (CollectionUtils.isNotEmpty(fields)) {
             for (Field field : fields) {
                 DiscoveryFieldDto discoveryFieldDto = new DiscoveryFieldDto();
+                discoveryFieldDto.setId(field.getId());
                 discoveryFieldDto.setName(field.getFieldName());
                 discoveryFieldDto.setDataType(field.getDataType());
                 discoveryFieldDto.setPrimaryKey(field.getPrimaryKey());
@@ -731,10 +751,16 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 } else if (field.getIsNullable() != null && field.getIsNullable() instanceof Boolean) {
                     discoveryFieldDto.setNotNull(!(Boolean) field.getIsNullable());
                 }
+
                 discoveryFieldDto.setDefaultValue(field.getDefaultValue());
                 //discoveryFieldDto.setBusinessName();
                 //discoveryFieldDto.setBusinessType();
-                discoveryFieldDto.setBusinessDesc(field.getComment());
+                discoveryFieldDto.setComment(field.getComment());
+                if(StringUtils.isNotBlank(field.getDescription())){
+                    discoveryFieldDto.setBusinessDesc(field.getDescription());
+                }else{
+                    discoveryFieldDto.setBusinessDesc(field.getComment());
+                }
 
                 dataFields.add(discoveryFieldDto);
 
@@ -865,10 +891,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 }
                 String connectionId = ((DataParentNode<?>) node).getConnectionId();
                 DataSourceConnectionDto connectionDto = dataSourceConnectionDtoMap.get(connectionId);
-
-                taskConnectionsDto.setConnectionName(connectionDto.getName());
-                SourceDto sourceDto = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(connectionDto), SourceDto.class);
-                taskConnectionsDto.setConnectionInfo(getConnectInfo(sourceDto, null));
+                taskConnectionsDto.setConnectionInfo(getConnectInfo(connectionDto, null));
             } else {
                 taskConnectionsDto.setType("calculate");
             }
@@ -1018,9 +1041,9 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("tableName").regex(param.getQueryKey()));
         }
-
+        MetadataDefinitionDto definitionDto = null;
         if (StringUtils.isNotBlank(param.getTagId())) {
-            MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
+            definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
             if (definitionDto != null) {
                 List<String> itemTypes = definitionDto.getItemType();
 
@@ -1225,6 +1248,20 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
 
         List<DataDirectoryDto> items = unionQueryResults.parallelStream().map(this::convertToDataDirectory).collect(Collectors.toList());
+
+        List<String> collect = items.stream().map(DataDirectoryDto::getName).collect(Collectors.toList());
+        Map<String, String> tableStatus = null;
+        if (definitionDto != null && StringUtils.isNotBlank(definitionDto.getLinkId())) {
+            tableStatus = ldpService.ldpTableStatus(definitionDto.getLinkId(), collect, TaskDto.LDP_TYPE_FDM, user);
+
+        } else if (definitionDto != null && ldpService.queryTagBelongMdm(definitionDto.getId().toHexString(), user, null)) {
+            tableStatus = ldpService.ldpTableStatus(definitionDto.getLinkId(), collect, TaskDto.LDP_TYPE_MDM, user);
+        }
+        if (tableStatus != null) {
+            for (DataDirectoryDto item : items) {
+                item.setStatus(tableStatus.get(item.getName()));
+            }
+        }
 
         page.setItems(items);
         page.setTotal(total);
@@ -1650,7 +1687,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     }
 
 
-    private String getConnectInfo(SourceDto source, String name) {
+    private String getConnectInfo(DataSourceConnectionDto source, String name) {
         if (source == null) {
             return null;
         }
@@ -1749,7 +1786,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
     }
 
-    private DataDiscoveryDto convertToDataDiscovery(UnionQueryResult unionQueryResult) {
+    private DataDiscoveryDto convertToDataDiscovery(UnionQueryResult unionQueryResult, Map<String, DataSourceConnectionDto> connectionMap) {
         DataDiscoveryDto dataDiscoveryDto = new DataDiscoveryDto();
         dataDiscoveryDto.setId(unionQueryResult.get_id().toHexString());
         List listtagsOld = unionQueryResult.getListtags();
@@ -1758,7 +1795,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dataDiscoveryDto.setType(unionQueryResult.getMeta_type());
             dataDiscoveryDto.setSourceCategory(DataSourceCategoryEnum.connection);
             dataDiscoveryDto.setSourceType(unionQueryResult.getSource() != null ? unionQueryResult.getSource().getDatabase_type() : null);
-            dataDiscoveryDto.setSourceInfo(getConnectInfo(unionQueryResult.getSource(), unionQueryResult.getOriginal_name()));
+            dataDiscoveryDto.setSourceInfo(getConnectInfo(connectionMap.get(unionQueryResult.getSource().get_id()), unionQueryResult.getOriginal_name()));
             dataDiscoveryDto.setName(unionQueryResult.getOriginal_name());
         } else if (StringUtils.isNotBlank(unionQueryResult.getSyncType())) {
             dataDiscoveryDto.setCategory(DataObjCategoryEnum.job);

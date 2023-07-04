@@ -69,6 +69,32 @@ public class LoadJavaScripter {
 
     public LoadJavaScripter init() {
         this.scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(ENGINE_TYPE));
+        try {
+            StringBuilder buildInMethod = new StringBuilder();
+            //buildInMethod.append("var DateUtil = Java.type(\"com.tapdata.constant.DateUtil\");\n");
+            //buildInMethod.append("var UUIDGenerator = Java.type(\"com.tapdata.constant.UUIDGenerator\");\n");
+            //buildInMethod.append("var idGen = Java.type(\"com.tapdata.constant.UUIDGenerator\");\n");
+            buildInMethod.append("var HashMap = Java.type(\"java.util.HashMap\");\n");
+            buildInMethod.append("var LinkedHashMap = Java.type(\"java.util.LinkedHashMap\");\n");
+            buildInMethod.append("var ArrayList = Java.type(\"java.util.ArrayList\");\n");
+            //buildInMethod.append("var uuid = UUIDGenerator.uuid;\n");
+            //buildInMethod.append("var JSONUtil = Java.type('com.tapdata.constant.JSONUtil');\n");
+            //buildInMethod.append("var HanLPUtil = Java.type(\"com.tapdata.constant.HanLPUtil\");\n");
+            //buildInMethod.append("var split_chinese = HanLPUtil.hanLPParticiple;\n");
+            //buildInMethod.append("var util = Java.type(\"com.tapdata.processor.util.Util\");\n");
+            //buildInMethod.append("var MD5Util = Java.type(\"com.tapdata.constant.MD5Util\");\n");
+            //buildInMethod.append("var MD5 = function(str){return MD5Util.crypt(str, true);};\n");
+            buildInMethod.append("var Collections = Java.type(\"java.util.Collections\");\n");
+            //buildInMethod.append("var MapUtils = Java.type(\"com.tapdata.constant.MapUtil\");\n");
+            buildInMethod.append("var sleep = function(ms){\n" +
+                    "var Thread = Java.type(\"java.lang.Thread\");\n" +
+                    "Thread.sleep(ms);\n" +
+                    "}\n");
+            this.scriptEngine.eval(buildInMethod.toString());
+        }catch (Exception e) {
+            TapLogger.warn(TAG, "Can't evel default util to engine.");
+        }
+
         return this;
     }
 

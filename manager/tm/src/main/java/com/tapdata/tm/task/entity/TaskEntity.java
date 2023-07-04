@@ -245,6 +245,8 @@ public class TaskEntity extends BaseEntity {
 
     private String pageVersion;
 
+    private Boolean fdmMain;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

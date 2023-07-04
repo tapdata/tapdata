@@ -80,13 +80,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkAutoI
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkCacheNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkShareCDCNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastDateProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastJavaScriptProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMigrateFieldRenameProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastRenameTableProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -736,6 +730,21 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.build()
 				);
 				break;
+			case FIELD_MOD_TYPE_FILTER_PROCESSOR:
+			case MIGRATE_FIELD_MOD_TYPE_FILTER_PROCESSOR:
+				hazelcastNode = new HazelcastTypeFilterProcessorNode(
+						DataProcessorContext.newBuilder()
+								.withTaskDto(taskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withConfigurationCenter(config)
+								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
+								.build()
+				);
+				break;
+
 			default:
 				hazelcastNode = new HazelcastBlank(
 						DataProcessorContext.newBuilder()

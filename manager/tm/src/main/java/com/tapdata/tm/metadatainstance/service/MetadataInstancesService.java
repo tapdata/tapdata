@@ -23,6 +23,8 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
+import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.*;
@@ -34,9 +36,12 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.*;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.service.DAGService;
+import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.metadatainstance.bean.MultiPleTransformReq;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
+import com.tapdata.tm.metadatainstance.dto.DataTypeCheckMultipleVo;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
@@ -51,9 +56,12 @@ import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SchemaTransformUtils;
 import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.mapping.TypeExprResult;
+import io.tapdata.entity.mapping.type.TapStringMapping;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.utils.DataMap;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -65,6 +73,7 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.MongoExpression;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.*;
@@ -162,7 +171,6 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             // maybe model deduction slow then task model not save, could query physics table meta
 
             Query query = new Query(criteria);
-
             long count = count(query);
 
             if (filter.getLimit() > 0) {
@@ -171,7 +179,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 query.limit(20);
             }
             query.skip(Math.max(filter.getSkip(), 0));
-
+            query.fields().include("comment");
             applyField(query, filter.getFields());
             applySort(query, filter.getSort());
             List<MetadataInstancesDto> allDto = findAll(query);
@@ -486,6 +494,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
             if (StringUtils.isNotBlank(result.getMetaType()) && MetaDataBuilderUtils.metaTypePropertyMap.get(result.getMetaType()).isModel()) {
                 result.setDatabase(databaseNameMap.get(result.getDatabaseId()));
+            }
+            if(StringUtils.isBlank(result.getComment())){
+                result.setComment("");
             }
         }
     }
@@ -1159,6 +1170,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return list.stream().map(MetadataInstancesEntity::getOriginalName).collect(Collectors.toList());
     }
 
+
     public List<Map<String, String>> tableValues(String connectId, String sourceType) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
@@ -1166,7 +1178,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 .and("taskId").exists(false)
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
         Query query = new Query(criteria);
-        query.fields().include("original_name");
+        query.fields().include("original_name","comment");
         List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
         List<Map<String, String>> values = new ArrayList<>();
         if (CollectionUtils.isNotEmpty(list)) {
@@ -1174,46 +1186,73 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 Map<String, String> value = new HashMap<>();
                 value.put("tableName", entity.getOriginalName());
                 value.put("tableId", entity.getId().toHexString());
+                value.put("tableComment",StringUtils.isNotBlank(entity.getComment()) ? entity.getComment():"");
                 values.add(value);
             }
         }
         return values;
     }
 
-    public Page<String> pageTables(String connectId, String sourceType, String regex, int skip, int limit) {
-        Criteria criteria = Criteria.where("source._id").is(connectId)
-                .and("sourceType").is(sourceType)
-                .and("is_deleted").ne(true)
-                .and("taskId").exists(false)
-                .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
+    public Page<Map<String, Object>> pageTables(String connectId, String sourceType, String regex, int skip, int limit) {
+			Criteria criteria = Criteria.where("source._id").is(connectId)
+				.and("sourceType").is(sourceType)
+				.and("is_deleted").ne(true)
+				.and("taskId").exists(false)
+				.and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
 
-        if (null != regex) {
-            regex = "^" + regex + "$";
-            criteria.and("original_name").regex(regex);
-        }
+			if (null != regex) {
+				regex = "^" + regex + "$";
+				criteria.and("original_name").regex(regex);
+			}
 
-        Query query = new Query(criteria);
-        query.fields().include("original_name");
+			Aggregation aggregation = Aggregation.newAggregation(
+				Aggregation.match(criteria),
+				Aggregation.unwind("fields"),
+				Aggregation.project()
+					.and(AggregationExpression.from(MongoExpression.create("{ \"$toString\": \"$_id\" }"))).as("_id")
+					.and("original_name").as("tableName")
+					.and("comment").as("tableComment")
+					.and(ConditionalOperators
+						.when(ComparisonOperators.Eq.valueOf("fields.primaryKey").equalToValue(true))
+						.then(1)
+						.otherwise(0)
+					).as("primaryKey"),
+				Aggregation.group("_id")
+					.first("tableName").as("tableName")
+					.first("tableComment").as("tableComment")
+					.sum("primaryKey").as("primaryKeyCounts"),
+				Aggregation.project()
+					.and("_id").as("tableId")
+					.andInclude("tableName", "tableComment", "primaryKeyCounts")
+					.andExclude("_id"),
+				Aggregation.sort(Sort.by("tableId"))
+			);
 
-        long totals;
-        List<String> rows;
-        if (limit > 0) {
-            totals = mongoTemplate.count(query, MetadataInstancesEntity.class);
-            if (totals > 0) {
-                query.skip(skip).limit(limit);
-                List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
-                rows = list.stream().map(MetadataInstancesEntity::getOriginalName).collect(Collectors.toList());
-            } else {
-                rows = new ArrayList<>();
-            }
-        } else {
-            List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
-            rows = list.stream().map(MetadataInstancesEntity::getOriginalName).collect(Collectors.toList());
-            totals = rows.size();
-        }
+			long totals;
+			List<Map<String, Object>> values = new ArrayList<>();
+			if (limit > 0) {
+				Query query = new Query(criteria);
+				query.fields().include("original_name", "comment");
+				totals = mongoTemplate.count(query, MetadataInstancesEntity.class);
+				if (totals > 0) {
+					aggregation.getPipeline().add(Aggregation.skip((long) skip)).add(Aggregation.limit(limit));
+					AggregationResults<Map> aggregate = mongoTemplate.aggregate(aggregation, "MetadataInstances", Map.class);
+					for (Map m : aggregate.getMappedResults()) {
+						values.add(m);
+					}
+				} else {
+					values = new ArrayList<>();
+				}
+			} else {
+				AggregationResults<Map> aggregate = mongoTemplate.aggregate(aggregation, "MetadataInstances", Map.class);
+				totals = aggregate.getMappedResults().size();
+				for (Map m : aggregate.getMappedResults()) {
+					values.add(m);
+				}
+			}
 
-        return new Page<>(totals, rows);
-    }
+			return new Page<>(totals, values);
+		}
 
     public TableSupportInspectVo tableSupportInspect(String connectId, String tableName) {
         TableSupportInspectVo tableSupportInspectVo = new TableSupportInspectVo();
@@ -1895,6 +1934,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
     public Map<String, MetadataInstancesDto> batchImport(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, boolean cover, Map<String, DataSourceConnectionDto> conMap) {
+        Map<String, MetadataInstancesDto> collect = metadataInstancesDtos.stream().collect(Collectors.toMap(k -> k.getQualifiedName(), v -> v, (k1, k2) -> k1));
+
+        metadataInstancesDtos = new ArrayList<>(collect.values());
         Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
         for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
             String connectionId = null;
@@ -1916,17 +1958,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             }
             MetadataInstancesDto newMeta = null;
             metadataInstancesDto.setListtags(null);
-            long count = count(new Query(new Criteria().orOperator(Criteria.where("_id").is(metadataInstancesDto.getId()),
-                    Criteria.where("qualified_name").is(metadataInstancesDto.getQualifiedName()))));
-            if (count == 0) {
-                newMeta = importEntity(metadataInstancesDto, user);
-            } else if (cover) {
-                newMeta = save(metadataInstancesDto, user);
-            }
-
-            if (newMeta != null) {
-                metaMap.put(metadataInstancesDto.getId().toHexString(), newMeta);
-            }
+            newMeta = importEntity(metadataInstancesDto, user);
+            metaMap.put(newMeta.getId().toHexString(), metadataInstancesDto);
         }
         return metaMap;
     }
@@ -2257,8 +2290,127 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         update(query,update,userDetail);
     }
 
+    public void updateTableFieldDesc(String id, DiscoveryFieldDto discoveryFieldDto,UserDetail userDetail){
+        if(org.springframework.util.StringUtils.isEmpty(id)){
+            throw new BizException("IllegalArgument", "Id");
+        }
+        Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(id)).and("fields.id").is(discoveryFieldDto.getId());
+        Query query = new Query(criteria);
+        Update update = Update.update("fields.$.description",discoveryFieldDto.getBusinessDesc());
+        update(query,update, userDetail);
+    }
+
     public MetadataInstancesDto importEntity(MetadataInstancesDto metadataInstancesDto, UserDetail userDetail) {
-        MetadataInstancesEntity entity = repository.importEntity(convertToEntity(MetadataInstancesEntity.class, metadataInstancesDto), userDetail);
-        return convertToDto(entity, MetadataInstancesDto.class);
+
+        Criteria criteria = Criteria.where("qualified_name").is(metadataInstancesDto.getQualifiedName());
+        Query query = new Query(criteria);
+        upsert(query, metadataInstancesDto, userDetail);
+        return metadataInstancesDto;
+
+
+    }
+
+    public void updateTableCustomDesc(String qualifiedName, String customDesc, UserDetail user) {
+        Criteria criteria = Criteria.where("qualified_name").is(qualifiedName);
+        update(new Query(criteria), Update.update("customDesc", customDesc), user);
+    }
+
+    public void updateFieldCustomDesc(String qualifiedName, Map<String, String> fieldCustomDescMap, UserDetail user) {
+        Criteria criteria = Criteria.where("qualified_name").is(qualifiedName);
+        Query query = new Query(criteria);
+        query.fields().include("fields");
+        MetadataInstancesDto dto = findOne(query, user);
+        List<Field> fields = dto.getFields();
+        if (CollectionUtils.isNotEmpty(fields)) {
+            for (Field field : fields) {
+                String customDesc = fieldCustomDescMap.get(field.getFieldName());
+                field.setDescription(customDesc);
+            }
+        }
+        update(new Query(criteria), Update.update("fields", fields), user);
+
+    }
+
+    public DataTypeCheckMultipleVo dataTypeCheckMultiple(String databaseType, String dataType, UserDetail user) {
+        DataTypeCheckMultipleVo dataTypeCheckMultipleVo = new DataTypeCheckMultipleVo();
+        dataTypeCheckMultipleVo.setResult(false);
+        DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(databaseType, user);
+        if (definitionDto == null) {
+            return dataTypeCheckMultipleVo;
+        }
+
+        String expression = definitionDto.getExpression();
+        DefaultExpressionMatchingMap map = DefaultExpressionMatchingMap.map(expression);
+        TypeExprResult<DataMap> exprResult = map.get(dataType);
+        if (exprResult == null) {
+            return dataTypeCheckMultipleVo;
+        }
+
+        if (exprResult.getParams() == null) {
+            return dataTypeCheckMultipleVo;
+        }
+
+        Object tapMapping = exprResult.getValue().get("_tapMapping");
+        if (tapMapping instanceof TapStringMapping) {
+            dataTypeCheckMultipleVo.setResult(true);
+        }
+
+        String originType = dataType;
+        int i = originType.indexOf("(");
+        if (i >= 0) {
+            originType = originType.substring(0, i);
+        }
+
+        dataTypeCheckMultipleVo.setOriginType(originType);
+
+        return dataTypeCheckMultipleVo;
+    }
+    public Set<String> getTypeFilter(String nodeId,UserDetail userDetail){
+        List<MetadataInstancesDto> metadataInstancesDtos = findByNodeId(nodeId, null, userDetail, null);
+        Set<String> set = new HashSet<>();
+        metadataInstancesDtos.forEach(metadataInstancesDto -> {
+            metadataInstancesDto.getFields().forEach(field -> {
+                set.add(RemoveBracketsUtil.removeBrackets(field.getDataType()));
+            });
+        });
+    return set;
+    }
+
+    public MetadataInstancesDto multiTransform(MultiPleTransformReq multiPleTransformReq, UserDetail user) {
+
+        MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+        metadataInstancesDto.setFields(multiPleTransformReq.getFields());
+        List<Field> fields = metadataInstancesDto.getFields();
+        if (CollectionUtils.isEmpty(fields)) {
+            return metadataInstancesDto;
+        }
+
+        List<FieldChangeRule> rules = multiPleTransformReq.getRules();
+        if (CollectionUtils.isEmpty(rules)) {
+            return metadataInstancesDto;
+        }
+
+        DataSourceDefinitionDto dataSourceDefinitionDto = dataSourceDefinitionService.getByDataSourceType(multiPleTransformReq.getDatabaseType(), user);
+        if (dataSourceDefinitionDto == null) {
+            return metadataInstancesDto;
+        }
+
+        String expression = dataSourceDefinitionDto.getExpression();
+        DefaultExpressionMatchingMap map = DefaultExpressionMatchingMap.map(expression);
+
+
+        FieldChangeRuleGroup fieldChangeRuleGroup = new FieldChangeRuleGroup();
+        for (FieldChangeRule rule : rules) {
+            fieldChangeRuleGroup.add(multiPleTransformReq.getNodeId(), rule);
+        }
+
+
+        for (Field field : fields) {
+            field.setDataType(field.getDataTypeTemp());
+            fieldChangeRuleGroup.process(multiPleTransformReq.getNodeId(), multiPleTransformReq.getQualifiedName(), field, map);
+        }
+
+        return metadataInstancesDto;
+
     }
 }

@@ -40,136 +40,146 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class SourceSettingStrategyImpl implements DagLogStrategy {
 
-    private DataSourceService dataSourceService;
-    private MetadataInstancesService metadataInstancesService;
-    private TaskDagCheckLogService taskDagCheckLogService;
+	private DataSourceService dataSourceService;
+	private MetadataInstancesService metadataInstancesService;
+	private TaskDagCheckLogService taskDagCheckLogService;
 
-    private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.SOURCE_SETTING_CHECK;
+	private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.SOURCE_SETTING_CHECK;
 
-    @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
-        String taskId = taskDto.getId().toHexString();
-        Date now = new Date();
+	@Override
+	public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
+		String taskId = taskDto.getId().toHexString();
+		Date now = new Date();
 
-        List<TaskDagCheckLog> result = Lists.newArrayList();
-        Set<String> nameSet = Sets.newHashSet();
-        DAG dag = taskDto.getDag();
+		List<TaskDagCheckLog> result = Lists.newArrayList();
+		Set<String> nameSet = Sets.newHashSet();
+		DAG dag = taskDto.getDag();
 
-        if (Objects.isNull(dag) || CollectionUtils.isEmpty(dag.getNodes())) {
-            return null;
-        }
+		if (Objects.isNull(dag) || CollectionUtils.isEmpty(dag.getNodes())) {
+			return null;
+		}
 
-        String userId = userDetail.getUserId();
-        dag.getSources().forEach(node -> {
-            String name = node.getName();
-            String nodeId = node.getId();
+		String userId = userDetail.getUserId();
+		dag.getSources().forEach(node -> {
+			String name = node.getName();
+			String nodeId = node.getId();
 
-            DataParentNode dataParentNode = (DataParentNode) node;
+			DataParentNode dataParentNode = (DataParentNode) node;
 
-            if (StringUtils.isEmpty(name)) {
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NAME_EMPTY"), dataParentNode.getDatabaseType());
-                result.add(log);
-            }
+			if (StringUtils.isEmpty(name)) {
+				TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NAME_EMPTY"), dataParentNode.getDatabaseType());
+				result.add(log);
+			}
 
-            if (StringUtils.isEmpty(dataParentNode.getConnectionId())) {
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NOT_SELECT_DB"), name);
-                result.add(log);
-            }
+			if (StringUtils.isEmpty(dataParentNode.getConnectionId())) {
+				TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NOT_SELECT_DB"), name);
+				result.add(log);
+			}
 
-            List<String> tableNames;
-            String migrateSelectType = "";
-            String tableExpression = "";
-            if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
-                DatabaseNode databaseNode = (DatabaseNode) node;
-                tableNames = databaseNode.getTableNames();
-                migrateSelectType = databaseNode.getMigrateTableSelectType();
-                tableExpression = databaseNode.getTableExpression();
-            } else {
-                tableNames = Lists.newArrayList(((TableNode) node).getTableName());
-            }
+			List<String> tableNames;
+			String migrateSelectType = "";
+			String tableExpression = "";
+			if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+				DatabaseNode databaseNode = (DatabaseNode) node;
+				tableNames = databaseNode.getTableNames();
+				migrateSelectType = databaseNode.getMigrateTableSelectType();
+				tableExpression = databaseNode.getTableExpression();
+			} else {
+				tableNames = Lists.newArrayList(((TableNode) node).getTableName());
+			}
 
-            if (CollectionUtils.isEmpty(tableNames)) {
-                if ("expression".equals(migrateSelectType)) {
-                    if (StringUtils.isEmpty(tableExpression)) {
-                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_EXP_EMPTY"), name);
-                        result.add(log);
-                    }
-                } else {
-                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NOT_SELECT_TB"), name);
-                    result.add(log);
-                }
-            }
+			if (CollectionUtils.isEmpty(tableNames)) {
+				if ("expression".equals(migrateSelectType)) {
+					if (StringUtils.isEmpty(tableExpression)) {
+						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_EXP_EMPTY"), name);
+						result.add(log);
+					}
+				} else {
+					TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NOT_SELECT_TB"), name);
+					result.add(log);
+				}
+			}
 
-            if (nameSet.contains(name)) {
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NAME_REPEAT"), name);
-                result.add(log);
-            }
-            nameSet.add(name);
+			if (nameSet.contains(name)) {
+				TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NAME_REPEAT"), name);
+				result.add(log);
+			}
+			nameSet.add(name);
 
-            // check schema
-            String connectionId = dataParentNode.getConnectionId();
-            DataSourceConnectionDto connectionDto = dataSourceService.findByIdByCheck(MongoUtils.toObjectId(connectionId));
-            Optional.ofNullable(connectionDto).ifPresent(dto -> {
-                List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
+			// check schema
+			String connectionId = dataParentNode.getConnectionId();
+			DataSourceConnectionDto connectionDto = dataSourceService.findByIdByCheck(MongoUtils.toObjectId(connectionId));
+			Optional.ofNullable(connectionDto).ifPresent(dto -> {
+				List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
 
-                if (CollectionUtils.isNotEmpty(dto.getCapabilities())) {
-                    List<String> capList = dto.getCapabilities().stream().map(Capability::getId).collect(Collectors.toList());
+				if (CollectionUtils.isNotEmpty(dto.getCapabilities())) {
+					boolean isPollingCDC = Optional.of(node).map(n -> {
+						if (n instanceof TableNode) {
+							String cdcMode = ((TableNode) node).getCdcMode();
+							return "polling".equals(cdcMode);
+						}
+						return false;
+					}).orElse(false);
+					List<String> capList = dto.getCapabilities().stream().map(Capability::getId).filter(id -> {
+						if (isPollingCDC) {
+							return Lists.of("stream_read_function", "batch_read_function", "query_by_advance_filter_function").contains(id);
+						} else {
+							return Lists.of("stream_read_function", "batch_read_function").contains(id);
+						}
+					}).collect(Collectors.toList());
 
-                    if (Lists.of("Tidb", "Doris").contains(connectionDto.getDatabase_type()) &&
-                            connectionDto.getConfig().containsKey("enableIncrement") &&
-                            !(Boolean) connectionDto.getConfig().get("enableIncrement")) {
-                        capList.remove("stream_read_function");
-                    }
+					if (Lists.of("Tidb", "Doris").contains(connectionDto.getDatabase_type()) &&
+							connectionDto.getConfig().containsKey("enableIncrement") &&
+							!(Boolean) connectionDto.getConfig().get("enableIncrement")) {
+						capList.remove("stream_read_function");
+					}
 
-                    boolean streamReadNotMatch = taskDto.getType().contains("cdc") && !capList.contains("stream_read_function");
-                    boolean batchReadNotMatch = taskDto.getType().contains("initial_sync") && !capList.contains("batch_read_function");
+					boolean streamReadNotMatch = taskDto.getType().contains("cdc") && !capList.contains("stream_read_function");
+					boolean batchReadNotMatch = taskDto.getType().contains("initial_sync") && !capList.contains("batch_read_function");
 
-                    if (node instanceof TableNode) {
-                        String cdcMode = ((TableNode) node).getCdcMode();
-                        if ("polling".equals(cdcMode)) {
-                            streamReadNotMatch = !capList.contains("query_by_advance_filter_function");
-                        }
-                    }
+					if (isPollingCDC) {
+						streamReadNotMatch = !capList.contains("query_by_advance_filter_function");
+					}
 
-                    if (streamReadNotMatch || batchReadNotMatch) {
-                        List<String> caps = capList.stream().map(keyName -> MessageUtil.getDagCheckMsg(locale, StringUtils.upperCase(keyName))).collect(Collectors.toList());
-                        List<String> syncType = Lists.newArrayList();
-                        if (taskDto.getType().contains("initial_sync")) {
-                            syncType.add(MessageUtil.getDagCheckMsg(locale, "BATCH_READ_FUNCTION"));
-                        }
-                        if (taskDto.getType().contains("cdc")) {
-                            syncType.add(MessageUtil.getDagCheckMsg(locale, "STREAM_READ_FUNCTION"));
-                        }
+					if (streamReadNotMatch || batchReadNotMatch) {
+						List<String> caps = capList.stream().map(keyName -> MessageUtil.getDagCheckMsg(locale, StringUtils.upperCase(keyName))).collect(Collectors.toList());
+						List<String> syncType = Lists.newArrayList();
+						if (taskDto.getType().contains("initial_sync")) {
+							syncType.add(MessageUtil.getDagCheckMsg(locale, "BATCH_READ_FUNCTION"));
+						}
+						if (taskDto.getType().contains("cdc")) {
+							syncType.add(MessageUtil.getDagCheckMsg(locale, "STREAM_READ_FUNCTION"));
+						}
 
-                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_TYPE"), name, JSON.toJSONString(caps), StringUtils.join(syncType, "+"));
-                        result.add(log);
-                    }
+						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_TYPE"), name, JSON.toJSONString(caps), StringUtils.join(syncType, "+"));
+						result.add(log);
+					}
 
-                    // check connection cdc flag open
-                    checkSourceSupportCdcByTestConnectionResult(taskDto, locale, taskId, result, userId, node, nodeId, dto, capList);
+					// check connection cdc flag open
+					checkSourceSupportCdcByTestConnectionResult(taskDto, locale, taskId, result, userId, node, nodeId, dto, capList);
 
-                }
+				}
 
-                if (CollectionUtils.isEmpty(tables)) {
-                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_ERROR_SCHEMA"), name);
-                    result.add(log);
-                } else {
-                    if (!StringUtils.equals("finished", connectionDto.getLoadFieldsStatus())) {
-                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_ERROR_SCHEMA_LOAD"), name);
-                        result.add(log);
-                    }
+				if (CollectionUtils.isEmpty(tables)) {
+					TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_ERROR_SCHEMA"), name);
+					result.add(log);
+				} else {
+					if (!StringUtils.equals("finished", connectionDto.getLoadFieldsStatus())) {
+						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_ERROR_SCHEMA_LOAD"), name);
+						result.add(log);
+					}
 
-                    List<MetadataInstancesDto> schemaList = metadataInstancesService.findSourceSchemaBySourceId(connectionId, tableNames, userDetail);
-                    if (CollectionUtils.isNotEmpty(schemaList)) {
-                        List<String> list = schemaList.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
-                        List<String> temp = new ArrayList<>(tableNames);
-                        temp.removeAll(list);
-                        if (CollectionUtils.isNotEmpty(temp)) {
-                            TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(temp));
-                            result.add(log);
-                        }
+					List<MetadataInstancesDto> schemaList = metadataInstancesService.findSourceSchemaBySourceId(connectionId, tableNames, userDetail);
+					if (CollectionUtils.isNotEmpty(schemaList)) {
+						List<String> list = schemaList.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
+						List<String> temp = new ArrayList<>(tableNames);
+						temp.removeAll(list);
+						if (CollectionUtils.isNotEmpty(temp)) {
+							TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(temp));
+							result.add(log);
+						}
 
-                        // check source schema field not support
+						// check source schema field not support
 //                        schemaList.forEach(sch -> {
 //                            String tableName = sch.getName();
 //                            List<Field> fields = sch.getFields();
@@ -183,56 +193,56 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 //                                });
 //                            }
 //                        });
-                    } else {
-                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(tableNames));
-                        result.add(log);
-                    }
-                }
+					} else {
+						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(tableNames));
+						result.add(log);
+					}
+				}
 
-                // check mariadb
-                if ("mariadb".equals(dto.getDefinitionPdkId()) && taskDto.getType().contains("cdc")) {
-                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_MARIADB"), node.getName());
-                    result.add(log);
-                }
-            });
+				// check mariadb
+				if ("mariadb".equals(dto.getDefinitionPdkId()) && taskDto.getType().contains("cdc")) {
+					TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_MARIADB"), node.getName());
+					result.add(log);
+				}
+			});
 
-            if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.INFO, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_INFO"), node.getName());
-                result.add(log);
-            }
-        });
-        return result;
-    }
+			if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
+				TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.INFO, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_INFO"), node.getName());
+				result.add(log);
+			}
+		});
+		return result;
+	}
 
-    private void checkSourceSupportCdcByTestConnectionResult(TaskDto taskDto, Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, Node node, String nodeId, DataSourceConnectionDto dto, List<String> capList) {
-        if (taskDto.getType().contains("cdc")) {
-            // first check field polling cdc
-            if (node instanceof TableNode && "polling".equals(((TableNode) node).getCdcMode())) {
-                if (!capList.contains("query_by_advance_filter_function")) {
-                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), node.getName());
-                    result.add(log);
-                }
-            } else if (capList.contains("stream_read_function")) {
-                ResponseBody responseBody = dto.getResponse_body();
-                if (taskDto.getType().contains("cdc") && responseBody != null) {
-                    List<ValidateDetail> validateDetails = responseBody.getValidateDetails();
-                    Map<String, ValidateDetail> map = new HashMap<>();
-                    if (CollectionUtils.isNotEmpty(validateDetails)) {
-                        // list to map
-                        map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity(), (key1, key2) -> key2));
-                    }
-                    boolean cdcOk = true;
-                    if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
-                        cdcOk = false;
-                    }
+	private void checkSourceSupportCdcByTestConnectionResult(TaskDto taskDto, Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, Node node, String nodeId, DataSourceConnectionDto dto, List<String> capList) {
+		if (taskDto.getType().contains("cdc")) {
+			// first check field polling cdc
+			if (node instanceof TableNode && "polling".equals(((TableNode) node).getCdcMode())) {
+				if (!capList.contains("query_by_advance_filter_function")) {
+					TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), node.getName());
+					result.add(log);
+				}
+			} else if (capList.contains("stream_read_function")) {
+				ResponseBody responseBody = dto.getResponse_body();
+				if (taskDto.getType().contains("cdc") && responseBody != null) {
+					List<ValidateDetail> validateDetails = responseBody.getValidateDetails();
+					Map<String, ValidateDetail> map = new HashMap<>();
+					if (CollectionUtils.isNotEmpty(validateDetails)) {
+						// list to map
+						map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity(), (key1, key2) -> key2));
+					}
+					boolean cdcOk = true;
+					if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
+						cdcOk = false;
+					}
 
-                    if (!cdcOk) {
-                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), node.getName());
-                        result.add(log);
-                    }
+					if (!cdcOk) {
+						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), node.getName());
+						result.add(log);
+					}
 
-                }
-            }
-        }
-    }
+				}
+			}
+		}
+	}
 }

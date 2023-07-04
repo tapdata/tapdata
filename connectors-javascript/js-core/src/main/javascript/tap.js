@@ -296,3 +296,7 @@ function sha256_HMAC(value, key){
     return tapUtil.sha256_HMAC(value, key);
 }
 
+function getConfig(key){
+    return _tapConfig_.get(key);
+}
+

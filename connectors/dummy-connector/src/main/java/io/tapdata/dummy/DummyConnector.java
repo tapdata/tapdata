@@ -14,13 +14,12 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DelayCalculation;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
 import java.util.*;
@@ -42,6 +41,9 @@ public class DummyConnector extends ConnectorBase {
     private IDummyConfig config;
     private TapEventBuilder builder;
     private DelayCalculation delayCalculation;
+
+    private static final int BATCH_ADVANCE_READ_LIMIT = 1000;
+
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -91,6 +93,9 @@ public class DummyConnector extends ConnectorBase {
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         // target DML
         connectorFunctions.supportWriteRecord(this::supportWriteRecord);
+
+        connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
+
         // test and inspect
 //        connectorFunctions.supportQueryByAdvanceFilter(this::supportQueryByAdvanceFilter);
     }
@@ -148,6 +153,25 @@ public class DummyConnector extends ConnectorBase {
             }
         }
         connectorContext.getLog().info("Compile {} batch read", table.getName());
+    }
+
+    private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
+        builder.reset(null, SyncStage.Initial);
+        int batchSize = null != filter.getBatchSize() && filter.getBatchSize().compareTo(0) > 0 ? filter.getBatchSize() : BATCH_ADVANCE_READ_LIMIT;
+        FilterResults filterResults = new FilterResults();
+        for(int index=0;index<filter.getLimit();index++) {
+            Map<String, Object> insertAfter;
+            TapInsertRecordEvent insertRecordEvent = builder.generateInsertRecordEvent(table);
+            insertAfter = new HashMap<>(insertRecordEvent.getAfter());
+            filterResults.add(insertAfter);
+            if (filterResults.getResults().size() == batchSize) {
+                consumer.accept(filterResults);
+                filterResults = new FilterResults();
+            }
+        }
+        if (EmptyKit.isNotEmpty(filterResults.getResults())) {
+            consumer.accept(filterResults);
+        }
     }
 
     private void supportStreamRead(TapConnectorContext connectorContext, List<String> tableList, Object offsetState, int eventBatchSize, StreamReadConsumer eventConsumer) throws Throwable {

@@ -79,13 +79,16 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 		String externalStorageId = (String) externalStorageConfig.get("id");
 		Map<String, Object> testConnectionConfig = newMongoDBConnections(userDetail);
 		if (null == testConnectionConfig) {
-			sendErrorMessage(context, "ExternalStorageId", String.format("Can not found storage by id '%s'", externalStorageId));
+			sendErrorMessage(context, "NotFoundStorage", String.format("Can not found storage by id '%s', please check the datasource 'MongoDB' is exists", externalStorageId));
 			return;
 		}
 		Map<String, Object> connectorConfig = (Map<String, Object>) testConnectionConfig.computeIfAbsent("config", s -> new LinkedHashMap<>());
 		if (null == externalStorageId) {
 			// 新配置
-			BiFunction<String, Object, Object> boolSetter = (k, v) -> Boolean.TRUE.equals(v);
+			BiFunction<String, Object, Object> boolSetter = (k, v) -> {
+				connectorConfig.put(k, Boolean.TRUE.equals(v));
+				return v;
+			};
 			BiFunction<String, Object, Object> stringSetter = (k, v) -> {
 				if (null != v) connectorConfig.put(k, v);
 				return v;
