@@ -77,12 +77,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-       if(AppType.init().isCloud())
-        externalStorageDto = ExternalStorageUtil.getTargetNodeExternalStorage(
-				processorBaseContext.getNode(),
-				processorBaseContext.getEdges(),
-				clientMongoOperator,
-				processorBaseContext.getNodes());
+		if (AppType.init().isCloud())
+			externalStorageDto = ExternalStorageUtil.getTargetNodeExternalStorage(
+					processorBaseContext.getNode(),
+					processorBaseContext.getEdges(),
+					clientMongoOperator,
+					processorBaseContext.getNodes());
 	}
 
 	private void selfCheckNode(Node node) {
@@ -893,7 +893,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	public static void clearCache(Node<?> node, List<Node> nodes, List<Edge> edges) {
 		if (!(node instanceof MergeTableNode)) return;
-		ExternalStorageDto externalStorage = ExternalStorageUtil.getTargetNodeExternalStorage(node,edges,ConnectorConstant.clientMongoOperator,nodes);
+		ExternalStorageDto externalStorage = ExternalStorageUtil.getTargetNodeExternalStorage(node, edges, ConnectorConstant.clientMongoOperator, nodes);
 		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
 	}
 
