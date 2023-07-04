@@ -1,6 +1,5 @@
 package com.tapdata.tm.commons.dag.vo;
 
-import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
@@ -13,7 +12,6 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.val;
 import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.*;
