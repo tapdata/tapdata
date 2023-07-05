@@ -4,6 +4,9 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
+import com.deepoove.poi.XWPFTemplate;
+import com.deepoove.poi.config.Configure;
+import com.deepoove.poi.plugin.table.LoopRowTableRenderPolicy;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
@@ -21,6 +24,8 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
+import com.tapdata.tm.discovery.entity.FieldBusinessDescEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.file.service.FileService;
@@ -28,9 +33,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.constant.ParamTypeEnum;
-import com.tapdata.tm.modules.dto.ModulesDto;
-import com.tapdata.tm.modules.dto.ModulesUpAndLoadDto;
-import com.tapdata.tm.modules.dto.Param;
+import com.tapdata.tm.modules.dto.*;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
@@ -58,6 +61,7 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -1395,4 +1399,54 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return CglibUtil.copyList(entityList, ModulesDto::new);
 //        return findAll(query);
 	}
+
+    public void updateOutParameter(String id, DiscoveryFieldDto discoveryFieldDto, UserDetail userDetail){
+        if(org.springframework.util.StringUtils.isEmpty(id)){
+            throw new BizException("IllegalArgument", "Id");
+        }
+        Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(id));
+        Query query = new Query(criteria);
+        Update update = new Update().set("paths.$[].fields.$[id1].description",discoveryFieldDto.getBusinessDesc())
+                .filterArray("id1.id",discoveryFieldDto.getId());
+        update(query,update, userDetail);
+    }
+
+    public void updateIntParameter(String id, Param param, UserDetail userDetail){
+        if(org.springframework.util.StringUtils.isEmpty(id)){
+            throw new BizException("IllegalArgument", "Id");
+        }
+        Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(id));
+        Query query = new Query(criteria);
+        Update update = new Update().set("paths.$[].params.$[id1].description",param.getDescription())
+                .filterArray("id1.name",param.getName());
+        update(query,update, userDetail);
+    }
+
+    public void saveWord(HttpServletResponse response, List<String> ids,String ip,UserDetail user){
+        List<ModulesDto> allModules = findAllModulesByIds(ids);
+       Map<String,List<ModulesDto>> modules = allModules.stream().collect(Collectors.groupingBy(modulesDto -> {
+            return modulesDto.getListtags().get(0).getValue();
+        }));
+
+       ApiView apiView =ApiViewUtil.convert(modules,ip);
+       apiView.getApiTypeList();
+        URL url = this.getClass().getClassLoader().getResource("template/ApiTemplate.docx");
+        LoopRowTableRenderPolicy hackLoopTableRenderPolicy = new LoopRowTableRenderPolicy();
+        Configure config = Configure.builder()
+                .bind("parameters", hackLoopTableRenderPolicy)
+                .bind("responses", hackLoopTableRenderPolicy)
+                .bind("properties", hackLoopTableRenderPolicy)
+                .useSpringEL()
+                .build();
+        XWPFTemplate template = XWPFTemplate.compile(url.getPath(),config)
+                .render(apiView);
+        AtomicReference<String> fileName = new AtomicReference<>("");
+        String yyyymmdd = DateUtil.today().replaceAll("-", "");
+        FunctionUtils.isTureOrFalse(ids.size() > 1).trueOrFalseHandle(
+                () -> fileName.set("api_word" + "-" + yyyymmdd),
+                () -> fileName.set(allModules.get(0).getName() + "-" + yyyymmdd)
+        );
+        fileService.viewWord(template,response,fileName.get());
+
+    }
 }

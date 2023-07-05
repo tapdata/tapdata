@@ -233,17 +233,7 @@
 			<version>3.2.2</version>
 		</dependency>
 
-		<dependency>
-			<groupId>org.apache.poi</groupId>
-			<artifactId>poi</artifactId>
-			<version>3.17</version>
-		</dependency>
 
-		<dependency>
-			<groupId>org.apache.poi</groupId>
-			<artifactId>poi-ooxml</artifactId>
-			<version>3.17</version>
-		</dependency>
 
 		<dependency>
 			<groupId>commons-net</groupId>
@@ -448,6 +438,13 @@
 			<version>3.4.4</version>
 		</dependency>
 
+		<dependency>
+			<groupId>com.deepoove</groupId>
+			<artifactId>poi-tl</artifactId>
+			<version>1.12.1</version>
+		</dependency>
+
+
 	</dependencies>
 
 	<build>
@@ -516,6 +513,7 @@
 						<nonFilteredFileExtension>ttf</nonFilteredFileExtension>
 						<nonFilteredFileExtension>woff</nonFilteredFileExtension>
 						<nonFilteredFileExtension>woff2</nonFilteredFileExtension>
+						<nonFilteredFileExtension>docx</nonFilteredFileExtension>
 					</nonFilteredFileExtensions>
 				</configuration>
 			</plugin>

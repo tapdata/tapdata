@@ -3,8 +3,10 @@ package com.tapdata.tm.modules.controller;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
+import com.tapdata.tm.modules.dto.Param;
 import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.param.ApiDetailParam;
@@ -140,6 +142,18 @@ public class ModulesController extends BaseController {
     return success();
   }
 
+  @PostMapping("updateOutParameter/{id}")
+  public ResponseMessage<Void> updateOutParameter(@PathVariable("id")String id,@RequestBody DiscoveryFieldDto discoveryFieldDto) {
+    modulesService.updateOutParameter(id,discoveryFieldDto, getLoginUser());
+    return success();
+  }
+
+  @PostMapping("updateIntParameter/{id}")
+  public ResponseMessage<Void> updateIntParameter(@PathVariable("id")String id,@RequestBody Param param) {
+    modulesService.updateIntParameter(id,param, getLoginUser());
+    return success();
+  }
+
 
   @Operation(summary = "Find first instance of the model matched by filter from the data source.")
   @GetMapping("findOne")
@@ -242,5 +256,11 @@ public class ModulesController extends BaseController {
 		modulesService.batchUpTask(file, getLoginUser(), cover);
 		return success();
 	}
+
+  @Operation(summary = "api文档导出")
+  @GetMapping("api/load")
+  public void batchLoadApis(@RequestParam("id") List<String> id,@RequestParam("ip") String ip, HttpServletResponse response) {
+    modulesService.saveWord(response, id,ip, getLoginUser());
+  }
 
 }
