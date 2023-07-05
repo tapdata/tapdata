@@ -1,0 +1,590 @@
+{
+  "properties": {
+    "name": "GreenPlum",
+    "icon": "icons/greenplum.png",
+    "doc" : "${doc}",
+    "id": "greenplum"
+  },
+  "configOptions": {
+    "capabilities":[
+      {
+        "id": "dml_insert_policy",
+        "alternatives": ["ignore_on_exists"]
+      },
+      {
+        "id": "dml_update_policy",
+        "alternatives": ["ignore_on_nonexists"]
+      },
+      {
+        "id": "api_server_supported"
+      }
+    ],
+    "connection": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "required": true,
+          "type": "string",
+          "title": "${host}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 1
+        },
+        "port": {
+          "required": true,
+          "type": "string",
+          "title": "${port}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "database_port",
+          "x-index": 2
+        },
+        "database": {
+          "required": true,
+          "type": "string",
+          "title": "${database}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+		  "apiServerKey": "database_name",
+          "x-index": 3
+        },
+        "schema": {
+          "required": true,
+          "type": "string",
+          "title": "${schema}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+		  "apiServerKey": "database_owner",
+          "x-index": 4
+        },
+        "extParams": {
+          "type": "string",
+          "title": "${extParams}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+		  "apiServerKey": "additionalString",
+          "x-index": 5
+        },
+        "user": {
+          "type": "string",
+          "title": "${user}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+		  "apiServerKey": "database_username",
+          "x-index": 6
+        },
+        "password": {
+          "type": "string",
+          "title": "${password}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+		  "apiServerKey": "database_password",
+          "x-index": 7
+        },
+        "logPluginName": {
+          "required": true,
+          "type": "string",
+          "title": "${logPluginName}",
+          "default": "pgoutput",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "apiServerKey": "logPlugin",
+          "x-index": 8,
+          "enum": [
+            {
+              "label": "DECODERBUFS",
+              "value": "decoderbufs"
+            },
+            {
+              "label": "WAL2JSON",
+              "value": "wal2json"
+            },
+            {
+              "label": "WAL2JSONRDS",
+              "value": "wal2json_rds"
+            },
+            {
+              "label": "WAL2JSONSTREMING",
+              "value": "wal2json_streaming"
+            },
+            {
+              "label": "WAL2JSONRDSSTREAMING",
+              "value": "wal2json_rds_streaming"
+            },
+            {
+              "label": "PGOUTPUT",
+              "value": "pgoutput"
+            }
+          ]
+        },
+        "timezone": {
+          "type": "string",
+          "title": "${timezone}",
+          "default": "",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 9,
+          "enum": [
+            {
+              "label": "Database Timezone",
+              "value": ""
+            },
+            {
+              "label": "UTC -11",
+              "value": "-11:00"
+            },
+            {
+              "label": "UTC -10",
+              "value": "-10:00"
+            },
+            {
+              "label": "UTC -09",
+              "value": "-09:00"
+            },
+            {
+              "label": "UTC -08",
+              "value": "-08:00"
+            },
+            {
+              "label": "UTC -07",
+              "value": "-07:00"
+            },
+            {
+              "label": "UTC -06",
+              "value": "-06:00"
+            },
+            {
+              "label": "UTC -05",
+              "value": "-05:00"
+            },
+            {
+              "label": "UTC -04",
+              "value": "-04:00"
+            },
+            {
+              "label": "UTC -03",
+              "value": "-03:00"
+            },
+            {
+              "label": "UTC -02",
+              "value": "-02:00"
+            },
+            {
+              "label": "UTC -01",
+              "value": "-01:00"
+            },
+            {
+              "label": "UTC",
+              "value": "+00:00"
+            },
+            {
+              "label": "UTC +01",
+              "value": "+01:00"
+            },
+            {
+              "label": "UTC +02",
+              "value": "+02:00"
+            },
+            {
+              "label": "UTC +03",
+              "value": "+03:00"
+            },
+            {
+              "label": "UTC +04",
+              "value": "+04:00"
+            },
+            {
+              "label": "UTC +05",
+              "value": "+05:00"
+            },
+            {
+              "label": "UTC +06",
+              "value": "+06:00"
+            },
+            {
+              "label": "UTC +07",
+              "value": "+07:00"
+            },
+            {
+              "label": "UTC +08",
+              "value": "+08:00"
+            },
+            {
+              "label": "UTC +09",
+              "value": "+09:00"
+            },
+            {
+              "label": "UTC +10",
+              "value": "+10:00"
+            },
+            {
+              "label": "UTC +11",
+              "value": "+11:00"
+            },
+            {
+              "label": "UTC +12",
+              "value": "+12:00"
+            },
+            {
+              "label": "UTC +13",
+              "value": "+13:00"
+            },
+            {
+              "label": "UTC +14",
+              "value": "+14:00"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/greenplum_en_US.md",
+      "host": "Host",
+      "port": "Port",
+      "database" : "database",
+      "schema" : "schema",
+      "extParams" : "extParams",
+      "user" : "user",
+      "password" : "password",
+      "logPluginName" : "logPluginName",
+      "timezone": "timezone"
+    },
+    "zh_CN": {
+      "doc": "docs/greenplum_zh_CN.md",
+      "host": "地址",
+      "port": "端口",
+      "database" : "数据库",
+      "schema" : "模型",
+      "extParams" : "额外参数",
+      "user" : "账号",
+      "password" : "密码",
+      "logPluginName" : "日志插件",
+      "timezone": "时区"
+    },
+    "zh_TW": {
+      "doc": "docs/greenplum_zh_TW.md",
+      "host": "地址",
+      "port": "端口",
+      "database" : "數據庫",
+      "schema" : "模型",
+      "extParams" : "額外參數",
+      "user" : "賬號",
+      "password" : "密碼",
+      "logPluginName" : "日誌插件",
+      "timezone": "時區"
+    }
+  },
+  "dataTypes": {
+    "smallint": {
+      "bit": 16,
+      "priority": 3,
+      "value": [
+        -32768,
+        32767
+      ],
+      "to": "TapNumber"
+    },
+    "integer": {
+      "bit": 32,
+      "priority": 1,
+      "value": [
+        -2147483648,
+        2147483647
+      ],
+      "to": "TapNumber"
+    },
+    "bigint": {
+      "bit": 64,
+      "priority": 3,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ],
+      "to": "TapNumber"
+    },
+    "numeric[($precision,$scale)]": {
+      "precision": [
+        1,
+        1000
+      ],
+      "scale": [
+        0,
+        1000
+      ],
+      "fixed": true,
+      "preferPrecision": 20,
+      "preferScale": 8,
+      "priority": 1,
+      "to": "TapNumber"
+    },
+    "real": {
+      "bit": 32,
+      "priority": 2,
+      "precision": [
+        1,
+        6
+      ],
+      "scale": [
+        0,
+        6
+      ],
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "double precision": {
+      "priority": 2,
+      "precision": [
+        1,
+        17
+      ],
+      "preferPrecision": 11,
+      "preferScale": 4,
+      "scale": [
+        0,
+        17
+      ],
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "character[($byte)]": {
+      "byte": 10485760,
+      "priority": 2,
+      "preferByte": 255,
+      "fixed": true,
+      "to": "TapString"
+    },
+    "character varying[($byte)]": {
+      "byte": 10485760,
+      "priority": 1,
+      "defaultByte": 10485760,
+      "preferByte": 2000,
+      "to": "TapString"
+    },
+    "text": {
+      "byte": "4g",
+      "priority": 2,
+      "to": "TapString"
+    },
+    "bytea": {
+      "byte": "4g",
+      "priority": 1,
+      "to": "TapBinary"
+    },
+    "bit[($byte)]": {
+      "byte": 64,
+      "defaultByte": 1,
+      "priority": 3,
+      "fixed": true,
+      "queryOnly": true,
+      "to": "TapBinary"
+    },
+    "bit varying[($byte)]": {
+      "byte": 64,
+      "defaultByte": 64,
+      "priority": 1,
+      "queryOnly": true,
+      "to": "TapBinary"
+    },
+    "boolean": {
+      "bit": 1,
+      "priority": 1,
+      "to": "TapBoolean"
+    },
+    "date": {
+      "range": [
+        "0001-01-01",
+        "9999-12-31"
+      ],
+      "pattern": "yyyy-MM-dd",
+      "priority": 1,
+      "to": "TapDate"
+    },
+    "interval": {
+      "preferByte": 100,
+      "queryOnly": true,
+      "to": "TapString"
+    },
+    "timestamp[($fraction)] without time zone": {
+      "range": [
+        "1000-01-01 00:00:00",
+        "9999-12-31 23:59:59"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "fraction": [
+        0,
+        6
+      ],
+      "withTimeZone": false,
+      "defaultFraction": 6,
+      "priority": 1,
+      "to": "TapDateTime"
+    },
+    "timestamp[($fraction)] with time zone": {
+      "range": [
+        "1000-01-01 00:00:00",
+        "9999-12-31 23:59:59"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "fraction": [
+        0,
+        6
+      ],
+      "withTimeZone": true,
+      "defaultFraction": 6,
+      "priority": 2,
+      "to": "TapDateTime"
+    },
+    "time[($fraction)] without time zone": {
+      "range": [
+        "00:00:00",
+        "23:59:59"
+      ],
+      "pattern": "HH:mm:ss",
+      "fraction": [
+        0,
+        6
+      ],
+      "withTimeZone": false,
+      "defaultFraction": 6,
+      "priority": 1,
+      "to": "TapTime"
+    },
+    "time[($fraction)] with time zone": {
+      "range": [
+        "00:00:00",
+        "23:59:59"
+      ],
+      "pattern": "HH:mm:ss",
+      "fraction": [
+        0,
+        6
+      ],
+      "withTimeZone": true,
+      "defaultFraction": 6,
+      "priority": 2,
+      "to": "TapTime"
+    },
+    "point": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "line": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "lseg": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "box": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "path": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "polygon": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "circle": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "cidr": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "inet": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "macaddr": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "uuid": {
+      "to": "TapString",
+      "preferByte": 256,
+      "queryOnly": true
+    },
+    "xml": {
+      "to": "TapString",
+      "queryOnly": true
+    },
+    "json": {
+      "to": "TapString",
+      "queryOnly": true
+    },
+    "tsvector": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "tsquery": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "oid": {
+      "to": "TapNumber",
+      "bit": 64,
+      "queryOnly": true
+    },
+    "regproc": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "regprocedure": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "regoper": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "regoperator": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "regclass": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "regtype": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "regconfig": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    },
+    "regdictionary": {
+      "to": "TapString",
+      "preferByte": 255,
+      "queryOnly": true
+    }
+  }
+}
