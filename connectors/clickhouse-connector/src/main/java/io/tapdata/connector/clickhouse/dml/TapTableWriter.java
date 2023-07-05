@@ -10,6 +10,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.text.StringEscapeUtils;
 
 import java.sql.*;
 import java.util.Collection;
@@ -186,7 +187,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
 
         int i = 1;
         for (String fieldName : primaryKeys) {
-            existsStatement.setObject(i++, data.get(fieldName));
+            existsStatement.setObject(i++, escapeString(data.get(fieldName)));
         }
         try (ResultSet rs = existsStatement.executeQuery()) {
             if (rs.next()) {
@@ -217,7 +218,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
     protected void doInsert(Map<String, Object> afterData) throws Exception {
         int i = 1;
         for (Map.Entry<String, Object> en : afterData.entrySet()) {
-            lastStatement.setObject(i, en.getValue());
+            lastStatement.setObject(i, escapeString(en.getValue()));
             i++;
         }
         lastStatement.addBatch();
@@ -235,11 +236,11 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
             if (uniqueCondition.contains(en.getKey())) {
                 continue;
             }
-            lastStatement.setObject(i, en.getValue());
+            lastStatement.setObject(i, escapeString(en.getValue()));
             i++;
         }
         for (String field : uniqueCondition) {
-            lastStatement.setObject(i, beforeData.get(field));
+            lastStatement.setObject(i, escapeString(beforeData.get(field)));
             i++;
         }
         lastStatement.executeUpdate();
@@ -249,7 +250,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
         int i = 1;
         Map<String, Object> data = event.getBefore();
         for (String field : uniqueCondition) {
-            lastStatement.setObject(i, data.get(field));
+            lastStatement.setObject(i, escapeString(data.get(field)));
             i++;
         }
         lastStatement.executeUpdate();
@@ -343,8 +344,16 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
         });
     }
 
+    private Object escapeString(Object obj) {
+        if (null == obj) return null;
+        if (obj instanceof String) {
+            return StringEscapeUtils.escapeJava((String) obj);
+        }
+        return obj;
+    }
+
     @Override
-    public void close() throws Exception {
+    public void close() {
         statementMap.clear();
     }
 
