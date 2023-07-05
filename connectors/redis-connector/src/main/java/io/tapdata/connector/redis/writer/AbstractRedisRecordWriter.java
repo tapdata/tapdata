@@ -45,8 +45,9 @@ public abstract class AbstractRedisRecordWriter {
         long insert = 0L;
         long update = 0L;
         long delete = 0L;
-        RedisPipeline pipelined = jedis.pipelined(redisConfig);
-        try {
+        try (
+                RedisPipeline pipelined = jedis.pipelined(redisConfig)
+        ) {
             for (TapRecordEvent recordEvent : tapRecordEvents) {
                 if (recordEvent instanceof TapInsertRecordEvent) {
                     TapInsertRecordEvent tapInsertRecordEvent = (TapInsertRecordEvent) recordEvent;

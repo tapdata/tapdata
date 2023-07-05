@@ -67,6 +67,7 @@ public class RedisTest {
     public TestItem testConnect() {
         try {
             if (PING_RES.equalsIgnoreCase(redisContext.getJedis().ping())) {
+                redisContext.getJedis().pipelined(redisConfig).close();
                 return testItem(RedisTestItem.CHECK_AUTH.getContent(), TestItem.RESULT_SUCCESSFULLY);
             }
         } catch (Exception e) {

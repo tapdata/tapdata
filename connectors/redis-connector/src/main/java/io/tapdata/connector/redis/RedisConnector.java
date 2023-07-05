@@ -2,6 +2,7 @@ package io.tapdata.connector.redis;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.connector.redis.constant.ValueTypeEnum;
+import io.tapdata.connector.redis.exception.RedisExceptionCollector;
 import io.tapdata.connector.redis.writer.AbstractRedisRecordWriter;
 import io.tapdata.connector.redis.writer.HashRedisRecordWriter;
 import io.tapdata.connector.redis.writer.ListRedisRecordWriter;
@@ -16,7 +17,6 @@ import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapDateValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.kit.EmptyKit;
-import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -38,6 +38,7 @@ public class RedisConnector extends ConnectorBase {
     private final static String INIT_TABLE_NAME = "tapdata";
     private RedisConfig redisConfig;
     private RedisContext redisContext;
+    private RedisExceptionCollector redisExceptionCollector;
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -64,6 +65,7 @@ public class RedisConnector extends ConnectorBase {
         redisConfig.load(connectionContext.getConnectionConfig());
         redisConfig.load(connectionContext.getNodeConfig());
         this.redisContext = new RedisContext(redisConfig);
+        this.redisExceptionCollector = new RedisExceptionCollector();
     }
 
     /**
@@ -115,7 +117,12 @@ public class RedisConnector extends ConnectorBase {
             default:
                 recordWriter = new StringRedisRecordWriter(redisContext, tapTable);
         }
-        recordWriter.write(tapRecordEvents, writeListResultConsumer);
+        try {
+            recordWriter.write(tapRecordEvents, writeListResultConsumer);
+        } catch (Throwable e) {
+            redisExceptionCollector.collectRedisServerUnavailable(e);
+            throw e;
+        }
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
@@ -136,13 +143,15 @@ public class RedisConnector extends ConnectorBase {
         }
         try (CommonJedis jedis = redisContext.getJedis()) {
             jedis.del(keyName);
+            if (ValueTypeEnum.fromString(redisConfig.getValueType()) == ValueTypeEnum.HASH) {
+                jedis.hdel(redisConfig.getSchemaKey(), keyName);
+            }
         }
     }
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent createTableEvent) {
         switch (ValueTypeEnum.fromString(redisConfig.getValueType())) {
             case STRING:
-            case HASH:
             case SET:
             case ZSET:
                 return;
@@ -155,9 +164,25 @@ public class RedisConnector extends ConnectorBase {
                     EmptyKit.isNull(v.getValue().getPos()) ? 99999 : v.getValue().getPos())).map(Map.Entry::getKey).collect(Collectors.toList());
             if (redisConfig.getOneKey()) {
                 String keyName = createTableEvent.getTableId();
-                jedis.del(keyName);
-                jedis.rpush(keyName, String.join(EmptyKit.isEmpty(redisConfig.getValueJoinString()) ? "," : redisConfig.getValueJoinString(), fieldList));
+                if (ValueTypeEnum.fromString(redisConfig.getValueType()) == ValueTypeEnum.LIST) {
+                    jedis.del(keyName);
+                    jedis.rpush(keyName, String.join(EmptyKit.isEmpty(redisConfig.getValueJoinString()) ? "," : redisConfig.getValueJoinString(), fieldList));
+                } else {
+                    jedis.hset(redisConfig.getSchemaKey(), keyName, fieldList.stream().map(v -> csvFormat(v, ",")).collect(Collectors.joining(",")));
+                }
             }
         }
+    }
+
+    private String csvFormat(String str, String delimiter) {
+        if (str.contains(delimiter)
+                || str.contains("\t")
+                || str.contains("\r")
+                || str.contains("\n")
+                || str.contains(" ")
+                || str.contains("\"")) {
+            return "\"" + str.replaceAll("\"", "\"\"") + "\"";
+        }
+        return str;
     }
 }
