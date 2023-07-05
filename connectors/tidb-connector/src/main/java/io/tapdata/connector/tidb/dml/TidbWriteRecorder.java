@@ -53,7 +53,7 @@ public class TidbWriteRecorder extends WriteRecorder {
             return;
         }
         if (EmptyKit.isNotEmpty(uniqueCondition)) {
-            if (insertPolicy.equals("ignore-on-exists")) {
+            if (insertPolicy.equals("ignore_on_exists")) {
                 insertIfNotExist(after);
             } else {
                 upsert(after);
