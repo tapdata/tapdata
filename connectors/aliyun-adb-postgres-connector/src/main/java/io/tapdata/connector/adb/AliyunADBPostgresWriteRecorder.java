@@ -30,7 +30,7 @@ public class AliyunADBPostgresWriteRecorder extends PostgresWriteRecorder {
             return;
         }
         if (EmptyKit.isNotEmpty(uniqueCondition)) {
-            if (insertPolicy.equals("ignore-on-exists")) {
+            if (insertPolicy.equals("ignore_on_exists")) {
                 conflictIgnoreInsert(after);
             } else {
                 conflictUpdateInsert(after);

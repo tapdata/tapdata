@@ -80,6 +80,7 @@ public class RegisterMain {
         HttpReceiver(BASE_PATH + "connectors/dist/http-receiver-connector-v1.0-SNAPSHOT.jar", "all", "http-receiver"),
         Shein(BASE_PATH + "connectors/dist/shein-connector-v1.0-SNAPSHOT.jar", "all", "shein"),
         YashanDB(BASE_PATH + "connectors/dist/yashandb-connector-v1.0-SNAPSHOT.jar", "all", "yashandb", "basic", "jdbc"),
+        GreenPlum(BASE_PATH + "connectors/dist/greenplum-connector-v1.0-SNAPSHOT.jar", "all", "greenplum", "basic", "jdbc"),
         ;
 
         private final String path;

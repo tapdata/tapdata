@@ -1,15 +1,26 @@
 package io.tapdata.connector.greenplum;
 
+import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.postgres.PostgresConnector;
-import io.tapdata.connector.postgres.PostgresRecordWriter;
+import io.tapdata.connector.postgres.config.PostgresConfig;
+import io.tapdata.connector.postgres.ddl.PostgresDDLSqlGenerator;
+import io.tapdata.connector.postgres.exception.PostgresExceptionCollector;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.kit.DbKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import org.postgresql.geometric.*;
@@ -110,9 +121,50 @@ public class GreenplumConnector extends PostgresConnector {
         connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
     }
 
+    @Override
+    public void onStart(TapConnectionContext connectorContext) {
+        postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
+        postgresJdbcContext = new GreenplumJdbcContext(postgresConfig);
+        commonDbConfig = postgresConfig;
+        jdbcContext = postgresJdbcContext;
+        commonSqlMaker = new CommonSqlMaker();
+        postgresVersion = postgresJdbcContext.queryVersion();
+        ddlSqlGenerator = new PostgresDDLSqlGenerator();
+        tapLogger = connectorContext.getLog();
+        fieldDDLHandlers = new BiClassHandlers<>();
+        fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
+        fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
+        fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
+        fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
+        exceptionCollector = new PostgresExceptionCollector();
+    }
+
     protected void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
-        new PostgresRecordWriter(postgresJdbcContext, tapTable)
+        String insertDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
+        if (insertDmlPolicy == null) {
+            insertDmlPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
+        }
+        String updateDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
+        if (updateDmlPolicy == null) {
+            updateDmlPolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
+        }
+        new GreenplumRecordWriter(postgresJdbcContext, tapTable)
+                .setInsertPolicy(insertDmlPolicy)
+                .setUpdatePolicy(updateDmlPolicy)
                 .write(tapRecordEvents, writeListResultConsumer);
+    }
+
+    @Override
+    public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) {
+        postgresConfig = (PostgresConfig) new PostgresConfig().load(connectionContext.getConnectionConfig());
+        ConnectionOptions connectionOptions = ConnectionOptions.create();
+        connectionOptions.connectionString(postgresConfig.getConnectionString());
+        try (
+                GreenplumTest greenplumTest = new GreenplumTest(postgresConfig, consumer)
+        ) {
+            greenplumTest.testOneByOne();
+            return connectionOptions;
+        }
     }
 
 }
