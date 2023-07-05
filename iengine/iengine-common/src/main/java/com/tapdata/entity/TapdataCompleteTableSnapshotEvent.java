@@ -11,6 +11,8 @@ public class TapdataCompleteTableSnapshotEvent extends TapdataEvent {
 
 	private String sourceTableName;
 
+	public TapdataCompleteTableSnapshotEvent(){}
+
 	public TapdataCompleteTableSnapshotEvent(String sourceTableName) {
 		this.sourceTableName = sourceTableName;
 	}
