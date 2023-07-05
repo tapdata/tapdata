@@ -46,7 +46,7 @@ public class DelayHandler {
             if (obsLogger.isDebugEnabled()) {
                 obsLogger.debug("[{}} Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
             }
-            if (relay > WARN_DELAY) {
+            if (relay > WARN_DELAY && this.failed.get() % 100 == 0) {
                 obsLogger.warn("[{}] Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
             }
             TimeUnit.MICROSECONDS.sleep(relay);
