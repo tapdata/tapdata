@@ -188,20 +188,21 @@ public abstract class AbstractCacheService implements ICacheService {
 			this.cacheStatusMap.put(cacheName, taskDto.getStatus());
 		}
 
-		Lock lock = getCacheStatusLock(cacheName);
-		if (lock.tryLock(1, TimeUnit.SECONDS)) {
+		//todo IMDG is not supported, locking is not necessary
+//		Lock lock = getCacheStatusLock(cacheName);
+//		if (lock.tryLock(1, TimeUnit.SECONDS)) {
 			// 判断任务状态
-			try {
-				String status = this.cacheStatusMap.get(cacheName);
-				if (!StringUtils.equals(status, DataFlow.STATUS_RUNNING)) {
+//			try {
+//				String status = this.cacheStatusMap.get(cacheName);
+//				if (!StringUtils.equals(status, DataFlow.STATUS_RUNNING)) {
 //          throw new RuntimeException("cache not complete initial:" + cacheName);
 					//任务状态非正常时，提示用户启动任务，本次查询走查库
-					logger.warn("The cache task [{}] is abnormal, please check", cacheName);
-				}
-			} finally {
-				lock.unlock();
-			}
-		}
+//					logger.warn("The cache task [{}] is abnormal, please check", cacheName);
+//				}
+//			} finally {
+//				lock.unlock();
+//			}
+//		}
 
 	}
 }
