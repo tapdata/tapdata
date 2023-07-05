@@ -59,22 +59,21 @@ public class KafkaTest extends CommonDbTest {
 
     @Override
     public Boolean testConnect() {
-        TestItem testConnect = null;
-        TestItem t2 = null;
-
-
-        if (this.isSchemaRegister) {
-            testConnect = this.kafkaSRService.testConnect();
-        } else {
-            testConnect = kafkaService.testConnect();
-        }
+        TestItem testConnect = kafkaService.testConnect();
         consumer.accept(testConnect);
+        if (this.isSchemaRegister) {
+            TestItem testSRConnect = this.kafkaSRService.testConnect();
+            consumer.accept(testSRConnect);
+            if (testSRConnect.getResult() == TestItem.RESULT_FAILED) {
+                return false;
+            }
+        }
         if (testConnect.getResult() == TestItem.RESULT_FAILED) {
             return false;
         }
         return true;
-
     }
+
 
     @Override
     public Boolean testWritePrivilege() {

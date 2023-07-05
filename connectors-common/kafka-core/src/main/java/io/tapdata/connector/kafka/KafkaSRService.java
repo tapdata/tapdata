@@ -30,6 +30,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
+import okhttp3.Response;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
 import org.apache.avro.generic.GenericData;
@@ -102,26 +103,32 @@ public class KafkaSRService extends KafkaService {
     public TestItem testConnect() {
         if ((kafkaConfig).getKrb5()) {
             try {
-                Krb5Util.checkKDCDomainsBase64(((KafkaConfig) kafkaConfig).getKrb5Conf());
+                Krb5Util.checkKDCDomainsBase64((kafkaConfig).getKrb5Conf());
                 return new TestItem(MqTestItem.KAFKA_BASE64_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
             } catch (Exception e) {
                 return new TestItem(MqTestItem.KAFKA_BASE64_CONNECTION.getContent(), TestItem.RESULT_FAILED, e.getMessage());
             }
         }
-        AdminConfiguration configuration = new AdminConfiguration(kafkaConfig, connectorId);
-        try (Admin admin = new DefaultAdmin(configuration)) {
-            if (admin.isClusterConnectable()) {
-                if (SchemaRegisterUtil.sendHttpRequest("http://" + tapConnectionContext.getConnectionConfig().getString("schemaRegisterUrl") + "/subjects") == 200) {
-                    return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
+        try {
+            if (kafkaConfig.getBasicAuth()) {
+                Response reschemaRegisterResponse = SchemaRegisterUtil.sendBasicAuthRequest("http://" + tapConnectionContext.getConnectionConfig().getString("schemaRegisterUrl") + "/subjects",
+                        kafkaConfig.getAuthUserName(),
+                        kafkaConfig.getAuthPassword());
+                if ( reschemaRegisterResponse.code() == 200) {
+                    return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
                 } else {
-                    return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "The Schema Register service is invalid. Please check the service address.");
+                    return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_FAILED, reschemaRegisterResponse.toString());
                 }
             } else {
-                return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "cluster is not connectable");
+                if (SchemaRegisterUtil.sendHttpRequest("http://" + tapConnectionContext.getConnectionConfig().getString("schemaRegisterUrl") + "/subjects") == 200) {
+                    return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
+                } else {
+                    return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_FAILED, "The Schema Register service is invalid. Please check the service address.");
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
-            return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "when connect to cluster, error occurred");
+            return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_FAILED, "Please check the service address." + e.getMessage());
         }
     }
 
@@ -202,7 +209,7 @@ public class KafkaSRService extends KafkaService {
             properties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
             properties.put("value.serializer", io.confluent.kafka.serializers.KafkaAvroSerializer.class);
             properties.put("schema.registry.url", "http://" + kafkaConfig.getSchemaRegisterUrl());
-            if (this.isBasicAuth){
+            if (this.isBasicAuth) {
                 properties.put("basic.auth.credentials.source", kafkaConfig.getAuthCredentialsSource());
                 properties.put("basic.auth.user.info", kafkaConfig.getAuthUserName() + ":" + kafkaConfig.getAuthPassword());
             }

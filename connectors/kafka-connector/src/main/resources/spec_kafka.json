@@ -32,7 +32,7 @@
           "apiServerKey": "schemaRegister",
           "x-reactions": [
             {
-              "target": "*(schemaRegisterUrl,authCredentialsSource,authUserName,authPassword)",
+              "target": "*(schemaRegisterUrl)",
               "fulfill": {
                 "state": {
                   "visible": "{{$self.value===true}}"

@@ -106,24 +106,30 @@ public class KafkaConnector extends ConnectorBase {
     private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws ExecutionException, InterruptedException, IOException {
         TapTable tapTable = tapCreateTableEvent.getTable();
         CreateTableOptions createTableOptions = new CreateTableOptions();
-        if (checkTopicExists(kafkaConfig.getConnectionString(), tapTable.getId())) {
-            createTableOptions.setTableExists(true);
-            return createTableOptions;
-        }
-        try {
-            if (this.isSchemaRegister) {
+        if (this.isSchemaRegister) {
+            if (checkTopicExists(kafkaConfig.getConnectionString(), tapTable.getId())) {
+                createTableOptions.setTableExists(true);
+                return createTableOptions;
+            }
+            Properties properties = new Properties();
+            AdminClient adminClient = null;
+            try {
+                properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getConnectionString());
+                adminClient = AdminClient.create(properties);
                 int numPartitions = 3;
                 short replicationFactor = 1;
-                Properties properties = new Properties();
-                properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getConnectionString());
-                AdminClient adminClient = AdminClient.create(properties);
                 NewTopic newTopic = new NewTopic(tapTable.getId(), numPartitions, replicationFactor);
                 adminClient.createTopics(Collections.singletonList(newTopic)).all().get();
+            } catch (InterruptedException e) {
+                throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage());
+            } finally {
+                adminClient.close();
             }
-        } catch (InterruptedException e) {
-            throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage());
+            createTableOptions.setTableExists(false);
+        } else {
+            createTableOptions.setTableExists(true);
         }
-        createTableOptions.setTableExists(false);
+
         return createTableOptions;
     }
 

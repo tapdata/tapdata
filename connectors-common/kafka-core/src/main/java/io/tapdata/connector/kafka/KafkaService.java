@@ -97,7 +97,7 @@ public class KafkaService extends AbstractMqService {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "when connect to cluster, error occurred");
+            return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "when connect to cluster, error occurred " + e.getMessage());
         }
     }
 

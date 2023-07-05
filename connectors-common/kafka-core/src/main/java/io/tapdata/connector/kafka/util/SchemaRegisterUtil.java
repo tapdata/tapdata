@@ -1,5 +1,8 @@
 package io.tapdata.connector.kafka.util;
 
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.ListTopicsOptions;
 import org.apache.kafka.clients.admin.ListTopicsResult;
@@ -12,10 +15,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -31,7 +32,6 @@ public class SchemaRegisterUtil {
             URL apiUrl = new URL(url);
             connection = (HttpURLConnection) apiUrl.openConnection();
             connection.setRequestMethod("GET");
-
             int responseCode = connection.getResponseCode();
 
             // Read the response
@@ -47,6 +47,53 @@ public class SchemaRegisterUtil {
             reader.close();
             if (connection != null) {
                 connection.disconnect();
+            }
+        }
+    }
+
+    public static Response sendBasicAuthRequest(String url, String username, String password) throws IOException {
+        String user = username + ":" + password;
+        String encodedCredentials = Base64.getEncoder().encodeToString(user.getBytes(StandardCharsets.UTF_8));
+        OkHttpClient client = new OkHttpClient().newBuilder().build();
+        Request request = new Request.Builder()
+                .url(url)
+                .method("GET",null)
+                .header("Authorization", "Basic " + encodedCredentials)
+                .build();
+        try {
+            Response response = client.newCall(request).execute();
+            response.close();
+            return response;
+        } catch (IOException e) {
+            throw new IOException(e.getMessage());
+        }
+    }
+
+    public static int sendBasicAuthRequest0(String url, String username, String password) throws IOException {
+        HttpURLConnection connection = null;
+        BufferedReader reader = null;
+        try {
+            URL apiUrl = new URL(url);
+            connection = (HttpURLConnection) apiUrl.openConnection();
+            connection.setRequestMethod("GET");
+            String authCredentials = username + ":" + password;
+            String encodedCredentials = java.util.Base64.getEncoder().encodeToString(authCredentials.getBytes());
+            connection.setRequestProperty("Authorization", "Basic " + encodedCredentials);
+
+            int responseCode = connection.getResponseCode();
+
+            // Read the response
+            reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            String line;
+            StringBuilder response = new StringBuilder();
+            while ((line = reader.readLine()) != null) {
+                response.append(line);
+            }
+            return responseCode;
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+                reader.close();
             }
         }
     }
@@ -68,9 +115,9 @@ public class SchemaRegisterUtil {
 
             return response;
         } finally {
-            reader.close();
             if (connection != null) {
                 connection.disconnect();
+                reader.close();
             }
         }
     }
@@ -92,7 +139,9 @@ public class SchemaRegisterUtil {
     public static boolean checkTopicExists(String bootstrapServers, String topicToCheck) {
         Properties properties = new Properties();
         properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        try (AdminClient adminClient = AdminClient.create(properties)) {
+        AdminClient adminClient = null;
+        try {
+            adminClient = AdminClient.create(properties);
             ListTopicsOptions options = new ListTopicsOptions();
             options.listInternal(true);
             ListTopicsResult listTopicsResult = adminClient.listTopics(options);
@@ -101,10 +150,11 @@ public class SchemaRegisterUtil {
             return topicListingMap.containsKey(topicToCheck);
         } catch (ExecutionException | InterruptedException e) {
             e.printStackTrace();
+        } finally {
+            adminClient.close();
         }
         return false;
     }
-
 
 
 }
