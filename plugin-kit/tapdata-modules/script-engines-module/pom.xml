@@ -45,26 +45,12 @@
             <artifactId>js-scriptengine</artifactId>
             <version>${graalvm.js.version}</version>
         </dependency>
-<!--        <dependency>-->
-<!--            <groupId>org.python</groupId>-->
-<!--            <artifactId>jython</artifactId>-->
-<!--            <version>${graalvm.py.version}</version>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>org.python</groupId>-->
-<!--            <artifactId>jython-standalone</artifactId>-->
-<!--            <version>${graalvm.py.version}</version>-->
-<!--        </dependency>-->
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>${graalvm.py.artifactId}</artifactId>
             <version>${graalvm.py.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.python</groupId>
-            <artifactId>jython</artifactId>
-            <version>${graalvm.py.version}</version>
-        </dependency>
+
 
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
