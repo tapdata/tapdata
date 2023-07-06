@@ -92,6 +92,7 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
 import io.tapdata.common.sample.request.Sample;
 import lombok.*;
@@ -3726,8 +3727,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void startPlanMigrateDagTask() {
         Criteria migrateCriteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_START)
                 .and("planStartDateFlag").is(true)
-                .and("crontabScheduleMsg").is(null)
-                .and("planStartDate").lte(DateUtil.current());
+                .and("planStartDate").lte(DateUtil.current()).gte(DateUtil.offsetDay(DateUtil.date(), -7).millisecond());
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
@@ -3744,10 +3744,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             Map<String, UserDetail> finalUserMap = userMap;
             for (TaskDto taskDto : taskList) {
-                start(taskDto, finalUserMap.get(taskDto.getUserId()), "11");
+                UserDetail userDetail = finalUserMap.get(taskDto.getUserId());
+
+                CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, userDetail, "task", taskDto.getName());
+                if (StringUtils.isNotBlank(taskDto.getAgentId()) && calculationEngineVo.getRunningNum() > calculationEngineVo.getTaskLimit()) {
+                    // 调度失败
+                    taskDto.setCrontabScheduleMsg("Task.ScheduleLimit");
+                    save(taskDto, userDetail);
+                    continue;
+                }
+
+
+                start(taskDto, userDetail, "11");
                 //启动过后，应该更新掉这个自动启动计划
                 Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
-                updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
+                updateById(taskDto.getId(), unset, userDetail);
             }
         }
     }
@@ -3755,7 +3766,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void startPlanCronTask() {
         Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
                 .and("type").is(TaskDto.TYPE_INITIAL_SYNC)
-                .and("crontabScheduleMsg").is(null)
                 .and("crontabExpression").exists(true)
                 .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,

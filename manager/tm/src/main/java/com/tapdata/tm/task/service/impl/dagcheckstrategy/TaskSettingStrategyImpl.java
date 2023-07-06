@@ -102,18 +102,20 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
         }
 
         // check plan task and cron task
-        if (taskDto.isPlanStartDateFlag() || taskDto.getCrontabExpressionFlag()) {
+        if (taskDto.isPlanStartDateFlag() || ("initial_sync".equals(taskDto.getType()) && taskDto.getCrontabExpressionFlag())) {
             CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, userDetail, "task", taskDto.getName());
             if (StringUtils.isNotBlank(taskDto.getAgentId()) && calculationEngineVo.getRunningNum() > calculationEngineVo.getTaskLimit()) {
                 // 调度失败
                 taskDto.setCrontabScheduleMsg("Task.ScheduleLimit");
-                taskService.save(taskDto, userDetail);
 
                 TaskDagCheckLog planLog = taskDagCheckLogService.createLog(taskId.toHexString(), "",
                         userDetail.getUserId(), Level.WARN, templateEnum,
                         MessageUtil.getDagCheckMsg(locale, "TASK_SCHEDULE_LIMIT"), "");
                 result.add(planLog);
+            } else {
+                taskDto.setCrontabScheduleMsg("");
             }
+            taskService.save(taskDto, userDetail);
 
         }
 

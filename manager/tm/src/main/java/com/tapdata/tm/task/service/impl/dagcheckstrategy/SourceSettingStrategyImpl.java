@@ -113,7 +113,8 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
 
                 if (CollectionUtils.isNotEmpty(dto.getCapabilities())) {
-                    List<String> capList = dto.getCapabilities().stream().map(Capability::getId).collect(Collectors.toList());
+                    List<String> capList = dto.getCapabilities().stream().map(Capability::getId)
+                            .filter(id -> Lists.of("stream_read_function", "batch_read_function", "query_by_advance_filter_function").contains(id)).collect(Collectors.toList());
 
                     if (Lists.of("Tidb", "Doris").contains(connectionDto.getDatabase_type()) &&
                             connectionDto.getConfig().containsKey("enableIncrement") &&
@@ -205,6 +206,10 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
     }
 
     private void checkSourceSupportCdcByTestConnectionResult(TaskDto taskDto, Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, Node node, String nodeId, DataSourceConnectionDto dto, List<String> capList) {
+        if (Lists.of("Dummy").contains(dto.getDatabase_type())) {
+            return;
+        }
+
         if (taskDto.getType().contains("cdc")) {
             // first check field polling cdc
             if (node instanceof TableNode && "polling".equals(((TableNode) node).getCdcMode())) {

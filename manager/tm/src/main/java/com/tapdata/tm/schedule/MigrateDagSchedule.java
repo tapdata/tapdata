@@ -16,8 +16,8 @@ public class MigrateDagSchedule {
 
     private TaskService taskService;
 
-    @Scheduled(fixedDelay = 10 * 1000)
-    @SchedulerLock(name = "migrateDagPlanStartLock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+    @Scheduled(fixedDelay = 60 * 1000)
+    @SchedulerLock(name = "migrateDagPlanStartLock", lockAtMostFor = "30s", lockAtLeastFor = "30s")
     public void migrateDagPlanStart() {
         FunctionUtils.ignoreAnyError(() -> taskService.startPlanMigrateDagTask());
     }
