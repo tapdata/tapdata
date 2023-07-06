@@ -31,13 +31,13 @@ public class PostgresWriteRecorder extends WriteRecorder {
         }
         if (EmptyKit.isNotEmpty(uniqueCondition)) {
             if (Integer.parseInt(version) > 90500 && uniqueConditionIsIndex) {
-                if (insertPolicy.equals("ignore-on-exists")) {
+                if (insertPolicy.equals("ignore_on_exists")) {
                     conflictIgnoreInsert(after);
                 } else {
                     conflictUpdateInsert(after);
                 }
             } else {
-                if (insertPolicy.equals("ignore-on-exists")) {
+                if (insertPolicy.equals("ignore_on_exists")) {
                     notExistsInsert(after);
                 } else {
                     withUpdateInsert(after);

@@ -25,6 +25,7 @@ public class DorisConfig extends CommonDbConfig {
         setDbType("doris");
         setEscapeChar('`');
         setJdbcDriver("com.mysql.cj.jdbc.Driver");
+        setDorisHttp(getDorisHttp().replace("http://", ""));
     }
 
     public DorisConfig load(Map<String, Object> map) {

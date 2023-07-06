@@ -1,95 +1,39 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <artifactId>connectors</artifactId>
         <groupId>io.tapdata</groupId>
+        <artifactId>connectors</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>clickhouse-connector</artifactId>
+    <artifactId>greenplum-connector</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <name>clickhouse-connector</name>
-    <description>clickhouse-connector</description>
+    <packaging>jar</packaging>
+
+
     <properties>
-        <java.version>1.8</java.version>
-        <sql.core.version>1.0-SNAPSHOT</sql.core.version>
-        <debezium.version>1.5.4.Final</debezium.version>
-        <postgres.core.version>1.0-SNAPSHOT</postgres.core.version>
-        <commons-lang3.version>3.12.0</commons-lang3.version>
-        <guava.version>31.0.1-jre</guava.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <java.version>8</java.version>
         <tapdata.pdk.api.version>1.2.2-SNAPSHOT</tapdata.pdk.api.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
+            <artifactId>postgres-connector</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-api</artifactId>
-            <version>${tapdata.pdk.api.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>connector-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <version>${commons-lang3.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>sql-core</artifactId>
-            <version>${sql.core.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-collections4</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>ru.yandex.clickhouse</groupId>
-            <artifactId>clickhouse-jdbc</artifactId>
-<!--            <version>0.3.1-patch</version>-->
-            <version>0.2.4</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-api</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
-<!--            <version>${guava.version}</version>-->
-            <version>31.0.1-jre</version>
-        </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>pdk-error-code</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>5.8.1</version>
+            <artifactId>tapdata-pdk-runner</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-text</artifactId>
-            <version>1.9</version>
-        </dependency>
-
-<!--        <dependency>-->
-<!--            <groupId>io.tapdata</groupId>-->
-<!--            <artifactId>tapdata-pdk-runner</artifactId>-->
-<!--            <scope>test</scope>-->
-<!--        </dependency>-->
-
-
-
     </dependencies>
 
     <build>
@@ -115,8 +59,8 @@
                             <PDK-Runner-Version>${tapdata.pdk.runner.version}</PDK-Runner-Version>
                             <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
                             <Tapdata-API-Version>${tapdata.pdk.api.version}</Tapdata-API-Version>
-                            <Version>${version}</Version>
-                            <Authentication>GA</Authentication>
+                            <Version>${project.version}</Version>
+                            <Authentication>Alpha</Authentication>
                             <Git-Build-Time>${git.build.time}</Git-Build-Time>
                             <Git-Branch>${git.branch}</Git-Branch>
                             <Git-Commit-Id>${git.commit.id}</Git-Commit-Id>
@@ -200,5 +144,4 @@
             </plugin>
         </plugins>
     </build>
-
 </project>

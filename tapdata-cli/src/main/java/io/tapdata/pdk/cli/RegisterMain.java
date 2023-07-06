@@ -81,7 +81,8 @@ public class RegisterMain {
         Shein(BASE_PATH + "connectors/dist/shein-connector-v1.0-SNAPSHOT.jar", "all", "shein"),
         YashanDB(BASE_PATH + "connectors/dist/yashandb-connector-v1.0-SNAPSHOT.jar", "all", "yashandb", "basic", "jdbc"),
         Ali1688(BASE_PATH + "connectors/dist/ali1688-connector-v1.0-SNAPSHOT.jar", "all", "ali1688"),
-        Temu(BASE_PATH + "connectors/dist/temu-connector-v1.0-SNAPSHOT.jar", "all", "temu")
+        Temu(BASE_PATH + "connectors/dist/temu-connector-v1.0-SNAPSHOT.jar", "all", "temu"),
+        GreenPlum(BASE_PATH + "connectors/dist/greenplum-connector-v1.0-SNAPSHOT.jar", "all", "greenplum", "basic", "jdbc"),
         ;
 
         private final String path;
@@ -122,9 +123,7 @@ public class RegisterMain {
         List<String> postList = new ArrayList<>();
 //        String server = System.getProperty("server", "https://uat.cloud.tapdata.net:9443/tm");
         String server = System.getProperty("server", "http://localhost:3000");
-        //String server = System.getProperty("server", "https://test3.cloud.tapdata.net:7443/tm");
         //String server = System.getProperty("server", "http://192.168.1.189:30205");
-        //Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "VEkQeQUbimtEWweBpLCxKhnKoDvVFOzV", "-sk", "NSp4pvPCyTJOKPADMP4jBpARgQfBSOcl", "-t", server);
         Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "", "-sk", "", "-t", server);
         String[] tags = System.getProperty("tags", "all").split(",");
         ConnectorEnums.addByTags(postList, tags);
