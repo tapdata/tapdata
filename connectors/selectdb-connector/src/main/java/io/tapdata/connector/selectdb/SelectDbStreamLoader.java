@@ -6,7 +6,9 @@ import io.tapdata.connector.selectdb.config.SelectDbConfig;
 import io.tapdata.connector.selectdb.exception.SelectDbErrorCodes;
 import io.tapdata.connector.selectdb.exception.SelectDbRunTimeException;
 import io.tapdata.connector.selectdb.exception.StreamLoadException;
-import io.tapdata.connector.selectdb.streamload.*;
+import io.tapdata.connector.selectdb.streamload.Constants;
+import io.tapdata.connector.selectdb.streamload.MessageSerializer;
+import io.tapdata.connector.selectdb.streamload.RecordStream;
 import io.tapdata.connector.selectdb.streamload.rest.models.RespContent;
 import io.tapdata.connector.selectdb.util.CopyIntoUtils;
 import io.tapdata.entity.error.CoreException;
@@ -16,13 +18,16 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import okhttp3.Response;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
@@ -77,7 +82,7 @@ public class SelectDbStreamLoader extends Throwable {
         this.loadBatchFirstRecord = true;
     }
 
-    public synchronized WriteListResult<TapRecordEvent> writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table) throws IOException {
+    public synchronized WriteListResult<TapRecordEvent> writeRecord(TapConnectorContext connectorContext, final List<TapRecordEvent> tapRecordEvents, final TapTable table) throws IOException {
         TapLogger.info(TAG, "batch events length is: {}", tapRecordEvents.size());
 //        WriteListResult<TapRecordEvent> listResult = writeListResult();
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
@@ -114,7 +119,7 @@ public class SelectDbStreamLoader extends Throwable {
         }
         int statusCode = response.code();
         if (!(statusCode >= 200 && statusCode < 300) || null == selectDBCopyIntoLog.get("State") || null == selectDBCopyIntoLog.get("JobId")) {
-            throw new CoreException(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_STATE_NULL, "HttpCode: " + statusCode + " Response.body: "  +  response.body() + " Response: " + response +   " State: "  + selectDBCopyIntoLog.get("State") +  " JobId: " + selectDBCopyIntoLog.get("JobId"));
+            throw new CoreException(connectorContext.getId(), new Throwable("HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId")));
         }
         return listResult;
     }
