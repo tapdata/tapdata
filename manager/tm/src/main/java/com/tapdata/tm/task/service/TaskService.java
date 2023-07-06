@@ -1423,7 +1423,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             where.put("is_deleted", document);
         }
 
-
         Page<TaskDto> taskDtoPage = new Page<>();
         List<TaskDto> items = new ArrayList<>();
         if (where.get("syncType") != null && (where.get("syncType") instanceof String)) {
@@ -1491,6 +1490,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 }
             }
 
+            // Internationalized Shared Mining Warning Messages
+            for (TaskDto item : items) {
+                if (StringUtils.isNotBlank(item.getShareCdcStopMessage())) {
+                    item.setShareCdcStopMessage(MessageUtil.getMessage(item.getShareCdcStopMessage()));
+                }
+            }
 
         }
 
@@ -4197,11 +4202,28 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return null;
         try {
             TaskEntity entity = new TaskEntity();
-            BeanUtils.copyProperties(dto, entity, "agentId", "startTime", "lastStartDate");
+            BeanUtils.copyProperties(dto, entity, "agentId", "startTime", "lastStartDate", "shareCdcStop", "shareCdcStopMessage");
             return entity;
         } catch (Exception e) {
             log.error("Convert entity " + entityClass + " failed. {}", ThrowableUtils.getStackTraceByPn(e));
         }
         return null;
+    }
+
+    @Override
+    public <T extends BaseDto> T convertToDto(TaskEntity entity, Class<T> dtoClass, String... ignoreProperties) {
+        T dto = super.convertToDto(entity, dtoClass, "shareCdcStop", "shareCdcStopMessage");
+        try {
+            if (dto instanceof TaskDto) {
+                TaskDto taskDto = (TaskDto) dto;
+                if (null != entity.getShareCdcStop() && entity.getShareCdcStop() && StringUtils.isNotBlank(entity.getShareCdcStopMessage())) {
+                    taskDto.setShareCdcStopMessage(MessageUtil.getMessage(entity.getShareCdcStopMessage()));
+                }
+            }
+        } catch (Exception e) {
+            log.error("Convert task entity to dto failed, try to use super method: {}", e.getMessage(), e);
+            return super.convertToDto(entity, dtoClass, ignoreProperties);
+        }
+        return dto;
     }
 }

@@ -365,7 +365,8 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 				connectorNode,
 				fullMatch,
 				dataKeys,
-				diffKeyValues
+				diffKeyValues,
+				inspectDataSource.getConditions()
 		);
 	}
 
