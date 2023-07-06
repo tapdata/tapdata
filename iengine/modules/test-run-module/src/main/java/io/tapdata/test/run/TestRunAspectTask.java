@@ -48,10 +48,10 @@ public class TestRunAspectTask extends AspectTask {
 
   private boolean multipleTables;
 
-  private AtomicReference<Object> jsResult;
+  private AtomicReference<Object> scriptNodeRunResult;
 
-  //标记是否标准化JS，默认不是，当jsResult不为空则是
-  private boolean isNewVersionJSType = false;
+  //标记是否标准化JS或者Python节点，默认不是，当scriptNodeRunResult不为空则是
+  private boolean isNewVersionScriptNodeType = false;
 
   public TestRunAspectTask() {
     observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::processorNodeProcessAspect);
@@ -65,8 +65,8 @@ public class TestRunAspectTask extends AspectTask {
     Optional<Node> optional = task.getDag().getNodes().stream().filter(n -> n.getType().equals("virtualTarget")).findFirst();
     optional.ifPresent(node -> this.nodeIds = task.getDag().predecessors(node.getId()).stream()
             .map(Element::getId).collect(Collectors.toSet()));
-    jsResult = (AtomicReference<Object>)startAspect.info("JSRunResult");
-    isNewVersionJSType = null != jsResult;
+    scriptNodeRunResult = (AtomicReference<Object>)startAspect.info("KYE_OF_SCRIPT_RUN_RESULT");
+    isNewVersionScriptNodeType = null != scriptNodeRunResult;
     this.multipleTables = CollectionUtils.isNotEmpty(task.getDag().getSourceNode());
 
   }
@@ -125,8 +125,8 @@ public class TestRunAspectTask extends AspectTask {
       paramMap.put("after", Optional.ofNullable(resultMap.get("after")).orElse(new ArrayList<>()));
     }
 
-    if (isNewVersionJSType) {
-      jsResult.set(paramMap);
+    if (isNewVersionScriptNodeType) {
+      scriptNodeRunResult.set(paramMap);
     } else {
       ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
       clientMongoOperator.insertOne(paramMap, "/task/migrate-js/save-result");
