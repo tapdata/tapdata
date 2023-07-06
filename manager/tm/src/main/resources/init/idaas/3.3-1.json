@@ -5,6 +5,38 @@
       {
         "type": "system",
         "category" : "standard",
+        "className": "context",
+        "methodName": "event",
+        "desc" : "说明：数据源事件类型、表名称等信息（Data source event type, table name, and other information），是一个K-V存储结构",
+        "example": "op = context['event'][\"op\"] #获取事件的操作类型，存在的值：i/d/u，分别表示新增、修改和删除\ntableName = context['event'][\"tableName\"] #产生事件对应的表名称\nsyncType = context['event'][\"syncType\"] #获取类型\nts = context['event'][\"ts\"] #获取事件发生的时间戳"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "context",
+        "methodName": "before",
+        "desc" : "说明：数据变更前的内容（Content before data changes），是一个K-V存储结构",
+        "example": "value = context[\"before\"]['key']"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "context",
+        "methodName": "info",
+        "desc" : "说明：源节点侧在保存在记录中的事件信息（Data source event information），是一个K-V存储结构",
+        "example": "value = context[\"info\"]['key']"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "context",
+        "methodName": "global",
+        "desc" : "说明：节点维度下的一个任务周期内的hashMap容器，可在Python节点上自定义响应的内容（HashMap container during the task cycle），是一个K-V存储结构",
+        "example": "myVariable = context[\"global\"][\"myVariable\"]\nif \"undifine\" == myVariable || null == myVariable :\n\tmyVariable = context[\"global\"][\"myVariable\"] = {\n      \"key\":1,\n      \"status\":False\n   }\n\tmyVariable.key++"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
         "className": "DateUtil",
         "methodName": "parse",
         "desc" : "将各种格式的日期字符串转换为Date类型",
@@ -306,14 +338,6 @@
         "methodName": "JAVA built-in ordered map container",
         "desc" : "说明：JAVA内置有序map容器",
         "example": "map = LinkedHashMap()# 创建\nmap.put(\"key\", \"This is a LinkedHashMap\"):# 向容器中加入key-value键值对\nvalue = map.get(\"key\")# 根据key获取value\nisEmpty = map.isEmpty()# 判断容器是否为空\nsize = map.size()# 获取容器中键值对的数目\nmap.remove(\"key\")# 移出容器中指定键的键值对"
-      },
-      {
-        "type": "system",
-        "category" : "standard",
-        "className": "context.global",
-        "methodName": "HashMap container during the task cycle",
-        "desc" : "说明：节点维度下的一个任务周期内的hashMap容器，可在Python节点上自定义响应的内容",
-        "example": "myVariable = context.global[\"myVariable\"]\nif \"undifine\" == myVariable || null == myVariable :\n\tmyVariable = context.global[\"myVariable\"] = {\n      \"key\":1,\n      \"status\":False\n   }\n\tmyVariable.key++"
       }
     ]
   }
