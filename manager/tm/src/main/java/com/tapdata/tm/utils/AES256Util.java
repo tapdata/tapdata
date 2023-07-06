@@ -40,7 +40,6 @@ public class AES256Util {
 			ctLength += cipher.doFinal(result, ctLength);
 			encode = parseByte2HexStr(result);
 		} catch (Exception e) {
-			e.printStackTrace();
 			encode = str;
 		}
 		return encode;
@@ -56,7 +55,6 @@ public class AES256Util {
 			byte[] decoded = cipher.doFinal(toByte(content));
 			result = new String(decoded, CHARSET);
 		} catch (Exception e) {
-			e.printStackTrace();
 			result = content;
 		}
 		return result;

@@ -16,6 +16,7 @@ import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.AES256Util;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
@@ -86,6 +87,10 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 							return externalStorageDto;
 						}
 						String oldUri = oldExternalStorage.getUri();
+						try {
+							oldUri = AES256Util.Aes256Decode(oldUri);
+						} catch (Exception ignored) {
+						}
 						ConnectionString oldConnectionString = new ConnectionString(oldUri);
 						char[] oldPassword = oldConnectionString.getPassword();
 						if (null == oldPassword || oldPassword.length == 0) {
@@ -278,5 +283,34 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 			externalStorageDto.setUri(externalStorageDto.maskUriPassword());
 		}
 		return externalStorageDto;
+	}
+
+	@Override
+	public <T extends BaseDto> T convertToDto(ExternalStorageEntity entity, Class<T> dtoClass, String... ignoreProperties) {
+		T dto = super.convertToDto(entity, dtoClass, ignoreProperties);
+		if (dto instanceof ExternalStorageDto) {
+			ExternalStorageDto externalStorageDto = (ExternalStorageDto) dto;
+			if (StringUtils.isNotBlank(externalStorageDto.getUri())) {
+				try {
+					externalStorageDto.setUri(AES256Util.Aes256Decode(externalStorageDto.getUri()));
+				} catch (Exception ignored) {
+				}
+			}
+		}
+		return dto;
+	}
+
+	@Override
+	public <T extends BaseDto> ExternalStorageEntity convertToEntity(Class<ExternalStorageEntity> externalStorageEntityClass, T dto, String... ignoreProperties) {
+		ExternalStorageEntity externalStorageEntity = super.convertToEntity(externalStorageEntityClass, dto, ignoreProperties);
+		if (null != externalStorageEntity) {
+			if(StringUtils.isNotBlank(externalStorageEntity.getUri())){
+				try {
+					externalStorageEntity.setUri(AES256Util.Aes256Encode(externalStorageEntity.getUri()));
+				} catch (Exception ignored) {
+				}
+			}
+		}
+		return externalStorageEntity;
 	}
 }
