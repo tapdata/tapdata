@@ -6,7 +6,9 @@ import io.tapdata.connector.selectdb.config.SelectDbConfig;
 import io.tapdata.connector.selectdb.exception.SelectDbErrorCodes;
 import io.tapdata.connector.selectdb.exception.SelectDbRunTimeException;
 import io.tapdata.connector.selectdb.exception.StreamLoadException;
-import io.tapdata.connector.selectdb.streamload.*;
+import io.tapdata.connector.selectdb.streamload.Constants;
+import io.tapdata.connector.selectdb.streamload.MessageSerializer;
+import io.tapdata.connector.selectdb.streamload.RecordStream;
 import io.tapdata.connector.selectdb.streamload.rest.models.RespContent;
 import io.tapdata.connector.selectdb.util.CopyIntoUtils;
 import io.tapdata.entity.error.CoreException;
@@ -23,13 +25,14 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static io.tapdata.entity.simplify.TapSimplify.sleep;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 
@@ -53,7 +56,6 @@ public class SelectDbStreamLoader extends Throwable {
     private SelectDbJdbcContext selectDbJdbcContext;
     private Future<CloseableHttpResponse> pendingLoadFuture;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private int catchCount = 0;
 
     public SelectDbStreamLoader(SelectDbContext selectDbContext, CloseableHttpClient httpClient) {
         this.selectDbContext = selectDbContext;
@@ -116,18 +118,8 @@ public class SelectDbStreamLoader extends Throwable {
                     + "]   CreateTime:" + selectDBCopyIntoLog.get("CreateTime"));
         }
         int statusCode = response.code();
-        try {
-            if (!(statusCode >= 200 && statusCode < 300) || null == selectDBCopyIntoLog.get("State") || null == selectDBCopyIntoLog.get("JobId")) {
-                throw new CoreException(connectorContext.getId(), new Throwable("HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId")));
-            }
-        } catch (Throwable e) {
-            catchCount++;
-            if (catchCount > this.selectDbConfig.getRetryCount()) {
-                throw new CoreException(connectorContext.getId(), new Throwable("HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId")));
-            }
-            sleep(150000);
-            connectorContext.getLog().warn("Data source upload retry: {}", catchCount);
-            writeRecord(connectorContext, tapRecordEvents, table);
+        if (!(statusCode >= 200 && statusCode < 300) || null == selectDBCopyIntoLog.get("State") || null == selectDBCopyIntoLog.get("JobId")) {
+            throw new CoreException(connectorContext.getId(), new Throwable("HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId")));
         }
         return listResult;
     }
