@@ -122,7 +122,7 @@ public class SelectDbStreamLoader extends Throwable {
             }
         } catch (Throwable e) {
             catchCount++;
-            if (catchCount > 20) {
+            if (catchCount > this.selectDbConfig.getRetryCount()) {
                 throw new CoreException(connectorContext.getId(), new Throwable("HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId")));
             }
             sleep(150000);
