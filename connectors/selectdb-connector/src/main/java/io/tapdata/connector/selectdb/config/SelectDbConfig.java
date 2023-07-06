@@ -23,6 +23,7 @@ public class SelectDbConfig extends CommonDbConfig implements Serializable {
     private int insertBatchSize = 1000;
     private String selectDbHttp;
     private Boolean closeNotNull = true;
+    private int retryCount = 100;
 
     public SelectDbConfig selectDbHttp(String selectDbHttp) {
         this.selectDbHttp = selectDbHttp;
