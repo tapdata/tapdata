@@ -66,6 +66,7 @@
 		"addtionalString": {
 		  "type": "string",
 		  "title": "${addtionalString}",
+		  "default": "useUnicode=yes&characterEncoding=UTF-8",
 		  "x-decorator": "FormItem",
 		  "x-component": "Input",
 		  "apiServerKey": "additionalString",

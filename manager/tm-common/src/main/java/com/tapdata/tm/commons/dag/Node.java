@@ -195,6 +195,8 @@ public abstract class Node<S> extends Element{
                     for (Object o : ((List<?>) inputSchema)) {
                         Schema s = (Schema) o;
                         List<Field> fieldList = s.getFields();
+                        fieldList = fieldList.stream().filter(f -> !f.isDeleted()).collect(Collectors.toList());
+                        s.setFields(fieldList);
                         if (CollectionUtils.isNotEmpty(fieldList)) {
                             fields.addAll(fieldList);
                         }
@@ -202,6 +204,8 @@ public abstract class Node<S> extends Element{
                     }
                 } else if (inputSchema instanceof Schema) {
                     List<Field> fieldList = ((Schema) inputSchema).getFields();
+                    fieldList = fieldList.stream().filter(f -> !f.isDeleted()).collect(Collectors.toList());
+                    ((Schema) inputSchema).setFields(fieldList);
                     if (CollectionUtils.isNotEmpty(fieldList)) {
                         fields.addAll(fieldList);
                     }

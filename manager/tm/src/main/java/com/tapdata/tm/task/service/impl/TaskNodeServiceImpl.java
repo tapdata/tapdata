@@ -349,9 +349,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 if (CollectionUtils.isNotEmpty(fields)) {
                     Map<String, Boolean> fieldMap = mappingMap.get(instance.getAncestorsName());
                     for (Field field : fields) {
-                        if (field.isDeleted()) {
-                            continue;
-                        }
+//                        if (field.isDeleted()) {
+//                            continue;
+//                        }
                         String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
                         int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
 
@@ -487,7 +487,16 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
             // || CollectionUtils.isEmpty(metaMap.get(tableName).getFields())
 
-            List<Field> fields = metadataInstancesDto.getFields().stream().sorted(Comparator.comparing(Field::getColumnPosition)).collect(Collectors.toList());
+            List<Field> fields = metadataInstancesDto.getFields().stream()
+                    .sorted((Field f1, Field f2) ->{
+                        int f1pos = f1.getColumnPosition() == null ? -1 : f1.getColumnPosition();
+                        int f2pos = f2.getColumnPosition() == null ? -1 : f2.getColumnPosition();
+                        if (f1pos >= f2pos) {
+                            return 1;
+                        }
+                        return -1;
+                    })
+                    .collect(Collectors.toList());
 
             // TableRenameProcessNode not need fields
             if (!(currentNode instanceof TableRenameProcessNode)) {
@@ -498,9 +507,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                             .collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()));
                 }
                 for (Field field : fields) {
-                    if (field.isDeleted()) {
-                        continue;
-                    }
+//                    if (field.isDeleted()) {
+//                        continue;
+//                    }
                     String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
                     if (StringUtils.isBlank(defaultValue) && field.getUseDefaultValue()) {
                         defaultValue = Objects.isNull(field.getOriginalDefaultValue()) ? "" : field.getOriginalDefaultValue().toString();

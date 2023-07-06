@@ -14,4 +14,15 @@ public class JSTableKeys {
     public static final String TABLE_FIELD_PRIMARY_POS_KEY = "primaryKeyPos";
     public static final String TABLE_FIELD_AUTO_INC = "autoInc";
     public static final String TABLE_FIELD_COMMENT = "comment";
+
+
+    public static final String TABLE_FIELD_NUMBER = "numberConfig";
+    public static final String TABLE_FIELD_NUMBER_FIXED = "fixed";
+    public static final String TABLE_FIELD_NUMBER_PRECISEION = "precision";
+    public static final String TABLE_FIELD_NUMBER_SCALE = "scale";
+    public static final String TABLE_FIELD_NUMBER_ZEROFILL = "zerofill";
+    public static final String TABLE_FIELD_NUMBER_UNSINGLED = "unsingled";
+    public static final String TABLE_FIELD_NUMBER_BIT = "bit";
+    public static final String TABLE_FIELD_NUMBER_MAX = "max";
+    public static final String TABLE_FIELD_NUMBER_MIN = "min";
 }

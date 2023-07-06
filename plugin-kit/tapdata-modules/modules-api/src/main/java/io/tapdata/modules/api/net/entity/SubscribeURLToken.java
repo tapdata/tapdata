@@ -14,7 +14,6 @@ import java.io.OutputStream;
  * @create 2023/6/14 15:28
  **/
 public class SubscribeURLToken extends SubscribeToken implements JavaCustomSerializer {
-    private String randomId;
     private String userId;
     private Long expireSeconds;
 
@@ -52,14 +51,6 @@ public class SubscribeURLToken extends SubscribeToken implements JavaCustomSeria
 
     public void setSupplierKey(String supplierKey) {
         this.supplierKey = supplierKey;
-    }
-
-    public String getRandomId() {
-        return randomId;
-    }
-
-    public void setRandomId(String randomId) {
-        this.randomId = randomId;
     }
 
     public String getUserId() {

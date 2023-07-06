@@ -301,12 +301,10 @@ public class TicketsSchema extends Schema implements SchemaLoader {
         TapConnectionContext context = this.ticketLoader.getContext();
         ContextConfig contextConfig = ticketLoader.veryContextConfigAndNodeConfig();
 
-        HttpEntity<String, Object> tickPageParam = ticketLoader.getTickPageParam()
-                .build("limit", pageSize);
+        HttpEntity<String, Object> tickPageParam = ticketLoader.getTickPageParam().build("limit", pageSize);
 
-        String fields = contextConfig.fields();
-        Optional.ofNullable(fields).ifPresent(f -> tickPageParam.build("fields", f));
         tickPageParam.build("sortBy", (contextConfig.sortType() ? "-" : "" )+ (isStreamRead ? "modifiedTime" : "createdTime"));
+        tickPageParam.build("include", "contacts,products,departments,team,isRead,assignee");
 
         int fromPageIndex = 1;//从第几个工单开始分页
         String modeName = context.getConnectionConfig().getString("connectionMode");
@@ -319,14 +317,36 @@ public class TicketsSchema extends Schema implements SchemaLoader {
         final Object offset = offsetState;
 
         boolean finalNeedDetail = contextConfig.needDetailObj();
+
+        String fields = contextConfig.fields();
+
         while (isAlive()){
             tickPageParam.build("from", fromPageIndex);
             List<Map<String, Object>> list = ticketLoader.list(tickPageParam);
             if (Checker.isEmpty(list) || list.isEmpty()) break;
+            Map<String, List<Map<String, Object>>> idGroupOfCf = new HashMap<>();
+            if (!finalNeedDetail) {
+                Optional.ofNullable(fields).ifPresent(f -> tickPageParam.build("fields", f));
+                List<Map<String, Object>> cfList = ticketLoader.list(tickPageParam);
+                tickPageParam.remove("fields");
+                idGroupOfCf.putAll(cfList.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(x -> String.valueOf(x.get("id")))));
+            }
             fromPageIndex += pageSize;
             list.stream().filter(Objects::nonNull).forEach(ticket -> {
+                Object id = ticket.get("id");
+                List<Map<String, Object>> cfMaps = idGroupOfCf.get(String.valueOf(id));
+
+                boolean thisRecordNeedDetail = null == cfMaps || cfMaps.isEmpty();
+                if (!finalNeedDetail && !thisRecordNeedDetail) {
+                    for (Map<String, Object> cfMap : cfMaps) {
+                        if (null != cfMap && !cfMap.isEmpty() && null != cfMap.get("cf")){
+                            ticket.putAll(cfMap);
+                        }
+                    }
+                }
+
                 if (!isAlive()) return;
-                    Map<String, Object> oneTicket = finalNeedDetail ?
+                    Map<String, Object> oneTicket = finalNeedDetail || thisRecordNeedDetail ?
                             connectionMode.attributeAssignment(ticket, tableName, ticketLoader)
                             : ticket;
                     if (Checker.isEmpty(oneTicket) || oneTicket.isEmpty()) return;

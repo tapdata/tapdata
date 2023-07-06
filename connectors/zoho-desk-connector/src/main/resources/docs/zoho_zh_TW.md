@@ -45,7 +45,7 @@
 4.接下來再去獲取Generate Code，輸入Scope，輸入完整的scope有利於api獲取數據：
 
 ```
-Desk.tickets.ALL，Desk.contacts.READ，Desk.contacts.WRITE，Desk.contacts.UPDATE，Desk.contacts.CREATE，Desk.tasks.ALL，Desk.basic.READ，Desk.basic.CREATE，Desk.settings.ALL，Desk.events.ALL，Desk.articles.READ，Desk.articles.CREATE，Desk.articles.UPDATE，Desk.articles.DELETE
+Desk.tickets.ALL,Desk.search.READ,Desk.contacts.READ,Desk.contacts.WRITE,Desk.contacts.UPDATE,Desk.contacts.CREATE,Desk.tasks.ALL,Desk.basic.READ,Desk.basic.CREATE,Desk.settings.ALL,Desk.events.ALL,Desk.articles.READ,Desk.articles.CREATE,Desk.articles.UPDATE,Desk.articles.DELETE
 ```
 
 您也可以嘗試去打開以下連結前往官方檔案自己拼接合適的scope，記得用英文符號逗號分隔：

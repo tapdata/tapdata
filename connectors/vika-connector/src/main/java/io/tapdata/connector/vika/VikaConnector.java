@@ -3,7 +3,17 @@ package io.tapdata.connector.vika;
 import cn.vika.client.api.VikaApiClient;
 import cn.vika.client.api.http.ApiCredential;
 import cn.vika.client.api.http.ApiHttpClient;
-import cn.vika.client.api.model.*;
+import cn.vika.client.api.model.ApiQueryParam;
+import cn.vika.client.api.model.CreateDatasheetRequest;
+import cn.vika.client.api.model.CreateFieldRequest;
+import cn.vika.client.api.model.CreateRecordRequest;
+import cn.vika.client.api.model.FieldKey;
+import cn.vika.client.api.model.Node;
+import cn.vika.client.api.model.Pager;
+import cn.vika.client.api.model.Record;
+import cn.vika.client.api.model.RecordMap;
+import cn.vika.client.api.model.UpdateRecord;
+import cn.vika.client.api.model.UpdateRecordRequest;
 import cn.vika.client.api.model.field.FieldTypeEnum;
 import cn.vika.client.api.model.field.property.DateTimeFieldProperty;
 import cn.vika.client.api.model.field.property.NumberFieldProperty;
@@ -18,6 +28,7 @@ import com.google.common.collect.Maps;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.connector.vika.field.Field;
 import io.tapdata.connector.vika.field.FieldApi;
+import io.tapdata.connector.vika.limit.Restrictor;
 import io.tapdata.connector.vika.space.SpaceApi;
 import io.tapdata.connector.vika.space.SpaceRespone;
 import io.tapdata.connector.vika.view.DataSheetView;
@@ -32,10 +43,13 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapNumber;
-import io.tapdata.entity.schema.type.TapType;
-import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.schema.value.TapArrayValue;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapDateValue;
+import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.entity.schema.value.TapRawValue;
+import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -48,9 +62,16 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.lang3.StringUtils;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -111,14 +132,14 @@ public class VikaConnector extends ConnectorBase {
             if (tapMapValue != null && tapMapValue.getValue() != null) return toJson(tapMapValue.getValue());
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapTimeValue.class, FieldTypeEnum.Text.name(), tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
-        codecRegistry.registerFromTapValue(TapDateValue.class, FieldTypeEnum.Text.name(), tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, FieldTypeEnum.Text.name(), tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd HH:mm:ss"));
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd HH:mm:ss"));
     }
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        List<Node> nodes = vikaApiClient.getNodeApi().getNodes(spaceId);
+        List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId));
         if (EmptyKit.isNotEmpty(nodes)) {
             List<Node> nodeList = nodes.stream().filter(node -> "Datasheet".equals(node.getType())).collect(Collectors.toList());
             List<List<Node>> partition = Lists.partition(nodeList, tableSize);
@@ -188,7 +209,7 @@ public class VikaConnector extends ConnectorBase {
 
             AtomicInteger count = new AtomicInteger();
 
-            List<Node> nodes = vikaApiClient.getNodeApi().getNodes(spaceId);
+            List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId));
             if (EmptyKit.isNotEmpty(nodes)) {
                 List<String> datasheetIds = nodes.stream().filter(node -> "Datasheet".equals(node.getType())).map(Node::getId).collect(Collectors.toList());
                 if (EmptyKit.isNotEmpty(datasheetIds)) {
@@ -245,19 +266,17 @@ public class VikaConnector extends ConnectorBase {
         TapTable tapTable = tapCreateTableEvent.getTable();
         String tableId = tapTable.getId();
 
-        List<Node> nodes = vikaApiClient.getNodeApi().getNodes(spaceId);
+        List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId));
         boolean match = nodes.stream().anyMatch(node -> tableId.equals(node.getName()));
-        if (match) {
-            createTableOptions.setTableExists(true);
-        } else {
+        createTableOptions.setTableExists(match);
+        if (!match) {
             CreateDatasheetRequest createDatasheetRequest = new CreateDatasheetRequest();
             createDatasheetRequest.setName(tableId);
 
             List<CreateFieldRequest<?>> fields = Lists.newArrayList();
             for (TapField value : tapTable.getNameFieldMap().values()) {
-                String type = FieldTypeEnum.valueOf(value.getDataType()).name();
-
-                if (FieldTypeEnum.SingleText.name().equals(type)) {
+                String type = value.getDataType().startsWith("Number") ? value.getDataType() : FieldTypeEnum.valueOf(value.getDataType()).name();
+                if (null != type && FieldTypeEnum.SingleText.name().equals(type)) {
                     CreateFieldRequest<SingleTextFieldProperty> fieldRequest = new CreateFieldRequest<>();
                     SingleTextFieldProperty property = new SingleTextFieldProperty();
                     property.setDefaultValue(Objects.isNull(value.getDefaultValue()) ? "" : value.getDefaultValue().toString());
@@ -265,32 +284,29 @@ public class VikaConnector extends ConnectorBase {
                     fieldRequest.setName(value.getName());
                     fieldRequest.setType(type);
                     fields.add(fieldRequest);
-                } else if (FieldTypeEnum.Number.name().equals(type)) {
+                } else if (null != type && type.startsWith(FieldTypeEnum.Number.name())) {
                     CreateFieldRequest<NumberFieldProperty> fieldRequest = new CreateFieldRequest<>();
                     NumberFieldProperty property = new NumberFieldProperty();
                     property.setDefaultValue(Objects.isNull(value.getDefaultValue()) ? "" : value.getDefaultValue().toString());
-                    TapNumber tapType = (TapNumber) value.getTapType();
+                    //TapNumber tapType = (TapNumber) value.getTapType();
                     PrecisionEnum precisionEnum;
-                    if (Objects.isNull(tapType.getScale())) {
-                        precisionEnum = PrecisionEnum.POINT0;
-                    } else if (tapType.getScale() == PrecisionEnum.POINT1.getValue()){
-                        precisionEnum = PrecisionEnum.POINT1;
-                    } else if (tapType.getScale() == PrecisionEnum.POINT2.getValue()){
-                        precisionEnum = PrecisionEnum.POINT2;
-                    } else if (tapType.getScale() == PrecisionEnum.POINT3.getValue()){
-                        precisionEnum = PrecisionEnum.POINT3;
-                    } else {
-                        precisionEnum = PrecisionEnum.POINT4;
+                    switch (type) {
+                        case "Number0" : precisionEnum = PrecisionEnum.POINT0;break;
+                        case "Number1": precisionEnum = PrecisionEnum.POINT1;break;
+                        case "Number2" : precisionEnum = PrecisionEnum.POINT2;break;
+                        case "Number3": precisionEnum = PrecisionEnum.POINT3;break;
+                        default: precisionEnum = PrecisionEnum.POINT4;
                     }
                     property.setPrecision(precisionEnum);
                     fieldRequest.setProperty(property);
                     fieldRequest.setName(value.getName());
-                    fieldRequest.setType(type);
+                    fieldRequest.setType("Number");
                     fields.add(fieldRequest);
-                }  else if (FieldTypeEnum.DateTime.name().equals(type)) {
+                }  else if (null != type && type.startsWith("Date")) {
                     CreateFieldRequest<DateTimeFieldProperty> fieldRequest = new CreateFieldRequest<>();
                     DateTimeFieldProperty property = new DateTimeFieldProperty();
                     property.setDateFormat(DateFormatEnum.DATE);
+                    property.setIncludeTime(FieldTypeEnum.DateTime.name().equals(type));
                     property.setTimeFormat(TimeFormatEnum.HOUR_MINUTE_24);
                     fieldRequest.setProperty(property);
                     fieldRequest.setName(value.getName());
@@ -306,12 +322,8 @@ public class VikaConnector extends ConnectorBase {
 
             createDatasheetRequest.setFields(fields);
 
-            vikaApiClient.getDatasheetApi().addDatasheet(spaceId, createDatasheetRequest);
-
-            createTableOptions.setTableExists(false);
+            Restrictor.limitRule0(() -> vikaApiClient.getDatasheetApi().addDatasheet(spaceId, createDatasheetRequest));
         }
-
-
         return createTableOptions;
     }
 
@@ -334,126 +346,143 @@ public class VikaConnector extends ConnectorBase {
      */
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable, Exception {
         String tableId = tapTable.getId();
-        List<Node> nodes = vikaApiClient.getNodeApi().getNodes(spaceId);
+        Object fieldsObj = connectorContext.getNodeConfig().get("ignoreFields");
+        Set<String> ignoreValueFields = new HashSet<>();
+        Optional.ofNullable(fieldsObj).ifPresent(fields -> {
+            if (fields instanceof Collection){
+                ignoreValueFields.addAll((Collection<String>) fieldsObj);
+            }
+        });
+        List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId));
         Node nodeTemp = nodes.stream().filter(node -> tableId.equals(node.getName())).findAny().orElse(null);
         boolean match = Objects.nonNull(nodeTemp);
         if (match) {
-            if (tapRecordEvents.size() > 4) {
-                Thread.sleep(1000);
-            }
-
             String datasheetId = nodeTemp.getId();
-            WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
-            AtomicInteger insertCount = new AtomicInteger(0);
-            AtomicInteger updateCount = new AtomicInteger(0);
-            AtomicInteger deleteCount = new AtomicInteger(0);
-
             Map<Integer, List<TapRecordEvent>> listMap = tapRecordEvents.stream().collect(Collectors.groupingBy(TapRecordEvent::getType));
             for (Map.Entry<Integer, List<TapRecordEvent>> entry : listMap.entrySet()) {
                 if (TapInsertRecordEvent.TYPE == entry.getKey()) {
-                    List<TapInsertRecordEvent> collect = entry.getValue().stream().map(event -> (TapInsertRecordEvent) event).collect(Collectors.toList());
-                    List<List<TapInsertRecordEvent>> partition = Lists.partition(collect, groupNum);
+                    List<TapRecordEvent> collect = entry.getValue().stream().map(event -> (TapInsertRecordEvent) event).collect(Collectors.toList());
+                    List<List<TapRecordEvent>> partition = Lists.partition(collect, groupNum);
                     for (int i = 1; i <= partition.size(); i++) {
-                        if (i % 5 == 0) {
-                            Thread.sleep(1000);
-                        }
+                        List<Map<String, List<?>>> recordList = new ArrayList<>();
+                        List<TapRecordEvent> insertRecordEvents = partition.get(i - 1);
 
-                        List<TapInsertRecordEvent> insertRecordEvents = partition.get(i - 1);
-
-                        List<RecordMap> records = Lists.newArrayList();
-                        for (TapInsertRecordEvent event : insertRecordEvents) {
-                            Map<String, Object> after = event.getAfter();
-
-                            Map<String, Object> fields = Maps.newHashMap();
-                            for (Map.Entry<String, Object> ent : after.entrySet()) {
-                                String fieldName = ent.getKey();
-                                Object value = ent.getValue();
-                                fields.put(fieldName, value);
+                        List<Record> allRecords = getRecordFromVika(tapTable, insertRecordEvents, datasheetId);
+                        Collection<String> primaryKeys = tapTable.primaryKeys(true);
+                        Map<String, List<Record>> groupRecords = allRecords.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(entity ->
+                            asKey(primaryKeys, tapTable, entity.getFields())
+                        ));
+                        String isChangeStatus = "I";
+                        String itemStatus = "I";
+                        Map<String, List<?>> map = new HashMap<>();
+                        List<Object> objects = new ArrayList<>();
+                        for (TapRecordEvent event : insertRecordEvents) {
+                            Map<String, Object> after = ((TapInsertRecordEvent)event).getAfter();
+                            List<Record> all = groupRecords.get(asKey(primaryKeys, tapTable, event));
+                            List<Object> recordItem = new ArrayList<>();
+                            if (null == all || all.isEmpty()) {
+                                isChangeStatus = "I";
+                                //没有查出记录做新增
+                                recordItem.add(new RecordMap().withFields(after));
+                            } else {
+                                //@TODO 查出记录了， 做更新或者丢弃
+                                isChangeStatus = "U";
+                                for (Record record : all) {
+                                    if (null == record) continue;
+                                    UpdateRecord updateRecord = new UpdateRecord();
+                                    updateRecord.withRecordId(record.getRecordId());
+                                    Map<String, Object> itemMap = new HashMap<>(after);
+                                    //指定的字段存在值时不更新这些字段，直接使用存在的值
+                                    ignoreValueFields.stream().filter(Objects::nonNull).forEach(field ->
+                                            Optional.ofNullable(record.getFields().get(field)).ifPresent(value -> itemMap.put(field, value))
+                                    );
+                                    updateRecord.setFields(itemMap);
+                                    recordItem.add(updateRecord);
+                                }
                             }
-
-                            records.add(new RecordMap().withFields(fields));
+                            if (isChangeStatus.equals(itemStatus)) {
+                                objects.addAll(recordItem);
+                            } else {
+                                map.put(itemStatus, objects);
+                                recordList.add(map);
+                                map = new HashMap<>();
+                                objects = new ArrayList<>(recordItem);
+                                //map.put(itemStatus, objects);
+                                itemStatus = isChangeStatus;
+                            }
+                        }
+                        if (!objects.isEmpty()){
+                            map.put(itemStatus, objects);
+                            recordList.add(map);
                         }
 
-                        CreateRecordRequest record = new CreateRecordRequest();
-                        record.setFieldKey(FieldKey.Name);
-                        record.setRecords(Lists.newArrayList(records));
-
-                        vikaApiClient.getRecordApi().addRecords(datasheetId, record);
-                        insertCount.addAndGet(records.size());
+                        recordList.forEach(ent -> {
+                            ent.keySet().stream().filter(Objects::nonNull).forEach(key -> {
+                                List<?> event = ent.get(key);
+                                switch (key) {
+                                        case "U" :
+                                            UpdateRecordRequest request = new UpdateRecordRequest();
+                                            request.setFieldKey(FieldKey.Name);
+                                            request.setRecords((List<UpdateRecord>) event);
+                                            Restrictor.limitRule(() -> vikaApiClient.getRecordApi().updateRecords(datasheetId, request));
+                                            writeListResultConsumer.accept(new WriteListResult<TapRecordEvent>().modifiedCount(request.getRecords().size()));
+                                            break;
+                                        case "I" :
+                                            CreateRecordRequest record = new CreateRecordRequest();
+                                            record.setFieldKey(FieldKey.Name);
+                                            record.setRecords((List<RecordMap>) event);
+                                            Restrictor.limitRule(() -> vikaApiClient.getRecordApi().addRecords(datasheetId, record));
+                                            writeListResultConsumer.accept(new WriteListResult<TapRecordEvent>().insertedCount(event.size()));
+                                            break;
+                                    }
+                            });
+                        });
                     }
-
                 } else if (TapUpdateRecordEvent.TYPE == entry.getKey()) {
                     List<TapUpdateRecordEvent> collect = entry.getValue().stream().map(event -> (TapUpdateRecordEvent) event).collect(Collectors.toList());
 
                     List<UpdateRecord> recordList = Lists.newArrayList();
                     for (int i = 1; i <= collect.size(); i++) {
-                        if (i % 3 == 0) {
-                            Thread.sleep(1000);
-                        }
-
                         TapUpdateRecordEvent event = collect.get(i - 1);
-//                        Map<String, Object> before = event.getBefore();
-                        List<String> querys = Lists.newArrayList();
-                        for (String key : tapTable.primaryKeys()) {
-                            Object value = event.getAfter().get(key);
-                            querys.add(key + "=\"" + value.toString() + "\"");
-                        }
-
-                        /*
-                        TODO Gavin 通过主键查询, 但是主键不一定是唯一的, 有可能是联合主键, 所以这里需要查询出来, 然后再进行更新
-                        Collection<String> fields = tapTable.primaryKeys(true);
-                        Map<String, Object> match = collect.get(0).getFilter(fields);
-                        Map.Entry<String, Object> entry = match.entrySet().stream().findFirst().get();
-
-                        vikaApiClient.getRecordApi().getRecords(datasheetId, ApiQueryParam.newInstance().withFilter("{订单编号} = 'B230528135433'"));
-
-                         */
-                        int first = 1;
-                        ApiQueryParam queryParam = new ApiQueryParam(first, 1000);
-                        queryParam.withFilter(StringUtils.join(querys, "&&"));
-                        Pager<Record> recordPager = vikaApiClient.getRecordApi().getRecords(datasheetId, queryParam);
-                        List<Record> all = recordPager.all();
-                        while (first < recordPager.getTotalPages()) {
-                            if (first % 5 == 0) {
-                                Thread.sleep(1000);
-                            }
-
-                            first++;
-                            ApiQueryParam quertTemp = new ApiQueryParam(first, 1000);
-                            quertTemp.withFilter(StringUtils.join(querys, "&&"));
-                            Pager<Record> recordPagerTemp = vikaApiClient.getRecordApi().getRecords(datasheetId, quertTemp);
-                            all.addAll(recordPagerTemp.all());
-                        }
 
                         Map<String, Object> after = event.getAfter();
-                        all.forEach(l -> {
-                            UpdateRecord updateRecord = new UpdateRecord();
-                            updateRecord.withRecordId(l.getRecordId());
-                            updateRecord.setFields(after);
-                            recordList.add(updateRecord);
-                        });
+                        List<Record> all = getRecordFromVika(tapTable, list(event), datasheetId);
+                        //ignoreFields
+                        if (null == all || all.isEmpty()) {
+                            //@TODO 不存在时插入 或 丢弃
+
+                        } else {
+                            all.forEach(l -> {
+                                UpdateRecord updateRecord = new UpdateRecord();
+                                updateRecord.withRecordId(l.getRecordId());
+                                Map<String, Object> itemMap = new HashMap<>(after);
+
+                                //指定的字段存在值时不更新这些字段，直接使用存在的值
+                                ignoreValueFields.stream().filter(Objects::nonNull).forEach(field ->
+                                        Optional.ofNullable(l.getFields().get(field)).ifPresent(value -> itemMap.put(field, value))
+                                );
+
+                                updateRecord.setFields(itemMap);
+                                recordList.add(updateRecord);
+                            });
+                        }
                     }
 
                     List<List<UpdateRecord>> partition = Lists.partition(recordList, 10);
                     for (int i = 1; i <= partition.size(); i++) {
-                        if (i % 5 == 0) {
-                            Thread.sleep(1000);
-                        }
                         UpdateRecordRequest request = new UpdateRecordRequest();
                         request.setFieldKey(FieldKey.Name);
                         request.setRecords(partition.get(i - 1));
 
-                        vikaApiClient.getRecordApi().updateRecords(datasheetId, request);
-                        updateCount.addAndGet(request.getRecords().size());
+                        Restrictor.limitRule(() -> vikaApiClient.getRecordApi().updateRecords(datasheetId, request));
+                        writeListResultConsumer.accept(new WriteListResult<TapRecordEvent>().modifiedCount(request.getRecords().size()));
+                        //updateCount.addAndGet(request.getRecords().size());
                     }
 
                 } else if (TapDeleteRecordEvent.TYPE == entry.getKey()) {
                     List<TapDeleteRecordEvent> collect = entry.getValue().stream().map(event -> (TapDeleteRecordEvent) event).collect(Collectors.toList());
 
                     for (int i = 1; i <= collect.size(); i++) {
-                        if (i % 3 == 0) {
-                            Thread.sleep(1000);
-                        }
 
                         TapDeleteRecordEvent event = collect.get(i - 1);
                         Map<String, Object> before = event.getBefore();
@@ -467,33 +496,87 @@ public class VikaConnector extends ConnectorBase {
 
                         ApiQueryParam queryParam = new ApiQueryParam();
                         queryParam.withFilter(StringUtils.join(querys, "&&"));
-                        Pager<Record> records = vikaApiClient.getRecordApi().getRecords(datasheetId, queryParam);
+
+                        Pager<Record> records = (Pager<Record>) Restrictor.limitRule(() -> vikaApiClient.getRecordApi().getRecords(datasheetId, queryParam));
                         if (records.getTotalItems() > 0) {
                             List<String> recordList = records.stream().map(Record::getRecordId).collect(Collectors.toList());
                             List<List<String>> splitList = CollectionUtil.splitListParallel(recordList, 10);
-                            splitList.forEach(list -> {
-                                vikaApiClient.getRecordApi().deleteRecords(datasheetId, list);
-                                deleteCount.addAndGet(list.size());
-                            });
+                            for (List<String> list : splitList) {
+                                Restrictor.limitRule0(() -> vikaApiClient.getRecordApi().deleteRecords(datasheetId, list));
+
+                                //deleteCount.addAndGet(list.size());
+                                writeListResultConsumer.accept(new WriteListResult<TapRecordEvent>().removedCount(list.size()));
+                            }
                         }
                     }
 
                 }
             }
-
-            writeListResultConsumer.accept(listResult.insertedCount(insertCount.get())
-                    .modifiedCount(updateCount.get())
-                    .removedCount(deleteCount.get()));
         }
+    }
+
+    private String asKey(Collection<String> primaryKeys, TapTable tapTable, TapRecordEvent event) {
+        StringJoiner querySub = new StringJoiner("&&");
+        Map<String, Object> eventData = new HashMap<>(Optional.ofNullable(
+                event instanceof TapInsertRecordEvent ? ((TapInsertRecordEvent) event).getAfter() : (
+                        event instanceof TapUpdateRecordEvent ? ((TapUpdateRecordEvent) event).getAfter() : ((TapDeleteRecordEvent) event).getBefore()
+                )).orElse(new HashMap<>()));
+        return asKey(primaryKeys, tapTable, eventData);
+    }
+    private String asKey(Collection<String> primaryKeys, TapTable tapTable, Map<String, Object> eventData) {
+        StringJoiner querySub = new StringJoiner("&&");
+        for (String key : ( null == primaryKeys || primaryKeys.isEmpty() ? tapTable.getNameFieldMap().keySet() : primaryKeys)) {
+            Object value = eventData.get(key);
+            querySub.add(key + "=\"" + value.toString() + "\"");
+        }
+        return querySub.toString();
+    }
+
+    private List<Record> getRecordFromVika(TapTable tapTable, List<TapRecordEvent> events, String datasheetId){
+        //Map<String, Object> before = event.getBefore();
+        StringJoiner query = new StringJoiner(",");
+        Collection<String> primaryKeys = tapTable.primaryKeys(true);
+        for (TapRecordEvent event : events) {
+            String querySub = asKey(primaryKeys, tapTable, event);
+            if (querySub.length() > 0) {
+                query.add(querySub.toString());
+            }
+        }
+
+
+        /*
+        通过主键查询, 但是主键不一定是唯一的, 有可能是联合主键, 所以这里需要查询出来, 然后再进行更新
+        Collection<String> fields = tapTable.primaryKeys(true);
+        Map<String, Object> match = collect.get(0).getFilter(fields);
+        Map.Entry<String, Object> entry = match.entrySet().stream().findFirst().get();
+
+        vikaApiClient.getRecordApi().getRecords(datasheetId, ApiQueryParam.newInstance().withFilter("{订单编号} = 'B230528135433'"));
+
+         */
+        String queryStr = "OR(" + query.toString() + ")";
+        int first = 1;
+        ApiQueryParam queryParam = new ApiQueryParam(first, 1000);
+        queryParam.withFilter(queryStr);
+        Pager<Record> recordPager = (Pager<Record>) Restrictor.limitRule(() -> vikaApiClient.getRecordApi().getRecords(datasheetId, queryParam));
+        List<Record> all = recordPager.all();
+        while (first < recordPager.getTotalPages()) {
+            first++;
+            ApiQueryParam quertTemp = new ApiQueryParam(first, 1000);
+            quertTemp.withFilter(queryStr);
+
+            Pager<Record> recordPagerTemp = (Pager<Record>) Restrictor.limitRule(() -> vikaApiClient.getRecordApi().getRecords(datasheetId, quertTemp));
+            all.addAll(recordPagerTemp.all());
+        }
+
+        return all;
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
         String tableId = tapClearTableEvent.getTableId();
-        List<Node> nodes = vikaApiClient.getNodeApi().getNodes(spaceId);
+        List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId));
         Node nodeTemp = nodes.stream().filter(node -> tableId.equals(node.getName())).findAny().orElse(null);
-        boolean match = Objects.nonNull(nodeTemp);
-        if (match) {
-            vikaApiClient.getRecordApi().deleteAllRecords(nodeTemp.getId());
+        if (Objects.nonNull(nodeTemp)) {
+            Restrictor.limitRule0(() -> vikaApiClient.getRecordApi().deleteAllRecords(nodeTemp.getId()));
         }
     }
 }

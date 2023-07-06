@@ -22,6 +22,16 @@
             "colon": false,
             "tooltip": "${log_detail_tip}"
           },
+          "x-reactions": [
+            {
+              "target": "customFieldKeys",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===false}}"
+                }
+              }
+            }
+          ],
           "x-index": 10
         },
         "sortType": {
