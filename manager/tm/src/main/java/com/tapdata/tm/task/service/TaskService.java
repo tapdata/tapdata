@@ -2775,6 +2775,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 TaskDto one1 = findOne(new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true)));
                 if (one1 != null) {
                     taskDto.setId(null);
+                    taskDto.getDag().getNodes().forEach(node -> {
+                        if(node instanceof DatabaseNode){
+                            DatabaseNode databaseNode = (DatabaseNode) node;
+                            if(conMap.containsKey(databaseNode.getConnectionId())){
+                                DataSourceConnectionDto dataSourceCon = conMap.get(databaseNode.getConnectionId());
+                                databaseNode.setConnectionId(dataSourceCon.getId().toString());
+                            }
+                        }
+                    });
                 }
             }
 
