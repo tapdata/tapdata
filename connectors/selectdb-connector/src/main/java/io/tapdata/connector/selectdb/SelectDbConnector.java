@@ -33,7 +33,6 @@ import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.write.WriteValve;
 
-import java.io.IOException;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -344,10 +343,22 @@ public class SelectDbConnector extends CommonDbConnector {
      * @param events
      */
     private void uploadEvents(TapConnectorContext connectorContext,Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, List<TapRecordEvent> events, TapTable table) {
-        try {
-            writeListResultConsumer.accept(selectDbStreamLoader.writeRecord(connectorContext,events, table));
-        } catch (IOException e) {
-            TapLogger.error(TAG, "Data write failure" + e.getMessage());
+
+        int catchCount = 0;
+        while (catchCount <= selectDbConfig.getRetryCount()) {
+            try {
+                WriteListResult<TapRecordEvent> writeListResult = selectDbStreamLoader.writeRecord(connectorContext, events, table);
+                writeListResultConsumer.accept(writeListResult);
+                break;
+            } catch (Throwable e) {
+                catchCount++;
+                if (catchCount <= selectDbConfig.getRetryCount()) {
+                    connectorContext.getLog().warn("Data source upload retry: {}", catchCount);
+                } else {
+                    TapLogger.error(TAG, "Data write failure" + e.getMessage());
+                    throw new RuntimeException(e);
+                }
+            }
         }
     }
 
