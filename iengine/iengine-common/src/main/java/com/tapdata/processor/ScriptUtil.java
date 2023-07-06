@@ -729,7 +729,7 @@ public class ScriptUtil {
 
 	public static String handlePyScript(String script){
 		if (null == script || "".equals(script.trim())) return DEFAULT_PY_SCRIPT;
-		Pattern p = Pattern.compile("(.*)(def\\s+)(.*)(\\()(.*)(\\))(\\s*)(:)");
+		Pattern p = Pattern.compile("(.*)(def\\s+)(.*)(\\()(.*)(\\))(\\s*)(:)(\\s*)");
 		if (!p.matcher(script).find()) {
 			throw new CoreException("Python process function is non compliant, error script: " + script);
 		}
@@ -752,7 +752,8 @@ public class ScriptUtil {
 				builder.append("\t");
 			}
 		}
-		return script.replace(scriptItem, builder.toString());
+		String toString = builder.toString();
+		return script.replace(scriptItem, toString.startsWith("\n") ? toString : "\n\t" + toString);
 	}
 
 

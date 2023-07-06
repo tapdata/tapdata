@@ -697,7 +697,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                throw new BizException("Processor node is not of expected type. error type: {}", null == node ? "null" : node.getClass().getName());
             }
             MigrateScriptProcessNode jsNode = (MigrateScriptProcessNode) node;
-            jsType = Optional.ofNullable(jsNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+            jsType = Optional.ofNullable(jsNode.getJsType()).orElse(jsType);
 
             if (StringUtils.isNotBlank(script)) {
                 jsNode.setScript(script);
@@ -727,7 +727,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             Node<?> node = dtoDag.getNode(nodeId);
             if (node instanceof ScriptProcessNode){
                 ScriptProcessNode processorNode = (ScriptProcessNode) node;
-                jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+                jsType = Optional.ofNullable(processorNode.getJsType()).orElse(jsType);
             }
             getPrePre(node, predIds);
             predIds.add(nodeId);
