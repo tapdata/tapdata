@@ -4,14 +4,19 @@ import com.tapdata.entity.inspect.InspectStatus;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.inspect.InspectJob;
 import io.tapdata.inspect.InspectTaskContext;
+import io.tapdata.pdk.apis.entity.QueryOperator;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunction;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -39,24 +44,51 @@ public class TableRowCountInspectJob extends InspectJob {
 				try {
 					AtomicLong sourceCount = new AtomicLong();
 					AtomicLong targetCount = new AtomicLong();
-					BatchCountFunction srcBatchCountFunction = this.sourceNode.getConnectorFunctions().getBatchCountFunction();
-					if (null == srcBatchCountFunction) {
-						retry = 3;
-						throw new RuntimeException("Source node does not support batch count function: " + sourceNode.getConnectorContext().getSpecification().getId());
+
+					List<QueryOperator> srcConditions = inspectTask.getSource().getConditions();
+					if (CollectionUtils.isNotEmpty(srcConditions)) {
+						CountByPartitionFilterFunction srcCountByPartitionFilterFunction = this.sourceNode.getConnectorFunctions().getCountByPartitionFilterFunction();
+						if (null == srcCountByPartitionFilterFunction) {
+							retry = 3;
+							throw new RuntimeException("Source node does not support count with filter function: " + sourceNode.getConnectorContext().getSpecification().getId());
+						}
+						TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
+						tapAdvanceFilter.setOperators(srcConditions);
+						PDKInvocationMonitor.invoke(this.sourceNode, PDKMethod.COUNT_BY_PARTITION_FILTER,
+								() -> sourceCount.set(srcCountByPartitionFilterFunction.countByPartitionFilter(this.sourceNode.getConnectorContext(), new TapTable(inspectTask.getSource().getTable()), tapAdvanceFilter)), TAG);
+					} else {
+						BatchCountFunction srcBatchCountFunction = this.sourceNode.getConnectorFunctions().getBatchCountFunction();
+						if (null == srcBatchCountFunction) {
+							retry = 3;
+							throw new RuntimeException("Source node does not support batch count function: " + sourceNode.getConnectorContext().getSpecification().getId());
+						}
+						PDKInvocationMonitor.invoke(this.sourceNode, PDKMethod.SOURCE_BATCH_COUNT,
+								() -> sourceCount.set(srcBatchCountFunction.count(this.sourceNode.getConnectorContext(), new TapTable(inspectTask.getSource().getTable()))),
+								TAG
+						);
 					}
-					BatchCountFunction tgtBatchCountFunction = this.targetNode.getConnectorFunctions().getBatchCountFunction();
-					if (null == tgtBatchCountFunction) {
-						retry = 3;
-						throw new RuntimeException("Target node does not support batch count function: " + targetNode.getConnectorContext().getSpecification().getId());
+					List<QueryOperator> tgtConditions = inspectTask.getTarget().getConditions();
+					if (CollectionUtils.isNotEmpty(tgtConditions)) {
+						CountByPartitionFilterFunction tgtCountByPartitionFilterFunction = this.targetNode.getConnectorFunctions().getCountByPartitionFilterFunction();
+						if (null == tgtCountByPartitionFilterFunction) {
+							retry = 3;
+							throw new RuntimeException("Target node does not support count with filter function: " + targetNode.getConnectorContext().getSpecification().getId());
+						}
+						TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
+						tapAdvanceFilter.setOperators(tgtConditions);
+						PDKInvocationMonitor.invoke(this.targetNode, PDKMethod.COUNT_BY_PARTITION_FILTER,
+								() -> targetCount.set(tgtCountByPartitionFilterFunction.countByPartitionFilter(this.targetNode.getConnectorContext(), new TapTable(inspectTask.getTarget().getTable()), tapAdvanceFilter)), TAG);
+					} else {
+						BatchCountFunction tgtBatchCountFunction = this.targetNode.getConnectorFunctions().getBatchCountFunction();
+						if (null == tgtBatchCountFunction) {
+							retry = 3;
+							throw new RuntimeException("Target node does not support batch count function: " + targetNode.getConnectorContext().getSpecification().getId());
+						}
+						PDKInvocationMonitor.invoke(this.targetNode, PDKMethod.SOURCE_BATCH_COUNT,
+								() -> targetCount.set(tgtBatchCountFunction.count(this.targetNode.getConnectorContext(), new TapTable(inspectTask.getTarget().getTable()))),
+								TAG
+						);
 					}
-					PDKInvocationMonitor.invoke(this.sourceNode, PDKMethod.SOURCE_BATCH_COUNT,
-							() -> sourceCount.set(srcBatchCountFunction.count(this.sourceNode.getConnectorContext(), new TapTable(inspectTask.getSource().getTable()))),
-							TAG
-					);
-					PDKInvocationMonitor.invoke(this.targetNode, PDKMethod.SOURCE_BATCH_COUNT,
-							() -> targetCount.set(tgtBatchCountFunction.count(this.targetNode.getConnectorContext(), new TapTable(inspectTask.getTarget().getTable()))),
-							TAG
-					);
 
 					boolean passed = sourceCount.get() == targetCount.get();
 

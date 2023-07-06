@@ -7,11 +7,13 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.Projection;
+import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.SortOn;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -52,8 +54,9 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	private final List<String> dataKeys;
 	private final List<List<Object>> diffKeyValues;
 	private final AtomicReference<Thread> queryThreadAR = new AtomicReference<>();
+	private final List<QueryOperator> conditions;
 
-	public PdkResult(List<String> sortColumns, Connections connections, String tableName, Set<String> columns, ConnectorNode connectorNode, boolean fullMatch, List<String> dataKeys, List<List<Object>> diffKeyValues) {
+	public PdkResult(List<String> sortColumns, Connections connections, String tableName, Set<String> columns, ConnectorNode connectorNode, boolean fullMatch, List<String> dataKeys, List<List<Object>> diffKeyValues, List<QueryOperator> conditions) {
 		super(sortColumns, connections, tableName);
 		this.connectorNode = connectorNode;
 		for (String sortColumn : sortColumns) {
@@ -85,6 +88,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 		}
 		this.dataKeys = dataKeys;
 		this.diffKeyValues = diffKeyValues;
+		this.conditions = conditions;
 
 		if (null != diffKeyValues && !diffKeyValues.isEmpty()) {
 			Map<String, Object> keyMap;
@@ -126,12 +130,21 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 		if (null == diffKeyValues) {
 			ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 			BatchCountFunction batchCountFunction = connectorFunctions.getBatchCountFunction();
-			if (null == batchCountFunction) {
+			CountByPartitionFilterFunction countByPartitionFilterFunction = connectorFunctions.getCountByPartitionFilterFunction();
+			if ((null == batchCountFunction && null == countByPartitionFilterFunction)
+					|| (CollectionUtils.isNotEmpty(conditions) && null == countByPartitionFilterFunction)) {
 				total = 0L;
 				return;
 			}
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_COUNT,
-					() -> total = batchCountFunction.count(connectorNode.getConnectorContext(), tapTable), TAG);
+			if (null != countByPartitionFilterFunction) {
+				TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
+				tapAdvanceFilter.setOperators(conditions);
+				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.COUNT_BY_PARTITION_FILTER,
+						() -> total = countByPartitionFilterFunction.countByPartitionFilter(connectorNode.getConnectorContext(), tapTable, tapAdvanceFilter), TAG);
+			} else {
+				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_COUNT,
+						() -> total = batchCountFunction.count(connectorNode.getConnectorContext(), tapTable), TAG);
+			}
 		} else {
 			total = diffKeyValues.size();
 		}
@@ -210,6 +223,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 //						tapAdvanceFilter.setLimit(BATCH_SIZE); // can not add limit because queryByAdvanceFilterFunction not support 'or' conditions
 						tapAdvanceFilter.setSortOnList(sortOnList);
 						tapAdvanceFilter.setProjection(projection);
+						tapAdvanceFilter.setOperators(conditions);
 						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
 							() -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
 								Throwable error = filterResults.getError();
