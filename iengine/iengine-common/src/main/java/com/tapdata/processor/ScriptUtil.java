@@ -578,9 +578,9 @@ public class ScriptUtil {
 		 }
 		 """
 	 * */
-	public static final String DEFAULT_PY_SCRIPT_START = "import json, random, time, datetime, uuid, types;\n" + //", yaml"
-			"import urllib, urllib2;\n" + //", requests"
-			"import math, hashlib, base64;\n" +
+	public static final String DEFAULT_PY_SCRIPT_START = "import json, random, time, datetime, uuid, types\n" + //", yaml"
+			"import urllib, urllib2\n" + //", requests"
+			"import math, hashlib, base64, yaml, requests\n" +
 			"def process(record, context):\n";
 	public static final String DEFAULT_PY_SCRIPT = DEFAULT_PY_SCRIPT_START + "\treturn record;\n";
 
