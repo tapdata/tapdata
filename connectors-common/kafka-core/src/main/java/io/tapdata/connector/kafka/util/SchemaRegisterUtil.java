@@ -69,35 +69,6 @@ public class SchemaRegisterUtil {
         }
     }
 
-    public static int sendBasicAuthRequest0(String url, String username, String password) throws IOException {
-        HttpURLConnection connection = null;
-        BufferedReader reader = null;
-        try {
-            URL apiUrl = new URL(url);
-            connection = (HttpURLConnection) apiUrl.openConnection();
-            connection.setRequestMethod("GET");
-            String authCredentials = username + ":" + password;
-            String encodedCredentials = java.util.Base64.getEncoder().encodeToString(authCredentials.getBytes());
-            connection.setRequestProperty("Authorization", "Basic " + encodedCredentials);
-
-            int responseCode = connection.getResponseCode();
-
-            // Read the response
-            reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-            String line;
-            StringBuilder response = new StringBuilder();
-            while ((line = reader.readLine()) != null) {
-                response.append(line);
-            }
-            return responseCode;
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
-                reader.close();
-            }
-        }
-    }
-
     public static StringBuilder httpRequest(String url) throws IOException {
         HttpURLConnection connection = null;
         BufferedReader reader = null;

@@ -109,26 +109,32 @@ public class KafkaSRService extends KafkaService {
                 return new TestItem(MqTestItem.KAFKA_BASE64_CONNECTION.getContent(), TestItem.RESULT_FAILED, e.getMessage());
             }
         }
+        String[] schemaRegisterUrls = tapConnectionContext.getConnectionConfig().getString("schemaRegisterUrl").split(",");
         try {
             if (kafkaConfig.getBasicAuth()) {
-                Response reschemaRegisterResponse = SchemaRegisterUtil.sendBasicAuthRequest("http://" + tapConnectionContext.getConnectionConfig().getString("schemaRegisterUrl") + "/subjects",
-                        kafkaConfig.getAuthUserName(),
-                        kafkaConfig.getAuthPassword());
-                if ( reschemaRegisterResponse.code() == 200) {
-                    return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
-                } else {
-                    return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_FAILED, reschemaRegisterResponse.toString());
+                for (String schemaRegisterUrl : schemaRegisterUrls) {
+                    Response reschemaRegisterResponse = SchemaRegisterUtil.sendBasicAuthRequest("http://" + schemaRegisterUrl + "/subjects",
+                            kafkaConfig.getAuthUserName(),
+                            kafkaConfig.getAuthPassword());
+                    if (reschemaRegisterResponse.code() != 200) {
+                        return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_FAILED, reschemaRegisterResponse.toString());
+                    }
                 }
+                return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
             } else {
-                if (SchemaRegisterUtil.sendHttpRequest("http://" + tapConnectionContext.getConnectionConfig().getString("schemaRegisterUrl") + "/subjects") == 200) {
-                    return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
-                } else {
-                    return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_FAILED, "The Schema Register service is invalid. Please check the service address.");
+                for (String schemaRegisterUrl : schemaRegisterUrls) {
+                    Response reschemaRegisterResponse = SchemaRegisterUtil.sendBasicAuthRequest("http://" + schemaRegisterUrl + "/subjects",
+                            null,
+                            null);
+                    if (reschemaRegisterResponse.code() != 200) {
+                        return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_FAILED, reschemaRegisterResponse.toString());
+                    }
                 }
+                return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
             }
         } catch (Exception e) {
             e.printStackTrace();
-            return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_FAILED, "Please check the service address." + e.getMessage());
+            return new TestItem(MqTestItem.KAFKA_SCHEMA_REGISTER_CONNECTION.getContent(), TestItem.RESULT_FAILED, "Please check the service address. " + e.getMessage());
         }
     }
 
