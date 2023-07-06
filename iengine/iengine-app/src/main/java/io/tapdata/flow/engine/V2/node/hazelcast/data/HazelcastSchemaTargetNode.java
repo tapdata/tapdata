@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 import com.hazelcast.jet.core.Inbox;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
+import com.tapdata.cache.ICacheService;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -12,7 +13,10 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
+import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.schema.Schema;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
@@ -39,6 +43,7 @@ import org.voovan.tools.collection.CacheMap;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -114,22 +119,27 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 
 		if (deductionSchemaNode instanceof JsProcessorNode
 				|| deductionSchemaNode instanceof MigrateJsProcessorNode
-				|| deductionSchemaNode instanceof CustomProcessorNode) {
+				|| deductionSchemaNode instanceof CustomProcessorNode
+				|| deductionSchemaNode instanceof PyProcessNode
+				|| deductionSchemaNode instanceof MigratePyProcessNode ) {
+			final boolean isPythonNode = deductionSchemaNode instanceof PyProcessNode || deductionSchemaNode instanceof MigratePyProcessNode;
 			String declareScript = (String) ReflectionUtil.getFieldValue(deductionSchemaNode, "declareScript");
 			this.needToDeclare = StringUtils.isNotEmpty(declareScript);
 			if (this.needToDeclare) {
 				this.declareFunction = (param) -> {
 					Invocable engine = null;
 					try {
-						String realDeclareScript;
-						if (multipleTables) {
-							realDeclareScript = String.format("function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}", declareScript);
-						} else {
-							realDeclareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
-						}
+						String realDeclareScript = multipleTables ? (
+							isPythonNode ? String.format("def declare(schemaApplyResultList):\n %s \n\treturn schemaApplyResultList\n", declareScript)
+							: String.format("function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}", declareScript)
+						) : (
+							isPythonNode ? String.format("def declare(tapTable):\n%s\nreturn tapTable\n", declareScript)
+							: String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript)
+						);
 						ObsScriptLogger scriptLogger = new ObsScriptLogger(obsLogger);
-						engine = ScriptUtil.getScriptEngine(realDeclareScript, null, null,
-								((DataProcessorContext) processorBaseContext).getCacheService(), scriptLogger
+						ICacheService cache = ((DataProcessorContext) processorBaseContext).getCacheService();
+						engine = isPythonNode ? ScriptUtil.getPyEngine(realDeclareScript,  cache, scriptLogger)
+								: ScriptUtil.getScriptEngine(realDeclareScript, null, null, cache, scriptLogger
 						);
 						TapModelDeclare tapModelDeclare = new TapModelDeclare(scriptLogger);
 						((ScriptEngine) engine).put("TapModelDeclare", tapModelDeclare);
@@ -137,8 +147,12 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 					} catch (Throwable throwable) {
 						throw new RuntimeException("Error executing declaration code", throwable);
 					} finally {
-						if (engine instanceof GraalJSScriptEngine) {
-							((GraalJSScriptEngine) engine).close();
+						try {
+							if (engine instanceof Closeable) {
+								((Closeable) engine).close();
+							}
+						}catch (Exception e) {
+							throw new CoreException("Resource cannot be released of {} Node, message: {}", isPythonNode ? "Python" : "JavaScript", e.getMessage());
 						}
 					}
 				};

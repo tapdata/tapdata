@@ -93,6 +93,8 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
+import io.tapdata.services.JSProcessNodeTestRunService;
+import io.tapdata.test.run.TestRunAspectTask;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -213,7 +215,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	@Override
 	public TaskClient<TaskDto> startTestTask(TaskDto taskDto, AtomicReference<Object> result) {
 		try {
-			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).info("JSRunResult", result).log(new TapLog()));
+			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).info("KYE_OF_SCRIPT_RUN_RESULT", result).log(new TapLog()));
 			long startTs = System.currentTimeMillis();
 			final JetDag jetDag = task2HazelcastDAG(taskDto);
 			JobConfig jobConfig = new JobConfig();

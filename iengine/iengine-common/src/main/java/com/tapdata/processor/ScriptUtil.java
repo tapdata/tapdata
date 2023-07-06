@@ -53,6 +53,8 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author jackin
@@ -428,42 +430,6 @@ public class ScriptUtil {
 		}
 	}
 
-	public static void main(String[] args) throws ScriptException, NoSuchMethodException, JsonProcessingException {
-		String script = initBuildInMethod(null, null);
-
-//		script += "function process(record){\n" +
-//			"var cDate = DateUtil.toCalendar(Date.from(record.instant));\n" +
-//			"record.year = cDate.get(1)\n" +
-//			"record.month = cDate.get(2) + 1;\n" +
-//			"record.day = cDate.get(5);\n" +
-//			"record.undefined = record.undefined.toString();" +
-//			"record.keys = {};" +
-//			"for(var key in record){record.keys[key] = key}\n" +
-//			"return record;\n" +
-//			"\n}";
-
-		script += "function process(record){\n" +
-				"    return record;\n" +
-				"}";
-
-//    String s = JSONUtil.obj2Json(new HashMap() {{
-//      put("a", 1);
-//      put("instant", Instant.now());
-//      put("undefined", new BsonUndefined());
-//    }});
-//
-//    System.out.println(s);
-
-		Invocable scriptEngine = getScriptEngine(JSEngineEnum.NASHORN.getEngineName(), script, null, null, null, null, null, logger);
-		Object a = scriptEngine.invokeFunction(FUNCTION_NAME, new HashMap() {{
-			put("a", 1);
-			put("instant", Instant.now());
-			put("undefined", new BsonUndefined());
-		}});
-
-		System.out.println(a);
-	}
-
 
 	//标准化JS节点相关=====================================================================================================
 	public static Invocable getScriptStandardizationEngine(
@@ -601,8 +567,23 @@ public class ScriptUtil {
 
 
 	//py节点相关==========================================================================================================
+	/**
+	 * context : {
+	 *     "event" : {},
+	 *     "before" : {},
+	 *     "info" : {},
+	 *     "global" : {}
+	 * }
+	 * */
+	public static final String DEFAULT_PY_SCRIPT_START = "import json, random, time, datetime, uuid, types;\n" + //", yaml"
+			"import urllib, urllib2;\n" + //", requests"
+			"import math, hashlib, base64;\n" +
+			"def process(record, context):\n";
+	public static final String DEFAULT_PY_SCRIPT = DEFAULT_PY_SCRIPT_START + "\treturn record;\n";
 
-	public static final String DEFAULT_PY_SCRIPT = "function process(record, context){\n\treturn record;\n}";
+	public static Invocable getPyEngine(String script, ICacheGetter memoryCacheGetter, Log logger) throws ScriptException {
+		return getPyEngine("python", script, null, null, null, null, memoryCacheGetter, logger);
+	}
 	public static Invocable getPyEngine(
 			String engineName,
 			String script,
@@ -618,27 +599,29 @@ public class ScriptUtil {
 		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
 		final ClassLoader[] externalClassLoader = new ClassLoader[1];
 		String buildInMethod = "";
-		initPythonBuildInMethod(
+		String globalScript = initPythonBuildInMethod(
 				functions,
 				clientMongoOperator,
 				urlClassLoader -> externalClassLoader[0] = urlClassLoader
 		);
 		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(engineName).classLoader(externalClassLoader[0]));
-		String scripts = script + System.lineSeparator() + buildInMethod;
+
+		String scripts = buildInMethod + System.lineSeparator() + handlePyScript(script);
 
 		e.put("tapUtil", new JsUtil());
 		e.put("tapLog", logger);
 		try {
-			e.eval("tapLog.info('Init standardized JS engine...');");
+			e.eval(globalScript);
+			e.eval("tapLog.info('Init python engine...');");
 		}catch (Exception es){
-			throw new RuntimeException(String.format("Can not init standardized JS engine, %s", es.getMessage()), es);
+			throw new RuntimeException(String.format("Can not init python engine, %s", es.getMessage()), es);
 		}
 		evalImportSources(e, "");
 
 		try {
 			e.eval(scripts);
 		} catch (Throwable ex) {
-			throw new CoreException(String.format("Incorrect py code, syntax error found: %s, please check your python code", ex.getMessage()));
+			throw new CoreException(String.format("Incorrect python code, syntax error found: %s, please check your python code", ex.getMessage()));
 		}
 		Optional.ofNullable(source).ifPresent(s -> e.put("source", s));
 		Optional.ofNullable(target).ifPresent(s -> e.put("target", s));
@@ -648,34 +631,28 @@ public class ScriptUtil {
 	}
 
 	public static String initPythonBuildInMethod(List<JavaScriptFunctions> javaScriptFunctions, ClientMongoOperator clientMongoOperator, Consumer<URLClassLoader> consumer) {
-		StringBuilder buildInMethod = new StringBuilder();
-
 		//Expired, will be ignored in the near future
-		buildInMethod.append("global DateUtil = Java.type(\"com.tapdata.constant.DateUtil\");\n");
-		buildInMethod.append("global UUIDGenerator = Java.type(\"com.tapdata.constant.UUIDGenerator\");\n");
-		buildInMethod.append("global idGen = Java.type(\"com.tapdata.constant.UUIDGenerator\");\n");
-		buildInMethod.append("global HashMap = Java.type(\"java.util.HashMap\");\n");
-		buildInMethod.append("global LinkedHashMap = Java.type(\"java.util.LinkedHashMap\");\n");
-		buildInMethod.append("global ArrayList = Java.type(\"java.util.ArrayList\");\n");
-		buildInMethod.append("global uuid = UUIDGenerator.uuid;\n");
-		buildInMethod.append("global JSONUtil = Java.type('com.tapdata.constant.JSONUtil');\n");
-		buildInMethod.append("global HanLPUtil = Java.type(\"com.tapdata.constant.HanLPUtil\");\n");
-		buildInMethod.append("global split_chinese = HanLPUtil.hanLPParticiple;\n");
-		buildInMethod.append("global util = Java.type(\"com.tapdata.processor.util.Util\");\n");
-		buildInMethod.append("global MD5Util = Java.type(\"com.tapdata.constant.MD5Util\");\n");
-		buildInMethod.append("global MD5 = function(str){return MD5Util.crypt(str, true);};\n");
-		buildInMethod.append("global Collections = Java.type(\"java.util.Collections\");\n");
-		buildInMethod.append("global MapUtils = Java.type(\"com.tapdata.constant.MapUtil\");\n");
-
-
-		buildInMethod.append("def sleep(ms):\n  Java.type(\"java.lang.Thread\").sleep(ms);\n\n");
-
-		buildInMethod.append("global networkUtil = Java.type(\"com.tapdata.constant.NetworkUtil\");\n");
-		buildInMethod.append("global rest = Java.type(\"com.tapdata.processor.util.CustomRest\");\n");
-		buildInMethod.append("global httpUtil = Java.type(\"cn.hutool.http.HttpUtil\");\n");
-		buildInMethod.append("global tcp = Java.type(\"com.tapdata.processor.util.CustomTcp\");\n");
-		buildInMethod.append("global mongo = Java.type(\"com.tapdata.processor.util.CustomMongodb\");\n");
-
+		//buildInMethod.append("global DateUtil = Java.type(\"com.tapdata.constant.DateUtil\")\n");
+		//buildInMethod.append("global UUIDGenerator = Java.type(\"com.tapdata.constant.UUIDGenerator\")\n");
+		//buildInMethod.append("global idGen = Java.type(\"com.tapdata.constant.UUIDGenerator\")\n");
+		//buildInMethod.append("global HashMap = Java.type(\"java.util.HashMap\")\n");
+		//buildInMethod.append("global LinkedHashMap = Java.type(\"java.util.LinkedHashMap\")\n");
+		//buildInMethod.append("global ArrayList = Java.type(\"java.util.ArrayList\")\n");
+		//buildInMethod.append("global uuid = UUIDGenerator.uuid\n");
+		//buildInMethod.append("global JSONUtil = Java.type('com.tapdata.constant.JSONUtil')\n");
+		//buildInMethod.append("global HanLPUtil = Java.type(\"com.tapdata.constant.HanLPUtil\")\n");
+		//buildInMethod.append("global split_chinese = HanLPUtil.hanLPParticiple\n");
+		//buildInMethod.append("global util = Java.type(\"com.tapdata.processor.util.Util\")\n");
+		//buildInMethod.append("global MD5Util = Java.type(\"com.tapdata.constant.MD5Util\")\n");
+		//buildInMethod.append("def MD5(str):\n\treturn MD5Util.crypt(str, true)\n");
+		//buildInMethod.append("global Collections = Java.type(\"java.util.Collections\")\n");
+		//buildInMethod.append("global MapUtils = Java.type(\"com.tapdata.constant.MapUtil\")\n");
+		//buildInMethod.append("def sleep(ms):\n\tJava.type(\"java.lang.Thread\").sleep(ms)\n\n");
+		//buildInMethod.append("global networkUtil = Java.type(\"com.tapdata.constant.NetworkUtil\")\n");
+		//buildInMethod.append("global rest = Java.type(\"com.tapdata.processor.util.CustomRest\")\n");
+		//buildInMethod.append("global httpUtil = Java.type(\"cn.hutool.http.HttpUtil\")\n");
+		//buildInMethod.append("global tcp = Java.type(\"com.tapdata.processor.util.CustomTcp\")\n");
+		//buildInMethod.append("global mongo = Java.type(\"com.tapdata.processor.util.CustomMongodb\")\n");
 		//@todo initPythonBuildInMethod and add python function from mongo db
 		//if (CollectionUtils.isNotEmpty(javaScriptFunctions)) {
 		//	List<URL> urlList = new ArrayList<>();
@@ -726,10 +703,57 @@ public class ScriptUtil {
 		//		}
 		//	}
 		//}
-		return buildInMethod.toString();
+		return  "import com.tapdata.constant.DateUtil as DateUtil\n" +
+				"import com.tapdata.constant.UUIDGenerator as UUIDGenerator\n" +
+				"import com.tapdata.constant.UUIDGenerator as idGen\n" +
+				"import java.util.HashMap as HashMap\n" +
+				"import java.util.LinkedHashMap as LinkedHashMap\n" +
+				"import java.util.ArrayList as ArrayList\n" +
+				"import com.tapdata.constant.JSONUtil as JSONUtil\n" +
+				"import com.tapdata.constant.HanLPUtil as HanLPUtil\n" +
+				"import com.tapdata.processor.util.Util as util\n" +
+				"import com.tapdata.constant.MD5Util as MD5Util\n" +
+				"import java.util.Collections as Collections\n" +
+				"import com.tapdata.constant.MapUtil as MapUtils\n" +
+				"import com.tapdata.constant.NetworkUtil as networkUtil\n" +
+				"import com.tapdata.processor.util.CustomRest as rest\n" +
+				"import cn.hutool.http.HttpUtil as httpUtil\n" +
+				"import com.tapdata.processor.util.CustomTcp as tcp\n" +
+				"import com.tapdata.processor.util.CustomMongodb as mongo\n" +
+
+				"uuid = UUIDGenerator.uuid\n" +
+				"split_chinese = HanLPUtil.hanLPParticiple\n" +
+				"def MD5(str):\n" +
+				"\treturn MD5Util.crypt(str, True)\n";
 	}
 
+	public static String handlePyScript(String script){
+		if (null == script || "".equals(script.trim())) return DEFAULT_PY_SCRIPT;
+		Pattern p = Pattern.compile("(.*)(def\\s+)(.*)(\\()(.*)(\\))(\\s*)(:)");
+		if (!p.matcher(script).find()) {
+			throw new CoreException("Python process function is non compliant, error script: " + script);
+		}
+		String[] split = p.split(script);
+		if (split.length < 1){
+			throw new CoreException("Python process function is non compliant, error script: " + script);
+		}
 
+		String scriptItem = split[split.length-1];//script.substring(script.indexOf("def process(record, context):") + 29);
+		char[] chars = scriptItem.toCharArray();
+		StringBuilder builder = new StringBuilder();
+//		if (split.length > 1){
+//			for (int index = 0; index < split.length - 1; index++) {
+//				builder.append(split[index]);
+//			}
+//		}
+		for (char aChar : chars) {
+			builder.append(aChar);
+			if (aChar == '\n') {
+				builder.append("\t");
+			}
+		}
+		return script.replace(scriptItem, builder.toString());
+	}
 
 
 
@@ -753,5 +777,47 @@ public class ScriptUtil {
 			if (null == fileClassPath || "".equals(fileClassPath.trim())) continue;
 			evalSource(engine, fileClassPath);
 		}
+	}
+
+
+
+
+	public static void main(String[] args) throws ScriptException, NoSuchMethodException, JsonProcessingException {
+//		String script = initBuildInMethod(null, null);
+		Pattern p = Pattern.compile("(def\\s+)(.*)(\\()(.*)(\\))(\\s*)(:)");
+		Matcher m = p.matcher("def declare(tapTable):\n\treturn tapTable");
+		System.out.println(m.find());
+		System.out.println(p.matcher("dsef process(record, context):\n\treturn record").find());
+//		script += "function process(record){\n" +
+//			"var cDate = DateUtil.toCalendar(Date.from(record.instant));\n" +
+//			"record.year = cDate.get(1)\n" +
+//			"record.month = cDate.get(2) + 1;\n" +
+//			"record.day = cDate.get(5);\n" +
+//			"record.undefined = record.undefined.toString();" +
+//			"record.keys = {};" +
+//			"for(var key in record){record.keys[key] = key}\n" +
+//			"return record;\n" +
+//			"\n}";
+
+//		script += "function process(record){\n" +
+//				"    return record;\n" +
+//				"}";
+
+//    String s = JSONUtil.obj2Json(new HashMap() {{
+//      put("a", 1);
+//      put("instant", Instant.now());
+//      put("undefined", new BsonUndefined());
+//    }});
+//
+//    System.out.println(s);
+
+//		Invocable scriptEngine = getScriptEngine(JSEngineEnum.NASHORN.getEngineName(), script, null, null, null, null, null, logger);
+//		Object a = scriptEngine.invokeFunction(FUNCTION_NAME, new HashMap() {{
+//			put("a", 1);
+//			put("instant", Instant.now());
+//			put("undefined", new BsonUndefined());
+//		}});
+//
+//		System.out.println(a);
 	}
 }

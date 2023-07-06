@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ProcessorNodeType;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -981,12 +982,22 @@ public class TaskController extends BaseController {
 
     @PostMapping("migrate-js/test-run-rpc")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
-    public ResponseMessage<Map<String, Object>> testRunRPC(@RequestBody TestRunDto dto) {
+    public ResponseMessage<Map<String, Object>> testRunJsRPC(@RequestBody TestRunDto dto) {
+        return testRunRPC(dto, ProcessorNodeType.Standard_JS.type());
+    }
+
+    @PostMapping("migrate-python/test-run-rpc")
+    @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
+    public ResponseMessage<Map<String, Object>> testRunPythonRPC(@RequestBody TestRunDto dto) {
+        return testRunRPC(dto, ProcessorNodeType.PYTHON.type());
+    }
+
+    private ResponseMessage<Map<String, Object>> testRunRPC(TestRunDto dto, int jsType){
         Map<String, Object> data = null;
         ResponseMessage<Map<String, Object>> responseMessage = new ResponseMessage<>();
         Map<String, Object> result = null;
         try {
-            data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser());
+            data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser(), jsType);
             result = (Map<String, Object>)Optional.ofNullable(data.get("data")).orElse(data);
             if (null == result || result.isEmpty()) {
                 throw new CoreException("Can not get data from source,  Please ensure if source connection is valid");

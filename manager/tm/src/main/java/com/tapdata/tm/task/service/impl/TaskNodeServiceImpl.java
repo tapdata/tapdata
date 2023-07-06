@@ -668,7 +668,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail) {
+    public Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail, int jsType) {
         String taskId = dto.getTaskId();
         String nodeId = dto.getJsNodeId();
         String tableName = dto.getTableName();
@@ -685,7 +685,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         BeanUtils.copyProperties(taskDto, taskDtoCopy);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
-        int jsType = ProcessorNodeType.DEFAULT.type();
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
             DatabaseNode first = dtoDag.getSourceNode().getFirst();
             first.setTableNames(Lists.of(tableName));

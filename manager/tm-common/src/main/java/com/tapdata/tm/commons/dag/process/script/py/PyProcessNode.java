@@ -11,12 +11,12 @@ import lombok.Setter;
  * @description PyProcessNode create by Gavin
  * @create 2023/6/13 19:28
  **/
-@NodeType("py_processor")
+@NodeType("python_processor")
 @Getter
 @Setter
 public class PyProcessNode extends ScriptProcessNode {
     public PyProcessNode() {
-        super(NodeEnum.py_processor.getNodeName());
+        super(NodeEnum.python_processor.getNodeName());
     }
 
     public PyProcessNode(String type) {

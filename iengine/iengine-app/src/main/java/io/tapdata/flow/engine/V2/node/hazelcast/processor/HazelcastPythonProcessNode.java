@@ -35,11 +35,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
-import org.python.jsr223.PyScriptEngine;
 import org.springframework.data.mongodb.core.query.Query;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
+import java.io.Closeable;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -56,6 +56,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @author GavinXiao
  * @description HazelcastPythonProcessNode create by Gavin
  * @create 2023/6/13 19:24
+ * @doc https://iowiki.com/jython/jython_importing_java_libraries.html
  **/
 public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
     private static final Logger logger = LogManager.getLogger(HazelcastPythonProcessNode.class);
@@ -112,11 +113,11 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                 TaskDto.SYNC_TYPE_DEDUCE_SCHEMA
             )
         );
-        ((PyScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
+        ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
         this.source = getDefaultScriptExecutor(GraphUtil.predecessors(node, Node::isDataNode), "source");
         this.target = getDefaultScriptExecutor(GraphUtil.successors(node, Node::isDataNode), "target");
-        ((PyScriptEngine) this.engine).put("source", source);
-        ((PyScriptEngine) this.engine).put("target", target);
+        ((ScriptEngine) this.engine).put("source", source);
+        ((ScriptEngine) this.engine).put("target", target);
     }
 
     @SneakyThrows
@@ -238,8 +239,8 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.target).ifPresent(ScriptExecutorsManager.ScriptExecutor::close), TAG);
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.scriptExecutorsManager).ifPresent(ScriptExecutorsManager::close), TAG);
             CommonUtils.ignoreAnyError(() -> {
-                if (this.engine instanceof PyScriptEngine) {
-                    ((PyScriptEngine) this.engine).close();
+                if (this.engine instanceof Closeable) {
+                    ((Closeable)this.engine).close();
                 }
             }, TAG);
         } finally {

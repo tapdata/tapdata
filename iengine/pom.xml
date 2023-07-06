@@ -858,6 +858,13 @@
                 <version>${graalvm.py.version}</version>
             </dependency>
             <dependency>
+                <groupId>org.python</groupId>
+                <artifactId>jython</artifactId>
+                <version>${graalvm.py.version}</version>
+            </dependency>
+
+
+            <dependency>
                 <groupId>net.openhft</groupId>
                 <artifactId>chronicle-queue</artifactId>
                 <version>5.21.91</version>
