@@ -421,6 +421,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 
 	public Page<DataSourceConnectionDto> list(Filter filter, boolean noSchema, UserDetail userDetail) {
+		filter.getWhere().and("user_id",userDetail.getUserId());
 		Page<DataSourceConnectionDto> dataSourceConnectionDtoPage = find(filter, userDetail);
 		List<DataSourceConnectionDto> items = dataSourceConnectionDtoPage.getItems();
 
@@ -1601,19 +1602,23 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 		Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
 		for (DataSourceConnectionDto connectionDto : connectionDtos) {
-			String connId = connectionDto.getId().toHexString();
+			String connId = connectionDto.getId().toString();
 			Query query = new Query(Criteria.where("_id").is(connectionDto.getId()));
 			query.fields().include("_id");
 			connectionDto.setListtags(null);
-			DataSourceConnectionDto connection = findOne(query);
-			if (connection == null) {
+			DataSourceConnectionDto connectionByUser = findOne(query,user);
+			if (connectionByUser == null) {
+				DataSourceConnectionDto connection = findOne(new Query(Criteria.where("_id").is(connectionDto.getId())));
 				while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
 					connectionDto.setName(connectionDto.getName() + "_import");
 				}
-				connection = importEntity(connectionDto, user);
+				if(connection != null){
+					connectionDto.setId(null);
+				}
+				connectionByUser = importEntity(connectionDto, user);
 			} else {
 				if (cover) {
-					ObjectId objectId = connection.getId();
+					ObjectId objectId = connectionByUser.getId();
 					while (checkRepeatNameBool(user, connectionDto.getName(), objectId)) {
 						connectionDto.setName(connectionDto.getName() + "_import");
 					}
@@ -1623,11 +1628,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					connectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
 
 
-					connection = save(connectionDto, user);
+					connectionByUser = save(connectionDto, user);
 				}
 			}
 
-			conMap.put(connId, connection);
+			conMap.put(connId, connectionByUser);
 
 		}
 		return conMap;
