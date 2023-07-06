@@ -568,12 +568,15 @@ public class ScriptUtil {
 
 	//py节点相关==========================================================================================================
 	/**
-	 * context : {
-	 *     "event" : {},
-	 *     "before" : {},
-	 *     "info" : {},
-	 *     "global" : {}
-	 * }
+		 """
+		 Detailed context description can be found in the API documentation
+		 context = {
+			 "event": {},  #Data source event type, table name, and other information
+			 "before": {}, #Content before data changes
+			 "info": {},   #Data source event information
+			 "global": {}  #A state storage container on the node dimension within the task cycle
+		 }
+		 """
 	 * */
 	public static final String DEFAULT_PY_SCRIPT_START = "import json, random, time, datetime, uuid, types;\n" + //", yaml"
 			"import urllib, urllib2;\n" + //", requests"
