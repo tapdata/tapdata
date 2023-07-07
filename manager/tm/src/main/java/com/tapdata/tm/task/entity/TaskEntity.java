@@ -247,6 +247,9 @@ public class TaskEntity extends BaseEntity {
 
     private Boolean fdmMain;
 
+    private String funcationRetryStatus;
+    private String taskRetryStatus;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

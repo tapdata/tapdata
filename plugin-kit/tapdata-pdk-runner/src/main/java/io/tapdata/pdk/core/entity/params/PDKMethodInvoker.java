@@ -33,6 +33,18 @@ public class PDKMethodInvoker {
     private Runnable startRetry;
 	private Runnable resetRetry;
     private boolean enableSkipErrorEvent;
+    private Runnable signFunctionRetry;
+    private Runnable clearFunctionRetry;
+
+    public PDKMethodInvoker clearFunctionRetry(Runnable clearFunctionRetry) {
+        this.clearFunctionRetry = clearFunctionRetry;
+        return this;
+    }
+
+    public PDKMethodInvoker signFunctionRetry(Runnable signFunctionRetry) {
+        this.signFunctionRetry = signFunctionRetry;
+        return this;
+    }
 
     public PDKMethodInvoker startRetry(Runnable startRetry) {
         this.startRetry = startRetry;
@@ -189,5 +201,13 @@ public class PDKMethodInvoker {
 
     public void setEnableSkipErrorEvent(boolean enableSkipErrorEvent) {
         this.enableSkipErrorEvent = enableSkipErrorEvent;
+    }
+
+    public Runnable getSignFunctionRetry() {
+        return signFunctionRetry;
+    }
+
+    public Runnable getClearFunctionRetry() {
+        return clearFunctionRetry;
     }
 }

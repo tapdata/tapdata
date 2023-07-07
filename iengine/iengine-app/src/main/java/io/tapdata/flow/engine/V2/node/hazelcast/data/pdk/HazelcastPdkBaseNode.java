@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
@@ -45,6 +46,7 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -125,9 +127,23 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				.maxRetryTimeMinute(maxRetryTimeSecond)
 				.logListener(logListener)
 				.startRetry(taskRetryService::start)
-				.resetRetry(taskRetryService::reset);
+				.resetRetry(taskRetryService::reset)
+				.signFunctionRetry(() -> signFunctionRetry(taskDto.getId().toHexString()))
+				.clearFunctionRetry(() -> clearFunctionRetry(taskDto.getId().toHexString()));
 		this.pdkMethodInvokerList.add(pdkMethodInvoker);
 		return pdkMethodInvoker;
+	}
+
+	public void signFunctionRetry(String taskId) {
+		CommonUtils.ignoreAnyError(() ->
+				clientMongoOperator.updateById(new Update().set("funcationRetryStatus", TaskDto.RETRY_STATUS_RUNNING),
+						ConnectorConstant.TASK_COLLECTION, taskId, TaskDto.class), "Failed to sign function retry status");
+	}
+
+	public void clearFunctionRetry(String taskId) {
+		CommonUtils.ignoreAnyError(() ->
+				clientMongoOperator.updateById(new Update().set("funcationRetryStatus", TaskDto.RETRY_STATUS_NONE),
+						ConnectorConstant.TASK_COLLECTION, taskId, TaskDto.class), "Failed to clear function retry status");
 	}
 
 	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {

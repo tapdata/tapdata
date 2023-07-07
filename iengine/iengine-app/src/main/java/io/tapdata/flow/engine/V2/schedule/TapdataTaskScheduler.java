@@ -24,6 +24,7 @@ import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -422,6 +423,7 @@ public class TapdataTaskScheduler {
 								if(taskClient.stop()){
 									clearTaskCacheAfterStopped(taskClient);
 									clearTaskRetryCache(taskId);
+									clearTaskRetry(taskId);
 								}
 							} else {
 								logger.warn("Task status to error: {}", terminalMode);
@@ -436,6 +438,7 @@ public class TapdataTaskScheduler {
 											ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
 											sendStartTask(taskDto);
 											taskRetryTimeMap.put(taskId, System.currentTimeMillis());
+											signTaskRetry(taskId);
 										}
 									} else {
 										stopTaskResource = StopTaskResource.RUN_ERROR;
@@ -461,6 +464,18 @@ public class TapdataTaskScheduler {
 		} catch (Exception e) {
 			logger.error("Scan force stopping data flow failed {}", e.getMessage(), e);
 		}
+	}
+
+	private void signTaskRetry(String taskId) {
+		CommonUtils.ignoreAnyError(() ->
+				clientMongoOperator.updateById(new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_RUNNING),
+						ConnectorConstant.TASK_COLLECTION, taskId, TaskDto.class), "Failed to sign task retry status");
+	}
+
+	public void clearTaskRetry(String taskId) {
+		CommonUtils.ignoreAnyError(() ->
+				clientMongoOperator.updateById(new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_NONE),
+						ConnectorConstant.TASK_COLLECTION, taskId, TaskDto.class), "Failed to clear task retry status");
 	}
 
 	private void internalStopTask() {
@@ -653,6 +668,7 @@ public class TapdataTaskScheduler {
 		if (stopTaskCallAssignApi(taskDtoTaskClient, stopped)) {
 			clearTaskCacheAfterStopped(taskDtoTaskClient);
 			clearTaskRetryCache(taskId);
+			clearTaskRetry(taskId);
 		}
 	}
 
