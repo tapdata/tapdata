@@ -56,7 +56,7 @@
 		<module>hazelcast-connector</module>
 		<module>opengauss-connector</module>
         <module>hive3-connector</module>
-        <module>mrs-hive3-connector</module>
+<!--        <module>mrs-hive3-connector</module>-->
 		<module>http-receiver-connector</module>
 		<module>yashandb-connector</module>
 		<module>greenplum-connector</module>
