@@ -438,7 +438,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 
 	public Page<DataSourceConnectionDto> list(Filter filter, boolean noSchema, UserDetail userDetail) {
-		filter.getWhere().and("user_id",userDetail.getUserId());
 		Page<DataSourceConnectionDto> dataSourceConnectionDtoPage = find(filter, userDetail);
 		List<DataSourceConnectionDto> items = dataSourceConnectionDtoPage.getItems();
 
