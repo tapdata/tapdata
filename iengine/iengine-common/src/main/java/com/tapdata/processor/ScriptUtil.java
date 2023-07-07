@@ -608,12 +608,10 @@ public class ScriptUtil {
 				urlClassLoader -> externalClassLoader[0] = urlClassLoader
 		);
 		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(engineName).classLoader(externalClassLoader[0]));
-
 		String scripts = buildInMethod + System.lineSeparator() + handlePyScript(script);
-
-		e.put("tapUtil", new JsUtil());
-		e.put("tapLog", logger);
 		try {
+			e.put("tapUtil", new JsUtil());
+			e.put("tapLog", logger);
 			e.eval(globalScript);
 			e.eval("tapLog.info('Init python engine...');");
 		}catch (Exception es){

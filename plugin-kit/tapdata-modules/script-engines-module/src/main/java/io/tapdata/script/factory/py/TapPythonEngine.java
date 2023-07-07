@@ -40,8 +40,8 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         this.scriptEngine = initScriptEngine(scriptOptions.getEngineName());
         this.invocable = (Invocable) this.scriptEngine;
     }
-    private ScriptEngine initScriptEngine(String jsEngineName) {
-        TapPythonEngine.EngineType jsEngineEnum = TapPythonEngine.EngineType.getByEngineName(jsEngineName);
+    private ScriptEngine initScriptEngine(String engineName) {
+        TapPythonEngine.EngineType jsEngineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
         ScriptEngine scriptEngine;
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         try {
@@ -49,21 +49,6 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
             if (jsEngineEnum == EngineType.Python) {
                 //new org.python.jsr223.PyScriptEngine();
                 scriptEngine = new PyScriptEngineFactory().getScriptEngine();
-
-//                        org.python.jsr223.PyScriptEngine
-//                        .create(Engine.newBuilder()
-//                                        .allowExperimentalOptions(true)
-//                                        .option("engine.WarnInterpreterOnly", "false")
-//                                        .build(),
-//                                Context.newBuilder("js")
-//                                        .allowAllAccess(true)
-//                                        .allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
-//                                                .targetTypeMapping(Value.class, Object.class
-//                                                        , v -> v.hasArrayElements() && v.hasMembers()
-//                                                        , v -> v.as(List.class)
-//                                                ).build()
-//                                        )
-//                        );
                 SimpleScriptContext scriptContext = new SimpleScriptContext();
                 scriptEngine.setContext(scriptContext);
             } else {

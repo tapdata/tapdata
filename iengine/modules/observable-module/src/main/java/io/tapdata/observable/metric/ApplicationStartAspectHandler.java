@@ -62,5 +62,12 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
         } catch (ScriptException e) {
             throw new RuntimeException(e);
         }
+
+        ScriptEngine scriptEnginePy = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(ScriptFactory.TYPE_PYTHON));
+        try {
+            scriptEnginePy.eval("print 'python engine loaded'");
+        } catch (ScriptException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
