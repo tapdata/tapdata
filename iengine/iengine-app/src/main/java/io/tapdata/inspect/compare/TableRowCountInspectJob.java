@@ -46,7 +46,7 @@ public class TableRowCountInspectJob extends InspectJob {
 					AtomicLong targetCount = new AtomicLong();
 
 					List<QueryOperator> srcConditions = inspectTask.getSource().getConditions();
-					if (CollectionUtils.isNotEmpty(srcConditions)) {
+					if (CollectionUtils.isNotEmpty(srcConditions) && null != inspectTask.getSource().getIsFilter() && inspectTask.getSource().getIsFilter()) {
 						CountByPartitionFilterFunction srcCountByPartitionFilterFunction = this.sourceNode.getConnectorFunctions().getCountByPartitionFilterFunction();
 						if (null == srcCountByPartitionFilterFunction) {
 							retry = 3;
@@ -68,7 +68,7 @@ public class TableRowCountInspectJob extends InspectJob {
 						);
 					}
 					List<QueryOperator> tgtConditions = inspectTask.getTarget().getConditions();
-					if (CollectionUtils.isNotEmpty(tgtConditions)) {
+					if (CollectionUtils.isNotEmpty(tgtConditions) && null != inspectTask.getTarget().getIsFilter() && inspectTask.getTarget().getIsFilter()) {
 						CountByPartitionFilterFunction tgtCountByPartitionFilterFunction = this.targetNode.getConnectorFunctions().getCountByPartitionFilterFunction();
 						if (null == tgtCountByPartitionFilterFunction) {
 							retry = 3;

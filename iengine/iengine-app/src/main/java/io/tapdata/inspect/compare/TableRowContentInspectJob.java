@@ -366,7 +366,7 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 				fullMatch,
 				dataKeys,
 				diffKeyValues,
-				inspectDataSource.getConditions()
+				null != inspectDataSource.getIsFilter() && inspectDataSource.getIsFilter() ? inspectDataSource.getConditions() : null
 		);
 	}
 

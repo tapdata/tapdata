@@ -37,6 +37,7 @@ public class InspectDataSource implements Serializable {
 	private String nodeId;
 	private String nodeName;
 	/** 自定义sql条件 */
+	private Boolean isFilter;
 	@EqField
-	List<QueryOperator> conditions;
+	private List<QueryOperator> conditions;
 }
