@@ -122,9 +122,13 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
                     addNewClusterOperation(clusterStateDto, param, null);
                 });
             }
+
+            // update clusterStateDto engine status
+            update(query, Update.update("engine.status", ClusterStateDto.ENGINE_STARTING));
         }
         return retResult;
     }
+
 
     public Long updateStatus(UpdataStatusRequest updataStatusRequest, UserDetail userDetail){
         ClusterOperationDto clusterOperationDto = new ClusterOperationDto();
@@ -140,7 +144,11 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         data.put("status", 0);
         data.put("msg", "");
         data.put("operation", updataStatusRequest.getOperation());
-        UpdateResult updateResult = update(Query.query(Criteria.where("uuid").is(updataStatusRequest.getUuid())), Update.update(server, data));
+        Update update = Update.update(server, data);
+        if ("backend".equals(clusterOperationDto.getServer()) && "stop".equals(updataStatusRequest.getOperation())) {
+            update.set("engine.status", ClusterStateDto.ENGINE_STOPPING);
+        }
+        UpdateResult updateResult = update(Query.query(Criteria.where("uuid").is(updataStatusRequest.getUuid())), update);
         return updateResult.getModifiedCount();
     }
 
