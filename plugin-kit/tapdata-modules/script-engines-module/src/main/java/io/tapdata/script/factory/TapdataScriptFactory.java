@@ -39,50 +39,47 @@ import java.util.zip.ZipFile;
  */
 @Implementation(value = ScriptFactory.class, type = "tapdata")
 public class TapdataScriptFactory implements ScriptFactory {
-
-	private static final PythonInterpreter intr = new PythonInterpreter();
-
-	public static String fileToString(InputStream connectorJsStream) throws IOException {
-		Reader reader = null;
-		Writer writer = new StringWriter();
-		char[] buffer = new char[1024];
-		try {
-			reader = new BufferedReader(new InputStreamReader(connectorJsStream, StandardCharsets.UTF_8));
-			int n;
-			while ((n = reader.read(buffer)) != -1) {
-				writer.write(buffer, 0, n);
-			}
-		} catch (Exception ignored) {
-		} finally {
-			if (Objects.nonNull(reader)) {
-				reader.close();
-				writer.close();
-				connectorJsStream.close();
-			}
-		}
-		return writer.toString();
-	}
-	public static void fileToString(){
-		intr.exec("import sys");
-
-		try {
-			// 启动子进程，运行本地安装的 Python，获取 sys.path 配置
-			Process p = Runtime.getRuntime().exec(new String[]{
-					"python", "-c", "import json; import sys; print json.dumps(sys.path)"});
-			p.waitFor();
-
-			// 从中获取到相关的 PIP 安装路径，放入 Jython 的 sys.path
-			String stdout = fileToString(p.getInputStream());
-			JSONArray syspathRaw = JSONArray.parseArray(stdout);
-			for (int i = 0; i < syspathRaw.size(); i++) {
-				String path = syspathRaw.getString(i);
-				if (path.contains("site-packages") || path.contains("dist-packages"))
-					intr.exec(String.format("sys.path.insert(0, '%s')", path));
-			}
-		} catch (Exception ex) {}
-	}
-
-
+//	private static final PythonInterpreter intr = new PythonInterpreter();
+//
+//	public static String fileToString(InputStream connectorJsStream) throws IOException {
+//		Reader reader = null;
+//		Writer writer = new StringWriter();
+//		char[] buffer = new char[1024];
+//		try {
+//			reader = new BufferedReader(new InputStreamReader(connectorJsStream, StandardCharsets.UTF_8));
+//			int n;
+//			while ((n = reader.read(buffer)) != -1) {
+//				writer.write(buffer, 0, n);
+//			}
+//		} catch (Exception ignored) {
+//		} finally {
+//			if (Objects.nonNull(reader)) {
+//				reader.close();
+//				writer.close();
+//				connectorJsStream.close();
+//			}
+//		}
+//		return writer.toString();
+//	}
+//	public static void fileToString(){
+//		intr.exec("import sys");
+//
+//		try {
+//			// 启动子进程，运行本地安装的 Python，获取 sys.path 配置
+//			Process p = Runtime.getRuntime().exec(new String[]{
+//					"python", "-c", "import json; import sys; print json.dumps(sys.path)"});
+//			p.waitFor();
+//
+//			// 从中获取到相关的 PIP 安装路径，放入 Jython 的 sys.path
+//			String stdout = fileToString(p.getInputStream());
+//			JSONArray syspathRaw = JSONArray.parseArray(stdout);
+//			for (int i = 0; i < syspathRaw.size(); i++) {
+//				String path = syspathRaw.getString(i);
+//				if (path.contains("site-packages") || path.contains("dist-packages"))
+//					intr.exec(String.format("sys.path.insert(0, '%s')", path));
+//			}
+//		} catch (Exception ex) {}
+//	}
     public static void main(String[] args) {
         ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
         ScriptEngine javaScriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions());
@@ -93,12 +90,12 @@ public class TapdataScriptFactory implements ScriptFactory {
 
 
 
-        fileToString();
-		try {
-			pythonEngine.eval("from jnius import autoclass");
-		}catch (Exception e){
-			e.printStackTrace();
-		}
+//        fileToString();
+//		try {
+//			pythonEngine.eval("from jnius import autoclass");
+//		}catch (Exception e){
+//			e.printStackTrace();
+//		}
 //		String pipPath = "D:\\GavinData\\deskTop\\Lib";
 //		try {
 //			PythonInterpreter interpreter = new PythonInterpreter();
