@@ -16,8 +16,6 @@
     <packaging>pom</packaging>
 
     <properties>
-        <graalvm.py.group0>org</graalvm.py.group0>
-        <graalvm.py.group1>python</graalvm.py.group1>
         <graalvm.py.artifactId>jython-standalone</graalvm.py.artifactId>
         <graalvm.py.version>2.7.2</graalvm.py.version>
 
@@ -179,7 +177,6 @@
         <module>api</module>
         <module>modules</module>
     </modules>
-
     <dependencyManagement>
         <dependencies>
             <!-- Major dependencies -->
@@ -906,17 +903,6 @@
             </snapshots>
         </repository>
         <repository>
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
             <id>private-repository</id>
             <name>Hazelcast Private Repository</name>
             <url>https://repository.hazelcast.com/release/</url>
@@ -958,39 +944,6 @@
                         <!-- executable>true</executable-->
                     </configuration>
                 </plugin>
-<!--                <plugin>-->
-<!--                    <groupId>org.codehaus.mojo</groupId>-->
-<!--                    <artifactId>exec-maven-plugin</artifactId>-->
-<!--                    <version>3.0.0</version>-->
-<!--                    <executions>-->
-<!--                        <execution>-->
-<!--                            <phase>install</phase>-->
-<!--                            <goals>-->
-<!--                                <goal>exec</goal>-->
-<!--                            </goals>-->
-<!--                        </execution>-->
-<!--                    </executions>-->
-<!--                    <configuration>-->
-<!--                        <executable>java</executable>-->
-<!--                        <arguments>-->
-<!--                            &lt;!&ndash; java -jar /usr/local/lib/jython-standalone-2.7.2.jar setup.py install&ndash;&gt;-->
-<!--                            <argument>-jar</argument>-->
-<!--                            <argument>${basedir}/../../tapdata-cli/target/pdk.jar</argument>-->
-<!--                            <argument>py-install</argument>-->
-<!--&lt;!&ndash;                            <argument>-s</argument>&ndash;&gt;-->
-<!--&lt;!&ndash;                            <argument>${project.basedir}/target/${artifactId}-${version}.jar</argument>&ndash;&gt;-->
-<!--                            <argument>-j</argument>-->
-<!--                            <argument>${graalvm.py.artifactId}-${graalvm.py.version}.jar</argument>-->
-<!--                            <argument>-p</argument>-->
-<!--                            <argument>${settings.localRepository}/${graalvm.py.group0}/${graalvm.py.group1}/${graalvm.py.artifactId}/${graalvm.py.version}/</argument>-->
-<!--                            <argument>-g</argument>-->
-<!--                            <argument>${basedir}/src/main/resources/pip-install/</argument>-->
-<!--                        </arguments>-->
-<!--                        <environmentVariables>-->
-<!--                            <LANG>en_US</LANG>-->
-<!--                        </environmentVariables>-->
-<!--                    </configuration>-->
-<!--                </plugin>-->
             </plugins>
         </pluginManagement>
     </build>
@@ -1009,6 +962,25 @@
                 <!--<scope.libs.tidb>test</scope.libs.tidb>-->
                 <scope.libs.udp>test</scope.libs.udp>
             </properties>
+        </profile>
+        <profile>
+            <id>Repository Proxy</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <repositories>
+                <repository>
+                    <id>tapdata-tapdata-maven</id>
+                    <name>maven</name>
+                    <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
+                    <releases>
+                        <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                        <enabled>true</enabled>
+                    </snapshots>
+                </repository>
+            </repositories>
         </profile>
     </profiles>
 </project>
