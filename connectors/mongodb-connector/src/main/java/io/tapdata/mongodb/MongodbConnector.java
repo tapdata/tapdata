@@ -99,8 +99,8 @@ public class MongodbConnector extends ConnectorBase {
 	 * Reference：<a href="https://github.com/mongodb/mongo/blob/master/src/mongo/base/error_codes.yml">error_codes.yml</a>
 	 * connectors/mongodb-connector/src/main/resources/mongo-error-codes.yml
 	 */
-	private final static int[] SERVER_ERROR_CODES = new int[]{6, 7, 70, 71, 74, 76, 83, 89, 90, 91, 92, 93, 94, 95, 133, 149, 189, 190, 202, 279, 317, 384, 402, 9001, 10058, 10107, 11600, 11602, 13435, 13436};
-	private final static int[] RETRYABLE_ERROR_CODES = new int[]{43, 50, 134, 175, 222, 234, 237, 262, 358, 363, 50915};
+	private final static int[] SERVER_ERROR_CODES = new int[]{6,7,70,71,74,76,83,89,90,91,92,93,94,95,133,149,189,190,202,279,317,384,402,9001,10058,10107,11600,11602,13435,13436};
+	private final static int[] RETRYABLE_ERROR_CODES = new int[]{43,50,134,175,222,234,237,262,358,363,50915};
 
 	private Bson queryCondition(String firstPrimaryKey, Object value) {
 		return gte(firstPrimaryKey, value);
@@ -1358,6 +1358,6 @@ public class MongodbConnector extends ConnectorBase {
 				throw new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), throwable);
 			}
 		}
-		throw throwable instanceof RuntimeException ? (RuntimeException) throwable : new RuntimeException(throwable);
+		throw throwable instanceof RuntimeException?(RuntimeException) throwable : new RuntimeException(throwable);
 	}
 }
