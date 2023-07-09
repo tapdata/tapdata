@@ -854,7 +854,11 @@
                 <artifactId>jython-standalone</artifactId>
                 <version>2.7.2</version>
             </dependency>
-
+            <dependency>
+                <groupId>org.python</groupId>
+                <artifactId>jython</artifactId>
+                <version>${graalvm.py.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>net.openhft</groupId>
