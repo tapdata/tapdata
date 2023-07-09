@@ -844,10 +844,15 @@
                 <version>${graalvm.js.version}</version>
             </dependency>
 
+<!--            <dependency>-->
+<!--                <groupId>io.tapdata</groupId>-->
+<!--                <artifactId>${graalvm.py.artifactId}</artifactId>-->
+<!--                <version>${graalvm.py.version}</version>-->
+<!--            </dependency>-->
             <dependency>
-                <groupId>io.tapdata</groupId>
-                <artifactId>${graalvm.py.artifactId}</artifactId>
-                <version>${graalvm.py.version}</version>
+                <groupId>org.python</groupId>
+                <artifactId>jython-standalone</artifactId>
+                <version>2.7.2</version>
             </dependency>
 
 

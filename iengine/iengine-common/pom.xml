@@ -248,11 +248,17 @@
             <groupId>org.graalvm.js</groupId>
             <artifactId>js-scriptengine</artifactId>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>io.tapdata</groupId>-->
+<!--            <artifactId>${graalvm.py.artifactId}</artifactId>-->
+<!--            <version>${graalvm.py.version}</version>-->
+<!--        </dependency>-->
         <dependency>
-            <groupId>io.tapdata</groupId>
+            <groupId>org.python</groupId>
             <artifactId>${graalvm.py.artifactId}</artifactId>
             <version>${graalvm.py.version}</version>
         </dependency>
+
 
         <dependency>
             <groupId>io.prometheus</groupId>
