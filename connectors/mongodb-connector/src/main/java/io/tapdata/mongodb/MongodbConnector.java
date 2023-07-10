@@ -2,12 +2,7 @@ package io.tapdata.mongodb;
 
 import com.mongodb.*;
 import com.mongodb.bulk.BulkWriteError;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
-import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.MongoIterable;
+import com.mongodb.client.*;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Sorts;
 import io.tapdata.base.ConnectorBase;
@@ -20,21 +15,9 @@ import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.schema.TapField;
-import io.tapdata.entity.schema.TapIndex;
-import io.tapdata.entity.schema.TapIndexEx;
-import io.tapdata.entity.schema.TapIndexField;
-import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.*;
 import io.tapdata.entity.schema.type.TapNumber;
-import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.entity.schema.value.TapBinaryValue;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDateValue;
-import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapNumberValue;
-import io.tapdata.entity.schema.value.TapStringValue;
-import io.tapdata.entity.schema.value.TapTimeValue;
-import io.tapdata.entity.schema.value.TapYearValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -52,17 +35,7 @@ import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
-import io.tapdata.pdk.apis.entity.ExecuteResult;
-import io.tapdata.pdk.apis.entity.FilterResults;
-import io.tapdata.pdk.apis.entity.Projection;
-import io.tapdata.pdk.apis.entity.QueryOperator;
-import io.tapdata.pdk.apis.entity.SortOn;
-import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
-import io.tapdata.pdk.apis.entity.TapExecuteCommand;
-import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -75,24 +48,13 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.BsonArray;
-import org.bson.BsonDocument;
-import org.bson.BsonString;
-import org.bson.BsonType;
-import org.bson.BsonValue;
-import org.bson.Document;
+import org.bson.*;
 import org.bson.conversions.Bson;
-import org.bson.types.Binary;
-import org.bson.types.Code;
-import org.bson.types.Decimal128;
-import org.bson.types.ObjectId;
-import org.bson.types.Symbol;
+import org.bson.types.*;
 
 import java.io.Closeable;
-import java.math.BigDecimal;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -107,12 +69,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static com.mongodb.client.model.Filters.and;
-import static com.mongodb.client.model.Filters.eq;
-import static com.mongodb.client.model.Filters.gt;
-import static com.mongodb.client.model.Filters.gte;
-import static com.mongodb.client.model.Filters.lt;
-import static com.mongodb.client.model.Filters.lte;
+import static com.mongodb.client.model.Filters.*;
 import static java.util.Collections.singletonList;
 
 /**
@@ -435,15 +392,6 @@ public class MongodbConnector extends ConnectorBase {
 			return new TapNumberValue(decimal128.doubleValue());
 		});
 
-		codecRegistry.registerToTapValue(Document.class, (value, tapType) -> {
-			Document document = (Document) value;
-			for (Map.Entry<String, Object> entry : document.entrySet()) {
-				if (entry.getValue() instanceof Double && entry.getValue().toString().contains("E")) {
-					entry.setValue(new BigDecimal(entry.getValue().toString()).toString());
-				}
-			}
-			return new TapMapValue(document);
-		});
 		codecRegistry.registerToTapValue(Symbol.class, (value, tapType) -> {
 			Symbol symbol = (Symbol) value;
 			return new TapStringValue(symbol.getSymbol());
