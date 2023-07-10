@@ -61,7 +61,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -100,8 +99,8 @@ public class MongodbConnector extends ConnectorBase {
 	 * Reference：<a href="https://github.com/mongodb/mongo/blob/master/src/mongo/base/error_codes.yml">error_codes.yml</a>
 	 * connectors/mongodb-connector/src/main/resources/mongo-error-codes.yml
 	 */
-	private final static int[] SERVER_ERROR_CODES = new int[]{6,7,70,71,74,76,83,89,90,91,92,93,94,95,133,149,189,190,202,279,317,384,402,9001,10058,10107,11600,11602,13435,13436};
-	private final static int[] RETRYABLE_ERROR_CODES = new int[]{43,50,134,175,222,234,237,262,358,363,50915};
+	private final static int[] SERVER_ERROR_CODES = new int[]{6, 7, 70, 71, 74, 76, 83, 89, 90, 91, 92, 93, 94, 95, 133, 149, 189, 190, 202, 279, 317, 384, 402, 9001, 10058, 10107, 11600, 11602, 13435, 13436};
+	private final static int[] RETRYABLE_ERROR_CODES = new int[]{43, 50, 134, 175, 222, 234, 237, 262, 358, 363, 50915};
 
 	private Bson queryCondition(String firstPrimaryKey, Object value) {
 		return gte(firstPrimaryKey, value);
@@ -174,7 +173,8 @@ public class MongodbConnector extends ConnectorBase {
 									MongodbUtil.maskUriPassword(mongoConfig.getUri()), name, e.getMessage(), e);
 						}
 
-						collection.listIndexes().forEach((index) -> {;
+						collection.listIndexes().forEach((index) -> {
+							;
 							TapIndex tapIndex = new TapIndex();
 							// TODO: TapIndex struct not enough to represent index, so we encode index info in name
 							tapIndex.setName("__t__" + ((Document) index).toJson());
@@ -182,7 +182,7 @@ public class MongodbConnector extends ConnectorBase {
 							// add a empty tapIndexField
 							TapIndexField tapIndexField = new TapIndexField();
 							tapIndex.indexField(tapIndexField);
-							TapLogger.info(TAG, "MongodbConnector discoverSchema table: {} index {}",name, ((Document) index).toJson());
+							TapLogger.info(TAG, "MongodbConnector discoverSchema table: {} index {}", name, ((Document) index).toJson());
 							table.add(tapIndex);
 						});
 
@@ -425,15 +425,6 @@ public class MongodbConnector extends ConnectorBase {
 			return new TapNumberValue(decimal128.doubleValue());
 		});
 
-		codecRegistry.registerToTapValue(Document.class, (value, tapType) -> {
-			Document document = (Document) value;
-			for (Map.Entry<String, Object> entry : document.entrySet()) {
-				if (entry.getValue() instanceof Double && entry.getValue().toString().contains("E")) {
-					entry.setValue(new BigDecimal(entry.getValue().toString()).toString());
-				}
-			}
-			return new TapMapValue(document);
-		});
 		codecRegistry.registerToTapValue(Symbol.class, (value, tapType) -> {
 			Symbol symbol = (Symbol) value;
 			return new TapStringValue(symbol.getSymbol());
@@ -724,6 +715,92 @@ public class MongodbConnector extends ConnectorBase {
 		else
 			query = and(bsonList.toArray(new Bson[0]));
 		return query;
+	}
+
+	private Object parseObject(TapTable tapTable, String key, Object value) {
+		if (null == value) {
+			return null;
+		}
+		if (null == tapTable) {
+			return value;
+		}
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+		if (MapUtils.isEmpty(nameFieldMap)) {
+			return value;
+		}
+		TapField tapField = nameFieldMap.get(key);
+		if (null == tapField) {
+			return value;
+		}
+		String dataType = tapField.getDataType();
+		if (StringUtils.isBlank(dataType)) {
+			return value;
+		}
+		if (dataType.contains("(")) {
+			dataType = StringUtils.substring(dataType, 0, dataType.indexOf("("));
+		}
+		BsonType bsonType;
+		try {
+			bsonType = BsonType.valueOf(dataType);
+		} catch (IllegalArgumentException e) {
+			return value;
+		}
+		switch (bsonType) {
+			case DATE_TIME:
+				if (value instanceof String) {
+					// Only support this date pattern
+					String datePattern = "yyyy-MM-dd HH:mm:ss";
+					SimpleDateFormat simpleDateFormat = new SimpleDateFormat(datePattern);
+					simpleDateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+					try {
+						value = simpleDateFormat.parse((String) value);
+					} catch (ParseException e) {
+						throw new RuntimeException("Parse date string failed, value: " + value + ", format: " + datePattern, e);
+					}
+				} else if (value instanceof Long) {
+					// Only support milliseconds timestamp
+					value = new Date((Long) value);
+				}
+				break;
+			case INT32:
+				if (value instanceof String) {
+					try {
+						value = Integer.parseInt((String) value);
+					} catch (NumberFormatException ignored) {
+					}
+				}
+				break;
+			case INT64:
+				if (value instanceof String) {
+					try {
+						value = Long.parseLong((String) value);
+					} catch (NumberFormatException ignored) {
+					}
+				}
+				break;
+			case DOUBLE:
+				if (value instanceof String) {
+					try {
+						value = Double.parseDouble((String) value);
+					} catch (NumberFormatException ignored) {
+					}
+				}
+				break;
+			case DECIMAL128:
+				if (value instanceof String) {
+					try {
+						value = new BigDecimal((String) value);
+					} catch (Exception ignored) {
+					}
+				}
+				break;
+			default:
+				break;
+		}
+		if (value instanceof DateTime) {
+			value = ((DateTime) value).toInstant();
+		}
+		return value;
 	}
 
 	private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
@@ -1100,7 +1177,7 @@ public class MongodbConnector extends ConnectorBase {
 				Object offsetValue = mongoOffset.value();
 				if (offsetValue != null) {
 					findIterable = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
-									.batchSize(batchSize);
+							.batchSize(batchSize);
 				} else {
 					findIterable = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize);
 					TapLogger.warn(TAG, "Offset format is illegal {}, no offset value has been found. Final offset will be null to do the batchRead", offset);
@@ -1281,6 +1358,6 @@ public class MongodbConnector extends ConnectorBase {
 				throw new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), throwable);
 			}
 		}
-		throw throwable instanceof RuntimeException?(RuntimeException) throwable : new RuntimeException(throwable);
+		throw throwable instanceof RuntimeException ? (RuntimeException) throwable : new RuntimeException(throwable);
 	}
 }
