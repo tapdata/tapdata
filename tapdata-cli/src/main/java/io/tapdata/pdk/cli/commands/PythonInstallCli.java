@@ -343,6 +343,8 @@ public class PythonInstallCli extends CommonCli {
             TapLogger.error(TAG, "Miss jython-standalone-2.7.2.jar path");
             return -1;
         }
+        System.out.println(jarName);
+        System.out.println(pyJarPath);
         final String jarPath = pyJarPath.endsWith(jarName) ? pyJarPath : (pyJarPath + jarName);
         final String libPath = pyJarPath.endsWith(jarName) ? pyJarPath.replace(jarName, "") : pyJarPath;
         File file = new File(jarPath);
@@ -354,130 +356,40 @@ public class PythonInstallCli extends CommonCli {
         try {
             try {
                 try {
-                    System.out.print("[1]: Start to unzip " + jarPath + ">>>");
+                    System.out.println("[1]: Start to unzip " + jarPath + ">>>");
                     ZipUtils.unzip(file.getAbsolutePath(), libPathName);
-                    System.out.print("[2]: Unzip " + jarPath + " succeed >>>");
+                    System.out.println("[2]: Unzip " + jarPath + " succeed >>>");
                 }catch (Exception e){
                     //TapLogger.error(TAG, "Can not zip from " + jarPath + " to " + libPathName);
-                    System.out.print("[2]: Unzip " + jarPath + " fail.");
+                    System.out.println("[2]: Unzip " + jarPath + " fail.");
                     return -3;
                 }
                 File libFiles = new File(libPathName + "\\Lib\\site-packages\\");
                 if (!libFiles.exists()) {
-                    System.out.print("[3]: Can not fund Lib path: " + libPathName + ", create file now >>>");
+                    System.out.println("[3]: Can not fund Lib path: " + libPathName + ", create file now >>>");
                     libFiles.createNewFile();
-                    System.out.print("[4]: create file " + jarPath + " succeed >>>");
+                    System.out.println("[4]: create file " + jarPath + " succeed >>>");
                 } else {
-                    System.out.print("[3]: Lib path is exists: " + libPathName + " >>>");
-                    System.out.print("[4]: Copy after>>>");
+                    System.out.println("[3]: Lib path is exists: " + libPathName + " >>>");
+                    System.out.println("[4]: Copy after>>>");
                 }
-                System.out.print("[5]: Start to copy site-packages from Lib: " + libFiles + " to :" + libPath + " >>>");
-                FileUtils.copyToDirectory(libFiles, new File(libPath + "\\Lib\\"));
-                System.out.print("[6]:  Start to copy site-packages successfully" );
+                System.out.println("[5]: Start to copy site-packages from Lib: " + libFiles + " to :" + libPath + " >>>");
+                FileUtils.copyToDirectory(libFiles, new File(libPath + "\\Lib"));
+                System.out.println("[6]: Copy site-packages successfully" );
             } finally {
                 File temp1 = new File(libPathName);
-                if (temp1.exists())
+                if (temp1.exists()) {
+                    System.out.println("[*]: Start to clean temp files in" + libPathName);
                     FileUtils.deleteQuietly(temp1);
+                    System.out.println("[*]: Temp file cleaned successfully" );
+                }
             }
         } catch (Throwable throwable) {
-            System.out.print("[x]: can not prepare Lib for site-packages, Please manually extract " + jarPath + " and place " + jarPath  + "/Lib/ in the " + (pyJarPath.endsWith(jarName) ? pyJarPath.replace(jarName, "") : pyJarPath ) + " folder." );
+            System.out.println("[x]: can not prepare Lib for site-packages, Please manually extract " + jarPath + " and place " + jarPath  + "/Lib/ in the " + (pyJarPath.endsWith(jarName) ? pyJarPath.replace(jarName, "") : pyJarPath ) + " folder." );
             throwable.printStackTrace();
             CommonUtils.logError(TAG, "Class modify failed", throwable);
+            return -1;
         }
         return 0;
     }
-    // try {
-    //                    File libFile = new File(libPath);
-    //                    if (null != libFile && libFile.isDirectory()) {
-    //                        //将Lib文件夹和script-engine-module压缩到一个Jar包
-    //                        //解压到
-    //                        try {
-    //                            ZipUtils.unzip(self.getAbsolutePath(), libPathName);
-    //                        }catch (Exception e){
-    //                            TapLogger.error(TAG, "Can not zip from " + self.getAbsolutePath() + " to " + libPathName);
-    //                            return -3;
-    //                        }
-    //
-    //                        final String pipPath = FilenameUtils.concat(libPathName, path.getName());
-    //                        File pipFile = new File(pipPath);
-    //                        if (null != pipFile && pipFile.exists()) {
-    //                            FileUtils.deleteQuietly(pipFile);
-    //                        }
-    //
-    //                        File libFileItem = new File(libJarName);
-    //                        try(OutputStream fos = new FileOutputStream(libFileItem)) {
-    //                            ZipUtils.zip(libFile, fos);
-    //                            System.out.println("zip jar successfully. " + libJarName);
-    //                        } catch (Exception e) {
-    //                            System.out.println("zip " + libJarName + " jar failed. msg: " + e.getMessage());
-    //                        }
-    //
-    //                        //写入Lib到压缩的文件夹中
-    //                        FileUtils.copyToDirectory(new File(libJarName), new File(libPathName));
-    //
-    //                        //压缩
-    //                        File atomicFile = new File(self.getAbsolutePath());
-    //                        try (OutputStream fos = new FileOutputStream(atomicFile)) {
-    //                            ZipUtils.zip(libPathName, fos);
-    //                            System.out.println("zip jar successfully. " + self.getAbsolutePath());
-    //                        } catch (Exception e) {
-    //                            System.out.println("zip " + self.getAbsolutePath() + " jar failed, msg: " + e.getMessage());
-    //                        }
-    //                    }
-    //                } catch (Exception e){
-    //                    TapLogger.error(TAG, "Failed to compress Lib folder and script-engine-module into a Jar package, msg: " + e.getMessage());
-    //                }
-    //public static void cmdRunJar(File file, String ... cmd) throws Exception {
-    //    if (null == cmd || cmd.length <= 0) return;
-    //    BufferedReader br = null;
-    //    try {
-    //        ProcessBuilder processBuilder = new ProcessBuilder(cmd);
-    //        processBuilder.directory(file);
-    //        Process process = null;
-    //        try {
-    //            process = processBuilder.start();
-    //        } catch (Exception e) {
-    //            process = Runtime.getRuntime().exec(cmd);
-    //        }
-    //          Process process = Runtime.getRuntime().exec(cmd);
-    //        InputStream is = process.getInputStream();
-    //        br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-    //        StringBuffer sb = new StringBuffer();
-    //        String content = br.readLine();
-    //        if (null != content && "".equals(content.trim())) {
-    //            sb.append(br.readLine());
-    //        }
-    //        while ((content = br.readLine()) != null) {
-    //            if ("".equals(content.trim())) {
-    //                sb.append(content);
-    //            }
-    //        }
-    //        br.close();
-    //        br = null;
-    //        TapLogger.info(TAG, sb.toString());
-    //        //log.info(content);
-    //    } finally {
-    //        if(null!=br) {
-    //            try {
-    //                br.close();
-    //            } catch (IOException e) {
-    //                e.printStackTrace();
-    //            }
-    //        }
-    //    }
-    //}
-    //private String path(String path) {
-    //    String[] split = path.split("\\\\");
-    //    //C:\Users\Gavin'Xiao\.m2\repository\org\python\jython-standalone\2.7.2/jython-standalone-2.7.2.jar
-    //    StringJoiner builder = new StringJoiner("/");
-    //    for (int index = 1; index < split.length; index++) {
-    //        String s = split[index];
-    //        if (s.contains("'")) {
-    //            builder.add("\"" + s + "\"");
-    //        } else {
-    //            builder.add(s);
-    //        }
-    //    }
-    //    return split[0] + "/" + builder.toString();
-    //}
 }
