@@ -704,6 +704,10 @@ public class ScriptUtil {
 		//		}
 		//	}
 		//}
+		final URLClassLoader urlClassLoader = new URLClassLoader(new URL[0], Thread.currentThread().getContextClassLoader());
+		if (consumer != null) {
+			consumer.accept(urlClassLoader);
+		}
 		return  "import com.tapdata.constant.DateUtil as DateUtil\n" +
 				"import com.tapdata.constant.UUIDGenerator as UUIDGenerator\n" +
 				"import com.tapdata.constant.UUIDGenerator as idGen\n" +
