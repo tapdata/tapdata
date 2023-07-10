@@ -53,7 +53,7 @@
             <version>${graalvm.py.version}</version>
         </dependency>
         <dependency>
-            <groupId>io.tapdata</groupId>
+            <groupId>org.python</groupId>
             <artifactId>jython-standalone</artifactId>
             <version>${graalvm.py.version}</version>
         </dependency>

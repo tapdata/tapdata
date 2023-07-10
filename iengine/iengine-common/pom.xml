@@ -249,7 +249,7 @@
             <artifactId>js-scriptengine</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.tapdata</groupId>
+            <groupId>org.python</groupId>
             <artifactId>${graalvm.py.artifactId}</artifactId>
             <version>${graalvm.py.version}</version>
         </dependency>
