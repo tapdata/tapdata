@@ -77,7 +77,7 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 				stats.setEnd(new Date());
 				stats.setResult("failed");
 				progressUpdateCallback.progress(inspectTask, stats, null);
-				logger.error(String.format("Check has an exception and is trying again..., The number of retries: %s", retry));
+				logger.error(String.format("Check has an exception and is trying again..., The number of retries: %s", retry), e);
 				try {
 					TimeUnit.SECONDS.sleep(5);
 				} catch (InterruptedException interruptedException) {

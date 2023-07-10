@@ -139,6 +139,11 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 			if (null != countByPartitionFilterFunction) {
 				TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
 				tapAdvanceFilter.setOperators(conditions);
+				DataMap match = new DataMap();
+				if (null != conditions) {
+					conditions.stream().filter(op -> op.getOperator() == 5).forEach(op -> match.put(op.getKey(), op.getValue()));
+				}
+				tapAdvanceFilter.match(match);
 				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.COUNT_BY_PARTITION_FILTER,
 						() -> total = countByPartitionFilterFunction.countByPartitionFilter(connectorNode.getConnectorContext(), tapTable, tapAdvanceFilter), TAG);
 			} else {
@@ -224,6 +229,11 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 						tapAdvanceFilter.setSortOnList(sortOnList);
 						tapAdvanceFilter.setProjection(projection);
 						tapAdvanceFilter.setOperators(conditions);
+						DataMap match = new DataMap();
+						if (null != conditions) {
+							conditions.stream().filter(op -> op.getOperator() == 5).forEach(op -> match.put(op.getKey(), op.getValue()));
+						}
+						tapAdvanceFilter.match(match);
 						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
 							() -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
 								Throwable error = filterResults.getError();

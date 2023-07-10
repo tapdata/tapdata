@@ -90,15 +90,10 @@ import org.bson.types.Symbol;
 
 import java.io.Closeable;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -546,7 +541,7 @@ public class MongodbConnector extends ConnectorBase {
 		if (partitionIndex == null)
 			throw new CoreException(MongoErrors.NO_INDEX_FOR_PARTITION, "No index to do partition");
 
-		Bson query = queryForPartitionFilter(partitionFilter, partitionIndex);
+		Bson query = queryForPartitionFilter(partitionFilter, table);
 
 		List<TapIndexField> indexFields = partitionIndex.getIndexFields();
 		Document sort = new Document();
@@ -618,41 +613,37 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	private long countByPartitionFilter(TapConnectorContext connectorContext, TapTable table, TapAdvanceFilter partitionFilter) {
-		Bson query = queryForPartitionFilter(partitionFilter, table.partitionIndex());
+		Bson query = queryForPartitionFilter(partitionFilter, table);
 		return getCollectionNotAggregateCountByTableName(mongoClient, mongoConfig.getDatabase(), table.getId(), query);
 	}
 
-	private Bson queryForPartitionFilter(TapAdvanceFilter partitionFilter, TapIndexEx partitionKeys) {
+	private Bson queryForPartitionFilter(TapAdvanceFilter partitionFilter, TapTable tapTable) {
 		List<Bson> bsonList = new ArrayList<>();
 		List<QueryOperator> ops = partitionFilter.getOperators();
 		if (ops != null)
 			for (QueryOperator op : ops) {
 				if (op == null)
 					continue;
-				if (!partitionKeys.getIndexMap().containsKey(op.getKey())) {
-					throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in operators", op.getKey(), partitionKeys);
-				}
+				String key = op.getKey();
+				Object value = parseObject(tapTable, key, op.getValue());
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
-						bsonList.add(gt(op.getKey(), op.getValue()));
+						bsonList.add(gt(key, value));
 						break;
 					case QueryOperator.GTE:
-						bsonList.add(gte(op.getKey(), op.getValue()));
+						bsonList.add(gte(key, value));
 						break;
 					case QueryOperator.LT:
-						bsonList.add(lt(op.getKey(), op.getValue()));
+						bsonList.add(lt(key, value));
 						break;
 					case QueryOperator.LTE:
-						bsonList.add(lte(op.getKey(), op.getValue()));
+						bsonList.add(lte(key, value));
 						break;
 				}
 			}
 		DataMap match = partitionFilter.getMatch();
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
-				if (!partitionKeys.getIndexMap().containsKey(entry.getKey())) {
-					throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in match", entry.getKey(), partitionKeys);
-				}
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
 		}
@@ -662,6 +653,57 @@ public class MongodbConnector extends ConnectorBase {
 		else
 			query = and(bsonList.toArray(new Bson[0]));
 		return query;
+	}
+
+	private Object parseObject(TapTable tapTable, String key, Object value) {
+		if (null == value) {
+			return null;
+		}
+		if (null == tapTable) {
+			return value;
+		}
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+		if (MapUtils.isEmpty(nameFieldMap)) {
+			return value;
+		}
+		TapField tapField = nameFieldMap.get(key);
+		if (null == tapField) {
+			return value;
+		}
+		String dataType = tapField.getDataType();
+		if(StringUtils.isBlank(dataType)) {
+			return value;
+		}
+		if (dataType.contains("(")) {
+			dataType = StringUtils.substring(dataType, 0, dataType.indexOf("("));
+		}
+		BsonType bsonType;
+		try {
+			bsonType = BsonType.valueOf(dataType);
+		} catch (IllegalArgumentException e) {
+			return value;
+		}
+		switch (bsonType) {
+			case DATE_TIME:
+				if (value instanceof String) {
+					// Only support this date pattern
+					String datePattern = "yyyy-MM-dd HH:mm:ss";
+					SimpleDateFormat simpleDateFormat = new SimpleDateFormat(datePattern);
+					simpleDateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+					try {
+						value = simpleDateFormat.parse((String) value);
+					} catch (ParseException e) {
+						throw new RuntimeException("Parse date string failed, value: " + value + ", format: " + datePattern, e);
+					}
+				} else if (value instanceof Long) {
+					// Only support milliseconds timestamp
+					value = new Date((Long) value);
+				}
+				break;
+			default:
+				break;
+		}
+		return value;
 	}
 
 	private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
