@@ -4,6 +4,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import org.python.jsr223.PyScriptEngine;
 import org.python.jsr223.PyScriptEngineFactory;
 
 import javax.script.Bindings;

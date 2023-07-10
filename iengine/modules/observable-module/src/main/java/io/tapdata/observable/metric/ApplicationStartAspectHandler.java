@@ -18,6 +18,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
+import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
 import java.util.HashMap;
@@ -67,7 +68,13 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
         try {
             scriptEnginePy.eval("print 'python engine loaded'");
         } catch (ScriptException e) {
-            throw new RuntimeException(e);
+            if (!ApplicationStartAspectHandler.class.getResource("").getProtocol().equals("jar")) {
+                // 以 idea 的方式运行
+                ClassLoader defaultClassLoader = ApplicationStartAspectHandler.class.getClassLoader();
+                if (null == defaultClassLoader.getResource("BOOT-INF/lib/jython-standalone-2.7.2.jar")) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
     }
 }

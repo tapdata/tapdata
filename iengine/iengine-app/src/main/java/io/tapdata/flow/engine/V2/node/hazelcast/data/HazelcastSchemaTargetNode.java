@@ -16,6 +16,7 @@ import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.schema.Schema;
+import io.tapdata.Application;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
@@ -138,7 +139,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 						);
 						ObsScriptLogger scriptLogger = new ObsScriptLogger(obsLogger);
 						ICacheService cache = ((DataProcessorContext) processorBaseContext).getCacheService();
-						engine = isPythonNode ? ScriptUtil.getPyEngine(realDeclareScript,  cache, scriptLogger)
+						engine = isPythonNode ? ScriptUtil.getPyEngine(realDeclareScript,  cache, scriptLogger, Application.class.getClassLoader())
 								: ScriptUtil.getScriptEngine(realDeclareScript, null, null, cache, scriptLogger
 						);
 						TapModelDeclare tapModelDeclare = new TapModelDeclare(scriptLogger);
