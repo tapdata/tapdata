@@ -11,6 +11,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 
 import java.util.*;
@@ -118,6 +119,13 @@ public abstract class NormalLogMiner implements ILogMiner {
             case "UPDATE":
             case "DELETE": {
                 NormalTransaction transaction = transactionBucket.get(transactionId);
+                if (EmptyKit.isNull(transaction)) {
+                    transaction = new NormalTransaction(cdcSequenceId, transactionId, new LinkedList<>());
+                    transaction.setFirstTimestamp(normalRedo.getTimestamp());
+                    transaction.setLargeTransactionUpperLimit(largeTransactionUpperLimit);
+                    transaction.setConnectorId(connectorId);
+                    transactionBucket.put(transactionId, transaction);
+                }
                 transaction.pushRedo(normalRedo);
                 long redoSize = transaction.getSize();
                 if (redoSize % transaction.getLargeTransactionUpperLimit() == 0) {
