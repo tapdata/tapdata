@@ -249,7 +249,7 @@
             <artifactId>js-scriptengine</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.python</groupId>
+            <groupId>io.tapdata</groupId>
             <artifactId>${graalvm.py.artifactId}</artifactId>
             <version>${graalvm.py.version}</version>
         </dependency>
@@ -258,10 +258,10 @@
 <!--            <artifactId>${graalvm.py.artifactId}</artifactId>-->
 <!--            <version>${graalvm.py.version}</version>-->
 <!--        </dependency>-->
-        <dependency>
-            <groupId>org.python</groupId>
-            <artifactId>jython</artifactId>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.python</groupId>-->
+<!--            <artifactId>jython</artifactId>-->
+<!--        </dependency>-->
 
 
         <dependency>
