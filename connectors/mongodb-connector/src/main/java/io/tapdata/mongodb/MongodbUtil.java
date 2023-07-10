@@ -344,14 +344,6 @@ public class MongodbUtil {
 				settingBuilder.applySettings(connectionPoolSettings);
 			});
 
-			ConnectionPoolSettings.Builder connectionPoolSettingsBuilder = ConnectionPoolSettings.builder()
-				.minSize(10)
-				.maxSize(100)
-				.maxConnecting(20);
-		ConnectionPoolSettings connectionPoolSettings = connectionPoolSettingsBuilder.build();
-		builder.applyToConnectionPoolSettings(settingBuilder -> {
-			settingBuilder.applySettings(connectionPoolSettings);
-		});
 		builder.applyConnectionString(new ConnectionString(mongodbUri));
 
 		if (mongodbConfig.isSsl()) {
