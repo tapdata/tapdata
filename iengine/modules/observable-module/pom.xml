@@ -19,10 +19,6 @@
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>jython-standalone</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
             <artifactId>error-code-scanner</artifactId>
         </dependency>
     </dependencies>
