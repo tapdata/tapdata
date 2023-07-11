@@ -5,6 +5,15 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import org.bson.Document;
+import org.bson.types.Decimal128;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * use bytes storage
@@ -29,6 +38,30 @@ public class BytesIMap<T> extends ConstructIMap<T> {
 
 	@Override
 	public int insert(String key, T data) throws Exception {
+		if(data instanceof HashMap){
+			((HashMap<String, Map<String, Object>>) data).values().forEach(value ->{
+				value.keySet().forEach(keyObj ->{
+					Object obj = value.get(keyObj);
+					if(obj instanceof Instant){
+						Instant instant = (Instant) obj;
+						value.replace(keyObj,Date.from(instant));
+					}else if(obj instanceof BigDecimal){
+						BigDecimal bigDecimal = (BigDecimal) obj;
+						if (bigDecimal.precision() > 34) {
+							Decimal128 decimal128 = new Decimal128(bigDecimal.setScale(bigDecimal.scale() + 34 - bigDecimal.precision(), RoundingMode.HALF_UP));
+							value.replace(keyObj,decimal128);
+						} else {
+							value.replace(keyObj,new Decimal128(bigDecimal));
+						}
+					}else if(obj instanceof BigInteger){
+						BigInteger bigInteger = (BigInteger) obj;
+						value.replace(keyObj,bigInteger.longValue());
+					}
+				});
+
+
+			});
+		}
 		iMap.put(key, new Document(DATA_KEY, serialized(data)));
 		return 1;
 	}
