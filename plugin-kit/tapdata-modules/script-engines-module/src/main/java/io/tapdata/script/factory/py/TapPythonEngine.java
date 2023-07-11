@@ -1,10 +1,9 @@
 package io.tapdata.script.factory.py;
 
-import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import org.python.jsr223.PyScriptEngine;
 import org.python.jsr223.PyScriptEngineFactory;
 
 import javax.script.Bindings;
@@ -57,8 +56,9 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());
             }
         } catch (Exception e) {
-            TapLogger.debug("Python Eninge", "Can not init python engine, goto init default.");
-            scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());
+            //TapLogger.debug("Python Eninge", "Can not init python engine, goto init default.");
+            //scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());
+            throw new CoreException("Can not init python engine, error msg: " + e.getMessage());
         } finally {
             Thread.currentThread().setContextClassLoader(classLoader);
         }
