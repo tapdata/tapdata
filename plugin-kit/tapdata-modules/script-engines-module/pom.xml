@@ -56,6 +56,7 @@
             <groupId>io.tapdata</groupId>
             <artifactId>jython-standalone</artifactId>
             <version>${graalvm.py.version}</version>
+            <scope>provided</scope>
         </dependency>
 
 <!--        <dependency>-->

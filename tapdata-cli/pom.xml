@@ -43,6 +43,16 @@
             <groupId>io.tapdata</groupId>
             <artifactId>script-engine-module</artifactId>
             <version>1.0-SNAPSHOT</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.tapdata</groupId>
+                    <artifactId>jython-standalone</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.tapdata</groupId>
+                    <artifactId>jython</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.apache.maven.shared/maven-invoker -->
         <dependency>
