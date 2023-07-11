@@ -4,6 +4,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import org.python.core.PyException;
 import org.python.jsr223.PyScriptEngineFactory;
 
 import javax.script.Bindings;
@@ -49,7 +50,11 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
             Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
             if (EngineType.Python.engineName().equals(engineName)) {
                 //new org.python.jsr223.PyScriptEngine();
-                scriptEngine = new PyScriptEngineFactory().getScriptEngine();
+                try {
+                    scriptEngine = new PyScriptEngineFactory().getScriptEngine();
+                }catch (PyException e){
+                    scriptEngine = new PyScriptEngineFactory().getScriptEngine();
+                }
                 SimpleScriptContext scriptContext = new SimpleScriptContext();
                 scriptEngine.setContext(scriptContext);
             } else {
