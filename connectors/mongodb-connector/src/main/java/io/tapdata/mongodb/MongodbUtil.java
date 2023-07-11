@@ -4,6 +4,7 @@ import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCredential;
 import com.mongodb.client.*;
+import com.mongodb.connection.ConnectionPoolSettings;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
@@ -334,6 +335,14 @@ public class MongodbUtil {
 
 			// if mongodbUri not contains replicaSet, then only connect to primary node
 			mongodbUri = getPrimaryUri(mongodbUri);
+			ConnectionPoolSettings.Builder connectionPoolSettingsBuilder = ConnectionPoolSettings.builder()
+					.minSize(10)
+					.maxSize(100)
+					.maxConnecting(20);
+			ConnectionPoolSettings connectionPoolSettings = connectionPoolSettingsBuilder.build();
+			builder.applyToConnectionPoolSettings(settingBuilder -> {
+				settingBuilder.applySettings(connectionPoolSettings);
+			});
 
 			builder.applyConnectionString(new ConnectionString(mongodbUri));
 
