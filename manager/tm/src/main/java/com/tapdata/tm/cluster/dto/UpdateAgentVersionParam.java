@@ -34,4 +34,6 @@ public class UpdateAgentVersionParam {
      */
     private String op;
 
+    private String onlyUpdateToken;
+
 }

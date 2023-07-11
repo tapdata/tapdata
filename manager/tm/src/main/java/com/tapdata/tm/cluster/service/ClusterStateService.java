@@ -257,6 +257,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             cluserOperationEntity.setDownloadUrl(param.getDownloadUrl());
             cluserOperationEntity.setToken(param.getToken());
             cluserOperationEntity.setDownloadList(downloadList);
+            cluserOperationEntity.setOnlyUpdateToken(param.getOnlyUpdateToken());
         } else {
             cluserOperationEntity.setType(ClusterOperationTypeEnum.changeStatus.toString());
             cluserOperationEntity.setOperation(ClusterOperationTypeEnum.valueOf(param.getOp()).name());

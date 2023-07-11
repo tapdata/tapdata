@@ -25,4 +25,6 @@ public class ClusterOperationDto extends BaseDto {
 
     private String token;
 
+    private String onlyUpdateToken;
+
 }

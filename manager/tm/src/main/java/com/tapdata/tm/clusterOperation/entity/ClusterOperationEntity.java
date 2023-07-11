@@ -25,5 +25,6 @@ public class ClusterOperationEntity extends BaseEntity {
     private String server;
     private String operation;
     private String token;
+    private String onlyUpdateToken;
 
 }
