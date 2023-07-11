@@ -581,7 +581,7 @@ public class ScriptUtil {
 	 * */
 	public static final String DEFAULT_PY_SCRIPT_START = "import json, random, time, datetime, uuid, types\n" + //", yaml"
 			"import urllib, urllib2\n" + //", requests"
-			"import math, hashlib, base64 #, yaml, requests\n" +
+			"import math, hashlib, base64\n" + //# , yaml, requests\n" +
 			"def process(record, context):\n";
 	public static final String DEFAULT_PY_SCRIPT = DEFAULT_PY_SCRIPT_START + "\treturn record;\n";
 
@@ -601,6 +601,7 @@ public class ScriptUtil {
 		if (StringUtils.isBlank(script)) {
 			script = DEFAULT_PY_SCRIPT;
 		}
+		//script = script.replace(", yaml, requests", "");
 		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
 		final ClassLoader[] externalClassLoader = new ClassLoader[1];
 		String buildInMethod = "";
