@@ -12,12 +12,10 @@ import io.tapdata.mongodb.codecs.TapdataBigIntegerCodec;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.util.SSLUtil;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.BsonDocument;
-import org.bson.BsonString;
-import org.bson.BsonTimestamp;
-import org.bson.Document;
+import org.bson.*;
 import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
+import org.bson.types.ObjectId;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -66,7 +64,7 @@ public class MongodbUtil {
 	}
 
 	public static void sampleDataRow(MongoCollection collection, int sampleSize, Consumer<BsonDocument> callback) {
-
+		AtomicReference<Boolean> idExist = new AtomicReference<>(false);
 		int sampleTime = 1;
 		int sampleBatchSize = SAMPLE_SIZE_BATCH_SIZE;
 		if (sampleSize > SAMPLE_SIZE_BATCH_SIZE) {
@@ -85,12 +83,23 @@ public class MongodbUtil {
 			try (MongoCursor<BsonDocument> cursor = collection.aggregate(pipeline, BsonDocument.class).allowDiskUse(true).iterator()) {
 				while (cursor.hasNext()) {
 					BsonDocument next = cursor.next();
+					if (next.containsKey("_id")) {
+						idExist.set(true);
+					}
 					callback.accept(next);
 				}
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
 		});
+
+		// 如果表里没有 _id, 则生成一个
+		if (idExist.get() == false) {
+			ObjectId objectId = new ObjectId();
+			BsonObjectId bsonObjectId = new BsonObjectId(objectId);
+			BsonDocument bsonDocument = new BsonDocument("_id", bsonObjectId);
+			callback.accept(bsonDocument);
+		}
 	}
 
 	public static Map<String, String> nodesURI(MongoClient mongoClient, String mongodbURI) {

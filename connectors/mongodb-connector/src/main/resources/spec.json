@@ -157,6 +157,13 @@
           "x-component": "Input",
           "x-index": 70
         },
+        "schemaLimit": {
+          "title": "${schemaLimit}",
+          "type": "string",
+          "default": 1024,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber"
+        },
         "ssl": {
           "type": "boolean",
           "title": "${dataForm_form_ssl}",
@@ -374,6 +381,7 @@
       "FillingModifiedData": "Filling Modified Data",
       "noCursorTimeout": "No Cursor Timeout",
       "syncIndex": "Sync Index",
+      "schemaLimit": "Fields Load Limit For Each Collection"
     },
     "zh_CN": {
       "doc": "docs/mongodb_zh_CN.md",
@@ -402,7 +410,8 @@
       "saveData": "保存删除数据",
       "FillingModifiedData": "补充更新数据的完整字段",
       "noCursorTimeout": "禁用游标超时",
-      "syncIndex": "同步索引"
+      "syncIndex": "同步索引",
+      "schemaLimit": "每张表加载的字段数限制"
     },
     "zh_TW": {
       "doc": "docs/mongodb_zh_TW.md",
@@ -431,7 +440,8 @@
       "saveData": "保存刪除數據",
       "FillingModifiedData": "補充更新數據的完整字段",
       "noCursorTimeout": "禁用游標超時",
-      "syncIndex": "同步索引"
+      "syncIndex": "同步索引",
+      "schemaLimit": "每张表加載的字段數限制"
 
     }
   },

@@ -226,6 +226,21 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	public void getRelateDatabaseField(TapConnectionContext connectionContext, TableFieldTypesGenerator tableFieldTypesGenerator, BsonValue value, String fieldName, TapTable table) {
+		Integer schemaLimit = 1024;
+		try {
+			schemaLimit = connectionContext.getConnectionConfig().getInteger("schemaLimit");
+			if (schemaLimit == null) {
+				schemaLimit = 1024;
+			}
+		} catch (Exception ignored) {
+		}
+		try {
+			if (table.getNameFieldMap().size() > schemaLimit) {
+				return;
+			}
+		} catch (Exception ignored) {
+		}
+
 		if (value instanceof BsonDocument) {
 			BsonDocument bsonDocument = (BsonDocument) value;
 			for (Map.Entry<String, BsonValue> entry : bsonDocument.entrySet()) {
@@ -1232,9 +1247,6 @@ public class MongodbConnector extends ConnectorBase {
 				continue;
 			}
 
-			if (getMongoCollection(tableName).estimatedDocumentCount() <= 0) {
-				continue;
-			}
 			temp.add(tableName);
 			if (temp.size() >= batchSize) {
 				listConsumer.accept(temp);

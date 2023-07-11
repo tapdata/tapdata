@@ -302,9 +302,20 @@ public class MysqlConnector extends CommonDbConnector {
                 } else if ("DATE".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
                     value = resultSet.getString(i + 1);
                 } else {
-                    value = resultSet.getObject(i + 1);
+                    try {
+                        value = resultSet.getObject(i + 1);
+                    } catch (Exception ignore) {
+                        value = resultSet.getString(i + 1);
+                    }
                     if (null == value && dateTypeSet.contains(columnName)) {
                         value = resultSet.getString(i + 1);
+                    }
+                }
+                if (value != null) {
+                    String valueS = value.toString();
+                    // 如果是0000开头的时间，或者包含 -00, 就认为是null
+                    if (valueS.startsWith("0000") || valueS.contains("-00")) {
+                        value = null;
                     }
                 }
                 data.put(columnName, value);
