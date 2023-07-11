@@ -252,10 +252,10 @@
             <groupId>io.tapdata</groupId>
             <artifactId>${graalvm.py.artifactId}</artifactId>
         </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>${graalvm.py1.artifactId}</artifactId>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>io.tapdata</groupId>-->
+<!--            <artifactId>jython</artifactId>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>io.prometheus</groupId>
             <artifactId>simpleclient_httpserver</artifactId>

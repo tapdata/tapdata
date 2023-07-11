@@ -17,7 +17,6 @@
 
     <properties>
         <graalvm.py.artifactId>jython-standalone</graalvm.py.artifactId>
-        <graalvm.py1.artifactId>jython</graalvm.py1.artifactId>
         <graalvm.py.version>2.7.2</graalvm.py.version>
 
         <!-- Instruct the build to use only UTF-8 encoding for source code -->
@@ -849,11 +848,11 @@
                 <artifactId>jython-standalone</artifactId>
                 <version>2.7.2</version>
             </dependency>
-            <dependency>
-                <groupId>io.tapdata</groupId>
-                <artifactId>jython</artifactId>
-                <version>2.7.2</version>
-            </dependency>
+<!--            <dependency>-->
+<!--                <groupId>io.tapdata</groupId>-->
+<!--                <artifactId>jython</artifactId>-->
+<!--                <version>2.7.2</version>-->
+<!--            </dependency>-->
             <dependency>
                 <groupId>net.openhft</groupId>
                 <artifactId>chronicle-queue</artifactId>

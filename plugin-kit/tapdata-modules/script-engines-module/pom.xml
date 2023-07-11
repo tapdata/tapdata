@@ -56,13 +56,15 @@
             <groupId>io.tapdata</groupId>
             <artifactId>jython-standalone</artifactId>
             <version>${graalvm.py.version}</version>
+            <scope>provided</scope>
         </dependency>
 
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>jython</artifactId>
-            <version>${graalvm.py.version}</version>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>io.tapdata</groupId>-->
+<!--            <artifactId>jython</artifactId>-->
+<!--            <version>${graalvm.py.version}</version>-->
+<!--            <scope>provided</scope>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j-impl</artifactId>
