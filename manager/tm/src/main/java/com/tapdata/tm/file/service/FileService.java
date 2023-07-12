@@ -234,7 +234,7 @@ public class FileService {
             }
             String codeFileName = URLEncoder.encode(fileName, "UTF-8");
 
-            response.setHeader("Content-disposition", "inline; filename=" + codeFileName);
+            response.setHeader("Content-disposition", "inline; filename=" + codeFileName+".docx");
             response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
             template.writeAndClose(out);
             out.flush();

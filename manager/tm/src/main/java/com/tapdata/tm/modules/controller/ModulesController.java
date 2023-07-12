@@ -252,13 +252,13 @@ public class ModulesController extends BaseController {
 	@Operation(summary = "api导入")
 	@PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
-																			@RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover) {
+                                        @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover) {
 		modulesService.batchUpTask(file, getLoginUser(), cover);
 		return success();
 	}
 
   @Operation(summary = "api文档导出")
-  @GetMapping("api/load")
+  @GetMapping("api/export")
   public void batchLoadApis(@RequestParam("id") List<String> id,@RequestParam("ip") String ip, HttpServletResponse response) {
     modulesService.saveWord(response, id,ip, getLoginUser());
   }

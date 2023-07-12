@@ -6,7 +6,10 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.deepoove.poi.XWPFTemplate;
 import com.deepoove.poi.config.Configure;
+import com.deepoove.poi.plugin.highlight.HighlightRenderData;
+import com.deepoove.poi.plugin.highlight.HighlightRenderPolicy;
 import com.deepoove.poi.plugin.table.LoopRowTableRenderPolicy;
+import com.deepoove.poi.plugin.toc.TOCRenderPolicy;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
@@ -47,7 +50,19 @@ import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.CharEncoding;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpStatus;
+import org.apache.http.StatusLine;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -59,10 +74,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1393,11 +1410,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 	public List<ModulesDto> findAllModulesByIds(List<String> list) {
 		List<ObjectId> ids = list.stream().map(ObjectId::new).collect(Collectors.toList());
-
 		Query query = new Query(Criteria.where("_id").in(ids));
 		List<ModulesEntity> entityList = findAllEntity(query);
 		return CglibUtil.copyList(entityList, ModulesDto::new);
-//        return findAll(query);
 	}
 
     public void updateOutParameter(String id, DiscoveryFieldDto discoveryFieldDto, UserDetail userDetail){
@@ -1423,19 +1438,22 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
     }
 
     public void saveWord(HttpServletResponse response, List<String> ids,String ip,UserDetail user){
+        if (ids==null||ids.size()==0||ip==null){
+            return;
+        }
         List<ModulesDto> allModules = findAllModulesByIds(ids);
        Map<String,List<ModulesDto>> modules = allModules.stream().collect(Collectors.groupingBy(modulesDto -> {
             return modulesDto.getListtags().get(0).getValue();
         }));
-
        ApiView apiView =ApiViewUtil.convert(modules,ip);
        apiView.getApiTypeList();
-        URL url = this.getClass().getClassLoader().getResource("template/ApiTemplate.docx");
+        URL url = this.getClass().getClassLoader().getResource("template/testTemplate.docx");
         LoopRowTableRenderPolicy hackLoopTableRenderPolicy = new LoopRowTableRenderPolicy();
-        Configure config = Configure.builder()
-                .bind("parameters", hackLoopTableRenderPolicy)
-                .bind("responses", hackLoopTableRenderPolicy)
-                .bind("properties", hackLoopTableRenderPolicy)
+        Configure config=Configure.builder()
+                .bind("params",hackLoopTableRenderPolicy)
+                .bind("fields",hackLoopTableRenderPolicy)
+                .bind("TOC",new TOCRenderPolicy())
+                .bind("code",new HighlightRenderPolicy())
                 .useSpringEL()
                 .build();
         XWPFTemplate template = XWPFTemplate.compile(url.getPath(),config)
@@ -1447,6 +1465,5 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                 () -> fileName.set(allModules.get(0).getName() + "-" + yyyymmdd)
         );
         fileService.viewWord(template,response,fileName.get());
-
     }
 }
