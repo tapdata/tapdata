@@ -4221,7 +4221,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     @Override
     public <T extends BaseDto> T convertToDto(TaskEntity entity, Class<T> dtoClass, String... ignoreProperties) {
-        T dto = super.convertToDto(entity, dtoClass, "shareCdcStop", "shareCdcStopMessage");
+        T dto = super.convertToDto(entity, dtoClass, "shareCdcStopMessage");
         try {
             if (dto instanceof TaskDto) {
                 TaskDto taskDto = (TaskDto) dto;
