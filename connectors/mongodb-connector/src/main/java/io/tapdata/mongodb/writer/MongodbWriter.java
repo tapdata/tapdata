@@ -218,7 +218,7 @@ public class MongodbWriter {
 			TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) recordEvent;
 
 			if (CollectionUtils.isNotEmpty(pks)) {
-				final Document pkFilter = getPkFilter(pks, insertRecordEvent.getAfter()); // recordEvent的after属性为空
+				final Document pkFilter = getPkFilter(pks, insertRecordEvent.getAfter());
 				String operation = "$set";
 				if (ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS.equals(mongodbConfig.getInsertDmlPolicy())) {
 					operation = "$setOnInsert";
