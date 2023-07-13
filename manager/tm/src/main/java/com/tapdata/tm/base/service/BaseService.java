@@ -529,6 +529,10 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
         return repository.update(query, update);
     }
 
+    public UpdateResult updateMany(Query query, Update update) {
+        return repository.updateMany(query, update);
+    }
+
     public Entity findAndModify(Query query, Update update, UserDetail userDetail) {
 
         return repository.findAndModify(query, update, userDetail);

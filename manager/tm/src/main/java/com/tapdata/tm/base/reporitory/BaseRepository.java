@@ -902,6 +902,10 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
         return mongoOperations.updateFirst(query, update, entityClass);
     }
 
+    public UpdateResult updateMany(Query query, Update update) {
+        return mongoOperations.updateMulti(query, update, entityClass);
+    }
+
     public Entity findAndModify(Query query, Update update, UserDetail userDetail) {
         return findAndModify(query, update, null, userDetail);
     }
