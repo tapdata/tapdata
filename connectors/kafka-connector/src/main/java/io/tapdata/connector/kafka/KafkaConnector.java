@@ -14,6 +14,7 @@ import io.tapdata.entity.schema.value.TapDateValue;
 import io.tapdata.entity.schema.value.TapRawValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -24,9 +25,12 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.kafka.clients.producer.KafkaProducer;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Properties;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -37,13 +41,63 @@ public class KafkaConnector extends ConnectorBase {
     public static final String TAG = KafkaConnector.class.getSimpleName();
 
     private KafkaService kafkaService;
+    private KafkaSRService kafkaSRService;
+    private KafkaProducer<String, GenericRecord> kafkaProducer;
     private KafkaConfig kafkaConfig;
+    private Boolean isSchemaRegister;
+    private Properties properties;
 
     private void initConnection(TapConnectionContext connectorContext) {
         kafkaConfig = (KafkaConfig) new KafkaConfig().load(connectorContext.getConnectionConfig());
+        this.isSchemaRegister = kafkaConfig.getSchemaRegister();
         kafkaService = new KafkaService(kafkaConfig, connectorContext.getLog());
         kafkaService.setConnectorId(connectorContext.getId());
         kafkaService.init();
+        if (this.isSchemaRegister) {
+            schemaRegisterBuild();
+            kafkaSRService = new KafkaSRService(kafkaConfig, connectorContext, kafkaProducer);
+            kafkaSRService.setTapLogger(connectorContext.getLog());
+            kafkaSRService.setConnectorId(connectorContext.getId());
+            kafkaSRService.init();
+        }
+    }
+
+    private void schemaRegisterBuild() {
+        properties = new Properties();
+        properties.put("bootstrap.servers", kafkaConfig.getNameSrvAddr());
+        properties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        properties.put("value.serializer", io.confluent.kafka.serializers.KafkaAvroSerializer.class);
+        properties.put("schema.registry.url","" + "http://" + kafkaConfig.getSchemaRegisterUrl());
+        if (kafkaConfig.getBasicAuth()) {
+            properties.put("basic.auth.credentials.source", kafkaConfig.getAuthCredentialsSource());
+            properties.put("basic.auth.user.info", kafkaConfig.getAuthUserName() + ":" + kafkaConfig.getAuthPassword());
+        }
+        if (EmptyKit.isNotEmpty(this.kafkaConfig.getMqUsername()) && EmptyKit.isNotEmpty(this.kafkaConfig.getMqPassword())) {
+            properties.put("security.protocol", "SASL_PLAINTEXT");
+            String saslMechanism;
+            String model;
+            switch (kafkaConfig.getKafkaSaslMechanism().toUpperCase()) {
+                case "PLAIN":
+                    saslMechanism = "PLAIN";
+                    model = "org.apache.kafka.common.security.plain.PlainLoginModule";
+                    break;
+                case "SHA256":
+                    saslMechanism = "SCRAM-SHA-256";
+                    model = "org.apache.kafka.common.security.scram.ScramLoginModule";
+                    break;
+                case "SHA512":
+                    saslMechanism = "SCRAM-SHA-512";
+                    model = "org.apache.kafka.common.security.scram.ScramLoginModule";
+                    break;
+                default:
+                    throw new IllegalArgumentException("Un-supported sasl.mechanism: " + kafkaConfig.getKafkaSaslMechanism().toUpperCase());
+            }
+            properties.put("sasl.mechanism", saslMechanism);
+            properties.put("sasl.jaas.config", model + " required " +
+                    "username='" + this.kafkaConfig.getMqUsername() +
+                    "' password='" + this.kafkaConfig.getMqPassword() + "';");
+        }
+        kafkaProducer = new KafkaProducer<>(properties);
     }
 
     @Override
@@ -55,6 +109,9 @@ public class KafkaConnector extends ConnectorBase {
     public void onStop(TapConnectionContext connectionContext) {
         if (kafkaService != null) {
             kafkaService.close();
+        }
+        if (this.isSchemaRegister) {
+            kafkaSRService.close();
         }
     }
 
@@ -79,7 +136,37 @@ public class KafkaConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+//        connectorFunctions.supportCreateTableV2(this::createTableV2);
     }
+
+//    private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws ExecutionException, InterruptedException, IOException {
+//        TapTable tapTable = tapCreateTableEvent.getTable();
+//        CreateTableOptions createTableOptions = new CreateTableOptions();
+//        if (this.isSchemaRegister) {
+//            if (checkTopicExists(kafkaConfig.getConnectionString(), tapTable.getId())) {
+//                createTableOptions.setTableExists(true);
+//                return createTableOptions;
+//            }
+//            AdminClient adminClient = null;
+//            try {
+////                properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getConnectionString());
+//                adminClient = AdminClient.create(properties);
+//                int numPartitions = 3;
+//                short replicationFactor = 1;
+//                NewTopic newTopic = new NewTopic(tapTable.getId(), numPartitions, replicationFactor);
+//                adminClient.createTopics(Collections.singletonList(newTopic)).all().get();
+//            } catch (InterruptedException e) {
+//                throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage());
+//            } finally {
+//                adminClient.close();
+//            }
+//            createTableOptions.setTableExists(false);
+//        } else {
+//            createTableOptions.setTableExists(true);
+//        }
+//
+//        return createTableOptions;
+//    }
 
     private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
         kafkaService.produce(tapFieldBaseEvent);
@@ -87,7 +174,11 @@ public class KafkaConnector extends ConnectorBase {
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        kafkaService.loadTables(tableSize, consumer);
+        if (!this.isSchemaRegister) {
+            kafkaService.loadTables(tableSize, consumer);
+        } else {
+            kafkaSRService.loadTables(tableSize, consumer);
+        }
     }
 
     @Override
@@ -99,7 +190,7 @@ public class KafkaConnector extends ConnectorBase {
             onStart(connectionContext);
             CommonDbConfig config = new CommonDbConfig();
             config.set__connectionType(kafkaConfig.get__connectionType());
-            KafkaTest kafkaTest = new KafkaTest(kafkaConfig, consumer, kafkaService, config);
+            KafkaTest kafkaTest = new KafkaTest(kafkaConfig, consumer, this.kafkaService, config, isSchemaRegister, kafkaSRService);
             kafkaTest.testOneByOne();
         } catch (Throwable throwable) {
             TapLogger.error(TAG, throwable.getMessage());
@@ -122,7 +213,11 @@ public class KafkaConnector extends ConnectorBase {
     }
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
-        kafkaService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
+        if (!this.isSchemaRegister) {
+            kafkaService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
+        } else {
+            kafkaSRService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
+        }
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) {

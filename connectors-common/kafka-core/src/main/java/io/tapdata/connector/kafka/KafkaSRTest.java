@@ -24,22 +24,21 @@ import java.util.function.Consumer;
 
 import static io.tapdata.base.ConnectorBase.testItem;
 
-public class KafkaTest extends CommonDbTest {
-
+/**
+ * Author:Skeet
+ * Date: 2023/6/29
+ **/
+public class KafkaSRTest extends CommonDbTest {
     private List<String> WITHOUT_READ_PRIVILEGE = new ArrayList<>();
     private List<String> WITHOUT_WRITE_PRIVILEGE = new ArrayList<>();
 
     private KafkaConfig kafkaConfig;
-    private KafkaService kafkaService;
-    private boolean isSchemaRegister;
-    private KafkaSRService kafkaSRService;
+    private KafkaService  kafkaService;
 
-    public KafkaTest(KafkaConfig kafkaConfig, Consumer<TestItem> consumer, KafkaService kafkaService, CommonDbConfig config, Boolean isSchemaRegister, KafkaSRService kafkaSRService) {
+    public KafkaSRTest(KafkaConfig kafkaConfig, Consumer<TestItem> consumer, KafkaSRService kafkaSRervice, CommonDbConfig config) {
         super(config, consumer);
         this.kafkaConfig = kafkaConfig;
-        this.kafkaService = kafkaService;
-        this.isSchemaRegister = isSchemaRegister;
-        this.kafkaSRService = kafkaSRService;
+        this.kafkaService = kafkaSRervice;
     }
 
     @Override
@@ -51,7 +50,6 @@ public class KafkaTest extends CommonDbTest {
         }
         return true;
     }
-
     @Override
     public Boolean testVersion() {
         return true;
@@ -61,25 +59,20 @@ public class KafkaTest extends CommonDbTest {
     public Boolean testConnect() {
         TestItem testConnect = kafkaService.testConnect();
         consumer.accept(testConnect);
-        if (this.isSchemaRegister) {
-            TestItem testSRConnect = this.kafkaSRService.testConnect();
-            consumer.accept(testSRConnect);
-            if (testSRConnect.getResult() == TestItem.RESULT_FAILED) {
-                return false;
-            }
-        }
         if (testConnect.getResult() == TestItem.RESULT_FAILED) {
             return false;
         }
         return true;
+
     }
+
     @Override
     public Boolean testWritePrivilege() {
         AdminConfiguration configuration = new AdminConfiguration(kafkaConfig, kafkaService.getConnectorId());
         try (
                 DefaultAdmin defaultAdmin = new DefaultAdmin(configuration)
         ) {
-            String user = kafkaConfig.getMqUsername();
+            String user =kafkaConfig.getMqUsername();
             if (EmptyKit.isEmpty(user)) {
                 consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
                 return true;
