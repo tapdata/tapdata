@@ -2403,6 +2403,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
         for (Field field : fields) {
+            field.setDataType(field.getDataTypeTemp());
             fieldChangeRuleGroup.process(multiPleTransformReq.getNodeId(), multiPleTransformReq.getQualifiedName(), field, map);
         }
 

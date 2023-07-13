@@ -1,8 +1,6 @@
 package io.tapdata.zoho.utils;
 
 import cn.hutool.http.*;
-import cn.hutool.json.JSONObject;
-import cn.hutool.json.JSONUtil;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.entity.HttpResult;
@@ -11,6 +9,10 @@ import io.tapdata.zoho.enums.HttpCode;
 
 import java.util.Collections;
 import java.util.Map;
+
+import static io.tapdata.base.ConnectorBase.fromJson;
+import static io.tapdata.base.ConnectorBase.toJson;
+
 /***
  * 您可在两分钟内调用ZoHo API 100 次。如果您调用 100 次以上，则接下来 30 分钟将锁定特定 API 请求。
  *
@@ -99,10 +101,11 @@ public class ZoHoHttp {
         if (Checker.isEmpty(body)){
             return EMPTY.httpCode(execute.getStatus());
         }
-        JSONObject executeObject = JSONUtil.parseObj(body);
-        String executeResult = executeObject.getStr("errorCode");
-        if (Checker.isNotEmpty(executeResult) || Checker.isNotEmpty(executeResult = executeObject.getStr("error"))) {
-            HttpCode httpCode = HttpCode.code(executeResult);
+        Map<String, Object> executeObject = (Map<String, Object>) fromJson(body);
+        //JSONObject executeObject = JSONUtil.parseObj(body);
+        Object executeResult = executeObject.get("errorCode");
+        if (Checker.isNotEmpty(executeResult) || Checker.isNotEmpty(executeResult = executeObject.get("error"))) {
+            HttpCode httpCode = HttpCode.code(String.valueOf(executeResult));
             if (null == httpCode){
                 return HttpResult.create(
                         HttpCode.ERROR,
@@ -138,7 +141,7 @@ public class ZoHoHttp {
             request.form(form.entity());
         }
         if (Checker.isNotEmpty(body)){
-            request.body(JSONUtil.toJsonStr(body.entity()));
+            request.body(toJson(body.entity()));
         }
         HttpResponse execute = null;
         try {
@@ -263,8 +266,9 @@ public class ZoHoHttp {
             if (Checker.isEmpty(body)){
                 return Collections.emptyMap();
             }
-            JSONObject executeObject = JSONUtil.parseObj(body);
-            String executeResult = executeObject.getStr("");
+            Map<String, Object> executeObject = (Map<String, Object>) fromJson(body);
+            //JSONObject executeObject = JSONUtil.parseObj(body);
+            String executeResult = String.valueOf(executeObject.get("errorCode"));
             if (Checker.isNotEmpty(executeResult) && HttpCode.INVALID_OAUTH.getCode().equals(executeResult)){
                 TapLogger.debug(TAG,"{},start refresh token...",HttpCode.INVALID_OAUTH.getMessage());
                 return null;

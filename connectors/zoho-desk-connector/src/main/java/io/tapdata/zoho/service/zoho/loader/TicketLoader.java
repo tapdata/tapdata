@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static io.tapdata.base.ConnectorBase.toJson;
+
 public class TicketLoader extends ZoHoStarter implements ZoHoBase {
     private static final String TAG = TicketLoader.class.getSimpleName();
     public TapConnectionContext getContext(){
@@ -67,10 +69,14 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         HttpEntity<String, String> header = requestHeard();
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,GET_COUNT_URL), HttpType.GET,header)
                 .header(header);
-        HttpResult httpResult = this.readyAccessToken(http);
-        TapLogger.debug(TAG,"Get ticket count succeed.");
-        Object count = ((Map<String,Object>)httpResult.getResult()).get("count");
-        return Checker.isEmpty(count) ?0:(int)count;
+        try {
+            HttpResult httpResult = this.readyAccessToken(http);
+            TapLogger.debug(TAG,"Get ticket count succeed.");
+            Object count = ((Map<String,Object>)httpResult.getResult()).get("count");
+            return Checker.isEmpty(count) ?0:(int)count;
+        } catch (Exception e){
+            return 1;
+        }
     }
 
     public static void fun(){

@@ -328,7 +328,7 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         Date now = new Date();
         //保存的时候，直接把ping_time 保存为当前时间
         inspectDto.setPing_time(now.getTime());
-        inspectDto.setLastStartTime(now.getTime());
+        inspectDto.setLastStartTime(0L);
 
 				supplementAlarm(inspectDto, user);
 

@@ -13,8 +13,12 @@ fi
 
 docker ps|grep $use_container_name &> /dev/null
 if [[ $? -ne 0 ]]; then
-    docker run -v `pwd`/data:/data/db/ -e mode=use -itd --name=$use_container_name `cat image/tag` bash
+    docker run -itd -p 3000:33000 --name=$use_container_name $tag
+    if [[ $? -ne 0 ]]; then
+        error "docker run failed, please check your docker env"
+        exit 1
+    fi
+    docker logs -f $use_container_name
+else
+    info "All Done, please visit http://localhost:3000 or run 'bash tapshell/cli.sh' to enter container"
 fi
-
-info "tapdata all in one env started, you can use 'bash $sourcepath/bin/tapshell.sh' go into terminal env now..."
-bash $sourcepath/bin/tapshell.sh
