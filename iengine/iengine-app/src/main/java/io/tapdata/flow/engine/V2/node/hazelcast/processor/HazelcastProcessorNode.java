@@ -2,12 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
-import com.tapdata.entity.FieldProcess;
-import com.tapdata.entity.FieldScript;
-import com.tapdata.entity.JavaScriptFunctions;
-import com.tapdata.entity.Job;
-import com.tapdata.entity.MessageEntity;
-import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.dataflow.DataFlowProcessor;
@@ -26,6 +21,7 @@ import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
@@ -117,8 +113,20 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		final List<MessageEntity> processedMessages = dataFlowProcessor.process(Collections.singletonList(messageEntity));
 		if (CollectionUtils.isNotEmpty(processedMessages)) {
 			for (MessageEntity processedMessage : processedMessages) {
-				TapEventUtil.setBefore(tapRecordEvent, processedMessage.getBefore());
-				TapEventUtil.setAfter(tapRecordEvent, processedMessage.getAfter());
+				if (OperationType.COMMIT_OFFSET.getOp().equals(processedMessage.getOp())){
+					HeartbeatEvent heartbeatEvent = new HeartbeatEvent();
+					if (tapdataEvent.getBatchOffset()==null&&tapdataEvent.getStreamOffset()==null){
+						continue;
+					}
+					if (tapRecordEvent.getReferenceTime()==null){
+						continue;
+					}
+					heartbeatEvent.setReferenceTime(tapRecordEvent.getReferenceTime());
+					tapdataEvent.setTapEvent(heartbeatEvent);
+				}else {
+					TapEventUtil.setBefore(tapRecordEvent, processedMessage.getBefore());
+					TapEventUtil.setAfter(tapRecordEvent, processedMessage.getAfter());
+				}
 				consumer.accept(tapdataEvent, getProcessResult(processedMessage.getTableName()));
 			}
 		}
