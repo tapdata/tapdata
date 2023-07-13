@@ -531,6 +531,7 @@ public class TapdataTaskScheduler {
 							obsLogger.info(String.format("Reset task [%s] retry time", taskDtoTaskClient.getTask().getName()));
 						}
 					}
+					clearTaskRetry(taskId);
 				}
 			}
 		} catch (Throwable ignored) {

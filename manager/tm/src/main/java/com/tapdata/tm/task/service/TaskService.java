@@ -3296,6 +3296,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             //需要将重启标识清除
             Update set = Update.update("isEdit", false)
                     .set("restartFlag", false)
+                    .unset("functionRetryStatus")
+                    .unset("taskRetryStatus")
+                    .set("restartFlag", false)
                     .set("stopRetryTimes", 0);
             update(query, set, user);
             taskScheduleService.scheduling(taskDto, user);
