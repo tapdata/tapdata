@@ -21,7 +21,9 @@ import com.tapdata.tm.ws.dto.WebSocketContext;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -68,19 +70,37 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 		MessageInfo messageInfo = context.getMessageInfo();
 		Map<String, Object> externalStorageConfig = messageInfo.getData();
 
+		try {
+			sendMessage(context.getSender(), context.getSessionId(), userDetail, externalStorageConfig);
+		} catch (TestExternalStorageException e) {
+			sendErrorMessage(context, e.title, e.getMessage());
+		} catch (Exception e) {
+			sendErrorMessage(context, "SystemError", e.getMessage());
+		}
+	}
+
+	public void sendMessage(String sender, String sessionId, UserDetail userDetail, Map<String, Object> externalStorageConfig) throws Exception {
 		MessageType testConnectionType = MessageType.TEST_CONNECTION;
 		WebSocketHandler handler = WebSocketManager.getHandler(testConnectionType.getType());
 		if (null == handler) {
-			sendErrorMessage(context, "Handler", String.format("Not found handler with type: %s", testConnectionType.getType()));
-			return;
+			throw new TestExternalStorageException(String.format("Not found handler with type: %s", testConnectionType.getType()), "Handler");
 		}
 
+		MessageInfo testConnectionMessageInfo = wrapMessageInfo(userDetail, externalStorageConfig, testConnectionType);
+		if (testConnectionMessageInfo == null) return;
+
+		// 消息转发
+		WebSocketContext testConnectionWebSocketContext = new WebSocketContext(sessionId, sender, userDetail.getUserId(), testConnectionMessageInfo);
+		handler.handleMessage(testConnectionWebSocketContext);
+	}
+
+	@Nullable
+	public MessageInfo wrapMessageInfo(UserDetail userDetail, Map<String, Object> externalStorageConfig, MessageType testConnectionType) {
 		// 将 ExternalStorage 配置转换成 Connections 配置
 		String externalStorageId = (String) externalStorageConfig.get("id");
 		Map<String, Object> testConnectionConfig = newMongoDBConnections(userDetail);
 		if (null == testConnectionConfig) {
-			sendErrorMessage(context, "NotFoundStorage", String.format("Can not found storage by id '%s', please check the datasource 'MongoDB' is exists", externalStorageId));
-			return;
+			throw new TestExternalStorageException(String.format("Can not found storage by id '%s', please check the datasource 'MongoDB' is exists", externalStorageId), "NotFoundStorage");
 		}
 		Map<String, Object> connectorConfig = (Map<String, Object>) testConnectionConfig.computeIfAbsent("config", s -> new LinkedHashMap<>());
 		if (null == externalStorageId) {
@@ -105,8 +125,7 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 			ExternalStorageService externalStorageService = SpringContextHelper.getBean(ExternalStorageService.class);
 			ExternalStorageDto dto = externalStorageService.findNotCheckById(externalStorageId);
 			if (!ExternalStorageType.mongodb.name().equals(dto.getType())) {
-				WebSocketManager.sendMessage(context.getSender(), String.format("Not support test external storage with type: %s", dto.getType()));
-				return;
+				return null;
 			}
 
 			fillString(connectorConfig, externalStorageConfig, "id", dto::getId);
@@ -117,15 +136,15 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 			fillString(connectorConfig, externalStorageConfig, "sslPass", dto::getSslPass);
 			fillBoolean(connectorConfig, externalStorageConfig, "sslValidate", dto::isSslValidate);
 			fillBoolean(connectorConfig, externalStorageConfig, "checkServerIdentity", dto::isCheckServerIdentity);
+			testConnectionConfig.put("name", dto.getName());
 		}
 
 		MessageInfo testConnectionMessageInfo = new MessageInfo();
 		testConnectionMessageInfo.setType(testConnectionType.getType());
+		testConnectionConfig.put("externalStorageId", externalStorageId);
+		testConnectionConfig.put("isExternalStorage", true);
 		testConnectionMessageInfo.setData(testConnectionConfig);
-
-		// 消息转发
-		WebSocketContext testConnectionWebSocketContext = new WebSocketContext(context.getSessionId(), context.getSender(), context.getUserId(), testConnectionMessageInfo);
-		handler.handleMessage(testConnectionWebSocketContext);
+		return testConnectionMessageInfo;
 	}
 
 	private void fillString(Map<String, Object> connectorConfig, Map<String, Object> externalStorageConfig, String key, Supplier<Object> supplier) {
@@ -208,5 +227,33 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 		messageQueueDto.setType("pipe");
 		messageQueueDto.setData(data);
 		messageQueueService.sendMessage(messageQueueDto);
+	}
+
+	private static class TestExternalStorageException extends RuntimeException {
+		private String title;
+
+		public TestExternalStorageException(String title) {
+			this.title = title;
+		}
+
+		public TestExternalStorageException(String message, String title) {
+			super(message);
+			this.title = title;
+		}
+
+		public TestExternalStorageException(String message, Throwable cause, String title) {
+			super(message, cause);
+			this.title = title;
+		}
+
+		public TestExternalStorageException(Throwable cause, String title) {
+			super(cause);
+			this.title = title;
+		}
+
+		public TestExternalStorageException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace, String title) {
+			super(message, cause, enableSuppression, writableStackTrace);
+			this.title = title;
+		}
 	}
 }
