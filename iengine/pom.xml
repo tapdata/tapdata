@@ -16,6 +16,9 @@
     <packaging>pom</packaging>
 
     <properties>
+        <graalvm.py.artifactId>jython-standalone</graalvm.py.artifactId>
+        <graalvm.py.version>2.7.2</graalvm.py.version>
+
         <!-- Instruct the build to use only UTF-8 encoding for source code -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
@@ -130,6 +133,7 @@
         <okhttp.version>4.9.1</okhttp.version>
 
         <graalvm.js.version>21.3.0</graalvm.js.version>
+        <graalvm.py.version>2.7.2</graalvm.py.version>
 
         <jna.version>5.10.0</jna.version>
         <log4j.version>2.17.1</log4j.version>
@@ -173,7 +177,6 @@
         <module>api</module>
         <module>modules</module>
     </modules>
-
     <dependencyManagement>
         <dependencies>
             <!-- Major dependencies -->
@@ -840,7 +843,21 @@
                 <artifactId>js-scriptengine</artifactId>
                 <version>${graalvm.js.version}</version>
             </dependency>
-
+            <dependency>
+                <groupId>org.python</groupId>
+                <artifactId>jython-standalone</artifactId>
+                <version>${graalvm.py.version}</version>
+            </dependency>
+<!--            <dependency>-->
+<!--                <groupId>io.tapdata</groupId>-->
+<!--                <artifactId>jython-standalone</artifactId>-->
+<!--                <version>2.7.2</version>-->
+<!--            </dependency>-->
+<!--            <dependency>-->
+<!--                <groupId>io.tapdata</groupId>-->
+<!--                <artifactId>jython</artifactId>-->
+<!--                <version>2.7.2</version>-->
+<!--            </dependency>-->
             <dependency>
                 <groupId>net.openhft</groupId>
                 <artifactId>chronicle-queue</artifactId>
@@ -882,9 +899,9 @@
 
     <repositories>
         <repository>
-            <id>tapdata-wendangshujuku-mongo</id>
-            <name>mongo</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/wendangshujuku/mongo/</url>
+            <id>tapdata-tapdata-maven</id>
+            <name>maven</name>
+            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
@@ -893,9 +910,9 @@
             </snapshots>
         </repository>
         <repository>
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
+            <id>tapdata-wendangshujuku-mongo</id>
+            <name>mongo</name>
+            <url>https://tapdata-maven.pkg.coding.net/repository/wendangshujuku/mongo/</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
@@ -963,6 +980,25 @@
                 <!--<scope.libs.tidb>test</scope.libs.tidb>-->
                 <scope.libs.udp>test</scope.libs.udp>
             </properties>
+        </profile>
+        <profile>
+            <id>Repository Proxy</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <repositories>
+                <repository>
+                    <id>tapdata-tapdata-maven</id>
+                    <name>maven</name>
+                    <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
+                    <releases>
+                        <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                        <enabled>true</enabled>
+                    </snapshots>
+                </repository>
+            </repositories>
         </profile>
     </profiles>
 </project>

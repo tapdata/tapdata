@@ -10,6 +10,8 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
+import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
@@ -521,7 +523,11 @@ public class TransformSchemaService {
             List<Node> nodes = dag.getNodes();
             if (CollectionUtils.isNotEmpty(nodes)) {
                 for (Node node : nodes) {
-                    if (node instanceof JsProcessorNode || node instanceof MigrateJsProcessorNode || node instanceof CustomProcessorNode) {
+                    if (node instanceof JsProcessorNode
+                            || node instanceof MigrateJsProcessorNode
+                            || node instanceof CustomProcessorNode
+                            || node instanceof PyProcessNode
+                            || node instanceof MigratePyProcessNode ) {
                         return true;
                     }
                 }

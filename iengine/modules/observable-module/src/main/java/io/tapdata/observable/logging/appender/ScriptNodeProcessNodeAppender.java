@@ -11,14 +11,14 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author GavinXiao
- * @description JSProcessNodeAppender create by Gavin
+ * @description ScriptNodeProcessNodeAppender create by Gavin : handle test run log for JS node or python node
  * @create 2023/5/11 19:00
  **/
-public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
-    public static final String MAX_LOG_LENGTH_KEY = "JSNodeId_";
-    public static final String JS_NODE_ID_KEY = "maxLogCount_";
+public class ScriptNodeProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
+    public static final String MAX_LOG_LENGTH_KEY = "ScriptNodeId_";
+    public static final String SCRIPT_NODE_ID_KEY = "maxLogCount_";
     public static final String LOG_LIST_KEY = "logCollector_";
-    public static final String LOGGER_NAME_PREFIX = "js-test-run-log-";
+    public static final String LOGGER_NAME_PREFIX = "script-node-test-run-log-";
 
     //日志输出默认100条
     public int defaultLogLength = 100;
@@ -30,7 +30,7 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
     //日志输出上限500条
     public static final int LOG_UPPER_LIMIT = 500;
 
-    private JSProcessNodeAppender(String taskId, AtomicReference<Object> logCollector, Integer maxLogCount) {
+    private ScriptNodeProcessNodeAppender(String taskId, AtomicReference<Object> logCollector, Integer maxLogCount) {
         super(taskId);
         this.logger = LogManager.getLogger(LOGGER_NAME_PREFIX + taskId);
         this.logCollector = logCollector;
@@ -38,13 +38,13 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
             Optional.ofNullable(logCollector.get()).ifPresent(list -> logList = (FixedSizeBlockingDeque<MonitoringLogsDto>) list);
     }
 
-    public JSProcessNodeAppender nodeID(String jsNodeId) {
+    public ScriptNodeProcessNodeAppender nodeID(String jsNodeId) {
         this.jsNodeId = jsNodeId;
         return this;
     }
 
-    public static JSProcessNodeAppender create(String taskId, AtomicReference<Object> logCollector, Integer maxLogCount) {
-        return new JSProcessNodeAppender(taskId, logCollector, maxLogCount);
+    public static ScriptNodeProcessNodeAppender create(String taskId, AtomicReference<Object> logCollector, Integer maxLogCount) {
+        return new ScriptNodeProcessNodeAppender(taskId, logCollector, maxLogCount);
     }
 
 //    public JSProcessNodeAppender maxLogCount(int maxLogCount) {

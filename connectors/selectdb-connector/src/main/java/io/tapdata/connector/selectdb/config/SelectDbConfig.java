@@ -4,7 +4,6 @@ import io.tapdata.common.CommonDbConfig;
 import lombok.Getter;
 import lombok.Setter;
 
-
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Objects;
@@ -23,6 +22,7 @@ public class SelectDbConfig extends CommonDbConfig implements Serializable {
     private int insertBatchSize = 1000;
     private String selectDbHttp;
     private Boolean closeNotNull = true;
+    private int retryCount = 30;
 
     public SelectDbConfig selectDbHttp(String selectDbHttp) {
         this.selectDbHttp = selectDbHttp;

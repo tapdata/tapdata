@@ -13,7 +13,7 @@ import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
-import io.tapdata.observable.logging.appender.JSProcessNodeAppender;
+import io.tapdata.observable.logging.appender.ScriptNodeProcessNodeAppender;
 import io.tapdata.observable.logging.with.FixedSizeBlockingDeque;
 import io.tapdata.service.skeleton.annotation.RemoteService;
 import io.tapdata.websocket.handler.TestRunTaskHandler;
@@ -45,15 +45,15 @@ public class JSProcessNodeTestRunService {
         AtomicReference<Object> logCollector = new AtomicReference<>();
         int defaultLogLength = 100;
         if (logOutputCount > 0) {
-            defaultLogLength = Math.min(logOutputCount, JSProcessNodeAppender.LOG_UPPER_LIMIT);
+            defaultLogLength = Math.min(logOutputCount, ScriptNodeProcessNodeAppender.LOG_UPPER_LIMIT);
         }
         FixedSizeBlockingDeque<MonitoringLogsDto> logList = new FixedSizeBlockingDeque<>(defaultLogLength);
         logCollector.set(logList);
 
         String taskId = taskDto.getId().toHexString();
-        taskDto.taskInfo(JSProcessNodeAppender.LOG_LIST_KEY  + taskId, logCollector);
-        taskDto.taskInfo(JSProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId, logOutputCount);
-        taskDto.taskInfo(JSProcessNodeAppender.JS_NODE_ID_KEY + taskId, nodeId);
+        taskDto.taskInfo(ScriptNodeProcessNodeAppender.LOG_LIST_KEY  + taskId, logCollector);
+        taskDto.taskInfo(ScriptNodeProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId, logOutputCount);
+        taskDto.taskInfo(ScriptNodeProcessNodeAppender.SCRIPT_NODE_ID_KEY + taskId, nodeId);
 
         ObsLogger logger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
         TaskClient<TaskDto> taskClient = null;

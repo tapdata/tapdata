@@ -22,7 +22,7 @@ public class TapdataEvent implements Serializable, Cloneable {
 	private static final long serialVersionUID = 2586329076282260051L;
 	public final static String CONNECTION_ID_INFO_KEY = "connectionId";
 	public final static String TABLE_NAMES_INFO_KEY = "tableNames";
-	private SyncStage syncStage;
+	protected SyncStage syncStage;
 
 	private TapEvent tapEvent;
 

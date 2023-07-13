@@ -1,77 +1,38 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <artifactId>connectors</artifactId>
         <groupId>io.tapdata</groupId>
+        <artifactId>connectors</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>mrs-hive3-connector</artifactId>
+    <artifactId>greenplum-connector</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <name>mrs-hive3-connector</name>
-    <description>mrs-hive3-connector</description>
+    <packaging>jar</packaging>
+
 
     <properties>
-        <java.version>1.8</java.version>
-        <hive.core.version>1.0-SNAPSHOT</hive.core.version>
-        <hadoop.version>3.1.1-hw-ei-312005</hadoop.version>
-        <hive.version>3.1.0-hw-ei-312005</hive.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <java.version>8</java.version>
+        <tapdata.pdk.api.version>1.2.2-SNAPSHOT</tapdata.pdk.api.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>tapdata-pdk-api</artifactId>
-            <version>${tapdata.pdk.api.version}</version>
-            <scope>provided</scope>
+            <artifactId>postgres-connector</artifactId>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>hive-core</artifactId>
-            <version>${hive.core.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-auth</artifactId>
-            <version>${hadoop.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.hive</groupId>
-            <artifactId>hive-jdbc</artifactId>
-            <version>${hive.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.hive</groupId>
-            <artifactId>hive-common</artifactId>
-            <version>${hive.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.hive</groupId>
-            <artifactId>hive-shims</artifactId>
-            <version>${hive.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-common</artifactId>
-            <version>${hadoop.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>2.0.6</version>
+            <artifactId>tapdata-pdk-api</artifactId>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-runner</artifactId>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>cn.hutool</groupId>
-            <artifactId>hutool-all</artifactId>
-            <version>5.5.1</version>
         </dependency>
     </dependencies>
 
@@ -98,7 +59,7 @@
                             <PDK-Runner-Version>${tapdata.pdk.runner.version}</PDK-Runner-Version>
                             <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
                             <Tapdata-API-Version>${tapdata.pdk.api.version}</Tapdata-API-Version>
-                            <Version>${version}</Version>
+                            <Version>${project.version}</Version>
                             <Authentication>Alpha</Authentication>
                             <Git-Build-Time>${git.build.time}</Git-Build-Time>
                             <Git-Branch>${git.branch}</Git-Branch>
@@ -183,23 +144,4 @@
             </plugin>
         </plugins>
     </build>
-    <repositories>
-        <repository>
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
-            <id>huaweicloudsdk</id>
-            <url>https://repo.huaweicloud.com/repository/maven/huaweicloudsdk/</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>true</enabled></snapshots>
-        </repository>
-    </repositories>
 </project>

@@ -27,6 +27,7 @@ public class Main {
         commandLine.addSubcommand("capabilities", new TapCapabilitiesCli());
         commandLine.addSubcommand("run", new TapPDKRunnerCli());
         commandLine.addSubcommand("supervisor", new SupervisorCli());
+        commandLine.addSubcommand("py-install", new PythonInstallCli());
         return commandLine;
     }
 }

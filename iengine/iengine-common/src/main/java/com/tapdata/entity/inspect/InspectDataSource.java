@@ -1,5 +1,7 @@
 package com.tapdata.entity.inspect;
 
+import com.tapdata.tm.commons.dag.EqField;
+import io.tapdata.pdk.apis.entity.QueryOperator;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -34,4 +36,8 @@ public class InspectDataSource implements Serializable {
 	private InspectCdcRunProfiles cdcRunProfiles;
 	private String nodeId;
 	private String nodeName;
+	/** 自定义sql条件 */
+	private Boolean isFilter;
+	@EqField
+	private List<QueryOperator> conditions;
 }

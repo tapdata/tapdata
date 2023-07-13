@@ -26,6 +26,8 @@ import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
+import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
@@ -717,11 +719,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         FunctionUtils.isTureOrFalse(TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())).trueOrFalseHandle(
                 () -> {
-                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
+                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof MigrateJsProcessorNode || n instanceof MigratePyProcessNode);
                     FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Migrate");
                 },
                 () -> {
-                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof JsProcessorNode);
+                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof JsProcessorNode || n instanceof PyProcessNode);
                     FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Sync");
                 }
         );
@@ -1421,7 +1423,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             where.put("is_deleted", document);
         }
 
-
         Page<TaskDto> taskDtoPage = new Page<>();
         List<TaskDto> items = new ArrayList<>();
         if (where.get("syncType") != null && (where.get("syncType") instanceof String)) {
@@ -1489,6 +1490,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 }
             }
 
+            // Internationalized Shared Mining Warning Messages
+            for (TaskDto item : items) {
+                if (StringUtils.isNotBlank(item.getShareCdcStopMessage())) {
+                    item.setShareCdcStopMessage(MessageUtil.getMessage(item.getShareCdcStopMessage()));
+                }
+            }
 
         }
 
@@ -2775,6 +2782,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 TaskDto one1 = findOne(new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true)));
                 if (one1 != null) {
                     taskDto.setId(null);
+                    taskDto.getDag().getNodes().forEach(node -> {
+                        if(node instanceof DatabaseNode){
+                            DatabaseNode databaseNode = (DatabaseNode) node;
+                            if(conMap.containsKey(databaseNode.getConnectionId())){
+                                DataSourceConnectionDto dataSourceCon = conMap.get(databaseNode.getConnectionId());
+                                databaseNode.setConnectionId(dataSourceCon.getId().toString());
+                            }
+                        }
+                    });
                 }
             }
 
@@ -4195,11 +4211,28 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return null;
         try {
             TaskEntity entity = new TaskEntity();
-            BeanUtils.copyProperties(dto, entity, "agentId", "startTime", "lastStartDate");
+            BeanUtils.copyProperties(dto, entity, "agentId", "startTime", "lastStartDate", "shareCdcStop", "shareCdcStopMessage");
             return entity;
         } catch (Exception e) {
             log.error("Convert entity " + entityClass + " failed. {}", ThrowableUtils.getStackTraceByPn(e));
         }
         return null;
+    }
+
+    @Override
+    public <T extends BaseDto> T convertToDto(TaskEntity entity, Class<T> dtoClass, String... ignoreProperties) {
+        T dto = super.convertToDto(entity, dtoClass, "shareCdcStopMessage");
+        try {
+            if (dto instanceof TaskDto) {
+                TaskDto taskDto = (TaskDto) dto;
+                if (null != entity.getShareCdcStop() && entity.getShareCdcStop() && StringUtils.isNotBlank(entity.getShareCdcStopMessage())) {
+                    taskDto.setShareCdcStopMessage(MessageUtil.getMessage(entity.getShareCdcStopMessage()));
+                }
+            }
+        } catch (Exception e) {
+            log.error("Convert task entity to dto failed, try to use super method: {}", e.getMessage(), e);
+            return super.convertToDto(entity, dtoClass, ignoreProperties);
+        }
+        return dto;
     }
 }

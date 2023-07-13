@@ -249,6 +249,19 @@
             <artifactId>js-scriptengine</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.python</groupId>
+            <artifactId>jython-standalone</artifactId>
+            <version>${graalvm.py.version}</version>
+        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>io.tapdata</groupId>-->
+<!--            <artifactId>${graalvm.py.artifactId}</artifactId>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>io.tapdata</groupId>-->
+<!--            <artifactId>jython</artifactId>-->
+<!--        </dependency>-->
+        <dependency>
             <groupId>io.prometheus</groupId>
             <artifactId>simpleclient_httpserver</artifactId>
             <version>0.12.0</version>
@@ -348,4 +361,28 @@
             </plugin>
         </plugins>
     </build>
+    <repositories>
+        <repository>
+            <id>tapdata-tapdata-maven</id>
+            <name>maven</name>
+            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>tapdata-wendangshujuku-mongo</id>
+            <name>mongo</name>
+            <url>https://tapdata-maven.pkg.coding.net/repository/wendangshujuku/mongo/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 </project>

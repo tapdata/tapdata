@@ -50,8 +50,7 @@ public class KafkaConnector extends ConnectorBase {
     private void initConnection(TapConnectionContext connectorContext) {
         kafkaConfig = (KafkaConfig) new KafkaConfig().load(connectorContext.getConnectionConfig());
         this.isSchemaRegister = kafkaConfig.getSchemaRegister();
-        kafkaService = new KafkaService(kafkaConfig);
-        kafkaService.setTapLogger(connectorContext.getLog());
+        kafkaService = new KafkaService(kafkaConfig, connectorContext.getLog());
         kafkaService.setConnectorId(connectorContext.getId());
         kafkaService.init();
         if (this.isSchemaRegister) {
@@ -108,7 +107,9 @@ public class KafkaConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        kafkaService.close();
+        if (kafkaService != null) {
+            kafkaService.close();
+        }
         if (this.isSchemaRegister) {
             kafkaSRService.close();
         }

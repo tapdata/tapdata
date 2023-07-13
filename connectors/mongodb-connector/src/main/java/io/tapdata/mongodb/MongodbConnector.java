@@ -2,12 +2,7 @@ package io.tapdata.mongodb;
 
 import com.mongodb.*;
 import com.mongodb.bulk.BulkWriteError;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
-import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.MongoIterable;
+import com.mongodb.client.*;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Sorts;
 import io.tapdata.base.ConnectorBase;
@@ -20,21 +15,9 @@ import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.schema.TapField;
-import io.tapdata.entity.schema.TapIndex;
-import io.tapdata.entity.schema.TapIndexEx;
-import io.tapdata.entity.schema.TapIndexField;
-import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.*;
 import io.tapdata.entity.schema.type.TapNumber;
-import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.entity.schema.value.TapBinaryValue;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDateValue;
-import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapNumberValue;
-import io.tapdata.entity.schema.value.TapStringValue;
-import io.tapdata.entity.schema.value.TapTimeValue;
-import io.tapdata.entity.schema.value.TapYearValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -52,17 +35,7 @@ import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
-import io.tapdata.pdk.apis.entity.ExecuteResult;
-import io.tapdata.pdk.apis.entity.FilterResults;
-import io.tapdata.pdk.apis.entity.Projection;
-import io.tapdata.pdk.apis.entity.QueryOperator;
-import io.tapdata.pdk.apis.entity.SortOn;
-import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
-import io.tapdata.pdk.apis.entity.TapExecuteCommand;
-import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -75,30 +48,14 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.BsonArray;
-import org.bson.BsonDocument;
-import org.bson.BsonString;
-import org.bson.BsonType;
-import org.bson.BsonValue;
-import org.bson.Document;
+import org.bson.*;
 import org.bson.conversions.Bson;
-import org.bson.types.Binary;
-import org.bson.types.Code;
-import org.bson.types.Decimal128;
-import org.bson.types.ObjectId;
-import org.bson.types.Symbol;
+import org.bson.types.*;
 
 import java.io.Closeable;
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -112,12 +69,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static com.mongodb.client.model.Filters.and;
-import static com.mongodb.client.model.Filters.eq;
-import static com.mongodb.client.model.Filters.gt;
-import static com.mongodb.client.model.Filters.gte;
-import static com.mongodb.client.model.Filters.lt;
-import static com.mongodb.client.model.Filters.lte;
+import static com.mongodb.client.model.Filters.*;
 import static java.util.Collections.singletonList;
 
 /**
@@ -440,15 +392,6 @@ public class MongodbConnector extends ConnectorBase {
 			return new TapNumberValue(decimal128.doubleValue());
 		});
 
-		codecRegistry.registerToTapValue(Document.class, (value, tapType) -> {
-			Document document = (Document) value;
-			for (Map.Entry<String, Object> entry : document.entrySet()) {
-				if (entry.getValue() instanceof Double && entry.getValue().toString().contains("E")) {
-					entry.setValue(new BigDecimal(entry.getValue().toString()).toString());
-				}
-			}
-			return new TapMapValue(document);
-		});
 		codecRegistry.registerToTapValue(Symbol.class, (value, tapType) -> {
 			Symbol symbol = (Symbol) value;
 			return new TapStringValue(symbol.getSymbol());
@@ -546,7 +489,7 @@ public class MongodbConnector extends ConnectorBase {
 		if (partitionIndex == null)
 			throw new CoreException(MongoErrors.NO_INDEX_FOR_PARTITION, "No index to do partition");
 
-		Bson query = queryForPartitionFilter(partitionFilter, partitionIndex);
+		Bson query = queryForPartitionFilter(partitionFilter, table);
 
 		List<TapIndexField> indexFields = partitionIndex.getIndexFields();
 		Document sort = new Document();
@@ -618,41 +561,37 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	private long countByPartitionFilter(TapConnectorContext connectorContext, TapTable table, TapAdvanceFilter partitionFilter) {
-		Bson query = queryForPartitionFilter(partitionFilter, table.partitionIndex());
+		Bson query = queryForPartitionFilter(partitionFilter, table);
 		return getCollectionNotAggregateCountByTableName(mongoClient, mongoConfig.getDatabase(), table.getId(), query);
 	}
 
-	private Bson queryForPartitionFilter(TapAdvanceFilter partitionFilter, TapIndexEx partitionKeys) {
+	private Bson queryForPartitionFilter(TapAdvanceFilter partitionFilter, TapTable tapTable) {
 		List<Bson> bsonList = new ArrayList<>();
 		List<QueryOperator> ops = partitionFilter.getOperators();
 		if (ops != null)
 			for (QueryOperator op : ops) {
 				if (op == null)
 					continue;
-				if (!partitionKeys.getIndexMap().containsKey(op.getKey())) {
-					throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in operators", op.getKey(), partitionKeys);
-				}
+				String key = op.getKey();
+				Object value = parseObject(tapTable, key, op.getValue());
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
-						bsonList.add(gt(op.getKey(), op.getValue()));
+						bsonList.add(gt(key, value));
 						break;
 					case QueryOperator.GTE:
-						bsonList.add(gte(op.getKey(), op.getValue()));
+						bsonList.add(gte(key, value));
 						break;
 					case QueryOperator.LT:
-						bsonList.add(lt(op.getKey(), op.getValue()));
+						bsonList.add(lt(key, value));
 						break;
 					case QueryOperator.LTE:
-						bsonList.add(lte(op.getKey(), op.getValue()));
+						bsonList.add(lte(key, value));
 						break;
 				}
 			}
 		DataMap match = partitionFilter.getMatch();
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
-				if (!partitionKeys.getIndexMap().containsKey(entry.getKey())) {
-					throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in match", entry.getKey(), partitionKeys);
-				}
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
 		}
@@ -662,6 +601,57 @@ public class MongodbConnector extends ConnectorBase {
 		else
 			query = and(bsonList.toArray(new Bson[0]));
 		return query;
+	}
+
+	private Object parseObject(TapTable tapTable, String key, Object value) {
+		if (null == value) {
+			return null;
+		}
+		if (null == tapTable) {
+			return value;
+		}
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+		if (MapUtils.isEmpty(nameFieldMap)) {
+			return value;
+		}
+		TapField tapField = nameFieldMap.get(key);
+		if (null == tapField) {
+			return value;
+		}
+		String dataType = tapField.getDataType();
+		if(StringUtils.isBlank(dataType)) {
+			return value;
+		}
+		if (dataType.contains("(")) {
+			dataType = StringUtils.substring(dataType, 0, dataType.indexOf("("));
+		}
+		BsonType bsonType;
+		try {
+			bsonType = BsonType.valueOf(dataType);
+		} catch (IllegalArgumentException e) {
+			return value;
+		}
+		switch (bsonType) {
+			case DATE_TIME:
+				if (value instanceof String) {
+					// Only support this date pattern
+					String datePattern = "yyyy-MM-dd HH:mm:ss";
+					SimpleDateFormat simpleDateFormat = new SimpleDateFormat(datePattern);
+					simpleDateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+					try {
+						value = simpleDateFormat.parse((String) value);
+					} catch (ParseException e) {
+						throw new RuntimeException("Parse date string failed, value: " + value + ", format: " + datePattern, e);
+					}
+				} else if (value instanceof Long) {
+					// Only support milliseconds timestamp
+					value = new Date((Long) value);
+				}
+				break;
+			default:
+				break;
+		}
+		return value;
 	}
 
 	private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {

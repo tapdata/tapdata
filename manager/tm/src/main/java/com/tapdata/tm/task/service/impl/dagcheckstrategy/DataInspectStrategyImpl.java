@@ -54,6 +54,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
                     case database:
                     case migrate_js_processor:
                     case js_processor:
+                    case migrate_python_processor:
 //                    case table_rename_processor:
 //                    case migrate_field_rename_processor:
                         break;

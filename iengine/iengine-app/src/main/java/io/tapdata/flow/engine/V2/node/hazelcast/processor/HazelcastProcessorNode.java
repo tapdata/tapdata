@@ -21,6 +21,8 @@ import com.tapdata.tm.commons.dag.process.FieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.RowFilterProcessorNode;
+import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
+import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.event.TapEvent;
@@ -124,7 +126,6 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 	@Override
 	protected void transformToTapValue(TapdataEvent tapdataEvent, TapTableMap<String, TapTable> tapTableMap, String tableName) {
-
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		Map<String, TapType> afterTapTypeMap = null;
 		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
@@ -191,12 +192,25 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				JsProcessorNode jsProcessorNode = (JsProcessorNode) node;
 				stage.setScript(jsProcessorNode.getScript());
 				break;
+			case PYTHON_PROCESS:
+				dataFlowProcessor = new ScriptDataFlowProcessor();
+				stage.setType(Stage.StageTypeEnum.SCRIPT_TYPE.getType());
+
+				PyProcessNode pyProcessorNode = (PyProcessNode) node;
+				stage.setScript(pyProcessorNode.getScript());
+				break;
 			case MIGRATE_JS_PROCESSOR:
 				dataFlowProcessor = new ScriptDataFlowProcessor();
 				stage.setType(Stage.StageTypeEnum.SCRIPT_TYPE.getType());
 
 				MigrateJsProcessorNode migrateJsProcessorNode = (MigrateJsProcessorNode) node;
 				stage.setScript(migrateJsProcessorNode.getScript());
+				break;
+			case MIGRATE_PYTHON_PROCESS:
+				dataFlowProcessor = new ScriptDataFlowProcessor();
+				stage.setType(Stage.StageTypeEnum.SCRIPT_TYPE.getType());
+				MigratePyProcessNode migratePyProcessNode = (MigratePyProcessNode) node;
+				stage.setScript(migratePyProcessNode.getScript());
 				break;
 			case FIELD_PROCESSOR:
 			case FIELD_RENAME_PROCESSOR:

@@ -15,6 +15,8 @@ import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ProcessorNodeType;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -30,6 +32,7 @@ import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -52,6 +55,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -920,7 +924,6 @@ public class TaskController extends BaseController {
         return success();
     }
 
-
     @Operation(summary = "模型推演结果推送")
     @PostMapping("transformer/result")
     public ResponseMessage<Void> transformerResult(@RequestBody TransformerWsMessageResult result) {
@@ -931,6 +934,31 @@ public class TaskController extends BaseController {
     @PostMapping("transformer/resultWithHistory")
     public ResponseMessage<Void> transformerResultHistory(@RequestBody TransformerWsMessageResult result) {
         transformSchemaService.transformerResult(getLoginUser(), result, true);
+        return success();
+    }
+
+    @Operation(summary = "模型推演结果推送")
+    @PostMapping("transformer/resultV2")
+    public ResponseMessage<Void> transformerResult(@RequestBody String result) {
+        result = JsonUtil.parseJson(result, String.class);
+        byte[] resultByte = GZIPUtil.unGzip(Base64.getDecoder().decode(result));
+        String json = new String(resultByte, StandardCharsets.UTF_8);
+        TransformerWsMessageResult transformerWsMessageResult = JsonUtil.parseJsonUseJackson(json, TransformerWsMessageResult.class);
+        transformSchemaService.transformerResult(getLoginUser(), transformerWsMessageResult, false);
+        return success();
+    }
+    @Operation(summary = "模型推演结果推送")
+    @PostMapping("transformer/resultWithHistoryV2")
+    public ResponseMessage<Void> transformerResultHistory(@RequestBody String result) {
+        result = JsonUtil.parseJson(result, String.class);
+        byte[] resultByte = GZIPUtil.unGzip(Base64.getDecoder().decode(result));
+        String json = new String(resultByte, StandardCharsets.UTF_8);
+        TransformerWsMessageResult transformerWsMessageResult = JsonUtil.parseJsonUseJackson(json, TransformerWsMessageResult.class);
+        transformSchemaService.transformerResult(getLoginUser(), transformerWsMessageResult, true);
+        TaskDto taskDto = new TaskDto();
+        taskDto.setDag(transformerWsMessageResult.getDag());
+        taskDto.setId(MongoUtils.toObjectId(transformerWsMessageResult.getTaskId()));
+        taskService.updateDag(taskDto, getLoginUser(), true);
         return success();
     }
 
@@ -981,12 +1009,22 @@ public class TaskController extends BaseController {
 
     @PostMapping("migrate-js/test-run-rpc")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
-    public ResponseMessage<Map<String, Object>> testRunRPC(@RequestBody TestRunDto dto) {
+    public ResponseMessage<Map<String, Object>> testRunJsRPC(@RequestBody TestRunDto dto) {
+        return testRunRPC(dto, ProcessorNodeType.Standard_JS.type());
+    }
+
+    @PostMapping("migrate-python/test-run-rpc")
+    @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
+    public ResponseMessage<Map<String, Object>> testRunPythonRPC(@RequestBody TestRunDto dto) {
+        return testRunRPC(dto, ProcessorNodeType.PYTHON.type());
+    }
+
+    private ResponseMessage<Map<String, Object>> testRunRPC(TestRunDto dto, int jsType){
         Map<String, Object> data = null;
         ResponseMessage<Map<String, Object>> responseMessage = new ResponseMessage<>();
         Map<String, Object> result = null;
         try {
-            data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser());
+            data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser(), jsType);
             result = (Map<String, Object>)Optional.ofNullable(data.get("data")).orElse(data);
             if (null == result || result.isEmpty()) {
                 throw new CoreException("Can not get data from source,  Please ensure if source connection is valid");
