@@ -30,6 +30,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.domain.Sort;
@@ -468,14 +469,14 @@ public class TapdataTaskScheduler {
 
 	private void signTaskRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.updateById(new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_RUNNING),
-						ConnectorConstant.TASK_COLLECTION, taskId, TaskDto.class), "Failed to sign task retry status");
+				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_RUNNING),
+						ConnectorConstant.TASK_COLLECTION), "Failed to sign task retry status");
 	}
 
 	public void clearTaskRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.updateById(new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_NONE),
-						ConnectorConstant.TASK_COLLECTION, taskId, TaskDto.class), "Failed to clear task retry status");
+				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_NONE),
+						ConnectorConstant.TASK_COLLECTION), "Failed to clear task retry status");
 	}
 
 	private void internalStopTask() {

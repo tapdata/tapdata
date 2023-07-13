@@ -46,6 +46,9 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.LinkedHashMap;
@@ -136,14 +139,14 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public void signFunctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.updateById(new Update().set("funcationRetryStatus", TaskDto.RETRY_STATUS_RUNNING),
-						ConnectorConstant.TASK_COLLECTION, taskId, TaskDto.class), "Failed to sign function retry status");
+				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING),
+						ConnectorConstant.TASK_COLLECTION), "Failed to sign function retry status");
 	}
 
 	public void clearFunctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.updateById(new Update().set("funcationRetryStatus", TaskDto.RETRY_STATUS_NONE),
-						ConnectorConstant.TASK_COLLECTION, taskId, TaskDto.class), "Failed to clear function retry status");
+				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("functionRetryStatus", TaskDto.RETRY_STATUS_NONE),
+						ConnectorConstant.TASK_COLLECTION), "Failed to clear function retry status");
 	}
 
 	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {

@@ -161,7 +161,7 @@ public class TaskDto extends ParentTaskDto {
     /** ldp需要新增的表名列表 */
     private List<String> ldpNewTables;
 
-    private String funcationRetryStatus;
+    private String functionRetryStatus;
     private String taskRetryStatus;
 
     public DAG getDag() {
