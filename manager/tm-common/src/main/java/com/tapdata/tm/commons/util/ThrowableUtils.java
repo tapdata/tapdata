@@ -22,6 +22,6 @@ public class ThrowableUtils {
     }
 
     public static String getStackTraceByPn(Throwable e) {
-        return ExceptionUtil.stacktraceToString(e);
+        return ExceptionUtil.stacktraceToOneLineString(e);
     }
 }
