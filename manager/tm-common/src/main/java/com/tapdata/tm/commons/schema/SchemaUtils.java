@@ -85,7 +85,7 @@ public class SchemaUtils {
             log.warn("Can't merge non schema.");
             return null;
         } else {
-            if (!logicInput && CollectionUtils.isNotEmpty(inputSchemas)) {
+            if (CollectionUtils.isNotEmpty(inputSchemas)) {
                 List<TableIndex> inputIndices = inputSchemas.stream()
                         .filter(Objects::nonNull)
                         .filter(s -> null != s.getIndices())

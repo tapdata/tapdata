@@ -82,6 +82,7 @@ public class TapFieldEx extends TapField {
 
     private String tableName;
     private Integer columnPosition;
+    private String description;
 
     public String getId() {
         return id;
@@ -481,5 +482,13 @@ public class TapFieldEx extends TapField {
 
     public void setColumnPosition(Integer columnPosition) {
         this.columnPosition = columnPosition;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 }

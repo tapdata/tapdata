@@ -4,6 +4,8 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
+import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
@@ -41,7 +43,7 @@ public class JsSettingStrategyImpl implements DagLogStrategy {
         }
 
         dag.getNodes().stream()
-                .filter(node -> node instanceof JsProcessorNode || node instanceof MigrateJsProcessorNode)
+                .filter(node -> node instanceof JsProcessorNode || node instanceof MigrateJsProcessorNode || node instanceof PyProcessNode || node instanceof MigratePyProcessNode)
                 .forEach(node -> {
                     String name = node.getName();
                     String nodeId = node.getId();

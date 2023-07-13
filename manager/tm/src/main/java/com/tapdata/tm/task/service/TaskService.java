@@ -26,6 +26,8 @@ import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
+import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
@@ -69,6 +71,7 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.schedule.ChartSchedule;
 import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
@@ -94,6 +97,7 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
 import io.tapdata.common.sample.request.Sample;
+import io.tapdata.exception.TapCodeException;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -446,39 +450,25 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 }
 
                 if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && !ParentTaskDto.TYPE_CDC.equals(taskDto.getType())) {
-                    DAG dag = oldTaskDto.getDag();
                     DAG newDag = taskDto.getDag();
-                    if (dag != null && newDag != null) {
-                        LinkedList<DatabaseNode> sourceNode = dag.getSourceNode();
-                        LinkedList<DatabaseNode> newSourceNode = newDag.getSourceNode();
-                        if (CollectionUtils.isNotEmpty(sourceNode) && CollectionUtils.isNotEmpty(newSourceNode)) {
-                            DatabaseNode first = sourceNode.getFirst();
-                            DatabaseNode newFirst = newSourceNode.getFirst();
-                            List<String> tableNames = first.getTableNames();
-                            if (first.getTableNames() != null && newFirst != null && newFirst.getTableNames() != null) {
-                                List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
-                                newTableNames.removeAll(tableNames);
-                                List<String> ldpNewTables = oldTaskDto.getLdpNewTables();
-                                if (CollectionUtils.isNotEmpty(newTableNames)) {
-                                    if (ldpNewTables == null) {
-                                        ldpNewTables = new ArrayList<>();
-                                    }
-                                    ldpNewTables.addAll(newTableNames);
-                                    ldpNewTables = ldpNewTables.stream().distinct().collect(Collectors.toList());
-                                    taskDto.setLdpNewTables(ldpNewTables);
+                    if (newDag != null) {
+                        List<String> runTables = measurementServiceV2.findRunTable(taskDto.getId().toHexString(), oldTaskDto.getTaskRecordId());
+                        if (CollectionUtils.isNotEmpty(runTables)) {
+                            LinkedList<DatabaseNode> newSourceNode = newDag.getSourceNode();
+                            if (CollectionUtils.isNotEmpty(newSourceNode)) {
+                                DatabaseNode newFirst = newSourceNode.getFirst();
+                                if (newFirst.getTableNames() != null) {
+                                    List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
+                                    newTableNames.removeAll(runTables);
+                                    taskDto.setLdpNewTables(newTableNames);
                                 }
-                                List<String> removeList = new ArrayList<>();
-                                if (CollectionUtils.isNotEmpty(ldpNewTables)) {
-                                    for (String ldpNewTable : ldpNewTables) {
-                                        if (!newFirst.getTableNames().contains(ldpNewTable)) {
-                                            removeList.add(ldpNewTable);
-                                        }
-                                    }
-                                    ldpNewTables.removeAll(removeList);
-                                    taskDto.setLdpNewTables(ldpNewTables);
-                                }
-                            }
 
+                            }
+                        } else {
+                            List<String> ldpNewTables = taskDto.getLdpNewTables();
+                            if (CollectionUtils.isNotEmpty(ldpNewTables)) {
+                                taskDto.setLdpNewTables(null);
+                            }
                         }
                     }
                 }
@@ -729,11 +719,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         FunctionUtils.isTureOrFalse(TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())).trueOrFalseHandle(
                 () -> {
-                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
+                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof MigrateJsProcessorNode || n instanceof MigratePyProcessNode);
                     FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Migrate");
                 },
                 () -> {
-                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof JsProcessorNode);
+                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof JsProcessorNode || n instanceof PyProcessNode);
                     FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Sync");
                 }
         );
@@ -1433,7 +1423,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             where.put("is_deleted", document);
         }
 
-
         Page<TaskDto> taskDtoPage = new Page<>();
         List<TaskDto> items = new ArrayList<>();
         if (where.get("syncType") != null && (where.get("syncType") instanceof String)) {
@@ -1501,6 +1490,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 }
             }
 
+            // Internationalized Shared Mining Warning Messages
+            for (TaskDto item : items) {
+                if (StringUtils.isNotBlank(item.getShareCdcStopMessage())) {
+                    item.setShareCdcStopMessage(MessageUtil.getMessage(item.getShareCdcStopMessage()));
+                }
+            }
 
         }
 
@@ -1957,7 +1952,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         resultChart.put("chart3", getDataDevChart(synList));
 //        resultChart.put("chart4", dataDev);
         resultChart.put("chart5", inspectChart(user));
-        resultChart.put("chart6", chart6(user));
+        Chart6Vo chart6Vo = ChartSchedule.cache.get(user.getUserId());
+        if (chart6Vo == null) {
+            chart6Vo = chart6(user);
+            ChartSchedule.put(user.getUserId(), chart6Vo);
+        }
+        resultChart.put("chart6", chart6Vo);
         return resultChart;
     }
 
@@ -2603,11 +2603,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
-                Map<String, Object> attrs = taskDto.getAttrs();
-                if (attrs != null) {
-                    attrs.remove("edgeMilestones");
-                    attrs.remove("syncProgress");
-                }
+							taskDto.setAttrs(new HashMap<>()); // 导出任务不保留运行时信息
                 jsonList.add(new TaskUpAndLoadDto("Task", JsonUtil.toJsonUseJackson(taskDto)));
                 DAG dag = taskDto.getDag();
                 List<Node> nodes = dag.getNodes();
@@ -2774,6 +2770,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             taskDto.setAccessNodeProcessId(null);
             taskDto.setAccessNodeProcessIdList(new ArrayList<>());
             taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+						taskDto.setTaskRecordId(new ObjectId().toHexString()); // 导入后不读旧指标数据
 
             Map<String, Object> attrs = taskDto.getAttrs();
             if (attrs != null) {
@@ -2785,6 +2782,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 TaskDto one1 = findOne(new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true)));
                 if (one1 != null) {
                     taskDto.setId(null);
+                    taskDto.getDag().getNodes().forEach(node -> {
+                        if(node instanceof DatabaseNode){
+                            DatabaseNode databaseNode = (DatabaseNode) node;
+                            if(conMap.containsKey(databaseNode.getConnectionId())){
+                                DataSourceConnectionDto dataSourceCon = conMap.get(databaseNode.getConnectionId());
+                                databaseNode.setConnectionId(dataSourceCon.getId().toString());
+                            }
+                        }
+                    });
                 }
             }
 
@@ -3769,11 +3775,22 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             Map<String, UserDetail> finalUserMap = userMap;
             for (TaskDto taskDto : taskList) {
-                start(taskDto, finalUserMap.get(taskDto.getUserId()), "11");
-                //启动过后，应该更新掉这个自动启动计划
-                Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
-                updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
-            }
+							UserDetail userDetail = finalUserMap.get(taskDto.getUserId());
+							try {
+								start(taskDto, userDetail, "11");
+								//启动过后，应该更新掉这个自动启动计划
+								Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
+								updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
+							} catch (Exception e) {
+								log.warn("Start plan migrate task Failed: {}", e.getMessage(), e);
+								stateMachineService.executeAboutTask(taskDto, DataFlowEvent.ERROR, userDetail);
+								if (e instanceof TapCodeException) {
+									monitoringLogsService.startTaskErrorStackTrace(taskDto, userDetail, e, Level.ERROR);
+								} else {
+									monitoringLogsService.startTaskErrorStackTrace(taskDto, userDetail, new BizException("Task.PlanStart.Failed", e), Level.ERROR);
+								}
+							}
+						}
         }
     }
 
@@ -3897,7 +3914,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         updateById(taskObjectId, update, userDetail);
     }
 
-    public Map<String, BigInteger> chart6(UserDetail user) {
+    public Chart6Vo chart6(UserDetail user) {
         Criteria criteria = Criteria.where("is_deleted").ne(true).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE);
         Query query = new Query(criteria);
         query.fields().include("_id");
@@ -3906,7 +3923,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         List<MeasurementEntity>  allMeasurements = new ArrayList<>();
         if (CollectionUtils.isNotEmpty(ids)) {
-            ids.parallelStream().forEach(id -> {
+            ids.stream().forEach(id -> {
                 MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
                 if (measurement != null) {
                     allMeasurements.add(measurement);
@@ -3961,13 +3978,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
         }
 
-        Map<String, BigInteger> chart6Map = new HashMap<>();
-        chart6Map.put("outputTotal", output);
-        chart6Map.put("inputTotal", input);
-        chart6Map.put("insertedTotal", insert);
-        chart6Map.put("updatedTotal", update);
-        chart6Map.put("deletedTotal", delete);
-        return chart6Map;
+
+        Chart6Vo chart6Vo = Chart6Vo.builder().outputTotal(output).inputTotal(input)
+                .insertedTotal(insert).updatedTotal(update).deletedTotal(delete)
+                .build();
+        return chart6Vo;
     }
 
     public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {
@@ -4196,11 +4211,28 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return null;
         try {
             TaskEntity entity = new TaskEntity();
-            BeanUtils.copyProperties(dto, entity, "agentId", "startTime", "lastStartDate");
+            BeanUtils.copyProperties(dto, entity, "agentId", "startTime", "lastStartDate", "shareCdcStop", "shareCdcStopMessage");
             return entity;
         } catch (Exception e) {
             log.error("Convert entity " + entityClass + " failed. {}", ThrowableUtils.getStackTraceByPn(e));
         }
         return null;
+    }
+
+    @Override
+    public <T extends BaseDto> T convertToDto(TaskEntity entity, Class<T> dtoClass, String... ignoreProperties) {
+        T dto = super.convertToDto(entity, dtoClass, "shareCdcStopMessage");
+        try {
+            if (dto instanceof TaskDto) {
+                TaskDto taskDto = (TaskDto) dto;
+                if (null != entity.getShareCdcStop() && entity.getShareCdcStop() && StringUtils.isNotBlank(entity.getShareCdcStopMessage())) {
+                    taskDto.setShareCdcStopMessage(MessageUtil.getMessage(entity.getShareCdcStopMessage()));
+                }
+            }
+        } catch (Exception e) {
+            log.error("Convert task entity to dto failed, try to use super method: {}", e.getMessage(), e);
+            return super.convertToDto(entity, dtoClass, ignoreProperties);
+        }
+        return dto;
     }
 }

@@ -222,26 +222,28 @@ public class InspectService {
 		}
 		logger.info(String.format("Start up data verification %s(%s, %s) ", inspect.getName(), inspect.getId(), inspect.getInspectMethod()));
 
-		if (RUNNING_INSPECT.containsKey(inspect.getId())) {
-			logger.warn("Data verification is running {}({}, {}) ", inspect.getName(), inspect.getId(), inspect.getInspectMethod());
-			return;
-		}
+		synchronized (RUNNING_INSPECT) {
+			if (RUNNING_INSPECT.containsKey(inspect.getId())) {
+				logger.warn("Data verification is running {}({}, {}) ", inspect.getName(), inspect.getId(), inspect.getInspectMethod());
+				return;
+			}
 
-		InspectMethod inspectMethod = InspectMethod.get(inspect.getInspectMethod());
-		switch (inspectMethod) {
-			case FIELD:
-			case JOINTFIELD:
-				submitTask(executeFieldInspect(inspect));
-				break;
-			case CDC_COUNT:
-			case ROW_COUNT:
-				submitTask(executeRowCountInspect(inspect));
-				break;
-			default:
-				logger.error("Unsupported comparison method '{}', inspect id '{}': `{}'", inspectMethod, inspect.getId(), inspect.getName());
-				RUNNING_INSPECT.remove(inspect.getId());
-				updateStatus(inspect.getId(), InspectStatus.ERROR, String.join(", ", "Unsupported comparison method"));
-				break;
+			InspectMethod inspectMethod = InspectMethod.get(inspect.getInspectMethod());
+			switch (inspectMethod) {
+				case FIELD:
+				case JOINTFIELD:
+					submitTask(executeFieldInspect(inspect));
+					break;
+				case CDC_COUNT:
+				case ROW_COUNT:
+					submitTask(executeRowCountInspect(inspect));
+					break;
+				default:
+					logger.error("Unsupported comparison method '{}', inspect id '{}': `{}'", inspectMethod, inspect.getId(), inspect.getName());
+					RUNNING_INSPECT.remove(inspect.getId());
+					updateStatus(inspect.getId(), InspectStatus.ERROR, String.join(", ", "Unsupported comparison method"));
+					break;
+			}
 		}
 	}
 

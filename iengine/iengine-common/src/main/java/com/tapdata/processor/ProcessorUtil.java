@@ -53,6 +53,7 @@ public class ProcessorUtil {
 				try {
 					switch (stageTypeEnum) {
 						case JS_PROCESSOR:
+						case PY_PROCESSOR:
 							dataFlowProcessor = new ScriptDataFlowProcessor();
 							dataFlowProcessor.initialize(processorContext, stage);
 							dataFlowProcessors.add(dataFlowProcessor);

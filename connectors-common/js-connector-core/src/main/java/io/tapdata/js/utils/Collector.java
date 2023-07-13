@@ -20,7 +20,7 @@ public class Collector {
         if (map == null) return null;
         else if (map.isEmpty()) return new HashMap<>();
         else {
-            Map<Object, Object> ent = new HashMap<>();
+            Map<Object, Object> ent = map instanceof LinkedHashMap ? new LinkedHashMap<>() : new HashMap<>();
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 Object key = entry.getKey();
                 Object value = entry.getValue();
@@ -58,7 +58,7 @@ public class Collector {
         if (obj == null) {
             return null;
         } else if (obj instanceof Map) {
-            return new HashMap<>(Collector.convertMap((Map<?, ?>) obj));
+            return obj instanceof LinkedHashMap ? new LinkedHashMap<>(Collector.convertMap((Map<?, ?>) obj)) : new HashMap<>(Collector.convertMap((Map<?, ?>) obj));
         } else if (obj instanceof Collection) {
             return new ArrayList<>(Collector.convertList((List<?>) obj));
         } else if (obj.getClass().isArray()) {

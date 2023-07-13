@@ -208,9 +208,6 @@ public class TapdataTaskScheduler {
 					Object lock = lockTask(taskId);
 					synchronized (lock) {
 						TaskDto taskDto = startTaskOperation.getTaskDto();
-						if (null == taskDto.getGlobalTaskContext()) {
-							taskDto.setGlobalTaskContext(new ConcurrentHashMap<String, Object>());
-						}
 						try {
 							startTask(taskDto);
 						} finally {

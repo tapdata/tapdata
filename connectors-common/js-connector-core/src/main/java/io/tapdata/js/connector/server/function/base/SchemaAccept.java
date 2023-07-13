@@ -3,11 +3,14 @@ package io.tapdata.js.connector.server.function.base;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.js.connector.enums.JSTableKeys;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.function.Consumer;
 
+import static io.tapdata.base.ConnectorBase.tapNumber;
 import static io.tapdata.base.ConnectorBase.toJson;
 
 public class SchemaAccept implements SchemaSender {
@@ -95,6 +98,10 @@ public class SchemaAccept implements SchemaSender {
             Object fieldPrimaryKeyPosObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_PRIMARY_POS_KEY);
             Object fieldAutoIncObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_AUTO_INC);
             Object fieldFieldCommentObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_COMMENT);
+
+            Object numberConfigObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_NUMBER);
+
+
             field.setComment(Objects.isNull(fieldFieldCommentObj) ? null : String.valueOf(fieldFieldCommentObj));
 
             field.setAutoInc(this.boolValue(fieldAutoIncObj, false,"autoInc"));
@@ -102,6 +109,21 @@ public class SchemaAccept implements SchemaSender {
             field.setDefaultValue(Objects.isNull(fieldDefaultObj) ? null : String.valueOf(fieldDefaultObj));
             field.setNullable(this.boolValue(fieldNullAbleObj, false,"nullable"));
             field.setPrimaryKey(this.boolValue(fieldPrimaryKeyObj, false,"primaryKey"));
+
+            Optional.ofNullable(numberConfigObj).ifPresent(number ->{
+                if (!(number instanceof Map)) return;
+                Map<String, Object> map = (Map<String, Object>) number;
+                TapNumber tapNumber = tapNumber();
+                tapNumber.fixed(this.boolValue(Optional.ofNullable(map.get(JSTableKeys.TABLE_FIELD_NUMBER_FIXED)).orElse(false), false,JSTableKeys.TABLE_FIELD_NUMBER_FIXED));
+                tapNumber.precision(this.integerValue(Optional.ofNullable(map.get(JSTableKeys.TABLE_FIELD_NUMBER_PRECISEION)).orElse(0), 0, JSTableKeys.TABLE_FIELD_NUMBER_PRECISEION));
+                tapNumber.scale(this.integerValue(Optional.ofNullable(map.get(JSTableKeys.TABLE_FIELD_NUMBER_SCALE)).orElse(0), 0, JSTableKeys.TABLE_FIELD_NUMBER_SCALE));
+                tapNumber.zerofill(this.boolValue(Optional.ofNullable(map.get(JSTableKeys.TABLE_FIELD_NUMBER_ZEROFILL)).orElse(false), false,JSTableKeys.TABLE_FIELD_NUMBER_ZEROFILL));
+                tapNumber.unsigned(this.boolValue(Optional.ofNullable(map.get(JSTableKeys.TABLE_FIELD_NUMBER_UNSINGLED)).orElse(false), false,JSTableKeys.TABLE_FIELD_NUMBER_UNSINGLED));
+                tapNumber.bit(this.integerValue(Optional.ofNullable(map.get(JSTableKeys.TABLE_FIELD_NUMBER_BIT)).orElse(0), 0, JSTableKeys.TABLE_FIELD_NUMBER_BIT));
+                tapNumber.maxValue(this.bigDecimalValue(Optional.ofNullable(map.get(JSTableKeys.TABLE_FIELD_NUMBER_MAX)).orElse(Integer.MAX_VALUE), new BigDecimal(Integer.MAX_VALUE), JSTableKeys.TABLE_FIELD_NUMBER_MAX));
+                tapNumber.minValue(this.bigDecimalValue(Optional.ofNullable(map.get(JSTableKeys.TABLE_FIELD_NUMBER_MIN)).orElse(Integer.MIN_VALUE), new BigDecimal(Integer.MIN_VALUE), JSTableKeys.TABLE_FIELD_NUMBER_MIN));
+                field.setTapType(tapNumber);
+            });
 
             Integer primaryPos = null;
             if (fieldPrimaryKeyPosObj instanceof String) {
@@ -135,6 +157,45 @@ public class SchemaAccept implements SchemaSender {
             }
         } else if (obj instanceof Boolean) {
             objBool = (Boolean) obj;
+        } else {
+            return defaultValue;
+        }
+        return objBool;
+    }
+
+    private Integer integerValue(Object obj, Integer defaultValue, String keyName) {
+        Integer objBool = defaultValue;
+        if (obj instanceof String) {
+            try {
+                objBool = Integer.parseInt((String) obj);
+            } catch (Throwable throwable) {
+                TapLogger.warn(TAG, "Field " + keyName + "'type must be integer, but it's string now and can't cast to integer value, please ensure that.");
+                return defaultValue;
+            }
+        } else if (obj instanceof Number) {
+            objBool = ((Number) obj).intValue();
+        } else {
+            return defaultValue;
+        }
+        return objBool;
+    }
+
+    private BigDecimal bigDecimalValue(Object obj, BigDecimal defaultValue, String keyName) {
+        BigDecimal objBool = defaultValue;
+        if (obj instanceof Long) {
+            try {
+                objBool = BigDecimal.valueOf((long) obj);
+            } catch (Throwable throwable) {
+                TapLogger.warn(TAG, "Field " + keyName + "'type must be long, but it's string now and can't cast to long value, please ensure that.");
+                return defaultValue;
+            }
+        } else if (obj instanceof Double) {
+            try {
+                objBool = BigDecimal.valueOf((double) obj);
+            } catch (Throwable throwable) {
+                TapLogger.warn(TAG, "Field " + keyName + "'type must be double, but it's string now and can't cast to double value, please ensure that.");
+                return defaultValue;
+            }
         } else {
             return defaultValue;
         }

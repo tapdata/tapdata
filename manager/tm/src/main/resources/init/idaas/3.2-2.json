@@ -1,0 +1,23 @@
+[
+  {
+    "insert": "JavascriptFunctions",
+    "documents": [
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "LinkedHashMap",
+        "methodName": "JAVA built-in ordered map container",
+        "desc" : "说明：JAVA内置有序map容器",
+        "example": "var map = new LinkedHashMap();//创建\nmap.put(\"key\", \"This is a LinkedHashMap\")://向容器中加入key-value键值对\nlet value = map.get(\"key\");//根据key获取value\nlet isEmpty = map.isEmpty();//判断容器是否为空\nlet size = map.size();//获取容器中键值对的数目\nmap.remove(\"key\");//移出容器中指定键的键值对"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "context.global",
+        "methodName": "HashMap container during the task cycle",
+        "desc" : "说明：节点维度下的一个任务周期内的hashMap容器，可在js节点上自定义响应的内容",
+        "example": "let myVariable = context.global[\"myVariable\"];\nif (\"undifine\" == myVariable || null == myVariable){\n  myVariable = context.global[\"myVariable\"] = {\n      \"key\":1,\n      \"status\":false\n   }\n}\nmyVariable.key++;"
+      }
+    ]
+  }
+]

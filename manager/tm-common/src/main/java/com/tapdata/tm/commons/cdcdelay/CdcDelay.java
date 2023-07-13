@@ -12,6 +12,7 @@ import org.springframework.lang.NonNull;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -96,6 +97,8 @@ public class CdcDelay implements ICdcDelay {
         }
         if (ts instanceof Date) {
             return ((Date) ts).getTime();
+        } else if (ts instanceof Instant) {
+            return ((Instant) ts).toEpochMilli();
         } else if (ts instanceof Long) {
             return (Long) ts;
         } else if (ts instanceof String) {

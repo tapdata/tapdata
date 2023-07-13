@@ -76,6 +76,11 @@
             <version>5.8.1</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-text</artifactId>
+            <version>1.9</version>
+        </dependency>
 
 <!--        <dependency>-->
 <!--            <groupId>io.tapdata</groupId>-->

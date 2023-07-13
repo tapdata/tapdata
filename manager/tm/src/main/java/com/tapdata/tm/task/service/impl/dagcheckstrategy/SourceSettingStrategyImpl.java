@@ -114,8 +114,20 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
 
                 if (CollectionUtils.isNotEmpty(dto.getCapabilities())) {
-                    List<String> capList = dto.getCapabilities().stream().map(Capability::getId)
-                            .filter(id -> Lists.of("stream_read_function", "batch_read_function").contains(id)).collect(Collectors.toList());
+									boolean isPollingCDC = Optional.of(node).map(n -> {
+										if (n instanceof TableNode) {
+											String cdcMode = ((TableNode) node).getCdcMode();
+											return "polling".equals(cdcMode);
+										}
+										return false;
+									}).orElse(false);
+									List<String> capList = dto.getCapabilities().stream().map(Capability::getId).filter(id -> {
+										if (isPollingCDC) {
+											return Lists.of("stream_read_function", "batch_read_function", "query_by_advance_filter_function").contains(id);
+										} else {
+											return Lists.of("stream_read_function", "batch_read_function").contains(id);
+										}
+									}).collect(Collectors.toList());
 
                     if (Lists.of("Tidb", "Doris").contains(connectionDto.getDatabase_type()) &&
                             connectionDto.getConfig().containsKey("enableIncrement") &&
@@ -125,6 +137,10 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 
                     boolean streamReadNotMatch = taskDto.getType().contains("cdc") && !capList.contains("stream_read_function");
                     boolean batchReadNotMatch = taskDto.getType().contains("initial_sync") && !capList.contains("batch_read_function");
+
+										if (isPollingCDC) {
+											streamReadNotMatch = !capList.contains("query_by_advance_filter_function");
+										}
 
                     if (streamReadNotMatch || batchReadNotMatch) {
                         List<String> caps = capList.stream().map(keyName -> MessageUtil.getDagCheckMsg(locale, StringUtils.upperCase(keyName))).collect(Collectors.toList());

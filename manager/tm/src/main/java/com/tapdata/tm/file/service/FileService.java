@@ -1,5 +1,6 @@
 package com.tapdata.tm.file.service;
 
+import com.deepoove.poi.XWPFTemplate;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.gridfs.GridFSBucket;
 import com.mongodb.client.gridfs.GridFSBuckets;
@@ -224,5 +225,21 @@ public class FileService {
     private GridFsResource convertGridFSFile2Resource(GridFSFile gridFsFile) {
         GridFSDownloadStream gridFSDownloadStream = gridFSBucket.openDownloadStream(gridFsFile.getObjectId());
         return new GridFsResource(gridFsFile, gridFSDownloadStream);
+    }
+
+    public void viewWord(XWPFTemplate template, HttpServletResponse response, String fileName) {
+        try (OutputStream out = response.getOutputStream()) {
+            if (StringUtils.isBlank(fileName)) {
+                fileName = "api.docx";
+            }
+            String codeFileName = URLEncoder.encode(fileName, "UTF-8");
+
+            response.setHeader("Content-disposition", "inline; filename=" + codeFileName+".docx");
+            response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
+            template.writeAndClose(out);
+            out.flush();
+        } catch (Exception e) {
+            log.error("viewWord error {}", ThrowableUtils.getStackTraceByPn(e));
+        }
     }
 }

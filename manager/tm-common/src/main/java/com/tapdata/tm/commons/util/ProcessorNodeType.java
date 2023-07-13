@@ -7,7 +7,8 @@ package com.tapdata.tm.commons.util;
  **/
 public enum ProcessorNodeType {
     DEFAULT(0),
-    Standard_JS(1)
+    Standard_JS(1),
+    PYTHON(1)
     ;
     int type;
     ProcessorNodeType(int type){

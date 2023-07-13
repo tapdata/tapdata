@@ -319,6 +319,7 @@ public class Stage implements Serializable {
 		TCP_UDP("data", "tcp_udp", true),
 
 		JS_PROCESSOR("processor", "js_processor"),
+		PY_PROCESSOR("processor", "py_processor"),
 		FIELD_PROCESSOR("processor", "field_processor"),
 		AGGREGATION_PROCESSOR("processor", "aggregation_processor"),
 		ROW_FILTER_PROCESSOR("processor", "row_filter_processor"),

@@ -126,4 +126,19 @@ public class ShareCdcUtil {
 		}
 		return null;
 	}
+
+	public static List<Connections> getConnectionIds(Node<?> node, Function<Collection<String>, List<Connections>> findConnections) {
+		if (node instanceof LogCollectorNode) {
+			LogCollectorNode collectorNode = (LogCollectorNode) node;
+			Map<String, LogCollecotrConnConfig> connConfigs = collectorNode.getLogCollectorConnConfigs();
+			if (null != connConfigs && !connConfigs.isEmpty()) {
+				List<Connections> connectionsList = findConnections.apply(connConfigs.keySet());
+				if (null == connectionsList || connectionsList.isEmpty()) {
+					throw new RuntimeException("Collector connections is empty.");
+				}
+				return connectionsList;
+			}
+		}
+		return null;
+	}
 }

@@ -116,13 +116,14 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			finalJs = !standard && ProcessorNodeType.Standard_JS.contrast(jsType);
 		}
 
-		List<JavaScriptFunctions> javaScriptFunctions;
-		if (standard) {
-			javaScriptFunctions = null;
-		} else {
-			javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
-					ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class);
-		}
+		List<JavaScriptFunctions> javaScriptFunctions = standard ?
+				null
+				: clientMongoOperator.find( new Query(where("type")
+						.ne("system"))
+						.with(Sort.by(Sort.Order.asc("last_update"))),
+								ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION,
+								JavaScriptFunctions.class
+		);
 
 		ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
 		this.engine = finalJs ?
@@ -146,9 +147,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				scriptCacheService,
 				new ObsScriptLogger(obsLogger, logger),
 				this.standard);
-		TaskDto taskDto = processorBaseContext.getTaskDto();
-		this.globalTaskContent = Optional.ofNullable(taskDto.getGlobalTaskContext()).orElse(new HashMap<>());
 		this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
+		this.globalTaskContent = new HashMap<>();
 	}
 
 	@Override

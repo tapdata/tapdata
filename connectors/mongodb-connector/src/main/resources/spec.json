@@ -292,11 +292,11 @@
           "default": true,
           "x-reactions": {
             "dependencies": [
-              "$outputs"
+              "$inputs"
             ],
             "fulfill": {
               "state": {
-                "visible": "{{$deps[0].length>0}}"
+                "visible": "{{!$deps[0].length}}"
               }
             }
           }

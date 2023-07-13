@@ -150,4 +150,21 @@ public interface TaskMergeProcessorExCode_16 {
 		describeCN = "合并的源表节点不存在，请检查你的配置"
 	)
 	String TAP_MERGE_TABLE_NODE_NOT_FOUND = "16025";
+
+	@TapExCode(
+			describe = "Updating or writing to the cache, finding data from the cache based on the federated key failed",
+			describeCN = "批量更新或写入缓存，根据联合键从缓存中查找数据失败"
+	)
+	String UPSERT_CACHE_FIND_BY_JOIN_KEYS_FAILED = "16026";
+
+	@TapExCode(
+			describe = "Update or write cache failed",
+			describeCN = "批量更新或写入缓存失败"
+	)
+	String UPSERT_CACHES_FAILED = "16027";
+	@TapExCode(
+			describe = "Batch update cache, operation can only be insert",
+			describeCN = "批量更新缓存，操作只能是写入"
+	)
+	String INVALID_OPERATION = "16028";
 }

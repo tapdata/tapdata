@@ -13,6 +13,8 @@ import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.process.script.MigrateScriptProcessNode;
+import com.tapdata.tm.commons.dag.process.script.ScriptProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
@@ -349,6 +351,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 if (CollectionUtils.isNotEmpty(fields)) {
                     Map<String, Boolean> fieldMap = mappingMap.get(instance.getAncestorsName());
                     for (Field field : fields) {
+//                        if (field.isDeleted()) {
+//                            continue;
+//                        }
                         String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
                         int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
 
@@ -484,7 +489,16 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
             // || CollectionUtils.isEmpty(metaMap.get(tableName).getFields())
 
-            List<Field> fields = metadataInstancesDto.getFields().stream().sorted(Comparator.comparing(Field::getColumnPosition)).collect(Collectors.toList());
+            List<Field> fields = metadataInstancesDto.getFields().stream()
+                    .sorted((Field f1, Field f2) ->{
+                        int f1pos = f1.getColumnPosition() == null ? -1 : f1.getColumnPosition();
+                        int f2pos = f2.getColumnPosition() == null ? -1 : f2.getColumnPosition();
+                        if (f1pos >= f2pos) {
+                            return 1;
+                        }
+                        return -1;
+                    })
+                    .collect(Collectors.toList());
 
             // TableRenameProcessNode not need fields
             if (!(currentNode instanceof TableRenameProcessNode)) {
@@ -495,6 +509,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                             .collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()));
                 }
                 for (Field field : fields) {
+//                    if (field.isDeleted()) {
+//                        continue;
+//                    }
                     String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
                     if (StringUtils.isBlank(defaultValue) && field.getUseDefaultValue()) {
                         defaultValue = Objects.isNull(field.getOriginalDefaultValue()) ? "" : field.getOriginalDefaultValue().toString();
@@ -651,7 +668,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail) {
+    public Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail, int jsType) {
         String taskId = dto.getTaskId();
         String nodeId = dto.getJsNodeId();
         String tableName = dto.getTableName();
@@ -668,7 +685,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         BeanUtils.copyProperties(taskDto, taskDtoCopy);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
-        int jsType = ProcessorNodeType.DEFAULT.type();
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
             DatabaseNode first = dtoDag.getSourceNode().getFirst();
             first.setTableNames(Lists.of(tableName));
@@ -676,8 +692,12 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             Dag build = dtoDag.toDag();
             build = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(build), Dag.class);
             List<Node<?>> nodes = dtoDag.nodeMap().get(nodeId);
-            MigrateJsProcessorNode jsNode = (MigrateJsProcessorNode) dtoDag.getNode(nodeId);
-            jsType = Optional.ofNullable(jsNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+            Node<?> node = dtoDag.getNode(nodeId);
+            if (!(node instanceof MigrateScriptProcessNode)) {
+               throw new BizException("Processor node is not of expected type. error type: {}", null == node ? "null" : node.getClass().getName());
+            }
+            MigrateScriptProcessNode jsNode = (MigrateScriptProcessNode) node;
+            jsType = Optional.ofNullable(jsNode.getJsType()).orElse(jsType);
 
             if (StringUtils.isNotBlank(script)) {
                 jsNode.setScript(script);
@@ -705,9 +725,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
             final List<String> predIds = new ArrayList<>();
             Node<?> node = dtoDag.getNode(nodeId);
-            if (node instanceof JsProcessorNode){
-                JsProcessorNode processorNode = (JsProcessorNode) node;
-                jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+            if (node instanceof ScriptProcessNode){
+                ScriptProcessNode processorNode = (ScriptProcessNode) node;
+                jsType = Optional.ofNullable(processorNode.getJsType()).orElse(jsType);
             }
             getPrePre(node, predIds);
             predIds.add(nodeId);
@@ -721,8 +741,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             if (CollectionUtils.isNotEmpty(nodes)) {
                 nodes = nodes.stream()
                         .peek(n -> {
-                            if (n instanceof JsProcessorNode) {
-                                ((JsProcessorNode)n).setScript(script);
+                            if (n instanceof ScriptProcessNode) {
+                                ((ScriptProcessNode)n).setScript(script);
                             }
                         })
                         .filter(n -> predIds.contains(n.getId()))
