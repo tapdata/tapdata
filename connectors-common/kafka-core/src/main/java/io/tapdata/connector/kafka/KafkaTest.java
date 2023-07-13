@@ -73,8 +73,6 @@ public class KafkaTest extends CommonDbTest {
         }
         return true;
     }
-
-
     @Override
     public Boolean testWritePrivilege() {
         AdminConfiguration configuration = new AdminConfiguration(kafkaConfig, kafkaService.getConnectorId());
