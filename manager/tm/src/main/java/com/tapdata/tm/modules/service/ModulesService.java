@@ -1438,7 +1438,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
     }
 
     public void saveWord(HttpServletResponse response, List<String> ids,String ip,UserDetail user){
-        if (ids==null||ids.size()==0||ip==null){
+        if (CollectionUtils.isEmpty(ids)||StringUtils.isBlank(ip)){
             return;
         }
         List<ModulesDto> allModules = findAllModulesByIds(ids);
