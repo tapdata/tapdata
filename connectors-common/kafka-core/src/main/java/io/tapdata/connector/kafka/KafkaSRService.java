@@ -36,7 +36,9 @@ import org.apache.avro.SchemaBuilder;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.producer.*;
+import org.apache.kafka.common.config.SaslConfigs;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -59,7 +61,6 @@ import static io.tapdata.connector.kafka.util.SchemaRegisterUtil.parseJsonArray;
  * Date: 2023/6/29
  **/
 public class KafkaSRService extends KafkaService {
-    private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
     private KafkaConfig kafkaConfig;
     private String connectorId;
     private KafkaProducer<String, GenericRecord> kafkaProducer;
@@ -70,18 +71,11 @@ public class KafkaSRService extends KafkaService {
         super();
     }
 
-    public KafkaSRService(KafkaConfig kafkaConfig, TapConnectionContext connectionContext) {
+    public KafkaSRService(KafkaConfig kafkaConfig, TapConnectionContext connectionContext, KafkaProducer<String, GenericRecord> kafkaProducer) {
         this.kafkaConfig = kafkaConfig;
         this.isBasicAuth = kafkaConfig.getBasicAuth();
         this.tapConnectionContext = connectionContext;
-        ProducerConfiguration producerConfiguration = new ProducerConfiguration(kafkaConfig, connectorId);
-        try {
-            kafkaProducer = new KafkaProducer<>(producerConfiguration.build());
-        } catch (Exception e) {
-            e.printStackTrace();
-            tapLogger.error("Kafka producer error: " + ErrorKit.getLastCause(e).getMessage(), e);
-            throw new RuntimeException(e);
-        }
+        this.kafkaProducer = kafkaProducer;
     }
 
     @Override
@@ -207,19 +201,10 @@ public class KafkaSRService extends KafkaService {
         AtomicLong insert = new AtomicLong(0);
         AtomicLong update = new AtomicLong(0);
         AtomicLong delete = new AtomicLong(0);
-        Properties properties = new Properties();
+
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
         CountDownLatch countDownLatch = new CountDownLatch(tapRecordEvents.size());
         try {
-            properties.put("bootstrap.servers", kafkaConfig.getNameSrvAddr());
-            properties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-            properties.put("value.serializer", io.confluent.kafka.serializers.KafkaAvroSerializer.class);
-            properties.put("schema.registry.url", "http://" + kafkaConfig.getSchemaRegisterUrl());
-            if (this.isBasicAuth) {
-                properties.put("basic.auth.credentials.source", kafkaConfig.getAuthCredentialsSource());
-                properties.put("basic.auth.user.info", kafkaConfig.getAuthUserName() + ":" + kafkaConfig.getAuthPassword());
-            }
-            kafkaProducer = new KafkaProducer<>(properties);
             for (TapRecordEvent event : tapRecordEvents) {
                 if (null != isAlive && !isAlive.get()) {
                     break;
@@ -282,10 +267,6 @@ public class KafkaSRService extends KafkaService {
                         countDownLatch.countDown();
                     }
                 };
-
-//                ProducerRecord<byte[], GenericRecord> producerRecord = new ProducerRecord<>(tapTable.getId(),
-//                        null, event.getTime(), getKafkaMessageKey(data, tapTable), record,
-//                        new RecordHeaders().add("mqOp", mqOp.getOp().getBytes()));
                 ProducerRecord<String, GenericRecord> producerRecord = new ProducerRecord<>(
                         tapTable.getId(),
                         record
@@ -307,14 +288,6 @@ public class KafkaSRService extends KafkaService {
             tapLogger.error("error occur when await", e);
         } finally {
             writeListResultConsumer.accept(listResult.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
-        }
-    }
-
-    private byte[] getKafkaMessageKey(Map<String, Object> data, TapTable tapTable) {
-        if (EmptyKit.isEmpty(tapTable.primaryKeys(true))) {
-            return null;
-        } else {
-            return jsonParser.toJsonBytes(tapTable.primaryKeys(true).stream().map(key -> String.valueOf(data.get(key))).collect(Collectors.joining("_")));
         }
     }
 
