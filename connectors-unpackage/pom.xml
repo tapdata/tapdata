@@ -11,6 +11,7 @@
         <module>hive1-connector</module>
         <module>hive3-connector</module>
         <module>mrs-hive3-connector</module>
+		<module>greenplum-connector</module>
     </modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
