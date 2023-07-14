@@ -1084,4 +1084,14 @@ public class TaskController extends BaseController {
                                                               @RequestParam("tableName") String tableName) {
         return success(taskService.getTableStatus(connectionId, tableName,  getLoginUser()));
     }
+
+    @GetMapping("byConnection")
+    public ResponseMessage<List<SampleTaskVo>> findByConId(@RequestParam(value = "sourceConnectionId", required = false) String sourceConnectionId,
+                                                @RequestParam(value = "targetConnectionId", required = false) String targetConnectionId,
+                                                @RequestParam(value = "syncType", required = false) String syncType,
+                                                @RequestParam(value = "status", required = false) String status,
+                                                @RequestParam(value = "where", required = false) String whereJson) {
+        Where where = parseWhere(whereJson);
+        return success(taskService.findByConId(sourceConnectionId, targetConnectionId, syncType, status, where, getLoginUser()));
+    }
 }
