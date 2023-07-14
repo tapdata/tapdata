@@ -24,7 +24,6 @@
         <module>redis-connector</module>
 		<module>clickhouse-connector</module>
 		<module>mariadb-connector</module>
-		<module>hive1-connector</module>
 		<module>coding-connector</module>
 		<module>zoho-desk-connector</module>
 		<module>tidb-connector</module>
@@ -55,8 +54,6 @@
 		<module>databend-connector</module>
 		<module>hazelcast-connector</module>
 		<module>opengauss-connector</module>
-        <module>hive3-connector</module>
-<!--        <module>mrs-hive3-connector</module>-->
 		<module>http-receiver-connector</module>
 		<module>yashandb-connector</module>
 		<module>greenplum-connector</module>
