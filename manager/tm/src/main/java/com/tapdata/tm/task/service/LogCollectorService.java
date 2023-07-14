@@ -735,7 +735,7 @@ public class LogCollectorService {
     }
 
     @Nullable
-    private Date getAttrsValues(String sourceId, String targetId, String type, Map<String, Object> attrs) {
+    public static Date getAttrsValues(String sourceId, String targetId, String type, Map<String, Object> attrs) {
         try {
             if (attrs == null) {
                 return null;
