@@ -16,7 +16,6 @@ import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.*;
-import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
@@ -53,6 +52,7 @@ import org.bson.conversions.Bson;
 import org.bson.types.*;
 
 import java.io.Closeable;
+import java.math.BigDecimal;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -592,7 +592,7 @@ public class MongodbConnector extends ConnectorBase {
 		DataMap match = partitionFilter.getMatch();
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
-				bsonList.add(eq(entry.getKey(), entry.getValue()));
+				bsonList.add(eq(entry.getKey(), parseObject(tapTable, entry.getKey(), entry.getValue())));
 			}
 		}
 		Bson query;
@@ -648,8 +648,43 @@ public class MongodbConnector extends ConnectorBase {
 					value = new Date((Long) value);
 				}
 				break;
+			case INT32:
+				if (value instanceof String) {
+					try {
+						value = Integer.parseInt((String) value);
+					} catch (NumberFormatException ignored) {
+					}
+				}
+				break;
+			case INT64:
+				if (value instanceof String) {
+					try {
+						value = Long.parseLong((String) value);
+					} catch (NumberFormatException ignored) {
+					}
+				}
+				break;
+			case DOUBLE:
+				if (value instanceof String) {
+					try {
+						value = Double.parseDouble((String) value);
+					} catch (NumberFormatException ignored) {
+					}
+				}
+				break;
+			case DECIMAL128:
+				if (value instanceof String) {
+					try {
+						value = new BigDecimal((String) value);
+					} catch (Exception ignored) {
+					}
+				}
+				break;
 			default:
 				break;
+		}
+		if (value instanceof DateTime) {
+			value = ((DateTime) value).toInstant();
 		}
 		return value;
 	}
@@ -840,7 +875,7 @@ public class MongodbConnector extends ConnectorBase {
 				if (null == tapField) {
 					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set match", table.getName(), entry.getKey()));
 				}
-				entry.setValue(formatValue(tapField, entry.getKey(), entry.getValue()));
+				entry.setValue(parseObject(table, entry.getKey(), entry.getValue()));
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
 		}
@@ -852,7 +887,7 @@ public class MongodbConnector extends ConnectorBase {
 				if (null == tapField) {
 					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set query operator", table.getName(), op.getKey()));
 				}
-				op.setValue(formatValue(tapField, op.getKey(), op.getValue()));
+				op.setValue(parseObject(table, op.getKey(), op.getValue()));
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
 						bsonList.add(gt(op.getKey(), op.getValue()));
@@ -941,20 +976,6 @@ public class MongodbConnector extends ConnectorBase {
 		}
 		if (filterResults.resultSize() > 0)
 			consumer.accept(filterResults);
-	}
-
-	private Object formatValue(TapField tapField, String key, Object value) {
-		if (tapField.getTapType() instanceof TapNumber && value instanceof String) {
-			if (value.toString().contains(".")) {
-				value = Double.valueOf(value.toString());
-			} else {
-				value = Long.valueOf(value.toString());
-			}
-		}
-		if (value instanceof DateTime) {
-			value = ((DateTime) value).toInstant();
-		}
-		return value;
 	}
 
 	/**
