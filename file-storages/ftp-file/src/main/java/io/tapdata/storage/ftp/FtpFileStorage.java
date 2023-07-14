@@ -93,7 +93,7 @@ public class FtpFileStorage implements TapFileStorage {
     }
 
     @Override
-    public void readFile(String path, Consumer<InputStream> consumer) throws IOException {
+    public synchronized void readFile(String path, Consumer<InputStream> consumer) throws IOException {
         if (!isFileExist(path)) {
             return;
         }
