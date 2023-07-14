@@ -10,7 +10,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.text.StringEscapeUtils;
+import org.apache.commons.lang3.StringEscapeUtils;
 
 import java.sql.*;
 import java.util.Collection;
@@ -187,7 +187,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
 
         int i = 1;
         for (String fieldName : primaryKeys) {
-            existsStatement.setObject(i++, escapeString(data.get(fieldName)));
+            existsStatement.setObject(i++, data.get(fieldName));
         }
         try (ResultSet rs = existsStatement.executeQuery()) {
             if (rs.next()) {
@@ -353,7 +353,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
     }
 
     @Override
-    public void close() {
+    public void close() throws Exception {
         statementMap.clear();
     }
 
