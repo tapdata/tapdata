@@ -1,5 +1,9 @@
 package io.tapdata.sybase.util;
 
+import net.sourceforge.jtds.jdbc.Support;
+
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
@@ -13,7 +17,9 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.StringJoiner;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author GavinXiao
@@ -122,6 +128,7 @@ public class Utils {
             StringJoiner joiner = new StringJoiner(" --- ");
             for (int i = 1; i < columnCount + 1;i++) {
                 try {
+                    byte[] bytes = rs.getBytes(i);
                     joiner.add(rs.getString(i));
                 } catch (Exception e){
                     joiner.add(" ");
@@ -140,4 +147,32 @@ public class Utils {
 //    public static void main(String[] args) throws ParseException {
 //        System.out.println(dateFormat("2023-07-13 20:43:23.0", "yyyy-MM-dd HH:mm:ss.SSS").getTime());
 //    }
+
+    public static String run(String command) throws IOException {
+        Scanner input = null;
+        StringBuilder result = new StringBuilder();
+        Process process = null;
+        try {
+            process = Runtime.getRuntime().exec(command);
+            try {
+                process.waitFor(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            InputStream is = process.getInputStream();
+            input = new Scanner(is);
+            while (input.hasNextLine()) {
+                result.append(input.nextLine()).append("\n");
+            }
+            result.insert(0, command + "\n"); //加上命令本身，打印出来
+        } finally {
+            if (input != null) {
+                input.close();
+            }
+            if (process != null) {
+                process.destroy();
+            }
+        }
+        return result.toString();
+    }
 }

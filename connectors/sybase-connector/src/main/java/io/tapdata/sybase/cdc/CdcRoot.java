@@ -12,6 +12,7 @@ import java.util.List;
  * @create 2023/7/13 11:09
  **/
 public class CdcRoot {
+    String cdcId;
     File cdcFile;
     Process process;
     TapConnectorContext context;
@@ -52,7 +53,7 @@ public class CdcRoot {
     }
 
     public String getSybasePocPath() {
-        return sybasePocPath;
+        return sybasePocPath.endsWith("/") ? sybasePocPath.substring(0, sybasePocPath.length() - 1) : sybasePocPath;
     }
 
     public void setSybasePocPath(String sybasePocPath) {
@@ -73,5 +74,13 @@ public class CdcRoot {
 
     public void setCdcTables(List<String> cdcTables) {
         this.cdcTables = cdcTables;
+    }
+
+    public String getCdcId() {
+        return cdcId;
+    }
+
+    public void setCdcId(String cdcId) {
+        this.cdcId = cdcId;
     }
 }

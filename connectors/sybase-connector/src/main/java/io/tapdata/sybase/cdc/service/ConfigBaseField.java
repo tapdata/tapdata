@@ -4,13 +4,15 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.sybase.SybaseConnector;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
+import io.tapdata.sybase.util.Utils;
 import io.tapdata.sybase.util.ZipUtils;
-import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.util.Enumeration;
+import java.util.UUID;
 
 /**
  * @author GavinXiao
@@ -34,19 +36,47 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
 
     @Override
     public CdcRoot compile() {
-        File sybasePocPath = new File("sybase-poc/");
-        if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) sybasePocPath.mkdir();
-        ZipUtils.unzip(getPocPathFromLocal(11), sybasePocPath);
-        String absolutePath = sybasePocPath.getAbsolutePath();
-        try {
-            absolutePath = URLDecoder.decode(absolutePath, "utf-8");
-        } catch (Exception ignore) {
+//        String cdcId = null;
+//        if (null != root.getContext() && null != root.getContext().getId()) {
+//            cdcId = root.getContext().getId();
+//        }
+//        if (null == cdcId) {
+//            cdcId = UUID.randomUUID().toString().replaceAll("-", "_");
+//        }
+//        root.setCdcId(cdcId);
+//        String targetPath = "sybase-poc-temp/";// + cdcId + "/";
+//        File sybasePocPath = new File(targetPath);
+//        if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) sybasePocPath.mkdir();
+//        String pocPathFromLocal = getPocPathFromLocal();
+//        File fromLocal = new File(pocPathFromLocal);
+//        if (fromLocal.exists() && fromLocal.isDirectory()){
+//            try {
+//                if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
+//                    Utils.run("cp -r " + (pocPathFromLocal.endsWith("/") ? (pocPathFromLocal + "*") : (pocPathFromLocal + "/*")) + " " + targetPath);
+//                } else {
+//                    FileUtils.copyToDirectory(fromLocal, sybasePocPath);
+//                }
+//            } catch (Exception e){
+//                throw new CoreException("Unable init cdc tool from path {}, make sure your sources exists in you linux file system or retry task.", pocPathFromLocal);
+//            }
+//        } else {
+//            ZipUtils.unzip(pocPathFromLocal, sybasePocPath);
+//        }
+//        String absolutePath = sybasePocPath.getAbsolutePath();
+//        try {
+//            absolutePath = URLDecoder.decode(absolutePath, "utf-8");
+//        } catch (Exception ignore) {
+//        }
+        String targetPath = "sybase-poc";
+        File sybasePocPath = new File(targetPath);
+        if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()){
+            throw new CoreException("Unable fund {}, make sure your sources exists in you linux file system.", sybasePocPath.getAbsolutePath());
         }
-        this.root.setSybasePocPath(FilenameUtils.concat(absolutePath , "/sybase-poc/"));
+        this.root.setSybasePocPath(sybasePocPath.getAbsolutePath());
         return this.root;
     }
 
-    private String getPocPathFromLocal(){
+    private String getPocPathFromResources() {
         URL resource = null;
         try {
             resource = SybaseConnector.class.getClassLoader().getResource("sybase-poc.zip");
@@ -70,11 +100,25 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
         return resource.getPath();
     }
 
-    private String getPocPathFromLocal(int type){
-        if (type > 0) {
-            return getPocPathFromLocal();
-        } else {
-            return "/sybase-poc/sybase-poc.tar.gz";
+    private String getPocPathFromLocal() {
+        boolean isLinuxCore = "linux".equalsIgnoreCase(System.getProperty("os.name"));
+        String pocPath = isLinuxCore ? "sybase-poc.zip" : "D:\\sybase-poc.zip";
+        File file = new File(pocPath);
+        if (!file.exists() || !file.isFile()) {
+            if (isLinuxCore) {
+                file = new File("sybase-poc");
+                if (file.exists() && file.isDirectory()) {
+                    return file.getAbsolutePath();
+                }
+                try {
+                    return getPocPathFromResources();
+                } catch (Exception e) {
+                    throw new CoreException("Unable fund {}, make sure your sources exists in you linux file system.", file.getAbsolutePath());
+                }
+            } else {
+                throw new CoreException("Unable fund {}, make sure your sources exists in you windows file system.", file.getAbsolutePath());
+            }
         }
+        return pocPath;
     }
 }

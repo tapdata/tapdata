@@ -1,6 +1,6 @@
 package io.tapdata.sybase.cdc.service;
 
-import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
 import io.tapdata.sybase.cdc.dto.start.SybaseDstLocalStorage;
@@ -22,6 +22,7 @@ import java.util.Map;
  * @create 2023/7/13 11:02
  **/
 class ConfigYaml implements CdcStep<CdcRoot> {
+    public static final String TAG = ConfigYaml.class.getSimpleName();
     List<SybaseFilterConfig> filterConfig;
     SybaseSrcConfig srcConfig;
     SybaseDstLocalStorage sybaseDstLocalStorage;
@@ -69,13 +70,13 @@ class ConfigYaml implements CdcStep<CdcRoot> {
 
     private void configSybaseSrc() {
         this.root.checkStep();
-        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/filter_sybasease.yaml");
+        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/src_sybasease.yaml");
         Map<String, Object> allow = yamlUtil.get();
         Map<String, Object> map;
         try {
             map = Utils.obj2Map(srcConfig);
         } catch (IllegalAccessException e) {
-            throw new RuntimeException("Can not get config from sybase src config set into filter_sybasease.yaml");
+            throw new RuntimeException("Can not get config from sybase src config set into src_sybasease.yaml");
         }
         if (!map.isEmpty()) {
             if (allow == null) {
@@ -141,10 +142,10 @@ class ConfigYaml implements CdcStep<CdcRoot> {
     private void configEtcHost() {
         try {
             if (!HostUtils.updateHostName("time.google.com", "106.55.184.199")){
-                throw new CoreException("Unable add host config to etc/host or c:.../host");
+                TapLogger.warn(TAG, "Unable add host config to etc/host or c:.../host  time.google.com:106.55.184.199");
             }
         } catch (Exception e){
-
+            TapLogger.warn(TAG, "Unable add host config to etc/host or c:.../host, msg: {}, time.google.com:106.55.184.199", e.getMessage());
         }
     }
 }

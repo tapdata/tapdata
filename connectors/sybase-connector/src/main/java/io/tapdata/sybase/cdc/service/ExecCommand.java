@@ -21,14 +21,23 @@ class ExecCommand implements CdcStep<CdcRoot> {
         this.root = root;
         this.commandType = commandType;
     }
+    //cmd.exe /k start 'xx.bat'
 
 
     @Override
     public CdcRoot compile() {
-        String cmd = START_CDC.replaceAll("\\$pocPath\\$", root.getCdcFile().getAbsolutePath()).replaceAll("\\$commandType\\$", CommandType.type(commandType));
+        String sybasePocPath = root.getSybasePocPath();
+        String cmd = START_CDC.replaceAll("\\$pocPath\\$", sybasePocPath)
+                .replaceAll("\\$commandType\\$", CommandType.type(commandType));
         try {
+            String[] cmds = new String[] {
+                    "/bin/sh",
+                    "-c",
+                        EXPORT_JAVA_HOME + "; "
+                        + cmd
+            };
             Runtime runtime = Runtime.getRuntime();
-            root.setProcess(runtime.exec(cmd));
+            root.setProcess(runtime.exec(cmds));
         }catch (Exception e){
             throw new CoreException("Command exec failed, unable to start cdc command: {}, msg: {}", cmd, e.getMessage());
         }

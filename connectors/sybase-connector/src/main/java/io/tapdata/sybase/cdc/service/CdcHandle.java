@@ -41,6 +41,24 @@ public class CdcHandle {
         this.root = root;
         this.lock = lock;
         this.context = context;
+    }
+
+    //Step #1
+    public void startCdc() {
+        CdcRoot compileBaseFile = new ConfigBaseField(root, "").compile();
+        //String pocPath = compileBaseFile.getSybasePocPath();
+        compileYamlConfig();
+        CdcRoot compileYaml = new ConfigYaml(
+                compileBaseFile,
+                root.getVariables().getFilterConfig(),
+                root.getVariables().getSrcConfig(),
+                root.getVariables().getSybaseDstLocalStorage(),
+                root.getVariables().getSybaseGeneralConfig()
+        ).compile();
+        new ExecCommand(compileYaml, CommandType.FULL).compile();
+    }
+
+    private void compileYamlConfig() {
         String sybasePocPath = root.getSybasePocPath();
 
         //@todo set CdcStartVariables from context config
@@ -61,6 +79,7 @@ public class CdcHandle {
             tables.put(cdcTable, null);
         }
         filterConfig.setAllow(tables);
+        filterConfigs.add(filterConfig);
 
 
         SybaseSrcConfig srcConfig = new SybaseSrcConfig();
@@ -103,20 +122,6 @@ public class CdcHandle {
         );
     }
 
-    //Step #1
-    public void startCdc() {
-        CdcRoot compileBaseFile = new ConfigBaseField(root, "").compile();
-        //String pocPath = compileBaseFile.getSybasePocPath();
-        CdcRoot compileYaml = new ConfigYaml(
-                compileBaseFile,
-                root.getVariables().getFilterConfig(),
-                root.getVariables().getSrcConfig(),
-                root.getVariables().getSybaseDstLocalStorage(),
-                root.getVariables().getSybaseGeneralConfig()
-        ).compile();
-        new ExecCommand(compileYaml, CommandType.FULL).compile();
-    }
-
     //Step #2
     public CdcPosition startListen(
             String monitorPath,
@@ -142,6 +147,7 @@ public class CdcHandle {
     public void releaseCdc() {
         Optional.ofNullable(root.getProcess()).ifPresent(Process::destroy);
         Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
+        //Optional.ofNullable()
     }
 
     //Step #end 2

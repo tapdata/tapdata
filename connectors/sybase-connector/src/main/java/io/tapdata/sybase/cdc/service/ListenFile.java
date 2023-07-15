@@ -3,8 +3,6 @@ package io.tapdata.sybase.cdc.service;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.sybase.cdc.CdcRoot;
@@ -15,11 +13,17 @@ import io.tapdata.sybase.cdc.dto.read.CdcPosition;
 import io.tapdata.sybase.cdc.dto.watch.FileListener;
 import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
+import io.tapdata.sybase.extend.ConnectionConfig;
+import io.tapdata.sybase.util.YamlUtil;
 import org.apache.commons.io.monitor.FileAlterationObserver;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * @author GavinXiao
@@ -27,6 +31,7 @@ import java.util.List;
  * @create 2023/7/13 11:32
  **/
 public class ListenFile implements CdcStep<CdcRoot> {
+    public static final String TAG = ListenFile.class.getSimpleName();
     CdcRoot root;
     String monitorPath; ///sybase-poc/config/sybase2csv/csv/testdb/tester
     StopLock lock;
@@ -36,6 +41,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
     AnalyseRecord<List<String>, TapRecordEvent> analyseRecord;
     StreamReadConsumer cdcConsumer;
     int batchSize;
+    final String schemaConfigPath;
 
     protected ListenFile(CdcRoot root,
                          String monitorPath,
@@ -60,6 +66,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         analyseRecord = new AnalyseTapEventFromCsvString();
         this.cdcConsumer = consumer;
         this.batchSize = batchSize;
+        this.schemaConfigPath = root.getSybasePocPath() + "/config/sybase2csv/csv/schemas.yaml";
     }
 
     FileMonitor fileMonitor;
@@ -118,38 +125,61 @@ public class ListenFile implements CdcStep<CdcRoot> {
             throw new CoreException("File monitor not start, cdc is stop work.");
         }
         TapConnectorContext context = root.getContext();
-        final KVReadOnlyMap<TapTable> tableMap = context.getTableMap();
+        if (null == context) {
+            throw new CoreException("Can not get tap connection context.");
+        }
+        //final KVReadOnlyMap<TapTable> tableMap = context.getTableMap();
+        final Map<String, LinkedHashMap<String, String>> tableMap = getTableFromConfig(root.getCdcTables());
         fileMonitor.monitor(monitorPath, new FileListener() {
             @Override
             public void onStart(FileAlterationObserver observer) {
-                super.onStart(observer);
-                //遍历monitorPath 所有子目录下的
-                for (String table : tables) {
-                    final String tableSpace = monitorPath + "/" + table;
-                    File tableSpaceFile = new File(tableSpace);
-                    if (!tableSpaceFile.exists()) continue;
-                    File[] files = tableSpaceFile.listFiles();
-                    if (null != files && files.length > 0) {
-                        for (File file : files) {
-                            monitor(file);
+                if (null == cdcConsumer) return;
+                try {
+                    cdcConsumer.streamReadStarted();
+                    super.onStart(observer);
+                    //遍历monitorPath 所有子目录下的
+                    for (String table : tables) {
+                        final String tableSpace = monitorPath + "/" + table;
+                        File tableSpaceFile = new File(tableSpace);
+                        if (!tableSpaceFile.exists()) continue;
+                        File[] files = tableSpaceFile.listFiles();
+                        if (null != files && files.length > 0) {
+                            for (File file : files) {
+                                monitor(file);
+                            }
                         }
                     }
+                } catch (Exception e){
+                    cdcConsumer.streamReadEnded();
+                    context.getLog().warn("Start monitor file failed, msg: {}", e.getMessage());
+                    throw new CoreException("Start monitor file failed, msg: {}", e.getMessage());
                 }
             }
 
             @Override
             public void onStop(FileAlterationObserver observer) {
                 super.onStop(observer);
+                if (null != cdcConsumer) {
+                    cdcConsumer.streamReadEnded();
+                }
             }
 
             @Override
             public void onFileChange(File file) {
-                monitor(file);
+                try {
+                    monitor(file);
+                } catch (Exception e){
+                    context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
+                }
             }
 
             @Override
             public void onFileCreate(File file) {
-                monitor(file);
+                try {
+                    monitor(file);
+                } catch (Exception e){
+                    context.getLog().error("Monitor file create failed, msg: {}", e.getMessage());
+                }
             }
 
             private void monitor(File file) {
@@ -160,12 +190,14 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     String csvFileName = file.getName();
                     String[] split = csvFileName.split("\\.");
                     if (split.length < 3) {
-                        throw new CoreException("Can not get table name from cav name, csv name is: " + csvFileName);
+                        throw new CoreException("Can not get table name from cav name, csv name is: {}", csvFileName);
                     }
                     String tableName = split[2];
                     CdcPosition position = analyseCsvFile.getPosition();
                     if (null != tableName && tables.contains(tableName)) {
-                        final TapTable tapTable = tableMap.get(tableName);
+                        //final TapTable tapTable = tableMap.get(tableName);
+                        LinkedHashMap<String, String> tapTable = tableMap.get(tableName);
+                        if (null == tapTable || tapTable.isEmpty()) return;
                         CdcPosition.PositionOffset positionOffset = position.get(tableName);
                         if (null == positionOffset) {
                             positionOffset = new CdcPosition.PositionOffset();
@@ -191,12 +223,12 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         List<List<String>> compile = analyseCsvFile.analyse(file.getAbsolutePath()).compile();
                         int csvFileLines = compile.size();
                         for (int index = line; index < csvFileLines; index++) {
-                            TapEvent recordEvent = analyseRecord.analyse(compile.get(index), tapTable);
+                            TapEvent recordEvent = analyseRecord.analyse(compile.get(index), tapTable, tableName);
                             if (null != recordEvent) {
                                 events.add(recordEvent);
                                 if (events.size() == batchSize) {
                                     csvOffset.setOver(false);
-                                    csvOffset.setLine(index);
+                                    csvOffset.setLine(index+1);
                                     cdcConsumer.accept(events, positionOffset);
                                     events = new ArrayList<>();
                                 }
@@ -210,12 +242,54 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     }
                 }
             }
+
         });
         try {
             fileMonitor.start();
         } catch (Exception e) {
-            throw new CoreException("Can not monitor cdc for sybase, msg: " + e.getMessage());
+            fileMonitor.stop();
+            throw new CoreException("Can not monitor cdc for sybase, msg: {}", e.getMessage());
         }
         return this.root;
+    }
+
+    private Map<String, LinkedHashMap<String, String>> getTableFromConfig(List<String> tableId){
+        Map<String, LinkedHashMap<String, String>> table = new LinkedHashMap<>();
+        if (null == tableId || tableId.isEmpty()) return table;
+        final ConnectionConfig config = new ConnectionConfig(root.getContext());
+        final String username = config.getUsername();
+        final String database = config.getDatabase();
+        try {
+            YamlUtil schemas = new YamlUtil(schemaConfigPath);
+            List<Map<String, Object>> schemaList = (List<Map<String, Object>>)schemas.get("schemas");
+            for (Map<String, Object> objectMap : schemaList) {
+                Object catalog = objectMap.get("catalog");
+                Object schema = objectMap.get("schema");
+                if (null != catalog && null != schema && catalog.equals(database) && schema.equals(username)) {
+                    Object tables = objectMap.get("tables");
+                    if (! (tables instanceof Collection)) continue;
+                    ((Collection<Map<String, Object>>) tables).stream()
+                            .filter(map -> tableId.contains(String.valueOf(map.get("name"))))
+                            .findFirst().ifPresent(tableInfo -> {
+                        Object columns = tableInfo.get("columns");
+                        if (columns instanceof Collection) {
+                            String tableName = String.valueOf(tableInfo.get("name"));
+                            Collection<Map<String, String>> columnsList = (Collection<Map<String, String>>) columns;
+                            LinkedHashMap<String, String> tableClo = new LinkedHashMap<>();
+                            columnsList.stream().filter(Objects::nonNull).forEach(clo -> {
+                                String name = clo.get("name");
+                                String type = clo.get("type");
+                                tableClo.put(name, type);
+                            });
+                            table.put(tableName, tableClo);
+                        }
+                    });
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            root.getContext().getLog().warn("Can not read file {} to get schema.", schemaConfigPath);
+        }
+        return table;
     }
 }

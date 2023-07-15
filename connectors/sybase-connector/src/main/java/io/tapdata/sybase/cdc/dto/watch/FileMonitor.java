@@ -23,8 +23,8 @@ public class FileMonitor {
 	 */
 	public void monitor(String path, FileAlterationListener listener) {
 		FileAlterationObserver observer = new FileAlterationObserver(new File(path));
-		monitor.addObserver(observer);
 		observer.addListener(listener);
+		monitor.addObserver(observer);
 	}
 
 	public void stop() {

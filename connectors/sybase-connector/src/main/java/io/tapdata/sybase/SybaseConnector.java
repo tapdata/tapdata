@@ -54,6 +54,7 @@ import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.cdc.service.CdcHandle;
+import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.SybaseColumn;
 import io.tapdata.sybase.extend.SybaseConfig;
 import io.tapdata.sybase.extend.SybaseConnectionTest;
@@ -61,6 +62,7 @@ import io.tapdata.sybase.extend.SybaseContext;
 import io.tapdata.sybase.extend.SybaseReader;
 import io.tapdata.sybase.extend.SybaseSqlBatchWriter;
 import io.tapdata.sybase.util.Code;
+import org.apache.commons.io.FilenameUtils;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -84,6 +86,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -357,9 +360,23 @@ public class SybaseConnector extends CommonDbConnector {
         return data;
     }
 
+    protected long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+        try {
+            ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
+            AtomicLong count = new AtomicLong(0);
+            String sql = "select count(1) from " + config.getDatabase() + "." + config.getUsername() + "." + tapTable.getId();
+            jdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
+            return count.get();
+        } catch (SQLException e) {
+            exceptionCollector.collectReadPrivileges("batchCount", Collections.emptyList(), e);
+            throw e;
+        }
+    }
+
     private void batchReadV2(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+        ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
         String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> " " + c + " ").collect(Collectors.joining(","));
-        String sql = String.format("SELECT %s FROM " + tapTable.getId(), columns);
+        String sql = String.format("SELECT %s FROM " + config.getDatabase() + "." + config.getUsername() + "." + tapTable.getId(), columns);
 
         sybaseContext.query(sql, resultSet -> {
             List<TapEvent> tapEvents = list();
@@ -443,26 +460,34 @@ public class SybaseConnector extends CommonDbConnector {
     }
 
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
-        consumer.streamReadStarted();
         root.setCdcTables(tables);
+        root.setContext(tapConnectorContext);
         try {
-            cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
-        } catch (CoreException e) {
-          if (e.getCode() == Code.STREAM_READ_WARN) {
-              tapConnectorContext.getLog().info(e.getMessage());
-              consumer.streamReadEnded();
-          }
-          throw e;
+            try {
+                cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
+            } catch (CoreException e) {
+                if (e.getCode() == Code.STREAM_READ_WARN) {
+                    tapConnectorContext.getLog().info(e.getMessage());
+                }
+                throw e;
+            }
+            cdcHandle.startCdc();
+            ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
+            root.setContext(tapConnectorContext);
+            cdcHandle.startListen(
+                    FilenameUtils.concat(cdcHandle.getRoot().getSybasePocPath(), "config/sybase2csv/csv/" + config.getDatabase() + "/" + config.getUsername()),
+                    "object_metadata.yaml",
+                    tables,
+                    offset instanceof CdcPosition ? (CdcPosition) offset : new CdcPosition(),
+                    batchSize,
+                    consumer
+            );
+            while (isAlive()){
+                sleep(1000);
+            }
+        } catch (Exception e){
+            tapConnectorContext.getLog().error("Sybase cdc is stopped now, error: {}", e.getMessage());
         }
-        cdcHandle.startCdc();
-        cdcHandle.startListen(
-                cdcHandle.getRoot().getSybasePocPath() + "/config/sybase2csv/csv",
-                "object_metadata.yaml",
-                tables,
-                offset instanceof CdcPosition ? (CdcPosition) offset : new CdcPosition(),
-                batchSize,
-                consumer
-        );
     }
 
     @Override
