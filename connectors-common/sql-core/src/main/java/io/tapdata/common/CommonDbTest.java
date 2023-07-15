@@ -10,6 +10,7 @@ import io.tapdata.util.NetUtil;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
