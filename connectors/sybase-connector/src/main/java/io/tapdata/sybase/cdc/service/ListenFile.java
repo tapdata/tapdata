@@ -191,7 +191,14 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     CdcPosition position = analyseCsvFile.getPosition();
                     if (null != tableName && tables.contains(tableName)) {
                         //final TapTable tapTable = tableMap.get(tableName);
+                        if (tableMap.isEmpty()) {
+                            tableMap.putAll(getTableFromConfig(tables));
+                        }
                         LinkedHashMap<String, String> tapTable = tableMap.get(tableName);
+                        if (null == tapTable) {
+                            tableMap.putAll(getTableFromConfig(tables));
+                            tapTable = tableMap.get(tableName);
+                        }
                         if (null == tapTable || tapTable.isEmpty()) return;
                         CdcPosition.PositionOffset positionOffset = position.get(tableName);
                         if (null == positionOffset) {
@@ -269,11 +276,11 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         Object columns = tableInfo.get("columns");
                         if (columns instanceof Collection) {
                             String tableName = String.valueOf(tableInfo.get("name"));
-                            Collection<Map<String, String>> columnsList = (Collection<Map<String, String>>) columns;
+                            Collection<Map<String, Object>> columnsList = (Collection<Map<String, Object>>) columns;
                             LinkedHashMap<String, String> tableClo = new LinkedHashMap<>();
                             columnsList.stream().filter(Objects::nonNull).forEach(clo -> {
-                                String name = clo.get("name");
-                                String type = clo.get("type");
+                                String name = String.valueOf(clo.get("name"));
+                                String type = String.valueOf(clo.get("type"));
                                 tableClo.put(name, type);
                             });
                             table.put(tableName, tableClo);
@@ -283,7 +290,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 }
             }
         } catch (Exception e) {
-            root.getContext().getLog().warn("Can not read file {} to get {}'s schemas.", schemaConfigPath, tableId);
+            root.getContext().getLog().warn("Can not read file {} to get {}'s schemas, msg: {}", schemaConfigPath, tableId, e.getMessage());
         }
         return table;
     }

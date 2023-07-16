@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.tapdata.base.ConnectorBase.entry;
+import static io.tapdata.base.ConnectorBase.list;
 import static io.tapdata.base.ConnectorBase.map;
 
 /**
@@ -71,7 +72,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
             for (SybaseFilterConfig config : filterConfig) {
                 map.putAll((Map<String, Object>) config.toYaml());
             }
-            yamlUtil.update(map);
+            yamlUtil.update(map(entry("allow", list(map))));
 //            }
         }
     }

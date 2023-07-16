@@ -35,6 +35,9 @@ public class DefaultConvert implements SybaseDataTypeConvert {
                 case "BIGINT":
                     bigDecimal = objToNumber(fromValue);
                     return null == bigDecimal ? null : bigDecimal.longValue();
+                case "DOUBLE":
+                    bigDecimal = objToNumber(fromValue);
+                    return null == bigDecimal ? null : bigDecimal.doubleValue();
                 case "SMALLMONEY":
                 case "MONEY":
                 case "REAL":

@@ -43,7 +43,7 @@ public class LivenessMonitor implements ConfigEntity {
 
     @Override
     public Object toYaml() {
-        HashMap<String, Object> map = new HashMap<>();
+        HashMap<String, Object> map = new LinkedHashMap<>();
         map.put("enable", enable);
         map.put("inactive-timeout-ms", inactive_timeout_ms);
         map.put("min-free-memory-threshold-percent", min_free_memory_threshold_percent);

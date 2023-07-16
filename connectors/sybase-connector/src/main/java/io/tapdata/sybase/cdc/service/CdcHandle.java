@@ -121,7 +121,7 @@ public class CdcHandle {
         generalConfig.setTrace_dir( "" + sybasePocPath + "/config/sybase2csv/trace");
         generalConfig.setData_dir("" + sybasePocPath + "/config/sybase2csv/data");
         //generalConfig.setError_connection_tracing("" + sybasePocPath + "/config/sybase2csv/trace");
-        generalConfig.setLicense_path("" + sybasePocPath + "/replicant-cli/");
+        generalConfig.setLicense_path(root.getCliPath() + "/");
         generalConfig.setError_trace_dir("" + sybasePocPath + "/config/sybase2csv/trace");
 
         this.root.setVariables(

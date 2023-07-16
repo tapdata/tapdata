@@ -63,7 +63,9 @@ import io.tapdata.sybase.extend.SybaseContext;
 import io.tapdata.sybase.extend.SybaseReader;
 import io.tapdata.sybase.extend.SybaseSqlBatchWriter;
 import io.tapdata.sybase.util.Code;
+import io.tapdata.sybase.util.MD5Utils;
 import org.apache.commons.io.FilenameUtils;
+import sun.security.provider.MD5;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -129,7 +131,11 @@ public class SybaseConnector extends CommonDbConnector {
             KVMap<Object> stateMap = ((TapConnectorContext) tapConnectionContext).getStateMap();
             Object taskId = stateMap.get("taskId");
             if (null == taskId) {
-                stateMap.put("taskId", UUID.randomUUID().toString().replaceAll("-", "_"));
+                String id = ((TapConnectorContext) tapConnectionContext).getId();
+                if (null == id ){
+                    id = UUID.randomUUID().toString().replaceAll("-", "_");
+                }
+                stateMap.put("taskId", id.substring(0, 15));
             }
         }
 //		fieldDDLHandlers = new BiClassHandlers<>();

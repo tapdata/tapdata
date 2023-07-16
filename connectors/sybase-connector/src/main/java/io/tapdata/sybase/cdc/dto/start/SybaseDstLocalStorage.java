@@ -39,7 +39,7 @@ public class SybaseDstLocalStorage implements ConfigEntity {
 
     @Override
     public Object toYaml() {
-        HashMap<String, String> map = new HashMap<>();
+        HashMap<String, String> map = new LinkedHashMap<>();
         map.put("type" , type);
         map.put("storage-location", storage_location);
         map.put("file-format", file_format);

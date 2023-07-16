@@ -1,6 +1,7 @@
 package io.tapdata.sybase.cdc.dto.start;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 /**
  * @author GavinXiao
@@ -23,7 +24,7 @@ public class SybaseSrcConfig implements ConfigEntity {
 
     @Override
     public Object toYaml() {
-        HashMap<String, Object> map = new HashMap<>();
+        HashMap<String, Object> map = new LinkedHashMap<>();
         map.put("type" , type);
         map.put("host", host);
         map.put("port", port);

@@ -1,6 +1,7 @@
 package io.tapdata.sybase.cdc.dto.start;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 /**
  * @author GavinXiao
@@ -16,12 +17,12 @@ public class SybaseGeneralConfig implements ConfigEntity {
     String error_trace_dir;
     @Override
     public Object toYaml() {
-        HashMap<String, Object> map = new HashMap<>();
+        HashMap<String, Object> map = new LinkedHashMap<>();
         map.put("liveness-monitor" , liveness_monitor.toYaml());
         map.put("license-path", license_path);
         map.put("data-dir", data_dir);
         map.put("trace-dir", trace_dir);
-        map.put("error-connection-tracing", error_connection_tracing);
+        //map.put("error-connection-tracing", error_connection_tracing);
         map.put("error-trace-dir", error_trace_dir);
         return map;
     }
