@@ -17,7 +17,7 @@ class ExecCommand implements CdcStep<CdcRoot> {
     private final static String EXPORT_JAVA_HOME = "export JAVA_TOOL_OPTIONS=\"-Duser.language=en\"";
     private final static String START_CDC = "$pocPath$/replicant-cli/bin/replicant $commandType$ $pocPath$/config/sybase2csv/src_sybasease.yaml $pocPath$/config/sybase2csv/dst_localstorage.yaml --general $pocPath$/config/sybase2csv/general.yaml --filter $pocPath$/config/sybase2csv/filter_sybasease.yaml --extractor $pocPath$/config/sybase2csv/ext_sybasease.yaml --id tstcsv1 --replace --overwrite --verbose";
 
-    protected ExecCommand (CdcRoot root, CommandType commandType) {
+    protected ExecCommand(CdcRoot root, CommandType commandType) {
         this.root = root;
         this.commandType = commandType;
     }
@@ -30,15 +30,15 @@ class ExecCommand implements CdcStep<CdcRoot> {
         String cmd = START_CDC.replaceAll("\\$pocPath\\$", sybasePocPath)
                 .replaceAll("\\$commandType\\$", CommandType.type(commandType));
         try {
-            String[] cmds = new String[] {
+            String[] cmds = new String[]{
                     "/bin/sh",
                     "-c",
-                        EXPORT_JAVA_HOME + "; "
-                        + cmd
+                    EXPORT_JAVA_HOME + "; "
+                            + cmd
             };
             Runtime runtime = Runtime.getRuntime();
             root.setProcess(runtime.exec(cmds));
-        }catch (Exception e){
+        } catch (Exception e) {
             throw new CoreException("Command exec failed, unable to start cdc command: {}, msg: {}", cmd, e.getMessage());
         }
         return this.root;

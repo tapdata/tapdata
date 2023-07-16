@@ -11,8 +11,6 @@ import java.util.List;
 
 /**
  * 修改hosts文件
- *
- * @author yk.luo
  */
 public abstract class HostUtils {
 

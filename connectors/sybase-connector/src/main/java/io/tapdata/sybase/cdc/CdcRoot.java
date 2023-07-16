@@ -12,13 +12,13 @@ import java.util.List;
  * @create 2023/7/13 11:09
  **/
 public class CdcRoot {
-    String cdcId;
-    File cdcFile;
-    Process process;
-    TapConnectorContext context;
-    String sybasePocPath;
-    CdcStartVariables variables;
-    List<String> cdcTables;
+    private String cdcId;
+    private File cdcFile;
+    private Process process;
+    private TapConnectorContext context;
+    private String sybasePocPath;
+    private CdcStartVariables variables;
+    private List<String> cdcTables;
 
 
     public File getCdcFile() {
@@ -30,10 +30,9 @@ public class CdcRoot {
     }
 
 
-    public boolean checkStep(){
+    public boolean checkStep() {
 
         return true;
-
     }
 
     public Process getProcess() {

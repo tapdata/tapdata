@@ -18,7 +18,7 @@ public class SybaseColumn extends CommonColumn {
         this.columnDefaultValue = null;
     }
 
-    public SybaseColumn(){
+    public SybaseColumn() {
 
     }
 
@@ -33,7 +33,7 @@ public class SybaseColumn extends CommonColumn {
         return "NULL".equals(this.nullable);
     }
 
-    public TapField initTapField(DataMap dataMap){
+    public TapField initTapField(DataMap dataMap) {
         return new TapField(dataMap.getString("columnName"), dataMap.getString("dataType"))
                 .nullable("NULL".equals(dataMap.getString("nullable")))
                 .defaultValue(null)

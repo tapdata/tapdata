@@ -18,21 +18,17 @@ public class FileWatchedService {
     StopLock lock;
 
     /**
-     *
-     * @param path 要监听的目录，注意该 Path 只能是目录，否则会报错 java.nio.file.NotDirectoryException: 
-     * @param listener 自定义的 listener，用来处理监听到的创建、修改、删除事件
+     * @param monitorPath    要监听的目录，注意该 Path 只能是目录，否则会报错 java.nio.file.NotDirectoryException:
+     * @param monitor 自定义的 monitor，用来处理监听到的创建、修改、删除事件
      * @throws IOException
      */
-    public FileWatchedService(Path path, FileWatchedListener listener, StopLock lock) throws IOException {
+    public FileWatchedService(Path monitorPath, FileWatchedListener monitor, StopLock lock) throws IOException {
         watchService = FileSystems.getDefault().newWatchService();
-        path.register(watchService,
-                /// 监听文件创建事件
+        monitorPath.register(watchService,
                 StandardWatchEventKinds.ENTRY_CREATE,
-                /// 监听文件删除事件
                 StandardWatchEventKinds.ENTRY_DELETE,
-                /// 监听文件修改事件
                 StandardWatchEventKinds.ENTRY_MODIFY);
-        this.listener = listener;
+        this.listener = monitor;
     }
 
     public void watch() throws InterruptedException {
@@ -58,7 +54,7 @@ public class FileWatchedService {
              * WatchKey 有两个状态：
              * {@link sun.nio.fs.AbstractWatchKey.State.READY ready} 就绪状态：表示可以监听事件
              * {@link sun.nio.fs.AbstractWatchKey.State.SIGNALLED signalled} 有信息状态：表示已经监听到事件，不可以接续监听事件
-             * 每次处理完事件后，必须调用 reset 方法重置 watchKey 的状态为 ready，否则 watchKey 无法继续监听事件
+             * 每次处理事件后，必须调用 reset 方法重置 watchKey 的状态为 ready，否则 watchKey 无法继续监听事件
              */
             if (!watchKey.reset()) {
                 break;
@@ -66,15 +62,5 @@ public class FileWatchedService {
 
         }
     }
-
-//    public static void main(String[] args) {
-//        try {
-//            Path path = Paths.get("static");
-//            FileWatchedService fileWatchedService = new FileWatchedService(path, new FileWatchedAdapter());
-//            fileWatchedService.watch();
-//        } catch (IOException | InterruptedException e) {
-//            e.printStackTrace();
-//        }
-//    }
 }
 

@@ -1,7 +1,6 @@
 package io.tapdata.sybase.extend;
 
 import io.tapdata.common.CommonDbConfig;
-import io.tapdata.common.JdbcContext;
 import io.tapdata.connector.mysql.MysqlJdbcContextV2;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
@@ -108,6 +107,7 @@ public class SybaseContext extends MysqlJdbcContextV2 {
             temp.clear();
         }
     }
+
     /**
      * query tableNames and Comments from one database and one schema
      *
@@ -165,7 +165,7 @@ public class SybaseContext extends MysqlJdbcContextV2 {
                     columnList.addAll(getDataFromResultSet(resultSet, addInRow));
 
                 });
-            } catch (Exception e){
+            } catch (Exception e) {
                 TapLogger.warn(TAG, e.getMessage());
             }
         });

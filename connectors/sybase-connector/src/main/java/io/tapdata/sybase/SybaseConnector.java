@@ -482,10 +482,10 @@ public class SybaseConnector extends CommonDbConnector {
                     batchSize,
                     consumer
             );
-            while (isAlive()){
+            while (isAlive()) {
                 sleep(1000);
             }
-        } catch (Exception e){
+        } catch (Exception e) {
             tapConnectorContext.getLog().error("Sybase cdc is stopped now, error: {}", e.getMessage());
         }
     }

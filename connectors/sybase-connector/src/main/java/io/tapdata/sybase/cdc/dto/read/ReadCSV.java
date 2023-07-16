@@ -1,7 +1,5 @@
 package io.tapdata.sybase.cdc.dto.read;
 
-import io.tapdata.entity.event.dml.TapRecordEvent;
-
 import java.util.List;
 
 /**

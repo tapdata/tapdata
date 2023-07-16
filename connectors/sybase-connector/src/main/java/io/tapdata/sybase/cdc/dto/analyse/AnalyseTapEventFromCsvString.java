@@ -21,12 +21,11 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
     public static final DefaultConvert DEFAULT_CONVERT = new DefaultConvert();
 
     /**
-     * @param tapTable
-     *  {
-     *      "columnName": "sybaseType"
-     *      ....
-     *  }
-     * */
+     * @param tapTable {
+     *                 "columnName": "sybaseType"
+     *                 ....
+     *                 }
+     */
     @Override
     public TapRecordEvent analyse(List<String> record, LinkedHashMap<String, String> tapTable, String tableId) {
         // 6,NULL,1,

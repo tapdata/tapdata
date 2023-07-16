@@ -36,6 +36,7 @@ public class CdcPosition {
     public static class PositionOffset {
         //private String fileName;
         Map<String, CSVOffset> csvFile;
+
         public PositionOffset() {
             csvFile = new LinkedHashMap<>();
         }
@@ -51,6 +52,7 @@ public class CdcPosition {
         public CSVOffset csvOffset(String fileName) {
             return null == csvFile ? null : csvFile.get(fileName);
         }
+
         public void csvOffset(String fileName, CSVOffset offset) {
             csvFile.put(fileName, offset);
         }

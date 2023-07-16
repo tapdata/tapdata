@@ -7,10 +7,9 @@ package io.tapdata.sybase.cdc.dto.start;
  **/
 public enum CommandType {
     FULL("full"),
-    AUTO("")
-
-    ;
+    AUTO("");
     String type;
+
     CommandType(String type) {
         this.type = type;
     }

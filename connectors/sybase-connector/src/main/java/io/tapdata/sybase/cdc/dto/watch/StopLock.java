@@ -12,7 +12,7 @@ public class StopLock {
         this.isAlive = isAlive;
     }
 
-    public synchronized void stop(){
+    public synchronized void stop() {
         this.isAlive = false;
     }
 

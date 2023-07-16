@@ -1,7 +1,5 @@
 package io.tapdata.sybase.cdc.dto.analyse;
 
-import io.tapdata.entity.schema.TapTable;
-
 import java.util.LinkedHashMap;
 
 /**

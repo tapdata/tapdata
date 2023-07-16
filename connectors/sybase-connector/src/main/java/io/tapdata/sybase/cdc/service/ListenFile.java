@@ -149,7 +149,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                             }
                         }
                     }
-                } catch (Exception e){
+                } catch (Exception e) {
                     cdcConsumer.streamReadEnded();
                     context.getLog().warn("Start monitor file failed, msg: {}", e.getMessage());
                     throw new CoreException("Start monitor file failed, msg: {}", e.getMessage());
@@ -168,7 +168,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
             public void onFileChange(File file) {
                 try {
                     monitor(file);
-                } catch (Exception e){
+                } catch (Exception e) {
                     context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
                 }
             }
@@ -177,7 +177,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
             public void onFileCreate(File file) {
                 try {
                     monitor(file);
-                } catch (Exception e){
+                } catch (Exception e) {
                     context.getLog().error("Monitor file create failed, msg: {}", e.getMessage());
                 }
             }
@@ -228,7 +228,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                 events.add(recordEvent);
                                 if (events.size() == batchSize) {
                                     csvOffset.setOver(false);
-                                    csvOffset.setLine(index+1);
+                                    csvOffset.setLine(index + 1);
                                     cdcConsumer.accept(events, positionOffset);
                                     events = new ArrayList<>();
                                 }
@@ -253,7 +253,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         return this.root;
     }
 
-    private Map<String, LinkedHashMap<String, String>> getTableFromConfig(List<String> tableId){
+    private Map<String, LinkedHashMap<String, String>> getTableFromConfig(List<String> tableId) {
         Map<String, LinkedHashMap<String, String>> table = new LinkedHashMap<>();
         if (null == tableId || tableId.isEmpty()) return table;
         final ConnectionConfig config = new ConnectionConfig(root.getContext());
@@ -261,15 +261,15 @@ public class ListenFile implements CdcStep<CdcRoot> {
         final String database = config.getDatabase();
         try {
             YamlUtil schemas = new YamlUtil(schemaConfigPath);
-            List<Map<String, Object>> schemaList = (List<Map<String, Object>>)schemas.get("schemas");
+            List<Map<String, Object>> schemaList = (List<Map<String, Object>>) schemas.get("schemas");
             for (Map<String, Object> objectMap : schemaList) {
                 Object catalog = objectMap.get("catalog");
                 Object schema = objectMap.get("schema");
                 if (null != catalog && null != schema && catalog.equals(database) && schema.equals(username)) {
                     Object tables = objectMap.get("tables");
-                    if (! (tables instanceof Collection)) continue;
+                    if (!(tables instanceof Collection)) continue;
                     ((Collection<Map<String, Object>>) tables).stream()
-                            .filter(map -> tableId.contains(String.valueOf(map.get("name"))))
+                            .filter(map -> Objects.nonNull(map) && tableId.contains(String.valueOf(map.get("name"))))
                             .findFirst().ifPresent(tableInfo -> {
                         Object columns = tableInfo.get("columns");
                         if (columns instanceof Collection) {
@@ -288,7 +288,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 }
             }
         } catch (Exception e) {
-            root.getContext().getLog().warn("Can not read file {} to get schema.", schemaConfigPath);
+            root.getContext().getLog().warn("Can not read file {} to get {}'s schemas.", schemaConfigPath, tableId);
         }
         return table;
     }

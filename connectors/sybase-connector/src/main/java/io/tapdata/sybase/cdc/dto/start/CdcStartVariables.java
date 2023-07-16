@@ -13,7 +13,7 @@ public class CdcStartVariables {
     private SybaseDstLocalStorage sybaseDstLocalStorage;
     private SybaseGeneralConfig sybaseGeneralConfig;
 
-    public static CdcStartVariables create(){
+    public static CdcStartVariables create() {
         return new CdcStartVariables();
     }
 

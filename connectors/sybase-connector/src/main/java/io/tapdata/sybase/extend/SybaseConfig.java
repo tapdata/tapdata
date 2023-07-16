@@ -1,7 +1,6 @@
 package io.tapdata.sybase.extend;
 
 import io.tapdata.common.CommonDbConfig;
-import io.tapdata.connector.mysql.config.MysqlConfig;
 import io.tapdata.kit.EmptyKit;
 
 import java.util.Map;
@@ -14,6 +13,7 @@ import java.util.Properties;
  **/
 public class SybaseConfig extends CommonDbConfig {
     protected String username;
+
     public SybaseConfig() {
         setDbType("sybase");
         setEscapeChar(' ');

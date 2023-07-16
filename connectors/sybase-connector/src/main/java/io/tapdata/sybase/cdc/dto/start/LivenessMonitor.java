@@ -1,6 +1,6 @@
 package io.tapdata.sybase.cdc.dto.start;
 
-public class LivenessMonitor{
+public class LivenessMonitor {
     boolean enable;
     int inactive_timeout_ms;
     int min_free_memory_threshold_percent;

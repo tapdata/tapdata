@@ -34,10 +34,10 @@ class ConfigYaml implements CdcStep<CdcRoot> {
                          List<SybaseFilterConfig> filterConfig,
                          SybaseSrcConfig srcConfig,
                          SybaseDstLocalStorage sybaseDstLocalStorage,
-                         SybaseGeneralConfig sybaseGeneralConfig ) {
+                         SybaseGeneralConfig sybaseGeneralConfig) {
         this.filterConfig = filterConfig;
         this.srcConfig = srcConfig;
-        this.configPath = root.getSybasePocPath() ;
+        this.configPath = root.getSybasePocPath();
         this.sybaseDstLocalStorage = sybaseDstLocalStorage;
         this.sybaseGeneralConfig = sybaseGeneralConfig;
         this.root = root;
@@ -86,7 +86,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
                 String key = entry.getKey();
                 Object value = entry.getValue();
                 if (value == null) continue;
-                allow.put(key.contains("_")? key.replaceAll("_","-") : key, value);
+                allow.put(key.contains("_") ? key.replaceAll("_", "-") : key, value);
             }
         }
         yamlUtil.update(allow);
@@ -110,13 +110,13 @@ class ConfigYaml implements CdcStep<CdcRoot> {
                 String key = entry.getKey();
                 Object value = entry.getValue();
                 if (value == null) continue;
-                allow.put(key.contains("_")? key.replaceAll("_","-") : key, value);
+                allow.put(key.contains("_") ? key.replaceAll("_", "-") : key, value);
             }
         }
         yamlUtil.update(allow);
     }
 
-    private void configGeneral(){
+    private void configGeneral() {
         YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/general.yaml");
         Map<String, Object> allow = yamlUtil.get();
         Map<String, Object> map;
@@ -133,7 +133,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
                 String key = entry.getKey();
                 Object value = entry.getValue();
                 if (value == null) continue;
-                allow.put(key.contains("_")? key.replaceAll("_","-") : key, value);
+                allow.put(key.contains("_") ? key.replaceAll("_", "-") : key, value);
             }
         }
         yamlUtil.update(allow);
@@ -141,10 +141,10 @@ class ConfigYaml implements CdcStep<CdcRoot> {
 
     private void configEtcHost() {
         try {
-            if (!HostUtils.updateHostName("time.google.com", "106.55.184.199")){
+            if (!HostUtils.updateHostName("time.google.com", "106.55.184.199")) {
                 TapLogger.warn(TAG, "Unable add host config to etc/host or c:.../host  time.google.com:106.55.184.199");
             }
-        } catch (Exception e){
+        } catch (Exception e) {
             TapLogger.warn(TAG, "Unable add host config to etc/host or c:.../host, msg: {}, time.google.com:106.55.184.199", e.getMessage());
         }
     }

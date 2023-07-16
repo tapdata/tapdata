@@ -4,15 +4,10 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.sybase.SybaseConnector;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
-import io.tapdata.sybase.util.Utils;
-import io.tapdata.sybase.util.ZipUtils;
-import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.net.URL;
-import java.net.URLDecoder;
 import java.util.Enumeration;
-import java.util.UUID;
 
 /**
  * @author GavinXiao
@@ -69,7 +64,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
 //        }
         String targetPath = "sybase-poc";
         File sybasePocPath = new File(targetPath);
-        if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()){
+        if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) {
             throw new CoreException("Unable fund {}, make sure your sources exists in you linux file system.", sybasePocPath.getAbsolutePath());
         }
         this.root.setSybasePocPath(sybasePocPath.getAbsolutePath());

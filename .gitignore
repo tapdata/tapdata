@@ -130,3 +130,5 @@ iengine/test
 
 
 **/.jython_cache/
+sybase-poc/
+.tmStartMsg.json

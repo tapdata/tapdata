@@ -31,7 +31,7 @@ public class FileWatchedAdapter implements FileWatchedListener {
         System.out.println(String.format("文件【%s】被丢弃，时间：%s", fileName, now()));
     }
 
-    private String now(){
+    private String now() {
         DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss SSS");
         return dateFormat.format(Calendar.getInstance().getTime());
     }

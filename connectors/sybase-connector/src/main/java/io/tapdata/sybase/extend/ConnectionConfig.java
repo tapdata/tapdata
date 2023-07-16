@@ -29,7 +29,7 @@ public class ConnectionConfig {
         load(config);
     }
 
-    private void load(DataMap config){
+    private void load(DataMap config) {
         username = config.getString("username");
         password = config.getString("password");
         host = config.getString("host");

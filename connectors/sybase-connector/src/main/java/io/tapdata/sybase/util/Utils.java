@@ -1,7 +1,5 @@
 package io.tapdata.sybase.util;
 
-import net.sourceforge.jtds.jdbc.Support;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
@@ -51,14 +49,14 @@ public class Utils {
                 " field_decimal, field_numeric, field_float, field_double_precision, field_real, field_smallmoney, field_money," +
                 " field_date, field_time, field_bigtime, field_smalldatetime, field_datetime, field_bigdatetime, field_timestamp," +
                 " field_char, field_nchar, field_unichar, field_varchar, field_nvarchar, field_univarchar, field_text, field_unitext," +
-                " field_sysname, field_longsysname, field_binary, field_varbinary, field_image) VALUES ( %s )" ;
+                " field_sysname, field_longsysname, field_binary, field_varbinary, field_image) VALUES ( %s )";
 //        Class<?> aClass = Class.forName("net.sourceforge.jtds.jdbc.Driver");
 //        Properties config = new Properties();
 
 
         try {
             Class.forName("net.sourceforge.jtds.jdbc.Driver");
-            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "replicant", "Noicra22");
+            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "", "");
             //ResultSet rs = conn.createStatement().executeQuery("select keys1 from sysindexes where id = 576002052");
             Statement statement = conn.createStatement();
             //insert(sql, statement);
@@ -72,47 +70,48 @@ public class Utils {
     }
 
     public static void insert(String sql, Statement statement) throws Exception {
-            for (int i=0; i < 10;i++) {
-                statement.execute(String.format(sql,
-                        (100000 + i ) + ", " +
-                                "1, " +
-                                "2, " +
-                                "3, " +
-                                "4, " +
-                                "5, " +
-                                "6, " +
-                                "7, " +
-                                "8," +
-                                "9, " +
-                                "1, " +
-                                "2.345, " +
-                                "3.456, " +
-                                "4.567, " +
-                                "5.6780," +
-                                " 6.7890," +
-                                "'2018-05-23', " +
-                                "'09:53:20', " +
-                                "'09:53:45', " +
-                                "'2018-05-23 10:01:00.0', " +
-                                "'2018-05-23 10:01:01.0', " +
-                                "'2018-05-23 10:01:01.0', " +
-                                "0x0000000000002387," +
-                                "'a', " +
-                                "'b', " +
-                                "'c', " +
-                                "'d_111111', " +
-                                "'e', " +
-                                "'f', " +
-                                "'g_111111', " +
-                                "'h_111111'," +
-                                "'i_111111', " +
-                                "'j_111111', " +
-                                "0x33, " +
-                                "0x76617262696e6172795f76616c7565, " +
-                                "NULL")
-                        );
-            }
+        for (int i = 0; i < 10; i++) {
+            statement.execute(String.format(sql,
+                    (100000 + i) + ", " +
+                            "1, " +
+                            "2, " +
+                            "3, " +
+                            "4, " +
+                            "5, " +
+                            "6, " +
+                            "7, " +
+                            "8," +
+                            "9, " +
+                            "1, " +
+                            "2.345, " +
+                            "3.456, " +
+                            "4.567, " +
+                            "5.6780," +
+                            " 6.7890," +
+                            "'2018-05-23', " +
+                            "'09:53:20', " +
+                            "'09:53:45', " +
+                            "'2018-05-23 10:01:00.0', " +
+                            "'2018-05-23 10:01:01.0', " +
+                            "'2018-05-23 10:01:01.0', " +
+                            "0x0000000000002387," +
+                            "'a', " +
+                            "'b', " +
+                            "'c', " +
+                            "'d_111111', " +
+                            "'e', " +
+                            "'f', " +
+                            "'g_111111', " +
+                            "'h_111111'," +
+                            "'i_111111', " +
+                            "'j_111111', " +
+                            "0x33, " +
+                            "0x76617262696e6172795f76616c7565, " +
+                            "NULL")
+            );
+        }
     }
+
     public static void insertOne(String sql, Connection connection) throws Exception {
         PreparedStatement pstmt = connection.prepareStatement(sql);
         pstmt.setBytes(1, "Hello, I'm Gavin!".getBytes(StandardCharsets.UTF_8)); // 使用setBytes方法设置二进制数据
@@ -126,11 +125,11 @@ public class Utils {
         while (rs.next()) {
             //System.out.println(rs.getString(1) + " "+ rs.getString(2) +" " + rs.getString(3));
             StringJoiner joiner = new StringJoiner(" --- ");
-            for (int i = 1; i < columnCount + 1;i++) {
+            for (int i = 1; i < columnCount + 1; i++) {
                 try {
                     byte[] bytes = rs.getBytes(i);
                     joiner.add(rs.getString(i));
-                } catch (Exception e){
+                } catch (Exception e) {
                     joiner.add(" ");
                 }
             }

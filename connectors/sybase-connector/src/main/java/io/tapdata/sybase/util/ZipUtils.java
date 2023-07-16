@@ -51,9 +51,9 @@ public class ZipUtils {
         try {
             zos = new ZipOutputStream(out);
 
-            if(zipInsideDirectory && srcDir.isDirectory()) {
+            if (zipInsideDirectory && srcDir.isDirectory()) {
                 File[] listFiles = srcDir.listFiles();
-                for(File file : listFiles) {
+                for (File file : listFiles) {
                     compress(file, zos, file.getName(), keepdirstructure);
                 }
             } else {
@@ -121,14 +121,14 @@ public class ZipUtils {
         File outputDir = new File(outputPath);
         if (outputDir.isFile())
             throw new CoreException(CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none");
-        if (zipFile.endsWith(".tar.gz") || zipFile.endsWith(".gz")){
+        if (zipFile.endsWith(".tar.gz") || zipFile.endsWith(".gz")) {
             unTarZip(zipFile, outputPath);
         } else {
             unzip(zipFile, outputDir);
         }
     }
 
-    public static void unTarZip(String tarFilePath, String targetDirectoryPath){
+    public static void unTarZip(String tarFilePath, String targetDirectoryPath) {
         try (InputStream inputStream = new FileInputStream(tarFilePath)) {
             TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(inputStream);
             TarArchiveEntry entry;
@@ -150,7 +150,7 @@ public class ZipUtils {
                 }
             }
             tarArchiveInputStream.close();
-        } catch (Exception e){
+        } catch (Exception e) {
             throw new CoreException(CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none, " + e.getMessage());
         }
     }
@@ -176,7 +176,7 @@ public class ZipUtils {
                         FileUtils.forceMkdir(new File(entryPath));
                     } else {
                         String entryPath = FilenameUtils.concat(outputDir.getAbsolutePath(), entry.getName());
-                        try(OutputStream fos = FileUtils.openOutputStream(new File(entryPath))) {
+                        try (OutputStream fos = FileUtils.openOutputStream(new File(entryPath))) {
                             IOUtils.copyLarge(zf.getInputStream(entry), fos);
                         }
                     }
