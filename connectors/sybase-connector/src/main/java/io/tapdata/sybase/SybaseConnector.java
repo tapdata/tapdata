@@ -31,6 +31,7 @@ import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.schema.value.TapYearValue;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -80,6 +81,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -124,6 +126,11 @@ public class SybaseConnector extends CommonDbConnector {
             ddlSqlGenerator = new MysqlDDLSqlGenerator(version, ((TapConnectorContext) tapConnectionContext).getTableMap());
             root = new CdcRoot();
             lock = new StopLock(true);
+            KVMap<Object> stateMap = ((TapConnectorContext) tapConnectionContext).getStateMap();
+            Object taskId = stateMap.get("taskId");
+            if (null == taskId) {
+                stateMap.put("taskId", UUID.randomUUID().toString().replaceAll("-", "_"));
+            }
         }
 //		fieldDDLHandlers = new BiClassHandlers<>();
 //		fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
@@ -301,6 +308,12 @@ public class SybaseConnector extends CommonDbConnector {
     }
 
     private void release(TapConnectorContext context) {
+        if (null == cdcHandle) cdcHandle = new CdcHandle(new CdcRoot(), context, new StopLock(isAlive()));
+        CdcRoot root = cdcHandle.getRoot();
+        if (null == root) cdcHandle.setRoot(new CdcRoot());
+        root = cdcHandle.getRoot();
+        TapConnectorContext rootContext = root.getContext();
+        if (null == rootContext) root.setContext(context);
         Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::releaseCdc);
     }
 

@@ -1,6 +1,9 @@
 package io.tapdata.sybase.cdc.dto.start;
 
-public class LivenessMonitor {
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+
+public class LivenessMonitor implements ConfigEntity {
     boolean enable;
     int inactive_timeout_ms;
     int min_free_memory_threshold_percent;
@@ -36,5 +39,15 @@ public class LivenessMonitor {
 
     public void setLiveness_check_interval_ms(int liveness_check_interval_ms) {
         this.liveness_check_interval_ms = liveness_check_interval_ms;
+    }
+
+    @Override
+    public Object toYaml() {
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("enable", enable);
+        map.put("inactive-timeout-ms", inactive_timeout_ms);
+        map.put("min-free-memory-threshold-percent", min_free_memory_threshold_percent);
+        map.put("liveness-check-interval-ms", liveness_check_interval_ms);
+        return map;
     }
 }

@@ -1,8 +1,11 @@
 package io.tapdata.sybase.cdc.service;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
 import io.tapdata.sybase.cdc.dto.start.CdcStartVariables;
@@ -16,8 +19,10 @@ import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.util.Code;
-import org.apache.commons.io.FilenameUtils;
+import io.tapdata.sybase.util.Utils;
+import org.apache.commons.io.FileUtils;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,12 +40,17 @@ public class CdcHandle {
     CdcRoot root;
     StopLock lock;
     TapConnectionContext context;
-    final FileMonitor fileMonitor = new FileMonitor(1000);
+    FileMonitor fileMonitor;
 
     public CdcHandle(CdcRoot root, TapConnectionContext context, StopLock lock) {
         this.root = root;
         this.lock = lock;
         this.context = context;
+    }
+
+    public CdcHandle streamReadConsumer(StreamReadConsumer cdcConsumer, Log log, String monitorPath) {
+        this.fileMonitor = new FileMonitor(cdcConsumer, 1000, log, monitorPath);
+        return this;
     }
 
     //Step #1
@@ -55,7 +65,7 @@ public class CdcHandle {
                 root.getVariables().getSybaseDstLocalStorage(),
                 root.getVariables().getSybaseGeneralConfig()
         ).compile();
-        new ExecCommand(compileYaml, CommandType.FULL).compile();
+        new ExecCommand(compileYaml, CommandType.CDC).compile();
     }
 
     private void compileYamlConfig() {
@@ -92,12 +102,12 @@ public class CdcHandle {
         srcConfig.setMax_connections(2);
         srcConfig.setMax_retries(10);
         srcConfig.setRetry_wait_duration_ms(1000);
-        srcConfig.setTransaction_store_location(FilenameUtils.concat(sybasePocPath, "/config/sybase2csv/data"));
+        srcConfig.setTransaction_store_location("" + sybasePocPath + "/config/sybase2csv/data");
         srcConfig.setTransaction_store_cache_limit(100000);
 
 
         SybaseDstLocalStorage dstLocalStorage = new SybaseDstLocalStorage();
-        dstLocalStorage.setStorage_location(FilenameUtils.concat(sybasePocPath, "/config/sybase2csv/csv"));
+        dstLocalStorage.setStorage_location("" + sybasePocPath + "/config/sybase2csv/csv");
         dstLocalStorage.setFile_format("CSV");
         dstLocalStorage.setType("LOCALSTORAGE");
 
@@ -108,10 +118,11 @@ public class CdcHandle {
         monitor.setMin_free_memory_threshold_percent(5);
         monitor.setLiveness_check_interval_ms(60_000);
         generalConfig.setLiveness_monitor(monitor);
-        generalConfig.setTrace_dir(FilenameUtils.concat(sybasePocPath, "/config/sybase2csv/trace"));
-        generalConfig.setData_dir(FilenameUtils.concat(sybasePocPath, "/config/sybase2csv/data"));
-        generalConfig.setError_connection_tracing(FilenameUtils.concat(sybasePocPath, "/config/sybase2csv/trace"));
-        generalConfig.setLicense_path(FilenameUtils.concat(sybasePocPath, "/replicant-cli/"));
+        generalConfig.setTrace_dir( "" + sybasePocPath + "/config/sybase2csv/trace");
+        generalConfig.setData_dir("" + sybasePocPath + "/config/sybase2csv/data");
+        //generalConfig.setError_connection_tracing("" + sybasePocPath + "/config/sybase2csv/trace");
+        generalConfig.setLicense_path("" + sybasePocPath + "/replicant-cli/");
+        generalConfig.setError_trace_dir("" + sybasePocPath + "/config/sybase2csv/trace");
 
         this.root.setVariables(
                 startVariables
@@ -131,14 +142,14 @@ public class CdcHandle {
             int batchSize,
             StreamReadConsumer consumer) {
         if (null == position) position = new CdcPosition();
+        streamReadConsumer(consumer, context.getLog(), monitorPath);
         new ListenFile(this.root,
                 monitorPath,
                 tables,
                 monitorFileName,
                 new AnalyseCsvFile(this.root, position, null),
                 lock,
-                batchSize,
-                consumer
+                batchSize
         ).monitor(fileMonitor).compile();
         return position;
     }
@@ -147,6 +158,28 @@ public class CdcHandle {
     public void releaseCdc() {
         Optional.ofNullable(root.getProcess()).ifPresent(Process::destroy);
         Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
+        KVMap<Object> stateMap = ((TapConnectorContext) context).getStateMap();
+        Object cdcPath = stateMap.get("cdcPath");
+        try {
+            if (context instanceof TapConnectorContext) {
+                if (null == cdcPath || "/*".equals(cdcPath) || "".equals(cdcPath.toString().trim())) {
+                    return;
+                }
+                File file = new File(String.valueOf(cdcPath));
+                if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
+                    final String shell = "rm -rf " + cdcPath ;
+                    root.getContext().getLog().info("clean cdc path: {}", shell);
+                    root.getContext().getLog().info(Utils.run(shell));
+                    if (file.exists()) {
+                        FileUtils.delete(file);
+                    }
+                } else {
+                    FileUtils.delete(file);
+                }
+            }
+        } catch (Exception e){
+            context.getLog().warn("Can not release cdc path, please go to path: {}, and clean the file", cdcPath);
+        }
         //Optional.ofNullable()
     }
 

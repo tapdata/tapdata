@@ -19,6 +19,7 @@ public class CdcRoot {
     private String sybasePocPath;
     private CdcStartVariables variables;
     private List<String> cdcTables;
+    private String cliPath;
 
 
     public File getCdcFile() {
@@ -81,5 +82,14 @@ public class CdcRoot {
 
     public void setCdcId(String cdcId) {
         this.cdcId = cdcId;
+    }
+
+    public String getCliPath() {
+        return cliPath;
+    }
+
+    public void setCliPath(String cliPath) {
+        if (null == cliPath) return;
+        this.cliPath = cliPath.endsWith("/") ? cliPath.substring(0, cliPath.length() - 1) : cliPath;
     }
 }

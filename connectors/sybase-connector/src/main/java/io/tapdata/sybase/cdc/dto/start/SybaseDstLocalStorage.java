@@ -1,11 +1,14 @@
 package io.tapdata.sybase.cdc.dto.start;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+
 /**
  * @author GavinXiao
  * @description SybaseDstLocalStorage create by Gavin
  * @create 2023/7/13 17:00
  **/
-public class SybaseDstLocalStorage {
+public class SybaseDstLocalStorage implements ConfigEntity {
     String type;
     String storage_location;
     String file_format;
@@ -32,5 +35,14 @@ public class SybaseDstLocalStorage {
 
     public void setFile_format(String file_format) {
         this.file_format = file_format;
+    }
+
+    @Override
+    public Object toYaml() {
+        HashMap<String, String> map = new HashMap<>();
+        map.put("type" , type);
+        map.put("storage-location", storage_location);
+        map.put("file-format", file_format);
+        return map;
     }
 }

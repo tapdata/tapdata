@@ -1,5 +1,6 @@
 package io.tapdata.sybase.util;
 
+import io.tapdata.entity.error.CoreException;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
@@ -21,11 +22,28 @@ public class YamlUtil {
     private final File yamlFile;
     private final Yaml yaml;
 
+    private DumperOptions.ScalarStyle scalarStyle;
+
+    public YamlUtil(String yamlPath, DumperOptions.ScalarStyle scalarStyle) {
+        yamlFile = new File(yamlPath);
+        properties = new HashMap<>();
+        DumperOptions dumperOptions = new DumperOptions();
+        dumperOptions.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        dumperOptions.setExplicitStart(false);
+//        if (null != scalarStyle) {
+//            dumperOptions.setDefaultScalarStyle(scalarStyle);
+//        }
+        dumperOptions.setSplitLines(true);
+        yaml = new Yaml(dumperOptions);
+        load();
+    }
+
     public YamlUtil(String yamlPath) {
         yamlFile = new File(yamlPath);
         properties = new HashMap<>();
         DumperOptions dumperOptions = new DumperOptions();
-        dumperOptions.setDefaultFlowStyle(DumperOptions.FlowStyle.AUTO);
+        dumperOptions.setExplicitStart(false);
+        dumperOptions.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
         dumperOptions.setSplitLines(true);
         yaml = new Yaml(dumperOptions);
         load();
@@ -73,7 +91,7 @@ public class YamlUtil {
             //yaml.dump(value, new FileWriter(yamlFile));
             return true;
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new CoreException("Can not write and update config in to {}, msg: {}", yamlFile.getAbsolutePath(), e.getMessage());
         } finally {
             try {
                 if (null != buffer) {
@@ -84,7 +102,6 @@ public class YamlUtil {
             }
             load();
         }
-        return false;
     }
 
     public boolean update() {
@@ -96,7 +113,7 @@ public class YamlUtil {
             //yaml.dump(properties, new FileWriter(yamlFile));
             return true;
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new CoreException("Can not write and update config in to {}, msg: {}", yamlFile.getAbsolutePath(), e.getMessage());
         } finally {
             try {
                 if (null != buffer) {
@@ -107,7 +124,6 @@ public class YamlUtil {
             }
             load();
         }
-        return false;
     }
 
     public static void main(String[] args) throws IOException {

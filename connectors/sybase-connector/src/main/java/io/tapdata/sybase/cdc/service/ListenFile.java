@@ -49,8 +49,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                          String monitorFileName,
                          AnalyseCsvFile analyseCsvFile,
                          StopLock lock,
-                         int batchSize,
-                         StreamReadConsumer consumer) {
+                         int batchSize ) {
         this.root = root;
         if (null == monitorPath || "".equals(monitorPath.trim())) {
             throw new CoreException("Monitor path name can not be empty.");
@@ -64,7 +63,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
         this.monitorFileName = monitorFileName;
         this.tables = tables;
         analyseRecord = new AnalyseTapEventFromCsvString();
-        this.cdcConsumer = consumer;
         this.batchSize = batchSize;
         this.schemaConfigPath = root.getSybasePocPath() + "/config/sybase2csv/csv/schemas.yaml";
     }
@@ -73,6 +71,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
 
     public ListenFile monitor(FileMonitor monitor) {
         this.fileMonitor = monitor;
+        this.cdcConsumer = monitor.getCdcConsumer();
         return this;
     }
     //super.onFileChange(file);
@@ -135,7 +134,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
             public void onStart(FileAlterationObserver observer) {
                 if (null == cdcConsumer) return;
                 try {
-                    cdcConsumer.streamReadStarted();
                     super.onStart(observer);
                     //遍历monitorPath 所有子目录下的
                     for (String table : tables) {
@@ -159,9 +157,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
             @Override
             public void onStop(FileAlterationObserver observer) {
                 super.onStop(observer);
-                if (null != cdcConsumer) {
-                    cdcConsumer.streamReadEnded();
-                }
             }
 
             @Override

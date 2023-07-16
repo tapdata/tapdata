@@ -1,5 +1,7 @@
 package io.tapdata.sybase.cdc.dto.start;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -8,7 +10,7 @@ import java.util.Map;
  * @description SybaseFilterConfig create by Gavin
  * @create 2023/7/13 10:59
  **/
-public class SybaseFilterConfig {
+public class SybaseFilterConfig implements ConfigEntity {
     String catalog;
     String schema;
     List<String> types;
@@ -44,5 +46,15 @@ public class SybaseFilterConfig {
 
     public void setAllow(Map<String, Object> allow) {
         this.allow = allow;
+    }
+
+    @Override
+    public Object toYaml() {
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("catalog" , catalog);
+        map.put("schema", schema);
+        map.put("types", types);
+        map.put("allow", allow);
+        return map;
     }
 }

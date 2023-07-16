@@ -10,7 +10,7 @@ public abstract class FileListener extends FileAlterationListenerAdaptor {
     @Override
     public void onStart(FileAlterationObserver observer) {
         super.onStart(observer);
-        System.out.println("onStart");
+        //System.out.println("onStart");
     }
 
     @Override
@@ -52,6 +52,6 @@ public abstract class FileListener extends FileAlterationListenerAdaptor {
     @Override
     public void onStop(FileAlterationObserver observer) {
         super.onStop(observer);
-        System.out.println("onStop");
+        //System.out.println("onStop");
     }
 }

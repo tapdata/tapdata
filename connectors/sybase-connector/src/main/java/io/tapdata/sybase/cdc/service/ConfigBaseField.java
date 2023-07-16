@@ -1,13 +1,21 @@
 package io.tapdata.sybase.cdc.service;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.sybase.SybaseConnector;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
+import io.tapdata.sybase.util.Utils;
+import io.tapdata.sybase.util.ZipUtils;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 
 import java.io.File;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.util.Enumeration;
+import java.util.UUID;
 
 /**
  * @author GavinXiao
@@ -31,43 +39,65 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
 
     @Override
     public CdcRoot compile() {
-//        String cdcId = null;
-//        if (null != root.getContext() && null != root.getContext().getId()) {
-//            cdcId = root.getContext().getId();
-//        }
-//        if (null == cdcId) {
-//            cdcId = UUID.randomUUID().toString().replaceAll("-", "_");
-//        }
-//        root.setCdcId(cdcId);
-//        String targetPath = "sybase-poc-temp/";// + cdcId + "/";
-//        File sybasePocPath = new File(targetPath);
-//        if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) sybasePocPath.mkdir();
-//        String pocPathFromLocal = getPocPathFromLocal();
-//        File fromLocal = new File(pocPathFromLocal);
-//        if (fromLocal.exists() && fromLocal.isDirectory()){
-//            try {
-//                if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
-//                    Utils.run("cp -r " + (pocPathFromLocal.endsWith("/") ? (pocPathFromLocal + "*") : (pocPathFromLocal + "/*")) + " " + targetPath);
-//                } else {
-//                    FileUtils.copyToDirectory(fromLocal, sybasePocPath);
-//                }
-//            } catch (Exception e){
-//                throw new CoreException("Unable init cdc tool from path {}, make sure your sources exists in you linux file system or retry task.", pocPathFromLocal);
-//            }
-//        } else {
-//            ZipUtils.unzip(pocPathFromLocal, sybasePocPath);
-//        }
-//        String absolutePath = sybasePocPath.getAbsolutePath();
-//        try {
-//            absolutePath = URLDecoder.decode(absolutePath, "utf-8");
-//        } catch (Exception ignore) {
-//        }
-        String targetPath = "sybase-poc";
-        File sybasePocPath = new File(targetPath);
-        if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) {
-            throw new CoreException("Unable fund {}, make sure your sources exists in you linux file system.", sybasePocPath.getAbsolutePath());
+        KVMap<Object> stateMap =  root.getContext().getStateMap();
+        String cdcId = String.valueOf(stateMap.get("taskId"));
+        if (null == cdcId) {
+            stateMap.put("taskId", cdcId = UUID.randomUUID().toString().replaceAll("-", "_"));
         }
-        this.root.setSybasePocPath(sybasePocPath.getAbsolutePath());
+        root.setCdcId(cdcId);
+        String targetPath = "sybase-poc-temp/" + cdcId + "/";
+        File sybasePocPath = new File(targetPath);
+        if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) sybasePocPath.mkdir();
+        String pocPathFromLocal = getPocPathFromLocal();
+        File fromLocal = new File(pocPathFromLocal);
+        File targetFile = new File(FilenameUtils.concat(sybasePocPath.getAbsolutePath(), "sybase-poc"));
+        targetPath = targetFile.getAbsolutePath();
+        if (!targetFile.exists() || !targetFile.isDirectory()) targetFile.mkdir();
+        final String configPath = FilenameUtils.concat(targetPath, "config");
+        if (fromLocal.exists() && fromLocal.isDirectory()){
+            try {
+                if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
+                    final String shell = "cp -r "
+                            + (pocPathFromLocal.endsWith("/") ? (pocPathFromLocal + "*") : (pocPathFromLocal + "/*"))
+                            + " "
+                            + (targetPath.endsWith("/") ? targetPath.substring(0, targetPath.length() - 1) : targetPath);
+                    root.getContext().getLog().info("MOVE FIEL: {}", shell);
+                    root.getContext().getLog().info(Utils.run(shell));
+                    if (!new File(configPath).exists()) {
+                        FileUtils.copyToDirectory(fromLocal, targetFile);
+                    }
+                } else {
+                    FileUtils.copyToDirectory(fromLocal, targetFile);
+                }
+            } catch (Exception e){
+                throw new CoreException("Unable init cdc tool from path {}, make sure your sources exists in you linux file system or retry task.", pocPathFromLocal);
+            }
+        } else {
+            ZipUtils.unzip(pocPathFromLocal, targetPath);
+        }
+
+        try {
+            targetPath = URLDecoder.decode(targetPath, "utf-8");
+        } catch (Exception ignore) {
+        }
+//        String targetPath = "sybase-poc";
+//        File sybasePocPath = new File(targetPath);
+//        if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) {
+//            throw new CoreException("Unable fund {}, make sure your sources exists in you linux file system.", sybasePocPath.getAbsolutePath());
+//        }
+        if (!new File(configPath).exists()) {
+            throw new CoreException("Unable copy cdc tool from path {} to path {}, make sure your sources exists in you linux file system or retry task.", pocPathFromLocal, targetPath);
+        }
+
+        this.root.setSybasePocPath(targetPath);
+        stateMap.put("cdcPath", targetPath);
+
+        final String cliPath = "sybase-poc/replicant-cli";
+        File cliFile = new File(cliPath);
+        if (!cliFile.exists()) {
+            throw new CoreException("Unable fund replicant-cli in path sybase-poc/, make sure your sources exists in you linux file system or retry task.");
+        }
+        this.root.setCliPath(cliFile.getAbsolutePath());
         return this.root;
     }
 
@@ -101,7 +131,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
         File file = new File(pocPath);
         if (!file.exists() || !file.isFile()) {
             if (isLinuxCore) {
-                file = new File("sybase-poc");
+                file = new File("sybase-poc/config");
                 if (file.exists() && file.isDirectory()) {
                     return file.getAbsolutePath();
                 }

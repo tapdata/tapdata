@@ -1,11 +1,13 @@
 package io.tapdata.sybase.cdc.dto.start;
 
+import java.util.HashMap;
+
 /**
  * @author GavinXiao
  * @description TaskCDCConfig create by Gavin
  * @create 2023/7/12 18:52
  **/
-public class SybaseSrcConfig {
+public class SybaseSrcConfig implements ConfigEntity {
     private String type;
     private String host;
     private int port;
@@ -18,6 +20,23 @@ public class SybaseSrcConfig {
     private int retry_wait_duration_ms;
     private String transaction_store_location;
     private int transaction_store_cache_limit;
+
+    @Override
+    public Object toYaml() {
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("type" , type);
+        map.put("host", host);
+        map.put("port", port);
+        map.put("database", database);
+        map.put("username", username);
+        map.put("password", password);
+        map.put("max-connections", max_connections);
+        map.put("max-retries", max_retries);
+        map.put("retry-wait-duration-ms", retry_wait_duration_ms);
+        map.put("transaction-store-location", transaction_store_location);
+        map.put("transaction-store-cache-limit", transaction_store_cache_limit);
+        return map;
+    }
 
     public String getType() {
         return type;

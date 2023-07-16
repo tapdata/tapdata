@@ -1,16 +1,30 @@
 package io.tapdata.sybase.cdc.dto.start;
 
+import java.util.HashMap;
+
 /**
  * @author GavinXiao
  * @description SybaseGeneralConfig create by Gavin
  * @create 2023/7/13 17:16
  **/
-public class SybaseGeneralConfig {
+public class SybaseGeneralConfig implements ConfigEntity {
     LivenessMonitor liveness_monitor;
     String license_path;
     String data_dir;
     String trace_dir;
     String error_connection_tracing;
+    String error_trace_dir;
+    @Override
+    public Object toYaml() {
+        HashMap<String, Object> map = new HashMap<>();
+        map.put("liveness-monitor" , liveness_monitor.toYaml());
+        map.put("license-path", license_path);
+        map.put("data-dir", data_dir);
+        map.put("trace-dir", trace_dir);
+        map.put("error-connection-tracing", error_connection_tracing);
+        map.put("error-trace-dir", error_trace_dir);
+        return map;
+    }
 
     public LivenessMonitor getLiveness_monitor() {
         return liveness_monitor;
@@ -51,4 +65,17 @@ public class SybaseGeneralConfig {
     public void setError_connection_tracing(String error_connection_tracing) {
         this.error_connection_tracing = error_connection_tracing;
     }
+
+    public String getError_connection_tracing() {
+        return error_connection_tracing;
+    }
+
+    public String getError_trace_dir() {
+        return error_trace_dir;
+    }
+
+    public void setError_trace_dir(String error_trace_dir) {
+        this.error_trace_dir = error_trace_dir;
+    }
+
 }

@@ -10,11 +10,14 @@ import io.tapdata.sybase.cdc.dto.start.SybaseSrcConfig;
 import io.tapdata.sybase.util.HostUtils;
 import io.tapdata.sybase.util.Utils;
 import io.tapdata.sybase.util.YamlUtil;
+import org.yaml.snakeyaml.DumperOptions;
 
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import static io.tapdata.base.ConnectorBase.entry;
+import static io.tapdata.base.ConnectorBase.map;
 
 /**
  * @author GavinXiao
@@ -49,7 +52,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
         configSybaseSrc();
         configDstLocalstorage();
         configGeneral();
-        configEtcHost();
+        //configEtcHost();
         return root;
     }
 
@@ -58,83 +61,80 @@ class ConfigYaml implements CdcStep<CdcRoot> {
         YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/filter_sybasease.yaml");
         Object allow = yamlUtil.get("allow");
         if (filterConfig != null && !filterConfig.isEmpty()) {
-            if (allow instanceof Collection) {
-                Collection<Object> collection = (Collection<Object>) allow;
-                collection.addAll(filterConfig);
-                yamlUtil.update();
-            } else {
-                yamlUtil.update(filterConfig);
+//            if (allow instanceof Collection) {
+//                Collection<Object> collection = (Collection<Object>) allow;
+//                collection.clear();
+//                collection.addAll(filterConfig);
+//                yamlUtil.update();
+//            } else {
+            Map<String, Object> map = map();
+            for (SybaseFilterConfig config : filterConfig) {
+                map.putAll((Map<String, Object>) config.toYaml());
             }
+            yamlUtil.update(map);
+//            }
         }
     }
 
     private void configSybaseSrc() {
         this.root.checkStep();
-        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/src_sybasease.yaml");
+        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/src_sybasease.yaml", DumperOptions.ScalarStyle.DOUBLE_QUOTED);
         Map<String, Object> allow = yamlUtil.get();
         Map<String, Object> map;
         try {
-            map = Utils.obj2Map(srcConfig);
-        } catch (IllegalAccessException e) {
+            map = (Map<String, Object>) srcConfig.toYaml();
+        } catch (Exception e) {
             throw new RuntimeException("Can not get config from sybase src config set into src_sybasease.yaml");
         }
         if (!map.isEmpty()) {
             if (allow == null) {
                 allow = new LinkedHashMap<>();
+            } else {
+                allow.clear();
             }
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                String key = entry.getKey();
-                Object value = entry.getValue();
-                if (value == null) continue;
-                allow.put(key.contains("_") ? key.replaceAll("_", "-") : key, value);
-            }
+            allow.putAll(map);
         }
+
         yamlUtil.update(allow);
     }
 
     private void configDstLocalstorage() {
         this.root.checkStep();
-        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/dst_localstorage.yaml");
+        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/dst_localstorage.yaml", DumperOptions.ScalarStyle.DOUBLE_QUOTED);
         Map<String, Object> allow = yamlUtil.get();
         Map<String, Object> map;
         try {
-            map = Utils.obj2Map(sybaseDstLocalStorage);
-        } catch (IllegalAccessException e) {
+            map = (Map<String, Object>) sybaseDstLocalStorage.toYaml();
+        } catch (Exception e) {
             throw new RuntimeException("Can not get config from sybase src config set into dst_localstorage.yaml");
         }
         if (!map.isEmpty()) {
             if (allow == null) {
                 allow = new LinkedHashMap<>();
+            } else {
+                allow.clear();
             }
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                String key = entry.getKey();
-                Object value = entry.getValue();
-                if (value == null) continue;
-                allow.put(key.contains("_") ? key.replaceAll("_", "-") : key, value);
-            }
+            allow.putAll(map);
         }
         yamlUtil.update(allow);
     }
 
     private void configGeneral() {
-        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/general.yaml");
+        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/general.yaml", DumperOptions.ScalarStyle.SINGLE_QUOTED);
         Map<String, Object> allow = yamlUtil.get();
         Map<String, Object> map;
         try {
-            map = Utils.obj2Map(sybaseGeneralConfig);
-        } catch (IllegalAccessException e) {
+            map = (Map<String, Object>) sybaseGeneralConfig.toYaml();
+        } catch (Exception e) {
             throw new RuntimeException("Can not get config from general config set into general.yaml");
         }
         if (!map.isEmpty()) {
             if (allow == null) {
                 allow = new LinkedHashMap<>();
+            } else {
+                allow.clear();
             }
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                String key = entry.getKey();
-                Object value = entry.getValue();
-                if (value == null) continue;
-                allow.put(key.contains("_") ? key.replaceAll("_", "-") : key, value);
-            }
+            allow.putAll(map);
         }
         yamlUtil.update(allow);
     }
