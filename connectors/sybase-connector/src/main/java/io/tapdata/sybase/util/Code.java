@@ -7,4 +7,9 @@ package io.tapdata.sybase.util;
  **/
 public class Code {
     public static final int STREAM_READ_WARN = -100001;
+
+    public static void main(String[] args) {
+
+        System.out.println(Utils.class.getName());
+    }
 }

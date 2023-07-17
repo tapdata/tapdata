@@ -101,6 +101,11 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
         return this.root;
     }
 
+    @Override
+    public boolean checkStep() {
+        return null == this.root && null != this.root.getCdcId() && null != this.root.getSybasePocPath() && null != this.root.getCliPath();
+    }
+
     private String getPocPathFromResources() {
         URL resource = null;
         try {

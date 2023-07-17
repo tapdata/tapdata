@@ -4,7 +4,10 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.sybase.cdc.dto.start.CdcStartVariables;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 /**
  * @author GavinXiao
@@ -20,7 +23,11 @@ public class CdcRoot {
     private CdcStartVariables variables;
     private List<String> cdcTables;
     private String cliPath;
+    private Predicate<Void> isAlive;
 
+    public CdcRoot(Predicate<Void> isAlive) {
+        this.isAlive = isAlive;
+    }
 
     public File getCdcFile() {
         return cdcFile;
@@ -76,6 +83,18 @@ public class CdcRoot {
         this.cdcTables = cdcTables;
     }
 
+    public void addCdcTable(String tableId) {
+        if (null == tableId || "".equals(tableId.trim())) return;
+        if (null == cdcTables) {
+            cdcTables = new ArrayList<>();
+            cdcTables.add(tableId);
+        } else {
+            if (!cdcTables.contains(tableId)) {
+                cdcTables.add(tableId);
+            }
+        }
+    }
+
     public String getCdcId() {
         return cdcId;
     }
@@ -91,5 +110,13 @@ public class CdcRoot {
     public void setCliPath(String cliPath) {
         if (null == cliPath) return;
         this.cliPath = cliPath.endsWith("/") ? cliPath.substring(0, cliPath.length() - 1) : cliPath;
+    }
+
+    public Predicate<Void> getIsAlive() {
+        return isAlive;
+    }
+
+    public void setIsAlive(Predicate<Void> isAlive) {
+        this.isAlive = isAlive;
     }
 }

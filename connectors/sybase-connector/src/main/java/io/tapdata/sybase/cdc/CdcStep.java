@@ -7,4 +7,7 @@ package io.tapdata.sybase.cdc;
  **/
 public interface CdcStep <T> {
     public T compile();
+    public default boolean checkStep() {
+        return true;
+    }
 }

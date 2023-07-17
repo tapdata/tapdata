@@ -1,6 +1,7 @@
 package io.tapdata.sybase.cdc.dto.analyse;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLogger;
 
 import java.math.BigDecimal;
 
@@ -10,6 +11,7 @@ import java.math.BigDecimal;
  * @create 2023/7/15 18:36
  **/
 public class DefaultConvert implements SybaseDataTypeConvert {
+    public static final String TAG = SybaseDataTypeConvert.class.getSimpleName();
     public static final int CONVERT_ERROR_CODE = 362430;
     @Override
     public Object convert(Object fromValue,final String sybaseType) {
@@ -45,7 +47,8 @@ public class DefaultConvert implements SybaseDataTypeConvert {
                     bigDecimal = objToNumber(fromValue);
                     return null == bigDecimal ? null : bigDecimal.floatValue();
                 case "IMAGE":
-                    return objToBinary(fromValue);
+                    TapLogger.warn(TAG, "An BINARY data type not support in cdc now");
+                    return null;//objToBinary(fromValue);
                 default:
                     if (type.contains("DATETIME")
                             //|| "SMALLDATETIME".equals(type)
@@ -70,12 +73,17 @@ public class DefaultConvert implements SybaseDataTypeConvert {
                             //|| type.startsWith("UNITEXT")
                             || type.startsWith("SYSNAME")
                             || type.startsWith("LONGSYSNAME")) {
-                        return objToString(fromValue);
-                    } else if (type.contains("BINARY")
-                            //|| type.startsWith("VARBINARY")
-                    ) {
+                        return type.contains("TEXT")? null : objToString(fromValue);
+                    } else if (type.startsWith("VARBINARY")) {
                         return objToBinary(fromValue);
-                    } else {
+                    } else if (type.contains("BINARY") ) {
+                        TapLogger.warn(TAG, "An BINARY data type not support in cdc now");
+                        return null;//objToBinary(fromValue);
+                    } else if (type.contains("IMAGE")) {
+                        TapLogger.warn(TAG, "An IMAGE data type not support in cdc now");
+                        return null;
+                    }
+                    else {
                         throw new CoreException(CONVERT_ERROR_CODE,"Found a type that cannot be processed when cdc: {}", type);
                     }
             }

@@ -57,7 +57,7 @@ public class SybaseContext extends MysqlJdbcContextV2 {
             "from sysindexes ind,sysobjects obj\n" +
             "where keycnt>0 and ind.id=obj.id and obj.type='U' %s";
 
-    private final static String SHOW_TABLE_CONFIG = "sp_helpindex %s";
+    private final static String SHOW_TABLE_CONFIG = "sp_helpindex '%s'";
 
     public SybaseContext(CommonDbConfig config) {
         super(config);
@@ -187,7 +187,8 @@ public class SybaseContext extends MysqlJdbcContextV2 {
     }
 
     protected String queryAllIndexesSql(String tableName) {
-        return String.format(SHOW_TABLE_CONFIG, tableName);
+        CommonDbConfig config = getConfig();
+        return String.format(SHOW_TABLE_CONFIG, config.getUser() + "." + tableName);
     }
 
     protected String queryAllIndexesSql(String schema, List<String> tableNames) {

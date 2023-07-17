@@ -58,7 +58,7 @@ public class SybaseConnectionTest extends CommonDbTest {
     }
 
     public Supplier<Boolean> ignoreTest(String testName) {
-        consumer.accept(testItem(testName, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, testName + " will be ignore now"));
+        //consumer.accept(testItem(testName, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, testName + " will be ignore now"));
         return () -> true;
     }
 

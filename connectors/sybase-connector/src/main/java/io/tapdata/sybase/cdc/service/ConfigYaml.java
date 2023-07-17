@@ -57,7 +57,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
         return root;
     }
 
-    private void configSybaseFilter() {
+    public CdcRoot configSybaseFilter() {
         this.root.checkStep();
         YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/filter_sybasease.yaml");
         Object allow = yamlUtil.get("allow");
@@ -75,6 +75,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
             yamlUtil.update(map(entry("allow", list(map))));
 //            }
         }
+        return this.root;
     }
 
     private void configSybaseSrc() {

@@ -27,7 +27,7 @@ public interface SybaseDataTypeConvert {
 
     public default String objToString(Object obj) {
         if (null == obj) return null;
-        if (obj instanceof String) return (String) obj;
+        if (obj instanceof String) return new String(((String) obj).getBytes(), StandardCharsets.UTF_8);
         if (obj instanceof Number || obj instanceof Boolean) {
             return "" + obj;
         } else {

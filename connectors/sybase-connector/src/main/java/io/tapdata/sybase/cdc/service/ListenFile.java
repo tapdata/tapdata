@@ -15,6 +15,7 @@ import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.util.YamlUtil;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.monitor.FileAlterationObserver;
 
 import java.io.File;
@@ -42,6 +43,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
     StreamReadConsumer cdcConsumer;
     int batchSize;
     final String schemaConfigPath;
+    String currentFileName;
 
     protected ListenFile(CdcRoot root,
                          String monitorPath,
@@ -177,7 +179,8 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 }
             }
 
-            private void monitor(File file) {
+            private boolean monitor(File file) {
+                boolean isThisFile = false;
                 String absolutePath = file.getAbsolutePath();
                 int indexOf = absolutePath.lastIndexOf('.');
                 String fileType = absolutePath.substring(indexOf + 1);
@@ -187,9 +190,28 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     if (split.length < 3) {
                         throw new CoreException("Can not get table name from cav name, csv name is: {}", csvFileName);
                     }
+
+                    //切换csv文件时删除之前的csv文件
+                    if (null == currentFileName) {
+                        currentFileName = absolutePath;
+                    } else {
+                        if (!absolutePath.equals(currentFileName)) {
+                            File historyFile = new File(currentFileName);
+                            if (historyFile.exists() && historyFile.isFile()) {
+                                try {
+                                    FileUtils.delete(historyFile);
+                                } catch (Exception e) {
+                                    root.getContext().getLog().info("Can not to delete cdc cache file in {}", currentFileName);
+                                }
+                            }
+                            currentFileName = absolutePath;
+                        }
+                    }
+
                     String tableName = split[2];
                     CdcPosition position = analyseCsvFile.getPosition();
                     if (null != tableName && tables.contains(tableName)) {
+                        isThisFile = true;
                         //final TapTable tapTable = tableMap.get(tableName);
                         if (tableMap.isEmpty()) {
                             tableMap.putAll(getTableFromConfig(tables));
@@ -199,7 +221,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                             tableMap.putAll(getTableFromConfig(tables));
                             tapTable = tableMap.get(tableName);
                         }
-                        if (null == tapTable || tapTable.isEmpty()) return;
+                        if (null == tapTable || tapTable.isEmpty()) return isThisFile;
                         CdcPosition.PositionOffset positionOffset = position.get(tableName);
                         if (null == positionOffset) {
                             positionOffset = new CdcPosition.PositionOffset();
@@ -243,8 +265,8 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         }
                     }
                 }
+                return isThisFile;
             }
-
         });
         try {
             fileMonitor.start();

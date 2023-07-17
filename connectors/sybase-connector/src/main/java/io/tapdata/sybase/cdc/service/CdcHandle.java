@@ -4,13 +4,13 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
-import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
 import io.tapdata.sybase.cdc.dto.start.CdcStartVariables;
 import io.tapdata.sybase.cdc.dto.start.CommandType;
 import io.tapdata.sybase.cdc.dto.start.LivenessMonitor;
+import io.tapdata.sybase.cdc.dto.start.OverwriteType;
 import io.tapdata.sybase.cdc.dto.start.SybaseDstLocalStorage;
 import io.tapdata.sybase.cdc.dto.start.SybaseFilterConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseGeneralConfig;
@@ -39,13 +39,14 @@ import static io.tapdata.base.ConnectorBase.map;
 public class CdcHandle {
     CdcRoot root;
     StopLock lock;
-    TapConnectionContext context;
+    TapConnectorContext context;
     FileMonitor fileMonitor;
 
-    public CdcHandle(CdcRoot root, TapConnectionContext context, StopLock lock) {
+    public CdcHandle(CdcRoot root, TapConnectorContext context, StopLock lock) {
         this.root = root;
         this.lock = lock;
         this.context = context;
+        this.root.setContext(context);
     }
 
     public CdcHandle streamReadConsumer(StreamReadConsumer cdcConsumer, Log log, String monitorPath) {
@@ -54,42 +55,29 @@ public class CdcHandle {
     }
 
     //Step #1
-    public void startCdc() {
-        CdcRoot compileBaseFile = new ConfigBaseField(root, "").compile();
+    public synchronized void startCdc(OverwriteType overwriteType) {
+        ConfigBaseField baseField = new ConfigBaseField(root, "");
+        if (!baseField.checkStep()) {
+            this.root = baseField.compile();
+        }
         //String pocPath = compileBaseFile.getSybasePocPath();
         compileYamlConfig();
         CdcRoot compileYaml = new ConfigYaml(
-                compileBaseFile,
+                this.root,
                 root.getVariables().getFilterConfig(),
                 root.getVariables().getSrcConfig(),
                 root.getVariables().getSybaseDstLocalStorage(),
                 root.getVariables().getSybaseGeneralConfig()
         ).compile();
-        new ExecCommand(compileYaml, CommandType.CDC).compile();
+        new ExecCommand(compileYaml, CommandType.CDC, overwriteType).compile();
     }
 
-    private void compileYamlConfig() {
+    private synchronized void compileYamlConfig() {
         String sybasePocPath = root.getSybasePocPath();
 
         //@todo set CdcStartVariables from context config
         CdcStartVariables startVariables = CdcStartVariables.create();
         ConnectionConfig connectionConfig = new ConnectionConfig(context);
-        List<SybaseFilterConfig> filterConfigs = new ArrayList<>();
-        SybaseFilterConfig filterConfig = new SybaseFilterConfig();
-        filterConfig.setCatalog(connectionConfig.getDatabase());
-        filterConfig.setSchema(connectionConfig.getUsername());
-        filterConfig.setTypes(list("TABLE", "VIEW"));
-
-        List<String> cdcTables = root.getCdcTables();
-        if (null == cdcTables || cdcTables.isEmpty()) {
-            throw new CoreException(Code.STREAM_READ_WARN, "Not any table need to cdc");
-        }
-        Map<String, Object> tables = map();
-        for (String cdcTable : cdcTables) {
-            tables.put(cdcTable, null);
-        }
-        filterConfig.setAllow(tables);
-        filterConfigs.add(filterConfig);
 
 
         SybaseSrcConfig srcConfig = new SybaseSrcConfig();
@@ -118,7 +106,7 @@ public class CdcHandle {
         monitor.setMin_free_memory_threshold_percent(5);
         monitor.setLiveness_check_interval_ms(60_000);
         generalConfig.setLiveness_monitor(monitor);
-        generalConfig.setTrace_dir( "" + sybasePocPath + "/config/sybase2csv/trace");
+        generalConfig.setTrace_dir("" + sybasePocPath + "/config/sybase2csv/trace");
         generalConfig.setData_dir("" + sybasePocPath + "/config/sybase2csv/data");
         //generalConfig.setError_connection_tracing("" + sybasePocPath + "/config/sybase2csv/trace");
         generalConfig.setLicense_path(root.getCliPath() + "/");
@@ -126,15 +114,58 @@ public class CdcHandle {
 
         this.root.setVariables(
                 startVariables
-                        .filterConfig(filterConfigs)
+                        .filterConfig(compileFilterTableYamlConfig(connectionConfig))
                         .srcConfig(srcConfig)
                         .sybaseDstLocalStorage(dstLocalStorage)
                         .sybaseGeneralConfig(generalConfig)
         );
     }
 
+    public synchronized List<SybaseFilterConfig> compileFilterTableYamlConfig(ConnectionConfig connectionConfig) {
+        List<SybaseFilterConfig> filterConfigs = new ArrayList<>();
+        SybaseFilterConfig filterConfig = new SybaseFilterConfig();
+        filterConfig.setCatalog(connectionConfig.getDatabase());
+        filterConfig.setSchema(connectionConfig.getUsername());
+        filterConfig.setTypes(list("TABLE", "VIEW"));
+
+        List<String> cdcTables = root.getCdcTables();
+        if (null == cdcTables || cdcTables.isEmpty()) {
+            throw new CoreException(Code.STREAM_READ_WARN, "Not any table need to cdc");
+        }
+        Map<String, Object> tables = map();
+        for (String cdcTable : cdcTables) {
+            tables.put(cdcTable, null);
+        }
+        filterConfig.setAllow(tables);
+        filterConfigs.add(filterConfig);
+        CdcStartVariables variables = this.root.getVariables();
+        if (null != variables) {
+            variables.filterConfig(filterConfigs);
+        }
+        return filterConfigs;
+    }
+
+    public synchronized void initCdc(OverwriteType overwriteType) {
+        CdcRoot compileBaseFile = new ConfigBaseField(root, "").compile();
+        //String pocPath = compileBaseFile.getSybasePocPath();
+        compileYamlConfig();
+        CdcRoot compileYaml = new ConfigYaml(
+                compileBaseFile,
+                root.getVariables().getFilterConfig(),
+                root.getVariables().getSrcConfig(),
+                root.getVariables().getSybaseDstLocalStorage(),
+                root.getVariables().getSybaseGeneralConfig()
+        ).compile();
+        new ExecCommand(compileYaml, CommandType.CDC, overwriteType).compile();
+    }
+
+    public synchronized void refreshCdc(OverwriteType overwriteType) {
+        stopCdc();
+        startCdc(overwriteType);
+    }
+
     //Step #2
-    public CdcPosition startListen(
+    public synchronized CdcPosition startListen(
             String monitorPath,
             String monitorFileName,
             List<String> tables,
@@ -155,19 +186,19 @@ public class CdcHandle {
     }
 
     //Step #end 1
-    public void releaseCdc() {
+    public synchronized void releaseCdc() {
         Optional.ofNullable(root.getProcess()).ifPresent(Process::destroy);
         Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
-        KVMap<Object> stateMap = ((TapConnectorContext) context).getStateMap();
+        KVMap<Object> stateMap = context.getStateMap();
         Object cdcPath = stateMap.get("cdcPath");
         try {
-            if (context instanceof TapConnectorContext) {
+            if (context != null) {
                 if (null == cdcPath || "/*".equals(cdcPath) || "".equals(cdcPath.toString().trim())) {
                     return;
                 }
                 File file = new File(String.valueOf(cdcPath));
                 if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
-                    final String shell = "rm -rf " + cdcPath ;
+                    final String shell = "rm -rf " + cdcPath;
                     root.getContext().getLog().info("clean cdc path: {}", shell);
                     root.getContext().getLog().info(Utils.run(shell));
                     if (file.exists()) {
@@ -177,15 +208,19 @@ public class CdcHandle {
                     FileUtils.delete(file);
                 }
             }
-        } catch (Exception e){
+        } catch (Exception e) {
             context.getLog().warn("Can not release cdc path, please go to path: {}, and clean the file", cdcPath);
         }
         //Optional.ofNullable()
     }
 
     //Step #end 2
-    public void stopCdc() {
+    public synchronized void stopCdc() {
+        //@todo
         Optional.ofNullable(root.getProcess()).ifPresent(Process::destroy);
+
+        //@todo
+        root.setProcess(null);
         Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
     }
 

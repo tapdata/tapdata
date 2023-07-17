@@ -1,8 +1,13 @@
 package io.tapdata.sybase.util;
 
+import io.tapdata.entity.error.CoreException;
+import org.apache.commons.io.Charsets;
+import org.apache.commons.io.IOUtils;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -173,5 +178,29 @@ public class Utils {
             }
         }
         return result.toString();
+    }
+
+    public static String readFromInputStream(InputStream inputStream, Charset charsetName) throws IOException {
+        Throwable var3 = null;
+        String var4;
+        try {
+            var4 = IOUtils.toString(inputStream, Charsets.toCharset(charsetName));
+        } catch (Throwable var13) {
+            var3 = var13;
+            throw new CoreException(var13.getMessage());
+        } finally {
+            if (inputStream != null) {
+                if (var3 != null) {
+                    try {
+                        inputStream.close();
+                    } catch (Throwable var12) {
+                        var3.addSuppressed(var12);
+                    }
+                } else {
+                    inputStream.close();
+                }
+            }
+        }
+        return var4;
     }
 }
