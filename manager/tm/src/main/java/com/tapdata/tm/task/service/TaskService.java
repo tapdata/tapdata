@@ -2614,52 +2614,71 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         }
                     }
 
-                    SampleTaskVo sampleTaskVo = new SampleTaskVo();
-                    sampleTaskVo.setId(t.getId().toHexString());
-                    sampleTaskVo.setName(t.getName());
-                    sampleTaskVo.setCreateTime(t.getCreateAt());
-                    sampleTaskVo.setLastUpdated(t.getLastUpdAt());
-                    sampleTaskVo.setStatus(t.getStatus());
-                    sampleTaskVo.setSyncType(t.getSyncType());
-                    sampleTaskVo.setSourceConnectionIds(sourceIds);
-                    sampleTaskVo.setTargetConnectionId(tgtIds);
-                    sampleTaskVo.setCurrentEventTimestamp(t.getCurrentEventTimestamp());
-                    sampleTaskVo.setCreateUser(t.getCreateUser());
-                    sampleTaskVo.setStartTime(t.getStartTime());
-
-                    DAG dag = t.getDag();
-                    Date currentEventTimestamp = new Date();
-                    Long delay = 0L;
-                    if (dag != null) {
-                        LinkedList<Edge> edges = dag.getEdges();
-                        for (Edge edge : edges) {
-                            Date eventTime = LogCollectorService.getAttrsValues(edge.getSource(), edge.getTarget(), "eventTime", t.getAttrs());
-                            Date sourceTime = LogCollectorService.getAttrsValues(edge.getSource(), edge.getTarget(), "sourceTime", t.getAttrs());
-                            if (null != eventTime && null != sourceTime) {
-                                long delayTime = sourceTime.getTime() - eventTime.getTime();
-                                delayTime = delayTime > 0 ? delayTime : 0;
-                                if (delayTime > delay) {
-                                    delay = delayTime;
-                                }
-                            }
-
-                            if (eventTime != null) {
-                                if (eventTime.getTime() < currentEventTimestamp.getTime()) {
-                                    currentEventTimestamp = eventTime;
-                                }
-                            }
-
+                    SampleTaskVo sampleTaskVo = null;
+                    if (StringUtils.isNotBlank(sourceConnectionId)) {
+                        if (sourceIds.contains(sourceConnectionId)) {
+                            sampleTaskVo = new SampleTaskVo();
                         }
+                    } else {
+                        sampleTaskVo = new SampleTaskVo();
                     }
 
-                    sampleTaskVo.setDelayTime(delay);
-                    if (sampleTaskVo.getCurrentEventTimestamp() == null) {
-                        sampleTaskVo.setCurrentEventTimestamp(currentEventTimestamp.getTime());
+                    if (StringUtils.isNotBlank(targetConnectionId)) {
+                        if (tgtIds.contains(targetConnectionId)) {
+                            sampleTaskVo = new SampleTaskVo();
+                        }
+                    } else {
+                        sampleTaskVo = new SampleTaskVo();
+                    }
+
+
+
+                    if (sampleTaskVo != null) {
+                        sampleTaskVo.setId(t.getId().toHexString());
+                        sampleTaskVo.setName(t.getName());
+                        sampleTaskVo.setCreateTime(t.getCreateAt());
+                        sampleTaskVo.setLastUpdated(t.getLastUpdAt());
+                        sampleTaskVo.setStatus(t.getStatus());
+                        sampleTaskVo.setSyncType(t.getSyncType());
+                        sampleTaskVo.setSourceConnectionIds(sourceIds);
+                        sampleTaskVo.setTargetConnectionId(tgtIds);
+                        sampleTaskVo.setCurrentEventTimestamp(t.getCurrentEventTimestamp());
+                        sampleTaskVo.setCreateUser(t.getCreateUser());
+                        sampleTaskVo.setStartTime(t.getStartTime());
+
+                        DAG dag = t.getDag();
+                        Date currentEventTimestamp = new Date();
+                        Long delay = 0L;
+                        if (dag != null) {
+                            LinkedList<Edge> edges = dag.getEdges();
+                            for (Edge edge : edges) {
+                                Date eventTime = LogCollectorService.getAttrsValues(edge.getSource(), edge.getTarget(), "eventTime", t.getAttrs());
+                                Date sourceTime = LogCollectorService.getAttrsValues(edge.getSource(), edge.getTarget(), "sourceTime", t.getAttrs());
+                                if (null != eventTime && null != sourceTime) {
+                                    long delayTime = sourceTime.getTime() - eventTime.getTime();
+                                    delayTime = delayTime > 0 ? delayTime : 0;
+                                    if (delayTime > delay) {
+                                        delay = delayTime;
+                                    }
+                                }
+
+                                if (eventTime != null) {
+                                    if (eventTime.getTime() < currentEventTimestamp.getTime()) {
+                                        currentEventTimestamp = eventTime;
+                                    }
+                                }
+
+                            }
+                        }
+
+                        sampleTaskVo.setDelayTime(delay);
+                        if (sampleTaskVo.getCurrentEventTimestamp() == null) {
+                            sampleTaskVo.setCurrentEventTimestamp(currentEventTimestamp.getTime());
+                        }
                     }
                     return sampleTaskVo;
                 }
-        ).collect(Collectors.toList());
-
+        ).filter(Objects::nonNull).collect(Collectors.toList());
 
         return sampleTaskVos;
     }
