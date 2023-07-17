@@ -217,10 +217,17 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				monitorManager.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, context.hazelcastInstance().getJet().getJob(context.jobId()), processorBaseContext.getNode().getId());
 				jetJobStatusMonitor = (JetJobStatusMonitor) monitorManager.getMonitorByType(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR);
 			}
+			setThreadName();
 			doInit(context);
 		} catch (Throwable e) {
 			errorHandle(e, "Node init failed: " + e.getMessage());
 		}
+	}
+
+	private void setThreadName() {
+		TaskDto taskDto = processorBaseContext.getTaskDto();
+		Node node = getNode();
+		Thread.currentThread().setName(String.format("%s-%s(%s)-%s(%s)", this.getClass().getSimpleName(), taskDto.getName(), taskDto.getId().toHexString(), node.getName(), node.getId()));
 	}
 
 
