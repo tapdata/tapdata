@@ -768,7 +768,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         // query by public agent -- start
         if (!user.getUserId().equals(workerDto.getUserId())) {
-            return 3;
+            return 2;
         }
         // query by public agent -- end
 
