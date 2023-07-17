@@ -32,6 +32,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ApiViewUtil {
     public static final String ACCESS_TOKEN="eyJraWQiOiJjOWVmMmVkMS0xYTYxLTQ4ODQtYWJmYS01YjVjMzZiMWYwNjYiLCJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbGllbnRJZCI6IjVjMGU3NTBiN2E1Y2Q0MjQ2NGE1MDk5ZCIsInJvbGVzIjpbIiRldmVyeW9uZSIsImFkbWluIl0sImlzcyI6Imh0dHA6XC9cLzEyNy4wLjAuMTozMDAwIiwiZXhwaXJlZGF0ZSI6MTY5MDI1MjAzMjA5MiwiYXVkIjoiNWMwZTc1MGI3YTVjZDQyNDY0YTUwOTlkIiwiY3JlYXRlZEF0IjoxNjg5MDQyNDMyMDkyLCJuYmYiOjE2ODkwNDI0MzIsInNjb3BlIjpbIjViOWEwYTM4M2ZjYmEwMjY0OTUyNGJmMSJdLCJleHAiOjE2OTAyNTIwMzIsImlhdCI6MTY4OTA0MjQzMiwianRpIjoiZjcwY2E1NDktYzg0Zi00YTI2LWJkOWItM2IyMjNkMzAxNGZjIn0.NZhs9U6WaebP0GTwH3vBc4VrndzS9Abtko3nV61y5Tvw6AdI3nMvzeYZ10MNSdRUU2E1Tm5Vq-KMkzCtoa360KXgg-BC-yH7vS8aKl6RjXIfV5RNEpPUo6sTEWS4MqJJWxikWxq8jrUABGF8xcBu4ptvfh9TOu3K3VuTtZeYEVcwEn3sk5xMqqd0Z1j9-EuZpFcHG2pBm30YzNVbHcwycSMqDdRn--6Rn-eUhk8ifhroFdZBgcLAlOcZJEuQ7oEnG7sNNAxqxSkubPL9sg-X1w80NdydKtvnpotXs19gIhxaMXq7WL6bI1_19ECTnelUDWft4neNm01yO7KR_wWeqw";
+    public static final String PARAMS="&limit=1&page=1";
+    public static final String PREFIX_ACCESS_TOKEN="?access_token=";
     public static ApiView convert(Map<String, List<ModulesDto>> modules,String ip){
         ApiView apiView = new ApiView();
         List<ApiType> apiTypes = new ArrayList<>();
@@ -54,9 +56,9 @@ public class ApiViewUtil {
                 urlBuilder
                         .append(module.getIp())
                         .append(module.getPath())
-                        .append("?access_token=")
+                        .append(PREFIX_ACCESS_TOKEN)
                         .append(ACCESS_TOKEN.substring(0,8))
-                        .append("&limit=1&page=1");
+                        .append(PARAMS);
                 String requestUrl = urlBuilder.toString();
                 module.setRequestString(requestUrl);
                 String testResult = doGet(module.getIp()+module.getPath());
@@ -84,8 +86,8 @@ public class ApiViewUtil {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             StringBuilder urlBuilder = new StringBuilder();
             urlBuilder.append(url);
-            urlBuilder.append("?access_token=").append(ACCESS_TOKEN);
-            urlBuilder.append("&").append("&limit=1&page=1");
+            urlBuilder.append(PREFIX_ACCESS_TOKEN).append(ACCESS_TOKEN);
+            urlBuilder.append(PARAMS);
             HttpGet httpGet = new HttpGet(urlBuilder.toString());
             RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(5000)
                     .setConnectionRequestTimeout(5000)
