@@ -47,7 +47,7 @@ public class PostgresJdbcContext extends JdbcContext {
     @Override
     protected String queryAllColumnsSql(String schema, List<String> tableNames) {
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
-        return String.format(PG_ALL_COLUMN, getConfig().getDatabase(), schema, tableSql);
+        return String.format(PG_ALL_COLUMN, schema, getConfig().getDatabase(), schema, tableSql);
     }
 
     @Override
@@ -100,7 +100,7 @@ public class PostgresJdbcContext extends JdbcContext {
                     "          AND a.attrelid =\n" +
                     "              (SELECT max(cl.oid)\n" +
                     "               FROM pg_catalog.pg_class cl\n" +
-                    "               WHERE cl.relname = col.table_name)) AS \"dataType\"\n" +
+                    "               WHERE cl.relname = col.table_name and cl.relnamespace=(select oid from pg_namespace where nspname='%s'))) AS \"dataType\"\n" +
                     "FROM information_schema.columns col\n" +
                     "WHERE col.table_catalog = '%s'\n" +
                     "  AND col.table_schema = '%s' %s\n" +
