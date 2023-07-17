@@ -5,6 +5,16 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import org.bson.Document;
+import org.bson.types.Decimal128;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * use bytes storage
@@ -29,6 +39,9 @@ public class BytesIMap<T> extends ConstructIMap<T> {
 
 	@Override
 	public int insert(String key, T data) throws Exception {
+		if(data instanceof HashMap) {
+			((HashMap<String, Map<String, Object>>) data).values().forEach(this::replaceDataTyp);
+		}
 		iMap.put(key, new Document(DATA_KEY, serialized(data)));
 		return 1;
 	}
@@ -87,5 +100,53 @@ public class BytesIMap<T> extends ConstructIMap<T> {
 	@Override
 	public String getType() {
 		return "IMap";
+	}
+
+	private void replaceDataTyp(Object data){
+		if(data instanceof Map){
+			Map<String, Object> value = ((Map<String, Object> ) data);
+			value.keySet().forEach(keyObj ->{
+				Object obj = value.get(keyObj);
+				if(obj instanceof Instant){
+					Instant instant = (Instant) obj;
+					value.replace(keyObj, Date.from(instant));
+				}else if(obj instanceof BigDecimal){
+					BigDecimal bigDecimal = (BigDecimal) obj;
+					if (bigDecimal.precision() > 34) {
+						Decimal128 decimal128 = new Decimal128(bigDecimal.setScale(bigDecimal.scale() + 34 - bigDecimal.precision(), RoundingMode.HALF_UP));
+						value.replace(keyObj,decimal128);
+					} else {
+						value.replace(keyObj,new Decimal128(bigDecimal));
+					}
+				}else if(obj instanceof BigInteger){
+					BigInteger bigInteger = (BigInteger) obj;
+					value.replace(keyObj,bigInteger.longValue());
+				}else if(obj instanceof Map || obj instanceof List){
+					replaceDataTyp(obj);
+				}
+			});
+		}else if(data instanceof List){
+			List<Object> value = (List<Object>)data;
+			for(int i = 0;i < value.size();i++){
+				Object obj = value.get(i);
+				if(obj instanceof Instant){
+					Instant instant = (Instant) obj;
+					value.set(i,Date.from(instant));
+				}else if(obj instanceof BigDecimal){
+					BigDecimal bigDecimal = (BigDecimal) obj;
+					if (bigDecimal.precision() > 34) {
+						Decimal128 decimal128 = new Decimal128(bigDecimal.setScale(bigDecimal.scale() + 34 - bigDecimal.precision(), RoundingMode.HALF_UP));
+						value.set(i,decimal128);
+					} else {
+						value.set(i,new Decimal128(bigDecimal));
+					}
+				}else if(obj instanceof BigInteger){
+					BigInteger bigInteger = (BigInteger) obj;
+					value.set(i,bigInteger);
+				}else if(obj instanceof Map || obj instanceof List){
+					replaceDataTyp(obj);
+				}
+			}
+		}
 	}
 }
