@@ -65,6 +65,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -75,6 +76,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URL;
@@ -1447,7 +1449,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         }));
        ApiView apiView =ApiViewUtil.convert(modules,ip);
        apiView.getApiTypeList();
-        URL url = this.getClass().getClassLoader().getResource("template/testTemplate.docx");
+        InputStream is = this.getClass().getClassLoader().getResourceAsStream("template/testTemplate.docx");
+        if(is==null){
+            log.error("未找到模板文件");
+        }
         LoopRowTableRenderPolicy hackLoopTableRenderPolicy = new LoopRowTableRenderPolicy();
         Configure config=Configure.builder()
                 .bind("params",hackLoopTableRenderPolicy)
@@ -1458,7 +1463,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                 .build();
         XWPFTemplate template =null;
         try{
-             template=XWPFTemplate.compile(url.getPath(),config)
+             template=XWPFTemplate.compile(is,config)
                     .render(apiView);
         }catch (Exception e){
             log.error("render template error{}",e);
