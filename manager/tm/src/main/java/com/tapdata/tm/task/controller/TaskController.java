@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -30,6 +31,7 @@ import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -52,6 +54,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -920,7 +923,6 @@ public class TaskController extends BaseController {
         return success();
     }
 
-
     @Operation(summary = "模型推演结果推送")
     @PostMapping("transformer/result")
     public ResponseMessage<Void> transformerResult(@RequestBody TransformerWsMessageResult result) {
@@ -931,6 +933,31 @@ public class TaskController extends BaseController {
     @PostMapping("transformer/resultWithHistory")
     public ResponseMessage<Void> transformerResultHistory(@RequestBody TransformerWsMessageResult result) {
         transformSchemaService.transformerResult(getLoginUser(), result, true);
+        return success();
+    }
+
+    @Operation(summary = "模型推演结果推送")
+    @PostMapping("transformer/resultV2")
+    public ResponseMessage<Void> transformerResult(@RequestBody String result) {
+        result = JsonUtil.parseJson(result, String.class);
+        byte[] resultByte = GZIPUtil.unGzip(Base64.getDecoder().decode(result));
+        String json = new String(resultByte, StandardCharsets.UTF_8);
+        TransformerWsMessageResult transformerWsMessageResult = JsonUtil.parseJsonUseJackson(json, TransformerWsMessageResult.class);
+        transformSchemaService.transformerResult(getLoginUser(), transformerWsMessageResult, false);
+        return success();
+    }
+    @Operation(summary = "模型推演结果推送")
+    @PostMapping("transformer/resultWithHistoryV2")
+    public ResponseMessage<Void> transformerResultHistory(@RequestBody String result) {
+        result = JsonUtil.parseJson(result, String.class);
+        byte[] resultByte = GZIPUtil.unGzip(Base64.getDecoder().decode(result));
+        String json = new String(resultByte, StandardCharsets.UTF_8);
+        TransformerWsMessageResult transformerWsMessageResult = JsonUtil.parseJsonUseJackson(json, TransformerWsMessageResult.class);
+        transformSchemaService.transformerResult(getLoginUser(), transformerWsMessageResult, true);
+        TaskDto taskDto = new TaskDto();
+        taskDto.setDag(transformerWsMessageResult.getDag());
+        taskDto.setId(MongoUtils.toObjectId(transformerWsMessageResult.getTaskId()));
+        taskService.updateDag(taskDto, getLoginUser(), true);
         return success();
     }
 
@@ -1109,5 +1136,15 @@ public class TaskController extends BaseController {
     public ResponseMessage<TableStatusInfoDto> getTableStatus(@RequestParam("connectionId") String connectionId,
                                                               @RequestParam("tableName") String tableName) {
         return success(taskService.getTableStatus(connectionId, tableName,  getLoginUser()));
+    }
+
+    @GetMapping("byConnection")
+    public ResponseMessage<List<SampleTaskVo>> findByConId(@RequestParam(value = "sourceConnectionId", required = false) String sourceConnectionId,
+                                                @RequestParam(value = "targetConnectionId", required = false) String targetConnectionId,
+                                                @RequestParam(value = "syncType", required = false) String syncType,
+                                                @RequestParam(value = "status", required = false) String status,
+                                                @RequestParam(value = "where", required = false) String whereJson) {
+        Where where = parseWhere(whereJson);
+        return success(taskService.findByConId(sourceConnectionId, targetConnectionId, syncType, status, where, getLoginUser()));
     }
 }

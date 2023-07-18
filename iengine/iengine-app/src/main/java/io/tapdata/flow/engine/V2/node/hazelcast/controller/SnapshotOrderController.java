@@ -199,9 +199,15 @@ public class SnapshotOrderController implements Serializable {
 
 	private void removeUnnecessaryProperties(List<NodeControlLayer> snapshotOrderList) {
 		processNodeController(snapshotOrderList, nodeController -> {
+			if (nodeController == null) {
+				return;
+			}
 			TableNode tableNode = new TableNode();
-			tableNode.setId(nodeController.getNode().getId());
-			nodeController.setNode(tableNode);
+			Node<?> node = nodeController.getNode();
+			if (node != null) {
+				tableNode.setId(node.getId());
+				nodeController.setNode(tableNode);
+			}
 		});
 	}
 

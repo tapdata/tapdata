@@ -152,11 +152,6 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		wsMessageResult.setTransformSchema(transformSchema);
 		wsMessageResult.setTaskId(request.getTaskDto().getId().toHexString());
 		wsMessageResult.setTransformUuid(request.getOptions().getUuid());
-
-		//返回结果调用接口返回
-		clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/result");
-
-		// Update task's dag
 		UpdateTaskDagDto updateTaskDagDto = new UpdateTaskDagDto();
 		updateTaskDagDto.setId(request.getTaskDto().getId());
 		updateTaskDagDto.setDag(request.getTaskDto().getDag());
@@ -170,7 +165,20 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 				});
 			}
 		}
-		clientMongoOperator.insertOne(updateTaskDagDto, ConnectorConstant.TASK_COLLECTION + "/dagNotHistory");
+
+		wsMessageResult.setDag(dag);
+
+		String jsonResult = JsonUtil.toJsonUseJackson(wsMessageResult);
+		byte[] gzip = GZIPUtil.gzip(jsonResult.getBytes());
+		byte[] encode = Base64.getEncoder().encode(gzip);
+		String dataString = new String(encode, StandardCharsets.UTF_8);
+
+		//返回结果调用接口返回
+		clientMongoOperator.insertOne(dataString, ConnectorConstant.TASK_COLLECTION + "/transformer/resultV2");
+
+		// Update task's dag
+
+		//clientMongoOperator.insertOne(updateTaskDagDto, ConnectorConstant.TASK_COLLECTION + "/dagNotHistory");
 
 		return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.DEDUCE_SCHEMA, true);
 	}
