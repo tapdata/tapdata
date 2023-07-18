@@ -138,7 +138,7 @@ public class TaskAlarmScheduler {
                 }
 
                 if (!isCloud) {
-                    taskService.start(data, userDetail, "11");
+                    taskService.start(data, userDetail, "11", true);
                 }
             }
 

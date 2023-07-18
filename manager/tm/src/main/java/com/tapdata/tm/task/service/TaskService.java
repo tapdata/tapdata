@@ -3184,6 +3184,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
+    public void start(ObjectId id, UserDetail user, boolean system) {
+        start(id, user);
+    }
+
+    public void start(TaskDto taskDto, UserDetail user, String startFlag, boolean system) {
+        start(taskDto, user, startFlag);
+    }
     /**
      * 状态机启动子任务之前执行
      *

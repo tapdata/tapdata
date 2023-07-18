@@ -95,7 +95,7 @@ public class ScheduleService{
             taskDto.setCrontabScheduleMsg("");
             taskService.save(taskDto, userDetail);
             // 执行记录
-            taskService.start(taskDto.getId(), userDetail);
+            taskService.start(taskDto.getId(), userDetail, true);
 
         }
     }

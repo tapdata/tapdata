@@ -72,7 +72,7 @@ public class TaskRestartSchedule {
 
             try {
                 UserDetail user = userService.loadUserById(MongoUtils.toObjectId(task.getRestartUserId()));
-                taskService.start(task.getId(), user);
+                taskService.start(task.getId(), user, true);
             } catch (Exception e) {
                 log.warn("restart subtask error, task id = {}, e = {}", task.getId(), e.getMessage());
             }

@@ -78,6 +78,7 @@ public class TaskAop {
 
         UserDetail userDetail = (UserDetail) args[1];
         Object arg = args[0];
+        Object systemStart = args[2];
         if (arg instanceof ObjectId) {
             ObjectId id = (ObjectId) arg;
 
@@ -85,13 +86,13 @@ public class TaskAop {
             TaskDto taskDto = taskService.checkExistById(id, userDetail);
             if (null != taskDto) {
                 userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
-                        Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName());
+                        Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName(), systemStart);
             }
 
         } else if (arg instanceof TaskDto) {
             TaskDto taskDto = (TaskDto) arg;
             userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
-                    Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName());
+                    Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName(), systemStart);
 
         }else if (arg instanceof List<?>){
             List<ObjectId> list = (List<ObjectId>) arg;
