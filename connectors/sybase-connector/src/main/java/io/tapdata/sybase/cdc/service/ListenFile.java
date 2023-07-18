@@ -44,6 +44,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
     int batchSize;
     final String schemaConfigPath;
     String currentFileName;
+    final ConnectionConfig config;
 
     protected ListenFile(CdcRoot root,
                          String monitorPath,
@@ -51,7 +52,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                          String monitorFileName,
                          AnalyseCsvFile analyseCsvFile,
                          StopLock lock,
-                         int batchSize ) {
+                         int batchSize) {
         this.root = root;
         if (null == monitorPath || "".equals(monitorPath.trim())) {
             throw new CoreException("Monitor path name can not be empty.");
@@ -67,6 +68,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         analyseRecord = new AnalyseTapEventFromCsvString();
         this.batchSize = batchSize;
         this.schemaConfigPath = root.getSybasePocPath() + "/config/sybase2csv/csv/schemas.yaml";
+        this.config = new ConnectionConfig(root.getContext());
     }
 
     FileMonitor fileMonitor;
@@ -247,7 +249,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         List<List<String>> compile = analyseCsvFile.analyse(file.getAbsolutePath()).compile();
                         int csvFileLines = compile.size();
                         for (int index = line; index < csvFileLines; index++) {
-                            TapEvent recordEvent = analyseRecord.analyse(compile.get(index), tapTable, tableName);
+                            TapEvent recordEvent = analyseRecord.analyse(compile.get(index), tapTable, tableName, config);
                             if (null != recordEvent) {
                                 events.add(recordEvent);
                                 if (events.size() == batchSize) {

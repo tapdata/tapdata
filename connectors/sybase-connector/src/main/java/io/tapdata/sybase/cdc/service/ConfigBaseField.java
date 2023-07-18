@@ -2,7 +2,6 @@ package io.tapdata.sybase.cdc.service;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.utils.cache.KVMap;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.sybase.SybaseConnector;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
@@ -39,7 +38,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
 
     @Override
     public CdcRoot compile() {
-        KVMap<Object> stateMap =  root.getContext().getStateMap();
+        KVMap<Object> stateMap = root.getContext().getStateMap();
         String cdcId = String.valueOf(stateMap.get("taskId"));
         if (null == cdcId) {
             stateMap.put("taskId", cdcId = UUID.randomUUID().toString().replaceAll("-", "_"));
@@ -54,7 +53,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
         targetPath = targetFile.getAbsolutePath();
         if (!targetFile.exists() || !targetFile.isDirectory()) targetFile.mkdir();
         final String configPath = FilenameUtils.concat(targetPath, "config");
-        if (fromLocal.exists() && fromLocal.isDirectory()){
+        if (fromLocal.exists() && fromLocal.isDirectory()) {
             try {
                 if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
                     final String shell = "cp -r "
@@ -69,7 +68,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
                 } else {
                     FileUtils.copyToDirectory(fromLocal, targetFile);
                 }
-            } catch (Exception e){
+            } catch (Exception e) {
                 throw new CoreException("Unable init cdc tool from path {}, make sure your sources exists in you linux file system or retry task.", pocPathFromLocal);
             }
         } else {

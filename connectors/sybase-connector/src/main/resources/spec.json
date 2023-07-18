@@ -36,7 +36,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_host",
-          "x-index": 1,
+          "x-index": 10,
           "required": true
         },
         "port": {
@@ -45,7 +45,7 @@
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "apiServerKey": "database_port",
-          "x-index": 2,
+          "x-index": 20,
           "required": true
         },
         "database": {
@@ -54,7 +54,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_name",
-          "x-index": 3,
+          "x-index": 30,
           "required": true
         },
         "username": {
@@ -63,7 +63,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_username",
-          "x-index": 4,
+          "x-index": 40,
           "required": true
         },
         "password": {
@@ -72,16 +72,16 @@
           "x-decorator": "FormItem",
           "x-component": "Password",
           "apiServerKey": "database_password",
-          "x-index": 5
+          "x-index": 50
         },
         "addtionalString": {
           "type": "string",
           "title": "${addtionalString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "default": "useUnicode=yes&characterEncoding=UTF-8",
+          "default": "useUnicode=yes&charset=cp950",
           "apiServerKey": "addtionalString",
-          "x-index": 6
+          "x-index": 60
         },
         "timezone": {
           "type": "string",
@@ -200,6 +200,29 @@
               "value": "+14:00"
             }
           ]
+        },
+        "encode": {
+          "type": "string",
+          "title": "${encode_name}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "cp850",
+          "x-index": 70
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "fetchInterval": {
+          "type": "string",
+          "title": "${close_delay_time}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "database_port",
+          "default": 3,
+          "x-index": 1,
+          "required": true
         }
       }
     }
@@ -214,7 +237,9 @@
       "password": "password",
       "addtionalString": "Connection Parameter String",
       "timezone": "timezone",
-      "doc": "docs/sybase_en_US.md"
+      "doc": "docs/sybase_en_US.md",
+      "close_delay_time": "Default delay shutdown time (in seconds)",
+      "encode_name": "Character Set Name"
     },
     "zh_CN": {
       "host": "地址",
@@ -224,7 +249,9 @@
       "password": "密码",
       "addtionalString": "连接参数",
       "timezone": "时区",
-      "doc": "docs/sybase_zh_CN.md"
+      "doc": "docs/sybase_zh_CN.md",
+      "close_delay_time": "默认延迟关闭时间（单位：秒）",
+      "encode_name": "字符集名称"
     },
     "zh_TW": {
       "host": "地址",
@@ -234,14 +261,15 @@
       "password": "密碼",
       "addtionalString": "連接參數",
       "timezone": "時區",
-      "doc": "docs/sybase_zh_TW.md"
+      "doc": "docs/sybase_zh_TW.md",
+      "close_delay_time": "默認延遲關閉時間（組織：秒）",
+      "encode_name": "字元集名稱"
     }
   },
   "dataTypes": {
     "char[($byte)]": {
       "to": "TapString",
       "byte": 255,
-      "defaultByte": 1,
       "byteRatio": 3,
       "fixed": true
     },
@@ -249,8 +277,7 @@
       "name": "varchar",
       "to": "TapString",
       "byte": 16358,
-      "defaultByte": 1,
-      "byteRatio": 3
+      "byteRatio": 1
     },
     "tinytext": {
       "to": "TapString",

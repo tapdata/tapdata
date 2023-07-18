@@ -12,14 +12,15 @@ import java.util.Map;
  * @create 2023/7/14 15:10
  **/
 public class ConnectionConfig {
-    String username;
-    String password;
-    String host;
-    Integer port;
-    String database;
-    String schema;
-    String addtionalString;
-    String timezone;
+    private String username;
+    private String password;
+    private String host;
+    private Integer port;
+    private String database;
+    private String schema;
+    private String addtionalString;
+    private String timezone;
+    private String encode;
 
     public ConnectionConfig(TapConnectionContext context) {
         load(context.getConnectionConfig());
@@ -38,6 +39,7 @@ public class ConnectionConfig {
         schema = config.getString("schema");
         addtionalString = config.getString("addtionalString");
         timezone = config.getString("timezone");
+        encode = config.getString("encode");
     }
 
 
@@ -103,5 +105,17 @@ public class ConnectionConfig {
 
     public void setTimezone(String timezone) {
         this.timezone = timezone;
+    }
+
+    public String getEncode() {
+        return encode;
+    }
+
+    public void setEncode(String encode) {
+        this.encode = encode;
+    }
+
+    public void setPort(Integer port) {
+        this.port = port;
     }
 }

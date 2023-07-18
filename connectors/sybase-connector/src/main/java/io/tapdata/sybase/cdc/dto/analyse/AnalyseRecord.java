@@ -1,5 +1,7 @@
 package io.tapdata.sybase.cdc.dto.analyse;
 
+import io.tapdata.sybase.extend.ConnectionConfig;
+
 import java.util.LinkedHashMap;
 
 /**
@@ -8,5 +10,5 @@ import java.util.LinkedHashMap;
  * @create 2023/7/14 9:59
  **/
 public interface AnalyseRecord <V,T> {
-    public T analyse(V record, LinkedHashMap<String, String> tapTable, String tableId);
+    public T analyse(V record, LinkedHashMap<String, String> tapTable, String tableId, ConnectionConfig config);
 }

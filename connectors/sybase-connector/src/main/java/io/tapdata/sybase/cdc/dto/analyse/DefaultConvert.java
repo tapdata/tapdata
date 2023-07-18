@@ -2,6 +2,8 @@ package io.tapdata.sybase.cdc.dto.analyse;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.sybase.extend.ConnectionConfig;
+import io.tapdata.sybase.util.Code;
 
 import java.math.BigDecimal;
 
@@ -13,8 +15,9 @@ import java.math.BigDecimal;
 public class DefaultConvert implements SybaseDataTypeConvert {
     public static final String TAG = SybaseDataTypeConvert.class.getSimpleName();
     public static final int CONVERT_ERROR_CODE = 362430;
+
     @Override
-    public Object convert(Object fromValue,final String sybaseType) {
+    public Object convert(Object fromValue, final String sybaseType, ConnectionConfig config) {
         if (null == fromValue || null == sybaseType) return null;
         if (fromValue instanceof String && "NULL".equals(fromValue)) return null;
         String type = sybaseType.toUpperCase();
@@ -63,33 +66,25 @@ public class DefaultConvert implements SybaseDataTypeConvert {
                         return objToNumber(fromValue);
                     } else if (type.startsWith("NUMERIC")) {
                         return objToNumber(fromValue);
-                    } else if (type.contains("CHAR")
-                            //|| type.startsWith("NCHAR")
-                            //|| type.startsWith("UNICHAR")
-                            //|| type.startsWith("VARCHAR")
-                            //|| type.startsWith("NVARCHAR")
-                            //|| type.startsWith("UNIVARCHAR")
-                            || type.contains("TEXT")
-                            //|| type.startsWith("UNITEXT")
+                    } else if (type.matches(Code.MACHE_REGEX)
                             || type.startsWith("SYSNAME")
                             || type.startsWith("LONGSYSNAME")) {
-                        return type.contains("TEXT")? null : objToString(fromValue);
+                        return objToString(fromValue, config);
                     } else if (type.startsWith("VARBINARY")) {
                         return objToBinary(fromValue);
-                    } else if (type.contains("BINARY") ) {
+                    } else if (type.contains("BINARY")) {
                         TapLogger.warn(TAG, "An BINARY data type not support in cdc now");
                         return null;//objToBinary(fromValue);
                     } else if (type.contains("IMAGE")) {
                         TapLogger.warn(TAG, "An IMAGE data type not support in cdc now");
                         return null;
-                    }
-                    else {
-                        throw new CoreException(CONVERT_ERROR_CODE,"Found a type that cannot be processed when cdc: {}", type);
+                    } else {
+                        throw new CoreException(CONVERT_ERROR_CODE, "Found a type that cannot be processed when cdc: {}", type);
                     }
             }
         } catch (Exception e) {
-            if (e instanceof CoreException && ((CoreException)e).getCode() == CONVERT_ERROR_CODE){
-                throw (CoreException)e;
+            if (e instanceof CoreException && ((CoreException) e).getCode() == CONVERT_ERROR_CODE) {
+                throw (CoreException) e;
             }
             throw new CoreException("Can not convert value {} to {} value, msg: {}", fromValue, type, e.getMessage());
         }

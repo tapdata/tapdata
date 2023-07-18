@@ -12,12 +12,14 @@ import io.tapdata.sybase.cdc.dto.start.CommandType;
 import io.tapdata.sybase.cdc.dto.start.LivenessMonitor;
 import io.tapdata.sybase.cdc.dto.start.OverwriteType;
 import io.tapdata.sybase.cdc.dto.start.SybaseDstLocalStorage;
+import io.tapdata.sybase.cdc.dto.start.SybaseExtConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseFilterConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseGeneralConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseSrcConfig;
 import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.extend.ConnectionConfig;
+import io.tapdata.sybase.extend.NodeConfig;
 import io.tapdata.sybase.util.Code;
 import io.tapdata.sybase.util.Utils;
 import org.apache.commons.io.FileUtils;
@@ -41,6 +43,7 @@ public class CdcHandle {
     StopLock lock;
     TapConnectorContext context;
     FileMonitor fileMonitor;
+    final Object closeLock = new Object();
 
     public CdcHandle(CdcRoot root, TapConnectorContext context, StopLock lock) {
         this.root = root;
@@ -62,13 +65,8 @@ public class CdcHandle {
         }
         //String pocPath = compileBaseFile.getSybasePocPath();
         compileYamlConfig();
-        CdcRoot compileYaml = new ConfigYaml(
-                this.root,
-                root.getVariables().getFilterConfig(),
-                root.getVariables().getSrcConfig(),
-                root.getVariables().getSybaseDstLocalStorage(),
-                root.getVariables().getSybaseGeneralConfig()
-        ).compile();
+        CdcStartVariables variables = root.getVariables();
+        CdcRoot compileYaml = new ConfigYaml(this.root, variables).compile();
         new ExecCommand(compileYaml, CommandType.CDC, overwriteType).compile();
     }
 
@@ -112,8 +110,14 @@ public class CdcHandle {
         generalConfig.setLicense_path(root.getCliPath() + "/");
         generalConfig.setError_trace_dir("" + sybasePocPath + "/config/sybase2csv/trace");
 
+        NodeConfig nodeConfig = new NodeConfig(context);
+        SybaseExtConfig extConfig = new SybaseExtConfig();
+        SybaseExtConfig.Realtime realtime = extConfig.getRealtime();
+        realtime.setFetchIntervals(nodeConfig.getFetchInterval());
+
         this.root.setVariables(
                 startVariables
+                        .extConfig(extConfig)
                         .filterConfig(compileFilterTableYamlConfig(connectionConfig))
                         .srcConfig(srcConfig)
                         .sybaseDstLocalStorage(dstLocalStorage)
@@ -149,13 +153,7 @@ public class CdcHandle {
         CdcRoot compileBaseFile = new ConfigBaseField(root, "").compile();
         //String pocPath = compileBaseFile.getSybasePocPath();
         compileYamlConfig();
-        CdcRoot compileYaml = new ConfigYaml(
-                compileBaseFile,
-                root.getVariables().getFilterConfig(),
-                root.getVariables().getSrcConfig(),
-                root.getVariables().getSybaseDstLocalStorage(),
-                root.getVariables().getSybaseGeneralConfig()
-        ).compile();
+        CdcRoot compileYaml = new ConfigYaml(compileBaseFile, root.getVariables()).compile();
         new ExecCommand(compileYaml, CommandType.CDC, overwriteType).compile();
     }
 
@@ -222,6 +220,14 @@ public class CdcHandle {
         //@todo
         root.setProcess(null);
         Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
+
+        NodeConfig nodeConfig = new NodeConfig(context);
+        try {
+            //缓冲作用，延时停止，等待数据库进程释放
+            closeLock.wait(nodeConfig.getCloseDelayMill());
+        } catch (Exception e) {
+
+        }
     }
 
     public CdcRoot getRoot() {

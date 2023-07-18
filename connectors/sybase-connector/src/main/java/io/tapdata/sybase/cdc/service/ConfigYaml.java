@@ -3,12 +3,13 @@ package io.tapdata.sybase.cdc.service;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
+import io.tapdata.sybase.cdc.dto.start.CdcStartVariables;
 import io.tapdata.sybase.cdc.dto.start.SybaseDstLocalStorage;
+import io.tapdata.sybase.cdc.dto.start.SybaseExtConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseFilterConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseGeneralConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseSrcConfig;
 import io.tapdata.sybase.util.HostUtils;
-import io.tapdata.sybase.util.Utils;
 import io.tapdata.sybase.util.YamlUtil;
 import org.yaml.snakeyaml.DumperOptions;
 
@@ -31,19 +32,17 @@ class ConfigYaml implements CdcStep<CdcRoot> {
     SybaseSrcConfig srcConfig;
     SybaseDstLocalStorage sybaseDstLocalStorage;
     SybaseGeneralConfig sybaseGeneralConfig;
+    SybaseExtConfig extConfig;
     String configPath;
     CdcRoot root;
 
-    protected ConfigYaml(CdcRoot root,
-                         List<SybaseFilterConfig> filterConfig,
-                         SybaseSrcConfig srcConfig,
-                         SybaseDstLocalStorage sybaseDstLocalStorage,
-                         SybaseGeneralConfig sybaseGeneralConfig) {
-        this.filterConfig = filterConfig;
-        this.srcConfig = srcConfig;
+    protected ConfigYaml(CdcRoot root, CdcStartVariables variables) {
+        this.filterConfig = variables.getFilterConfig();
+        this.srcConfig = variables.getSrcConfig();
         this.configPath = root.getSybasePocPath();
-        this.sybaseDstLocalStorage = sybaseDstLocalStorage;
-        this.sybaseGeneralConfig = sybaseGeneralConfig;
+        this.sybaseDstLocalStorage = variables.getSybaseDstLocalStorage();
+        this.sybaseGeneralConfig = variables.getSybaseGeneralConfig();
+        this.extConfig = variables.getExtConfig();
         this.root = root;
     }
 
@@ -53,6 +52,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
         configSybaseSrc();
         configDstLocalstorage();
         configGeneral();
+        configExt();
         //configEtcHost();
         return root;
     }
@@ -127,6 +127,26 @@ class ConfigYaml implements CdcStep<CdcRoot> {
         Map<String, Object> map;
         try {
             map = (Map<String, Object>) sybaseGeneralConfig.toYaml();
+        } catch (Exception e) {
+            throw new RuntimeException("Can not get config from general config set into general.yaml");
+        }
+        if (!map.isEmpty()) {
+            if (allow == null) {
+                allow = new LinkedHashMap<>();
+            } else {
+                allow.clear();
+            }
+            allow.putAll(map);
+        }
+        yamlUtil.update(allow);
+    }
+
+    private void configExt() {
+        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/ext_sybasease.yaml", DumperOptions.ScalarStyle.SINGLE_QUOTED);
+        Map<String, Object> allow = yamlUtil.get();
+        Map<String, Object> map;
+        try {
+            map = (Map<String, Object>) extConfig.toYaml();
         } catch (Exception e) {
             throw new RuntimeException("Can not get config from general config set into general.yaml");
         }

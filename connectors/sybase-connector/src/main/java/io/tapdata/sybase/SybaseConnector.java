@@ -82,13 +82,13 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -99,7 +99,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @TapConnectorClass("spec.json")
@@ -116,7 +115,8 @@ public class SybaseConnector extends CommonDbConnector {
     private StopLock lock;
     private CdcRoot root;
     private OverwriteType overwriteType;
-    private Boolean isCdc  = new Boolean(false);
+    private Boolean isCdc = new Boolean(false);
+    private ConnectionConfig connectionConfig;
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private Log log;
@@ -147,6 +147,7 @@ public class SybaseConnector extends CommonDbConnector {
                 }
                 stateMap.put("taskId", id.substring(0, 15));
             }
+            connectionConfig = new ConnectionConfig(tapConnectionContext);
 
             overwriteType = Optional.ofNullable(OverwriteType.type(String.valueOf(stateMap.get("tableOverType")))).orElse(OverwriteType.OVERWRITE);
             stateMap.put("tableOverType", overwriteType.getType());
@@ -329,7 +330,8 @@ public class SybaseConnector extends CommonDbConnector {
     }
 
     private void release(TapConnectorContext context) {
-        if (null == cdcHandle) cdcHandle = new CdcHandle(new CdcRoot(unused -> isAlive()), context, new StopLock(isAlive()));
+        if (null == cdcHandle)
+            cdcHandle = new CdcHandle(new CdcRoot(unused -> isAlive()), context, new StopLock(isAlive()));
         CdcRoot root = cdcHandle.getRoot();
         if (null == root) cdcHandle.setRoot(new CdcRoot(unused -> isAlive()));
         root = cdcHandle.getRoot();
@@ -379,13 +381,21 @@ public class SybaseConnector extends CommonDbConnector {
             try {
                 Object value;
                 String columnTypeName = metaData.getColumnTypeName(i + 1);
+                final String upperColumnName = null == columnTypeName ? "" : columnTypeName.toUpperCase(Locale.ROOT);
                 if ("TIME".equalsIgnoreCase(columnTypeName)) {
                     value = resultSet.getString(i + 1);
                 } else if ("DATE".equalsIgnoreCase(columnTypeName)) {
                     value = resultSet.getString(i + 1);
-                } else if ("TEXT".equalsIgnoreCase(columnTypeName)) {
+                } else if (upperColumnName.matches(Code.MACHE_REGEX)
+                        || upperColumnName.startsWith("SYSNAME")
+                        || upperColumnName.startsWith("LONGSYSNAME")) {
                     String string = resultSet.getString(i + 1);
-                    value = null == string ? null : new String((string).getBytes(), StandardCharsets.UTF_8);
+                    value = null == string ? null :
+                            Utils.convertString(string,
+                                    null == connectionConfig ?
+                                            "cp850" : Optional.ofNullable(connectionConfig.getEncode()).orElse("cp850"),
+                                    "utf-8"
+                            );
                 } else {
                     value = resultSet.getObject(i + 1);
                     if (null == value && dateTypeSet.contains(columnName)) {
@@ -475,9 +485,10 @@ public class SybaseConnector extends CommonDbConnector {
 
     @Override
     protected void queryByFilter(TapConnectorContext connectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
+        ConnectionConfig config = new ConnectionConfig(connectorContext);
         List<FilterResult> filterResults = new LinkedList<>();
         for (TapFilter filter : filters) {
-            String sql = "select * from " + getSchemaAndTable(tapTable.getId()) + " where " + commonSqlMaker.buildKeyAndValue(filter.getMatch(), "and", "=");
+            String sql = "select * from " + getSchemaAndTable(config.getDatabase() + "." + config.getUsername() + "." + tapTable.getId()) + " where " + commonSqlMaker.buildKeyAndValue(filter.getMatch(), "and", "=");
             FilterResult filterResult = new FilterResult();
             try {
                 jdbcContext.query(sql, resultSet -> {
@@ -537,7 +548,8 @@ public class SybaseConnector extends CommonDbConnector {
             try {
                 process.exitValue();
                 throw new CoreException("Cdc monitor thread is close, can not monitor cdc events, mag: ", Utils.readFromInputStream(process.getErrorStream(), StandardCharsets.UTF_8));
-            } catch (Exception ignore){}
+            } catch (Exception ignore) {
+            }
 
             ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
             root.setContext(tapConnectorContext);

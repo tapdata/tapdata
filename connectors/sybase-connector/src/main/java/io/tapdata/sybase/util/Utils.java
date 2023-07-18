@@ -6,6 +6,7 @@ import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -202,5 +203,12 @@ public class Utils {
             }
         }
         return var4;
+    }
+
+    public static String convertString(String fromValue, String fromCharset, String toCharset) throws UnsupportedEncodingException {
+        if (null == fromValue || "".equals(fromValue.trim())) return null;
+        if (null == fromCharset || null == toCharset || "".equals(fromCharset.trim()) || "".equals(toCharset.trim())) return fromValue;
+        byte[] b = fromValue.getBytes(fromCharset);//编码
+        return new String(b, toCharset);
     }
 }

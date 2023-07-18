@@ -12,6 +12,7 @@ public class CdcStartVariables {
     private SybaseSrcConfig srcConfig;
     private SybaseDstLocalStorage sybaseDstLocalStorage;
     private SybaseGeneralConfig sybaseGeneralConfig;
+    private SybaseExtConfig extConfig;
 
     public static CdcStartVariables create() {
         return new CdcStartVariables();
@@ -24,6 +25,11 @@ public class CdcStartVariables {
 
     public CdcStartVariables srcConfig(SybaseSrcConfig srcConfig) {
         this.srcConfig = srcConfig;
+        return this;
+    }
+
+    public CdcStartVariables extConfig(SybaseExtConfig extConfig) {
+        this.extConfig = extConfig;
         return this;
     }
 
@@ -67,5 +73,13 @@ public class CdcStartVariables {
 
     public void setSybaseGeneralConfig(SybaseGeneralConfig sybaseGeneralConfig) {
         this.sybaseGeneralConfig = sybaseGeneralConfig;
+    }
+
+    public SybaseExtConfig getExtConfig() {
+        return extConfig;
+    }
+
+    public void setExtConfig(SybaseExtConfig extConfig) {
+        this.extConfig = extConfig;
     }
 }
