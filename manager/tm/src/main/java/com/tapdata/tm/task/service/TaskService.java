@@ -3388,6 +3388,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         pause(taskDto, user, force, restart);
     }
 
+    public void pause(ObjectId id, UserDetail user, boolean force, boolean restart, boolean system) {
+        pause(id, user, force, restart);
+    }
+
 
     /**
      * @see DataFlowEvent#STOP
@@ -3817,7 +3821,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
                 .and("type").in(TaskDto.TYPE_INITIAL_SYNC, TaskDto.TYPE_INITIAL_SYNC_CDC)
                 .and("crontabExpression").exists(true)
-                .and("createUser").is("18973231732")
                 .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
                         TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING,
