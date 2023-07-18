@@ -1108,6 +1108,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param user 用户
      */
     public void renew(ObjectId id, UserDetail user) {
+        renew(id, user, false);
+    }
+
+    public void renew(ObjectId id, UserDetail user, boolean system) {
         TaskDto taskDto = checkExistById(id, user);
         boolean needCreateRecord = !Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_WAIT_START).contains(taskDto.getStatus());
         //boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
@@ -1151,7 +1155,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                 taskSnapshot.setTaskRecordId(lastTaskRecordId);
                 disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
-                        new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+                        new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, system ? "system" : user.getUserId(), new Date()));
             }
         } else {
             //如果状态机修改重置中失败，应该提醒用户重置操作重复了，或者任务当前状态被刷新了。

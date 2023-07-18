@@ -69,7 +69,7 @@ public class ScheduleService{
             taskService.save(taskDto, userDetail);
 
             if (Lists.newArrayList(TaskDto.STATUS_STOP, TaskDto.STATUS_COMPLETE).contains(status)){
-                taskService.renew(taskId, userDetail);
+                taskService.renew(taskId, userDetail, true);
             }
 
             return;
@@ -83,7 +83,7 @@ public class ScheduleService{
             if (TaskDto.TYPE_INITIAL_SYNC_CDC.equals(taskDto.getType()) && TaskDto.STATUS_RUNNING.equals(status)) {
                 taskService.pause(taskId, userDetail, false);
             } else if (Lists.newArrayList(TaskDto.STATUS_STOP, TaskDto.STATUS_COMPLETE).contains(status)){
-                taskService.renew(taskId, userDetail);
+                taskService.renew(taskId, userDetail, true);
             } else if (TaskDto.STATUS_WAIT_START.equals(status)) {
                 taskService.start(taskId, userDetail, true);
             } else {
