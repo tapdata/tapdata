@@ -3811,11 +3811,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void startPlanCronTask() {
         Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
-                .and("type").is(TaskDto.TYPE_INITIAL_SYNC)
+                .and("type").in(TaskDto.TYPE_INITIAL_SYNC, TaskDto.TYPE_INITIAL_SYNC_CDC)
                 .and("crontabExpression").exists(true)
+                .and("createUser").is("18973231732")
                 .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
-                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING,
+                        TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING,
                         TaskDto.STATUS_DELETE_FAILED));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
@@ -3830,7 +3831,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     scheduleService.executeTask(taskDto);
                     success = success + 1;
                 } catch (Exception e) {
-                    log.error("Cron task error name:{},id:{}", taskDto.getName(), taskDto.getId());
+                    log.error("Cron task error name:{},id:{}, msg:{}", taskDto.getName(), taskDto.getId(), e.getMessage());
                     error = error + 1;
                 }
             }
