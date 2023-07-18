@@ -171,6 +171,8 @@ public class LdpServiceImpl implements LdpService {
 
 
             String initType = task.getType();
+            String initCrontabExpression = task.getCrontabExpression();
+            Boolean initCrontabExpressionFlag = task.getCrontabExpressionFlag();
             if (StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
                 mergeAllTable(user, connectionId, oldTask, oldTableNames);
                 task = oldTask;
@@ -182,6 +184,8 @@ public class LdpServiceImpl implements LdpService {
                 task = createNew(task, dag, oldTask);
             }
             task.setType(initType);
+            task.setCrontabExpression(initCrontabExpression);
+            task.setCrontabExpressionFlag(initCrontabExpressionFlag);
         } else if (StringUtils.isNotBlank(databaseNode.getTableExpression())) {
             mergeAllTable(user, connectionId, task, null);
         } else {
