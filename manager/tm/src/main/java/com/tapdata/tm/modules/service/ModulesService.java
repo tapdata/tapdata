@@ -1456,8 +1456,13 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                 .bind("code",new HighlightRenderPolicy())
                 .useSpringEL()
                 .build();
-        XWPFTemplate template = XWPFTemplate.compile(url.getPath(),config)
-                .render(apiView);
+        XWPFTemplate template =null;
+        try{
+             template=XWPFTemplate.compile(url.getPath(),config)
+                    .render(apiView);
+        }catch (Exception e){
+            log.error("render template error{}",e);
+        }
         AtomicReference<String> fileName = new AtomicReference<>("");
         String yyyymmdd = DateUtil.today().replaceAll("-", "");
         FunctionUtils.isTureOrFalse(ids.size() > 1).trueOrFalseHandle(
