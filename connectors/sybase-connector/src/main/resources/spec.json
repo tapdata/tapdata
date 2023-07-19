@@ -216,7 +216,7 @@
       "properties": {
         "fetchInterval": {
           "type": "string",
-          "title": "${close_delay_time}",
+          "title": "${fetch_interval}",
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "apiServerKey": "database_port",
@@ -239,7 +239,8 @@
       "timezone": "timezone",
       "doc": "docs/sybase_en_US.md",
       "close_delay_time": "Default delay shutdown time (in seconds)",
-      "encode_name": "Character Set Name"
+      "encode_name": "Character Set Name",
+      "fetch_interval": "CDC delay time in seconds"
     },
     "zh_CN": {
       "host": "地址",
@@ -251,7 +252,8 @@
       "timezone": "时区",
       "doc": "docs/sybase_zh_CN.md",
       "close_delay_time": "默认延迟关闭时间（单位：秒）",
-      "encode_name": "字符集名称"
+      "encode_name": "字符集名称",
+      "fetch_interval": "CDC延时（单位秒）"
     },
     "zh_TW": {
       "host": "地址",
@@ -263,7 +265,8 @@
       "timezone": "時區",
       "doc": "docs/sybase_zh_TW.md",
       "close_delay_time": "默認延遲關閉時間（組織：秒）",
-      "encode_name": "字元集名稱"
+      "encode_name": "字元集名稱",
+      "fetch_interval": "CDC延時（組織秒）"
     }
   },
   "dataTypes": {

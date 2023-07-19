@@ -15,9 +15,11 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
@@ -116,9 +118,12 @@ public class SybaseContext extends MysqlJdbcContextV2 {
      */
     public List<DataMap> queryAllTables(List<String> tableNames) throws SQLException {
         List<DataMap> tableList = list();
-        query(queryAllTablesInfoSql(getConfig().getSchema(), tableNames),
+        CommonDbConfig config = getConfig();
+        query(queryAllTablesInfoSql(config.getSchema(), tableNames),
                 resultSet -> tableList.addAll(DbKit.getDataFromResultSet(resultSet)));
         return tableList;
+//        List<String> tables = verifyTables(config.getUser());
+//        return tableList.stream().filter(t -> null != t && null != t.get("tableName") && tables.contains(String.valueOf(t.get("tableName")))).collect(Collectors.toList());
     }
 
     protected String queryAllTablesSql(String schema, List<String> tableNames) {
@@ -188,11 +193,20 @@ public class SybaseContext extends MysqlJdbcContextV2 {
 
     protected String queryAllIndexesSql(String tableName) {
         CommonDbConfig config = getConfig();
-        return String.format(SHOW_TABLE_CONFIG, config.getUser() + "." + tableName);
+        return String.format(SHOW_TABLE_CONFIG, tableName);
     }
 
     protected String queryAllIndexesSql(String schema, List<String> tableNames) {
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? tableNames.size() == 1 ? "AND obj.name = '" + tableNames.get(0) + "'" : "AND obj.name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
         return String.format(SHOW_TABLE_CONFIG, tableSql);
+    }
+
+    protected List<String> verifyTables(String username) throws SQLException {
+        List<DataMap> tableList = list();
+        query("sp_help",
+                resultSet -> tableList.addAll(DbKit.getDataFromResultSet(resultSet)));
+        Map<String, List<DataMap>> owner = tableList.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(data -> String.valueOf(data.get("Owner"))));
+        List<DataMap> dataMaps = owner.get(username);
+        return dataMaps.stream().filter(Objects::nonNull).map(map -> String.valueOf(map.get("Name"))).collect(Collectors.toList());
     }
 }

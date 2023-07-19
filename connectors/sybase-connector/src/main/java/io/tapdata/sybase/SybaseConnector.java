@@ -415,7 +415,12 @@ public class SybaseConnector extends CommonDbConnector {
             ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
             AtomicLong count = new AtomicLong(0);
             String sql = "select count(1) from " + config.getDatabase() + "." + config.getUsername() + "." + tapTable.getId();
-            jdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
+            try {
+                jdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
+            } catch (Exception e) {
+                sql = "select count(1) from " + tapTable.getId();
+                jdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
+            }
             return count.get();
         } catch (SQLException e) {
             exceptionCollector.collectReadPrivileges("batchCount", Collections.emptyList(), e);
@@ -434,7 +439,7 @@ public class SybaseConnector extends CommonDbConnector {
 
         ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
         String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> " " + c + " ").collect(Collectors.joining(","));
-        String sql = String.format("SELECT %s FROM " + config.getDatabase() + "." + config.getUsername() + "." + tapTable.getId(), columns);
+        String sql = String.format("SELECT %s FROM " + tapTable.getId(), columns);
 
         try {
             sybaseContext.query(sql, resultSet -> {
@@ -488,7 +493,7 @@ public class SybaseConnector extends CommonDbConnector {
         ConnectionConfig config = new ConnectionConfig(connectorContext);
         List<FilterResult> filterResults = new LinkedList<>();
         for (TapFilter filter : filters) {
-            String sql = "select * from " + getSchemaAndTable(config.getDatabase() + "." + config.getUsername() + "." + tapTable.getId()) + " where " + commonSqlMaker.buildKeyAndValue(filter.getMatch(), "and", "=");
+            String sql = "select * from " + getSchemaAndTable(tapTable.getId()) + " where " + commonSqlMaker.buildKeyAndValue(filter.getMatch(), "and", "=");
             FilterResult filterResult = new FilterResult();
             try {
                 jdbcContext.query(sql, resultSet -> {
