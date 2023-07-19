@@ -16,7 +16,7 @@ public class KafkaConfig extends MqConfig {
     private String krb5Conf;
     private String krb5Principal;
     private String krb5ServiceName;
-    private Boolean schemaRegister;
+    private Boolean schemaRegister = false;
     private String schemaRegisterUrl;
     private Boolean basicAuth;
 
