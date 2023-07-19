@@ -209,7 +209,7 @@ public class TaskResetSchedule {
 
 
                     if (TaskDto.STATUS_RENEW_FAILED.equals(taskDto.getStatus())) {
-                        taskService.renew(taskDto.getId(), user);
+                        taskService.renew(taskDto.getId(), user, true);
                     } else if (TaskDto.STATUS_DELETE_FAILED.equals(taskDto.getStatus())) {
                         taskService.remove(taskDto.getId(), user);
                     }

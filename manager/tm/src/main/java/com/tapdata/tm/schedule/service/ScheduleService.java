@@ -1,15 +1,11 @@
 package com.tapdata.tm.schedule.service;
 
 
-import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.extra.spring.SpringUtil;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.task.entity.TaskEntity;
-import com.tapdata.tm.task.entity.TaskRecord;
-import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -23,7 +19,6 @@ import org.quartz.TriggerBuilder;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
-import java.util.HashMap;
 
 @Service
 @Slf4j
@@ -43,15 +38,15 @@ public class ScheduleService{
             return;
         }
 
-        TaskRecordService taskRecordService = SpringUtil.getBean(TaskRecordService.class);
         // 防止任务被删除
+        ObjectId taskId = taskDto.getId();
         if (taskDto.is_deleted()) {
-            log.info("Taskid :" + taskDto.getId() + " has be deleted");
+            log.info("Taskid :" + taskId + " has be deleted");
             return;
         }
         // 修改任务状态
         if (StringUtils.isBlank(taskDto.getCrontabExpression()) || taskDto.getCrontabExpressionFlag() == null || !taskDto.getCrontabExpressionFlag()) {
-            log.info("Taskid :" + taskDto.getId() + " has not schedule");
+            log.info("Taskid :" + taskId + " has not schedule");
             return;
         }
         String status = taskDto.getStatus();
@@ -72,31 +67,28 @@ public class ScheduleService{
             taskDto.setScheduleDate(newScheduleDate);
             taskDto.setCrontabScheduleMsg("");
             taskService.save(taskDto, userDetail);
+
+            if (Lists.newArrayList(TaskDto.STATUS_STOP, TaskDto.STATUS_COMPLETE).contains(status)){
+                taskService.renew(taskId, userDetail, true);
+            }
+
             return;
         }
-        if (TaskDto.STATUS_SCHEDULING.equals(status) || TaskDto.STATUS_RUNNING.equals(status)) {
-            log.info("taskId {},status:{}  不用在进行全量任务", taskDto.getId(), status);
+        if (TaskDto.STATUS_SCHEDULING.equals(status) || (TaskDto.STATUS_RUNNING.equals(status) && TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType()))) {
+            log.info("taskId {},status:{}  不用在进行全量任务", taskId, status);
             return;
         }
         if (scheduleDate < new Date().getTime()) {
-            log.info("taskId {},status:{}  定时在全量任务", taskDto.getId(), status);
-            TaskEntity taskSnapshot = new TaskEntity();
-            BeanUtil.copyProperties(taskDto, taskSnapshot);
-            taskSnapshot.setStatus(TaskDto.STATUS_RUNNING);
-            taskSnapshot.setStartTime(new Date());
-            ObjectId objectId = ObjectId.get();
-            taskSnapshot.setTaskRecordId(objectId.toHexString());
-            TaskRecord taskRecord = new TaskRecord(objectId.toHexString(), taskDto.getId().toHexString(), taskSnapshot, "system", new Date());
-            // 创建记录
-            taskRecordService.createRecord(taskRecord);
-            taskDto.setTaskRecordId(objectId.toString());
-            taskDto.setAttrs(new HashMap<>());
-            taskDto.setScheduleDate(newScheduleDate);
-            taskDto.setCrontabScheduleMsg("");
-            taskService.save(taskDto, userDetail);
-            // 执行记录
-            taskService.start(taskDto.getId(), userDetail, true);
 
+            if (TaskDto.TYPE_INITIAL_SYNC_CDC.equals(taskDto.getType()) && TaskDto.STATUS_RUNNING.equals(status)) {
+                taskService.pause(taskId, userDetail, false, false, true);
+            } else if (Lists.newArrayList(TaskDto.STATUS_STOP, TaskDto.STATUS_COMPLETE).contains(status)){
+                taskService.renew(taskId, userDetail, true);
+            } else if (TaskDto.STATUS_WAIT_START.equals(status)) {
+                taskService.start(taskId, userDetail, true);
+            } else {
+                log.warn("other status can not run, need check taskId:{} status:{}", taskId, status);
+            }
         }
     }
 

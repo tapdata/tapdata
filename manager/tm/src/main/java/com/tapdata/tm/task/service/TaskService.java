@@ -1108,6 +1108,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param user 用户
      */
     public void renew(ObjectId id, UserDetail user) {
+        renew(id, user, false);
+    }
+
+    public void renew(ObjectId id, UserDetail user, boolean system) {
         TaskDto taskDto = checkExistById(id, user);
         boolean needCreateRecord = !Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_WAIT_START).contains(taskDto.getStatus());
         //boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
@@ -1151,7 +1155,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                 taskSnapshot.setTaskRecordId(lastTaskRecordId);
                 disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
-                        new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+                        new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, system ? "system" : user.getUserId(), new Date()));
             }
         } else {
             //如果状态机修改重置中失败，应该提醒用户重置操作重复了，或者任务当前状态被刷新了。
@@ -3384,6 +3388,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         pause(taskDto, user, force, restart);
     }
 
+    public void pause(ObjectId id, UserDetail user, boolean force, boolean restart, boolean system) {
+        pause(id, user, force, restart);
+    }
+
 
     /**
      * @see DataFlowEvent#STOP
@@ -3811,11 +3819,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void startPlanCronTask() {
         Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
-                .and("type").is(TaskDto.TYPE_INITIAL_SYNC)
+                .and("type").in(TaskDto.TYPE_INITIAL_SYNC, TaskDto.TYPE_INITIAL_SYNC_CDC)
                 .and("crontabExpression").exists(true)
                 .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
-                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING,
+                        TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING,
                         TaskDto.STATUS_DELETE_FAILED));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
@@ -3830,7 +3838,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     scheduleService.executeTask(taskDto);
                     success = success + 1;
                 } catch (Exception e) {
-                    log.error("Cron task error name:{},id:{}", taskDto.getName(), taskDto.getId());
+                    log.error("Cron task error name:{},id:{}, msg:{}", taskDto.getName(), taskDto.getId(), e.getMessage());
                     error = error + 1;
                 }
             }

@@ -44,6 +44,7 @@ public class TaskAop {
         if (args[0] instanceof ObjectId) {
             ObjectId id = (ObjectId) args[0];
             boolean force = (boolean)args[2];
+            Object system = args[4];
 
             //查询任务是否存在
             TaskDto taskDto = taskService.checkExistById(id, userDetail);
@@ -51,7 +52,7 @@ public class TaskAop {
             Operation operation = force ? Operation.FORCE_STOP : Operation.STOP;
             if (null != taskDto) {
                 userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
-                        operation, userDetail, taskDto.getId().toString(), taskDto.getName());
+                        operation, userDetail, taskDto.getId().toString(), taskDto.getName(), system);
             }
         } else if (args[0] instanceof List<?>){
             List<?> list = (List<?>) args[0];
