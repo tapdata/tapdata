@@ -517,6 +517,7 @@
 						<nonFilteredFileExtension>ttf</nonFilteredFileExtension>
 						<nonFilteredFileExtension>woff</nonFilteredFileExtension>
 						<nonFilteredFileExtension>woff2</nonFilteredFileExtension>
+						<nonFilteredFileExtension>doc</nonFilteredFileExtension>
 						<nonFilteredFileExtension>docx</nonFilteredFileExtension>
 					</nonFilteredFileExtensions>
 				</configuration>
