@@ -488,7 +488,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			}
 			//不需要这个操作了。引擎会更新这个东西，另外每次更新databasetypes的时候，需要更新这个  参考： updateCapabilities方法
 			if (definitionDto != null) {
-				item.setCapabilities(definitionDto.getCapabilities());
+//				item.setCapabilities(definitionDto.getCapabilities());
 				item.setDefinitionPdkId(definitionDto.getPdkId());
 				item.setPdkType(definitionDto.getPdkType());
 				item.setPdkHash(definitionDto.getPdkHash());
