@@ -66,6 +66,9 @@ public class DefaultConvert implements SybaseDataTypeConvert {
                         return objToNumber(fromValue);
                     } else if (type.startsWith("NUMERIC")) {
                         return objToNumber(fromValue);
+                    } else if ("TEXT".equals(type)) {
+                        TapLogger.warn(TAG, "An TEXT data type not support in cdc now");
+                        return null;
                     } else if (type.matches(Code.MACHE_REGEX)
                             || type.startsWith("SYSNAME")
                             || type.startsWith("LONGSYSNAME")) {
