@@ -459,6 +459,7 @@
 				<directory>${project.basedir}/${resource.dir}</directory>
 				<filtering>true</filtering>
 				<excludes>
+					<exclude>template/*</exclude>
 					<exclude>dev/*</exclude>
 					<exclude>prod/*</exclude>
 					<exclude>test/*</exclude>
