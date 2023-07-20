@@ -248,6 +248,7 @@ public class TaskEntity extends BaseEntity {
     private Boolean fdmMain;
 
     private String functionRetryStatus;
+    private Long functionRetryEx;
     private String taskRetryStatus;
 
     public String getAccessNodeProcessId() {
