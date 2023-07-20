@@ -27,14 +27,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.math.BigDecimal;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -47,10 +40,10 @@ public class FieldProcessUtil {
 	private static final String CONVERT_ERROR_TEMPLATE = "Convert type %s to %s does not supported, value: %s";
 
 	public static void filedProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess) throws Exception {
-		filedProcess(record, fieldsProcess, "");
+		filedProcess(record, fieldsProcess, "", false);
 	}
 
-	public static void filedProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess, String fieldsNameTransform) throws Exception {
+	public static void filedProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess, String fieldsNameTransform, boolean deleteAllFields) throws Exception {
 		// 记录字段改名的隐射关系
 		Map<String, String> renameMapping = new HashMap<>();
 
@@ -73,6 +66,19 @@ public class FieldProcessUtil {
 			record.putAll(newRecord);
 		}
 
+		Set<String> rollbackFields = CollectionUtils.isEmpty(fieldsProcess) ? new HashSet<>() : fieldsProcess.stream()
+				.filter(f -> FieldProcess.FieldOp.OP_REMOVE.equals(FieldProcess.FieldOp.fromOperation(f.getOp())) && f.getOperand().equals("false"))
+				.map(FieldProcess::getField).collect(Collectors.toSet());
+		if (deleteAllFields) {
+
+			Set<String> keySet = new HashSet<>(record.keySet());
+			for (String key : keySet) {
+				if (!rollbackFields.contains(key)) {
+					MapUtilV2.removeValueByKey(record, key);
+				}
+			}
+		}
+
 		for (FieldProcess process : fieldsProcess) {
 			String field = process.getField();
 			String op = process.getOp();
@@ -84,8 +90,9 @@ public class FieldProcessUtil {
 					break;
 
 				case OP_REMOVE:
-
-					MapUtilV2.removeValueByKey(record, field);
+					if (!rollbackFields.contains(field)) {
+						MapUtilV2.removeValueByKey(record, field);
+					}
 					break;
 
 				case OP_RENAME:
