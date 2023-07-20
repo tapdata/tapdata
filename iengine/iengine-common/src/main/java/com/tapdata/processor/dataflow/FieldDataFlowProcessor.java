@@ -71,11 +71,17 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 
 	private String fieldsNameTransform;
 
+	private boolean deleteAllFields;
+
 	public FieldDataFlowProcessor() {
 	}
 
 	public FieldDataFlowProcessor(String fieldsNameTransform) {
 		this.fieldsNameTransform = fieldsNameTransform;
+	}
+
+	public FieldDataFlowProcessor(boolean deleteAllFields) {
+		this.deleteAllFields = deleteAllFields;
 	}
 
 	@Override
@@ -146,12 +152,12 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 				// so that it cat be get by mapping
 				Map<String, Object> before = message.getBefore();
 				if (MapUtils.isNotEmpty(before)) {
-					FieldProcessUtil.filedProcess(before, fieldProcesses, fieldsNameTransform);
+					FieldProcessUtil.filedProcess(before, fieldProcesses, fieldsNameTransform, deleteAllFields);
 					message.setBefore(before);
 				}
 				Map<String, Object> after = message.getAfter();
 				if (MapUtils.isNotEmpty(after)) {
-					FieldProcessUtil.filedProcess(after, fieldProcesses, fieldsNameTransform);
+					FieldProcessUtil.filedProcess(after, fieldProcesses, fieldsNameTransform, deleteAllFields);
 					message.setAfter(after);
 				}
 				fieldScript(message, before);

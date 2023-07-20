@@ -41,10 +41,10 @@ public class FieldProcessUtil {
 	private static final String CONVERT_ERROR_TEMPLATE = "Convert type %s to %s does not supported, value: %s";
 
 	public static void filedProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess) throws Exception {
-		filedProcess(record, fieldsProcess, "");
+		filedProcess(record, fieldsProcess, "", false);
 	}
 
-	public static void filedProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess, String fieldsNameTransform) throws Exception {
+	public static void filedProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess, String fieldsNameTransform, boolean deleteAllFields) throws Exception {
 		// 记录字段改名的隐射关系
 		Map<String, String> renameMapping = new HashMap<>();
 		final Set<String> renameOpFields = CollectionUtils.isEmpty(fieldsProcess) ? new HashSet<>()
@@ -74,6 +74,19 @@ public class FieldProcessUtil {
 			record.putAll(newRecord);
 		}
 
+		Set<String> rollbackFields = CollectionUtils.isEmpty(fieldsProcess) ? new HashSet<>() : fieldsProcess.stream()
+				.filter(f -> FieldProcess.FieldOp.OP_REMOVE.equals(FieldProcess.FieldOp.fromOperation(f.getOp())) && f.getOperand().equals("false"))
+				.map(FieldProcess::getField).collect(Collectors.toSet());
+		if (deleteAllFields) {
+
+			Set<String> keySet = new HashSet<>(record.keySet());
+			for (String key : keySet) {
+				if (!rollbackFields.contains(key)) {
+					MapUtilV2.removeValueByKey(record, key);
+				}
+			}
+		}
+
 		for (FieldProcess process : fieldsProcess) {
 			String field = process.getField();
 			String op = process.getOp();
@@ -85,8 +98,9 @@ public class FieldProcessUtil {
 					break;
 
 				case OP_REMOVE:
-
-					MapUtilV2.removeValueByKey(record, field);
+					if (!rollbackFields.contains(field)) {
+						MapUtilV2.removeValueByKey(record, field);
+					}
 					break;
 
 				case OP_RENAME:
