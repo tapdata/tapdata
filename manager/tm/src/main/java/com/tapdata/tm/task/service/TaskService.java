@@ -1718,6 +1718,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                         HttpServletRequest request,
                                         HttpServletResponse response) {
         TaskDto taskDto = new TaskDto();
+        taskDto.setSyncType(TaskDto.SYNC_TYPE_MEM_CACHE);
 
         parseCacheToTaskDto(saveShareCacheParam, taskDto);
         taskDto = confirmById(taskDto, user, true);
