@@ -597,16 +597,17 @@ public class MailUtils {
 
         BlacklistService blacklistService = SpringContextHelper.getBean(BlacklistService.class);
         if (blacklistService != null) {
-            List<String> blacklist = adressees.stream().filter(to -> {
-                if (blacklistService.inBlacklist(to)) {
-                    return true;
-                }
-                return false;
-            }).collect(Collectors.toList());
-            adressees.removeAll(blacklist);
+            List<String> notInBlacklistAddress = adressees.stream().filter(to -> !blacklistService.inBlacklist(to)).collect(Collectors.toList());
+            if (log.isDebugEnabled()) {
+                log.debug("Blacklist filter address {}, {}", adressees, notInBlacklistAddress);
+            }
+            adressees = notInBlacklistAddress;
+            //adressees.removeAll(blacklist);
             if (CollectionUtils.isEmpty(adressees)) {
                 return;
             }
+        } else {
+            log.warn("Check blacklist failed before send email, not found BlacklistService.");
         }
 
         boolean flag = true;
