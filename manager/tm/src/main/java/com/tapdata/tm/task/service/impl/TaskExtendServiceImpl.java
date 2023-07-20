@@ -14,6 +14,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -41,5 +42,12 @@ public class TaskExtendServiceImpl implements TaskExtendService {
             String msg = "The public agent trial has expired and the task has stopped. Please create a new agent as soon as possible";
             monitoringLogsService.startTaskErrorLog(taskDto, userDetail, msg, Level.WARN);
         });
+    }
+
+    @Override
+    public void clearFunctionRetry() {
+        Query query = Query.query(Criteria.where("functionRetryStatus").is(TaskDto.RETRY_STATUS_RUNNING).and("functionRetryEx").lt(System.currentTimeMillis()));
+        Update update = Update.update("functionRetryStatus", TaskDto.RETRY_STATUS_NONE);
+        taskService.update(query, update);
     }
 }
