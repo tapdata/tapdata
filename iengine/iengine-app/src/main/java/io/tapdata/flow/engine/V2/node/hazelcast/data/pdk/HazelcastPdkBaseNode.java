@@ -144,9 +144,11 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	public void clearFunctionRetry(String taskId) {
-		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("functionRetryStatus", TaskDto.RETRY_STATUS_NONE),
-						ConnectorConstant.TASK_COLLECTION), "Failed to clear function retry status");
+		CommonUtils.ignoreAnyError(() -> {
+			Update update = new Update().set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING)
+					.set("functionRetryEx", System.currentTimeMillis() + 5 * 60 * 1000L);
+			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
+		}, "Failed to sign function retry status");
 	}
 
 	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
