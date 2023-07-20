@@ -459,7 +459,6 @@
 				<directory>${project.basedir}/${resource.dir}</directory>
 				<filtering>true</filtering>
 				<excludes>
-					<exclude>template/*</exclude>
 					<exclude>dev/*</exclude>
 					<exclude>prod/*</exclude>
 					<exclude>test/*</exclude>
@@ -471,6 +470,13 @@
 					<exclude>cloud-test/*</exclude>
 					<exclude>*.yaml</exclude>
 				</excludes>
+			</resource>
+			<resource>
+				<directory>${project.basedir}/${resource.dir}</directory>
+				<filtering>true</filtering>
+				<includes>
+					<include>template/*</include>
+				</includes>
 			</resource>
 			<resource>
 				<directory>${project.basedir}/${profile.dir}</directory>
