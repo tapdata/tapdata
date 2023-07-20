@@ -162,6 +162,7 @@ public class TaskDto extends ParentTaskDto {
     private List<String> ldpNewTables;
 
     private String functionRetryStatus;
+    private Long functionRetryEx;
     private String taskRetryStatus;
 
     public DAG getDag() {
