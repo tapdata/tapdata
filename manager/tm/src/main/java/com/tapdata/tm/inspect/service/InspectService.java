@@ -367,34 +367,38 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
 
     public InspectDto createCheckByTask(TaskDto taskDto, UserDetail userDetail) {
         InspectDto inspectDto = new InspectDto();
+        inspectDto.setFlowId(taskDto.getId().toHexString());
         inspectDto.setName(taskDto.getName() + "_inspect_" + DateUtil.formatTime(DateUtil.date()));
         inspectDto.setMode("manual");
         inspectDto.setInspectMethod("row_count");
         inspectDto.setInspectDifferenceMode("All");
-        inspectDto.setLimit(new Limit(){{setKeep(100);}});
+        Limit limit = new Limit();
+        limit.setKeep(100);
+        inspectDto.setLimit(limit);
         inspectDto.setEnabled(true);
         inspectDto.setStatus("waiting");
         inspectDto.setPing_time(System.currentTimeMillis());
-        inspectDto.setPlatformInfo(new PlatformInfo(){{setAgentType("private");}});
+
+        PlatformInfo platformInfo = new PlatformInfo();
+        platformInfo.setAgentType("private");
+        inspectDto.setPlatformInfo(platformInfo);
         inspectDto.setAgentTags(Lists.newArrayList("private"));
         inspectDto.setScheduleTimes(0);
 
         List<AlarmSettingVO> alarmSettings = new ArrayList<>();
-        alarmSettings.add(new AlarmSettingVO() {{
-            setType(AlarmSettingTypeEnum.INSPECT);
-            setOpen(true);
-            setKey(AlarmKeyEnum.INSPECT_TASK_ERROR);
-            setNotify(Lists.newArrayList(NotifyEnum.SYSTEM, NotifyEnum.EMAIL));
-        }});
-        alarmSettings.add(new AlarmSettingVO() {{
-            setType(AlarmSettingTypeEnum.INSPECT);
-            setOpen(true);
-            setKey(AlarmKeyEnum.INSPECT_COUNT_ERROR);
-            setNotify(Lists.newArrayList(NotifyEnum.SYSTEM, NotifyEnum.EMAIL));
-            Map<String, Object> map = Maps.newHashMap();
-            map.put("maxDifferentialRows", 0);
-            setParams(map);
-        }});
+        alarmSettings.add(AlarmSettingVO.builder()
+                .type(AlarmSettingTypeEnum.INSPECT)
+                .open(true)
+                .key(AlarmKeyEnum.INSPECT_TASK_ERROR)
+                .notify(Lists.newArrayList(NotifyEnum.SYSTEM, NotifyEnum.EMAIL)).build());
+        Map<String, Object> map = Maps.newHashMap();
+        map.put("maxDifferentialRows", 0);
+        alarmSettings.add(AlarmSettingVO.builder()
+                .type(AlarmSettingTypeEnum.INSPECT)
+                .open(true)
+                .key(AlarmKeyEnum.INSPECT_COUNT_ERROR)
+                .notify(Lists.newArrayList(NotifyEnum.SYSTEM, NotifyEnum.EMAIL))
+                .params(map).build());
         inspectDto.setAlarmSettings(alarmSettings);
 
         List<Task> taskList = new ArrayList<>();
@@ -436,6 +440,10 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
                         source.setConnectionId(tableNode.getConnectionId());
                         source.setDatabaseType(tableNode.getDatabaseType());
                     }
+                    if (Lists.newArrayList("Clickhouse", "Kafka").contains(source.getDatabaseType())) {
+                        throw new BizException("Kafka or Clickhouse not suppport row count inspect!");
+                    }
+
                     task.setSource(source);
                     taskList.add(task);
                 });
@@ -450,10 +458,10 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
                     Task task = taskList.stream().filter(t -> meta.getAncestorsName().equals(t.getSource().getTable()))
                             .findFirst().orElseThrow(() -> new BizException("not found task by AncestorsName:" + meta.getAncestorsName()));
 
-                    Source source = new Source();
-                    source.setNodeId(node.getId());
-                    source.setConnectionName(node.getName());
-                    source.setNodeName(node.getName());
+                    Source target = new Source();
+                    target.setNodeId(node.getId());
+                    target.setConnectionName(node.getName());
+                    target.setNodeName(node.getName());
 
                     AtomicReference<String> sortColumn = new AtomicReference<>("");
                     meta.getFields().stream().filter(field -> field.getPrimaryKeyPosition() == 1).findFirst().ifPresent(key -> {
@@ -465,18 +473,22 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
                         });
                     }
 
-                    source.setSortColumn(sortColumn.get());
-                    source.setTable(meta.getOriginalName());
+                    target.setSortColumn(sortColumn.get());
+                    target.setTable(meta.getOriginalName());
                     if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                         DatabaseNode databaseNode = (DatabaseNode) node;
-                        source.setConnectionId(databaseNode.getConnectionId());
-                        source.setDatabaseType(databaseNode.getDatabaseType());
+                        target.setConnectionId(databaseNode.getConnectionId());
+                        target.setDatabaseType(databaseNode.getDatabaseType());
                     } else {
                         TableNode tableNode = (TableNode) node;
-                        source.setConnectionId(tableNode.getConnectionId());
-                        source.setDatabaseType(tableNode.getDatabaseType());
+                        target.setConnectionId(tableNode.getConnectionId());
+                        target.setDatabaseType(tableNode.getDatabaseType());
                     }
-                    task.setSource(source);
+                    if (Lists.newArrayList("Clickhouse", "Kafka").contains(target.getDatabaseType())) {
+                        throw new BizException("Kafka or Clickhouse not suppport row count inspect!");
+                    }
+
+                    task.setTarget(target);
                 });
             }
         });

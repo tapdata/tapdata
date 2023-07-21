@@ -5,6 +5,7 @@ import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.constant.AlarmSettingTypeEnum;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -19,6 +20,7 @@ import java.util.Map;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 public class AlarmSettingVO implements Serializable {
     private AlarmSettingTypeEnum type;
     private boolean open;
@@ -27,5 +29,5 @@ public class AlarmSettingVO implements Serializable {
     private List<NotifyEnum> notify;
     private int interval;
     private DateUnit unit;
-		private Map<String, Object> params;
+    private Map<String, Object> params;
 }

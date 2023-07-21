@@ -82,7 +82,7 @@ public class ScheduleService{
 
             if (TaskDto.TYPE_INITIAL_SYNC_CDC.equals(taskDto.getType()) && TaskDto.STATUS_RUNNING.equals(status)) {
                 taskService.pause(taskId, userDetail, false, false, true);
-            } else if (Lists.newArrayList(TaskDto.STATUS_STOP, TaskDto.STATUS_COMPLETE).contains(status)){
+            } else if (Lists.newArrayList(TaskDto.STATUS_STOP, TaskDto.STATUS_COMPLETE, TaskDto.STATUS_ERROR).contains(status)){
                 taskService.renew(taskId, userDetail, true);
             } else if (TaskDto.STATUS_WAIT_START.equals(status)) {
                 taskService.start(taskId, userDetail, true);
