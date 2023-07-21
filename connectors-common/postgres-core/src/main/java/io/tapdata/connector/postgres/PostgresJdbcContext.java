@@ -9,17 +9,37 @@ import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 
+import java.sql.SQLException;
+import java.text.DecimalFormat;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class PostgresJdbcContext extends JdbcContext {
+
+    protected final static String PG_TIMEZONE = "show time zone; ";
+    protected final static String PG_TIMEZONE_0 = "select * from pg_timezone_names where name = '%s' ";
 
     private final static String TAG = PostgresJdbcContext.class.getSimpleName();
 
     public PostgresJdbcContext(PostgresConfig config) {
         super(config);
         exceptionCollector = new PostgresExceptionCollector();
+    }
+
+    public TimeZone queryTimeZone() throws SQLException {
+        AtomicReference<String> timeOffset = new AtomicReference<>("+00:00:00");
+        AtomicReference<String> timezoneName = new AtomicReference<>();
+        queryWithNext(PG_TIMEZONE, resultSet -> timezoneName.set(resultSet.getString(1)));
+        queryWithNext(String.format(PG_TIMEZONE_0, timezoneName.get()), resultSet -> timeOffset.set(resultSet.getString(3)));
+        return TimeZone.getTimeZone(ZoneId.of(
+                (timeOffset.get()).startsWith("-")
+                        ? timeOffset.get()
+                        : (
+                                (timeOffset.get()).startsWith("+")
+                                        ? timeOffset.get() : ("+" + timeOffset.get()))));
     }
 
     /**
