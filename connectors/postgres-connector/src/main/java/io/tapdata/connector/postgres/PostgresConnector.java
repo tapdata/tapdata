@@ -15,9 +15,18 @@ import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
 import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapArrayValue;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapDateValue;
+import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.entity.schema.value.TapRawValue;
+import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.schema.value.TapTimeValue;
+import io.tapdata.entity.schema.value.TapYearValue;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
@@ -32,7 +41,13 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
-import org.postgresql.geometric.*;
+import org.postgresql.geometric.PGbox;
+import org.postgresql.geometric.PGcircle;
+import org.postgresql.geometric.PGline;
+import org.postgresql.geometric.PGlseg;
+import org.postgresql.geometric.PGpath;
+import org.postgresql.geometric.PGpoint;
+import org.postgresql.geometric.PGpolygon;
 import org.postgresql.jdbc.PgArray;
 import org.postgresql.jdbc.PgSQLXML;
 import org.postgresql.util.PGInterval;
@@ -42,7 +57,12 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -61,11 +81,67 @@ public class PostgresConnector extends CommonDbConnector {
     private PostgresCdcRunner cdcRunner; //only when task start-pause this variable can be shared
     private Object slotName; //must be stored in stateMap
     protected String postgresVersion;
+    private TimeZone timezone;
+    boolean ignoreFieldNotNullWhenCreateTable = false;
+
+    //initialize jdbc context, slot name, version
+    private void initConnection(TapConnectionContext connectionContext) throws SQLException {
+        postgresConfig = (PostgresConfig) new PostgresConfig().load(connectionContext.getConnectionConfig());
+        postgresTest = new PostgresTest(postgresConfig, testItem -> {
+        }).initContext();
+        postgresJdbcContext = new PostgresJdbcContext(postgresConfig);
+        commonDbConfig = postgresConfig;
+        jdbcContext = postgresJdbcContext;
+        isConnectorStarted(connectionContext, tapConnectorContext -> slotName = tapConnectorContext.getStateMap().get("tapdata_pg_slot"));
+        if (connectionContext instanceof TapConnectorContext) {
+            this.timezone = postgresJdbcContext.queryTimeZone();
+            DataMap nodeConfig = connectionContext.getNodeConfig();
+            ignoreFieldNotNullWhenCreateTable = null == nodeConfig || null == nodeConfig.get("ignoreNull") || (boolean) nodeConfig.get("ignoreNull");
+        }
+        commonSqlMaker = new CommonSqlMaker();
+        postgresVersion = postgresJdbcContext.queryVersion();
+        ddlSqlGenerator = new PostgresDDLSqlGenerator();
+        tapLogger = connectionContext.getLog();
+        fieldDDLHandlers = new BiClassHandlers<>();
+        fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
+        fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
+        fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
+        fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
+        exceptionCollector = new PostgresExceptionCollector();
+    }
 
     @Override
-    public void onStart(TapConnectionContext connectorContext) {
+    public void onStart(TapConnectionContext connectorContext) throws SQLException {
         initConnection(connectorContext);
     }
+
+    @Override
+    public void onStop(TapConnectionContext connectionContext) {
+        ErrorKit.ignoreAnyError(() -> {
+            if (EmptyKit.isNotNull(cdcRunner)) {
+                cdcRunner.closeCdcRunner();
+            }
+        });
+        EmptyKit.closeQuietly(postgresTest);
+        EmptyKit.closeQuietly(postgresJdbcContext);
+    }
+
+    //clear resource outer and jdbc context
+    private void onDestroy(TapConnectorContext connectorContext) throws Throwable {
+        try {
+            onStart(connectorContext);
+            if (EmptyKit.isNotNull(cdcRunner)) {
+                cdcRunner.closeCdcRunner();
+                cdcRunner = null;
+            }
+            if (EmptyKit.isNotNull(slotName)) {
+                clearSlot();
+            }
+        } finally {
+            onStop(connectorContext);
+        }
+    }
+
 
     protected TapField makeTapField(DataMap dataMap) {
         return new PostgresColumn(dataMap).getTapField();
@@ -130,6 +206,29 @@ public class PostgresConnector extends CommonDbConnector {
             return "null";
         });
 
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
+            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
+                tapDateTimeValue.getValue().setTimeZone(timezone);
+            }
+            return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss");
+        });
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
+            if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
+                tapDateValue.getValue().setTimeZone(timezone);
+            }
+            return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
+        });
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> {
+            Date date = tapTimeValue.getValue().toDate();
+            return LocalDateTime.ofInstant(date.toInstant(), null == timezone ? TimeZone.getDefault().toZoneId() : timezone.toZoneId());
+        });
+        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
+                tapYearValue.getValue().setTimeZone(timezone);
+            }
+            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
+        });
+
         codecRegistry.registerToTapValue(PgArray.class, (value, tapType) -> {
             PgArray pgArray = (PgArray) value;
             try (
@@ -178,19 +277,9 @@ public class PostgresConnector extends CommonDbConnector {
         connectorFunctions.supportTransactionRollbackFunction(this::rollbackTransaction);
     }
 
-    //clear resource outer and jdbc context
-    private void onDestroy(TapConnectorContext connectorContext) throws Throwable {
-        try {
-            onStart(connectorContext);
-            if (EmptyKit.isNotNull(cdcRunner)) {
-                cdcRunner.closeCdcRunner();
-                cdcRunner = null;
-            }
-            if (EmptyKit.isNotNull(slotName)) {
-                clearSlot();
-            }
-        } finally {
-            onStop(connectorContext);
+    protected void createTableFieldsAttributeWithConnectorConfig(TapField tapField){
+        if(ignoreFieldNotNullWhenCreateTable) {
+            tapField.setNullable(true);
         }
     }
 
@@ -222,38 +311,6 @@ public class PostgresConnector extends CommonDbConnector {
                 tapLogger.warn("The previous logical replication slot no longer exists. Although it has been rebuilt, there is a possibility of data loss. Please check");
             }
         }
-    }
-
-    @Override
-    public void onStop(TapConnectionContext connectionContext) {
-        ErrorKit.ignoreAnyError(() -> {
-            if (EmptyKit.isNotNull(cdcRunner)) {
-                cdcRunner.closeCdcRunner();
-            }
-        });
-        EmptyKit.closeQuietly(postgresTest);
-        EmptyKit.closeQuietly(postgresJdbcContext);
-    }
-
-    //initialize jdbc context, slot name, version
-    private void initConnection(TapConnectionContext connectionContext) {
-        postgresConfig = (PostgresConfig) new PostgresConfig().load(connectionContext.getConnectionConfig());
-        postgresTest = new PostgresTest(postgresConfig, testItem -> {
-        }).initContext();
-        postgresJdbcContext = new PostgresJdbcContext(postgresConfig);
-        commonDbConfig = postgresConfig;
-        jdbcContext = postgresJdbcContext;
-        isConnectorStarted(connectionContext, tapConnectorContext -> slotName = tapConnectorContext.getStateMap().get("tapdata_pg_slot"));
-        commonSqlMaker = new CommonSqlMaker();
-        postgresVersion = postgresJdbcContext.queryVersion();
-        ddlSqlGenerator = new PostgresDDLSqlGenerator();
-        tapLogger = connectionContext.getLog();
-        fieldDDLHandlers = new BiClassHandlers<>();
-        fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
-        fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
-        fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
-        fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
-        exceptionCollector = new PostgresExceptionCollector();
     }
 
     //write records as all events, prepared
@@ -324,5 +381,4 @@ public class PostgresConnector extends CommonDbConnector {
         tableInfo.setStorageSize(new BigDecimal(dataMap.getString("rowcount")).longValue());
         return tableInfo;
     }
-
 }
