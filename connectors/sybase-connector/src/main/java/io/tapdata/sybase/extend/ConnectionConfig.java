@@ -1,10 +1,12 @@
 package io.tapdata.sybase.extend;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * @author GavinXiao
@@ -20,9 +22,11 @@ public class ConnectionConfig {
     private String schema;
     private String addtionalString;
     private String timezone;
-    private String encode;
 
     public ConnectionConfig(TapConnectionContext context) {
+        if (null == context || null == context.getConnectionConfig()) {
+            throw new CoreException("TapConnectionContext not be empty or connection config not be empty");
+        }
         load(context.getConnectionConfig());
     }
 
@@ -39,7 +43,6 @@ public class ConnectionConfig {
         schema = config.getString("schema");
         addtionalString = config.getString("addtionalString");
         timezone = config.getString("timezone");
-        encode = config.getString("encode");
     }
 
 
@@ -107,13 +110,6 @@ public class ConnectionConfig {
         this.timezone = timezone;
     }
 
-    public String getEncode() {
-        return encode;
-    }
-
-    public void setEncode(String encode) {
-        this.encode = encode;
-    }
 
     public void setPort(Integer port) {
         this.port = port;

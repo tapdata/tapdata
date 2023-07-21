@@ -14,6 +14,7 @@ import io.tapdata.sybase.cdc.dto.watch.FileListener;
 import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.extend.ConnectionConfig;
+import io.tapdata.sybase.extend.NodeConfig;
 import io.tapdata.sybase.util.YamlUtil;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.monitor.FileAlterationObserver;
@@ -45,6 +46,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
     final String schemaConfigPath;
     String currentFileName;
     final ConnectionConfig config;
+    final NodeConfig nodeConfig;
 
     protected ListenFile(CdcRoot root,
                          String monitorPath,
@@ -69,6 +71,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         this.batchSize = batchSize;
         this.schemaConfigPath = root.getSybasePocPath() + "/config/sybase2csv/csv/schemas.yaml";
         this.config = new ConnectionConfig(root.getContext());
+        this.nodeConfig = new NodeConfig(root.getContext());
     }
 
     FileMonitor fileMonitor;
@@ -249,7 +252,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         List<List<String>> compile = analyseCsvFile.analyse(file.getAbsolutePath()).compile();
                         int csvFileLines = compile.size();
                         for (int index = line; index < csvFileLines; index++) {
-                            TapEvent recordEvent = analyseRecord.analyse(compile.get(index), tapTable, tableName, config);
+                            TapEvent recordEvent = analyseRecord.analyse(compile.get(index), tapTable, tableName, config, nodeConfig);
                             if (null != recordEvent) {
                                 events.add(recordEvent);
                                 if (events.size() == batchSize) {
@@ -285,13 +288,14 @@ public class ListenFile implements CdcStep<CdcRoot> {
         final ConnectionConfig config = new ConnectionConfig(root.getContext());
         final String username = config.getUsername();
         final String database = config.getDatabase();
+        final String schema = config.getSchema();
         try {
             YamlUtil schemas = new YamlUtil(schemaConfigPath);
             List<Map<String, Object>> schemaList = (List<Map<String, Object>>) schemas.get("schemas");
             for (Map<String, Object> objectMap : schemaList) {
                 Object catalog = objectMap.get("catalog");
-                Object schema = objectMap.get("schema");
-                if (null != catalog && null != schema && catalog.equals(database) && schema.equals(username)) {
+                Object schemaItem = objectMap.get("schema");
+                if (null != catalog && null != schemaItem && catalog.equals(database) && schemaItem.equals(schema)) {
                     Object tables = objectMap.get("tables");
                     if (!(tables instanceof Collection)) continue;
                     ((Collection<Map<String, Object>>) tables).stream()

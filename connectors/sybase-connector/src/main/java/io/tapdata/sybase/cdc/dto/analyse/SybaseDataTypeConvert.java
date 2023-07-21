@@ -1,6 +1,7 @@
 package io.tapdata.sybase.cdc.dto.analyse;
 
 import io.tapdata.sybase.extend.ConnectionConfig;
+import io.tapdata.sybase.extend.NodeConfig;
 import io.tapdata.sybase.util.Utils;
 
 import java.math.BigDecimal;
@@ -24,14 +25,15 @@ public interface SybaseDataTypeConvert {
     public static final String UPDATE = "U";
     public static final String DELETE = "D";
 
-    public Object convert(Object fromValue, String sybaseType, ConnectionConfig config);
+    public Object convert(Object fromValue, String sybaseType, ConnectionConfig config, NodeConfig nodeConfig);
 
-    public default String objToString(Object obj, ConnectionConfig config) {
+    public default String objToString(Object obj, ConnectionConfig config, NodeConfig nodeConfig) {
         if (null == obj) return null;
         if (obj instanceof String) {
             String fromStr = (String) obj;
             try {
-                return Utils.convertString(fromStr, config.getEncode(), "utf-8");
+//                return new String(Utils.convertString(fromStr, config.getEncode(), config.getDecode()).getBytes(config.getDecode()), nodeConfig.getOutDecode());
+                return nodeConfig.isAutoEncode() ? Utils.convertString(fromStr, nodeConfig.getEncode(), nodeConfig.getDecode()) : fromStr;
             } catch (Exception e) {
                 return fromStr;
             }

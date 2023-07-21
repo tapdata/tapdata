@@ -60,6 +60,7 @@ import io.tapdata.sybase.cdc.dto.start.OverwriteType;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.cdc.service.CdcHandle;
 import io.tapdata.sybase.extend.ConnectionConfig;
+import io.tapdata.sybase.extend.NodeConfig;
 import io.tapdata.sybase.extend.SybaseColumn;
 import io.tapdata.sybase.extend.SybaseConfig;
 import io.tapdata.sybase.extend.SybaseConnectionTest;
@@ -117,6 +118,7 @@ public class SybaseConnector extends CommonDbConnector {
     private OverwriteType overwriteType;
     private Boolean isCdc = new Boolean(false);
     private ConnectionConfig connectionConfig;
+    private NodeConfig nodeConfig;
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private Log log;
@@ -148,6 +150,7 @@ public class SybaseConnector extends CommonDbConnector {
                 stateMap.put("taskId", id.substring(0, 15));
             }
             connectionConfig = new ConnectionConfig(tapConnectionContext);
+            nodeConfig = new NodeConfig((TapConnectorContext) tapConnectionContext);
 
             overwriteType = Optional.ofNullable(OverwriteType.type(String.valueOf(stateMap.get("tableOverType")))).orElse(OverwriteType.OVERWRITE);
             stateMap.put("tableOverType", overwriteType.getType());
@@ -158,6 +161,46 @@ public class SybaseConnector extends CommonDbConnector {
 //		fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
 //		fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
         started.set(true);
+    }
+
+    @Override
+    public void onStop(TapConnectionContext connectionContext) {
+        started.set(false);
+        try {
+            Optional.ofNullable(this.mysqlReader).ifPresent(MysqlReader::close);
+        } catch (Exception ignored) {
+        }
+        try {
+            Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy);
+        } catch (Exception ignored) {
+        }
+        if (null != sybaseContext) {
+            try {
+                this.sybaseContext.close();
+                this.sybaseContext = null;
+            } catch (Exception e) {
+                TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
+            }
+        }
+
+        Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::stopCdc);
+        Optional.ofNullable(lock).ifPresent(StopLock::stop);
+        if (root != null) {
+            root.notifyAll();
+        }
+    }
+
+    private void release(TapConnectorContext context) {
+        if (null == cdcHandle)
+            cdcHandle = new CdcHandle(new CdcRoot(unused -> isAlive()), context, new StopLock(isAlive()));
+        CdcRoot root = cdcHandle.getRoot();
+        if (null == root) cdcHandle.setRoot(new CdcRoot(unused -> isAlive()));
+        root = cdcHandle.getRoot();
+        TapConnectorContext rootContext = root.getContext();
+        if (null == rootContext) root.setContext(context);
+        Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::releaseCdc);
+        KVMap<Object> stateMap = context.getStateMap();
+        stateMap.put("tableOverType", OverwriteType.OVERWRITE.getType());
     }
 
     @Override
@@ -186,6 +229,8 @@ public class SybaseConnector extends CommonDbConnector {
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
 
         connectorFunctions.supportCreateTableV2(this::createTableV2)
+                .supportQueryByAdvanceFilter(this::queryByAdvanceFilterWithOffset)
+                .supportQueryByFilter(this::queryByFilter)
                 .supportDropTable(this::dropTable)
                 .supportClearTable(this::clearTable)
                 .supportBatchCount(this::batchCount)
@@ -304,44 +349,6 @@ public class SybaseConnector extends CommonDbConnector {
         }
     }
 
-    @Override
-    public void onStop(TapConnectionContext connectionContext) {
-        started.set(false);
-        try {
-            Optional.ofNullable(this.mysqlReader).ifPresent(MysqlReader::close);
-        } catch (Exception ignored) {
-        }
-        try {
-            Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy);
-        } catch (Exception ignored) {
-        }
-        if (null != sybaseContext) {
-            try {
-                this.sybaseContext.close();
-                this.sybaseContext = null;
-            } catch (Exception e) {
-                TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
-            }
-        }
-        if (connectionContext instanceof TapConnectorContext) {
-            Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::stopCdc);
-            Optional.ofNullable(lock).ifPresent(StopLock::stop);
-        }
-    }
-
-    private void release(TapConnectorContext context) {
-        if (null == cdcHandle)
-            cdcHandle = new CdcHandle(new CdcRoot(unused -> isAlive()), context, new StopLock(isAlive()));
-        CdcRoot root = cdcHandle.getRoot();
-        if (null == root) cdcHandle.setRoot(new CdcRoot(unused -> isAlive()));
-        root = cdcHandle.getRoot();
-        TapConnectorContext rootContext = root.getContext();
-        if (null == rootContext) root.setContext(context);
-        Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::releaseCdc);
-        KVMap<Object> stateMap = context.getStateMap();
-        stateMap.put("tableOverType", OverwriteType.OVERWRITE.getType());
-    }
-
     protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         CreateTableOptions createTableOptions = new CreateTableOptions();
         try {
@@ -374,32 +381,26 @@ public class SybaseConnector extends CommonDbConnector {
         consumer.accept(writeListResult);
     }
 
-    private Map<String, Object> filterTimeForMysql(ResultSet resultSet, ResultSetMetaData metaData, Set<String> dateTypeSet) throws SQLException {
+    private Map<String, Object> filterTimeForMysql(ResultSet resultSet, ResultSetMetaData metaData, Set<String> dateTypeSet, String encode, String decode, String outCode) throws SQLException {
         Map<String, Object> data = new HashMap<>();
-        for (int i = 0; i < metaData.getColumnCount(); i++) {
-            String columnName = metaData.getColumnName(i + 1);
+        for (int index = 0, keyIndex = 1; index < metaData.getColumnCount(); keyIndex++ ,index++) {
+            String columnName = metaData.getColumnName(keyIndex);
             try {
                 Object value;
-                String columnTypeName = metaData.getColumnTypeName(i + 1);
-                final String upperColumnName = null == columnTypeName ? "" : columnTypeName.toUpperCase(Locale.ROOT);
-                if ("TIME".equalsIgnoreCase(columnTypeName)) {
-                    value = resultSet.getString(i + 1);
-                } else if ("DATE".equalsIgnoreCase(columnTypeName)) {
-                    value = resultSet.getString(i + 1);
-                } else if (upperColumnName.matches(Code.MACHE_REGEX)
-                        || upperColumnName.startsWith("SYSNAME")
-                        || upperColumnName.startsWith("LONGSYSNAME")) {
-                    String string = resultSet.getString(i + 1);
-                    value = null == string ? null :
-                            Utils.convertString(string,
-                                    null == connectionConfig ?
-                                            "cp850" : Optional.ofNullable(connectionConfig.getEncode()).orElse("cp850"),
-                                    "utf-8"
-                            );
-                } else {
-                    value = resultSet.getObject(i + 1);
+                String columnTypeName = metaData.getColumnTypeName(keyIndex);
+                final String upperColumnType = null == columnTypeName ? "" : columnTypeName.toUpperCase(Locale.ROOT);
+                if ("TIME".equals(upperColumnType) || "DATE".equals(upperColumnType)) {
+                    value = resultSet.getString(keyIndex);
+                } else if (upperColumnType.contains("CHAR")
+                        || upperColumnType.contains("TEXT")
+                        || upperColumnType.contains("SYSNAME") ) {
+                    String string = resultSet.getString(keyIndex);
+                    value = null == string ? null : Utils.convertString(string, encode, decode);
+                }
+                else {
+                    value = resultSet.getObject(keyIndex);
                     if (null == value && dateTypeSet.contains(columnName)) {
-                        value = resultSet.getString(i + 1);
+                        value = resultSet.getString(keyIndex);
                     }
                 }
                 data.put(columnName, value);
@@ -410,64 +411,18 @@ public class SybaseConnector extends CommonDbConnector {
         return data;
     }
 
-    protected long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-        try {
-            ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
-            AtomicLong count = new AtomicLong(0);
-            String sql = "select count(1) from " + config.getDatabase() + "." + config.getUsername() + "." + tapTable.getId();
-            try {
-                jdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
-            } catch (Exception e) {
-                sql = "select count(1) from " + tapTable.getId();
-                jdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
-            }
-            return count.get();
-        } catch (SQLException e) {
-            exceptionCollector.collectReadPrivileges("batchCount", Collections.emptyList(), e);
-            throw e;
-        }
-    }
-
-    private void batchReadV2(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
-        if (null == tapTable) {
-            throw new CoreException("Start batch read with an empty tap table, batch read is failed");
-        }
-        String tableId = tapTable.getId();
-        if (null == tableId || "".equals(tableId.trim())) {
-            throw new CoreException("Start batch read with tap table which table id is empty, batch read is failed");
-        }
-
-        ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
-        String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> " " + c + " ").collect(Collectors.joining(","));
-        String sql = String.format("SELECT %s FROM " + tapTable.getId(), columns);
-
-        try {
-            sybaseContext.query(sql, resultSet -> {
-                List<TapEvent> tapEvents = list();
-                //get all column names
-                Set<String> dateTypeSet = dateFields(tapTable);
-                ResultSetMetaData metaData = resultSet.getMetaData();
-                while (isAlive() && resultSet.next()) {
-                    tapEvents.add(insertRecordEvent(filterTimeForMysql(resultSet, metaData, dateTypeSet), tapTable.getId()));
-                    if (tapEvents.size() == eventBatchSize) {
-                        eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
-                        tapEvents = list();
-                    }
-                }
-                //last events those less than eventBatchSize
-                if (EmptyKit.isNotEmpty(tapEvents)) {
-                    eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
-                }
-            });
-        } catch (Exception e) {
-            tapConnectorContext.getLog().error("Batch read failed, table name: {}, error msg: {}", tableId, e.getMessage());
-        }
-
-    }
-
     @Override
     protected void queryByAdvanceFilterWithOffset(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
-        String sql = commonSqlMaker.buildSelectClause(table, filter) + getSchemaAndTable(table.getId()) + commonSqlMaker.buildSqlByAdvanceFilter(filter);
+        if (null == nodeConfig) {
+            nodeConfig = new NodeConfig(connectorContext);
+        }
+        final boolean needEncode = nodeConfig.isAutoEncode();
+        final String encode = needEncode ? Optional.ofNullable(nodeConfig.getEncode()).orElse("cp850") : null;
+        final String decode =  needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
+        final String outCode = needEncode ? Optional.ofNullable(nodeConfig.getOutDecode()).orElse("utf-8") : null;
+
+        ConnectionConfig config = new ConnectionConfig(connectorContext);
+        String sql = commonSqlMaker.buildSelectClause(table, filter) + getSchemaAndTable(config.getDatabase() + "." + config.getSchema() + "." + table.getId()) + commonSqlMaker.buildSqlByAdvanceFilter(filter);
         int batchSize = null != filter.getBatchSize() && filter.getBatchSize().compareTo(0) > 0 ? filter.getBatchSize() : BATCH_ADVANCE_READ_LIMIT;
         jdbcContext.query(sql, resultSet -> {
             FilterResults filterResults = new FilterResults();
@@ -475,7 +430,7 @@ public class SybaseConnector extends CommonDbConnector {
             Set<String> dateTypeSet = dateFields(table);
             ResultSetMetaData metaData = resultSet.getMetaData();
             while (isAlive() && resultSet.next()) {
-                filterResults.add(filterTimeForMysql(resultSet, metaData, dateTypeSet));
+                filterResults.add(filterTimeForMysql(resultSet, metaData, dateTypeSet, encode, decode, outCode));
                 if (filterResults.getResults().size() == batchSize) {
                     consumer.accept(filterResults);
                     filterResults = new FilterResults();
@@ -490,17 +445,24 @@ public class SybaseConnector extends CommonDbConnector {
 
     @Override
     protected void queryByFilter(TapConnectorContext connectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
+        if (null == nodeConfig) {
+            nodeConfig = new NodeConfig(connectorContext);
+        }
+        final boolean needEncode = nodeConfig.isAutoEncode();
+        final String encode = needEncode ? Optional.ofNullable(nodeConfig.getEncode()).orElse("cp850") : null;
+        final String decode =  needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
+        final String outCode = needEncode ? Optional.ofNullable(nodeConfig.getOutDecode()).orElse("utf-8") : null;
         ConnectionConfig config = new ConnectionConfig(connectorContext);
         List<FilterResult> filterResults = new LinkedList<>();
         for (TapFilter filter : filters) {
-            String sql = "select * from " + getSchemaAndTable(tapTable.getId()) + " where " + commonSqlMaker.buildKeyAndValue(filter.getMatch(), "and", "=");
+            String sql = "select * from " + getSchemaAndTable(config.getDatabase() + "." + config.getSchema() + "." + tapTable.getId()) + " where " + commonSqlMaker.buildKeyAndValue(filter.getMatch(), "and", "=");
             FilterResult filterResult = new FilterResult();
             try {
                 jdbcContext.query(sql, resultSet -> {
                     Set<String> dateTypeSet = dateFields(tapTable);
                     ResultSetMetaData metaData = resultSet.getMetaData();
                     if (resultSet.next()) {
-                        filterResult.setResult(filterTimeForMysql(resultSet, metaData, dateTypeSet));
+                        filterResult.setResult(filterTimeForMysql(resultSet, metaData, dateTypeSet, encode, decode, outCode));
                     }
                 });
             } catch (Throwable e) {
@@ -525,6 +487,73 @@ public class SybaseConnector extends CommonDbConnector {
             }
         });
         return dateTypeSet;
+    }
+
+    protected long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+        try {
+            ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
+            AtomicLong count = new AtomicLong(0);
+            String sql = "select count(1) from " + config.getDatabase() + "." + config.getSchema() + "." + tapTable.getId();
+            try {
+                jdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
+            } catch (Exception e) {
+                sql = "select count(1) from " + tapTable.getId();
+                jdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
+            }
+            return count.get();
+        } catch (SQLException e) {
+            exceptionCollector.collectReadPrivileges("batchCount", Collections.emptyList(), e);
+            throw e;
+        }
+    }
+
+    private void batchReadV2(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+        if (null == tapTable) {
+            throw new CoreException("Start batch read with an empty tap table, batch read is failed");
+        }
+        String tableId = tapTable.getId();
+        if (null == tableId || "".equals(tableId.trim())) {
+            throw new CoreException("Start batch read with tap table which table id is empty, batch read is failed");
+        }
+
+        ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
+        String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> " " + c + " ").collect(Collectors.joining(","));
+        String sql = String.format("SELECT %s FROM " + config.getDatabase() + "." + config.getSchema() + "." +  tapTable.getId(), columns);
+
+        if (null == nodeConfig) {
+            nodeConfig = new NodeConfig(tapConnectorContext);
+        }
+        final boolean needEncode = nodeConfig.isAutoEncode();
+        final String encode = needEncode ? Optional.ofNullable(nodeConfig.getEncode()).orElse("cp850") : null;
+        final String decode =  needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
+        final String outCode = needEncode ? Optional.ofNullable(nodeConfig.getOutDecode()).orElse("utf-8") : null;
+        try {
+            final List<TapEvent>[] tapEvents = new List[]{list()};
+            sybaseContext.query(sql, resultSet -> {
+                //get all column names
+                Set<String> dateTypeSet = dateFields(tapTable);
+                ResultSetMetaData metaData = resultSet.getMetaData();
+                while (isAlive() && resultSet.next()) {
+                    tapEvents[0].add(insertRecordEvent(filterTimeForMysql(resultSet, metaData, dateTypeSet, encode, decode, outCode), tapTable.getId()));
+                    if (tapEvents[0].size() == eventBatchSize) {
+                        eventsOffsetConsumer.accept(tapEvents[0], new HashMap<>());
+                        tapEvents[0] = list();
+                    }
+                }
+                //last events those less than eventBatchSize
+                if (EmptyKit.isNotEmpty(tapEvents[0])) {
+                    eventsOffsetConsumer.accept(tapEvents[0], new HashMap<>());
+                }
+            });
+        } catch (Exception e) {
+            tapConnectorContext.getLog().error("Batch read failed, table name: {}, error msg: {}", tableId, e.getMessage());
+        }
+
+    }
+
+    private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) throws Throwable {
+        cdcStart(tapConnectorContext);
+        return new CdcPosition();
     }
 
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
@@ -559,7 +588,7 @@ public class SybaseConnector extends CommonDbConnector {
             ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
             root.setContext(tapConnectorContext);
             cdcHandle.startListen(
-                    FilenameUtils.concat(cdcHandle.getRoot().getSybasePocPath(), "config/sybase2csv/csv/" + config.getDatabase() + "/" + config.getUsername()),
+                    FilenameUtils.concat(cdcHandle.getRoot().getSybasePocPath(), "config/sybase2csv/csv/" + config.getDatabase() + "/" + config.getSchema()),
                     "object_metadata.yaml",
                     tables,
                     offset instanceof CdcPosition ? (CdcPosition) offset : new CdcPosition(),
@@ -571,47 +600,18 @@ public class SybaseConnector extends CommonDbConnector {
             }
         } catch (Exception e) {
             tapConnectorContext.getLog().error("Sybase cdc is stopped now, error: {}", e.getMessage());
+        } finally {
+            Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::stopCdc);
         }
+    }
 
-
-//        root.setCdcTables(tables);
-//        try {
-//            //throw new CoreException(" Repeated startup of cdc processes is not allowed, the CDC execution information has expired");
-//            try {
-//                cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
-//            } catch (CoreException e) {
-//                if (e.getCode() == Code.STREAM_READ_WARN) {
-//                    tapConnectorContext.getLog().info(e.getMessage());
-//                }
-//                throw e;
-//            }
-//            cdcHandle.startCdc(overwriteType);
-//            Process process = root.getProcess();
-//
-//            if (!process.isAlive()) {
-//                throw new CoreException("Cdc tool can not running, fail to get stream data");
-//            }
-//            try {
-//                process.exitValue();
-//                throw new CoreException("Cdc monitor thread is close, can not monitor cdc events, mag: ", Utils.readFromInputStream(process.getErrorStream(), StandardCharsets.UTF_8));
-//            } catch (Exception ignore){}
-//
-//            ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
-//            root.setContext(tapConnectorContext);
-//            cdcHandle.startListen(
-//                    FilenameUtils.concat(cdcHandle.getRoot().getSybasePocPath(), "config/sybase2csv/csv/" + config.getDatabase() + "/" + config.getUsername()),
-//                    "object_metadata.yaml",
-//                    tables,
-//                    offset instanceof CdcPosition ? (CdcPosition) offset : new CdcPosition(),
-//                    batchSize,
-//                    consumer
-//            );
-//            while (isAlive()) {
-//                sleep(1000);
-//            }
-//        } catch (Exception e) {
-//            tapConnectorContext.getLog().error("Sybase cdc is stopped now, error: {}", e.getMessage());
-//        }
+    @Override
+    public int tableCount(TapConnectionContext connectionContext) throws SQLException {
+        AtomicInteger count = new AtomicInteger(0);
+        sybaseContext.queryAllTables(null, 999999, (tables) -> {
+            if (null != tables && !tables.isEmpty()) count.getAndAdd(tables.size());
+        });
+        return count.get();
     }
 
     @Override
@@ -627,73 +627,6 @@ public class SybaseConnector extends CommonDbConnector {
         List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDLParserType.MYSQL_CCJ_SQL_PARSER);
         ddlCapabilities.forEach(connectionOptions::capability);
         return connectionOptions;
-    }
-
-    private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) throws Throwable {
-        cdcStart(tapConnectorContext);
-        return new CdcPosition();
-    }
-
-    private void cdcStart(TapConnectorContext tapConnectorContext) {
-        Iterator<Entry<TapTable>> tableIterator = tapConnectorContext.getTableMap().iterator();
-        Set<String> tableIds = new HashSet<>();
-        while (tableIterator.hasNext()) {
-            Entry<TapTable> next = tableIterator.next();
-            if (null != next) {
-                String key = next.getKey();
-                if (null != key && !"".equals(key.trim())) {
-                    tableIds.add(key);
-                }
-            }
-        }
-        tapConnectorContext.getLog().info("Task table will be monitor in cdc: {}", tableIds);
-
-        if (root == null) root = new CdcRoot(unused -> isAlive());
-        List<String> cdcTables = root.getCdcTables();
-
-        if (!equalsTable(cdcTables, tableIds)) {
-            root.setCdcTables(new ArrayList<>(tableIds));
-            if (null == cdcHandle) {
-                try {
-                    cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
-                } catch (CoreException e) {
-                    if (e.getCode() == Code.STREAM_READ_WARN) {
-                        tapConnectorContext.getLog().info(e.getMessage());
-                    }
-                    throw e;
-                }
-                cdcHandle.initCdc(overwriteType);
-            } else {
-//                cdcHandle.compileFilterTableYamlConfig(new ConnectionConfig(tapConnectorContext));
-//                cdcHandle.refreshCdc(overwriteType);
-            }
-        }
-    }
-
-    private boolean equalsTable(List<String> cdcTables, Set<String> tables) {
-        if (null == cdcTables || cdcTables.isEmpty()) return false;
-        for (String table : tables) {
-            if (!cdcTables.contains(table)) return false;
-        }
-        return true;
-    }
-
-    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) {
-        DataMap dataMap = sybaseContext.getTableInfo(tableName);
-        TableInfo tableInfo = TableInfo.create();
-        tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("TABLE_ROWS")));
-        tableInfo.setStorageSize(Long.valueOf(dataMap.getString("DATA_LENGTH")));
-        return tableInfo;
-    }
-
-
-    @Override
-    public int tableCount(TapConnectionContext connectionContext) throws SQLException {
-        AtomicInteger count = new AtomicInteger(0);
-        sybaseContext.queryAllTables(null, 999999, (tables) -> {
-            if (null != tables && !tables.isEmpty()) count.getAndAdd(tables.size());
-        });
-        return count.get();
     }
 
     @Override
@@ -770,7 +703,11 @@ public class SybaseConnector extends CommonDbConnector {
             primaryKeySet.stream().filter(Objects::nonNull).forEach(name -> primaryKeys.add(name.trim()));
             //4、table columns info
             AtomicInteger keyPos = new AtomicInteger(0);
-            columns.stream().filter(Objects::nonNull).forEach(col -> {
+            columns.stream()
+                    .filter(col -> null != col
+                            && null != col.getString("dataType")
+                            && !col.getString("dataType").toUpperCase(Locale.ROOT).contains("TIMESTAMP"))
+                    .forEach(col -> {
                 TapField tapField = sybaseColumn.initTapField(col);
                 tapField.setPos(keyPos.incrementAndGet());
                 tapField.setPrimaryKey(primaryKeys.contains(tapField.getName().trim()));
@@ -822,5 +759,57 @@ public class SybaseConnector extends CommonDbConnector {
 
     protected String getSchemaAndTable(String tableId) {
         return tableId;
+    }
+
+    private void cdcStart(TapConnectorContext tapConnectorContext) {
+        Iterator<Entry<TapTable>> tableIterator = tapConnectorContext.getTableMap().iterator();
+        Set<String> tableIds = new HashSet<>();
+        while (tableIterator.hasNext()) {
+            Entry<TapTable> next = tableIterator.next();
+            if (null != next) {
+                String key = next.getKey();
+                if (null != key && !"".equals(key.trim())) {
+                    tableIds.add(key);
+                }
+            }
+        }
+        tapConnectorContext.getLog().info("Task table will be monitor in cdc: {}", tableIds);
+
+        if (root == null) root = new CdcRoot(unused -> isAlive());
+        List<String> cdcTables = root.getCdcTables();
+
+        if (!equalsTable(cdcTables, tableIds)) {
+            root.setCdcTables(new ArrayList<>(tableIds));
+            if (null == cdcHandle) {
+                try {
+                    cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
+                } catch (CoreException e) {
+                    if (e.getCode() == Code.STREAM_READ_WARN) {
+                        tapConnectorContext.getLog().info(e.getMessage());
+                    }
+                    throw e;
+                }
+                cdcHandle.initCdc(overwriteType);
+            } else {
+//                cdcHandle.compileFilterTableYamlConfig(new ConnectionConfig(tapConnectorContext));
+//                cdcHandle.refreshCdc(overwriteType);
+            }
+        }
+    }
+
+    private boolean equalsTable(List<String> cdcTables, Set<String> tables) {
+        if (null == cdcTables || cdcTables.isEmpty()) return false;
+        for (String table : tables) {
+            if (!cdcTables.contains(table)) return false;
+        }
+        return true;
+    }
+
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) {
+        DataMap dataMap = sybaseContext.getTableInfo(tableName);
+        TableInfo tableInfo = TableInfo.create();
+        tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("TABLE_ROWS")));
+        tableInfo.setStorageSize(Long.valueOf(dataMap.getString("DATA_LENGTH")));
+        return tableInfo;
     }
 }

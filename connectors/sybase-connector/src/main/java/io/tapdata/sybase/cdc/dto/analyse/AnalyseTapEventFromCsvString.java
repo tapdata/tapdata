@@ -3,6 +3,7 @@ package io.tapdata.sybase.cdc.dto.analyse;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.sybase.extend.ConnectionConfig;
+import io.tapdata.sybase.extend.NodeConfig;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -28,7 +29,7 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
      *                 }
      */
     @Override
-    public TapRecordEvent analyse(List<String> record, LinkedHashMap<String, String> tapTable, String tableId, ConnectionConfig config) {
+    public TapRecordEvent analyse(List<String> record, LinkedHashMap<String, String> tapTable, String tableId, ConnectionConfig config, NodeConfig nodeConfig) {
         // 6,NULL,1,
         // 2023-07-13 20:43:05.0,NULL,1,
         // "sfas"",""dsafas",NULL,1,
@@ -62,12 +63,12 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
             if (!DELETE.equals(cdcType)) {
                 int fieldValueIndex = index * 3;
                 final Object value = recordKeyCount <= fieldValueIndex ? null : record.get(fieldValueIndex);
-                eventValue.put(fieldName, DEFAULT_CONVERT.convert(value, sybaseType, config));
+                eventValue.put(fieldName, DEFAULT_CONVERT.convert(value, sybaseType, config, nodeConfig));
             }
             if (!INSERT.equals(cdcType)) {
                 int fieldBeforeValueIndex = index * 3 + 1;
                 final Object beforeValue = recordKeyCount <= fieldBeforeValueIndex ? null : record.get(fieldBeforeValueIndex);
-                before.put(fieldName, DEFAULT_CONVERT.convert(beforeValue, sybaseType, config));
+                before.put(fieldName, DEFAULT_CONVERT.convert(beforeValue, sybaseType, config, nodeConfig));
             }
             index++;
         }

@@ -7,6 +7,7 @@ import io.tapdata.sybase.cdc.CdcStep;
 import io.tapdata.sybase.cdc.dto.start.CommandType;
 import io.tapdata.sybase.cdc.dto.start.OverwriteType;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 
 /**
@@ -15,9 +16,9 @@ import java.lang.reflect.Field;
  * @create 2023/7/13 11:17
  **/
 class ExecCommand implements CdcStep<CdcRoot> {
-    private CdcRoot root;
-    private CommandType commandType;
-    private OverwriteType overwriteType;
+    private final CdcRoot root;
+    private final CommandType commandType;
+    private final OverwriteType overwriteType;
 
     private final static String EXPORT_JAVA_HOME = "export JAVA_TOOL_OPTIONS=\"-Duser.language=en\"";
     private final static String START_CDC = "$pocCliPath$/bin/replicant $commandType$ $pocPath$/config/sybase2csv/src_sybasease.yaml $pocPath$/config/sybase2csv/dst_localstorage.yaml --general $pocPath$/config/sybase2csv/general.yaml --filter $pocPath$/config/sybase2csv/filter_sybasease.yaml --extractor $pocPath$/config/sybase2csv/ext_sybasease.yaml --id $taskId$ --replace $overwriteType$ --verbose";
@@ -45,18 +46,25 @@ class ExecCommand implements CdcStep<CdcRoot> {
                     "-c",
                     EXPORT_JAVA_HOME + "; " + cmd
             };
-            Runtime runtime = Runtime.getRuntime();
-            Process exec = runtime.exec(cmds);
-            root.setProcess(exec);
+            Process exec = run(cmds);
+//            for (int index = 0; index < 1;index++){
+//                try {
+//                    exec = run(cmds);
+//                } catch (CoreException e){
+                    //if (e.getCode() != RUN_TOOL_FAIL || index == 2) {
+//                        throw e;
+                    //}
+                    //root.getContext().getLog().warn("Failed to start cdc tool, it's start again after 3s, please wait");
+                    //root.wait(3000);
+//                }
+//            }
+            if (null == exec) {
+                throw new CoreException("Cdc tool can not running, fail to get stream data");
+            }
+
             String name = exec.getClass().getName();
             long cdcPid = -1;
             Class<? extends Process> aClass = exec.getClass();
-            try {
-                exec.exitValue();
-                throw new CoreException("Cdc tool can not running, fail to get stream data");//Utils.readFromInputStream(exec.getErrorStream(), StandardCharsets.UTF_8));
-            } catch (Exception ignore) {
-            }
-
             KVMap<Object> stateMap = root.getContext().getStateMap();
             stateMap.put("tableOverType", OverwriteType.RESUME.getType());
             try {
@@ -88,6 +96,19 @@ class ExecCommand implements CdcStep<CdcRoot> {
         }
 
         return this.root;
+    }
+
+    public static final int RUN_TOOL_FAIL = 3624815;
+    private Process run(String[] cmds) throws IOException {
+        Runtime runtime = Runtime.getRuntime();
+        Process exec = runtime.exec(cmds);
+        root.setProcess(exec);
+        try {
+            exec.exitValue();
+            throw new CoreException(RUN_TOOL_FAIL, "Cdc tool can not running, fail to get stream data");//Utils.readFromInputStream(exec.getErrorStream(), StandardCharsets.UTF_8));
+        } catch (Exception ignore) {
+        }
+        return exec;
     }
 
 //    private String shellOutput(InputStream inputStream){

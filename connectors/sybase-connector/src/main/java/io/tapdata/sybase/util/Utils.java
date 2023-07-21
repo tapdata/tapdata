@@ -206,7 +206,8 @@ public class Utils {
     }
 
     public static String convertString(String fromValue, String fromCharset, String toCharset) throws UnsupportedEncodingException {
-        if (null == fromValue || "".equals(fromValue.trim())) return null;
+        if (null == fromValue) return null;
+        if ("".equals(fromValue.trim())) return "";
         if (null == fromCharset || null == toCharset || "".equals(fromCharset.trim()) || "".equals(toCharset.trim())) return fromValue;
         byte[] b = fromValue.getBytes(fromCharset);//编码
         return new String(b, toCharset);

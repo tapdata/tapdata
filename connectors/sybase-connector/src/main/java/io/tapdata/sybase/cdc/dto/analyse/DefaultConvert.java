@@ -3,6 +3,7 @@ package io.tapdata.sybase.cdc.dto.analyse;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.sybase.extend.ConnectionConfig;
+import io.tapdata.sybase.extend.NodeConfig;
 import io.tapdata.sybase.util.Code;
 
 import java.math.BigDecimal;
@@ -17,7 +18,7 @@ public class DefaultConvert implements SybaseDataTypeConvert {
     public static final int CONVERT_ERROR_CODE = 362430;
 
     @Override
-    public Object convert(Object fromValue, final String sybaseType, ConnectionConfig config) {
+    public Object convert(Object fromValue, final String sybaseType, ConnectionConfig config, NodeConfig nodeConfig) {
         if (null == fromValue || null == sybaseType) return null;
         if (fromValue instanceof String && "NULL".equals(fromValue)) return null;
         String type = sybaseType.toUpperCase();
@@ -68,11 +69,11 @@ public class DefaultConvert implements SybaseDataTypeConvert {
                         return objToNumber(fromValue);
                     } else if ("TEXT".equals(type)) {
                         TapLogger.warn(TAG, "An TEXT data type not support in cdc now");
-                        return null;
-                    } else if (type.matches(Code.MACHE_REGEX)
-                            || type.startsWith("SYSNAME")
-                            || type.startsWith("LONGSYSNAME")) {
-                        return objToString(fromValue, config);
+                        return "";
+                    } else if (type.contains("CHAR")
+                            || type.contains("TEXT")
+                            || type.contains("SYSNAME") ) {
+                        return objToString(fromValue, config, nodeConfig);
                     } else if (type.startsWith("VARBINARY")) {
                         return objToBinary(fromValue);
                     } else if (type.contains("BINARY")) {

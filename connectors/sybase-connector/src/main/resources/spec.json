@@ -57,6 +57,15 @@
           "x-index": 30,
           "required": true
         },
+        "schema": {
+          "type": "string",
+          "title": "${schema}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_name",
+          "x-index": 35,
+          "required": true
+        },
         "username": {
           "type": "string",
           "title": "${username}",
@@ -79,8 +88,9 @@
           "title": "${addtionalString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "default": "useUnicode=yes&charset=cp950",
+          "default": "",
           "apiServerKey": "addtionalString",
+          "x-display": "hidden",
           "x-index": 60
         },
         "timezone": {
@@ -200,14 +210,6 @@
               "value": "+14:00"
             }
           ]
-        },
-        "encode": {
-          "type": "string",
-          "title": "${encode_name}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "default": "cp850",
-          "x-index": 70
         }
       }
     },
@@ -221,8 +223,68 @@
           "x-component": "InputNumber",
           "apiServerKey": "database_port",
           "default": 3,
-          "x-index": 1,
+          "x-index": 10,
           "required": true
+        },
+        "autoEncode": {
+          "type": "boolean",
+          "title": "${auto_encode}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "default": false,
+          "x-index": 11
+        },
+        "encode": {
+          "type": "string",
+          "title": "${encode_name}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "cp850",
+          "x-index": 20,
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.autoEncode"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] ? true : false}}"
+              }
+            }
+          }
+        },
+        "decode": {
+          "type": "string",
+          "title": "${decode_name}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "big5",
+          "x-display": "hidden",
+          "x-index": 30,
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.autoEncode"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] ? true : false}}"
+              }
+            }
+          }
+        },
+        "outDecode": {
+          "type": "string",
+          "title": "${out_decode_name}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "utf-8",
+          "x-display": "hidden",
+          "x-index": 40
         }
       }
     }
@@ -239,8 +301,12 @@
       "timezone": "timezone",
       "doc": "docs/sybase_en_US.md",
       "close_delay_time": "Default delay shutdown time (in seconds)",
-      "encode_name": "Character Set Name",
-      "fetch_interval": "CDC delay time in seconds"
+      "encode_name": "Encode Character Set ",
+      "decode_name": "Decode Character Set ",
+      "out_decode_name": "Output Text Character Set",
+      "schema": "Schema",
+      "fetch_interval": "CDC delay time in seconds",
+      "auto_encode": "Automatic encoding and decoding "
     },
     "zh_CN": {
       "host": "地址",
@@ -252,8 +318,12 @@
       "timezone": "时区",
       "doc": "docs/sybase_zh_CN.md",
       "close_delay_time": "默认延迟关闭时间（单位：秒）",
-      "encode_name": "字符集名称",
-      "fetch_interval": "CDC延时（单位秒）"
+      "encode_name": "编码格式",
+      "decode_name": "解码格式",
+      "out_decode_name": "文本输出字符集",
+      "schema": "Schema",
+      "fetch_interval": "CDC延时（单位秒）",
+      "auto_encode": "自动编解码"
     },
     "zh_TW": {
       "host": "地址",
@@ -265,8 +335,12 @@
       "timezone": "時區",
       "doc": "docs/sybase_zh_TW.md",
       "close_delay_time": "默認延遲關閉時間（組織：秒）",
-      "encode_name": "字元集名稱",
-      "fetch_interval": "CDC延時（組織秒）"
+      "encode_name": "編碼格式",
+      "decode_name": "解碼格式",
+      "out_decode_name": "輸出文字字元集",
+      "schema": "Schema",
+      "fetch_interval": "CDC延時（組織秒）",
+      "auto_encode": "自動編解碼"
     }
   },
   "dataTypes": {
@@ -552,8 +626,21 @@
       ],
       "defaultFraction": 0
     },
-    "timestamp[($fraction)]": {
+    "smalldatetime[($fraction)]": {
       "to": "TapDateTime",
+      "range": [
+        "1970-01-01 00:00:00",
+        "9999-12-31 23:59:59"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "fraction": [
+        0,
+        6
+      ],
+      "defaultFraction": 0
+    },
+    "timestamp[($fraction)]": {
+      "to": "TapString",
       "range": [
         "1970-01-01 00:00:01",
         "2038-01-19 03:14:07"
@@ -564,7 +651,7 @@
         6
       ],
       "defaultFraction": 0,
-      "withTimeZone": true
+      "withTimeZone": false
     },
     "year[($fraction)]": {
       "to": "TapYear",
