@@ -236,7 +236,7 @@ public class LoadSchemaRunner implements Runnable {
 								return;
 							}
 							tableNames.stream().filter(tableFilter).forEach(tempList::add);
-							if (tempList.size() >= BATCH_SIZE * 50) {
+							if (tempList.size() >= BATCH_SIZE * 25) {
 								pdkDiscoverSchema(connectionNode, tempList, tableConsumer);
 								tempList.clear();
 							}
