@@ -382,7 +382,7 @@ public class KafkaService extends AbstractMqService {
                 Map<String, Object> head = (Map<String, Object>) record.get("header");
                 RecordHeaders recordHeaders = new RecordHeaders();
                 recordHeaders.add("mqOp",head.get("mqOp").toString().getBytes());
-                byte[] body = jsonParser.toJsonBytes(record.get("data"));
+                byte[] body = jsonParser.toJsonBytes(record);
                 MqOp finalMqOp = mqOp;
                 Callback callback = (metadata, exception) -> {
                     try {
