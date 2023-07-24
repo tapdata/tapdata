@@ -112,6 +112,12 @@ public class CommonSqlMaker {
         return builder.toString();
     }
 
+    public String buildSqlByAdvanceFilterV2(TapAdvanceFilter filter) {
+        StringBuilder builder = new StringBuilder();
+        buildRowNumberClause(builder, filter);
+        return builder.toString();
+    }
+
     public String buildSelectClause(TapTable tapTable, TapAdvanceFilter filter) {
         StringBuilder builder = new StringBuilder("SELECT ");
         Projection projection = filter.getProjection();
@@ -182,13 +188,25 @@ public class CommonSqlMaker {
         }
     }
 
+    public String buildRowNumberPreClause(TapAdvanceFilter filter) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("(SELECT A.*,ROW_NUMBER() OVER(");
+        if (EmptyKit.isNotEmpty(filter.getSortOnList())) {
+            buildOrderClause(builder, filter);
+        } else {
+            builder.append("ORDER BY 0");
+        }
+        builder.append(") AS ROWNO_ FROM ");
+        return builder.toString();
+    }
+
     public void buildRowNumberClause(StringBuilder builder, TapAdvanceFilter filter) {
-        builder.append(") ");
+        builder.append(" A) A ");
         if (EmptyKit.isNotNull(filter.getSkip()) || EmptyKit.isNotNull(filter.getLimit())) {
             builder.append("WHERE ");
         }
         if (EmptyKit.isNotNull(filter.getSkip())) {
-            builder.append("ROWNUM > ").append(filter.getSkip()).append(' ');
+            builder.append("ROWNO_ > ").append(filter.getSkip()).append(' ');
         }
         if (EmptyKit.isNotNull(filter.getLimit())) {
             Integer skip = 0;
@@ -196,7 +214,7 @@ public class CommonSqlMaker {
                 builder.append("AND ");
                 skip = filter.getSkip();
             }
-            builder.append("ROWNUM <= ").append(filter.getLimit() + skip).append(' ');
+            builder.append("ROWNO_ <= ").append(filter.getLimit() + skip).append(' ');
         }
     }
 
