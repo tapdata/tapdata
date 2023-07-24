@@ -5,6 +5,7 @@ import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.JetService;
 import com.hazelcast.jet.Job;
+import com.hazelcast.jet.config.EdgeConfig;
 import com.hazelcast.jet.config.JobConfig;
 import com.hazelcast.jet.config.ProcessingGuarantee;
 import com.hazelcast.jet.core.AbstractProcessor;
@@ -91,6 +92,7 @@ import io.tapdata.flow.engine.V2.util.MergeTableUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import io.tapdata.services.JSProcessNodeTestRunService;
@@ -106,6 +108,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -790,11 +793,17 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				final Node<?> tgtNode = nodeMap.get(target);
 				List<com.hazelcast.jet.core.Edge> outboundEdges = dag.getOutboundEdges(NodeUtil.getVertexName(srcNode));
 				List<com.hazelcast.jet.core.Edge> inboundEdges = dag.getInboundEdges(NodeUtil.getVertexName(tgtNode));
-				dag.edge(
-						com.hazelcast.jet.core.Edge
-								.from(vertexMap.get(source), outboundEdges.size())
-								.to(vertexMap.get(target), inboundEdges.size())
-				);
+				int queueSize = 128;
+				try {
+					queueSize = Integer.parseInt(CommonUtils.getProperty("JET_EDGE_QUEUE_SIZE", "128"));
+				} catch (NumberFormatException ignored) {
+				}
+				EdgeConfig edgeConfig = new EdgeConfig().setQueueSize(queueSize);
+				com.hazelcast.jet.core.Edge jetEdge = com.hazelcast.jet.core.Edge
+						.from(vertexMap.get(source), outboundEdges.size())
+						.to(vertexMap.get(target), inboundEdges.size())
+						.setConfig(edgeConfig);
+				dag.edge(jetEdge);
 			}
 		}
 	}
