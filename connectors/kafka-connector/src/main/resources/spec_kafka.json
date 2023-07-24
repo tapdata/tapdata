@@ -214,6 +214,21 @@
           "x-index": 14
         }
       }
+    },
+    "node":{
+      "properties": {
+        "script": {
+          "title": "${script}",
+          "type": "string",
+          "required": false,
+          "default": "function process(record, op, conditionKeys){\n\n\t\/\/ Enter your code at here\n\t return record;\n}",
+          "x-decorator": "FormItem",
+          "x-component": "JsEditor",
+          "x-component-props": {
+            "options": { "showPrintMargin": false, "useWrapMode": true }
+          }
+        }
+      }
     }
   },
   "messages": {
@@ -238,7 +253,8 @@
       "write_most_isr": "Write to most ISR partitions",
       "write_all_isr": "Write to all ISR partitions",
       "kafkaCompressionType": "Message compression type",
-      "kafkaIgnorePushError": "Ignore push message exception"
+      "kafkaIgnorePushError": "Ignore push message exception",
+      "script": "script"
     },
     "zh_CN": {
       "doc": "docs/kafka_zh_CN.md",
@@ -260,7 +276,8 @@
       "write_most_isr": "写入大多数ISR分区",
       "write_all_isr": "写入所有ISR分区",
       "kafkaCompressionType": "消息压缩类型",
-      "kafkaIgnorePushError": "忽略推送消息异常"
+      "kafkaIgnorePushError": "忽略推送消息异常",
+      "script": "脚本"
     },
     "zh_TW": {
       "doc": "docs/kafka_zh_TW.md",
@@ -282,7 +299,8 @@
       "write_most_isr": "寫入大多數ISR分區",
       "write_all_isr": "寫入所有ISR分區",
       "kafkaCompressionType": "消息壓縮類型",
-      "kafkaIgnorePushError": "忽略推理消息異常"
+      "kafkaIgnorePushError": "忽略推理消息異常",
+      "script": "腳本"
     }
   },
   "dataTypes": {
