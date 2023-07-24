@@ -11,11 +11,7 @@ import com.tapdata.processor.dataflow.ProcessorContext;
 import com.tapdata.processor.dataflow.RowFilterProcessor;
 import com.tapdata.processor.dataflow.ScriptDataFlowProcessor;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
-import com.tapdata.tm.commons.dag.process.FieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.JsProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
-import com.tapdata.tm.commons.dag.process.RowFilterProcessorNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -256,6 +252,8 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				stage.setOperations(fieldProcesses);
 				if (node instanceof FieldRenameProcessorNode) {
 					dataFlowProcessor = new FieldDataFlowProcessor(((FieldRenameProcessorNode) node).getFieldsNameTransform());
+				} else if (node instanceof FieldAddDelProcessorNode) {
+					dataFlowProcessor = new FieldDataFlowProcessor(((FieldAddDelProcessorNode) node).isDeleteAllFields());
 				} else {
 					dataFlowProcessor = new FieldDataFlowProcessor();
 				}
