@@ -371,6 +371,7 @@ public class KafkaService extends AbstractMqService {
                 String op = mqOp.getOp();
                 Collection<String> conditionKeys = tapTable.primaryKeys(true);
                 kafkaConfig = (KafkaConfig)new KafkaConfig().load(connectorContext.getConnectionConfig());
+                RecordHeaders recordHeaders = new RecordHeaders();
                 Object eventObj = ObjectUtils.covertData(executeScript(scriptEngine, "process", record, op, conditionKeys));
                 if(null==eventObj){
                     continue;
@@ -378,10 +379,17 @@ public class KafkaService extends AbstractMqService {
                     if (null==record.get("data")) {
                         throw new RuntimeException("data cannot be null");
                     }
+                    if(record.containsKey("header")){
+                        Map<String, Object> head = (Map<String, Object>) record.get("header");
+                        if(head.containsKey("mqOp")){
+                            recordHeaders.add("mqOp",head.get("mqOp").toString().getBytes());
+                        }else {
+                            recordHeaders.add("mqOp",mqOp.toString().getBytes());
+                        }
+                    }else {
+                        recordHeaders.add("mqOp",mqOp.toString().getBytes());
+                    }
                 }
-                Map<String, Object> head = (Map<String, Object>) record.get("header");
-                RecordHeaders recordHeaders = new RecordHeaders();
-                recordHeaders.add("mqOp",head.get("mqOp").toString().getBytes());
                 byte[] body = jsonParser.toJsonBytes(record);
                 MqOp finalMqOp = mqOp;
                 Callback callback = (metadata, exception) -> {
