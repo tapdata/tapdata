@@ -364,7 +364,7 @@ public class KafkaService extends AbstractMqService {
                     data = new HashMap<>();
                 }
                 byte[] kafkaMessageKey = getKafkaMessageKey(data, tapTable);
-                record.put("allData",allData);
+                record.put("data",allData);
                 Map<String, Object> header = new HashMap();
                 header.put("mqOp",mqOp.getOp());
                 record.put("header",header);
@@ -375,18 +375,14 @@ public class KafkaService extends AbstractMqService {
                 if(null==eventObj){
                     continue;
                 }else {
-                    if (null==record.get("allData")) {
-                        throw new RuntimeException("allData is illegal");
-                    }
-                    Map<String, Object> all = (Map<String, Object>) record.get("allData");
-                    if (!all.containsKey("before") || !all.containsKey("after")) {
-                        throw new RuntimeException("allData is illegal");
+                    if (null==record.get("data")) {
+                        throw new RuntimeException("data cannot be null");
                     }
                 }
                 Map<String, Object> head = (Map<String, Object>) record.get("header");
                 RecordHeaders recordHeaders = new RecordHeaders();
                 recordHeaders.add("mqOp",head.get("mqOp").toString().getBytes());
-                byte[] body = jsonParser.toJsonBytes(record.get("allData"));
+                byte[] body = jsonParser.toJsonBytes(record.get("data"));
                 MqOp finalMqOp = mqOp;
                 Callback callback = (metadata, exception) -> {
                     try {
