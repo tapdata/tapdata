@@ -104,7 +104,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	public static final long PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT = 10L;
 	public static final String TAPEVENT_INFO_EVENT_ID_KEY = "eventId";
 	private static final int ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD = 100;
-	public static final long DEFAULT_RAM_THRESHOLD_BYTE = 30 * 1024L;
+	public static final long DEFAULT_RAM_THRESHOLD_BYTE = 3 * 1024L;
 	public static final double DEFAULT_SAMPLE_RATE = 0.2D;
 	public static final int MIN_QUEUE_SIZE = 10;
 	public static final int SOURCE_QUEUE_FACTOR = 2;
@@ -193,8 +193,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initSyncProgress();
 			initDDLFilter();
 			initTableMonitor();
-			initAndStartSourceRunner();
 			initDynamicAdjustMemory();
+			initAndStartSourceRunner();
 		});
 	}
 
@@ -1135,6 +1135,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			taskDto.setDynamicAdjustMemorySampleRate(null != taskDto.getDynamicAdjustMemorySampleRate() && taskDto.getDynamicAdjustMemorySampleRate() > 0L ? taskDto.getDynamicAdjustMemorySampleRate() : DEFAULT_SAMPLE_RATE);
 			DynamicAdjustMemoryContext dynamicAdjustMemoryContext = DynamicAdjustMemoryContext.create()
 					.sampleRate(taskDto.getDynamicAdjustMemorySampleRate())
+					.ramThreshold(taskDto.getDynamicAdjustMemoryThresholdByte())
 					.taskDto(taskDto)
 					.minQueueSize(MIN_QUEUE_SIZE);
 			this.dynamicAdjustMemoryService = new DynamicAdjustMemoryImpl(dynamicAdjustMemoryContext);

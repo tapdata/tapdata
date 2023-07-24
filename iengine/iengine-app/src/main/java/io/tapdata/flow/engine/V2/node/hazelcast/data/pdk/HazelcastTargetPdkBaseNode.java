@@ -54,6 +54,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionCon
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustResult;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -382,6 +383,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		dispatchTapdataEvents(
 				tapdataEvents,
 				consumeEvents -> {
+					if (consumeEvents.size() == 1 && consumeEvents.get(0) instanceof TapdataAdjustMemoryEvent) {
+						handleTapdataEvents(consumeEvents);
+						return;
+					}
 					if (!inCdc) {
 						List<TapdataEvent> partialCdcEvents = new ArrayList<>();
 						final Iterator<TapdataEvent> iterator = consumeEvents.iterator();
@@ -443,7 +448,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private void initialProcessEvents(List<TapdataEvent> initialEvents, boolean async) {
 
 		if (CollectionUtils.isNotEmpty(initialEvents)) {
-			if (initialConcurrent && this.initialPartitionConcurrentProcessor.isRunning()) {
+			if (initialConcurrent && null != this.initialPartitionConcurrentProcessor && this.initialPartitionConcurrentProcessor.isRunning()) {
 				this.initialPartitionConcurrentProcessor.process(initialEvents, async);
 			} else {
 				this.handleTapdataEvents(initialEvents);
@@ -454,7 +459,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private void cdcProcessEvents(List<TapdataEvent> cdcEvents) {
 
 		if (CollectionUtils.isNotEmpty(cdcEvents)) {
-			if (cdcConcurrent && this.cdcPartitionConcurrentProcessor.isRunning()) {
+			if (cdcConcurrent && null != this.cdcPartitionConcurrentProcessor && this.cdcPartitionConcurrentProcessor.isRunning()) {
 				this.cdcPartitionConcurrentProcessor.process(cdcEvents, true);
 			} else {
 				this.handleTapdataEvents(cdcEvents);
@@ -569,47 +574,55 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void handleTapdataAdjustMemoryEvent(TapdataAdjustMemoryEvent tapdataEvent) {
-		int mode = tapdataEvent.getMode();
-		double coefficient = tapdataEvent.getCoefficient();
-		int newQueueSize = originalWriteQueueCapacity;
-		switch (mode) {
-			case TapdataAdjustMemoryEvent.INCREASE:
-				if (initialConcurrent && null != initialPartitionConcurrentProcessor && !initialPartitionConcurrentProcessor.isRunning()) {
-					initialPartitionConcurrentProcessor.start();
-					obsLogger.info("{}Target initial concurrent processor start", DynamicAdjustMemoryConstant.LOG_PREFIX);
-				}
-				newQueueSize = this.originalWriteQueueCapacity;
-				break;
-			case TapdataAdjustMemoryEvent.DECREASE:
-				if (initialConcurrent && null != initialPartitionConcurrentProcessor && initialPartitionConcurrentProcessor.isRunning()) {
-					initialPartitionConcurrentProcessor.stop();
-					obsLogger.info("{}Target initial concurrent processor stop", DynamicAdjustMemoryConstant.LOG_PREFIX);
-				}
-				newQueueSize = BigDecimal.valueOf(this.originalWriteQueueCapacity).divide(BigDecimal.valueOf(coefficient).multiply(BigDecimal.valueOf(TARGET_QUEUE_FACTOR)), 0, RoundingMode.HALF_UP).intValue();
-				break;
-			case TapdataAdjustMemoryEvent.KEEP:
-				break;
-		}
-		if (this.writeQueueCapacity != newQueueSize) {
-			while (isRunning()) {
-				if (tapEventQueue.isEmpty()) {
-					this.tapEventQueue = new LinkedBlockingQueue<>(newQueueSize);
-					this.writeQueueCapacity = newQueueSize;
-					obsLogger.info("{}Target write queue capacity adjust to {}", DynamicAdjustMemoryConstant.LOG_PREFIX, newQueueSize);
+		try {
+			int mode = tapdataEvent.getMode();
+			double coefficient = tapdataEvent.getCoefficient();
+			int newQueueSize = originalWriteQueueCapacity;
+			switch (mode) {
+				case TapdataAdjustMemoryEvent.INCREASE:
+					if (initialConcurrent && (null == this.initialPartitionConcurrentProcessor || !initialPartitionConcurrentProcessor.isRunning())) {
+						initTargetConcurrentProcessorIfNeed();
+						obsLogger.info("{}Target initial concurrent processor resumed", DynamicAdjustMemoryConstant.LOG_PREFIX);
+					}
+					newQueueSize = this.originalWriteQueueCapacity;
 					break;
-				}
-				try {
-					TimeUnit.SECONDS.sleep(1L);
-				} catch (InterruptedException e) {
+				case TapdataAdjustMemoryEvent.DECREASE:
+					if (initialConcurrent && null != initialPartitionConcurrentProcessor && initialPartitionConcurrentProcessor.isRunning()) {
+						initialPartitionConcurrentProcessor.stop();
+						initialPartitionConcurrentProcessor = null;
+						obsLogger.info("{}Target initial concurrent processor stopped", DynamicAdjustMemoryConstant.LOG_PREFIX);
+					}
+					newQueueSize = BigDecimal.valueOf(this.originalWriteQueueCapacity).divide(BigDecimal.valueOf(coefficient).multiply(BigDecimal.valueOf(TARGET_QUEUE_FACTOR)), 0, RoundingMode.HALF_UP).intValue();
 					break;
+				case TapdataAdjustMemoryEvent.KEEP:
+					break;
+			}
+			if (this.writeQueueCapacity != newQueueSize) {
+				while (isRunning()) {
+					if (tapEventQueue.isEmpty()) {
+						this.tapEventQueue = new LinkedBlockingQueue<>(newQueueSize);
+						obsLogger.info("{}Target queue size adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.writeQueueCapacity, newQueueSize);
+						this.writeQueueCapacity = newQueueSize;
+						break;
+					}
+					try {
+						TimeUnit.SECONDS.sleep(1L);
+					} catch (InterruptedException e) {
+						break;
+					}
 				}
 			}
-		}
-		if (tapdataEvent.needAdjust()) {
+			if (tapdataEvent.needAdjust()) {
+				synchronized (this.dynamicAdjustQueueLock) {
+					this.dynamicAdjustQueueLock.notifyAll();
+					obsLogger.info("{}Notify target node to process data", DynamicAdjustMemoryConstant.LOG_PREFIX);
+				}
+			}
+		} catch (Exception e) {
 			synchronized (this.dynamicAdjustQueueLock) {
 				this.dynamicAdjustQueueLock.notifyAll();
-				obsLogger.info("{}Notify target node to process data", DynamicAdjustMemoryConstant.LOG_PREFIX);
 			}
+			throw new TapCodeException(DynamicAdjustMemoryExCode_25.UNKNOWN_ERROR, e);
 		}
 	}
 
@@ -1045,6 +1058,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.queueConsumerThreadPool).ifPresent(ExecutorService::shutdownNow), TAG);
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.dynamicAdjustQueueLock).ifPresent(l -> {
+				synchronized (l) {
+					l.notifyAll();
+				}
+			}), TAG);
 		} finally {
 			super.doClose();
 		}

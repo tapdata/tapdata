@@ -432,10 +432,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				newSourceQueueCapacity = Math.max(newSourceQueueCapacity, MIN_QUEUE_SIZE);
 			}
 			if (newSourceQueueCapacity != this.sourceQueueCapacity) {
-				obsLogger.info("{}Found queue size need to be adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.sourceQueueCapacity, newSourceQueueCapacity);
 				while (isRunning()) {
 					if (this.eventQueue.isEmpty()) {
 						this.eventQueue = new LinkedBlockingQueue<>(newSourceQueueCapacity);
+						obsLogger.info("{}Source queue size adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.sourceQueueCapacity, newSourceQueueCapacity);
 						this.sourceQueueCapacity = newSourceQueueCapacity;
 						break;
 					}
