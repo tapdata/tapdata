@@ -47,6 +47,7 @@ public class MetadataInstancesDto extends BaseDto {
     @JsonProperty("fields_lienage")
     private String fieldsLienage;
     private List<Field> fields;
+    private List<Field> fieldsAfter;
     private boolean hasPrimaryKey;
     private Object indexes;
     private SourceDto source;

@@ -425,7 +425,7 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
                         sortColumn.set(key.getFieldName());
                     });
                     if (StringUtils.isEmpty(sortColumn.get())) {
-                        meta.getFields().stream().filter(field -> field.getColumnPosition() == 0).findFirst().ifPresent(key -> {
+                        meta.getFields().stream().filter(field -> field.getColumnPosition() == 1).findFirst().ifPresent(key -> {
                             sortColumn.set(key.getFieldName());
                         });
                     }
@@ -468,7 +468,7 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
                         sortColumn.set(key.getFieldName());
                     });
                     if (StringUtils.isEmpty(sortColumn.get())) {
-                        meta.getFields().stream().filter(field -> field.getColumnPosition() == 0).findFirst().ifPresent(key -> {
+                        meta.getFields().stream().filter(field -> field.getColumnPosition() == 1).findFirst().ifPresent(key -> {
                             sortColumn.set(key.getFieldName());
                         });
                     }

@@ -38,6 +38,7 @@ import org.springframework.beans.BeanUtils;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
@@ -684,6 +685,18 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             hasUnionIndex.set(indexList.stream().anyMatch(TableIndex::isUnique));
         });
         metadataInstancesDto.setHasUnionIndex(hasUnionIndex.get());
+
+        // check fieldsAfter sort fields
+        if (CollectionUtils.isNotEmpty(metadataInstancesDto.getFieldsAfter())) {
+            Map<String, Integer> positionMap = metadataInstancesDto.getFieldsAfter().stream()
+                    .collect(Collectors.toMap(Field::getFieldName, Field::getColumnPosition, (e1, e2) -> e1));
+            metadataInstancesDto.getFields().forEach(field -> {
+                if (positionMap.containsKey(field.getFieldName())) {
+                    field.setColumnPosition(positionMap.get(field.getFieldName()));
+                }
+            });
+        }
+
 
         return metadataInstancesDto;
     }
