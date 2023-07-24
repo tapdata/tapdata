@@ -276,6 +276,10 @@
             <version>0.5.2-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-core</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

@@ -380,7 +380,7 @@ public class PartitionConcurrentProcessor {
 		return null;
 	}
 
-	private boolean isRunning() {
+	public boolean isRunning() {
 		return currentRunning.get() && nodeRunning.get();
 	}
 

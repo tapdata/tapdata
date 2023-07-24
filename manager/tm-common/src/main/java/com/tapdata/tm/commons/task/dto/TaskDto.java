@@ -169,6 +169,21 @@ public class TaskDto extends ParentTaskDto {
     private Boolean shareCdcStop;
     private String shareCdcStopMessage;
 
+    /**
+     * 开启动态调整队列内存使用
+     * true - 开启
+     * false - 关闭
+     */
+    private Boolean dynamicAdjustMemoryUsage;
+    /**
+     * 动态调整队列大小的阈值(单位：字节)
+     */
+    private Long dynamicAdjustMemoryThresholdByte;
+    /**
+     * 动态调整时，计算每行大小的采样比例
+     */
+    private Double dynamicAdjustMemorySampleRate;
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());
