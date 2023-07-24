@@ -1,10 +1,15 @@
 package io.tapdata.connector.gbase8s;
 
+import com.gbasedbt.jdbcx.IfxConnectionPoolDataSource;
+import com.gbasedbt.jdbcx.IfxDataSource;
 import com.google.common.collect.Lists;
+import com.informix.stream.cdc.IfxCDCEngine;
 import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.gbase8s.bean.Gbase8sColumn;
+import io.tapdata.connector.gbase8s.cdc.Gbase8sCdcRunner;
+import io.tapdata.connector.gbase8s.cdc.Gbase8sOffset;
 import io.tapdata.connector.gbase8s.config.Gbase8sConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
@@ -21,6 +26,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
+import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
@@ -29,8 +35,10 @@ import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -40,6 +48,7 @@ public class Gbase8sConnector extends CommonDbConnector {
     private Gbase8sConfig gbase8sConfig;
     private Gbase8sTest gbase8sTest;
     private Gbase8sJdbcContext gbase8sJdbcContext;
+    private Gbase8sCdcRunner gbase8sCdcRunner;
 
     private void initConnection(TapConnectionContext connectorContext) {
         gbase8sConfig = (Gbase8sConfig) new Gbase8sConfig().load(connectorContext.getConnectionConfig());
@@ -76,6 +85,11 @@ public class Gbase8sConnector extends CommonDbConnector {
         connectorFunctions.supportQueryByFilter(this::queryByFilter);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> gbase8sJdbcContext.getConnection(), this::isAlive, c));
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
+        connectorFunctions.supportBatchCount(this::batchCount);
+        connectorFunctions.supportBatchRead(this::batchReadWithoutOffset);
+        connectorFunctions.supportQueryByFilter(this::queryByFilter);
+        connectorFunctions.supportStreamRead(this::streamRead);
+        connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "TEXT", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null) return tapRawValue.getValue().toString();
@@ -93,6 +107,68 @@ public class Gbase8sConnector extends CommonDbConnector {
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
+    }
+
+    private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) {
+//        if (null == startTime) {
+//            Gbase8sConfig cdcConfig = (Gbase8sConfig) new Gbase8sConfig().load(tapConnectorContext.getConnectionConfig());
+//            cdcConfig.setDatabase("syscdcv1");
+//            AtomicReference<Long> sequenceId = new AtomicReference<>();
+//            AtomicReference<IfxCDCEngine> engine = new AtomicReference<>();
+//            try (Gbase8sJdbcContext cdcJdbcContext = new Gbase8sJdbcContext(cdcConfig);
+//            ) {
+//                cdcJdbcContext.execute("create table if not exists informix.tapdata_cdc(a1 int)");
+//                AtomicReference<Exception> exception = new AtomicReference<>();
+//                AtomicReference<Boolean> isStarted = new AtomicReference<>(false);
+//                new Thread(() -> {
+//                    try {
+//                        IfxConnectionPoolDataSource dataSource = new IfxConnectionPoolDataSource();
+//                        dataSource.setServerName(cdcConfig.getDatabaseUrl());
+//                        dataSource.setUser(cdcConfig.getUser());
+//                        dataSource.setPassword(cdcConfig.getPassword());
+//                        IfxDataSource ds = null;
+//                        try {
+//                            ds = new IfxDataSource(dataSource);
+//
+//                        } catch (SQLException throwables) {
+//                            throwables.printStackTrace();
+//                        }
+////                    IfxDataSource ds = new IfxDataSource(cdcConfig.getDatabaseUrl() + "user=" + cdcConfig.getUser() + ";password=" + cdcConfig.getPassword() + ";");
+//                        IfxCDCEngine.Builder builder = new IfxCDCEngine.Builder(ds);
+//                        builder.watchTable("syscdcv1:informix.tapdata_cdc", "a1");
+//                        builder.timeout(5);
+//                        engine.set(builder.build());
+//
+//                        //TODO
+//                        isStarted.set(true);
+//                    } catch (SQLException throwables) {
+//                        throwables.printStackTrace();
+//                    }
+//
+//                }).start();
+//            } catch (SQLException throwables) {
+//                throwables.printStackTrace();
+//            }
+//        }
+        //TODO
+
+        Gbase8sOffset gbase8sOffset = new Gbase8sOffset();
+        gbase8sOffset.setPendingScn(LocalDateTime.now().toEpochSecond(java.time.ZoneOffset.UTC));
+        gbase8sOffset.setLastScn(LocalDateTime.now().toEpochSecond(java.time.ZoneOffset.UTC));
+        return gbase8sOffset;
+    }
+
+    private void streamRead(TapConnectorContext tapConnectorContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
+        if (gbase8sCdcRunner == null) {
+            gbase8sCdcRunner = new Gbase8sCdcRunner(gbase8sJdbcContext, firstConnectorId, tapLogger).init(
+                    tableList,
+                    tapConnectorContext.getTableMap(),
+                    offsetState,
+                    recordSize,
+                    consumer
+            );
+        }
+        gbase8sCdcRunner.startCdcRunner();
     }
 
     @Override
