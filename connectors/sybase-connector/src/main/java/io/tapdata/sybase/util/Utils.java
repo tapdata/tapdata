@@ -19,10 +19,12 @@ import java.sql.Statement;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.StringJoiner;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -209,7 +211,20 @@ public class Utils {
         if (null == fromValue) return null;
         if ("".equals(fromValue.trim())) return "";
         if (null == fromCharset || null == toCharset || "".equals(fromCharset.trim()) || "".equals(toCharset.trim())) return fromValue;
+        if (BIG_HA.equals(toCharset)) return convertBig5Ha(fromValue, fromCharset);
         byte[] b = fromValue.getBytes(fromCharset);//编码
         return new String(b, toCharset);
+    }
+
+    public static final String BIG_HA = "big5-ha";
+    public static final Map<String, Big5HADecoder> context = new ConcurrentHashMap<>();
+    private static String convertBig5Ha(String originalString, String fromCharset){
+        byte[] cp850Bytes = originalString.getBytes(Charset.forName(fromCharset));
+        Big5HADecoder big5HADecoder = context.get(fromCharset);
+        if (null == big5HADecoder) {
+            big5HADecoder = new Big5HADecoder(fromCharset);
+            context.put(fromCharset, big5HADecoder);
+        }
+        return big5HADecoder.decode(cp850Bytes);
     }
 }

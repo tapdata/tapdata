@@ -27,6 +27,7 @@ import io.tapdata.entity.schema.value.TapBooleanValue;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapDateValue;
 import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.entity.schema.value.TapStringValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.schema.value.TapYearValue;
@@ -123,6 +124,12 @@ public class SybaseConnector extends CommonDbConnector {
     private final AtomicBoolean started = new AtomicBoolean(false);
     private Log log;
 
+
+    String encode;
+    String decode;
+    String outCode;
+    boolean needEncode = false;
+
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         sybaseConfig = new SybaseConfig().load(tapConnectionContext.getConnectionConfig());
@@ -154,6 +161,11 @@ public class SybaseConnector extends CommonDbConnector {
 
             overwriteType = Optional.ofNullable(OverwriteType.type(String.valueOf(stateMap.get("tableOverType")))).orElse(OverwriteType.OVERWRITE);
             stateMap.put("tableOverType", overwriteType.getType());
+
+            needEncode = nodeConfig.isAutoEncode();
+            encode = needEncode ? Optional.ofNullable(nodeConfig.getEncode()).orElse("cp850") : null;
+            decode = needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
+            outCode = needEncode ? Optional.ofNullable(nodeConfig.getOutDecode()).orElse("utf-8") : null;
         }
 //		fieldDDLHandlers = new BiClassHandlers<>();
 //		fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
@@ -227,95 +239,16 @@ public class SybaseConnector extends CommonDbConnector {
             return formatTapDateTime(tapYearValue.getValue(), "yyyy");
         });
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
-
-        connectorFunctions.supportCreateTableV2(this::createTableV2)
+        connectorFunctions
+                //.supportCreateTableV2(this::createTableV2)
                 .supportQueryByAdvanceFilter(this::queryByAdvanceFilterWithOffset)
-                .supportQueryByFilter(this::queryByFilter)
-                .supportDropTable(this::dropTable)
-                .supportClearTable(this::clearTable)
                 .supportBatchCount(this::batchCount)
                 .supportBatchRead(this::batchReadV2)
                 .supportGetTableNamesFunction(this::getTableNames)
-
                 .supportStreamRead(this::streamRead)
                 .supportTimestampToStreamOffset(this::timestampToStreamOffset)
                 .supportReleaseExternalFunction(this::release);
-        //connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilterWithOffset);
-        //connectorFunctions.supportWriteRecord(this::writeRecord);
-
-        //connectorFunctions.supportCreateIndex(this::createIndex);
-        //connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
-        //connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
-        //connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
-        //connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
-        //connectorFunctions.supportErrorHandleFunction(this::errorHandle);
-        //connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), this::isAlive, c));
-        //connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
-        //connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
-        //connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
-        //connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
-        //connectorFunctions.supportTransactionBeginFunction(this::begin);
-        //connectorFunctions.supportTransactionCommitFunction(this::commit);
-        //connectorFunctions.supportTransactionRollbackFunction(this::rollback);
     }
-
-//    private void rollback(TapConnectorContext tapConnectorContext) {
-//    }
-//
-//    private void commit(TapConnectorContext tapConnectorContext) {
-//    }
-//
-//    private void begin(TapConnectorContext tapConnectorContext) {
-//    }
-
-//    private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
-//        DatabaseReadPartitionSplitter.calculateDatabaseReadPartitions(connectorContext, table, options)
-//                //.queryFieldMinMaxValue(this::minMaxValue)
-//                .typeSplitterMap(options.getTypeSplitterMap().registerSplitter(TypeSplitterMap.TYPE_STRING, StringCaseInsensitiveSplitter.INSTANCE))
-//                .startSplitting();
-//    }
-
-//    private void partitionRead(TapConnectorContext connectorContext, TapTable table, ReadPartition readPartition, int eventBatchSize, Consumer<List<TapEvent>> consumer) {
-//
-//    }
-
-//	private FieldMinMaxValue minMaxValue(TapConnectorContext tapConnectorContext, TapTable tapTable, TapAdvanceFilter tapPartitionFilter, String fieldName) {
-//		SqlMaker sqlMaker = new MysqlMaker();
-//		FieldMinMaxValue fieldMinMaxValue = FieldMinMaxValue.create().fieldName(fieldName);
-//		String selectSql, aaa;
-//		try {
-//			selectSql = sqlMaker.selectSql(tapConnectorContext, tapTable, TapPartitionFilter.create().fromAdvanceFilter(tapPartitionFilter));
-//		} catch (Throwable e) {
-//			throw new RuntimeException("Build sql with partition filter failed", e);
-//		}
-//		// min value
-//		String minSql = selectSql.replaceFirst("SELECT \\* FROM", String.format("SELECT MIN(`%s`) AS MIN_VALUE FROM", fieldName));
-//		AtomicReference<Object> minObj = new AtomicReference<>();
-//		try {
-//			sybaseContext.query(minSql, rs -> {
-//				if (rs.next()) {
-//					minObj.set(rs.getObject("MIN_VALUE"));
-//				}
-//			});
-//		} catch (Throwable e) {
-//			throw new RuntimeException("Query min value failed, sql: " + minSql, e);
-//		}
-//		Optional.ofNullable(minObj.get()).ifPresent(min -> fieldMinMaxValue.min(min).detectType(min));
-//		// max value
-//		String maxSql = selectSql.replaceFirst("SELECT \\* FROM", String.format("SELECT MAX(`%s`) AS MAX_VALUE FROM", fieldName));
-//		AtomicReference<Object> maxObj = new AtomicReference<>();
-//		try {
-//			sybaseContext.query(maxSql, rs -> {
-//				if (rs.next()) {
-//					maxObj.set(rs.getObject("MAX_VALUE"));
-//				}
-//			});
-//		} catch (Throwable e) {
-//			throw new RuntimeException("Query max value failed, sql: " + maxSql, e);
-//		}
-//		Optional.ofNullable(maxObj.get()).ifPresent(max -> fieldMinMaxValue.max(max).detectType(max));
-//		return fieldMinMaxValue;
-//	}
 
     protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
         RetryOptions retryOptions = RetryOptions.create();
@@ -383,7 +316,8 @@ public class SybaseConnector extends CommonDbConnector {
 
     private Map<String, Object> filterTimeForMysql(ResultSet resultSet, ResultSetMetaData metaData, Set<String> dateTypeSet, String encode, String decode, String outCode) throws SQLException {
         Map<String, Object> data = new HashMap<>();
-        for (int index = 0, keyIndex = 1; index < metaData.getColumnCount(); keyIndex++ ,index++) {
+
+        for (int index = 0, keyIndex = 1; index < metaData.getColumnCount(); keyIndex++, index++) {
             String columnName = metaData.getColumnName(keyIndex);
             try {
                 Object value;
@@ -391,7 +325,8 @@ public class SybaseConnector extends CommonDbConnector {
                 final String upperColumnType = null == columnTypeName ? "" : columnTypeName.toUpperCase(Locale.ROOT);
                 if ("TIME".equals(upperColumnType) || "DATE".equals(upperColumnType)) {
                     value = resultSet.getString(keyIndex);
-                } else if (upperColumnType.contains("CHAR")
+                }
+                else if (upperColumnType.contains("CHAR")
                         || upperColumnType.contains("TEXT")
                         || upperColumnType.contains("SYSNAME") ) {
                     String string = resultSet.getString(keyIndex);
@@ -413,14 +348,6 @@ public class SybaseConnector extends CommonDbConnector {
 
     @Override
     protected void queryByAdvanceFilterWithOffset(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
-        if (null == nodeConfig) {
-            nodeConfig = new NodeConfig(connectorContext);
-        }
-        final boolean needEncode = nodeConfig.isAutoEncode();
-        final String encode = needEncode ? Optional.ofNullable(nodeConfig.getEncode()).orElse("cp850") : null;
-        final String decode =  needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
-        final String outCode = needEncode ? Optional.ofNullable(nodeConfig.getOutDecode()).orElse("utf-8") : null;
-
         ConnectionConfig config = new ConnectionConfig(connectorContext);
         String sql = commonSqlMaker.buildSelectClause(table, filter) + getSchemaAndTable(config.getDatabase() + "." + config.getSchema() + "." + table.getId()) + commonSqlMaker.buildSqlByAdvanceFilter(filter);
         int batchSize = null != filter.getBatchSize() && filter.getBatchSize().compareTo(0) > 0 ? filter.getBatchSize() : BATCH_ADVANCE_READ_LIMIT;
@@ -450,7 +377,7 @@ public class SybaseConnector extends CommonDbConnector {
         }
         final boolean needEncode = nodeConfig.isAutoEncode();
         final String encode = needEncode ? Optional.ofNullable(nodeConfig.getEncode()).orElse("cp850") : null;
-        final String decode =  needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
+        final String decode = needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
         final String outCode = needEncode ? Optional.ofNullable(nodeConfig.getOutDecode()).orElse("utf-8") : null;
         ConnectionConfig config = new ConnectionConfig(connectorContext);
         List<FilterResult> filterResults = new LinkedList<>();
@@ -507,46 +434,77 @@ public class SybaseConnector extends CommonDbConnector {
         }
     }
 
+    private Map<String, Object> filterTimeForMysql0(ResultSet resultSet, Map<String, String> typeAndName, Set<String> dateTypeSet) throws SQLException {
+        Map<String, Object> data = new HashMap<>();
+        for (Map.Entry<String, String> entry : typeAndName.entrySet()) {
+            String metaType = entry.getValue();
+            String metaName = entry.getKey();
+            try {
+                switch (metaType) {
+                    case "TIME":
+                    case "DATE":
+                        data.put(metaName, resultSet.getString(metaName));
+                        break;
+                    default:
+                        if (metaType.contains("CHAR")
+                                || metaType.contains("TEXT")
+                                || metaType.contains("SYSNAME") ) {
+                            String string = resultSet.getString(metaName);
+                            data.put(metaName, null == string ? null : (needEncode ? Utils.convertString(string, encode, decode) : string ));
+                        } else {
+                            Object value = resultSet.getObject(metaName);
+                            if (null == value && dateTypeSet.contains(metaName)) {
+                                value = resultSet.getString(metaName);
+                            }
+                            data.put(metaName, value);
+                        }
+                }
+            } catch (Exception e) {
+                throw new CoreException("Read column value failed, column name: {}, type: {}, data: {}, error: {}", metaName, metaType, data, e.getMessage());
+            }
+        }
+        return data;
+    }
+
+
     private void batchReadV2(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
         if (null == tapTable) {
             throw new CoreException("Start batch read with an empty tap table, batch read is failed");
         }
-        String tableId = tapTable.getId();
+        final String tableId = tapTable.getId();
         if (null == tableId || "".equals(tableId.trim())) {
             throw new CoreException("Start batch read with tap table which table id is empty, batch read is failed");
         }
 
         ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
         String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> " " + c + " ").collect(Collectors.joining(","));
-        String sql = String.format("SELECT %s FROM " + config.getDatabase() + "." + config.getSchema() + "." +  tapTable.getId(), columns);
-
-        if (null == nodeConfig) {
-            nodeConfig = new NodeConfig(tapConnectorContext);
-        }
-        final boolean needEncode = nodeConfig.isAutoEncode();
-        final String encode = needEncode ? Optional.ofNullable(nodeConfig.getEncode()).orElse("cp850") : null;
-        final String decode =  needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
-        final String outCode = needEncode ? Optional.ofNullable(nodeConfig.getOutDecode()).orElse("utf-8") : null;
+        String sql = String.format("SELECT %s FROM " + config.getDatabase() + "." + config.getSchema() + "." + tapTable.getId(), columns);
+        final Set<String> dateTypeSet = dateFields(tapTable);
+        final List<TapEvent>[] tapEvents = new List[]{list()};
         try {
-            final List<TapEvent>[] tapEvents = new List[]{list()};
             sybaseContext.query(sql, resultSet -> {
-                //get all column names
-                Set<String> dateTypeSet = dateFields(tapTable);
                 ResultSetMetaData metaData = resultSet.getMetaData();
+                Map<String, String> typeAndNameFromMetaData = new HashMap<>();
+                int columnCount = metaData.getColumnCount();
+                for (int index = 1; index < columnCount + 1; index++) {
+                    String type = metaData.getColumnTypeName(index);
+                    if (null == type) continue;
+                    typeAndNameFromMetaData.put(metaData.getColumnName(index), type.toUpperCase(Locale.ROOT));
+                }
                 while (isAlive() && resultSet.next()) {
-                    tapEvents[0].add(insertRecordEvent(filterTimeForMysql(resultSet, metaData, dateTypeSet, encode, decode, outCode), tapTable.getId()));
+                    tapEvents[0].add(insertRecordEvent(filterTimeForMysql0(resultSet, typeAndNameFromMetaData, dateTypeSet), tableId).referenceTime(System.currentTimeMillis()));
                     if (tapEvents[0].size() == eventBatchSize) {
-                        eventsOffsetConsumer.accept(tapEvents[0], new HashMap<>());
+                        eventsOffsetConsumer.accept(tapEvents[0], offsetState);
                         tapEvents[0] = list();
                     }
-                }
-                //last events those less than eventBatchSize
-                if (EmptyKit.isNotEmpty(tapEvents[0])) {
-                    eventsOffsetConsumer.accept(tapEvents[0], new HashMap<>());
                 }
             });
         } catch (Exception e) {
             tapConnectorContext.getLog().error("Batch read failed, table name: {}, error msg: {}", tableId, e.getMessage());
+        } finally {
+            if (EmptyKit.isNotEmpty(tapEvents[0])) {
+                eventsOffsetConsumer.accept(tapEvents[0], offsetState);
+            }
         }
 
     }
@@ -708,12 +666,12 @@ public class SybaseConnector extends CommonDbConnector {
                             && null != col.getString("dataType")
                             && !col.getString("dataType").toUpperCase(Locale.ROOT).contains("TIMESTAMP"))
                     .forEach(col -> {
-                TapField tapField = sybaseColumn.initTapField(col);
-                tapField.setPos(keyPos.incrementAndGet());
-                tapField.setPrimaryKey(primaryKeys.contains(tapField.getName().trim()));
-                tapField.setPrimaryKeyPos(primaryKeys.indexOf(tapField.getName()) + 1);
-                tapTable.add(tapField);
-            });
+                        TapField tapField = sybaseColumn.initTapField(col);
+                        tapField.setPos(keyPos.incrementAndGet());
+                        tapField.setPrimaryKey(primaryKeys.contains(tapField.getName().trim()));
+                        tapField.setPrimaryKeyPos(primaryKeys.indexOf(tapField.getName()) + 1);
+                        tapTable.add(tapField);
+                    });
             tapTable.setIndexList(tapIndexList);
             if (null == tapTable.getNameFieldMap() || tapTable.getNameFieldMap().isEmpty()) {
                 log.warn("Table {} can not fund any primary key", tapTable.getId());

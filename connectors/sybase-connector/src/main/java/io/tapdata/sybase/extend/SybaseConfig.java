@@ -33,7 +33,7 @@ public class SybaseConfig extends CommonDbConfig {
         setUser(EmptyKit.isBlank(getUser()) ? (String) map.get("username") : getUser());
         setUsername(getUser());
         setExtParams(EmptyKit.isBlank(getExtParams()) ? (String) map.get("addtionalString") : getExtParams());
-        setSchema(getDatabase());
+        setSchema(getSchema());
         return config;
     }
 

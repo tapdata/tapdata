@@ -1,6 +1,6 @@
 package io.tapdata.sybase.cdc.dto.read;
 
-import java.util.List;
+import io.tapdata.sybase.cdc.dto.watch.CdcAccepter;
 
 /**
  * @author GavinXiao
@@ -8,5 +8,7 @@ import java.util.List;
  * @create 2023/7/13 11:43
  **/
 public interface ReadCSV {
-    public List<List<String>> read(String csvPath);
+    public static final int CDC_BATCH_SIZE = 200;
+
+    public void read(String csvPath, CdcAccepter accepter);
 }

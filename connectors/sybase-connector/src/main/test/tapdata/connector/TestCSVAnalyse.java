@@ -13,13 +13,13 @@ import java.util.List;
 public class TestCSVAnalyse {
     @Test
     public void readCSV(){
-        List<List<String>> read = AnalyseCsvFile.DEFAULT_READ_CSV.read("D:\\GavinData\\deskTop\\sybase-poc\\config\\sybase2csv\\csv\\testdb\\tester\\car_claim\\testdb.tester.car_claim.part_0.csv");
-        for (int index = 0; index < read.size(); index++) {
-            List<String> list = read.get(index);
-            int group = list.size() / 3;
-            for (int i = 0; i < group; i++) {
-                System.out.println(list.get(i * 3) + "  " + list.get( i * 3 + 1) + "  " + list.get(i * 3 + 2));
-            }
-        }
+//        List<List<String>> read = AnalyseCsvFile.DEFAULT_READ_CSV.read("D:\\GavinData\\deskTop\\sybase-poc\\config\\sybase2csv\\csv\\testdb\\tester\\car_claim\\testdb.tester.car_claim.part_0.csv", null);
+//        for (int index = 0; index < read.size(); index++) {
+//            List<String> list = read.get(index);
+//            int group = list.size() / 3;
+//            for (int i = 0; i < group; i++) {
+//                System.out.println(list.get(i * 3) + "  " + list.get( i * 3 + 1) + "  " + list.get(i * 3 + 2));
+//            }
+//        }
     }
 }

@@ -34,7 +34,12 @@ public class SybaseColumn extends CommonColumn {
     }
 
     public TapField initTapField(DataMap dataMap) {
-        return new TapField(dataMap.getString("columnName"), dataMap.getString("dataType"))
+        Object length = dataMap.get("all_length");
+        String type = dataMap.getString("dataType");
+        if (null != length) {
+            type = type + "(" + length + ")";
+        }
+        return new TapField(dataMap.getString("columnName"), type)
                 .nullable("NULL".equals(dataMap.getString("nullable")))
                 .defaultValue(null)
                 .comment(dataMap.getString("columnComment"));

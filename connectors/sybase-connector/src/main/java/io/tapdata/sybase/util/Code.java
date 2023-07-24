@@ -12,6 +12,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 
 /**
@@ -46,7 +50,7 @@ public class Code {
     }
 
 
-    public static final String INSERT_POC_TEST_SQL = "insert into tester.poc_test (" +
+    public static final String INSERT_POC_TEST_SQL = "insert into tester.poc_test_no_id (" +
             "char_col," +
             "datetime_col," +
             "decimal_col," +
@@ -71,38 +75,56 @@ public class Code {
     public static void insert(String sql, Connection connection) throws Exception {
         PreparedStatement p = connection.prepareStatement(sql);
         int index = 1;
-        p.setString(index++, new String("A".getBytes("utf-8"), "big5"));
+        p.setString(index++, new String("F".getBytes("utf-8"), "big5"));
         p.setDate(index++, new Date(System.currentTimeMillis()));
         p.setDouble(index++, 2.36);
         p.setDouble(index++, 2.36);
-        p.setInt(index++, 3);
+        p.setInt(index++, 8);
         p.setDouble(index++, 3.33);
         p.setDouble(index++, 4.33);
-        p.setString(index++, new String("這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
+        p.setString(index++, new String("B這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
         p.setDate(index++, new Date(System.currentTimeMillis()));
         p.setInt(index++, 3);
-        p.setString(index++, new String("Fdsd".getBytes("utf-8"), "big5"));
-        p.setString(index++, new String("這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
+        p.setString(index++, new String("BFdsd".getBytes("utf-8"), "big5"));
+        p.setString(index++, new String("V這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
         p.setInt(index++, 3);
-        p.setString(index++, new String("這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
+        p.setString(index++, new String("V這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
         p.executeUpdate();
     }
     public static void main(String[] args) {
-        String a = "root      5477     1  0 07:06 ?        00:00:00 /bin/sh -c export JAVA_TOOL_OPTIONS=\"-Duser.language=en\"; /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose";
-        String b1 = "root      5538  5477  4 07:06 ?        00:00:09 java sh /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose";
-        String c = "root      6013  4602  0 07:10 pts/16   00:00:00 grep java -Duser.timezone=UTC -Djava.system.class.loader=tech.replicant.util.ReplicantClassLoader -classpath /tapdata/apps/sybase-poc/replicant-cli/target/replicant-core.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts-5089.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/* tech.replicant.Main real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose";
 
-        String[] split = a.split("( )+");
-        String[] split1 = b1.split("( )+");
-        String[] split2 = c.split("( )+");
-        System.out.println();
+//        Map<String, Object> before = new HashMap<>();
+//        before.put("ccc_tail", "ccc");
+//        before.put("ccc_head", "head");
+//        before.put("big5", "fdsf");
+//        before.put("phonetic_text", "fdsf");
+//        before.put("unicode_int", 12.6);
+//
+//        List<String> uniqueCondition = new ArrayList<>();
+//        uniqueCondition.add("ccc_tail");
+//        uniqueCondition.add("ccc_head");
+//        uniqueCondition.add("unicode_int");
+//        before.keySet().removeIf(k -> !uniqueCondition.contains(k));
+//        System.out.println(before.size());
+
+
+
+
+//        String a = "root      5477     1  0 07:06 ?        00:00:00 /bin/sh -c export JAVA_TOOL_OPTIONS=\"-Duser.language=en\"; /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose";
+//        String b1 = "root      5538  5477  4 07:06 ?        00:00:09 java sh /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose";
+//        String c = "root      6013  4602  0 07:10 pts/16   00:00:00 grep java -Duser.timezone=UTC -Djava.system.class.loader=tech.replicant.util.ReplicantClassLoader -classpath /tapdata/apps/sybase-poc/replicant-cli/target/replicant-core.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts-5089.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/* tech.replicant.Main real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose";
+//
+//        String[] split = a.split("( )+");
+//        String[] split1 = b1.split("( )+");
+//        String[] split2 = c.split("( )+");
+//        System.out.println();
 
         try {
             Class.forName("net.sourceforge.jtds.jdbc.Driver");
             Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "tester", "guest1234");
             Statement statement = conn.createStatement();
             //insertOne("INSERT INTO tester.poc_test (varchar_col) VALUES (?)", conn);
-            for (int i = 0; i < 10000; i++) {
+            for (int i = 0; i < 1; i++) {
                 insert(INSERT_POC_TEST_SQL, conn);
             }
 
@@ -111,27 +133,27 @@ public class Code {
         } catch (Exception e) {
             System.out.println(e.getMessage());
         }
-        try {
-            byte[] b = "?ê??¥ê??¢".getBytes("cp850");//??
-            System.out.println(new String(b, "utf-8"));;
-        } catch (Exception e){
-
-        }
-
-        String regex = "(.*)(CHAR|char|TEXT|text)(.*)";
-        System.out.println("TEXT: " + "TEXT".matches(regex));
-        System.out.println("NCHAR: " + "NCHAR".matches(regex));
-        System.out.println("UNICHAR: " + "UNICHAR".matches(regex));
-        System.out.println("VARCHAR: " + "VARCHAR".matches(regex));
-        System.out.println("NVARCHAR: " + "NVARCHAR".matches(regex));
-        System.out.println("UNIVARCHAR: " + "UNIVARCHAR".matches(regex));
-        System.out.println("UNITEXT: " + "UNITEXT".matches(regex));
-
-        System.out.println("DOUBLE: " + "DOUBLE".matches(regex));
-        System.out.println("varchar: " + "varchar".matches(regex));
-        System.out.println("VARCHAR: " + "VARCHAR".matches(regex));
-        System.out.println("double: " + "double".matches(regex));
-        System.out.println("text: " + "text".matches(regex));
-        System.out.println("INT: " + "INT".matches(regex));
+//        try {
+//            byte[] b = "?ê??¥ê??¢".getBytes("cp850");//??
+//            System.out.println(new String(b, "utf-8"));;
+//        } catch (Exception e){
+//
+//        }
+//
+//        String regex = "(.*)(CHAR|char|TEXT|text)(.*)";
+//        System.out.println("TEXT: " + "TEXT".matches(regex));
+//        System.out.println("NCHAR: " + "NCHAR".matches(regex));
+//        System.out.println("UNICHAR: " + "UNICHAR".matches(regex));
+//        System.out.println("VARCHAR: " + "VARCHAR".matches(regex));
+//        System.out.println("NVARCHAR: " + "NVARCHAR".matches(regex));
+//        System.out.println("UNIVARCHAR: " + "UNIVARCHAR".matches(regex));
+//        System.out.println("UNITEXT: " + "UNITEXT".matches(regex));
+//
+//        System.out.println("DOUBLE: " + "DOUBLE".matches(regex));
+//        System.out.println("varchar: " + "varchar".matches(regex));
+//        System.out.println("VARCHAR: " + "VARCHAR".matches(regex));
+//        System.out.println("double: " + "double".matches(regex));
+//        System.out.println("text: " + "text".matches(regex));
+//        System.out.println("INT: " + "INT".matches(regex));
     }
 }

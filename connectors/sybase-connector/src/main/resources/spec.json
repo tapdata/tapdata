@@ -347,7 +347,7 @@
     "char[($byte)]": {
       "to": "TapString",
       "byte": 255,
-      "byteRatio": 3,
+      "byteRatio": 1,
       "fixed": true
     },
     "varchar($byte)": {

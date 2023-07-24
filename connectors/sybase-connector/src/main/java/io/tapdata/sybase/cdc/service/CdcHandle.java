@@ -48,6 +48,7 @@ public class CdcHandle {
     TapConnectorContext context;
     FileMonitor fileMonitor;
     final Object closeLock = new Object();
+    ListenFile listenFile ;
 
     public CdcHandle(CdcRoot root, TapConnectorContext context, StopLock lock) {
         this.root = root;
@@ -178,19 +179,21 @@ public class CdcHandle {
             StreamReadConsumer consumer) {
         if (null == position) position = new CdcPosition();
         streamReadConsumer(consumer, context.getLog(), monitorPath);
-        new ListenFile(this.root,
+        listenFile = new ListenFile(this.root,
                 monitorPath,
                 tables,
                 monitorFileName,
                 new AnalyseCsvFile(this.root, position, null),
                 lock,
                 batchSize
-        ).monitor(fileMonitor).compile();
+        ).monitor(fileMonitor);
+        listenFile.compile();
         return position;
     }
 
     //Step #end 1
     public synchronized void releaseCdc() {
+        if (null != listenFile) listenFile.onStop();
         Optional.ofNullable(root.getProcess()).ifPresent(Process::destroy);
         Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
         KVMap<Object> stateMap = context.getStateMap();
@@ -220,6 +223,7 @@ public class CdcHandle {
 
     //Step #end 2
     public synchronized void stopCdc() {
+        if (null != listenFile) listenFile.onStop();
         //@todo
         Optional.ofNullable(root.getProcess()).ifPresent(Process::destroy);
 
