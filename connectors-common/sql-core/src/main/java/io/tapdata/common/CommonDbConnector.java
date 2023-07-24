@@ -575,6 +575,26 @@ public abstract class CommonDbConnector extends ConnectorBase {
         });
     }
 
+    //for oracle db2 type (with row_number)
+    protected void queryByAdvanceFilterWithOffsetV2(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
+        String sql = commonSqlMaker.buildSelectClause(table, filter) + commonSqlMaker.buildRowNumberPreClause(filter) + getSchemaAndTable(table.getId()) + commonSqlMaker.buildSqlByAdvanceFilterV2(filter);
+        jdbcContext.query(sql, resultSet -> {
+            FilterResults filterResults = new FilterResults();
+            while (resultSet.next()) {
+                List<String> allColumn = DbKit.getColumnsFromResultSet(resultSet);
+                allColumn.remove("ROWNO_");
+                filterResults.add(DbKit.getRowFromResultSet(resultSet, allColumn));
+                if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
+                    consumer.accept(filterResults);
+                    filterResults = new FilterResults();
+                }
+            }
+            if (EmptyKit.isNotEmpty(filterResults.getResults())) {
+                consumer.accept(filterResults);
+            }
+        });
+    }
+
     protected void beginTransaction(TapConnectorContext connectorContext) throws Throwable {
         isTransaction = true;
     }
