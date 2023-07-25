@@ -91,7 +91,7 @@ class ExecCommand implements CdcStep<CdcRoot> {
         } catch (Exception e) {
             throw new CoreException("Command exec failed, unable to start cdc command: {}, msg: {}", cmd, e.getMessage());
         } finally {
-            root.getContext().getLog().info("You can go to {}/config/sybase2csv/trace/{}/trace.log to view the log information generated during the corresponding cdc execution",
+            root.getContext().getLog().info("You can cat {}/config/sybase2csv/trace/{}/trace.log to view the log information generated during the corresponding cdc execution",
                     sybasePocPath, root.getCdcId());
         }
 

@@ -195,7 +195,6 @@ public class SybaseConnector extends CommonDbConnector {
             }
         }
 
-        Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::stopCdc);
         Optional.ofNullable(lock).ifPresent(StopLock::stop);
         if (root != null) {
             root.notifyAll();
@@ -250,28 +249,28 @@ public class SybaseConnector extends CommonDbConnector {
                 .supportReleaseExternalFunction(this::release);
     }
 
-    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
-        RetryOptions retryOptions = RetryOptions.create();
-        retryOptions.setNeedRetry(true);
-        retryOptions.beforeRetryMethod(() -> {
-            try {
-                synchronized (this) {
-                    //mysqlJdbcContext是否有效
-                    if (sybaseContext == null || !checkValid() || !started.get()) {
-                        //如果无效执行onStop,有效就return
-                        this.onStop(tapConnectionContext);
-                        if (isAlive()) {
-                            this.onStart(tapConnectionContext);
-                        }
-                    } else {
-                        mysqlWriter.selfCheck();
-                    }
-                }
-            } catch (Throwable ignore) {
-            }
-        });
-        return retryOptions;
-    }
+//    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+//        RetryOptions retryOptions = RetryOptions.create();
+//        retryOptions.setNeedRetry(true);
+//        retryOptions.beforeRetryMethod(() -> {
+//            try {
+//                synchronized (this) {
+//                    //mysqlJdbcContext是否有效
+//                    if (sybaseContext == null || !checkValid() || !started.get()) {
+//                        //如果无效执行onStop,有效就return
+//                        this.onStop(tapConnectionContext);
+//                        if (isAlive()) {
+//                            this.onStart(tapConnectionContext);
+//                        }
+//                    } else {
+//                        mysqlWriter.selfCheck();
+//                    }
+//                }
+//            } catch (Throwable ignore) {
+//            }
+//        });
+//        return retryOptions;
+//    }
 
     private boolean checkValid() {
         try {
@@ -520,16 +519,17 @@ public class SybaseConnector extends CommonDbConnector {
         }
         try {
             if (null == cdcHandle || null == root.getProcess()) {
-                //throw new CoreException(" Repeated startup of cdc processes is not allowed, the CDC execution information has expired");
-                try {
-                    cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
-                } catch (CoreException e) {
-                    if (e.getCode() == Code.STREAM_READ_WARN) {
-                        tapConnectorContext.getLog().info(e.getMessage());
-                    }
-                    throw e;
-                }
-                cdcHandle.startCdc(overwriteType);
+                throw new CoreException(" Repeated startup of cdc processes is not allowed, the CDC execution information has expired");
+//                try {
+//                    cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
+//                    cdcHandle.safeStopShell();
+//                } catch (CoreException e) {
+//                    if (e.getCode() == Code.STREAM_READ_WARN) {
+//                        tapConnectorContext.getLog().info(e.getMessage());
+//                    }
+//                    throw e;
+//                }
+//                cdcHandle.startCdc(overwriteType);
             }
             Process process = root.getProcess();
 

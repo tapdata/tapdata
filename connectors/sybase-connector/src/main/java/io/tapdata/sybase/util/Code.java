@@ -50,7 +50,7 @@ public class Code {
     }
 
 
-    public static final String INSERT_POC_TEST_SQL = "insert into tester.poc_test_no_id (" +
+    public static final String INSERT_POC_TEST_SQL = "insert into tester.poc_test (" +
             "char_col," +
             "datetime_col," +
             "decimal_col," +
@@ -124,7 +124,7 @@ public class Code {
             Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "tester", "guest1234");
             Statement statement = conn.createStatement();
             //insertOne("INSERT INTO tester.poc_test (varchar_col) VALUES (?)", conn);
-            for (int i = 0; i < 1; i++) {
+            for (int i = 0; i < 10000; i++) {
                 insert(INSERT_POC_TEST_SQL, conn);
             }
 

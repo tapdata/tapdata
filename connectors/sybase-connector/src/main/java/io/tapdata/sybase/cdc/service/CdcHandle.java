@@ -227,13 +227,7 @@ public class CdcHandle {
         //@todo
         Optional.ofNullable(root.getProcess()).ifPresent(Process::destroy);
 
-        try {
-            stopShell(new String[]{ "/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli" }, list("grep sybase-poc/replicant-cli"));
-        } catch (Exception e) {
-            root.getContext().getLog().warn("Can not auto stop cdc tool, please go to server and kill process by shell {} and after find process PID by shell {}",
-                    "kill pid1 pid2 pid3 ",
-                    "ps -ef|grep sybase-poc/replicant-cli");
-        }
+        safeStopShell();
         //@todo
         root.setProcess(null);
         Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
@@ -247,7 +241,17 @@ public class CdcHandle {
         }
     }
 
-    public void stopShell(String[] cmd, List<String> ignoreShells){
+    public void safeStopShell(){
+        try {
+            stopShell(new String[]{ "/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli" }, list("grep sybase-poc/replicant-cli"));
+        } catch (Exception e) {
+            root.getContext().getLog().warn("Can not auto stop cdc tool, please go to server and kill process by shell {} and after find process PID by shell {}",
+                    "kill pid1 pid2 pid3 ",
+                    "ps -ef|grep sybase-poc/replicant-cli");
+        }
+    }
+
+    private void stopShell(String[] cmd, List<String> ignoreShells){
         //String cmd = "ps -ef|grep sybase-poc/replicant-cli";
         ///bin/sh -c export JAVA_TOOL_OPTIONS="-Duser.language=en"; /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
         //sh /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose

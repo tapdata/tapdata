@@ -22,9 +22,11 @@ public class ReadCSVStageImpl implements ReadCSV {
     public void read(String csvPath, CdcAccepter consumer) {
         List<List<String>> lines = new ArrayList<>();
         String[] strArr = null;
-        CSVReader reader = null;
-        try {
-            reader = new CSVReader(new InputStreamReader(new FileInputStream(csvPath), StandardCharsets.UTF_8));
+        try (
+             FileInputStream inputStream = new FileInputStream(csvPath);
+             InputStreamReader inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
+             CSVReader reader = new CSVReader(inputStreamReader)
+        ) {
             while (null != (strArr = reader.readNext())) {
                 lines.add(new ArrayList<>(Arrays.asList(strArr)));
                 if (lines.size() >= CDC_BATCH_SIZE) {
@@ -38,13 +40,6 @@ public class ReadCSVStageImpl implements ReadCSV {
             if (!lines.isEmpty()) {
                 consumer.accept(lines);
                 lines = null;
-            }
-            try {
-                if (null != reader) {
-                    reader.close();
-                }
-            } catch (Exception e) {
-                throw new CoreException("Can not close CSV reader when monitor handle csv line, msg: " + e.getMessage());
             }
         }
     }
