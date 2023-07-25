@@ -75,10 +75,13 @@ public class DefaultConvert implements SybaseDataTypeConvert {
                             || type.contains("SYSNAME") ) {
                         return objToString(fromValue, config, nodeConfig);
                     } else if (type.startsWith("VARBINARY")) {
-                        return objToBinary(fromValue);
+                        TapLogger.warn(TAG, "An VARBINARY data type not support in cdc now");
+                        return null;
+                        //return objToBinary(fromValue);
                     } else if (type.contains("BINARY")) {
                         TapLogger.warn(TAG, "An BINARY data type not support in cdc now");
-                        return null;//objToBinary(fromValue);
+                        return null;
+                        //return objToBinary(fromValue);
                     } else if (type.contains("IMAGE")) {
                         TapLogger.warn(TAG, "An IMAGE data type not support in cdc now");
                         return null;

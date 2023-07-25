@@ -8,5 +8,5 @@ import java.util.List;
  * @create 2023/7/21 16:05
  **/
 public interface CdcAccepter {
-    public void accept(List<List<String>> compileLines);
+    public void accept(List<List<String>> compileLines, int lastIndex);
 }

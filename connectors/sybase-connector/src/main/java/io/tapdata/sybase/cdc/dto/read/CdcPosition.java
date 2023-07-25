@@ -66,6 +66,11 @@ public class CdcPosition {
             return line;
         }
 
+        public int addAndGet(){
+            this.line++;
+            return this.line;
+        }
+
         public void setLine(int line) {
             this.line = line;
         }

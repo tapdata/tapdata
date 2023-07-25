@@ -137,7 +137,10 @@ public interface SybaseDataTypeConvert {
 
     public default Object objToBinary(Object obj) {
         if (null == obj) return null;
-        if (obj instanceof String) return ((String) obj).getBytes(StandardCharsets.UTF_8);
+        if (obj instanceof String) {
+            String binaryObj = (String) obj;
+            return "0x" + binaryObj;
+        }
         if (obj instanceof Map || obj instanceof Collection || obj.getClass().isArray()) {
             return toJson(obj).getBytes(StandardCharsets.UTF_8);
         } else {

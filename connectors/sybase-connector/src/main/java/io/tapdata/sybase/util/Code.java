@@ -50,7 +50,7 @@ public class Code {
     }
 
 
-    public static final String INSERT_POC_TEST_SQL = "insert into tester.poc_test (" +
+    public static final String INSERT_POC_TEST_SQL = "insert into tester.poc_test_no_txt (" +
             "char_col," +
             "datetime_col," +
             "decimal_col," +
@@ -62,11 +62,10 @@ public class Code {
             "smalldatetime_col," +
             "smallint_col," +
             "sysname_col," +
-            "text_col," +
             "tinyint_col," +
             "varchar_col" +
             ") " +
-            "values (?,?,?,?,?,?,?,?,?,?,?,?,?,? )";
+            "values (?,?,?,?,?,?,?,?,?,?,?,?,? )";
     public static void insertOne(String sql, Connection connection) throws Exception {
         PreparedStatement pstmt = connection.prepareStatement(sql);
         pstmt.setString(1, new String("這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
@@ -86,7 +85,8 @@ public class Code {
         p.setDate(index++, new Date(System.currentTimeMillis()));
         p.setInt(index++, 3);
         p.setString(index++, new String("BFdsd".getBytes("utf-8"), "big5"));
-        p.setString(index++, new String("V這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
+//        p.setString(index++, new String(("" +
+//                "，我要把它從cp850轉成utf-8").getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
         p.setInt(index++, 3);
         p.setString(index++, new String("V這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
         p.executeUpdate();

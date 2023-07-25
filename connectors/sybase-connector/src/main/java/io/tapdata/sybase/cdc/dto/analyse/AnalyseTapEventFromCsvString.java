@@ -36,8 +36,8 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
         // 8.9,NULL,1,
         // 2023-07-13 20:43:23.0,NULL,1
         // ,4,NULL,1,
-        // I,"{""extractorId"":0,""transactionLogPageNumber"":901,""transactionLogRowNumber"":145,""operationLogPageNumber"":901,""operationLogRowNumber"":146,""catalogName"":""testdb"",""timestamp"":1689252221014,""extractionTimestamp"":1689252221015,""v"":0}","{""insertCount"":4,""updateCount"":0,""deleteCount"":0,""replaceCount"":0}"
-
+        //NULL,F,2,NULL,2023-07-25 00:00:00.0,2,NULL,2.3600000000,2,NULL,2.36,2,NULL,8,2,NULL,3.3300,2,NULL,4.3300000000,2,NULL,B│o¡Ë¼Oñ@¼qÑ┐┼ÚªrñÕªríAº┌¡nºÔÑª▒qcp850┬Óª¿utf-8,2,NULL,2023-07-25 00:00:00.0,2,NULL,3,2,NULL,BFdsd,2,NULL,:
+        //                                                                                                              ED,2,NULL,3,2,NULL,V│o¡Ë¼Oñ@¼qÑ┐┼ÚªrñÕªríAº┌¡nºÔÑª▒qcp850┬Óª¿utf-8,2,NULL,215972,2,D,"{""extractorId"":0,""transactionLogPageNumber"":256566,""transactionLogRowNumber"":52,""operationLogPageNumber"":256589,""operationLogRowNumber"":0,""catalogName"":""testdb"",""timestamp"":1690280292259,""extractionTimestamp"":1690280293749,""v"":0}","{""insertCount"":7,""updateCount"":0,""deleteCount"":922,""replaceCount"":0}"
         //NULL,add one1,2,NULL,NULL,2,NULL,NULL,2,NULL,NULL,2,NULL,NULL,2,NULL,NULL,2,NULL,NULL,2,NULL,NULL,2,NULL,NULL,2,NULL,NULL,2,NULL,NULL,2,NULL,NULL,2,NULL,NULL,
         // 2,NULL,NULL,2,D,"{""extractorId"":0,""transactionLogPageNumber"":215508,""transactionLogRowNumber"":79,""operationLogPageNumber"":215508,
         // ""operationLogRowNumber"":80,""catalogName"":""testdb"",""timestamp"":1689929643121,""extractionTimestamp"":1689929643122,""v"":0}","{""insertCount"":3,
