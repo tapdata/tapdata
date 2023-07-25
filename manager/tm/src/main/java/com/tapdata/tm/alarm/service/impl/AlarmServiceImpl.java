@@ -155,7 +155,7 @@ public class AlarmServiceImpl implements AlarmService {
             List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
             if (CollectionUtils.isNotEmpty(alarmSettingDtos)) {
                 openTask = alarmSettingDtos.stream().anyMatch(t ->
-                        t.getKey().equals(key) && t.isOpen() && (type ==null || t.getNotify().contains(type)));
+                        key.equals(t.getKey()) && t.isOpen() && (type ==null || t.getNotify().contains(type)));
             }
         }
 
@@ -163,7 +163,7 @@ public class AlarmServiceImpl implements AlarmService {
         List<AlarmSettingDto> all = alarmSettingService.findAllAlarmSetting(userDetail);
         if (CollectionUtils.isNotEmpty(all)) {
             openSys = all.stream().anyMatch(t ->
-                    t.getKey().equals(key) && t.isOpen() && (type == null ||  t.getNotify().contains(type)));
+                    key.equals(t.getKey()) && t.isOpen() && (type == null ||  t.getNotify().contains(type)));
         }
 
         return openTask && openSys;

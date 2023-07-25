@@ -69,6 +69,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -91,6 +92,7 @@ import java.util.stream.Collectors;
 public class InspectService extends BaseService<InspectDto, InspectEntity, ObjectId, InspectRepository> {
 
     @Autowired
+    @Lazy
     private DataFlowService dataFlowService;
     @Autowired
     private MessageService messageService;
