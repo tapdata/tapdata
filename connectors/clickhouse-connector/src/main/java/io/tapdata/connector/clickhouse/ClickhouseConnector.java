@@ -1,7 +1,6 @@
 package io.tapdata.connector.clickhouse;
 
 import io.tapdata.common.CommonDbConnector;
-import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.clickhouse.bean.ClickhouseColumn;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
@@ -22,12 +21,13 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.*;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
@@ -201,7 +201,8 @@ public class ClickhouseConnector extends CommonDbConnector {
 //        connectorFunctions.supportStreamRead(this::streamRead);
 //        connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         //query
-        connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
+        connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilterWithOffset);
+        connectorFunctions.supportCountByPartitionFilterFunction(this::countByAdvanceFilter);
         connectorFunctions.supportQueryByFilter(this::queryByFilter);
 
         // ddl
@@ -212,6 +213,7 @@ public class ClickhouseConnector extends CommonDbConnector {
 
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> clickhouseJdbcContext.getConnection(), this::isAlive, c));
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
+        connectorFunctions.supportCountRawCommandFunction(this::countRawCommand);
         connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
 
     }
@@ -334,42 +336,6 @@ public class ClickhouseConnector extends CommonDbConnector {
             throw new RuntimeException("Create Indexes for " + tapTable.getId() + " Failed! " + e.getMessage());
         }
 
-    }
-
-    private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
-        StringBuilder builder = new StringBuilder("SELECT ");
-        Projection projection = filter.getProjection();
-        if (EmptyKit.isNull(projection) || (EmptyKit.isEmpty(projection.getIncludeFields()) && EmptyKit.isEmpty(projection.getExcludeFields()))) {
-            builder.append("*");
-        } else {
-            builder.append("\"");
-            if (EmptyKit.isNotEmpty(filter.getProjection().getIncludeFields())) {
-                builder.append(String.join("\",\"", filter.getProjection().getIncludeFields()));
-            } else {
-                builder.append(table.getNameFieldMap().keySet().stream()
-                        .filter(tapField -> !filter.getProjection().getExcludeFields().contains(tapField)).collect(Collectors.joining("\",\"")));
-            }
-            builder.append("\"");
-        }
-        builder.append(" FROM ").append(TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), table.getId())).append(" ").append(new CommonSqlMaker().buildSqlByAdvanceFilter(filter));
-        clickhouseJdbcContext.query(builder.toString(), resultSet -> {
-            FilterResults filterResults = new FilterResults();
-            while (resultSet != null && resultSet.next()) {
-                filterResults.add(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet)));
-                if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
-                    consumer.accept(filterResults);
-                    filterResults = new FilterResults();
-                }
-            }
-            if (EmptyKit.isNotEmpty(filterResults.getResults())) {
-                filterResults.getResults().forEach(l -> l.entrySet().forEach(v -> {
-                    if (v.getValue() instanceof String) {
-                        v.setValue(((String) v.getValue()).trim());
-                    }
-                }));
-                consumer.accept(filterResults);
-            }
-        });
     }
 
     @Override

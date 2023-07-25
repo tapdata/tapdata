@@ -634,7 +634,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         jdbcContext.batchExecute(dropIndexesSql);
     }
 
-    protected long countRawCommand(TapConnectorContext connectorContext, String command, TapTable tapTable) throws Throwable {
+    protected long countRawCommand(TapConnectorContext connectorContext, String command, TapTable tapTable) throws SQLException {
         AtomicLong count = new AtomicLong(0);
         if (EmptyKit.isNotBlank(command) && command.trim().toLowerCase().startsWith("select")) {
             jdbcContext.query("select count(1) from (" + command + ") as tmp", resultSet -> {
@@ -646,7 +646,25 @@ public abstract class CommonDbConnector extends ConnectorBase {
         return count.get();
     }
 
-    protected long countByAdvanceFilter(TapConnectorContext connectorContext, TapTable tapTable, TapAdvanceFilter tapAdvanceFilter) {
-        return 0;
+    protected long countByAdvanceFilter(TapConnectorContext connectorContext, TapTable tapTable, TapAdvanceFilter tapAdvanceFilter) throws SQLException {
+        AtomicLong count = new AtomicLong(0);
+        String sql = "SELECT COUNT(1) FROM " + getSchemaAndTable(tapTable.getId()) + commonSqlMaker.buildSqlByAdvanceFilter(tapAdvanceFilter);
+        jdbcContext.query(sql, resultSet -> {
+            if (resultSet.next()) {
+                count.set(resultSet.getLong(1));
+            }
+        });
+        return count.get();
+    }
+
+    protected long countByAdvanceFilterV2(TapConnectorContext connectorContext, TapTable tapTable, TapAdvanceFilter tapAdvanceFilter) throws SQLException {
+        AtomicLong count = new AtomicLong(0);
+        String sql = "SELECT COUNT(1) FROM " + commonSqlMaker.buildRowNumberPreClause(tapAdvanceFilter) + getSchemaAndTable(tapTable.getId()) + commonSqlMaker.buildSqlByAdvanceFilterV2(tapAdvanceFilter);
+        jdbcContext.query(sql, resultSet -> {
+            if (resultSet.next()) {
+                count.set(resultSet.getLong(1));
+            }
+        });
+        return count.get();
     }
 }

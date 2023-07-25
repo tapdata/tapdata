@@ -139,6 +139,8 @@ public class MysqlConnector extends CommonDbConnector {
         //connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
         //connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
+        connectorFunctions.supportCountRawCommandFunction(this::countRawCommand);
+        connectorFunctions.supportCountByPartitionFilterFunction(this::countByAdvanceFilter);
         connectorFunctions.supportTransactionBeginFunction(this::begin);
         connectorFunctions.supportTransactionCommitFunction(this::commit);
         connectorFunctions.supportTransactionRollbackFunction(this::rollback);
