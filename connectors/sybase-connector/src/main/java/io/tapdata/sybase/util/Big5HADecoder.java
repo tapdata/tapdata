@@ -1,7 +1,6 @@
 package io.tapdata.sybase.util;
 
 import java.nio.charset.Charset;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,48 +25,40 @@ public class Big5HADecoder {
         }
     }
 
+    // 1. 如果首位是 0-255, 则认为是单字符, 直接加上去
+    // 2. 如果不是, 则为双字符, 使用 map => big5hkscs 优先级解码
     public String decode(byte[] bytes) {
-        // 新建一个待解析的 buffer
-        byte [] buffer = new byte[bytes.length];
-
-        // 初始化 index
-        int bufferI = -1;
-
         // 这是最终结果
         StringBuilder decodeString = new StringBuilder();
 
         // 索引 key
         byte[] bb = new byte[2];
+        char c;
         for (int i=0; i<bytes.length; i++) {
             // 最后一个字符, 直接加上就可以, 不需要 decode
             if (i == bytes.length - 1) {
-                bufferI += 1;
-                buffer[bufferI] = bytes[i];
+                c = (char) bytes[i];
+                decodeString.append(c);
                 break;
             }
 
             // 查找当前双字符是否在 map 里
             bb[0] = bytes[i];
             bb[1] = bytes[i+1];
-            if (characterHashMap.containsKey(getMKey(bb))) {
-                // 如果是, 则将 buffer 里的内容进行解析, 并加上 map 的内容
-                if (bufferI > -1) {
-                    decodeString.append(new String(Arrays.copyOfRange(buffer, 0, bufferI+1), Charset.forName("big5hkscs")));
-                    bufferI = -1;
-                }
-                decodeString.append(characterHashMap.get(getMKey(bb)));
-                // 由于这里已经加上了双字符的映射, 所以 i 需要 +1
-                i++;
-            } else {
-                // 如果不是, 则将当前字符加入 buffer
-                bufferI += 1;
-                buffer[bufferI] = bytes[i];
+            // 0-255 之间的字符, 是标准单字节头, 加上去
+            if (bb[0] > 0 && bb[0] < 255) {
+                c = (char) bb[0];
+                decodeString.append(c);
+                continue;
             }
-        }
 
-        // 如果 buffer 里还有内容, 则进行一次解码
-        if (bufferI > -1) {
-            decodeString.append(new String(Arrays.copyOfRange(buffer, 0, bufferI+1), Charset.forName("big5hkscs")));
+            // 这里必然是双字符编码, i++
+            i++;
+            if (characterHashMap.containsKey(getMKey(bb))) {
+                decodeString.append(characterHashMap.get(getMKey(bb)));
+            } else {
+                decodeString.append(new String(bb, Charset.forName("big5hkscs")));
+            }
         }
         return decodeString.toString();
     }

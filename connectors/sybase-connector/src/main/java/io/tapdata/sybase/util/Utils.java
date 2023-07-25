@@ -212,7 +212,7 @@ public class Utils {
         if ("".equals(fromValue.trim())) return "";
         if (null == fromCharset || null == toCharset || "".equals(fromCharset.trim()) || "".equals(toCharset.trim())) return fromValue;
         if (BIG_HA.equals(toCharset)) return convertBig5Ha(fromValue, fromCharset);
-        byte[] b = fromValue.getBytes(fromCharset);//编码
+        byte[] b = fromValue.getBytes(fromCharset);
         return new String(b, toCharset);
     }
 
