@@ -44,6 +44,7 @@ public class MetaDataBuilderUtils {
         metaTypePropertyMap.put(MetaType.processor_node.name(), new MetaTypeProperty("PN_", true));
         metaTypePropertyMap.put(MetaType.VikaDatasheet.name(), new MetaTypeProperty("VIKA_", true));
         metaTypePropertyMap.put(MetaType.qingFlowApp.name(), new MetaTypeProperty("QINGFLOW_", true));
+        metaTypePropertyMap.put(MetaType.pn.name(),new MetaTypeProperty("PN_",true));
     }
 
     public static String generateQualifiedName(String metaType, String nodeId, String tableName) {

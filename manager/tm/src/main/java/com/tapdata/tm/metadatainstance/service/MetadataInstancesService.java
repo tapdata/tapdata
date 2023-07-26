@@ -1483,7 +1483,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         DAG dag = taskDto.getDag();
         if (taskDto.getDag() != null) {
             Node node = dag.getNode(nodeId);
-            if (node != null) {
+            if (node instanceof DatabaseNode) {
 
                 if (dataSource == null) {
                     dataSource = dataSourceService.findById(MongoUtils.toObjectId(((TableNode) node).getConnectionId()));
@@ -1520,6 +1520,23 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 if(CollectionUtils.isNotEmpty(tableNames)) {
                     for (String tableName : tableNames) {
                         String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName, taskId);
+                        qualifiedNames.add(qualifiedName);
+                    }
+                }
+            }else if(node instanceof TableRenameProcessNode){
+                List<String> tableNames ;
+                if (CollectionUtils.isNotEmpty(includes)) {
+                    tableNames = includes;
+                } else {
+                    TableRenameProcessNode tableRenameProces = (TableRenameProcessNode) node;
+                        tableNames = new ArrayList<>();
+                        for(TableRenameTableInfo tableInfo:tableRenameProces.getTableNames()){
+                            tableNames.add(tableInfo.getCurrentTableName());
+                        }
+                }
+                if(CollectionUtils.isNotEmpty(tableNames)) {
+                    for (String tableName : tableNames) {
+                        String qualifiedName = MetaDataBuilderUtils.generateQualifiedName("pn",node.getId(),tableName, taskId);
                         qualifiedNames.add(qualifiedName);
                     }
                 }

@@ -21,6 +21,7 @@ public enum MetaType {
     processor_node,
 
     VikaDatasheet,
-    qingFlowApp
+    qingFlowApp,
+    pn
 
 }
