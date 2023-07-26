@@ -2,7 +2,6 @@ package io.tapdata.sybase.cdc.dto.analyse.csv;
 
 import au.com.bytecode.opencsv.CSVReader;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.sybase.cdc.dto.read.ReadCSV;
 import io.tapdata.sybase.cdc.dto.watch.CdcAccepter;
 
 import java.io.BufferedReader;
@@ -25,11 +24,11 @@ public class ReadCSVOfBigFile implements ReadCSV {
         List<List<String>> lines = new ArrayList<>();
         String[] strArr = null;
         int index = -1;
-        try(
-            FileInputStream inputStream = new FileInputStream(csvPath);
-            InputStreamReader inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
-            BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-            CSVReader reader = new CSVReader(bufferedReader)
+        try (
+                FileInputStream inputStream = new FileInputStream(csvPath);
+                InputStreamReader inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
+                BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+                CSVReader reader = new CSVReader(bufferedReader)
         ) {
             while (null != (strArr = reader.readNext())) {
                 lines.add(new ArrayList<>(Arrays.asList(strArr)));

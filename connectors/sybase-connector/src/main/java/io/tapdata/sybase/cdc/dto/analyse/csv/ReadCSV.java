@@ -1,4 +1,4 @@
-package io.tapdata.sybase.cdc.dto.read;
+package io.tapdata.sybase.cdc.dto.analyse.csv;
 
 import io.tapdata.sybase.cdc.dto.watch.CdcAccepter;
 

@@ -51,11 +51,11 @@ class ExecCommand implements CdcStep<CdcRoot> {
 //                try {
 //                    exec = run(cmds);
 //                } catch (CoreException e){
-                    //if (e.getCode() != RUN_TOOL_FAIL || index == 2) {
+            //if (e.getCode() != RUN_TOOL_FAIL || index == 2) {
 //                        throw e;
-                    //}
-                    //root.getContext().getLog().warn("Failed to start cdc tool, it's start again after 3s, please wait");
-                    //root.wait(3000);
+            //}
+            //root.getContext().getLog().warn("Failed to start cdc tool, it's start again after 3s, please wait");
+            //root.wait(3000);
 //                }
 //            }
             if (null == exec) {
@@ -99,6 +99,7 @@ class ExecCommand implements CdcStep<CdcRoot> {
     }
 
     public static final int RUN_TOOL_FAIL = 3624815;
+
     private Process run(String[] cmds) throws IOException {
         Runtime runtime = Runtime.getRuntime();
         Process exec = runtime.exec(cmds);

@@ -670,7 +670,7 @@ public class Big5Ha {
                     charsetMap.put("ü[", '\u7191');
                 }
             }
-        }catch (Exception e){
+        } catch (Exception ignore) {
         }
     }
 }

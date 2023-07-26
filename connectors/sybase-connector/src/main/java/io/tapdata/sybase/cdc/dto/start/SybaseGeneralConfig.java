@@ -15,10 +15,11 @@ public class SybaseGeneralConfig implements ConfigEntity {
     String trace_dir;
     String error_connection_tracing;
     String error_trace_dir;
+
     @Override
     public Object toYaml() {
         HashMap<String, Object> map = new LinkedHashMap<>();
-        map.put("liveness-monitor" , liveness_monitor.toYaml());
+        map.put("liveness-monitor", liveness_monitor.toYaml());
         map.put("license-path", license_path);
         map.put("data-dir", data_dir);
         map.put("trace-dir", trace_dir);

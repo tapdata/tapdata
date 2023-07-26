@@ -4,7 +4,6 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
-import io.tapdata.sybase.util.Code;
 
 import java.math.BigDecimal;
 
@@ -72,7 +71,7 @@ public class DefaultConvert implements SybaseDataTypeConvert {
                         return "";
                     } else if (type.contains("CHAR")
                             || type.contains("TEXT")
-                            || type.contains("SYSNAME") ) {
+                            || type.contains("SYSNAME")) {
                         return objToString(fromValue, config, nodeConfig);
                     } else if (type.startsWith("VARBINARY")) {
                         TapLogger.warn(TAG, "An VARBINARY data type not support in cdc now");

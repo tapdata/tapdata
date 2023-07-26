@@ -48,7 +48,7 @@ public class CdcHandle {
     TapConnectorContext context;
     FileMonitor fileMonitor;
     final Object closeLock = new Object();
-    ListenFile listenFile ;
+    ListenFile listenFile;
 
     public CdcHandle(CdcRoot root, TapConnectorContext context, StopLock lock) {
         this.root = root;
@@ -230,7 +230,11 @@ public class CdcHandle {
         safeStopShell();
         //@todo
         root.setProcess(null);
-        Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
+        try {
+            Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
+        } catch (Exception e) {
+            root.getContext().getLog().info(e.getMessage());
+        }
 
         NodeConfig nodeConfig = new NodeConfig(context);
         try {
@@ -241,9 +245,9 @@ public class CdcHandle {
         }
     }
 
-    public void safeStopShell(){
+    public void safeStopShell() {
         try {
-            stopShell(new String[]{ "/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli" }, list("grep sybase-poc/replicant-cli"));
+            stopShell(new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"}, list("grep sybase-poc/replicant-cli"));
         } catch (Exception e) {
             root.getContext().getLog().warn("Can not auto stop cdc tool, please go to server and kill process by shell {} and after find process PID by shell {}",
                     "kill pid1 pid2 pid3 ",
@@ -251,7 +255,7 @@ public class CdcHandle {
         }
     }
 
-    private void stopShell(String[] cmd, List<String> ignoreShells){
+    private void stopShell(String[] cmd, List<String> ignoreShells) {
         //String cmd = "ps -ef|grep sybase-poc/replicant-cli";
         ///bin/sh -c export JAVA_TOOL_OPTIONS="-Duser.language=en"; /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
         //sh /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
@@ -296,7 +300,8 @@ public class CdcHandle {
                         String portStr = split[1];
                         try {
                             port.add(Integer.parseInt(portStr));
-                        } catch (Exception ignore){ }
+                        } catch (Exception ignore) {
+                        }
                     }
                 }
                 br.close();
@@ -304,24 +309,27 @@ public class CdcHandle {
                 while ((line = br.readLine()) != null) {
                     sb.append(System.lineSeparator());
                     sb.append(line);
-                    if (line.length() > 0){
+                    if (line.length() > 0) {
                         execFlag = false;
                     }
                 }
-                if (execFlag){
+                if (execFlag) {
 
-                }else {
+                } else {
                     throw new RuntimeException(sb.toString());
                 }
-            }else {
+            } else {
                 //throw new RuntimeException("不支持的操作系统类型");
             }
         } catch (Exception e) {
             throw new RuntimeException(e.getMessage());
             //log.error("执行失败",e);
-        }finally {
-            if (br != null){
-                try { br.close(); } catch (IOException e) { }
+        } finally {
+            if (br != null) {
+                try {
+                    br.close();
+                } catch (IOException e) {
+                }
             }
         }
         return port;
@@ -350,8 +358,11 @@ public class CdcHandle {
                     "kill pid1 pid2 pid3 ",
                     "ps -ef|grep sybase-poc/replicant-cli");
         } finally {
-            if (br != null){
-                try { br.close(); } catch (IOException e) { }
+            if (br != null) {
+                try {
+                    br.close();
+                } catch (IOException e) {
+                }
             }
         }
         return sb.toString();

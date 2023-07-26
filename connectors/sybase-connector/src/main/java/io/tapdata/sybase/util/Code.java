@@ -1,10 +1,5 @@
 package io.tapdata.sybase.util;
 
-import org.apache.kafka.connect.data.Decimal;
-
-import java.math.BigDecimal;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
@@ -12,10 +7,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.StringJoiner;
 
 /**
@@ -36,12 +27,19 @@ public class Code {
             StringJoiner joiner = new StringJoiner(" --- ");
             for (int i = 1; i < columnCount + 1; i++) {
                 String columnTypeName = metaData.getColumnTypeName(i);
-                if (columnTypeName.matches(Code.MACHE_REGEX)){
+                if (columnTypeName.matches(Code.MACHE_REGEX)) {
                     String string = rs.getString(i);
-                    if (null == string) { joiner.add("NULL");continue; }
-                    joiner.add(new String(string.getBytes("cp850"),"big5-hkscs"));
-                }else {
-                    try { joiner.add(rs.getString(i)); } catch (Exception e) { joiner.add(" "); }
+                    if (null == string) {
+                        joiner.add("NULL");
+                        continue;
+                    }
+                    joiner.add(new String(string.getBytes("cp850"), "big5-hkscs"));
+                } else {
+                    try {
+                        joiner.add(rs.getString(i));
+                    } catch (Exception e) {
+                        joiner.add(" ");
+                    }
                 }
             }
             System.out.println(joiner.toString());
@@ -66,11 +64,13 @@ public class Code {
             "varchar_col" +
             ") " +
             "values (?,?,?,?,?,?,?,?,?,?,?,?,? )";
+
     public static void insertOne(String sql, Connection connection) throws Exception {
         PreparedStatement pstmt = connection.prepareStatement(sql);
         pstmt.setString(1, new String("這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
         pstmt.executeUpdate();
     }
+
     public static void insert(String sql, Connection connection) throws Exception {
         PreparedStatement p = connection.prepareStatement(sql);
         int index = 1;
@@ -91,6 +91,7 @@ public class Code {
         p.setString(index++, new String("V這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
         p.executeUpdate();
     }
+
     public static void main(String[] args) {
 
 //        Map<String, Object> before = new HashMap<>();
@@ -108,8 +109,6 @@ public class Code {
 //        System.out.println(before.size());
 
 
-
-
 //        String a = "root      5477     1  0 07:06 ?        00:00:00 /bin/sh -c export JAVA_TOOL_OPTIONS=\"-Duser.language=en\"; /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose";
 //        String b1 = "root      5538  5477  4 07:06 ?        00:00:09 java sh /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose";
 //        String c = "root      6013  4602  0 07:10 pts/16   00:00:00 grep java -Duser.timezone=UTC -Djava.system.class.loader=tech.replicant.util.ReplicantClassLoader -classpath /tapdata/apps/sybase-poc/replicant-cli/target/replicant-core.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts-5089.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/* tech.replicant.Main real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose";
@@ -121,10 +120,10 @@ public class Code {
 
         try {
             Class.forName("net.sourceforge.jtds.jdbc.Driver");
-            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "tester", "guest1234");
+            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "", "");
             Statement statement = conn.createStatement();
             //insertOne("INSERT INTO tester.poc_test (varchar_col) VALUES (?)", conn);
-            for (int i = 0; i < 10000; i++) {
+            for (int i = 0; i < 100000; i++) {
                 insert(INSERT_POC_TEST_SQL, conn);
             }
 

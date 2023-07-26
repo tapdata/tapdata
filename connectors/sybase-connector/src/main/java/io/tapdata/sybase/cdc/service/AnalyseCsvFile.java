@@ -2,9 +2,9 @@ package io.tapdata.sybase.cdc.service;
 
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
-import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVStageImpl;
+import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSV;
+import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVOfBigFile;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
-import io.tapdata.sybase.cdc.dto.read.ReadCSV;
 import io.tapdata.sybase.cdc.dto.watch.CdcAccepter;
 
 import java.util.Optional;
@@ -23,11 +23,17 @@ public class AnalyseCsvFile implements CdcStep<Void> {
     public AnalyseCsvFile(CdcRoot root, CdcPosition position, ReadCSV readCSV) {
         this.root = root;
         this.position = position;
-        this.readCSV = Optional.ofNullable(readCSV).orElse(new ReadCSVStageImpl());
+        this.readCSV = Optional.ofNullable(readCSV).orElse(new ReadCSVOfBigFile());
     }
 
     @Override
     public Void compile() {
+        if (null == cdcFilePath) return null;
+        readCSV.read(cdcFilePath, accepter);
+        return null;
+    }
+
+    public Void compile(ReadCSV readCSV) {
         if (null == cdcFilePath) return null;
         readCSV.read(cdcFilePath, accepter);
         return null;

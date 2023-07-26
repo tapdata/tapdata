@@ -6,21 +6,22 @@ import java.util.Map;
 
 public class Big5HADecoder {
     public static final Big5Ha context = new Big5Ha();
-    private Map<String, Character> characterHashMap = new HashMap<>();
+    private final Map<String, Character> characterHashMap = new HashMap<>();
+    public final String CHARSET_NAME_HK = "big5hkscs";
 
-    public static String getMKey(byte[] b) {
+    public static String generalKey(byte[] originalByte) {
         StringBuilder mKey = new StringBuilder();
-        for (byte bb: b) {
-            mKey.append(bb).append("_");
+        for (byte itemByte : originalByte) {
+            mKey.append(itemByte).append("_");
         }
         return mKey.toString();
     }
 
     public Big5HADecoder(String encoding) {
         byte[] b;
-        for (String key: context.getCharsetMap().keySet()) {
+        for (String key : context.getCharsetMap().keySet()) {
             b = key.getBytes(Charset.forName(encoding));
-            String mKey = getMKey(b);
+            String mKey = generalKey(b);
             characterHashMap.put(mKey, context.getCharsetMap().get(key));
         }
     }
@@ -30,21 +31,21 @@ public class Big5HADecoder {
     public String decode(byte[] bytes) {
         // 这是最终结果
         StringBuilder decodeString = new StringBuilder();
-
+        int length = bytes.length;
         // 索引 key
         byte[] bb = new byte[2];
         char c;
-        for (int i=0; i<bytes.length; i++) {
+        for (int index = 0; index < length; index++) {
             // 最后一个字符, 直接加上就可以, 不需要 decode
-            if (i == bytes.length - 1) {
-                c = (char) bytes[i];
+            if (index == length - 1) {
+                c = (char) bytes[index];
                 decodeString.append(c);
                 break;
             }
 
             // 查找当前双字符是否在 map 里
-            bb[0] = bytes[i];
-            bb[1] = bytes[i+1];
+            bb[0] = bytes[index];
+            bb[1] = bytes[index + 1];
             // 0-255 之间的字符, 是标准单字节头, 加上去
             if (bb[0] > 0 && bb[0] < 255) {
                 c = (char) bb[0];
@@ -52,13 +53,13 @@ public class Big5HADecoder {
                 continue;
             }
 
-            // 这里必然是双字符编码, i++
-            i++;
-            if (characterHashMap.containsKey(getMKey(bb))) {
-                decodeString.append(characterHashMap.get(getMKey(bb)));
-            } else {
-                decodeString.append(new String(bb, Charset.forName("big5hkscs")));
-            }
+            // 这里必然是双字符编码, index++
+            index++;
+            decodeString.append(
+                    characterHashMap.containsKey(generalKey(bb)) ?
+                            characterHashMap.get(generalKey(bb))
+                            : new String(bb, Charset.forName(CHARSET_NAME_HK))
+            );
         }
         return decodeString.toString();
     }
