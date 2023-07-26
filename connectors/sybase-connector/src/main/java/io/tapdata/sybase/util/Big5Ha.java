@@ -661,6 +661,13 @@ public class Big5Ha {
                     charsetMap.put("âð", '\uf060');
                     charsetMap.put("øã", '\ueb6e');
                     charsetMap.put("éÂ", '\u93ae');
+                    charsetMap.put("ä\u00AD", '\u4e51');
+                    charsetMap.put("é[", '\uef70');
+                    charsetMap.put("ü\\", '\ueed4');
+                    charsetMap.put("é\u00AD", '\uefe3');
+                    charsetMap.put("ä[", '\uf0aa');
+                    charsetMap.put("â\u00AD", '\uf080');
+                    charsetMap.put("ü[", '\u7191');
                 }
             }
         }catch (Exception e){
