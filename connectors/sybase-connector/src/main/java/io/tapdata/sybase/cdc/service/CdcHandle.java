@@ -230,7 +230,11 @@ public class CdcHandle {
         safeStopShell();
         //@todo
         root.setProcess(null);
-        Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
+        try {
+            Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
+        }catch (Exception e){
+            root.getContext().getLog().info(e.getMessage());
+        }
 
         NodeConfig nodeConfig = new NodeConfig(context);
         try {

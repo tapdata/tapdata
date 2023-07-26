@@ -25,11 +25,11 @@ public class ReadCSVOfBigFile implements ReadCSV {
         List<List<String>> lines = new ArrayList<>();
         String[] strArr = null;
         int index = -1;
-        try(
-            FileInputStream inputStream = new FileInputStream(csvPath);
-            InputStreamReader inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
-            BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-            CSVReader reader = new CSVReader(bufferedReader)
+        try (
+                FileInputStream inputStream = new FileInputStream(csvPath);
+                InputStreamReader inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
+                BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+                CSVReader reader = new CSVReader(bufferedReader)
         ) {
             while (null != (strArr = reader.readNext())) {
                 lines.add(new ArrayList<>(Arrays.asList(strArr)));

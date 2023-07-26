@@ -9,6 +9,7 @@ import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
 import io.tapdata.sybase.cdc.dto.analyse.AnalyseRecord;
 import io.tapdata.sybase.cdc.dto.analyse.AnalyseTapEventFromCsvString;
+import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVOfBigFile;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
 import io.tapdata.sybase.cdc.dto.watch.FileListener;
 import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
@@ -171,12 +172,32 @@ public class ListenFile implements CdcStep<CdcRoot> {
             @Override
             public void onStop(FileAlterationObserver observer) {
                 super.onStop(observer);
+                try {
+                    if (!tables.isEmpty()) {
+                        //遍历monitorPath 所有子目录下的
+                        for (String table : tables) {
+                            final String tableSpace = monitorPath + "/" + table;
+                            File tableSpaceFile = new File(tableSpace);
+                            if (!tableSpaceFile.exists()) continue;
+                            File[] files = tableSpaceFile.listFiles();
+                            if (null != files && files.length > 0) {
+                                for (File file : files) {
+                                    if (null != file && file.exists() && file.isFile()) {
+                                        monitor(file, tableMap);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    context.getLog().warn("Stop monitor file failed, msg: {}", e.getMessage());
+                }
             }
 
             @Override
             public void onFileChange(File file0) {
                 try {
-                    //Thread.sleep(100);
+                    Thread.sleep(100);
                     monitor(file0, tableMap);
                 } catch (Exception e) {
                     context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
@@ -186,6 +207,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
             @Override
             public void onFileCreate(File file0) {
                 try {
+                    Thread.sleep(100);
                     monitor(file0, tableMap);
                 } catch (Exception e) {
                     context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
@@ -253,7 +275,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                 }
                                 if (null != recordEvent) {
                                     events[0].add(recordEvent);
-                                    csvOffset.addAndGet();
+                                    lineItem = csvOffset.addAndGet();
                                     if (events[0].size() == batchSize) {
                                         csvOffset.setOver(false);
                                         cdcConsumer.accept(events[0], position);
@@ -266,7 +288,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                 cdcConsumer.accept(events[0], position);
                                 events[0] = new ArrayList<>();
                             }
-                        }).compile();
+                        }).compile(new ReadCSVOfBigFile());
 
                     }
                     //root.getContext().getLog().warn("Offset: {}", toJson(position));
