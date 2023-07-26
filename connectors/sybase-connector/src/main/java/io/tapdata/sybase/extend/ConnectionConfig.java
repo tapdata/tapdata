@@ -110,7 +110,6 @@ public class ConnectionConfig {
         this.timezone = timezone;
     }
 
-
     public void setPort(Integer port) {
         this.port = port;
     }

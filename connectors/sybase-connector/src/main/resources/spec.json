@@ -285,6 +285,16 @@
           "default": "utf-8",
           "x-display": "hidden",
           "x-index": 40
+        },
+        "cdcCacheTime": {
+          "type": "string",
+          "title": "${cdcCacheTime}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "default": 2,
+          "x-index": 90,
+          "x-display": "hidden",
+          "required": true
         }
       }
     }
@@ -306,7 +316,8 @@
       "out_decode_name": "Output Text Character Set",
       "schema": "Schema",
       "fetch_interval": "CDC delay time in seconds",
-      "auto_encode": "Automatic encoding and decoding "
+      "auto_encode": "Automatic encoding and decoding ",
+      "cdcCacheTime": "CDC incremental file cache time (in minutes)"
     },
     "zh_CN": {
       "host": "地址",
@@ -323,7 +334,8 @@
       "out_decode_name": "文本输出字符集",
       "schema": "Schema",
       "fetch_interval": "CDC延时（单位秒）",
-      "auto_encode": "自动编解码"
+      "auto_encode": "自动编解码",
+      "cdcCacheTime": "CDC 增量文件缓存时间（单位：分钟）"
     },
     "zh_TW": {
       "host": "地址",
@@ -340,7 +352,8 @@
       "out_decode_name": "輸出文字字元集",
       "schema": "Schema",
       "fetch_interval": "CDC延時（組織秒）",
-      "auto_encode": "自動編解碼"
+      "auto_encode": "自動編解碼",
+      "cdcCacheTime": "CDC增量檔案緩存時間（組織：分鐘）"
     }
   },
   "dataTypes": {

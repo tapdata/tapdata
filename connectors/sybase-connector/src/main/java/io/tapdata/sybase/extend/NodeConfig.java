@@ -16,6 +16,7 @@ public class NodeConfig {
     private String decode;
     String outDecode;
     boolean autoEncode;
+    private Integer cdcCacheTime;
 
     public NodeConfig(TapConnectorContext context) {
         this(null == context || null == context.getNodeConfig() ? new DataMap() : context.getNodeConfig());
@@ -28,6 +29,10 @@ public class NodeConfig {
         encode = Optional.ofNullable(nodeConfig.getString("encode")).orElse("cp850");
         decode = Optional.ofNullable(nodeConfig.getString("decode")).orElse("big5");
         autoEncode = (boolean)Optional.ofNullable(nodeConfig.get("autoEncode")).orElse(false);
+        cdcCacheTime = Optional.ofNullable(nodeConfig.getInteger("cdcCacheTime")).orElse(2);
+        if (cdcCacheTime < 1) {
+            cdcCacheTime = 2;
+        }
     }
 
     public int getFetchInterval() {
@@ -71,5 +76,13 @@ public class NodeConfig {
 
     public void setAutoEncode(boolean autoEncode) {
         this.autoEncode = autoEncode;
+    }
+
+    public Integer getCdcCacheTime() {
+        return cdcCacheTime;
+    }
+
+    public void setCdcCacheTime(Integer cdcCacheTime) {
+        this.cdcCacheTime = cdcCacheTime;
     }
 }

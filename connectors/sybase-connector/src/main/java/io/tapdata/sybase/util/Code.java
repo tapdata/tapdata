@@ -118,9 +118,19 @@ public class Code {
 //        String[] split2 = c.split("( )+");
 //        System.out.println();
 
+        System.out.println(System.currentTimeMillis());
+        //1690353671501
+        try {
+
+            Thread.sleep(1000);
+        }catch (Exception e){
+
+        }
+        System.out.println(System.currentTimeMillis());
+
         try {
             Class.forName("net.sourceforge.jtds.jdbc.Driver");
-            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "", "");
+            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "tester", "guest1234");
             Statement statement = conn.createStatement();
             //insertOne("INSERT INTO tester.poc_test (varchar_col) VALUES (?)", conn);
             for (int i = 0; i < 100000; i++) {

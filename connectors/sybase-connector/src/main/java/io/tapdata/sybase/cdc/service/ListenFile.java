@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -127,6 +128,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         final Map<String, LinkedHashMap<String, String>> tableMap = getTableFromConfig(root.getCdcTables());
         AtomicBoolean hasHandelInit = new AtomicBoolean(false);
 
+        final Integer cdcCacheTime = Optional.ofNullable(nodeConfig.getCdcCacheTime()).orElse(10) * 60 * 1000;
         fileMonitor.monitor(monitorPath, new FileListener() {
             @Override
             public void onStart(FileAlterationObserver observer) {
@@ -182,6 +184,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                 for (File file : files) {
                                     if (null != file && file.exists() && file.isFile()) {
                                         monitor(file, tableMap);
+                                        deleteCSVWithConfigTime(file, cdcCacheTime);
                                     }
                                 }
                             }
@@ -244,49 +247,59 @@ public class ListenFile implements CdcStep<CdcRoot> {
                             root.getContext().getLog().warn("Can not get table info from schemas.yaml of table {}", tableName);
                             return isThisFile;
                         }
-                        final List<TapEvent>[] events = new List[]{new ArrayList<>()};
-                        AtomicReference<LinkedHashMap<String, String>> tapTableAto = new AtomicReference<>(tapTable);
-                        analyseCsvFile.analyse(file.getAbsolutePath(), (compile, lastIndex) -> {
-                            CdcPosition.PositionOffset positionOffset = position.get(tableName);
-                            if (null == positionOffset) {
-                                positionOffset = new CdcPosition.PositionOffset();
-                                position.add(tableName, positionOffset);
-                            }
-                            CdcPosition.CSVOffset csvOffset = positionOffset.csvOffset(absolutePath);
-                            if (null == csvOffset) {
-                                csvOffset = new CdcPosition.CSVOffset();
-                                csvOffset.setOver(false);
-                                csvOffset.setLine(0);
-                                positionOffset.csvOffset(absolutePath, csvOffset);
-                            }
 
-                            int csvFileLines = compile.size();
-                            LinkedHashMap<String, String> tableItem = tapTableAto.get();
-                            int lineItem = csvOffset.getLine();
-                            for (int index = 0; index < csvFileLines && lineItem <= lastIndex; index++) {
-                                TapEvent recordEvent;
-                                try {
-                                    recordEvent = analyseRecord.analyse(compile.get(index), tableItem, tableName, config, nodeConfig);
-                                } catch (Exception e) {
-                                    root.getContext().getLog().warn("An cdc event failed to accept, error csv format, csv line: {}, msg: {}", compile.get(index), e.getMessage());
-                                    continue;
-                                }
-                                if (null != recordEvent) {
-                                    events[0].add(recordEvent);
-                                    lineItem = csvOffset.addAndGet();
-                                    if (events[0].size() == batchSize) {
-                                        csvOffset.setOver(false);
-                                        cdcConsumer.accept(events[0], position);
-                                        events[0] = new ArrayList<>();
+                        final List<TapEvent>[] events = new List[]{new ArrayList<>()};
+                        CdcPosition.PositionOffset positionOffset = position.get(tableName);
+                        if (null == positionOffset) {
+                            positionOffset = new CdcPosition.PositionOffset();
+                            position.add(tableName, positionOffset);
+                        }
+                        CdcPosition.CSVOffset csvOffset = positionOffset.csvOffset(absolutePath);
+                        if (null == csvOffset) {
+                            csvOffset = new CdcPosition.CSVOffset();
+                            csvOffset.setOver(false);
+                            csvOffset.setLine(0);
+                            positionOffset.csvOffset(absolutePath, csvOffset);
+                        }
+                        AtomicReference<LinkedHashMap<String, String>> tapTableAto = new AtomicReference<>(tapTable);
+                        AtomicReference<CdcPosition.CSVOffset> csvOffsetAto = new AtomicReference<>(csvOffset);
+                        try {
+                            analyseCsvFile.analyse(file.getAbsolutePath(), (compile, firstIndex, lastIndex) -> {
+                                int csvFileLines = compile.size();
+                                LinkedHashMap<String, String> tableItem = tapTableAto.get();
+                                CdcPosition.CSVOffset offset = csvOffsetAto.get();
+                                int lineItem = offset.getLine();
+                                if (lineItem <= lastIndex) {
+                                    for (int index = 0; index < csvFileLines; index++) {
+                                        if ((firstIndex + index) < lineItem) {
+                                            continue;
+                                        }
+                                        TapEvent recordEvent;
+                                        try {
+                                            recordEvent = analyseRecord.analyse(compile.get(index), tableItem, tableName, config, nodeConfig);
+                                        } catch (Exception e) {
+                                            root.getContext().getLog().warn("An cdc event failed to accept, error csv format, csv line: {}, msg: {}", compile.get(index), e.getMessage());
+                                            continue;
+                                        }
+                                        if (null != recordEvent) {
+                                            events[0].add(recordEvent);
+                                            lineItem = offset.addAndGet();
+                                            if (events[0].size() == batchSize) {
+                                                offset.setOver(false);
+                                                cdcConsumer.accept(events[0], position);
+                                                events[0] = new ArrayList<>();
+                                            }
+                                        }
                                     }
                                 }
-                            }
+                            }).compile(new ReadCSVOfBigFile());
+                        } finally {
                             if (!events[0].isEmpty()) {
                                 csvOffset.setOver(true);
                                 cdcConsumer.accept(events[0], position);
                                 events[0] = new ArrayList<>();
                             }
-                        }).compile(new ReadCSVOfBigFile());
+                        }
                     }
                 }
                 return isThisFile;
@@ -363,6 +376,24 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     }
                 }
                 currentFileNames.put(tableName, absolutePath);
+            }
+        }
+    }
+
+    private void deleteCSVWithConfigTime(File file, Integer cdcCacheTime){
+        String absolutePath = file.getAbsolutePath();
+        int indexOf = absolutePath.lastIndexOf('.');
+        String fileType = absolutePath.substring(indexOf + 1);
+        if (file.isFile() && fileType.equalsIgnoreCase("csv")) {
+            long lastModify = file.lastModified();
+            long now = System.currentTimeMillis();
+            if ((now - lastModify) > cdcCacheTime) {
+                root.getContext().getLog().debug("File: {}, last modify time: {}, now: {}, cdc cache time: {}, need delete: true", file.getName(), lastModify, now, cdcCacheTime);
+                try {
+                    FileUtils.delete(file);
+                } catch (Exception e) {
+                    root.getContext().getLog().warn("Can not to delete cdc cache file in {} of table name: {}", file.getAbsolutePath());
+                }
             }
         }
     }

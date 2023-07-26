@@ -5,7 +5,7 @@ import io.tapdata.sybase.cdc.CdcStep;
 import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSV;
 import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVOfBigFile;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
-import io.tapdata.sybase.cdc.dto.watch.CdcAccepter;
+import io.tapdata.sybase.cdc.dto.analyse.csv.CdcAccepter;
 
 import java.util.Optional;
 

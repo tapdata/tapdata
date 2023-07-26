@@ -2,7 +2,6 @@ package io.tapdata.sybase.cdc.dto.analyse.csv;
 
 import au.com.bytecode.opencsv.CSVReader;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.sybase.cdc.dto.watch.CdcAccepter;
 
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
@@ -22,6 +21,7 @@ public class ReadCSVStageImpl implements ReadCSV {
         List<List<String>> lines = new ArrayList<>();
         String[] strArr = null;
         int index = -1;
+        int firstIndex = 0;
         try (
                 FileInputStream inputStream = new FileInputStream(csvPath);
                 InputStreamReader inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
@@ -30,16 +30,16 @@ public class ReadCSVStageImpl implements ReadCSV {
             while (null != (strArr = reader.readNext())) {
                 lines.add(new ArrayList<>(Arrays.asList(strArr)));
                 index++;
-                if (lines.size() >= CDC_BATCH_SIZE) {
-                    consumer.accept(lines, index);
-                    lines = new ArrayList<>();
-                }
+//                if (lines.size() >= CDC_BATCH_SIZE) {
+//                    consumer.accept(lines, firstIndex, index);
+//                    lines = new ArrayList<>();
+//                }
             }
         } catch (Exception e) {
             throw new CoreException("Monitor can not handle csv line, msg: " + e.getMessage());
         } finally {
             if (!lines.isEmpty()) {
-                consumer.accept(lines, index);
+                consumer.accept(lines, firstIndex, index);
                 lines = null;
             }
         }

@@ -1,4 +1,4 @@
-package io.tapdata.sybase.cdc.dto.watch;
+package io.tapdata.sybase.cdc.dto.analyse.csv;
 
 import java.util.List;
 
@@ -8,5 +8,5 @@ import java.util.List;
  * @create 2023/7/21 16:05
  **/
 public interface CdcAccepter {
-    public void accept(List<List<String>> compileLines, int lastIndex);
+    public void accept(List<List<String>> compileLines, int firstIndex, int lastIndex);
 }
