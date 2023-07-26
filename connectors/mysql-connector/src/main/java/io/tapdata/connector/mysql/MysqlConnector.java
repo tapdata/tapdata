@@ -16,11 +16,14 @@ import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.partition.DatabaseReadPartitionSplitter;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -261,6 +264,7 @@ public class MysqlConnector extends CommonDbConnector {
 
     protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         CreateTableOptions createTableOptions = new CreateTableOptions();
+
         try {
             if (mysqlJdbcContext.queryAllTables(Collections.singletonList(tapCreateTableEvent.getTableId())).size() > 0) {
                 DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
@@ -279,11 +283,56 @@ public class MysqlConnector extends CommonDbConnector {
                 mysqlJdbcContext.batchExecute(Arrays.asList(createTableSqls));
                 createTableOptions.setTableExists(false);
             }
-            return createTableOptions;
+
         } catch (Throwable t) {
             exceptionCollector.collectWritePrivileges("createTable", Collections.emptyList(), t);
             throw new RuntimeException("Create table failed, message: " + t.getMessage(), t);
         }
+
+        if (tapConnectorContext.getNodeConfig() != null && tapConnectorContext.getNodeConfig().getValue("syncIndex", false)) {
+            List<String> sqlList = TapSimplify.list();
+            List<TapIndex> indexList = tapCreateTableEvent.getTable().getIndexList();
+            List<TapIndex> createIndexList = new ArrayList<>();
+            List<TapIndex> existsIndexList = discoverIndex(tapCreateTableEvent.getTable().getId());
+            // 如果索引已经存在，就不再创建; 名字相同视为存在; 字段以及顺序相同, 也视为存在
+            if (EmptyKit.isNotEmpty(existsIndexList)) {
+                for (TapIndex tapIndex : indexList) {
+                    boolean exists = false;
+                    for (TapIndex existsIndex : existsIndexList) {
+                        if (tapIndex.getName().equals(existsIndex.getName())) {
+                            exists = true;
+                            break;
+                        }
+                        if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
+                            boolean same = true;
+                            for (int i = 0; i < tapIndex.getIndexFields().size(); i++) {
+                                if (!tapIndex.getIndexFields().get(i).getName().equals(existsIndex.getIndexFields().get(i).getName())
+                                        || tapIndex.getIndexFields().get(i).getFieldAsc() != existsIndex.getIndexFields().get(i).getFieldAsc()) {
+                                    same = false;
+                                    break;
+                                }
+                            }
+                            if (same) {
+                                exists = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!exists) {
+                        createIndexList.add(tapIndex);
+                    }
+                }
+            } else {
+                createIndexList.addAll(indexList);
+            }
+            TapLogger.info(TAG, "Table: {} will create Index list: {}", tapCreateTableEvent.getTable().getName(), createIndexList);
+            if (EmptyKit.isNotEmpty(createIndexList)) {
+                createIndexList.stream().filter(i -> !i.isPrimary()).forEach(i ->
+                        sqlList.add(getCreateIndexSql(tapCreateTableEvent.getTable(), i)));
+            }
+            jdbcContext.batchExecute(sqlList);
+        }
+        return createTableOptions;
     }
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
@@ -302,9 +351,20 @@ public class MysqlConnector extends CommonDbConnector {
                 } else if ("DATE".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
                     value = resultSet.getString(i + 1);
                 } else {
-                    value = resultSet.getObject(i + 1);
+                    try {
+                        value = resultSet.getObject(i + 1);
+                    } catch (Exception ignore) {
+                        value = resultSet.getString(i + 1);
+                    }
                     if (null == value && dateTypeSet.contains(columnName)) {
                         value = resultSet.getString(i + 1);
+                    }
+                }
+                if (value != null) {
+                    String valueS = value.toString();
+                    // 如果是0000开头的时间，或者包含 -00, 就认为是null
+                    if (valueS.startsWith("0000") || valueS.contains("-00")) {
+                        value = null;
                     }
                 }
                 data.put(columnName, value);
