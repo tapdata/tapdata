@@ -686,17 +686,6 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         });
         metadataInstancesDto.setHasUnionIndex(hasUnionIndex.get());
 
-        // check fieldsAfter sort fields
-        if (CollectionUtils.isNotEmpty(metadataInstancesDto.getFieldsAfter())) {
-            Map<String, Integer> positionMap = metadataInstancesDto.getFieldsAfter().stream()
-                    .collect(Collectors.toMap(Field::getFieldName, Field::getColumnPosition, (e1, e2) -> e1));
-            metadataInstancesDto.getFields().forEach(field -> {
-                if (positionMap.containsKey(field.getFieldName())) {
-                    field.setColumnPosition(positionMap.get(field.getFieldName()));
-                }
-            });
-        }
-
 
         return metadataInstancesDto;
     }

@@ -140,11 +140,11 @@ public class MetadataInstancesDto extends BaseDto {
                 return primaryKey == null || !primaryKey;
             }).collect(Collectors.toList());
             fields.removeAll(noPrimarys);
-            fields.sort(Comparator.comparing(Field::getFieldName));
             if (CollectionUtils.isNotEmpty(noPrimarys)) {
                 noPrimarys.sort(Comparator.comparing(Field::getFieldName));
                 fields.addAll(noPrimarys);
             }
+            fields.sort(Comparator.comparing(Field::getColumnPosition));
         }
     }
 }

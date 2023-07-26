@@ -611,7 +611,11 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     public void beforeUpdateById(ObjectId id, MetadataInstancesDto data) {
         if (id != null) {
             MetadataInstancesDto metadata = findById(id);
-            // TODO __data这种东西先不处理
+            List<Field> fieldsAfter = data.getFieldsAfter();
+            if (fieldsAfter != null) {
+                BeanUtil.copyProperties(metadata, data);
+                data.setFieldsAfter(fieldsAfter);
+            }
         }
     }
 
