@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -183,7 +182,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
                             if (null != files && files.length > 0) {
                                 for (File file : files) {
                                     if (null != file && file.exists() && file.isFile()) {
-                                        monitor(file, tableMap);
                                         deleteCSVWithConfigTime(file, cdcCacheTime);
                                     }
                                 }
@@ -191,7 +189,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         }
                     }
                 } catch (Exception e) {
-                    context.getLog().warn("Stop monitor file failed, msg: {}", e.getMessage());
+                    context.getLog().warn("Failed exec stop once, msg: {}", e.getMessage());
                 }
             }
 
@@ -304,6 +302,25 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 }
                 return isThisFile;
             }
+
+            private void deleteCSVWithConfigTime(File file, Integer cdcCacheTime){
+                String absolutePath = file.getAbsolutePath();
+                int indexOf = absolutePath.lastIndexOf('.');
+                String fileType = absolutePath.substring(indexOf + 1);
+                if (file.isFile() && fileType.equalsIgnoreCase("csv")) {
+                    long lastModify = file.lastModified();
+                    long now = System.currentTimeMillis();
+                    if ((now - lastModify) > cdcCacheTime) {
+                        root.getContext().getLog().debug("File: {}, last modify time: {}, now: {}, cdc cache time: {}, need delete: true", file.getName(), lastModify, now, cdcCacheTime);
+                        try {
+                            monitor(file, tableMap);
+                            FileUtils.delete(file);
+                        } catch (Exception ignore) {
+                            root.getContext().getLog().warn("Can not to delete cdc cache file in {} of table name: {}", file.getAbsolutePath());
+                        }
+                    }
+                }
+            }
         });
 
         try {
@@ -356,45 +373,28 @@ public class ListenFile implements CdcStep<CdcRoot> {
         return table;
     }
 
-    private Map<String, String> currentFileNames;
+//    private Map<String, String> currentFileNames;
+//
+//    private void deleteTempCSV(String tableName, String absolutePath) {
+//        if (null == currentFileNames) {
+//            currentFileNames = new ConcurrentHashMap<>();
+//        }
+//        final String thisTableCurrentFileName = currentFileNames.get(tableName);
+//        if (null == thisTableCurrentFileName) {
+//            currentFileNames.put(tableName, absolutePath);
+//        } else {
+//            if (!absolutePath.equals(thisTableCurrentFileName)) {
+//                File historyFile = new File(thisTableCurrentFileName);
+//                if (historyFile.exists() && historyFile.isFile()) {
+//                    try {
+//                        FileUtils.delete(historyFile);
+//                    } catch (Exception e) {
+//                        root.getContext().getLog().info("Can not to delete cdc cache file in {} of table name: {}", thisTableCurrentFileName, tableName);
+//                    }
+//                }
+//                currentFileNames.put(tableName, absolutePath);
+//            }
+//        }
+//    }
 
-    private void deleteTempCSV(String tableName, String absolutePath) {
-        if (null == currentFileNames) {
-            currentFileNames = new ConcurrentHashMap<>();
-        }
-        final String thisTableCurrentFileName = currentFileNames.get(tableName);
-        if (null == thisTableCurrentFileName) {
-            currentFileNames.put(tableName, absolutePath);
-        } else {
-            if (!absolutePath.equals(thisTableCurrentFileName)) {
-                File historyFile = new File(thisTableCurrentFileName);
-                if (historyFile.exists() && historyFile.isFile()) {
-                    try {
-                        FileUtils.delete(historyFile);
-                    } catch (Exception e) {
-                        root.getContext().getLog().info("Can not to delete cdc cache file in {} of table name: {}", thisTableCurrentFileName, tableName);
-                    }
-                }
-                currentFileNames.put(tableName, absolutePath);
-            }
-        }
-    }
-
-    private void deleteCSVWithConfigTime(File file, Integer cdcCacheTime){
-        String absolutePath = file.getAbsolutePath();
-        int indexOf = absolutePath.lastIndexOf('.');
-        String fileType = absolutePath.substring(indexOf + 1);
-        if (file.isFile() && fileType.equalsIgnoreCase("csv")) {
-            long lastModify = file.lastModified();
-            long now = System.currentTimeMillis();
-            if ((now - lastModify) > cdcCacheTime) {
-                root.getContext().getLog().debug("File: {}, last modify time: {}, now: {}, cdc cache time: {}, need delete: true", file.getName(), lastModify, now, cdcCacheTime);
-                try {
-                    FileUtils.delete(file);
-                } catch (Exception e) {
-                    root.getContext().getLog().warn("Can not to delete cdc cache file in {} of table name: {}", file.getAbsolutePath());
-                }
-            }
-        }
-    }
 }
