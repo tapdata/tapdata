@@ -2,7 +2,6 @@ package io.tapdata.sybase.cdc.dto.analyse.csv;
 
 import au.com.bytecode.opencsv.CSVReader;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.sybase.cdc.dto.read.ReadCSV;
 import io.tapdata.sybase.cdc.dto.watch.CdcAccepter;
 
 import java.io.FileInputStream;

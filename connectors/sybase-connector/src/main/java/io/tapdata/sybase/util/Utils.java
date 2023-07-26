@@ -19,7 +19,6 @@ import java.sql.Statement;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Scanner;
@@ -210,7 +209,8 @@ public class Utils {
     public static String convertString(String fromValue, String fromCharset, String toCharset) throws UnsupportedEncodingException {
         if (null == fromValue) return null;
         if ("".equals(fromValue.trim())) return "";
-        if (null == fromCharset || null == toCharset || "".equals(fromCharset.trim()) || "".equals(toCharset.trim())) return fromValue;
+        if (null == fromCharset || null == toCharset || "".equals(fromCharset.trim()) || "".equals(toCharset.trim()))
+            return fromValue;
         if (BIG_HA.equals(toCharset)) return convertBig5Ha(fromValue, fromCharset);
         byte[] b = fromValue.getBytes(fromCharset);
         return new String(b, toCharset);
@@ -218,7 +218,8 @@ public class Utils {
 
     public static final String BIG_HA = "big5-ha";
     public static final Map<String, Big5HADecoder> context = new ConcurrentHashMap<>();
-    private static String convertBig5Ha(String originalString, String fromCharset){
+
+    private static String convertBig5Ha(String originalString, String fromCharset) {
         byte[] cp850Bytes = originalString.getBytes(Charset.forName(fromCharset));
         Big5HADecoder big5HADecoder = context.get(fromCharset);
         if (null == big5HADecoder) {

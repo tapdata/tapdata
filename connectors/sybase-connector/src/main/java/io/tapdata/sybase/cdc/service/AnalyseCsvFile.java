@@ -2,9 +2,9 @@ package io.tapdata.sybase.cdc.service;
 
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
+import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSV;
 import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVOfBigFile;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
-import io.tapdata.sybase.cdc.dto.read.ReadCSV;
 import io.tapdata.sybase.cdc.dto.watch.CdcAccepter;
 
 import java.util.Optional;

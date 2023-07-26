@@ -51,7 +51,7 @@ public class SybaseFilterConfig implements ConfigEntity {
     @Override
     public Object toYaml() {
         HashMap<String, Object> map = new LinkedHashMap<>();
-        map.put("catalog" , catalog);
+        map.put("catalog", catalog);
         map.put("schema", schema);
         map.put("types", types);
         map.put("allow", allow);

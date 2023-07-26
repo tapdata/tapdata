@@ -25,7 +25,7 @@ public class SybaseSrcConfig implements ConfigEntity {
     @Override
     public Object toYaml() {
         HashMap<String, Object> map = new LinkedHashMap<>();
-        map.put("type" , type);
+        map.put("type", type);
         map.put("host", host);
         map.put("port", port);
         map.put("database", database);

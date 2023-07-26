@@ -120,7 +120,7 @@ public class Code {
 
         try {
             Class.forName("net.sourceforge.jtds.jdbc.Driver");
-            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "tester", "guest1234");
+            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "", "");
             Statement statement = conn.createStatement();
             //insertOne("INSERT INTO tester.poc_test (varchar_col) VALUES (?)", conn);
             for (int i = 0; i < 100000; i++) {

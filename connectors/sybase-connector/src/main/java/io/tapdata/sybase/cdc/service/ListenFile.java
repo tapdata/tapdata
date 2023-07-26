@@ -31,8 +31,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.tapdata.base.ConnectorBase.toJson;
-
 /**
  * @author GavinXiao
  * @description LinstenFile create by Gavin
@@ -289,9 +287,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                 events[0] = new ArrayList<>();
                             }
                         }).compile(new ReadCSVOfBigFile());
-
                     }
-                    //root.getContext().getLog().warn("Offset: {}", toJson(position));
                 }
                 return isThisFile;
             }

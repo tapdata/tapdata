@@ -24,7 +24,7 @@ public enum OverwriteType {
         return type.type;
     }
 
-    public static OverwriteType type(String type){
+    public static OverwriteType type(String type) {
         if (null == type) return AUTO;
         OverwriteType[] values = values();
         for (OverwriteType value : values) {

@@ -324,14 +324,12 @@ public class SybaseConnector extends CommonDbConnector {
                 final String upperColumnType = null == columnTypeName ? "" : columnTypeName.toUpperCase(Locale.ROOT);
                 if ("TIME".equals(upperColumnType) || "DATE".equals(upperColumnType)) {
                     value = resultSet.getString(keyIndex);
-                }
-                else if (upperColumnType.contains("CHAR")
+                } else if (upperColumnType.contains("CHAR")
                         || upperColumnType.contains("TEXT")
-                        || upperColumnType.contains("SYSNAME") ) {
+                        || upperColumnType.contains("SYSNAME")) {
                     String string = resultSet.getString(keyIndex);
                     value = null == string ? null : Utils.convertString(string, encode, decode);
-                }
-                else {
+                } else {
                     value = resultSet.getObject(keyIndex);
                     if (null == value && dateTypeSet.contains(columnName)) {
                         value = resultSet.getString(keyIndex);
@@ -447,9 +445,9 @@ public class SybaseConnector extends CommonDbConnector {
                     default:
                         if (metaType.contains("CHAR")
                                 || metaType.contains("TEXT")
-                                || metaType.contains("SYSNAME") ) {
+                                || metaType.contains("SYSNAME")) {
                             String string = resultSet.getString(metaName);
-                            data.put(metaName, null == string ? null : (needEncode ? Utils.convertString(string, encode, decode) : string ));
+                            data.put(metaName, null == string ? null : (needEncode ? Utils.convertString(string, encode, decode) : string));
                         } else {
                             Object value = resultSet.getObject(metaName);
                             if (null == value && dateTypeSet.contains(metaName)) {

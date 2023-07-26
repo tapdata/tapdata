@@ -18,8 +18,8 @@ public class FileWatchedService {
     StopLock lock;
 
     /**
-     * @param monitorPath    要监听的目录，注意该 Path 只能是目录，否则会报错 java.nio.file.NotDirectoryException:
-     * @param monitor 自定义的 monitor，用来处理监听到的创建、修改、删除事件
+     * @param monitorPath 要监听的目录，注意该 Path 只能是目录，否则会报错 java.nio.file.NotDirectoryException:
+     * @param monitor     自定义的 monitor，用来处理监听到的创建、修改、删除事件
      * @throws IOException
      */
     public FileWatchedService(Path monitorPath, FileWatchedListener monitor, StopLock lock) throws IOException {
