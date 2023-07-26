@@ -358,7 +358,7 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
                 inspectDto.setUserId(userDetail.getUserId());
                 inspectDto.setMode("manual");
                 inspectDto.setInspectMethod("cdcField");
-                inspectDto.setAgentTags(Arrays.asList("private"));
+//                inspectDto.setAgentTags(Arrays.asList("private"));
                 workerService.scheduleTaskToEngine(inspectDto, userDetail);
                 super.save(inspectDto, userDetail);
             }
@@ -381,10 +381,6 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         inspectDto.setStatus("waiting");
         inspectDto.setPing_time(System.currentTimeMillis());
 
-        PlatformInfo platformInfo = new PlatformInfo();
-        platformInfo.setAgentType("private");
-        inspectDto.setPlatformInfo(platformInfo);
-        inspectDto.setAgentTags(Lists.newArrayList("private"));
         inspectDto.setScheduleTimes(0);
 
         List<AlarmSettingVO> alarmSettings = new ArrayList<>();
