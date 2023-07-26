@@ -391,7 +391,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         return index;
     }
 
-    private List<TapIndex> discoverIndex(String tableName) {
+    protected List<TapIndex> discoverIndex(String tableName) {
         List<TapIndex> tapIndexList = TapSimplify.list();
         List<DataMap> indexList;
         try {
@@ -472,7 +472,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         return sb.toString();
     }
 
-    private String getCreateIndexSql(TapTable tapTable, TapIndex tapIndex) {
+    protected String getCreateIndexSql(TapTable tapTable, TapIndex tapIndex) {
         StringBuilder sb = new StringBuilder("create ");
         char escapeChar = commonDbConfig.getEscapeChar();
         if (tapIndex.isUnique()) {
