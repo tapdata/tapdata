@@ -251,6 +251,33 @@ public class TaskSampleHandler extends AbstractHandler {
             });
             return outputQpsAvg;
         });
+
+		// Measurement data may fail to be reported
+		// Use milestone data to fix metrics
+		//  1. Loss snapshotDoneAt metrics
+		//    - not found snapshot success time
+		//    - not show last cdc delay
+		//    - not found CDC start time
+		if (null == snapshotDoneAt && (TaskDto.TYPE_INITIAL_SYNC.equals(task.getType()) || TaskDto.TYPE_INITIAL_SYNC_CDC.equals(task.getType()))) {
+			snapshotDoneAt = Optional.ofNullable(task.getAttrs()).map(attrs -> attrs.get("milestone")).map(milestone -> {
+				if (milestone instanceof Map) {
+					return ((Map<?, ?>) milestone).get("SNAPSHOT");
+				}
+				return null;
+			}).map(snapshotMilestone -> {
+				if (snapshotMilestone instanceof Map) {
+					if ("FINISH".equals(((Map) snapshotMilestone).get("status"))) {
+						return ((Map) snapshotMilestone).get("end");
+					}
+				}
+				return null;
+			}).map(snapshotEnd -> {
+				if (snapshotEnd instanceof Long) {
+					return (Long) snapshotEnd;
+				}
+				return null;
+			}).orElse(null);
+		}
     }
 
     public void close() {
