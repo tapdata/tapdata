@@ -2840,12 +2840,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Criteria nameCriteria = new Criteria();
         if (null != where.get("or")) {
             List<Criteria> criteriaList = new ArrayList<>();
-            List<Map<String, Map<String, String>>> orList = (List) where.remove("or");
-            for (Map<String, Map<String, String>> orMap : orList) {
+            List<Map<String, Map<String, Object>>> orList = (List) where.remove("or");
+            for (Map<String, Map<String, Object>> orMap : orList) {
                 orMap.forEach((key, value) -> {
                     if (value.containsKey("$regex")) {
-                        String queryStr = value.get("$regex");
-                        Criteria orCriteria = Criteria.where(key).regex(queryStr);
+                        Object queryStr = value.get("$regex");
+                        Criteria orCriteria = Criteria.where(key).regex(queryStr.toString());
+                        criteriaList.add(orCriteria);
+                    } else if (value.containsKey("$eq")) {
+                        Object queryStr = value.get("$eq");
+                        Criteria orCriteria = Criteria.where(key).is(queryStr);
                         criteriaList.add(orCriteria);
                     }
                 });

@@ -276,6 +276,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
             // query task : 1.status is running 2.crontabExpressionFlag is true
             Criteria criteria = Criteria.where("agentId").is(worker.getProcessId())
+                    .and("is_deleted").ne(true)
                     .and("user_id").is(userDetail.getUserId())
                     .orOperator(Criteria.where("status").is(TaskDto.STATUS_RUNNING), Criteria.where("crontabExpressionFlag").is(true));
             Query query = Query.query(criteria);
