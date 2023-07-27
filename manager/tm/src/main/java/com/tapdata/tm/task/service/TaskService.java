@@ -3066,7 +3066,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .unset("currentEventTimestamp")
                 .unset("snapshotDoneAt")
                 .unset("scheduleDate")
-                .unset("stopedDate");
+                .unset("stopedDate")
+                .unset("functionRetryEx")
+                .unset("taskRetryStatus")
+                .unset("functionRetryStatus");
         return update;
     }
 
@@ -3547,7 +3550,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.INFO);
             });
 
-            Update update = Update.update("stopRetryTimes", 0).unset("stopedDate");
+            Update update = Update.update("stopRetryTimes", 0).unset("stopedDate")
+                    .unset("functionRetryStatus")
+                    .unset("functionRetryEx")
+                    .unset("taskRetryStatus");
             updateById(id, update, user);
 
             logCollectorService.endConnHeartbeat(user, taskDto); // 尝试停止心跳任务
