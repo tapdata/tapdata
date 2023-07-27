@@ -4,6 +4,7 @@ import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCredential;
 import com.mongodb.client.*;
+import com.mongodb.connection.ConnectionPoolSettings;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
@@ -12,12 +13,10 @@ import io.tapdata.mongodb.codecs.TapdataBigIntegerCodec;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.util.SSLUtil;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.BsonDocument;
-import org.bson.BsonString;
-import org.bson.BsonTimestamp;
-import org.bson.Document;
+import org.bson.*;
 import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
+import org.bson.types.ObjectId;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -30,6 +29,7 @@ import java.security.SecureRandom;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -65,7 +65,7 @@ public class MongodbUtil {
 	}
 
 	public static void sampleDataRow(MongoCollection collection, int sampleSize, Consumer<BsonDocument> callback) {
-
+		AtomicReference<Boolean> idExist = new AtomicReference<>(false);
 		int sampleTime = 1;
 		int sampleBatchSize = SAMPLE_SIZE_BATCH_SIZE;
 		if (sampleSize > SAMPLE_SIZE_BATCH_SIZE) {
@@ -84,12 +84,23 @@ public class MongodbUtil {
 			try (MongoCursor<BsonDocument> cursor = collection.aggregate(pipeline, BsonDocument.class).allowDiskUse(true).iterator()) {
 				while (cursor.hasNext()) {
 					BsonDocument next = cursor.next();
+					if (next.containsKey("_id")) {
+						idExist.set(true);
+					}
 					callback.accept(next);
 				}
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
 		});
+
+		// 如果表里没有 _id, 则生成一个
+		if (idExist.get() == false) {
+			ObjectId objectId = new ObjectId();
+			BsonObjectId bsonObjectId = new BsonObjectId(objectId);
+			BsonDocument bsonDocument = new BsonDocument("_id", bsonObjectId);
+			callback.accept(bsonDocument);
+		}
 	}
 
 	public static Map<String, String> nodesURI(MongoClient mongoClient, String mongodbURI) {
@@ -262,18 +273,78 @@ public class MongodbUtil {
 		return key;
 	}
 
-	public static MongoClient createMongoClient(MongodbConfig mongodbConfig) {
-		CodecRegistry defaultCodecRegistry = MongoClientSettings.getDefaultCodecRegistry();
-		CodecRegistry codecRegistry = CodecRegistries.fromRegistries(CodecRegistries.fromCodecs(
-				new TapdataBigDecimalCodec(),
-				new TapdataBigIntegerCodec()
-		), defaultCodecRegistry);
-		final MongoClientSettings.Builder builder = MongoClientSettings.builder().codecRegistry(codecRegistry);
-		String mongodbUri = mongodbConfig.getUri();
-		if (null == mongodbUri || "".equals(mongodbUri)) {
-			throw new RuntimeException("Create MongoDB client failed, error: uri is blank");
+	// 写一个方法, 接收 mongoUri, 如果参数里没有包含 replicaSet, 返回 mongoUri, 但是里面只有主节点的地址
+	private static String getPrimaryUri(String mongoUri) {
+		if (mongoUri.contains("replicaSet")) {
+			return mongoUri;
 		}
-		builder.applyConnectionString(new ConnectionString(mongodbUri));
+
+		AtomicReference<String> primaryHost = new AtomicReference<>();
+		ConnectionString connectionString = new ConnectionString(mongoUri);
+		try {
+			List<String> hosts = connectionString.getHosts();
+			if (EmptyKit.isNotEmpty(hosts)) {
+				hosts.forEach(host -> {
+					MongoClient client = null;
+					try {
+						client = MongoClients.create("mongodb://" + host);
+						MongoDatabase database = client.getDatabase("admin");
+						Document result = database.runCommand(new Document("isMaster", 1));
+						if (result.getBoolean("ismaster")) {
+							primaryHost.set(host);
+						}
+					} finally {
+						if (client != null) {
+							try {
+								client.close();
+							} catch (Exception ignored) {
+							}
+						}
+					}
+					});
+				}
+			} catch (Exception ignored) {
+		}
+		// 如果 primaryHost 为空, 给第一个地址, 等报错后续继续选择
+		if (primaryHost.get() == null) {
+			primaryHost.set(connectionString.getHosts().get(0));
+		}
+
+		if (primaryHost.get() != null) {
+			// oriHosts 为 connectionString.getHosts() 用 , 连接
+			String oriHosts = String.join(",", connectionString.getHosts());
+			TapLogger.info("mongoUri: {} not contains replicaSet, only connect to primary node: {}", mongoUri, primaryHost.get());
+			mongoUri = mongoUri.replace(oriHosts, primaryHost.get());
+		}
+
+		return mongoUri;
+	}
+
+
+		public static MongoClient createMongoClient(MongodbConfig mongodbConfig) {
+			CodecRegistry defaultCodecRegistry = MongoClientSettings.getDefaultCodecRegistry();
+			CodecRegistry codecRegistry = CodecRegistries.fromRegistries(CodecRegistries.fromCodecs(
+					new TapdataBigDecimalCodec(),
+					new TapdataBigIntegerCodec()
+			), defaultCodecRegistry);
+			final MongoClientSettings.Builder builder = MongoClientSettings.builder().codecRegistry(codecRegistry);
+			String mongodbUri = mongodbConfig.getUri();
+			if (null == mongodbUri || "".equals(mongodbUri)) {
+				throw new RuntimeException("Create MongoDB client failed, error: uri is blank");
+			}
+
+			// if mongodbUri not contains replicaSet, then only connect to primary node
+			mongodbUri = getPrimaryUri(mongodbUri);
+			ConnectionPoolSettings.Builder connectionPoolSettingsBuilder = ConnectionPoolSettings.builder()
+					.minSize(10)
+					.maxSize(100)
+					.maxConnecting(20);
+			ConnectionPoolSettings connectionPoolSettings = connectionPoolSettingsBuilder.build();
+			builder.applyToConnectionPoolSettings(settingBuilder -> {
+				settingBuilder.applySettings(connectionPoolSettings);
+			});
+
+			builder.applyConnectionString(new ConnectionString(mongodbUri));
 
 		if (mongodbConfig.isSsl()) {
 			if (EmptyKit.isNotEmpty(mongodbUri) &&

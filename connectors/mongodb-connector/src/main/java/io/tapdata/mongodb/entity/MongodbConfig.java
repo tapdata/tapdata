@@ -46,6 +46,16 @@ public class MongodbConfig extends CommonDbConfig {
 
 	private boolean noCursorTimeout;
 
+	private boolean syncIndex;
+
+	public boolean isSyncIndex() {
+		return syncIndex;
+	}
+
+	public void setSyncIndex(boolean syncIndex) {
+		this.syncIndex = syncIndex;
+	}
+
 //	public static MongodbConfig load(String jsonFile) throws IOException {
 //		ObjectMapper mapper = new ObjectMapper(new JsonFactory());
 //		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
