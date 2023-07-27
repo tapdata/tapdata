@@ -8,21 +8,17 @@ import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
-import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.inspect.dto.InspectDto;
-import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.common.sample.request.SampleRequest;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
@@ -48,14 +44,13 @@ public class MeasureAOP {
     private final TaskService taskService;
     private final AlarmService alarmService;
     private final UserService userService;
-    private final InspectService inspectService;
+//    private final InspectService inspectService;
     private final Map<String, Map<String, AtomicInteger>> obsMap = Maps.newConcurrentMap();
 
-    public MeasureAOP(TaskService taskService, AlarmService alarmService, UserService userService, InspectService inspectService) {
+    public MeasureAOP(TaskService taskService, AlarmService alarmService, UserService userService) {
         this.taskService = taskService;
         this.alarmService = alarmService;
         this.userService = userService;
-        this.inspectService = inspectService;
     }
 
 
@@ -145,12 +140,12 @@ public class MeasureAOP {
             alarmService.save(alarmInfo);
 
             // excute inspect task
-            CommonUtils.ignoreAnyError(() -> {
-                InspectDto inspectDto = inspectService.createCheckByTask(taskDto, userDetail);
-                if (inspectDto != null) {
-                    inspectService.executeInspect(Where.where("id", inspectDto.getId().toHexString()), inspectDto, userDetail);
-                }
-            }, "excute inspect task");
+//            CommonUtils.ignoreAnyError(() -> {
+//                InspectDto inspectDto = inspectService.createCheckByTask(taskDto, userDetail);
+//                if (inspectDto != null) {
+//                    inspectService.executeInspect(Where.where("id", inspectDto.getId().toHexString()), inspectDto, userDetail);
+//                }
+//            }, "excute inspect task");
 
         }
 
@@ -268,11 +263,11 @@ public class MeasureAOP {
 
             if (needInspect) {
                 // excute inspect task
-                CommonUtils.ignoreAnyError(() -> {
-                    InspectDto inspectDto = inspectService.createCheckByTask(task, userDetail);
-
-                    inspectService.executeInspect(Where.where("id", inspectDto.getId().toHexString()), inspectDto, userDetail);
-                }, "excute inspect task");
+//                CommonUtils.ignoreAnyError(() -> {
+//                    InspectDto inspectDto = inspectService.createCheckByTask(task, userDetail);
+//
+//                    inspectService.executeInspect(Where.where("id", inspectDto.getId().toHexString()), inspectDto, userDetail);
+//                }, "excute inspect task");
             }
         } else {
             Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
