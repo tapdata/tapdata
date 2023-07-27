@@ -84,19 +84,19 @@ public class MongoDAOAnnotationHandler extends ClassAnnotationHandler {
 					//MongoCollection
 					CodecRegistry pojoCodecRegistry = fromRegistries(MongoClientSettings.getDefaultCodecRegistry(),
 							fromProviders(PojoCodecProvider.builder().automatic(true).build()));
-					MongoDatabase database1 = mongoClient.getMongoClient().getDatabase(dbName);
+					MongoDatabase databaseTemp = mongoClient.getMongoClient().getDatabase(dbName);
 					boolean supportsCommittedReads = true;
 					try {
-						Document storageEngine = database1.runCommand(new Document("serverStatus", 1)).get("storageEngine", Document.class);
+						Document storageEngine = databaseTemp.runCommand(new Document("serverStatus", 1)).get("storageEngine", Document.class);
 						supportsCommittedReads = storageEngine.get("supportsCommittedReads", Boolean.class);
 					} catch (Exception e) {
+						TapLogger.warn(TAG, "Command serverStatus fail", e.getMessage());
 					}
 					ReadConcern readConcern = ReadConcern.MAJORITY;
 					if (!supportsCommittedReads) {
 						readConcern = ReadConcern.LOCAL;
 					}
-
-					MongoDatabase database = mongoClient.getMongoClient().getDatabase(dbName)
+					MongoDatabase database = databaseTemp
 							.withCodecRegistry(pojoCodecRegistry)
 							.withWriteConcern(WriteConcern.JOURNALED)//写策略
 							.withReadConcern(readConcern)//读策略：只能读到成功写入大多数节点的数据（所以有可能读到旧的数据）
