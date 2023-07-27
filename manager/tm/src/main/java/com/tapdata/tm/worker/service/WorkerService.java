@@ -463,7 +463,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 scheduleWeight.set(weight);
                 scheduleRunNum.set(runningNum);
                 scheduleTaskLimit.set(taskLimit);
-            } else if (worker.getWeight().equals(scheduleWeight.get()) && runningNum < scheduleRunNum.get()) {
+            } else if (worker.getWeight().equals(scheduleWeight.get()) &&  (taskLimit - runningNum) > (scheduleTaskLimit.get() - scheduleRunNum.get())) {
                 scheduleAgentId.set(processId);
                 scheduleWeight.set(weight);
                 scheduleRunNum.set(runningNum);
