@@ -84,10 +84,22 @@ public class MongoDAOAnnotationHandler extends ClassAnnotationHandler {
 					//MongoCollection
 					CodecRegistry pojoCodecRegistry = fromRegistries(MongoClientSettings.getDefaultCodecRegistry(),
 							fromProviders(PojoCodecProvider.builder().automatic(true).build()));
-					MongoDatabase database = mongoClient.getMongoClient().getDatabase(dbName)
+					MongoDatabase databaseTemp = mongoClient.getMongoClient().getDatabase(dbName);
+					boolean supportsCommittedReads = true;
+					try {
+						Document storageEngine = databaseTemp.runCommand(new Document("serverStatus", 1)).get("storageEngine", Document.class);
+						supportsCommittedReads = storageEngine.get("supportsCommittedReads", Boolean.class);
+					} catch (Exception e) {
+						TapLogger.warn(TAG, "Command serverStatus fail", e.getMessage());
+					}
+					ReadConcern readConcern = ReadConcern.MAJORITY;
+					if (!supportsCommittedReads) {
+						readConcern = ReadConcern.LOCAL;
+					}
+					MongoDatabase database = databaseTemp
 							.withCodecRegistry(pojoCodecRegistry)
 							.withWriteConcern(WriteConcern.JOURNALED)//写策略
-							.withReadConcern(ReadConcern.MAJORITY)//读策略：只能读到成功写入大多数节点的数据（所以有可能读到旧的数据）
+							.withReadConcern(readConcern)//读策略：只能读到成功写入大多数节点的数据（所以有可能读到旧的数据）
 							.withReadPreference(ReadPreference.nearest());//读选取节点策略：网络最近
 
 					Class<?> domainClass = null;
