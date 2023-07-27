@@ -16,6 +16,46 @@ public class KafkaConfig extends MqConfig {
     private String krb5Conf;
     private String krb5Principal;
     private String krb5ServiceName;
+    private Boolean schemaRegister = false;
+    private String schemaRegisterUrl;
+    private Boolean basicAuth;
+
+    public String getAuthCredentialsSource() {
+        return authCredentialsSource;
+    }
+
+    public void setAuthCredentialsSource(String authCredentialsSource) {
+        this.authCredentialsSource = authCredentialsSource;
+    }
+
+    public String getAuthUserName() {
+        return authUserName;
+    }
+
+    public void setAuthUserName(String authUserName) {
+        this.authUserName = authUserName;
+    }
+
+    public String getAuthPassword() {
+        return authPassword;
+    }
+
+    public void setAuthPassword(String authPassword) {
+        this.authPassword = authPassword;
+    }
+
+    private String authCredentialsSource;
+    private String authUserName;
+    private String authPassword;
+
+    public Boolean getBasicAuth() {
+        return basicAuth;
+    }
+
+    public void setBasicAuth(Boolean basicAuth) {
+        this.basicAuth = basicAuth;
+    }
+
 
     /**
      * kafka source (Consumer)
@@ -43,6 +83,7 @@ public class KafkaConfig extends MqConfig {
     private String kafkaCompressionType = "";
     private String kafkaPartitionKey = "";
     private Boolean kafkaIgnorePushError = false;
+
 
     public Set<String> getKafkaRawTopics() {
         return kafkaRawTopics;
@@ -238,6 +279,22 @@ public class KafkaConfig extends MqConfig {
 
     public String getKafkaCompressionType() {
         return kafkaCompressionType;
+    }
+
+    public Boolean getSchemaRegister() {
+        return schemaRegister;
+    }
+
+    public void setSchemaRegister(Boolean schemaRegister) {
+        this.schemaRegister = schemaRegister;
+    }
+
+    public String getSchemaRegisterUrl() {
+        return schemaRegisterUrl;
+    }
+
+    public void setSchemaRegisterUrl(String schemaRegisterUrl) {
+        this.schemaRegisterUrl = schemaRegisterUrl;
     }
 
     public void setKafkaCompressionType(String kafkaCompressionType) {

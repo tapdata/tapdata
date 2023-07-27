@@ -251,6 +251,10 @@ public class TaskEntity extends BaseEntity {
     private Long functionRetryEx;
     private String taskRetryStatus;
 
+    /** 使用的共享挖掘任务停止 */
+    private Boolean shareCdcStop;
+    private String shareCdcStopMessage;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

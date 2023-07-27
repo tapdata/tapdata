@@ -10,6 +10,11 @@ import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import org.bson.Document;
 
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+
 /**
  * @author samuel
  * @Description
@@ -30,7 +35,7 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 	}
 
 	public ConstructIMap(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto) {
-		super(referenceId, name , externalStorageDto);
+		super(referenceId, name, externalStorageDto);
 		ExternalStorageUtil.initHZMapStorage(externalStorageDto, referenceId, name, hazelcastInstance.getConfig());
 		this.iMap = hazelcastInstance.getMap(name);
 		Integer ttlDay = externalStorageDto.getTtlDay();
@@ -44,6 +49,12 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 	public int insert(String key, T data) throws Exception {
 		iMap.put(key, data);
 		return 1;
+	}
+
+	@Override
+	public long insertMany(Map<String, T> data) throws Exception {
+		iMap.putAll(data);
+		return data.size();
 	}
 
 	@Override
@@ -71,6 +82,27 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 		Object obj = iMap.get(key);
 		if(obj == null)
 			return null;
+		obj = handleObjectWhenDiffClassLoader(obj);
+		return (T) obj;
+	}
+
+	@Override
+	public Map<String, Object> findAll(Set<String> keys) {
+		Map<String, Object> getMap = iMap.getAll(keys);
+		Map<String, Object> result = new HashMap<>();
+		Iterator<Map.Entry<String, Object>> iterator = getMap.entrySet().iterator();
+		while (iterator.hasNext()) {
+			Map.Entry<String, Object> entry = iterator.next();
+			Object obj = entry.getValue();
+			if (obj == null)
+				continue;
+			obj = handleObjectWhenDiffClassLoader(obj);
+			result.put(entry.getKey(), obj);
+		}
+		return result;
+	}
+
+	private Object handleObjectWhenDiffClassLoader(Object obj) {
 		if (!obj.getClass().getClassLoader().equals(this.getClass().getClassLoader())) {
 			if (obj.getClass().getName().equals(Document.class.getName())) {
 				ObjectSerializable serializable = InstanceFactory.instance(ObjectSerializable.class);
@@ -78,7 +110,7 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 				obj = serializable.toObject(bytes);
 			}
 		}
-		return (T) obj;
+		return obj;
 	}
 
 	@Override

@@ -2,12 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
-import com.tapdata.entity.FieldProcess;
-import com.tapdata.entity.FieldScript;
-import com.tapdata.entity.JavaScriptFunctions;
-import com.tapdata.entity.Job;
-import com.tapdata.entity.MessageEntity;
-import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.dataflow.DataFlowProcessor;
@@ -16,14 +11,13 @@ import com.tapdata.processor.dataflow.ProcessorContext;
 import com.tapdata.processor.dataflow.RowFilterProcessor;
 import com.tapdata.processor.dataflow.ScriptDataFlowProcessor;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
-import com.tapdata.tm.commons.dag.process.FieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.JsProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
-import com.tapdata.tm.commons.dag.process.RowFilterProcessorNode;
+import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
+import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
@@ -115,8 +109,20 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		final List<MessageEntity> processedMessages = dataFlowProcessor.process(Collections.singletonList(messageEntity));
 		if (CollectionUtils.isNotEmpty(processedMessages)) {
 			for (MessageEntity processedMessage : processedMessages) {
-				TapEventUtil.setBefore(tapRecordEvent, processedMessage.getBefore());
-				TapEventUtil.setAfter(tapRecordEvent, processedMessage.getAfter());
+				if (OperationType.COMMIT_OFFSET.getOp().equals(processedMessage.getOp())){
+					HeartbeatEvent heartbeatEvent = new HeartbeatEvent();
+					if (tapdataEvent.getBatchOffset()==null&&tapdataEvent.getStreamOffset()==null){
+						continue;
+					}
+					if (tapRecordEvent.getReferenceTime()==null){
+						continue;
+					}
+					heartbeatEvent.setReferenceTime(tapRecordEvent.getReferenceTime());
+					tapdataEvent.setTapEvent(heartbeatEvent);
+				}else {
+					TapEventUtil.setBefore(tapRecordEvent, processedMessage.getBefore());
+					TapEventUtil.setAfter(tapRecordEvent, processedMessage.getAfter());
+				}
 				consumer.accept(tapdataEvent, getProcessResult(processedMessage.getTableName()));
 			}
 		}
@@ -124,7 +130,6 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 	@Override
 	protected void transformToTapValue(TapdataEvent tapdataEvent, TapTableMap<String, TapTable> tapTableMap, String tableName) {
-
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		Map<String, TapType> afterTapTypeMap = null;
 		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
@@ -191,12 +196,25 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				JsProcessorNode jsProcessorNode = (JsProcessorNode) node;
 				stage.setScript(jsProcessorNode.getScript());
 				break;
+			case PYTHON_PROCESS:
+				dataFlowProcessor = new ScriptDataFlowProcessor();
+				stage.setType(Stage.StageTypeEnum.SCRIPT_TYPE.getType());
+
+				PyProcessNode pyProcessorNode = (PyProcessNode) node;
+				stage.setScript(pyProcessorNode.getScript());
+				break;
 			case MIGRATE_JS_PROCESSOR:
 				dataFlowProcessor = new ScriptDataFlowProcessor();
 				stage.setType(Stage.StageTypeEnum.SCRIPT_TYPE.getType());
 
 				MigrateJsProcessorNode migrateJsProcessorNode = (MigrateJsProcessorNode) node;
 				stage.setScript(migrateJsProcessorNode.getScript());
+				break;
+			case MIGRATE_PYTHON_PROCESS:
+				dataFlowProcessor = new ScriptDataFlowProcessor();
+				stage.setType(Stage.StageTypeEnum.SCRIPT_TYPE.getType());
+				MigratePyProcessNode migratePyProcessNode = (MigratePyProcessNode) node;
+				stage.setScript(migratePyProcessNode.getScript());
 				break;
 			case FIELD_PROCESSOR:
 			case FIELD_RENAME_PROCESSOR:
@@ -234,6 +252,8 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				stage.setOperations(fieldProcesses);
 				if (node instanceof FieldRenameProcessorNode) {
 					dataFlowProcessor = new FieldDataFlowProcessor(((FieldRenameProcessorNode) node).getFieldsNameTransform());
+				} else if (node instanceof FieldAddDelProcessorNode) {
+					dataFlowProcessor = new FieldDataFlowProcessor(((FieldAddDelProcessorNode) node).isDeleteAllFields());
 				} else {
 					dataFlowProcessor = new FieldDataFlowProcessor();
 				}

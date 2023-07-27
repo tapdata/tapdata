@@ -487,7 +487,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			}
             //不需要这个操作了。引擎会更新这个东西，另外每次更新databasetypes的时候，需要更新这个  参考： updateCapabilities方法
             if (definitionDto != null) {
-                item.setCapabilities(definitionDto.getCapabilities());
+                //item.setCapabilities(definitionDto.getCapabilities());
                 item.setDefinitionPdkId(definitionDto.getPdkId());
                 item.setPdkType(definitionDto.getPdkType());
                 item.setPdkHash(definitionDto.getPdkHash());
@@ -1675,14 +1675,18 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
         Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
-            String connId = connectionDto.getId().toHexString();
+            String connId = connectionDto.getId().toString();
             Query query = new Query(Criteria.where("_id").is(connectionDto.getId()));
             query.fields().include("_id");
             connectionDto.setListtags(null);
-            DataSourceConnectionDto connection = findOne(query);
-            if (connection == null) {
+            DataSourceConnectionDto connectionByUser = findOne(query,user);
+            if (connectionByUser == null) {
+				DataSourceConnectionDto connection = findOne(new Query(Criteria.where("_id").is(connectionDto.getId())));
                 while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
                     connectionDto.setName(connectionDto.getName() + "_import");
+				}
+				if(connection != null){
+					connectionDto.setId(null);
                 }
                 if(StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())){
 					ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(connectionDto.getShareCDCExternalStorageId()));
@@ -1692,10 +1696,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 						connectionDto.setShareCDCExternalStorageId(defaultExternalStorage.getId().toString());
 					}
 
-				}connection = importEntity(connectionDto, user);
+				}connectionByUser = importEntity(connectionDto, user);
             } else {
                 if (cover) {
-                    ObjectId objectId = connection.getId();
+                    ObjectId objectId = connectionByUser.getId();
                     while (checkRepeatNameBool(user, connectionDto.getName(), objectId)) {
                         connectionDto.setName(connectionDto.getName() + "_import");
                     }
@@ -1705,11 +1709,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
                     connectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
 
 
-                    connection = save(connectionDto, user);
+                    connectionByUser = save(connectionDto, user);
                 }
             }
 
-            conMap.put(connId, connection);
+            conMap.put(connId, connectionByUser);
 
         }
         return conMap;

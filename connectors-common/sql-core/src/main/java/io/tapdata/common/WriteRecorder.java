@@ -27,7 +27,7 @@ public abstract class WriteRecorder {
     protected final String schema;
     protected List<String> uniqueCondition;
     protected boolean hasPk = false;
-    protected boolean uniqueConditionIsIndex = false; //Target table may not have a unique index, used in Postgres
+    protected boolean uniqueConditionIsIndex = true; //Target table may not have a unique index, used in Postgres
     protected String version;
     protected String insertPolicy;
     protected String updatePolicy;
@@ -60,7 +60,7 @@ public abstract class WriteRecorder {
                     (in.getIndexFields().size() == uniqueCondition.size()) && new HashSet<>(uniqueCondition)
                             .containsAll(in.getIndexFields().stream().map(TapIndexField::getName).collect(Collectors.toList())));
         }
-        updatedColumn = allColumn.stream().filter(v -> uniqueCondition.contains(v)).collect(Collectors.toList());
+        updatedColumn = allColumn.stream().filter(v -> !uniqueCondition.contains(v)).collect(Collectors.toList());
         if (EmptyKit.isEmpty(updatedColumn)) {
             updatedColumn = allColumn;
         }
@@ -159,18 +159,18 @@ public abstract class WriteRecorder {
         if (EmptyKit.isNull(preparedStatement)) {
             if (hasPk) {
                 preparedStatement = connection.prepareStatement("UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " +
-                        after.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
+                        updatedColumn.stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
                         before.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(" AND ")));
             } else {
                 preparedStatement = connection.prepareStatement("UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " +
-                        after.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
+                        updatedColumn.stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
                         before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ? IS NULL))")
                                 .collect(Collectors.joining(" AND ")));
             }
         }
         preparedStatement.clearParameters();
         int pos = 1;
-        for (String key : after.keySet()) {
+        for (String key : updatedColumn) {
             preparedStatement.setObject(pos++, after.get(key));
         }
         dealNullBefore(before, pos);

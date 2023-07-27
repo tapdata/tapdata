@@ -399,8 +399,10 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
     }
     private List<RoleMappingDto> updateRoleMapping(String userId, List<Object> roleusers, UserDetail userDetail) {
         // delete old role mapping
-        long deleted = roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(userId).and("principalType").is("USER")));
-        log.info("delete old role mapping for userId {}, deleted: {}", userId, deleted);
+        if (!userDetail.getEmail().equals("admin@admin.com")) {
+            long deleted = roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(userId).and("principalType").is("USER")));
+            log.info("delete old role mapping for userId {}, deleted: {}", userId, deleted);
+        }
         // add new role mapping
         if (CollectionUtils.isNotEmpty(roleusers)) {
             List<RoleMappingDto> roleMappingDtos = roleusers.stream().map(r -> (String) r).map(roleId -> {

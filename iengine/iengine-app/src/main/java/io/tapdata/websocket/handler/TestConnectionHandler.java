@@ -61,6 +61,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 	private final static Logger logger = LogManager.getLogger(TestConnectionHandler.class);
 
 	private final static String NOT_CHANGE_LAST_COLLECTION = ConnectorConstant.CONNECTION_COLLECTION;
+	private String collection = NOT_CHANGE_LAST_COLLECTION;
 
 	private ClientMongoOperator clientMongoOperator;
 	private SettingService settingService;
@@ -147,17 +148,18 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 				boolean updateSchema = true;
 				boolean everLoadSchema = false;
 				boolean editTest = false;
+				boolean isExternalStorage = false;
 
 				if (event.containsKey("updateSchema")) {
 					try {
-						updateSchema = Boolean.valueOf(event.get("updateSchema").toString());
+						updateSchema = Boolean.parseBoolean(event.get("updateSchema").toString());
 					} catch (Exception ignore) {
 					}
 				}
 
 				if (event.containsKey("everLoadSchema")) {
 					try {
-						everLoadSchema = Boolean.valueOf(event.get("everLoadSchema").toString());
+						everLoadSchema = Boolean.parseBoolean(event.get("everLoadSchema").toString());
 					} catch (Exception ignore) {
 					}
 				}
@@ -173,7 +175,23 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 
 				if (event.containsKey("editTest")) {
 					try {
-						editTest = Boolean.valueOf(event.get("editTest").toString());
+						editTest = Boolean.parseBoolean(event.get("editTest").toString());
+					} catch (Exception ignore) {
+					}
+				}
+
+				if (event.containsKey("isExternalStorage")) {
+					try {
+						isExternalStorage = Boolean.parseBoolean(event.get("isExternalStorage").toString());
+						collection = ConnectorConstant.EXTERNAL_STORAGE_COLLECTION + "/set";
+						connection.setName(event.getOrDefault("name", "").toString());
+					} catch (Exception ignore) {
+					}
+				}
+
+				if (event.containsKey("externalStorageId")) {
+					try {
+						id = event.get("externalStorageId").toString();
 					} catch (Exception ignore) {
 					}
 				}
@@ -181,12 +199,14 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 				if (StringUtils.isNotBlank(id) && !editTest) {
 					connectionIdQuery = new Query(Criteria.where("_id").is(id));
 					connectionIdQuery.fields().exclude("schema");
-					Connections newConnection = clientMongoOperator.findOne(connectionIdQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-					if (newConnection != null) {
-						connection = newConnection;
-						connection.setExtParam((Map) event.getOrDefault("extParam", Maps.newHashMap()));
-						save = true;
+					if (!isExternalStorage) {
+						Connections newConnection = clientMongoOperator.findOne(connectionIdQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+						if (newConnection != null) {
+							connection = newConnection;
+							connection.setExtParam((Map) event.getOrDefault("extParam", Maps.newHashMap()));
+						}
 					}
+					save = true;
 				}
 
 				// Decode passwords
@@ -214,7 +234,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 						wrapConnectionResult(connection, validateResult)));
 				if (save) {
 					// Update connection test result
-					updatePDKConnectionTestResult(connectionIdQuery, updateSchema, everLoadSchema, validateResult, validateResultDetails);
+					updatePDKConnectionTestResult(connectionIdQuery, updateSchema, everLoadSchema, validateResult, validateResultDetails, isExternalStorage, connection.getName());
 				}
 
 				if (needLoadField(updateSchema, schema, everLoadSchema) && save) {
@@ -223,7 +243,9 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 							null == schema.getTables() ? schema.getTapTableCount() : schema.getTables().size());
 					loadSchemaRunner.run();
 				} else {
-					updateLoadSchemaFieldStatus(connection, ConnectorConstant.LOAD_FIELD_STATUS_FINISHED, schema, schemaVersion);
+					if (!isExternalStorage) {
+						updateLoadSchemaFieldStatus(connection, ConnectorConstant.LOAD_FIELD_STATUS_FINISHED, schema, schemaVersion);
+					}
 				}
 			} catch (Exception e) {
 				Optional.of(event).ifPresent(map -> map.remove("config"));
@@ -238,7 +260,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 					Update update = getValidateResultUpdate(0, 0L, BaseConnectionValidateResult.CONNECTION_STATUS_INVALID,
 							null, null, null, null);
 					Query updateQuery = new Query(where("_id").is(connection.getId()));
-					clientMongoOperator.update(updateQuery, update, NOT_CHANGE_LAST_COLLECTION);
+					clientMongoOperator.update(updateQuery, update, collection);
 				}
 			}
 		});
@@ -247,7 +269,8 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 		return null;
 	}
 
-	private void updatePDKConnectionTestResult(Query connectionIdQuery, boolean updateSchema, boolean everLoadSchema, ConnectionValidateResult validateResult, List<ConnectionValidateResultDetail> validateResultDetails) {
+	private void updatePDKConnectionTestResult(Query connectionIdQuery, boolean updateSchema, boolean everLoadSchema, ConnectionValidateResult validateResult, List<ConnectionValidateResultDetail> validateResultDetails,
+											   boolean isExternalStorage, String name) {
 		Update update = new Update();
 		// Update connection
 		update.set("response_body.retry", validateResult.getRetry());
@@ -261,16 +284,21 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 		} else {
 			update.set("loadSchemaField", false);
 		}
-		clientMongoOperator.update(connectionIdQuery, update, NOT_CHANGE_LAST_COLLECTION);
-		// Update connection options
-		update = new Update().set("options", validateResult.getConnectionOptions());
-		clientMongoOperator.update(connectionIdQuery, update, ConnectorConstant.CONNECTION_COLLECTION + "/connectionOptions");
+		if (isExternalStorage) {
+			update.set("name", name);
+		}
+		clientMongoOperator.update(connectionIdQuery, update, collection);
+		if (!isExternalStorage) {
+			// Update connection options
+			update = new Update().set("options", validateResult.getConnectionOptions());
+			clientMongoOperator.update(connectionIdQuery, update, ConnectorConstant.CONNECTION_COLLECTION + "/connectionOptions");
+		}
 	}
 
 	@Deprecated
 	private void updateConnectionUniqueName(Connections connection, Query connectionIdQuery) {
 		connection.setUniqueName(connection.getId());
-		clientMongoOperator.update(connectionIdQuery, new Update().set("uniqueName", connection.getUniqueName()), NOT_CHANGE_LAST_COLLECTION);
+		clientMongoOperator.update(connectionIdQuery, new Update().set("uniqueName", connection.getUniqueName()), collection);
 	}
 
 	private void updateLoadSchemaFieldStatus(Connections connection, String status, Schema schema, String schemaVersion) {
@@ -279,7 +307,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 		if (null != schema && schema.isIncludeFields()) {
 			update.set("schemaVersion", schemaVersion);
 		}
-		clientMongoOperator.update(query, update, NOT_CHANGE_LAST_COLLECTION);
+		clientMongoOperator.update(query, update, collection);
 	}
 
 	@Deprecated
@@ -330,10 +358,10 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 			}
 			if (!tmpList.isEmpty()) {
 				update.set("schema.tables", tmpList);
-				clientMongoOperator.update(connectionIdQuery, update, NOT_CHANGE_LAST_COLLECTION);
+				clientMongoOperator.update(connectionIdQuery, update, collection);
 			}
 		} else {
-			clientMongoOperator.update(connectionIdQuery, update, NOT_CHANGE_LAST_COLLECTION);
+			clientMongoOperator.update(connectionIdQuery, update, collection);
 		}
 	}
 

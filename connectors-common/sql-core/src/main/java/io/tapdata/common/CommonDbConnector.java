@@ -391,7 +391,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         return index;
     }
 
-    private List<TapIndex> discoverIndex(String tableName) {
+    protected List<TapIndex> discoverIndex(String tableName) {
         List<TapIndex> tapIndexList = TapSimplify.list();
         List<DataMap> indexList;
         try {
@@ -472,7 +472,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         return sb.toString();
     }
 
-    private String getCreateIndexSql(TapTable tapTable, TapIndex tapIndex) {
+    protected String getCreateIndexSql(TapTable tapTable, TapIndex tapIndex) {
         StringBuilder sb = new StringBuilder("create ");
         char escapeChar = commonDbConfig.getEscapeChar();
         if (tapIndex.isUnique()) {
@@ -563,6 +563,26 @@ public abstract class CommonDbConnector extends ConnectorBase {
             FilterResults filterResults = new FilterResults();
             while (resultSet.next()) {
                 List<String> allColumn = DbKit.getColumnsFromResultSet(resultSet);
+                filterResults.add(DbKit.getRowFromResultSet(resultSet, allColumn));
+                if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
+                    consumer.accept(filterResults);
+                    filterResults = new FilterResults();
+                }
+            }
+            if (EmptyKit.isNotEmpty(filterResults.getResults())) {
+                consumer.accept(filterResults);
+            }
+        });
+    }
+
+    //for oracle db2 type (with row_number)
+    protected void queryByAdvanceFilterWithOffsetV2(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
+        String sql = commonSqlMaker.buildSelectClause(table, filter) + commonSqlMaker.buildRowNumberPreClause(filter) + getSchemaAndTable(table.getId()) + commonSqlMaker.buildSqlByAdvanceFilterV2(filter);
+        jdbcContext.query(sql, resultSet -> {
+            FilterResults filterResults = new FilterResults();
+            while (resultSet.next()) {
+                List<String> allColumn = DbKit.getColumnsFromResultSet(resultSet);
+                allColumn.remove("ROWNO_");
                 filterResults.add(DbKit.getRowFromResultSet(resultSet, allColumn));
                 if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
                     consumer.accept(filterResults);

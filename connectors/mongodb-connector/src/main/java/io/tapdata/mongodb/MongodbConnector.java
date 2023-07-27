@@ -16,13 +16,11 @@ import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.*;
-import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ParagraphFormatter;
-import io.tapdata.exception.TapPdkRetryableEx;
 import io.tapdata.exception.TapPdkTerminateByServerEx;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.mongodb.entity.MongodbConfig;
@@ -55,6 +53,8 @@ import org.bson.types.*;
 
 import java.io.Closeable;
 import java.math.BigDecimal;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -62,7 +62,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -101,8 +100,8 @@ public class MongodbConnector extends ConnectorBase {
 	 * Reference：<a href="https://github.com/mongodb/mongo/blob/master/src/mongo/base/error_codes.yml">error_codes.yml</a>
 	 * connectors/mongodb-connector/src/main/resources/mongo-error-codes.yml
 	 */
-	private final static int[] SERVER_ERROR_CODES = new int[]{6,7,70,71,74,76,83,89,90,91,92,93,94,95,133,149,189,190,202,279,317,384,402,9001,10058,10107,11600,11602,13435,13436};
-	private final static int[] RETRYABLE_ERROR_CODES = new int[]{43,50,134,175,222,234,237,262,358,363,50915};
+	private final static int[] SERVER_ERROR_CODES = new int[]{6, 7, 70, 71, 74, 76, 83, 89, 90, 91, 92, 93, 94, 95, 133, 149, 189, 190, 202, 279, 317, 384, 402, 9001, 10058, 10107, 11600, 11602, 13435, 13436};
+	private final static int[] RETRYABLE_ERROR_CODES = new int[]{43, 50, 134, 175, 222, 234, 237, 262, 358, 363, 50915};
 
 	private Bson queryCondition(String firstPrimaryKey, Object value) {
 		return gte(firstPrimaryKey, value);
@@ -161,8 +160,9 @@ public class MongodbConnector extends ConnectorBase {
 					List<TapTable> list = list();
 					nameList.forEach(name -> {
 						TapTable table = table(name).defaultPrimaryKeys("_id");
+						MongoCollection collection = documentMap.get(name);
 						try {
-							MongodbUtil.sampleDataRow(documentMap.get(name), SAMPLE_SIZE_BATCH_SIZE, (dataRow) -> {
+							MongodbUtil.sampleDataRow(collection, SAMPLE_SIZE_BATCH_SIZE, (dataRow) -> {
 								Set<String> fieldNames = dataRow.keySet();
 								for (String fieldName : fieldNames) {
 									BsonValue value = dataRow.get(fieldName);
@@ -173,6 +173,19 @@ public class MongodbConnector extends ConnectorBase {
 							TapLogger.error(TAG, "Use $sample load mongo connection {}'s {} schema failed {}, will use first row as data schema.",
 									MongodbUtil.maskUriPassword(mongoConfig.getUri()), name, e.getMessage(), e);
 						}
+
+						collection.listIndexes().forEach((index) -> {
+							;
+							TapIndex tapIndex = new TapIndex();
+							// TODO: TapIndex struct not enough to represent index, so we encode index info in name
+							tapIndex.setName("__t__" + ((Document) index).toJson());
+
+							// add a empty tapIndexField
+							TapIndexField tapIndexField = new TapIndexField();
+							tapIndex.indexField(tapIndexField);
+							TapLogger.info(TAG, "MongodbConnector discoverSchema table: {} index {}", name, ((Document) index).toJson());
+							table.add(tapIndex);
+						});
 
 						if (!Objects.isNull(table.getNameFieldMap()) && !table.getNameFieldMap().isEmpty()) {
 							list.add(table);
@@ -221,6 +234,21 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	public void getRelateDatabaseField(TapConnectionContext connectionContext, TableFieldTypesGenerator tableFieldTypesGenerator, BsonValue value, String fieldName, TapTable table) {
+		Integer schemaLimit = 1024;
+		try {
+			schemaLimit = connectionContext.getConnectionConfig().getInteger("schemaLimit");
+			if (schemaLimit == null) {
+				schemaLimit = 1024;
+			}
+		} catch (Exception ignored) {
+		}
+		try {
+			if (table.getNameFieldMap().size() > schemaLimit) {
+				return;
+			}
+		} catch (Exception ignored) {
+		}
+
 		if (value instanceof BsonDocument) {
 			BsonDocument bsonDocument = (BsonDocument) value;
 			for (Map.Entry<String, BsonValue> entry : bsonDocument.entrySet()) {
@@ -398,15 +426,6 @@ public class MongodbConnector extends ConnectorBase {
 			return new TapNumberValue(decimal128.doubleValue());
 		});
 
-		codecRegistry.registerToTapValue(Document.class, (value, tapType) -> {
-			Document document = (Document) value;
-			for (Map.Entry<String, Object> entry : document.entrySet()) {
-				if (entry.getValue() instanceof Double && entry.getValue().toString().contains("E")) {
-					entry.setValue(new BigDecimal(entry.getValue().toString()).toString());
-				}
-			}
-			return new TapMapValue(document);
-		});
 		codecRegistry.registerToTapValue(Symbol.class, (value, tapType) -> {
 			Symbol symbol = (Symbol) value;
 			return new TapStringValue(symbol.getSymbol());
@@ -454,7 +473,7 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
-		// TODO: 为 分片集群建表, schema 约束建表预留位置
+		// TODO: mongodb create table, will do db / collection shard
 		CreateTableOptions createTableOptions = new CreateTableOptions();
 		createTableOptions.setTableExists(false);
 
@@ -470,6 +489,83 @@ public class MongodbConnector extends ConnectorBase {
 			}
 			TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent().indexList(tapIndices);
 			createIndex(tapConnectorContext, table, tapCreateIndexEvent);
+		}
+
+		if (mongoConfig.isSyncIndex()) {
+			TapLogger.info(TAG, "sync index enabled, will create index for table: " + table.getName());
+			// TODO: TapIndex is not common struct, we can not use it to create index
+			if (table.getIndexList() == null) {
+				TapLogger.info(TAG, "table: " + table.getName() + " has no index");
+				return createTableOptions;
+			}
+
+			table.getIndexList().forEach(index -> {
+				TapLogger.info(TAG, "find index: " + index.getName());
+				try {
+					String name = index.getName();
+					// 去除 __t__ 前缀
+					if (!name.startsWith("__t__")) {
+						return;
+					}
+					name = name.substring(5);
+					Document dIndex = Document.parse(name);
+					if (dIndex == null) {
+						return;
+					}
+					MongoCollection<Document> targetCollection = mongoDatabase.getCollection(table.getName());
+					IndexOptions indexOptions = new IndexOptions();
+					// 1. 遍历 index, 生成 indexOptions
+					dIndex.forEach((key, value) -> {
+						if ("unique".equals(key)) {
+							indexOptions.unique((Boolean) value);
+						} else if ("sparse".equals(key)) {
+							indexOptions.sparse((Boolean) value);
+						} else if ("expireAfterSeconds".equals(key)) {
+							indexOptions.expireAfter(((Double) value).longValue(), java.util.concurrent.TimeUnit.SECONDS);
+						} else if ("background".equals(key)) {
+							indexOptions.background((Boolean) value);
+						} else if ("partialFilterExpression".equals(key)) {
+							indexOptions.partialFilterExpression((Bson) value);
+						} else if ("defaultLanguage".equals(key)) {
+							indexOptions.defaultLanguage((String) value);
+						} else if ("languageOverride".equals(key)) {
+							indexOptions.languageOverride((String) value);
+						} else if ("textVersion".equals(key)) {
+							indexOptions.textVersion((Integer) value);
+						} else if ("weights".equals(key)) {
+							indexOptions.weights((Bson) value);
+						} else if ("sphereVersion".equals(key)) {
+							indexOptions.sphereVersion((Integer) value);
+						} else if ("bits".equals(key)) {
+							indexOptions.bits((Integer) value);
+						} else if ("min".equals(key)) {
+							indexOptions.min((Double) value);
+						} else if ("max".equals(key)) {
+							indexOptions.max((Double) value);
+						} else if ("bucketSize".equals(key)) {
+							indexOptions.bucketSize((Double) value);
+						} else if ("storageEngine".equals(key)) {
+							indexOptions.storageEngine((Bson) value);
+						} else if ("wildcardProjection".equals(key)) {
+							indexOptions.wildcardProjection((Bson) value);
+						} else if ("hidden".equals(key)) {
+							indexOptions.hidden((Boolean) value);
+						} else if ("version".equals(key)) {
+							indexOptions.version((Integer) value);
+						} else if ("partialFilterExpression".equals(key)) {
+							indexOptions.partialFilterExpression((Bson) value);
+						}
+					});
+					try {
+						targetCollection.createIndex(dIndex.get("key", Document.class), indexOptions);
+					} catch (Exception ignored) {
+						TapLogger.warn(TAG, "create index failed 1: " + ignored.getMessage());
+					}
+				} catch (Exception ignored) {
+					TapLogger.warn(TAG, "create index failed 2: " + ignored.getMessage());
+					// TODO: 如果解码失败, 说明这个索引不应该在这里创建, 忽略掉
+				}
+			});
 		}
 		return createTableOptions;
 	}
@@ -504,7 +600,7 @@ public class MongodbConnector extends ConnectorBase {
 		if (partitionIndex == null)
 			throw new CoreException(MongoErrors.NO_INDEX_FOR_PARTITION, "No index to do partition");
 
-		Bson query = queryForPartitionFilter(partitionFilter, partitionIndex);
+		Bson query = queryForPartitionFilter(partitionFilter, table);
 
 		List<TapIndexField> indexFields = partitionIndex.getIndexFields();
 		Document sort = new Document();
@@ -576,42 +672,38 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	private long countByPartitionFilter(TapConnectorContext connectorContext, TapTable table, TapAdvanceFilter partitionFilter) {
-		Bson query = queryForPartitionFilter(partitionFilter, table.partitionIndex());
+		Bson query = queryForPartitionFilter(partitionFilter, table);
 		return getCollectionNotAggregateCountByTableName(mongoClient, mongoConfig.getDatabase(), table.getId(), query);
 	}
 
-	private Bson queryForPartitionFilter(TapAdvanceFilter partitionFilter, TapIndexEx partitionKeys) {
+	private Bson queryForPartitionFilter(TapAdvanceFilter partitionFilter, TapTable tapTable) {
 		List<Bson> bsonList = new ArrayList<>();
 		List<QueryOperator> ops = partitionFilter.getOperators();
 		if (ops != null)
 			for (QueryOperator op : ops) {
 				if (op == null)
 					continue;
-				if (!partitionKeys.getIndexMap().containsKey(op.getKey())) {
-					throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in operators", op.getKey(), partitionKeys);
-				}
+				String key = op.getKey();
+				Object value = parseObject(tapTable, key, op.getValue());
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
-						bsonList.add(gt(op.getKey(), op.getValue()));
+						bsonList.add(gt(key, value));
 						break;
 					case QueryOperator.GTE:
-						bsonList.add(gte(op.getKey(), op.getValue()));
+						bsonList.add(gte(key, value));
 						break;
 					case QueryOperator.LT:
-						bsonList.add(lt(op.getKey(), op.getValue()));
+						bsonList.add(lt(key, value));
 						break;
 					case QueryOperator.LTE:
-						bsonList.add(lte(op.getKey(), op.getValue()));
+						bsonList.add(lte(key, value));
 						break;
 				}
 			}
 		DataMap match = partitionFilter.getMatch();
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
-				if (!partitionKeys.getIndexMap().containsKey(entry.getKey())) {
-					throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in match", entry.getKey(), partitionKeys);
-				}
-				bsonList.add(eq(entry.getKey(), entry.getValue()));
+				bsonList.add(eq(entry.getKey(), parseObject(tapTable, entry.getKey(), entry.getValue())));
 			}
 		}
 		Bson query;
@@ -620,6 +712,92 @@ public class MongodbConnector extends ConnectorBase {
 		else
 			query = and(bsonList.toArray(new Bson[0]));
 		return query;
+	}
+
+	private Object parseObject(TapTable tapTable, String key, Object value) {
+		if (null == value) {
+			return null;
+		}
+		if (null == tapTable) {
+			return value;
+		}
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+		if (MapUtils.isEmpty(nameFieldMap)) {
+			return value;
+		}
+		TapField tapField = nameFieldMap.get(key);
+		if (null == tapField) {
+			return value;
+		}
+		String dataType = tapField.getDataType();
+		if (StringUtils.isBlank(dataType)) {
+			return value;
+		}
+		if (dataType.contains("(")) {
+			dataType = StringUtils.substring(dataType, 0, dataType.indexOf("("));
+		}
+		BsonType bsonType;
+		try {
+			bsonType = BsonType.valueOf(dataType);
+		} catch (IllegalArgumentException e) {
+			return value;
+		}
+		switch (bsonType) {
+			case DATE_TIME:
+				if (value instanceof String) {
+					// Only support this date pattern
+					String datePattern = "yyyy-MM-dd HH:mm:ss";
+					SimpleDateFormat simpleDateFormat = new SimpleDateFormat(datePattern);
+					simpleDateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+					try {
+						value = simpleDateFormat.parse((String) value);
+					} catch (ParseException e) {
+						throw new RuntimeException("Parse date string failed, value: " + value + ", format: " + datePattern, e);
+					}
+				} else if (value instanceof Long) {
+					// Only support milliseconds timestamp
+					value = new Date((Long) value);
+				}
+				break;
+			case INT32:
+				if (value instanceof String) {
+					try {
+						value = Integer.parseInt((String) value);
+					} catch (NumberFormatException ignored) {
+					}
+				}
+				break;
+			case INT64:
+				if (value instanceof String) {
+					try {
+						value = Long.parseLong((String) value);
+					} catch (NumberFormatException ignored) {
+					}
+				}
+				break;
+			case DOUBLE:
+				if (value instanceof String) {
+					try {
+						value = Double.parseDouble((String) value);
+					} catch (NumberFormatException ignored) {
+					}
+				}
+				break;
+			case DECIMAL128:
+				if (value instanceof String) {
+					try {
+						value = new BigDecimal((String) value);
+					} catch (Exception ignored) {
+					}
+				}
+				break;
+			default:
+				break;
+		}
+		if (value instanceof DateTime) {
+			value = ((DateTime) value).toInstant();
+		}
+		return value;
 	}
 
 	private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
@@ -632,6 +810,17 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+		if (null != matchThrowable(throwable, MongoNotPrimaryException.class)) {
+			try {
+				onStop(tapConnectionContext);
+			} catch (Throwable ignore) {
+			}
+			try {
+				onStart(tapConnectionContext);
+			} catch (Throwable ignore) {
+			}
+		}
+
 		RetryOptions retryOptions = RetryOptions.create();
 		if (null != matchThrowable(throwable, MongoClientException.class)
 				|| null != matchThrowable(throwable, MongoSocketException.class)
@@ -656,6 +845,7 @@ public class MongodbConnector extends ConnectorBase {
 			retryOptions.needRetry(true);
 			return retryOptions;
 		}
+
 		if (null != matchThrowable(throwable, MongoCommandException.class)) {
 			MongoCommandException mongoCommandException = (MongoCommandException) throwable;
 			Pattern pattern = Pattern.compile("Cache Reader No keys found for .* that is valid for time.*");
@@ -671,6 +861,15 @@ public class MongodbConnector extends ConnectorBase {
 		final List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
 		if (CollectionUtils.isNotEmpty(indexList)) {
 			for (TapIndex tapIndex : indexList) {
+				// TODO: when name starts with __t__, skip it
+				if (tapIndex.getName() == null) {
+					continue;
+				}
+
+				if (tapIndex.getName().startsWith("__t__")) {
+					continue;
+				}
+
 				final List<TapIndexField> indexFields = tapIndex.getIndexFields();
 				if (CollectionUtils.isNotEmpty(indexFields)) {
 					final MongoCollection<Document> collection = mongoDatabase.getCollection(table.getName());
@@ -784,7 +983,7 @@ public class MongodbConnector extends ConnectorBase {
 				if (null == tapField) {
 					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set match", table.getName(), entry.getKey()));
 				}
-				entry.setValue(formatValue(tapField, entry.getKey(), entry.getValue()));
+				entry.setValue(parseObject(table, entry.getKey(), entry.getValue()));
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
 		}
@@ -796,7 +995,7 @@ public class MongodbConnector extends ConnectorBase {
 				if (null == tapField) {
 					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set query operator", table.getName(), op.getKey()));
 				}
-				op.setValue(formatValue(tapField, op.getKey(), op.getValue()));
+				op.setValue(parseObject(table, op.getKey(), op.getValue()));
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
 						bsonList.add(gt(op.getKey(), op.getValue()));
@@ -885,20 +1084,6 @@ public class MongodbConnector extends ConnectorBase {
 		}
 		if (filterResults.resultSize() > 0)
 			consumer.accept(filterResults);
-	}
-
-	private Object formatValue(TapField tapField, String key, Object value) {
-		if (tapField.getTapType() instanceof TapNumber && value instanceof String) {
-			if (value.toString().contains(".")) {
-				value = Double.valueOf(value.toString());
-			} else {
-				value = Long.valueOf(value.toString());
-			}
-		}
-		if (value instanceof DateTime) {
-			value = ((DateTime) value).toInstant();
-		}
-		return value;
 	}
 
 	/**
@@ -1162,6 +1347,6 @@ public class MongodbConnector extends ConnectorBase {
 				throw new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), throwable);
 			}
 		}
-		throw throwable instanceof RuntimeException?(RuntimeException) throwable : new RuntimeException(throwable);
+		throw throwable instanceof RuntimeException ? (RuntimeException) throwable : new RuntimeException(throwable);
 	}
 }

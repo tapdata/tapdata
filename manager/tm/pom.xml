@@ -158,7 +158,11 @@
 			<artifactId>common</artifactId>
 			<version>2.2.2</version>
 		</dependency>
-
+		<dependency>
+			<groupId>com.deepoove</groupId>
+			<artifactId>poi-tl-plugin-highlight</artifactId>
+			<version>1.0.0</version>
+		</dependency>
 		<dependency>
 			<groupId>com.tapdata</groupId>
 			<artifactId>tm-common</artifactId>
@@ -237,17 +241,7 @@
 			<version>3.2.2</version>
 		</dependency>
 
-		<dependency>
-			<groupId>org.apache.poi</groupId>
-			<artifactId>poi</artifactId>
-			<version>3.17</version>
-		</dependency>
 
-		<dependency>
-			<groupId>org.apache.poi</groupId>
-			<artifactId>poi-ooxml</artifactId>
-			<version>3.17</version>
-		</dependency>
 
 		<dependency>
 			<groupId>commons-net</groupId>
@@ -452,6 +446,13 @@
 			<version>3.4.4</version>
 		</dependency>
 
+		<dependency>
+			<groupId>com.deepoove</groupId>
+			<artifactId>poi-tl</artifactId>
+			<version>1.12.1</version>
+		</dependency>
+
+
 	</dependencies>
 
 	<build>
@@ -473,6 +474,13 @@
 					<exclude>cloud-test/*</exclude>
 					<exclude>*.yaml</exclude>
 				</excludes>
+			</resource>
+			<resource>
+				<directory>${project.basedir}/${resource.dir}</directory>
+				<filtering>true</filtering>
+				<includes>
+					<include>template/*</include>
+				</includes>
 			</resource>
 			<resource>
 				<directory>${project.basedir}/${profile.dir}</directory>
@@ -520,6 +528,8 @@
 						<nonFilteredFileExtension>ttf</nonFilteredFileExtension>
 						<nonFilteredFileExtension>woff</nonFilteredFileExtension>
 						<nonFilteredFileExtension>woff2</nonFilteredFileExtension>
+						<nonFilteredFileExtension>doc</nonFilteredFileExtension>
+						<nonFilteredFileExtension>docx</nonFilteredFileExtension>
 					</nonFilteredFileExtensions>
 				</configuration>
 			</plugin>

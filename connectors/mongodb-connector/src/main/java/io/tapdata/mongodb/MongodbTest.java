@@ -150,13 +150,14 @@ public class MongodbTest extends CommonDbTest {
 //            if (!validateAuthDB(connectionStatus)) {
 //                return false;
 //            }
-            if (!validateOplog(connectionStatus)) {
-                return false;
-            }
             if (!validateReadOrWriteDatabase(connectionStatus, database, READ_PRIVILEGE_ACTIONS)) {
                 consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_FAILED, "Missing read privileges on" + mongodbConfig.getDatabase() + "database"));
                 return false;
             }
+            if (!validateOplog(connectionStatus)) {
+                return false;
+            }
+
             consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY));
             return true;
         } else {
@@ -289,7 +290,7 @@ public class MongodbTest extends CommonDbTest {
 
             Map<String, Set<String>> resourcePrivilegesMap = adaptResourcePrivilegesMap(authUserPrivileges);
             if (!resourcePrivilegesMap.containsKey(LOCAL_DATABASE) && !resourcePrivilegesMap.containsKey(LOCAL_DATABASEOPLOG_COLLECTION)) {
-                consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+                consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
                         "Missing local.oplog.rs collection's read privileges, will not be able to use the incremental sync feature."));
                 return false;
             }

@@ -7,4 +7,8 @@ package com.tapdata.entity;
  **/
 public class TapdataCompleteSnapshotEvent extends TapdataEvent {
 	private static final long serialVersionUID = 5717006177280281597L;
+
+	public TapdataCompleteSnapshotEvent() {
+		this.syncStage = SyncStage.INITIAL_SYNC;
+	}
 }

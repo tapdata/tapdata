@@ -271,7 +271,11 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	protected V findSchema(K k) {
 		String qualifiedName = tableNameAndQualifiedNameMap.get(k);
 		if (StringUtils.isBlank(qualifiedName)) {
-			if (ConnHeartbeatUtils.TABLE_NAME.contentEquals(k)) {
+			if (null != k && k.contains(".")) {
+				String[] split = k.split("\\.");
+				k = (K) split[split.length - 1];
+			}
+			if (null != k && ConnHeartbeatUtils.TABLE_NAME.contentEquals(k)) {
 				qualifiedName = TapTableUtil.getHeartbeatQualifiedName(nodeId);
 			}
 			if (StringUtils.isBlank(qualifiedName)) {

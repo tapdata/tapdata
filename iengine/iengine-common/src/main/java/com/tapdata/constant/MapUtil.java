@@ -323,7 +323,7 @@ public class MapUtil {
 
 	}
 
-	private static Map<String, Object> mapInstance(Map<String, Object> value){
+	protected static Map<String, Object> mapInstance(Map<String, Object> value) {
 		if (value instanceof LinkedHashMap) {
 			return new LinkedHashMap<>();
 		}

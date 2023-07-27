@@ -86,14 +86,15 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 				} else {
 					tapEventList = new ArrayList<>();
 				}
+				createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
+				connectorNodeInit(dataProcessorContext);
+				TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+
 				boolean isCache = true;
 				if (CollectionUtils.isEmpty(tapEventList) || tapEventList.size() < rows) {
 					tapEventList.clear();
 					isCache = false;
 					try {
-						createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
-						connectorNodeInit(dataProcessorContext);
-						TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
 						QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
 						if (null == queryByAdvanceFilterFunction){
 							throw new CoreException("Can not get test data from source, QueryByAdvanceFilterFunction is not supported.");
@@ -148,6 +149,8 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 					}
 				}
 				for (TapdataEvent tapdataEvent : tapdataEvents) {
+					TapEvent tapEvent = tapdataEvent.getTapEvent();
+					tapRecordToTapValue(tapEvent, codecsFilterManager);
 					while (true) {
 						if (offer(tapdataEvent)) {
 							break;

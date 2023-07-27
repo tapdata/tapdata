@@ -14,6 +14,8 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
+import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -110,7 +112,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         // check task nodes has js node
         DAG dag = taskDto.getDag();
         Optional<Node> jsNode = dag.getNodes().stream()
-                .filter(n -> (n instanceof MigrateJsProcessorNode || n instanceof JsProcessorNode) && !(n instanceof CustomProcessorNode))
+                .filter(n -> (n instanceof MigrateJsProcessorNode || n instanceof JsProcessorNode || n instanceof PyProcessNode || n instanceof MigratePyProcessNode) && !(n instanceof CustomProcessorNode))
                 .findFirst();
         if (jsNode.isPresent()) {
             List<TaskDagCheckLog> jsNodeLog = monitoringLogsService.getJsNodeLog(taskDto.getTransformTaskId(), taskDto.getName(), NodeEnum.valueOf(jsNode.get().getType()).getNodeName());

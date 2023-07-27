@@ -2,6 +2,7 @@ package io.tapdata.connector.kafka.config;
 
 import io.tapdata.connector.kafka.util.Krb5Util;
 import io.tapdata.kit.EmptyKit;
+import org.apache.kafka.clients.producer.KafkaProducer;
 
 import java.time.Duration;
 import java.util.HashMap;

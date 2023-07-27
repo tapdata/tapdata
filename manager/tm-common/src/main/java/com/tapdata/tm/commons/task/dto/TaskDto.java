@@ -165,6 +165,10 @@ public class TaskDto extends ParentTaskDto {
     private Long functionRetryEx;
     private String taskRetryStatus;
 
+    /** 使用的共享挖掘任务停止 */
+    private Boolean shareCdcStop;
+    private String shareCdcStopMessage;
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());

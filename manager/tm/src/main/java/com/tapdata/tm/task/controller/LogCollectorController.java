@@ -78,6 +78,11 @@ public class LogCollectorController extends BaseController {
         where.put("syncType", "logCollector");
 
         if (StringUtils.isBlank(connectionName)) {
+            if (StringUtils.isNotBlank(taskName)) {
+                where.remove("taskName");
+                where.put("name", taskName);
+
+            }
             return success(logCollectorService.find(filter, getLoginUser()));
         } else {
             return success(logCollectorService.findByConnectionName(taskName, connectionName, getLoginUser(), filter.getSkip(), filter.getLimit(), filter.getSort()));

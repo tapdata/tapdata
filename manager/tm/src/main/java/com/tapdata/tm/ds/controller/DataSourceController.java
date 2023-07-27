@@ -555,9 +555,13 @@ public class DataSourceController extends BaseController {
         List<TaskDto> taskList = dataSourceService.findTaskByConnectionId(connectionId, limit, loginUser);
         List<TaskDto> logTaskList = dataSourceService.findTaskByConnectionId(connectionId, limit,"logCollector", loginUser);
         List<Document> items = taskList.stream()
-                .map(task -> new Document("id", task.getId().toHexString())
-                        .append("name", task.getName())
-                        .append("syncType", task.getSyncType())).collect(Collectors.toList());
+                .map(task -> {
+                    Document append = new Document("id", task.getId().toHexString())
+                            .append("name", task.getName());
+                    String syncType = task.getShareCache() ? TaskDto.SYNC_TYPE_MEM_CACHE : task.getSyncType();
+                    append.append("syncType", syncType);
+                    return append;
+                }).collect(Collectors.toList());
         List<Document> logItems = logTaskList.stream()
                 .map(task -> new Document("id", task.getId().toHexString())
                         .append("name", task.getName())

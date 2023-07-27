@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.util;
 import io.tapdata.observable.logging.ObsLogger;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -19,6 +20,8 @@ public class DelayHandler {
     private final AtomicLong succeeded = new AtomicLong(0);
     private final AtomicLong failed = new AtomicLong(0);
 
+    private final AtomicBoolean end = new AtomicBoolean(false);
+
     public DelayHandler(ObsLogger obsLogger, String tag) {
         this.obsLogger = obsLogger;
         TAG = tag;
@@ -29,6 +32,10 @@ public class DelayHandler {
         try {
             if (processResult) {
                 succeeded.incrementAndGet();
+                if(end.get()){
+                    obsLogger.info("[{}] Successor node processing speed recovery", TAG);
+                    end.set(false);
+                }
             } else {
                 failed.incrementAndGet();
                 sleep();
@@ -46,8 +53,9 @@ public class DelayHandler {
             if (obsLogger.isDebugEnabled()) {
                 obsLogger.debug("[{}} Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
             }
-            if (relay > WARN_DELAY) {
+            if (relay > WARN_DELAY && !end.get()) {
                 obsLogger.warn("[{}] Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
+                end.set(true);
             }
             TimeUnit.MICROSECONDS.sleep(relay);
         }

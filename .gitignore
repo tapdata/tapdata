@@ -129,3 +129,5 @@ iengine/test
 
 
 
+**/.jython_cache/
+/*.dylib

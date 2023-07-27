@@ -30,6 +30,7 @@ public class DorisConfig extends CommonDbConfig {
     public DorisConfig load(Map<String, Object> map) {
         DorisConfig config = (DorisConfig) super.load(map);
         config.setSchema(config.getDatabase());
+        config.setDorisHttp(getDorisHttp().replace("http://", ""));
         return config;
     }
 
