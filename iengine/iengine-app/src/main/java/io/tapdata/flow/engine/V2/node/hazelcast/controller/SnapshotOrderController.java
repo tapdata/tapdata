@@ -234,6 +234,7 @@ public class SnapshotOrderController implements Serializable {
 		if (CollectionUtils.isNotEmpty(snapshotOrderList)) {
 			return "Node performs snapshot read by order list: " + snapshotOrderList.stream()
 					.map(so -> so.getNodeControllers().stream()
+							.filter(nc -> nc.getNode() != null)
 							.map(nc -> nc.getNode().getName())
 							.collect(Collectors.joining(",")))
 					.collect(Collectors.joining("->"));

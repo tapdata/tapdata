@@ -422,6 +422,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		}
 
 		void shutdown() {
+			finish();
 			Optional.ofNullable(this.batchConsumerThreadPool).ifPresent(ExecutorService::shutdownNow);
 		}
 	}
