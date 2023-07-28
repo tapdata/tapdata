@@ -1439,7 +1439,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         update(query,update, userDetail);
     }
 
-    public void saveWord(HttpServletResponse response, List<String> ids,String ip,UserDetail user){
+    public void saveWord(HttpServletResponse response, List<String> ids,String ip,String apiToken,UserDetail user){
         if (CollectionUtils.isEmpty(ids)||StringUtils.isBlank(ip)){
             return;
         }
@@ -1447,8 +1447,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
        Map<String,List<ModulesDto>> modules = allModules.stream().collect(Collectors.groupingBy(modulesDto -> {
             return modulesDto.getListtags().get(0).getValue();
         }));
-       ApiView apiView =ApiViewUtil.convert(modules,ip);
-       apiView.getApiTypeList();
+       ApiView apiView =ApiViewUtil.convert(modules,ip,apiToken);
         InputStream is = this.getClass().getClassLoader().getResourceAsStream("template/testTemplate.docx");
         if(is==null){
             log.error("未找到模板文件");
