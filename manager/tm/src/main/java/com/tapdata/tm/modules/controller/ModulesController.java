@@ -259,8 +259,9 @@ public class ModulesController extends BaseController {
 
   @Operation(summary = "api文档导出")
   @GetMapping("api/export")
-  public void batchLoadApis(@RequestParam("id") List<String> id,@RequestParam("ip") String ip, HttpServletResponse response) {
-    modulesService.saveWord(response, id,ip, getLoginUser());
+  public void batchLoadApis(@RequestParam("id") List<String> id,@RequestParam("ip") String ip,
+                            @RequestParam("api_token")String apiToken,HttpServletResponse response) {
+    modulesService.saveWord(response, id,ip,apiToken,getLoginUser());
   }
 
 }
