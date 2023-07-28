@@ -1,10 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.HazelcastUtil;
-import com.tapdata.constant.MapUtilV2;
-import com.tapdata.constant.NotExistsNode;
+import com.tapdata.constant.*;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.SyncStage;
@@ -964,9 +961,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			if (MapUtils.isNotEmpty(mergeCacheMap)) {
 				for (ConstructIMap<Document> constructIMap : mergeCacheMap.values()) {
 					try {
+						obsLogger.info("Destroy merge cache resource: {}", constructIMap.getName());
 						constructIMap.destroy();
 					} catch (Exception e) {
-						logger.warn("Destroy merge cache failed: {}", e.getMessage());
+						obsLogger.warn("Destroy merge cache failed, name: {}, error message: {}\nStack: {}", constructIMap.getName(), e.getMessage(), Log4jUtil.getStackString(e));
 					}
 				}
 			}

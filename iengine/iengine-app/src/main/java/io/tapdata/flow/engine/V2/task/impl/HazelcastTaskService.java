@@ -183,7 +183,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 //            return threadPoolExecutorEx.submitSync(() -> {
 			JobConfig jobConfig = new JobConfig();
 			jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
-			jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);
+			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			JetService jet = hazelcastInstance.getJet();
 			final JetDag jetDag = task2HazelcastDAG(taskDto);
 			obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");

@@ -136,6 +136,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected int originalWriteQueueCapacity;
 	protected int writeQueueCapacity;
 	protected final int[] dynamicAdjustQueueLock = new int[0];
+	private final ScheduledExecutorService flushOffsetExecutor;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -146,6 +147,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 //        });
 		queueConsumerThreadPool = AsyncUtils.createThreadPoolExecutor(String.format("Target-Queue-Consumer-%s[%s]@task-%s", getNode().getName(), getNode().getId(), dataProcessorContext.getTaskDto().getName()), 1, new ConnectorOnTaskThreadGroup(dataProcessorContext), TAG);
 		//threadPoolExecutorEx = AsyncUtils.createThreadPoolExecutor("Target-" + getNode().getName() + "@task-" + dataProcessorContext.getTaskDto().getName(), 1, new ConnectorOnTaskThreadGroup(dataProcessorContext), TAG);
+		flushOffsetExecutor = new ScheduledThreadPoolExecutor(1, r->{
+			Thread thread = new Thread(r);
+			thread.setName(String.format("Flush-Offset-Thread-%s(%s)-%s(%s)", dataProcessorContext.getTaskDto().getName(), dataProcessorContext.getTaskDto().getId().toHexString(), getNode().getName(), getNode().getId()));
+			return thread;
+		});
 		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.RUNNING);
 	}
 
@@ -159,6 +165,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			initTargetQueueConsumer();
 			initTargetConcurrentProcessorIfNeed();
 			initTapEventFilter();
+			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 	}
@@ -1063,6 +1070,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					l.notifyAll();
 				}
 			}), TAG);
+			CommonUtils.ignoreAnyError(()->Optional.ofNullable(this.flushOffsetExecutor).ifPresent(ExecutorService::shutdownNow), TAG);
+			CommonUtils.ignoreAnyError(this::saveToSnapshot, TAG);
 		} finally {
 			super.doClose();
 		}
