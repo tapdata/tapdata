@@ -160,7 +160,7 @@ public class TDengineConnector extends ConnectorBase {
         }
         DataMap nodeConfigMap = tapConnectorContext.getNodeConfig();
         String timestamp = nodeConfigMap.getString("timestamp");
-        String sql = "CREATE TABLE IF NOT EXISTS " + tdengineConfig.getDatabase() + "." + tapTable.getId() + "(" + TDengineSqlMaker.buildColumnDefinition(tapTable, timestamp);
+        String sql = "CREATE TABLE IF NOT EXISTS `" + tdengineConfig.getDatabase() + "`.`" + tapTable.getId() + "` (" + TDengineSqlMaker.buildColumnDefinition(tapTable, timestamp);
         sql += ")";
         try {
             List<String> sqls = TapSimplify.list();
