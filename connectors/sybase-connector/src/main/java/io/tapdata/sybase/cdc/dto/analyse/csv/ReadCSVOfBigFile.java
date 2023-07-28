@@ -19,15 +19,20 @@ import java.util.List;
  **/
 public class ReadCSVOfBigFile implements ReadCSV {
     @Override
-    public void read(String csvPath, CdcAccepter consumer) {
+    public void read(String csvPath, int offset, CdcAccepter consumer) {
         List<List<String>> lines = new ArrayList<>();
         String[] strArr = null;
-        int index = -1;
+        offset = Math.max(offset, 0);
+        int index = offset - 1;
         try (
                 FileInputStream inputStream = new FileInputStream(csvPath);
                 InputStreamReader inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
                 BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-                CSVReader reader = new CSVReader(bufferedReader)
+                CSVReader reader = new CSVReader(bufferedReader,
+                        ',',
+                        '"',
+                        '\\',
+                        offset)
         ) {
             while (null != (strArr = reader.readNext())) {
                 lines.add(new ArrayList<>(Arrays.asList(strArr)));

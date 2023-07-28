@@ -33,7 +33,7 @@ public class AnalyseCsvFile implements CdcStep<Void> {
         return null;
     }
 
-    public Void compile(ReadCSV readCSV) {
+    public Void compile(ReadCSV readCSV, int offset) {
         if (null == cdcFilePath) return null;
         readCSV.read(cdcFilePath, accepter);
         return null;

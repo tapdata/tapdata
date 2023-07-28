@@ -69,6 +69,7 @@ import io.tapdata.sybase.extend.SybaseConnectionTest;
 import io.tapdata.sybase.extend.SybaseContext;
 import io.tapdata.sybase.extend.SybaseReader;
 import io.tapdata.sybase.extend.SybaseSqlBatchWriter;
+import io.tapdata.sybase.util.Big5Ha;
 import io.tapdata.sybase.util.Code;
 import io.tapdata.sybase.util.Utils;
 import org.apache.commons.io.FilenameUtils;
@@ -559,7 +560,7 @@ public class SybaseConnector extends CommonDbConnector {
                     consumer
             );
             while (isAlive()) {
-                sleep(1000);
+                sleep(500);
             }
         } catch (Exception e) {
             tapConnectorContext.getLog().error("Sybase cdc is stopped now, error: {}", e.getMessage());

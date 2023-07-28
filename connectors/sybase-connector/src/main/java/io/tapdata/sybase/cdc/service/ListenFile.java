@@ -196,7 +196,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
             @Override
             public void onFileChange(File file0) {
                 try {
-                    Thread.sleep(100);
                     monitor(file0, tableMap);
                 } catch (Exception e) {
                     context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
@@ -206,7 +205,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
             @Override
             public void onFileCreate(File file0) {
                 try {
-                    Thread.sleep(100);
                     monitor(file0, tableMap);
                 } catch (Exception e) {
                     context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
@@ -290,7 +288,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                         }
                                     }
                                 }
-                            }).compile(new ReadCSVOfBigFile());
+                            }).compile(new ReadCSVOfBigFile(), csvOffset.getLine());
                         } finally {
                             if (!events[0].isEmpty()) {
                                 csvOffset.setOver(true);
@@ -372,29 +370,5 @@ public class ListenFile implements CdcStep<CdcRoot> {
         }
         return table;
     }
-
-//    private Map<String, String> currentFileNames;
-//
-//    private void deleteTempCSV(String tableName, String absolutePath) {
-//        if (null == currentFileNames) {
-//            currentFileNames = new ConcurrentHashMap<>();
-//        }
-//        final String thisTableCurrentFileName = currentFileNames.get(tableName);
-//        if (null == thisTableCurrentFileName) {
-//            currentFileNames.put(tableName, absolutePath);
-//        } else {
-//            if (!absolutePath.equals(thisTableCurrentFileName)) {
-//                File historyFile = new File(thisTableCurrentFileName);
-//                if (historyFile.exists() && historyFile.isFile()) {
-//                    try {
-//                        FileUtils.delete(historyFile);
-//                    } catch (Exception e) {
-//                        root.getContext().getLog().info("Can not to delete cdc cache file in {} of table name: {}", thisTableCurrentFileName, tableName);
-//                    }
-//                }
-//                currentFileNames.put(tableName, absolutePath);
-//            }
-//        }
-//    }
 
 }

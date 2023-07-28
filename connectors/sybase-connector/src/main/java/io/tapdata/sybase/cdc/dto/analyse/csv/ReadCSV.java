@@ -8,5 +8,9 @@ package io.tapdata.sybase.cdc.dto.analyse.csv;
 public interface ReadCSV {
     public static final int CDC_BATCH_SIZE = 500;
 
-    public void read(String csvPath, CdcAccepter accepter);
+    public default void read(String csvPath, CdcAccepter accepter){
+        read(csvPath, 0, accepter);
+    }
+
+    public void read(String csvPath, int offset, CdcAccepter accepter);
 }

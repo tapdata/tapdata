@@ -14,10 +14,11 @@ import java.util.List;
  * @author GavinXiao
  * @description ReadCSVStageImpl create by Gavin
  * @create 2023/7/24 12:08
+ * @deprecated can not read big file, this stage will be ignored after a moment
  **/
 public class ReadCSVStageImpl implements ReadCSV {
     @Override
-    public void read(String csvPath, CdcAccepter consumer) {
+    public void read(String csvPath, int offset, CdcAccepter consumer) {
         List<List<String>> lines = new ArrayList<>();
         String[] strArr = null;
         int index = -1;
@@ -30,10 +31,10 @@ public class ReadCSVStageImpl implements ReadCSV {
             while (null != (strArr = reader.readNext())) {
                 lines.add(new ArrayList<>(Arrays.asList(strArr)));
                 index++;
-//                if (lines.size() >= CDC_BATCH_SIZE) {
-//                    consumer.accept(lines, firstIndex, index);
-//                    lines = new ArrayList<>();
-//                }
+                if (lines.size() >= CDC_BATCH_SIZE) {
+                    consumer.accept(lines, firstIndex, index);
+                    lines = new ArrayList<>();
+                }
             }
         } catch (Exception e) {
             throw new CoreException("Monitor can not handle csv line, msg: " + e.getMessage());

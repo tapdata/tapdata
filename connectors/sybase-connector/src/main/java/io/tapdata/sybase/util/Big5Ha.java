@@ -29,7 +29,8 @@ public class Big5Ha {
                             if (inputStream == null) {
                                 return;
                             }
-                            try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                            try (InputStreamReader stream = new InputStreamReader(inputStream);
+                                 BufferedReader reader = new BufferedReader(stream)) {
                                 String line;
                                 while ((line = reader.readLine()) != null) {
                                     String[] split = line.split(" ");
