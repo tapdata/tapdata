@@ -11,6 +11,7 @@ import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -18,7 +19,6 @@ import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Scanner;
@@ -147,7 +147,7 @@ public class Utils {
 
     public static Date dateFormat(String formatStr, String formatPatter) throws ParseException {
         SimpleDateFormat format = new SimpleDateFormat(formatPatter);
-        return format.parse(formatStr);
+        return new Date(format.parse(formatStr).getTime());
     }
 
 //    public static void main(String[] args) throws ParseException {

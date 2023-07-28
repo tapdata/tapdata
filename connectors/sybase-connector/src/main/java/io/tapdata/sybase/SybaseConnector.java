@@ -22,6 +22,7 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapArrayValue;
 import io.tapdata.entity.schema.value.TapBooleanValue;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
@@ -76,6 +77,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -453,6 +455,11 @@ public class SybaseConnector extends CommonDbConnector {
                             if (null == value && dateTypeSet.contains(metaName)) {
                                 value = resultSet.getString(metaName);
                             }
+//                            else if (value instanceof Timestamp) {
+//                                Timestamp timestamp = (Timestamp) value;
+//                                long time = timestamp.getTime();
+//                                value = new DateTime(time, 6);
+//                            }
                             data.put(metaName, value);
                         }
                 }
