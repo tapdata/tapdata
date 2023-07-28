@@ -266,6 +266,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							Object tableOffset = ((Map<String, Object>) syncProgress.getBatchOffsetObj()).get(tapTable.getId());
 							obsLogger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
 
+							PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+							try {
 							executeDataFuncAspect(
 									BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
 											.eventBatchSize(readBatchSize)
@@ -277,7 +279,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									batchReadFuncAspect -> PDKInvocationMonitor.invoke(
 											getConnectorNode(),
 											PDKMethod.SOURCE_BATCH_READ,
-											createPdkMethodInvoker().runnable(() -> {
+											pdkMethodInvoker.runnable(() -> {
 														BiConsumer<List<TapEvent>, Object> consumer = (events, offsetObject) -> {
 															if (events != null && !events.isEmpty()) {
 																if (firstBatch.compareAndSet(true, false)) {
@@ -355,6 +357,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 													}
 											)
 									));
+							}
+							finally {
+								removePdkMethodInvoker(pdkMethodInvoker);
+							}
 							executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
 							enqueue(new TapdataCompleteTableSnapshotEvent(tableName));
 						} catch (Throwable throwable) {
@@ -847,6 +853,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							+ "\n - limit: " + tapAdvanceFilter.getLimit() + "\n - sort: " + tapAdvanceFilter.getSortOnList());
 				}
 				PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+				try {
 				int finalCdcPollingBatchSize = cdcPollingBatchSize;
 				AtomicBoolean hasData = new AtomicBoolean(false);
 				executeDataFuncAspect(
@@ -896,6 +903,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						));
 				if (!hasData.get() && (loopTime.get() == 1L || loopTime.get() % heartbeatTime == 0)) {
 					enqueue(TapdataHeartbeatEvent.create(System.currentTimeMillis(), syncProgress.getStreamOffsetObj(), SyncProgress.Type.POLLING_CDC));
+				}
+				}finally {
+					removePdkMethodInvoker(pdkMethodInvoker);
 				}
 			} catch (Throwable e) {
 				throw new RuntimeException("Query by advance filter failed, table: " + tapTable.getId() + ", filer: " + tapAdvanceFilter.getOperators() + ", sort: " + tapAdvanceFilter.getSortOnList() + ", limit: " + tapAdvanceFilter.getLimit(), e);
