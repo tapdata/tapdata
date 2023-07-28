@@ -7,6 +7,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.StringJoiner;
 
 /**
@@ -48,7 +52,7 @@ public class Code {
     }
 
 
-    public static final String INSERT_POC_TEST_SQL = "insert into tester.poc_test_no_txt (" +
+    public static final String INSERT_POC_TEST_SQL = "insert into tester.poc_test_no_txt_0 (" +
             "char_col," +
             "datetime_col," +
             "decimal_col," +
@@ -75,14 +79,14 @@ public class Code {
         PreparedStatement p = connection.prepareStatement(sql);
         int index = 1;
         p.setString(index++, new String("F".getBytes("utf-8"), "big5"));
-        p.setDate(index++, new Date(System.currentTimeMillis()));
+        p.setTimestamp(index++, new Timestamp(System.currentTimeMillis()));
         p.setDouble(index++, 2.36);
         p.setDouble(index++, 2.36);
         p.setInt(index++, 8);
         p.setDouble(index++, 3.33);
         p.setDouble(index++, 4.33);
         p.setString(index++, new String("B這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
-        p.setDate(index++, new Date(System.currentTimeMillis()));
+        p.setTimestamp(index++, new Timestamp(System.currentTimeMillis()));
         p.setInt(index++, 3);
         p.setString(index++, new String("BFdsd".getBytes("utf-8"), "big5"));
 //        p.setString(index++, new String(("" +
@@ -118,27 +122,34 @@ public class Code {
 //        String[] split2 = c.split("( )+");
 //        System.out.println();
 
-        System.out.println(System.currentTimeMillis());
-        //1690353671501
+//        try {
+//            String f = "2003-07-20 05:41:39.436";
+//            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+//            java.util.Date parse = format.parse(f);
+//            long time = parse.getTime();
+//            System.out.println(time);
+//        } catch (Exception e){
+//
+//        }
+
+
         try {
-
-            Thread.sleep(1000);
-        }catch (Exception e){
-
-        }
-        System.out.println(System.currentTimeMillis());
-
-        try {
-            Class.forName("net.sourceforge.jtds.jdbc.Driver");
-            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "tester", "guest1234");
-            Statement statement = conn.createStatement();
-            //insertOne("INSERT INTO tester.poc_test (varchar_col) VALUES (?)", conn);
-            for (int i = 0; i < 100000; i++) {
-                insert(INSERT_POC_TEST_SQL, conn);
-            }
-
-            //select("select top 1 * from tester.poc_test order by id desc", statement);
-            conn.close();
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
+            java.util.Date parse = format.parse("2023-07-28 10:13:26.185746");
+            System.out.println(parse.getTime());
+            System.out.println(parse.toInstant().getNano());
+            System.out.println(new Date(parse.getTime()).getTime());
+            System.out.println(new Date(parse.getTime()).toInstant().getNano());
+//            Class.forName("net.sourceforge.jtds.jdbc.Driver");
+//            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "", "");
+//            Statement statement = conn.createStatement();
+//            //insertOne("INSERT INTO tester.poc_test (varchar_col) VALUES (?)", conn);
+////            for (int i = 0; i < 100000; i++) {
+////                insert(INSERT_POC_TEST_SQL, conn);
+////            }
+////
+//            select("select top 2 * from tester.poc_test_no_id order by datetime_col asc", statement);
+//            conn.close();
         } catch (Exception e) {
             System.out.println(e.getMessage());
         }

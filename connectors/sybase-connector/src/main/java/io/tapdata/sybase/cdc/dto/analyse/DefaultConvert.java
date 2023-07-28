@@ -58,7 +58,7 @@ public class DefaultConvert implements SybaseDataTypeConvert {
                             //|| "DATETIME".equals(type)
                             //|| "BIGDATETIME".equals(type)
                             || "TIMESTAMP".equals(type)) {
-                        return objToDateTime(fromValue, "yyyy-MM-dd HH:mm:ss.SSS", type);
+                        return objToDateTime(fromValue, dateTimeFormat(type, 3), type);
                     } else if (type.startsWith("FLOAT")) {
                         bigDecimal = objToNumber(fromValue);
                         return null == bigDecimal ? null : bigDecimal.floatValue();
@@ -94,5 +94,34 @@ public class DefaultConvert implements SybaseDataTypeConvert {
             }
             throw new CoreException("Can not convert value {} to {} value, msg: {}", fromValue, type, e.getMessage());
         }
+    }
+
+    private String dateTimeFormat(String datetimeType, final int defaultCount){
+        String formatStart = "yyyy-MM-dd HH:mm:ss";
+        if (null == datetimeType || "".equals(datetimeType)) return formatStart;
+        int sCount = defaultCount;
+        if (datetimeType.matches(".*\\(\\d*\\).*")){
+            int index = datetimeType.lastIndexOf('(');
+            int lIndex = datetimeType.lastIndexOf(')');
+            if (index > 0 && lIndex > index){
+                try {
+                    sCount = Integer.parseInt(datetimeType.substring(index, lIndex));
+                }catch (Exception e){
+
+                }
+            }
+        }
+        if (sCount < 0 && defaultCount > 0) {
+            sCount = defaultCount;
+        }
+        if (sCount > 0) {
+            StringBuilder format = new StringBuilder(formatStart);
+            format.append(".");
+            for (int i = 0; i < sCount; i++) {
+                format.append("S");
+            }
+            return format.toString();
+        }
+        return formatStart;
     }
 }
