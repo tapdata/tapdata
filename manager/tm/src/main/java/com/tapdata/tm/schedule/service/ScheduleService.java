@@ -19,6 +19,8 @@ import org.quartz.TriggerBuilder;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @Slf4j
@@ -81,15 +83,75 @@ public class ScheduleService{
         if (scheduleDate < new Date().getTime()) {
 
             if (TaskDto.TYPE_INITIAL_SYNC_CDC.equals(taskDto.getType()) && TaskDto.STATUS_RUNNING.equals(status)) {
-                taskService.pause(taskId, userDetail, false, false, true);
+                CompletableFuture<String> pause = CompletableFuture.supplyAsync(() -> {
+                    taskService.pause(taskId, userDetail, false, false, true);
+                    return "ok";
+                });
+                CompletableFuture<String> renew = pause.thenCompose(result -> CompletableFuture.supplyAsync(() -> {
+                    performTaskWithSpin(taskId, TaskDto.STATUS_STOP, taskService);
+                    taskService.renew(taskId, userDetail, true);
+                    return "ok";
+                })).exceptionally(ex -> {
+                    log.error("schedule task pause error", ex);
+                    return "error";
+                });
+                CompletableFuture<String> start = renew.thenCompose(result -> CompletableFuture.supplyAsync(() -> {
+                    performTaskWithSpin(taskId, TaskDto.STATUS_WAIT_START, taskService);
+                    taskService.start(taskId, userDetail, true);
+                    return "ok";
+                })).exceptionally(ex -> {
+                    log.error("schedule renew pause error", ex);
+                    return "error";
+                });
+
+                start.join();
+
             } else if (Lists.newArrayList(TaskDto.STATUS_STOP, TaskDto.STATUS_COMPLETE, TaskDto.STATUS_ERROR).contains(status)){
-                taskService.renew(taskId, userDetail, true);
+                CompletableFuture<String> renew = CompletableFuture.supplyAsync(() -> {
+                    taskService.renew(taskId, userDetail, true);
+                    return "ok";
+                });
+                CompletableFuture<String> start = renew.thenCompose(result -> CompletableFuture.supplyAsync(() -> {
+                    performTaskWithSpin(taskId, TaskDto.STATUS_WAIT_START, taskService);
+                    taskService.start(taskId, userDetail, true);
+                    return "ok";
+                })).exceptionally(ex -> {
+                    log.error("schedule renew pause error", ex);
+                    return "error";
+                });
+
+                start.join();
             } else if (TaskDto.STATUS_WAIT_START.equals(status)) {
                 taskService.start(taskId, userDetail, true);
             } else {
                 log.warn("other status can not run, need check taskId:{} status:{}", taskId, status);
             }
         }
+    }
+
+    /**
+     * The state change is asynchronous, so spin has been added, with a maximum of 10 spins, each lasting 3 seconds
+     * @param taskId
+     * @param compareStatus
+     * @param taskService
+     */
+    private void performTaskWithSpin(ObjectId taskId, String compareStatus, TaskService taskService) {
+        int maxAttempts = 10;
+        int attempts = 0;
+
+        TaskDto taskDto = taskService.findByTaskId(taskId, "status");
+        String status = taskDto.getStatus();
+        do {
+            // If the status is not "OK", sleep for 3 seconds before the next attempt
+            if (!compareStatus.equals(status)) {
+                attempts++;
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        } while (!compareStatus.equals(status) && attempts < maxAttempts);
     }
 
 }
