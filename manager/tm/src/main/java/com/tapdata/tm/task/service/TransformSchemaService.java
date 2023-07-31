@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
@@ -246,6 +247,9 @@ public class TransformSchemaService {
                             return q.substring(0, i);
                         }).collect(Collectors.toList());
                     }
+                    qualifiedNames.addAll(metas);
+                }else if(node instanceof TableRenameProcessNode){
+                    List<String> metas  = metadataInstancesService.findDatabaseNodeQualifiedName(node.getId(), user,taskDto, null, null, includes);
                     qualifiedNames.addAll(metas);
                 }
             }
