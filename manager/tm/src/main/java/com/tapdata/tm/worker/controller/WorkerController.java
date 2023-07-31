@@ -25,10 +25,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -375,6 +372,9 @@ public class WorkerController extends BaseController {
         String processId = json.getString("process_id");
         String workerType = json.getString("worker_type");
         String checkSingletonLock = json.getString("singletonLock");
+				if (null != checkSingletonLock) {
+					checkSingletonLock = checkSingletonLock.trim();
+				}
 
         WorkerDto oldWorker = workerService.findOne(Query.query(Criteria
                 .where("process_id").is(processId)
