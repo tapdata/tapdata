@@ -52,7 +52,7 @@ public class Code {
     }
 
 
-    public static final String INSERT_POC_TEST_SQL = "insert into tester.poc_test_no_txt_0 (" +
+    public static final String INSERT_POC_TEST_SQL = "insert into tester.poc_test_no_txt (" +
             "char_col," +
             "datetime_col," +
             "decimal_col," +
@@ -133,22 +133,28 @@ public class Code {
 //        }
 
 
+//        String txt = "[{\"phase\":56332334906815740,\"payWayDesc\":\"支付平台\",\"expressPay\":false,\"payTime\":\"20230509215039000+0800\",\"payStatusDesc\":\"已付款\",\"payWay\":\"13\",\"cardPay\":false,\"payStatus\":\"6\",\"phasAmount\":1860}],\"nativeLogistics\":{\"area\":\"宝安区\",\"zip\":\"518101\",\"address\":\"广东省 深圳市 宝安区\",\"city\":\"深圳市\",\"contactPerson\":\"李生\",\"areaCode\":\"440306\",\"province\":\"广东省\"},\"baseInfo\":{\"allDeliveredTime\":\"20230510104404000+0800\",\"businessType\":\"cn\",\"buyerID\":\"b2b-23814857\",\"completeTime\":\"20230512160002000+0800\",\"createTime\":\"20230509214355000+0800\",\"id\":3339525816246816000,\"modifyTime\":\"20230601193805000+0800\",\"payTime\":\"20230509215039000+0800\",\"refund\":1860,\"sellerID\":\"b2b-42433677729db20\",\"shippingFee\":60,\"status\":\"cancel\",\"totalAmount\":1860,\"discount\":-19000,\"buyerContact\":{\"phone\":\"\",\"imInPlatform\":\"tshades\",\"name\":\"李文华\"},\"sellerContact\":{\"phone\":\"86-0663-17880500782\",\"imInPlatform\":\"戴格斯家用电器\",\"name\":\"林楷旭\",\"mobile\":\"17880500782\",\"companyName\":\"揭阳空港区京冈戴格斯家用电器厂\"},\"tradeType\":\"50060\",\"refundStatus\":\"refundsuccess\",\"refundPayment\":186000,\"idOfStr\":\"3339525816246815748\",\"alipayTradeId\":\"11210600023050961163010814857\",\"receiverInfo\":{\"toDivisionCode\":\"440306\",\"toArea\":\"广东省 深圳市 宝安区\",\"toFullName\":\"李生\",\"toPost\":\"518101\"},\"buyerLoginId\":\"tshades\",\"sellerLoginId\":\"戴格斯家用电器\",\"buyerUserId\":23814857,\"sellerUserId\":4243367772,\"buyerAlipayId\":\"2088002022016601\",\"sellerAlipayId\":\"2088332373643152\",\"sumProductPayment\":1995,\"stepPayAll\":false,\"overSeaOrder\":false},\"productItems\":[{\"cargoNumber\":\"001\",\"itemAmount\":1800,\"name\":\"新款家用二合一空气净化器 室内桌面除甲醛除烟小型台灯净化机\",\"price\":33.25,\"productID\":676651385016,\"productImgUrl\":[\"http://cbu01.alicdn.com/img/ibank/O1CN01euEhA31Bs2nYtrGOn_!!0-0-cib.80x80.jpg\",\"http://cbu01.alicdn.com/img/ibank/O1CN01euEhA31Bs2nYtrGOn_!!0-0-cib.jpg\"],\"productSnapshotUrl\":\"https://trade.1688.com/order/offer_snapshot.htm?order_entry_id=3339525816246815748\",\"quantity\":60,\"refund\":1800,\"s";
+//        System.out.println(txt.length());
+
         try {
-            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
-            java.util.Date parse = format.parse("2023-07-28 10:13:26.185746");
-            System.out.println(parse.getTime());
-            System.out.println(parse.toInstant().getNano());
-            System.out.println(new Date(parse.getTime()).getTime());
-            System.out.println(new Date(parse.getTime()).toInstant().getNano());
+//            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
+//            java.util.Date parse = format.parse("2023-07-28 10:13:26.185746");
+//            System.out.println(parse.getTime());
+//            System.out.println(parse.toInstant().getNano());
+//            System.out.println(new Date(parse.getTime()).getTime());
+//            System.out.println(new Date(parse.getTime()).toInstant().getNano());
+
 //            Class.forName("net.sourceforge.jtds.jdbc.Driver");
-//            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "", "");
+//            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "tester", "guest1234");
 //            Statement statement = conn.createStatement();
 //            //insertOne("INSERT INTO tester.poc_test (varchar_col) VALUES (?)", conn);
-////            for (int i = 0; i < 100000; i++) {
-////                insert(INSERT_POC_TEST_SQL, conn);
-////            }
-////
-//            select("select top 2 * from tester.poc_test_no_id order by datetime_col asc", statement);
+//            conn.setAutoCommit(false);
+//            for (int i = 0; i < 10; i++) {
+//                insert(INSERT_POC_TEST_SQL, conn);
+//            }
+//            conn.rollback();
+//
+//            //select("select top 2 * from tester.poc_test_no_id order by datetime_col asc", statement);
 //            conn.close();
         } catch (Exception e) {
             System.out.println(e.getMessage());

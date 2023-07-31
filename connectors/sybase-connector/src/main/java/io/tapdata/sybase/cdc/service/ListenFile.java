@@ -11,11 +11,13 @@ import io.tapdata.sybase.cdc.dto.analyse.AnalyseRecord;
 import io.tapdata.sybase.cdc.dto.analyse.AnalyseTapEventFromCsvString;
 import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVOfBigFile;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
+import io.tapdata.sybase.cdc.dto.read.TableTypeEntity;
 import io.tapdata.sybase.cdc.dto.watch.FileListener;
 import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
+import io.tapdata.sybase.util.Utils;
 import io.tapdata.sybase.util.YamlUtil;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.monitor.FileAlterationObserver;
@@ -84,7 +86,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
             if (null != fileMonitor) {
                 fileMonitor.stop();
             }
-            final Map<String, LinkedHashMap<String, String>> tableMap = getTableFromConfig(root.getCdcTables());
+            final Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap = getTableFromConfig(root.getCdcTables());
             //currentFileNames = null;
             if (null != tables) {
                 try {
@@ -124,7 +126,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
             throw new CoreException("Can not get tap connection context.");
         }
         //final KVReadOnlyMap<TapTable> tableMap = context.getTableMap();
-        final Map<String, LinkedHashMap<String, String>> tableMap = getTableFromConfig(root.getCdcTables());
+        final Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap = getTableFromConfig(root.getCdcTables());
         AtomicBoolean hasHandelInit = new AtomicBoolean(false);
 
         final Integer cdcCacheTime = Optional.ofNullable(nodeConfig.getCdcCacheTime()).orElse(10) * 60 * 1000;
@@ -211,7 +213,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 }
             }
 
-            private boolean monitor(File file, Map<String, LinkedHashMap<String, String>> tableMap) {
+            private boolean monitor(File file, Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap) {
                 boolean isThisFile = false;
                 String absolutePath = file.getAbsolutePath();
                 int indexOf = absolutePath.lastIndexOf('.');
@@ -234,7 +236,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         if (tableMap.isEmpty()) {
                             tableMap.putAll(getTableFromConfig(tables));
                         }
-                        LinkedHashMap<String, String> tapTable = tableMap.get(tableName);
+                        LinkedHashMap<String, TableTypeEntity> tapTable = tableMap.get(tableName);
                         if (null == tapTable) {
                             tableMap.putAll(getTableFromConfig(tables));
                             tapTable = tableMap.get(tableName);
@@ -257,12 +259,12 @@ public class ListenFile implements CdcStep<CdcRoot> {
                             csvOffset.setLine(0);
                             positionOffset.csvOffset(absolutePath, csvOffset);
                         }
-                        AtomicReference<LinkedHashMap<String, String>> tapTableAto = new AtomicReference<>(tapTable);
+                        AtomicReference<LinkedHashMap<String, TableTypeEntity>> tapTableAto = new AtomicReference<>(tapTable);
                         AtomicReference<CdcPosition.CSVOffset> csvOffsetAto = new AtomicReference<>(csvOffset);
                         try {
-                            analyseCsvFile.analyse(file.getAbsolutePath(), (compile, firstIndex, lastIndex) -> {
+                            analyseCsvFile.analyse(file.getAbsolutePath(), tapTable, (compile, firstIndex, lastIndex) -> {
                                 int csvFileLines = compile.size();
-                                LinkedHashMap<String, String> tableItem = tapTableAto.get();
+                                LinkedHashMap<String, TableTypeEntity> tableItem = tapTableAto.get();
                                 CdcPosition.CSVOffset offset = csvOffsetAto.get();
                                 int lineItem = offset.getLine();
                                 if (lineItem <= lastIndex) {
@@ -330,8 +332,8 @@ public class ListenFile implements CdcStep<CdcRoot> {
         return this.root;
     }
 
-    private Map<String, LinkedHashMap<String, String>> getTableFromConfig(List<String> tableId) {
-        Map<String, LinkedHashMap<String, String>> table = new LinkedHashMap<>();
+    private Map<String, LinkedHashMap<String, TableTypeEntity>> getTableFromConfig(List<String> tableId) {
+        Map<String, LinkedHashMap<String, TableTypeEntity>> table = new LinkedHashMap<>();
         if (null == tableId || tableId.isEmpty()) return table;
         final ConnectionConfig config = new ConnectionConfig(root.getContext());
         final String username = config.getUsername();
@@ -353,11 +355,11 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                 if (columns instanceof Collection) {
                                     String tableName = String.valueOf(tableInfo.get("name"));
                                     Collection<Map<String, Object>> columnsList = (Collection<Map<String, Object>>) columns;
-                                    LinkedHashMap<String, String> tableClo = new LinkedHashMap<>();
+                                    LinkedHashMap<String, TableTypeEntity> tableClo = new LinkedHashMap<>();
                                     columnsList.stream().filter(Objects::nonNull).forEach(clo -> {
                                         String name = String.valueOf(clo.get("name"));
                                         String type = String.valueOf(clo.get("type"));
-                                        tableClo.put(name, type);
+                                        tableClo.put(name, new TableTypeEntity(type, name, Utils.parseLengthFromTypeName(type)));
                                     });
                                     table.put(tableName, tableClo);
                                 }

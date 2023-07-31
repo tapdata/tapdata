@@ -50,6 +50,23 @@ public class Utils {
         return map;
     }
 
+    public static int parseLengthFromTypeName(String type){
+        int length = 0;
+        try {
+            if (null != type && type.matches(".*\\(\\d*\\)")){
+                int indexOf = type.lastIndexOf('(');
+                int indexOfEnd = type.lastIndexOf(')');
+                if (indexOf > -1 && indexOfEnd > indexOf) {
+                    String len = type.substring(indexOf + 1, indexOfEnd);
+                    length = Integer.parseInt(len);
+                }
+            }
+        } catch (Exception e){
+            length = 0;
+        }
+        return length;
+    }
+
     public static void main(String[] args) throws ClassNotFoundException {
         final String sql = "INSERT INTO tester.table_full_data_type(" +
                 " field_id, field_bit, field_tinyint, field_smallint, field_unsigned_smallint, field_int, field_unsigned_int, field_bigint, field_unsigned_bigint," +

@@ -91,9 +91,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -446,21 +448,16 @@ public class SybaseConnector extends CommonDbConnector {
                         data.put(metaName, resultSet.getString(metaName));
                         break;
                     default:
-                        if (metaType.contains("CHAR")
+                        if ( needEncode && (metaType.contains("CHAR")
                                 || metaType.contains("TEXT")
-                                || metaType.contains("SYSNAME")) {
+                                || metaType.contains("SYSNAME"))) {
                             String string = resultSet.getString(metaName);
-                            data.put(metaName, null == string ? null : (needEncode ? Utils.convertString(string, encode, decode) : string));
+                            data.put(metaName, Utils.convertString(string, encode, decode));
                         } else {
                             Object value = resultSet.getObject(metaName);
                             if (null == value && dateTypeSet.contains(metaName)) {
                                 value = resultSet.getString(metaName);
                             }
-//                            else if (value instanceof Timestamp) {
-//                                Timestamp timestamp = (Timestamp) value;
-//                                long time = timestamp.getTime();
-//                                value = new DateTime(time, 6);
-//                            }
                             data.put(metaName, value);
                         }
                 }
@@ -500,14 +497,14 @@ public class SybaseConnector extends CommonDbConnector {
                     tapEvents[0].add(insertRecordEvent(filterTimeForMysql0(resultSet, typeAndNameFromMetaData, dateTypeSet), tableId).referenceTime(System.currentTimeMillis()));
                     if (tapEvents[0].size() == eventBatchSize) {
                         eventsOffsetConsumer.accept(tapEvents[0], offsetState);
-                        tapEvents[0] = list();
+                        tapEvents[0] = new ArrayList<>();
                     }
                 }
             });
         } catch (Exception e) {
             tapConnectorContext.getLog().error("Batch read failed, table name: {}, error msg: {}", tableId, e.getMessage());
         } finally {
-            if (EmptyKit.isNotEmpty(tapEvents[0])) {
+            if (!tapEvents[0].isEmpty()) {
                 eventsOffsetConsumer.accept(tapEvents[0], offsetState);
             }
         }

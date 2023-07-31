@@ -260,7 +260,7 @@
           "title": "${decode_name}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "default": "big5",
+          "default": "big5-ha",
           "x-display": "hidden",
           "x-index": 30,
           "x-reactions": {

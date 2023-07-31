@@ -2,6 +2,7 @@ package io.tapdata.sybase.cdc.dto.analyse;
 
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.sybase.cdc.dto.read.TableTypeEntity;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
 
@@ -29,7 +30,7 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
      *                 }
      */
     @Override
-    public TapRecordEvent analyse(List<String> record, LinkedHashMap<String, String> tapTable, String tableId, ConnectionConfig config, NodeConfig nodeConfig) {
+    public TapRecordEvent analyse(List<String> record, LinkedHashMap<String, TableTypeEntity> tapTable, String tableId, ConnectionConfig config, NodeConfig nodeConfig) {
         // 6,NULL,1,
         // 2023-07-13 20:43:05.0,NULL,1,
         // "sfas"",""dsafas",NULL,1,
@@ -68,9 +69,10 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
         Map<String, Object> before = new HashMap<>();
         final boolean isDel = DELETE.equals(cdcType);
         final boolean isIns = INSERT.equals(cdcType);
-        for (Map.Entry<String, String> fieldEntry : tapTable.entrySet()) {
+        for (Map.Entry<String, TableTypeEntity> fieldEntry : tapTable.entrySet()) {
             final String fieldName = fieldEntry.getKey();
-            final String sybaseType = fieldEntry.getValue();
+            final TableTypeEntity typeEntity = fieldEntry.getValue();
+            final String sybaseType = typeEntity.getType();
             int fieldValueIndex = index * 3;
             if (!isDel) {
                 final Object value = recordKeyCount <= fieldValueIndex ? null : record.get(fieldValueIndex);
