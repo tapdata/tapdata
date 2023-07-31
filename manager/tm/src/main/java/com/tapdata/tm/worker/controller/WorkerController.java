@@ -376,6 +376,7 @@ public class WorkerController extends BaseController {
         String processId = json.getString("process_id");
         String workerType = json.getString("worker_type");
         String checkSingletonLock = json.getString("singletonLock");
+        checkSingletonLock = "force";
 
         WorkerDto oldWorker = workerService.findOne(Query.query(Criteria
                 .where("process_id").is(processId)
