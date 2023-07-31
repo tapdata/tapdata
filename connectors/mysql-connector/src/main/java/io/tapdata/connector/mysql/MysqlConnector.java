@@ -377,8 +377,8 @@ public class MysqlConnector extends CommonDbConnector {
     }
 
     private void batchReadV2(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
-        String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> "`" + c + "`").collect(Collectors.joining(","));
-        String sql = String.format("SELECT %s FROM `" + tapConnectorContext.getConnectionConfig().getString("database") + "`.`" + tapTable.getId() + "`", columns);
+//        String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> "`" + c + "`").collect(Collectors.joining(","));
+        String sql = String.format("SELECT * FROM `" + tapConnectorContext.getConnectionConfig().getString("database") + "`.`" + tapTable.getId() + "`");
 
         mysqlJdbcContext.query(sql, resultSet -> {
             List<TapEvent> tapEvents = list();
