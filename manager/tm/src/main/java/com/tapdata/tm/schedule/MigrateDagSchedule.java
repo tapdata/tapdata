@@ -27,8 +27,8 @@ public class MigrateDagSchedule {
         taskService.startPlanMigrateDagTask();
     }
 
-    @Scheduled(fixedDelay = 10 * 1000)
-    @SchedulerLock(name = "startPlanCronTaskLock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    @Scheduled(fixedDelay = 5 * 1000)
+//    @SchedulerLock(name = "startPlanCronTaskLock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void startPlanCronTask() {
         taskService.startPlanCronTask();
     }
