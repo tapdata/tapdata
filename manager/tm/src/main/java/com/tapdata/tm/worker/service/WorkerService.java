@@ -606,22 +606,22 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
         boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
         Criteria where = Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType());
-        if (!WorkerSingletonLock.checkDBTag(worker.getSingletonLock(), worker.getWorkerType(), isCloud, () -> Optional
-                .of(Query.query(where))
-                .map(query -> {
-                    query.fields().include("singletonLock", "ping_time");
-                    return query;
-                }).flatMap(query -> repository.findOne(query).map(w -> {
-                    // 如果超时，返回当前 worker tag 表示可以启动
-                    if (isAgentTimeout(w.getPingTime())) {
-                        return null;
-                    }
-                    return w.getSingletonLock();
-                }))
-                .orElse(worker.getSingletonLock())
-        )) {
-            return null;
-        }
+//        if (!WorkerSingletonLock.checkDBTag(worker.getSingletonLock(), worker.getWorkerType(), isCloud, () -> Optional
+//                .of(Query.query(where))
+//                .map(query -> {
+//                    query.fields().include("singletonLock", "ping_time");
+//                    return query;
+//                }).flatMap(query -> repository.findOne(query).map(w -> {
+//                    // 如果超时，返回当前 worker tag 表示可以启动
+//                    if (isAgentTimeout(w.getPingTime())) {
+//                        return null;
+//                    }
+//                    return w.getSingletonLock();
+//                }))
+//                .orElse(worker.getSingletonLock())
+//        )) {
+//            return null;
+//        }
 
         repository.upsert(Query.query(where),
                 convertToEntity(Worker.class, worker), loginUser
