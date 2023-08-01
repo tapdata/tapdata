@@ -1,5 +1,6 @@
 package io.tapdata.mongodb.writer;
 
+import com.alibaba.fastjson.JSON;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoBulkWriteException;
 import com.mongodb.bulk.BulkWriteError;
@@ -96,7 +97,8 @@ public class MongodbWriter {
 		BulkWriteModel bulkWriteModel = buildBulkWriteModel(tapRecordEvents, table, inserted, updated, deleted, collection, pks);
 
 		if (bulkWriteModel.isEmpty()) {
-			throw new RuntimeException("Bulk write data failed, write model list is empty, received record size: " + tapRecordEvents.size());
+			throw new RuntimeException("Bulk write data failed, write model list is empty, received record size: " + tapRecordEvents.size()
+			+" tapRecordEvents:"+ JSON.toJSONString(tapRecordEvents));
 		}
 
 		BulkWriteOptions bulkWriteOptions;
