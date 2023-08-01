@@ -24,7 +24,7 @@ public class GreenplumWriteRecorder extends WriteRecorder {
     }
 
     @Override
-    public void addInsertBatch(Map<String, Object> after) throws SQLException {
+    public void addInsertBatch(Map<String, Object> after, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         if (EmptyKit.isEmpty(after)) {
             return;
         }
