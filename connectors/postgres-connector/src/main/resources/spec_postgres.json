@@ -242,6 +242,32 @@
           ]
         }
       }
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "closeNotNull": {
+          "type": "boolean",
+          "title": "${closeNotNull}",
+          "default": false,
+          "x-index": 1,
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-decorator-props": {
+            "tooltip": "${closeNotNullTooltip}"
+          },
+          "x-reactions": [
+            {
+              "dependencies": ["$inputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
+        }
+      }
     }
   },
   "messages": {
@@ -256,7 +282,9 @@
       "user" : "user",
       "password" : "password",
       "logPluginName" : "logPluginName",
-      "timezone": "timezone"
+      "timezone": "timezone",
+      "closeNotNull": "Ignore NotNull",
+      "closeNotNullTooltip": "When the switch is turned on, non empty restrictions are discarded"
     },
     "zh_CN": {
       "doc": "docs/postgres_zh_CN.md",
@@ -268,7 +296,9 @@
       "user" : "账号",
       "password" : "密码",
       "logPluginName" : "日志插件",
-      "timezone": "时区"
+      "timezone": "时区",
+      "closeNotNull": "忽略NotNull",
+      "closeNotNullTooltip": "开关打开时会将非空限制丢弃"
     },
     "zh_TW": {
       "doc": "docs/postgres_zh_TW.md",
@@ -280,7 +310,9 @@
       "user" : "賬號",
       "password" : "密碼",
       "logPluginName" : "日誌插件",
-      "timezone": "時區"
+      "timezone": "時區",
+      "closeNotNull": "忽略NotNull",
+      "closeNotNullTooltip": "開關打開時會將非空限制丟棄"
     }
   },
   "dataTypes": {
