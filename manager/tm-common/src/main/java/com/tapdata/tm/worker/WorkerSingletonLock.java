@@ -19,7 +19,7 @@ import java.util.function.Supplier;
  */
 public class WorkerSingletonLock implements AutoCloseable {
 
-    private static final boolean ENABLE = true;
+    private static final boolean ENABLE = Boolean.parseBoolean(System.getProperty("agentSingletonLock", "true"));
     public static final String STOP_AGENT = "To stop agent";
     private static final String FILE_PATH = ".agentSingletonLock";
 
@@ -146,4 +146,11 @@ public class WorkerSingletonLock implements AutoCloseable {
         }
         return true;
     }
+
+		public static String formatSingletonLock(String singletonLock) {
+			if (!ENABLE) return "force";
+			if (null == singletonLock) return "";
+
+			return singletonLock.trim();
+		}
 }
