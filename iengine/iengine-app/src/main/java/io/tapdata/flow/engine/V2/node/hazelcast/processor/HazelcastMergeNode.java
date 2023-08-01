@@ -76,6 +76,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	private TapdataEvent createIndexEvent;
 	private final Map<String, Node<?>> preNodeMap = new ConcurrentHashMap<>();
 	private final Map<String, io.tapdata.pdk.apis.entity.merge.MergeTableProperties> preNodeIdPdkMergeTablePropertieMap = new ConcurrentHashMap<>();
+	private Map<String, Integer> sourceNodeLevelMap;
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -124,10 +125,32 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		initSourceNodeMap(null);
 		initSourceConnectionMap(null);
 		initSourcePkOrUniqueFieldMap(null);
+		initSourceNodeLevelMap(null, 1);
 
 		TapCreateIndexEvent mergeConfigCreateIndexEvent = generateCreateIndexEventsForTarget();
 		this.createIndexEvent = new TapdataEvent();
 		this.createIndexEvent.setTapEvent(mergeConfigCreateIndexEvent);
+	}
+
+	private void initSourceNodeLevelMap(List<MergeTableProperties> mergeProperties, int level) {
+		Node node = getNode();
+
+		if (!(node instanceof MergeTableNode)) {
+			return;
+		}
+		MergeTableNode mergeTableNode = (MergeTableNode) node;
+		if (null == mergeProperties) {
+			mergeProperties = mergeTableNode.getMergeProperties();
+		}
+		if (null == this.sourceNodeLevelMap) {
+			this.sourceNodeLevelMap = new HashMap<>();
+		}
+		for (MergeTableProperties mergeProperty : mergeProperties) {
+			this.sourceNodeLevelMap.put(mergeProperty.getId(), level);
+			if (CollectionUtils.isNotEmpty(mergeProperty.getChildren())) {
+				initSourceNodeLevelMap(mergeProperty.getChildren(), level + 1);
+			}
+		}
 	}
 
 	@Override
@@ -225,6 +248,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		if (tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY) == null || !(tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY) instanceof MergeInfo)) {
 			MergeInfo mergeInfo = new MergeInfo();
 			mergeInfo.setCurrentProperty(preNodeIdPdkMergeTablePropertieMap.get(preNodeId));
+			mergeInfo.setLevel(this.sourceNodeLevelMap.get(preNodeId));
 			tapdataEvent.getTapEvent().addInfo(MergeInfo.EVENT_INFO_KEY, mergeInfo);
 			return mergeInfo;
 		} else {
