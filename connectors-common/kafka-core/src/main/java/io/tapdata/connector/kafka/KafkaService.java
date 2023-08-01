@@ -14,6 +14,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -54,8 +55,9 @@ public class KafkaService extends AbstractMqService {
 
     }
 
-    public KafkaService(KafkaConfig mqConfig) {
+    public KafkaService(KafkaConfig mqConfig, Log tapLogger) {
         this.mqConfig = mqConfig;
+        this.tapLogger = tapLogger;
         ProducerConfiguration producerConfiguration = new ProducerConfiguration(mqConfig, connectorId);
         try {
             kafkaProducer = new KafkaProducer<>(producerConfiguration.build());
@@ -98,7 +100,7 @@ public class KafkaService extends AbstractMqService {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "when connect to cluster, error occurred");
+            return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "when connect to cluster, error occurred " + e.getMessage());
         }
     }
 

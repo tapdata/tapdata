@@ -161,6 +161,11 @@ public abstract class LogMiner implements ILogMiner {
         isRunning.set(false);
         Optional.ofNullable(redoLogConsumerThreadPool).ifPresent(ExecutorService::shutdown);
         redoLogConsumerThreadPool = null;
+        transactionBucket.values().forEach(logTransaction -> {
+            if (logTransaction.isLarge()) {
+                logTransaction.clearRedoLogContents();
+            }
+        });
     }
 
     protected void processOrBuffRedoLogContent(RedoLogContent redoLogContent,

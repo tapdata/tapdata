@@ -41,7 +41,6 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
-import oshi.driver.mac.net.NetStat;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -281,6 +280,7 @@ public class MeasurementServiceV2 {
         boolean typeIsTask = false;
         boolean typeIsEngine = false;
         String taskId = "";
+        String taskRecordId = "";
         for (Map.Entry<String, String> entry : querySample.getTags().entrySet()) {
             String format = String.format(TAG_FORMAT, entry.getKey());
             String value = entry.getValue();
@@ -294,6 +294,9 @@ public class MeasurementServiceV2 {
             }
             if (format.equals("tags.taskId")) {
                 taskId = value;
+            }
+            if (format.equals("tags.taskRecordId")) {
+                taskRecordId = value;
             }
         }
 
@@ -385,6 +388,10 @@ public class MeasurementServiceV2 {
                 }
             }
 
+            if (typeIsTask && StringUtils.isNotBlank(taskId) && StringUtils.isNotBlank(taskRecordId)) {
+                values.put("lastFiveMinutesQps", getTaskLastFiveMinutesQps(querySample.getTags()));
+            }
+
             if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
                 Number currentEventTimestamp = values.get("currentEventTimestamp");
                 Number snapshotStartAt = values.get("snapshotStartAt");
@@ -398,6 +405,33 @@ public class MeasurementServiceV2 {
             sample.setVs(values);
         }
         return data;
+    }
+
+    private Double getTaskLastFiveMinutesQps(Map<String, String> tags) {
+        Criteria criteria = new Criteria();
+        tags.forEach((k,v)->{
+            String format = String.format(TAG_FORMAT, k);
+            criteria.and(format).is(v);
+        });
+        criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+        MatchOperation match = Aggregation.match(criteria);
+        SortOperation sort = Aggregation.sort(Sort.by(Sort.Direction.DESC, "_id"));
+        LimitOperation limit = Aggregation.limit(5);
+        UnwindOperation unwind = Aggregation.unwind("ss", false);
+        GroupOperation group = Aggregation.group().avg("ss.vs.inputQps").as("qps");
+        Aggregation aggregation = Aggregation.newAggregation(match, sort, limit, unwind, group);
+        aggregation.withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
+        List<Map> mappedResults = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, Map.class).getMappedResults();
+        if (CollectionUtils.isNotEmpty(mappedResults)) {
+            Map map = mappedResults.get(0);
+            if (map.containsKey("qps")) {
+                try {
+                    return Double.parseDouble(map.get("qps").toString());
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return 0D;
     }
 
     public Map<String, Sample> getDifferenceSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end) {

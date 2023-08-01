@@ -129,7 +129,11 @@ public class LdpServiceImpl implements LdpService {
         String connectionId = databaseNode.getConnectionId();
 
         String type = generateLdpTaskType(connectionId, user);
-        task.setType(type);
+        if (!type.equals(task.getType())) {
+            if (!TaskDto.TYPE_INITIAL_SYNC_CDC.equals(type)) {
+                throw new BizException("Ldp.TaskTypeError", type, task.getType());
+            }
+        }
 
 
         Criteria criteria = fdmTaskCriteria(connectionId);
@@ -167,6 +171,8 @@ public class LdpServiceImpl implements LdpService {
 
 
             String initType = task.getType();
+            String initCrontabExpression = task.getCrontabExpression();
+            Boolean initCrontabExpressionFlag = task.getCrontabExpressionFlag();
             if (StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
                 mergeAllTable(user, connectionId, oldTask, oldTableNames);
                 task = oldTask;
@@ -178,6 +184,8 @@ public class LdpServiceImpl implements LdpService {
                 task = createNew(task, dag, oldTask);
             }
             task.setType(initType);
+            task.setCrontabExpression(initCrontabExpression);
+            task.setCrontabExpressionFlag(initCrontabExpressionFlag);
         } else if (StringUtils.isNotBlank(databaseNode.getTableExpression())) {
             mergeAllTable(user, connectionId, task, null);
         } else {
@@ -494,7 +502,11 @@ public class LdpServiceImpl implements LdpService {
                     if (node instanceof TableNode) {
                         String connectionId = ((TableNode) node).getConnectionId();
                         String type = generateLdpTaskType(connectionId, user);
-                        task.setType(type);
+                        if (!type.equals(task.getType())) {
+                            if (!TaskDto.TYPE_INITIAL_SYNC_CDC.equals(type)) {
+                                throw new BizException("Ldp.TaskTypeError", type, task.getType());
+                            }
+                        }
                     }
                 }
             }

@@ -1,5 +1,7 @@
 package com.tapdata.tm.externalStorage.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.ConnectionString;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
@@ -7,30 +9,39 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
 import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
+import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
+import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.AES256Util;
+import com.tapdata.tm.utils.SpringContextHelper;
+import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.ws.dto.MessageInfo;
+import com.tapdata.tm.ws.enums.MessageType;
+import com.tapdata.tm.ws.handler.TestExternalStorageHandler;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 /**
  * @Author: sam
@@ -48,6 +59,10 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 
 	@Autowired
 	private TaskService taskService;
+	@Autowired
+	private MessageQueueService messageQueueService;
+	@Autowired
+	private WorkerService workerService;
 
 	public ExternalStorageService(@NonNull ExternalStorageRepository repository) {
 		super(repository, ExternalStorageDto.class, ExternalStorageEntity.class);
@@ -55,17 +70,24 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 
 	@Override
 	public <T extends BaseDto> ExternalStorageDto save(ExternalStorageDto externalStorage, UserDetail userDetail) {
+		ExternalStorageDto result;
 		if (externalStorage.getId() != null) {
 			Query query = new Query(Criteria.where("_id").is(externalStorage.getId()));
 			this.updateByWhere(query, externalStorage, userDetail);
-			return findOne(query);
+			result = findOne(query);
 		} else {
 			externalStorage.setId(null);
 			externalStorage.setCanDelete(true);
 			externalStorage.setCanEdit(true);
-			return super.save(externalStorage, userDetail);
+			if (!externalStorage.getType().equals(ExternalStorageType.mongodb.name())) {
+				externalStorage.setStatus(DataSourceConnectionDto.STATUS_READY);
+			}
+			result = super.save(externalStorage, userDetail);
+			if (result.getType().equals(ExternalStorageType.mongodb.name())) {
+				sendTestConnection(result, userDetail);
+			}
 		}
-
+		return result;
 	}
 
 
@@ -312,5 +334,43 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 			}
 		}
 		return externalStorageEntity;
+	}
+
+	public void sendTestConnection(ExternalStorageDto externalStorageDto, UserDetail user) {
+		log.info("Send external storage test connection, external storage = {}", externalStorageDto.getName());
+
+		List<Worker> availableAgent = workerService.findAvailableAgent(user);
+		if (org.apache.commons.collections4.CollectionUtils.isEmpty(availableAgent)) {
+			log.warn("Send external storage test connection failed, agent not found");
+			return;
+		}
+
+		String processId = availableAgent.get(0).getProcessId();
+		Map<String, Object> data = new HashMap<>();
+		data.put("id", externalStorageDto.getId().toHexString());
+		MessageQueueDto queueDto = new MessageQueueDto();
+
+		TestExternalStorageHandler testExternalStorageHandler = SpringContextHelper.getBean(TestExternalStorageHandler.class);
+		if (null == testExternalStorageHandler) {
+			return;
+		}
+		MessageInfo messageInfo = testExternalStorageHandler.wrapMessageInfo(user, data, MessageType.TEST_CONNECTION);
+		if (null == messageInfo) {
+			return;
+		}
+		BeanUtils.copyProperties(messageInfo, queueDto);
+		if (!(queueDto.getData() instanceof Map)) {
+			return;
+		}
+		((Map)queueDto.getData()).put("editTest", false);
+		((Map)queueDto.getData()).put("type", MessageType.TEST_CONNECTION.getType());
+		queueDto.setReceiver(processId);
+		queueDto.setType("pipe");
+
+		log.info("Build send test connection websocket context, processId = {}, userId = {}", processId, user.getUserId());
+		messageQueueService.sendMessage(queueDto);
+
+		Update update = Update.update("status", "testing").set("testTime", System.currentTimeMillis());
+		update(new Query(Criteria.where("_id").is(externalStorageDto.getId())), update, user);
 	}
 }

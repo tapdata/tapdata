@@ -1,40 +1,33 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <artifactId>connectors</artifactId>
         <groupId>io.tapdata</groupId>
+        <artifactId>connectors-unpackage</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>hive3-connector</artifactId>
+    <artifactId>greenplum-connector</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <name>hive3-connector</name>
-    <description>hive3-connector</description>
+    <packaging>jar</packaging>
+
 
     <properties>
-        <java.version>1.8</java.version>
-        <hive.core.version>1.0-SNAPSHOT</hive.core.version>
-        <hive.version>3.1.3</hive.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <java.version>8</java.version>
+        <tapdata.pdk.api.version>1.2.2-SNAPSHOT</tapdata.pdk.api.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>tapdata-pdk-api</artifactId>
-            <version>${tapdata.pdk.api.version}</version>
-            <scope>provided</scope>
+            <artifactId>postgres-connector</artifactId>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>hive-core</artifactId>
-            <version>${hive.core.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.hive</groupId>
-            <artifactId>hive-jdbc</artifactId>
-            <version>${hive.version}</version>
+            <artifactId>tapdata-pdk-api</artifactId>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
@@ -66,7 +59,7 @@
                             <PDK-Runner-Version>${tapdata.pdk.runner.version}</PDK-Runner-Version>
                             <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
                             <Tapdata-API-Version>${tapdata.pdk.api.version}</Tapdata-API-Version>
-                            <Version>${version}</Version>
+                            <Version>${project.version}</Version>
                             <Authentication>Alpha</Authentication>
                             <Git-Build-Time>${git.build.time}</Git-Build-Time>
                             <Git-Branch>${git.branch}</Git-Branch>

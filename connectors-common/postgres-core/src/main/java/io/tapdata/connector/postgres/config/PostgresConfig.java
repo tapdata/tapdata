@@ -13,6 +13,7 @@ import java.io.Serializable;
 public class PostgresConfig extends CommonDbConfig implements Serializable {
 
     private String logPluginName = "pgoutput"; //default log plugin for postgres, pay attention to lower version
+    private Boolean closeNotNull = false;
 
     //customize
     public PostgresConfig() {
@@ -26,5 +27,13 @@ public class PostgresConfig extends CommonDbConfig implements Serializable {
 
     public void setLogPluginName(String logPluginName) {
         this.logPluginName = logPluginName;
+    }
+
+    public Boolean getCloseNotNull() {
+        return closeNotNull;
+    }
+
+    public void setCloseNotNull(Boolean closeNotNull) {
+        this.closeNotNull = closeNotNull;
     }
 }

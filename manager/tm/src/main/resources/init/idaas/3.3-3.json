@@ -1,0 +1,21 @@
+[
+  {
+    "update": "ExternalStorage",
+    "updates": [
+      {
+        "q": {
+          "status": {
+            "$exists" : false
+          }
+        },
+        "u": {
+          "$set": {
+            "status": "ready"
+          }
+        },
+        "upsert": false,
+        "multi": true
+      }
+    ]
+  }
+]

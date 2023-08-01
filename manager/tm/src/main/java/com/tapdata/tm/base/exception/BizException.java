@@ -13,13 +13,14 @@ import lombok.Setter;
 @Setter
 public class BizException extends RuntimeException {
 
+	public static final String SYSTEM_ERROR = "SystemError";
 	private String errorCode;
 	private Object[] args;
 
 	public BizException (String errorCode){
 		super(MessageUtil.getMessage(errorCode));
 		args = new Object[]{errorCode};
-		this.errorCode = this.getMessage().equals(errorCode) ? "SystemError" : errorCode;
+		this.errorCode = this.getMessage().equals(errorCode) ? SYSTEM_ERROR : errorCode;
 	}
 
 	public BizException (String errorCode, Object... args){

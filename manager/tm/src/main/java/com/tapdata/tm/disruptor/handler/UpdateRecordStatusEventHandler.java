@@ -3,12 +3,14 @@ package com.tapdata.tm.disruptor.handler;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Maps;
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
@@ -148,7 +150,10 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
         }
 
         if(null != update) {
-            taskService.update(query, update);
+            System.out.println(query.getQueryObject().toJson());
+            System.out.println(update.getUpdateObject().toJson());
+            UpdateResult updateResult = taskService.updateMany(query, update);
+            System.out.println(updateResult);
         }
     }
 }

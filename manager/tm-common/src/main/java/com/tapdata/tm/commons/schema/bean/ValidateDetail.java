@@ -5,9 +5,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import org.springframework.data.mongodb.core.mapping.Field;
 
-@Data
-public class ValidateDetail {
+import java.io.Serializable;
 
+@Data
+public class ValidateDetail implements Serializable {
+
+    private static final long serialVersionUID = -7975659308570408391L;
     /** 测试项目代码  */
     @JsonProperty("stage_code")
     @Field("stage_code")

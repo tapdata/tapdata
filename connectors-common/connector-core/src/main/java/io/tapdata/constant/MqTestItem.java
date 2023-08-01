@@ -9,6 +9,7 @@ public enum MqTestItem {
     ROCKET_MQ_CONNECTION("Check rocketmq service is invalid"),
     KAFKA_BASE64_CONNECTION("Test Kafka KDC Domains Base64"),
     KAFKA_MQ_CONNECTION("Check Kafka service is invalid"),
+    KAFKA_SCHEMA_REGISTER_CONNECTION("Check Kafka schema register service is invalid"),
     ;
 
     private final String content;
