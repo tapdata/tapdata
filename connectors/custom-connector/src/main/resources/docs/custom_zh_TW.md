@@ -19,11 +19,11 @@ rest.get(url, header, connectTimeOut, readTimeOut)
 rest.get(url, header, returnType, connectTimeOut, readTimeOut)
 
 // 調用http的 get 方法
-// returnType: 返回的結果類型，默認為array
+// returnType: 返回的結果類型，默認為: array，可选："object", "string", "array"
 // connectTimeOut：連接超時時間，單位毫秒(ms)，默認為 10000 ms，需要指定連接超時時間時可以使用該參數
 // readTimeOut：讀取超時時間，單位毫秒(ms)，默認為 30000 ms，需要指定讀取超時時間時可以使用該參數
 
-var result = rest.get('http://127.0.0.1:1234/users?id=1', {}, '[array/object/string]', 30, 300);
+var result = rest.get('http://127.0.0.1:1234/users?id=1', {}, 'array', 30, 300);
 ```
 
 ```javascript
@@ -33,11 +33,11 @@ rest.post(url, parameters, connectTimeOut, readTimeOut)
 rest.post(url, parameters, headers, returnType, connectTimeOut, readTimeOut)
 
 // 調用http的 post 方法
-// returnType: 返回的結果類型，默認為array
+// returnType: 返回的結果類型，默認為: array，可选："object", "string", "array"
 // connectTimeOut：連接超時時間，單位毫秒(ms)，默認為 10000 ms，需要指定連接超時時間時可以使用該參數
 // readTimeOut：讀取超時時間，單位毫秒(ms)，默認為 30000 ms，需要指定讀取超時時間時可以使用該參數
 
-var result = rest.post('http://127.0.0.1:1234/users/find', {}, {}, '[array/object/string]', 30, 300);
+var result = rest.post('http://127.0.0.1:1234/users/find', {}, {}, 'array', 30, 300);
 ```
 
 ```javascript
