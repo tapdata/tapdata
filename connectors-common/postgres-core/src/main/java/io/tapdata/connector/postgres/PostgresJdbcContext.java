@@ -29,19 +29,6 @@ public class PostgresJdbcContext extends JdbcContext {
         exceptionCollector = new PostgresExceptionCollector();
     }
 
-    public TimeZone queryTimeZone() throws SQLException {
-        AtomicReference<String> timeOffset = new AtomicReference<>("+00:00:00");
-        AtomicReference<String> timezoneName = new AtomicReference<>();
-        queryWithNext(PG_TIMEZONE, resultSet -> timezoneName.set(resultSet.getString(1)));
-        queryWithNext(String.format(PG_TIMEZONE_0, timezoneName.get()), resultSet -> timeOffset.set(resultSet.getString(3)));
-        return TimeZone.getTimeZone(ZoneId.of(
-                (timeOffset.get()).startsWith("-")
-                        ? timeOffset.get()
-                        : (
-                                (timeOffset.get()).startsWith("+")
-                                        ? timeOffset.get() : ("+" + timeOffset.get()))));
-    }
-
     /**
      * query version of database
      *
