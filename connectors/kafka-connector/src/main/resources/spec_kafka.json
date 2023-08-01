@@ -277,7 +277,7 @@
       "write_all_isr": "Write to all ISR partitions",
       "kafkaCompressionType": "Message compression type",
       "kafkaIgnorePushError": "Ignore push message exception",
-      "enableScript": "",
+      "enableScript": "Custom message body format",
       "script": "script",
       "scriptTooltip": "1. Parameter Description:\n· 'record' is the data record, including 'header' and 'data', where 'data' contains 'before' and 'after'.\n· 'op' represents the operation type, with a total of 3 options: insert, update, and delete.\n· 'conditionKeys' is the collection of primary key field names.\n2. Examples:\n· Add the operation type to the Kafka message: record.data.op = op\n· Add a custom header: record.header.test='test header'\n· Delete the 'before' field: delete record.data.before\n· Discard the data record: return null"
     },
@@ -328,7 +328,7 @@
       "write_all_isr": "寫入所有ISR分區",
       "kafkaCompressionType": "消息壓縮類型",
       "kafkaIgnorePushError": "忽略推理消息異常",
-      "enableScript": "",
+      "enableScript": "自定義消息體格式",
       "script": "腳本",
       "scriptTooltip": "1.參數說明\n·record為每條數據記錄，包含header和data，data中包含before和after\n·op為操作類型，共有 3 種：insert，update，delete\n·conditionKeys為主鍵字段名集合\n2.示例\n·在 Kafka message中添加操作類型：record.data.op = op\n·添加自訂header：record.header.test = 'test header'\n·刪除before：delete record.data.before\n·丟棄該條數據：return null"
     }
