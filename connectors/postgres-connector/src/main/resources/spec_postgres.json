@@ -246,13 +246,26 @@
     "node": {
       "type": "object",
       "properties": {
-        "ignoreNull": {
+        "closeNotNull": {
           "type": "boolean",
-          "title": "${ignoreNull}",
+          "title": "${closeNotNull}",
+          "default": false,
+          "x-index": 1,
           "x-decorator": "FormItem",
           "x-component": "Switch",
-          "default": false,
-          "x-index": 10
+          "x-decorator-props": {
+            "tooltip": "${closeNotNullTooltip}"
+          },
+          "x-reactions": [
+            {
+              "dependencies": ["$inputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         }
       }
     }
@@ -270,7 +283,8 @@
       "password" : "password",
       "logPluginName" : "logPluginName",
       "timezone": "timezone",
-      "ignoreNull": "Allow field attributes to be null when creating a table"
+      "closeNotNull": "Ignore NotNull",
+      "closeNotNullTooltip": "When the switch is turned on, non empty restrictions are discarded"
     },
     "zh_CN": {
       "doc": "docs/postgres_zh_CN.md",
@@ -283,7 +297,8 @@
       "password" : "密码",
       "logPluginName" : "日志插件",
       "timezone": "时区",
-      "ignoreNull": "建表时允许字段非空"
+      "closeNotNull": "忽略NotNull",
+      "closeNotNullTooltip": "开关打开时会将非空限制丢弃"
     },
     "zh_TW": {
       "doc": "docs/postgres_zh_TW.md",
@@ -296,7 +311,8 @@
       "password" : "密碼",
       "logPluginName" : "日誌插件",
       "timezone": "時區",
-      "ignoreNull": "建錶時允許欄位非空"
+      "closeNotNull": "忽略NotNull",
+      "closeNotNullTooltip": "開關打開時會將非空限制丟棄"
     }
   },
   "dataTypes": {
@@ -417,7 +433,7 @@
     },
     "date": {
       "range": [
-        "1601-01-01",
+        "0001-01-01",
         "9999-12-31"
       ],
       "pattern": "yyyy-MM-dd",
@@ -431,7 +447,7 @@
     },
     "timestamp[($fraction)] without time zone": {
       "range": [
-        "1601-01-01 00:00:00",
+        "1000-01-01 00:00:00",
         "9999-12-31 23:59:59"
       ],
       "pattern": "yyyy-MM-dd HH:mm:ss",
@@ -446,7 +462,7 @@
     },
     "timestamp[($fraction)] with time zone": {
       "range": [
-        "1601-01-01 00:00:00",
+        "1000-01-01 00:00:00",
         "9999-12-31 23:59:59"
       ],
       "pattern": "yyyy-MM-dd HH:mm:ss",
