@@ -15,10 +15,8 @@ import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
 import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapArrayValue;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapDateValue;
@@ -57,12 +55,7 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.Date;
 import java.util.List;
-import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -81,7 +74,6 @@ public class PostgresConnector extends CommonDbConnector {
     private PostgresCdcRunner cdcRunner; //only when task start-pause this variable can be shared
     private Object slotName; //must be stored in stateMap
     protected String postgresVersion;
-    private TimeZone timezone;
     boolean ignoreFieldNotNullWhenCreateTable = false;
 
     //initialize jdbc context, slot name, version
@@ -94,7 +86,6 @@ public class PostgresConnector extends CommonDbConnector {
         jdbcContext = postgresJdbcContext;
         isConnectorStarted(connectionContext, tapConnectorContext -> slotName = tapConnectorContext.getStateMap().get("tapdata_pg_slot"));
         if (connectionContext instanceof TapConnectorContext) {
-            this.timezone = postgresJdbcContext.queryTimeZone();
             DataMap nodeConfig = connectionContext.getNodeConfig();
             ignoreFieldNotNullWhenCreateTable = null == nodeConfig || null == nodeConfig.get("ignoreNull") || (boolean) nodeConfig.get("ignoreNull");
         }
@@ -204,29 +195,6 @@ public class PostgresConnector extends CommonDbConnector {
         codecRegistry.registerFromTapValue(TapArrayValue.class, "text", tapValue -> {
             if (tapValue != null && tapValue.getValue() != null) return toJson(tapValue.getValue());
             return "null";
-        });
-
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
-            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
-                tapDateTimeValue.getValue().setTimeZone(timezone);
-            }
-            return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss");
-        });
-        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
-            if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
-                tapDateValue.getValue().setTimeZone(timezone);
-            }
-            return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
-        });
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> {
-            Date date = tapTimeValue.getValue().toDate();
-            return LocalDateTime.ofInstant(date.toInstant(), null == timezone ? TimeZone.getDefault().toZoneId() : timezone.toZoneId());
-        });
-        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
-            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
-                tapYearValue.getValue().setTimeZone(timezone);
-            }
-            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
         });
 
         codecRegistry.registerToTapValue(PgArray.class, (value, tapType) -> {
