@@ -36,7 +36,10 @@ import java.util.stream.Collectors;
 @Setter
 @Slf4j
 public class MergeTableNode extends ProcessorNode {
+    public static final String MAIN_TABLE_FIRST_MERGE_MODE = "main_table_first";
+    public static final String SUB_TABLE_FIRST_MERGE_MODE = "sub_table_first";
     private List<MergeTableProperties> mergeProperties;
+    private String mergeMode = MAIN_TABLE_FIRST_MERGE_MODE;
 
     public MergeTableNode() {
         super("merge_table_processor");
