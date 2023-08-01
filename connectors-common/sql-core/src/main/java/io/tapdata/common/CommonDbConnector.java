@@ -135,15 +135,13 @@ public abstract class CommonDbConnector extends ConnectorBase {
 
         Map<String, TapField> fieldMap = tapTable.getNameFieldMap();
         for (String field : fieldMap.keySet()) {
-            TapField tapField = fieldMap.get(field);
-            String fieldDefault = (String) tapField.getDefaultValue();
+            String fieldDefault = (String) fieldMap.get(field).getDefaultValue();
             if (EmptyKit.isNotEmpty(fieldDefault)) {
                 if (fieldDefault.contains("'")) {
                     fieldDefault = fieldDefault.replaceAll("'", "''");
-                    tapField.setDefaultValue(fieldDefault);
+                    fieldMap.get(field).setDefaultValue(fieldDefault);
                 }
             }
-            createTableFieldsAttributeWithConnectorConfig(tapField);
         }
         List<String> sqlList = TapSimplify.list();
         sqlList.add(getCreateTableSql(tapTable, commentInField));
@@ -168,11 +166,6 @@ public abstract class CommonDbConnector extends ConnectorBase {
         }
         createTableOptions.setTableExists(false);
         return createTableOptions;
-    }
-
-
-    protected void createTableFieldsAttributeWithConnectorConfig(TapField tapField){
-
     }
 
     //for pg,oracle type
