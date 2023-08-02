@@ -15,6 +15,13 @@ import java.util.List;
 @Data
 public class ClusterStateDto extends BaseDto {
 
+    public static final String ENGINE_STARTING = "starting";
+    public static final String ENGINE_RUNNING = "running";
+    public static final String ENGINE_RESTARTING = "restarting";
+    public static final String ENGINE_STOPPING = "stopping";
+    public static final String ENGINE_STOPPED = "stopped";
+
+
     private SystemInfo systemInfo;
 
     private Integer reportInterval;

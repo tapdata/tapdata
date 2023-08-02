@@ -67,21 +67,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import javax.servlet.http.HttpServletRequest;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.StringJoiner;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -89,9 +75,7 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static io.tapdata.entity.simplify.TapSimplify.entry;
 import static io.tapdata.entity.simplify.TapSimplify.fromJson;
-import static io.tapdata.entity.simplify.TapSimplify.map;
 
 @Service
 @Slf4j
@@ -227,7 +211,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         List<String> currentTableList = Lists.newArrayList();
         if (StringUtils.isNotBlank(searchTableName)) {
             currentTableList.add(searchTableName);
-            tableNames = tableNames.stream().filter(s -> s.contains(searchTableName)).collect(Collectors.toList());
+            tableNames = tableNames.stream().filter(s -> s.toUpperCase().contains(searchTableName.toUpperCase())).collect(Collectors.toList());
         }
 
         if (CollectionUtils.isEmpty(tableNames)) {
@@ -818,21 +802,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
     }
 
-    private Map<String, Object> wsTestRun(UserDetail userDetail, TaskDto taskDto, TaskDto taskDtoCopy){
-        // WS
-        List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
-        if (CollectionUtils.isEmpty(workers)) {
-            throw new BizException("no agent");
-        }
-
-        MessageQueueDto queueDto = new MessageQueueDto();
-        queueDto.setReceiver(workers.get(0).getProcessId());
-        queueDto.setData(taskDtoCopy);
-        queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
-        messageQueueService.sendMessage(queueDto);
-        return new HashMap<>();
-    }
-
     private Map.Entry<String, Map<String, Object>> getLoginUserAttributes() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
         HttpServletRequest request = attributes.getRequest();
@@ -864,7 +833,20 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
     }
 
+    private Map<String, Object> wsTestRun(UserDetail userDetail, TaskDto taskDto, TaskDto taskDtoCopy){
+        // WS
+        List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
+        if (CollectionUtils.isEmpty(workers)) {
+            throw new BizException("no agent");
+        }
 
+        MessageQueueDto queueDto = new MessageQueueDto();
+        queueDto.setReceiver(workers.get(0).getProcessId());
+        queueDto.setData(taskDtoCopy);
+        queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
+        messageQueueService.sendMessage(queueDto);
+        return new HashMap<>();
+    }
     private Map<String,Object> resultMap(String testTaskId, boolean isSucceed, String message){
         Map<String, Object> errorMap = new HashMap<>();
         errorMap.put("taskId", testTaskId);

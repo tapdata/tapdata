@@ -9,7 +9,10 @@ public enum KeyEnum {
     ALLOW_CONNECTION_TYPE("ALLOW_CONNECTION_TYPE"),
     EMAIL_RECEIVER("email.receivers"),
     EMAIL_TITLE_PREFIX("email.title.prefix"),
-    BUILD_PROFILE("buildProfile")
+    BUILD_PROFILE("buildProfile"),
+    SHARE_AGENT_CREATE_USER("shareAgentCreateUser"),
+    SUPPORT_CDC_CONNECTION("supportCdcConnection"),
+    SHARE_AGENT_EXPRIRE_DAYS("shareAgentExprireDays")
     ;
 
     private String value;

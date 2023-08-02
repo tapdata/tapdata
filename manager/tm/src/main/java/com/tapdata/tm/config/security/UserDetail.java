@@ -21,6 +21,7 @@ import java.util.*;
 public class UserDetail implements Serializable, UserDetails {
 	private static final long serialVersionUID = -8293875593519087622L;
 	private String userId;
+	private String tcmUserId;
 	private String customerId;
 	private String username;
 	private String password;
@@ -76,6 +77,7 @@ public class UserDetail implements Serializable, UserDetails {
 		}
 
 		this.userId = user.getId().toHexString();
+		this.tcmUserId = user.getUserId();
 		this.customerId = user.getCustomId();
 		this.accessCode = user.getAccessCode();
 		this.username = user.getUsername();

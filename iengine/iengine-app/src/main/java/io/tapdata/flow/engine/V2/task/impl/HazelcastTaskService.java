@@ -114,7 +114,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -379,6 +378,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 //						TaskDto.SYNC_TYPE_TEST_RUN,
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 			tapTableMap = TapTableUtil.getTapTableMap(node, tmCurrentTime);
+		} else if (node instanceof VirtualTargetNode) {
+			tapTableMap = TapTableMap.create(node.getId());
 		} else {
 			tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
 		}

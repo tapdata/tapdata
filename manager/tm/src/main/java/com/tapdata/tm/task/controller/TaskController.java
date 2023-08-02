@@ -1,7 +1,7 @@
 package com.tapdata.tm.task.controller;
 
+import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
-import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
@@ -25,7 +25,6 @@ import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
-import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.LogSettingParam;
@@ -34,6 +33,7 @@ import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.github.openlg.graphlib.Graph;
@@ -79,17 +79,11 @@ public class TaskController extends BaseController {
     private MetadataDefinitionService metadataDefinitionService;
     private DataSourceDefinitionService definitionService;
     private TaskCheckInspectService taskCheckInspectService;
-    private MetadataInstancesService metadataInstancesService;
     private TaskNodeService taskNodeService;
     private TaskSaveService taskSaveService;
-    private TaskStartService taskStartService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private TaskRecordService taskRecordService;
     private WorkerService workerService;
-    private AlarmService alarmService;
-
-    private TaskResetLogService taskResetLogService;
-
     private UserService userService;
 
     /**
@@ -101,8 +95,10 @@ public class TaskController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
     public ResponseMessage<TaskDto> save(@RequestBody TaskDto task) {
+        UserDetail user = getLoginUser();
+
         task.setId(null);
-        return success(taskService.create(task, getLoginUser()));
+        return success(taskService.create(task, user));
     }
 
     /**
@@ -115,12 +111,12 @@ public class TaskController extends BaseController {
     @PatchMapping()
     public ResponseMessage<TaskDto> update(@RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
+
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
         taskSaveService.supplementAlarm(task, user);
         task.setStatus(null);
         return success(taskService.updateById(task, user));
     }
-
 
     /**
      * 获取数据开发列表
@@ -144,7 +140,24 @@ public class TaskController extends BaseController {
             filter.setLimit(10000);
         }
 
-        return success(taskService.find(filter, getLoginUser()));
+        UserDetail userDetail;
+        Where where = filter.getWhere();
+        if (where.containsKey("_id") || where.containsKey("id")) {
+            Object objectId = where.get("_id");
+            String taskId;
+            if (objectId != null)
+                taskId = objectId instanceof Map ? ((Map) objectId).get("$oid").toString() : objectId.toString();
+            else taskId = where.get("id").toString();
+            TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+            if (taskDto == null) {
+                return success(new Page<>());
+            }
+            userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+        } else {
+            userDetail = getLoginUser();
+        }
+
+        return success(taskService.find(filter, userDetail));
     }
 
 
@@ -288,6 +301,10 @@ public class TaskController extends BaseController {
                 if (Objects.nonNull(taskRecord)) {
                     taskDto.setStartTime(taskRecord.getStartTime());
                 }
+            }
+
+            if (StringUtils.isNotBlank(taskDto.getCrontabScheduleMsg())) {
+                taskDto.setCrontabScheduleMsg(MessageUtil.getMessage(taskDto.getCrontabScheduleMsg()));
             }
         }
         return success(taskDto);
@@ -450,7 +467,22 @@ public class TaskController extends BaseController {
            }
         }
 
-        long count = taskService.updateByWhere(where, update, getLoginUser());
+        UserDetail userDetail;
+        if (where.containsKey("_id") || where.containsKey("id")) {
+            Object objectId = where.get("_id");
+            String taskId;
+            if (objectId != null)
+                taskId = objectId instanceof Map ? ((Map) objectId).get("$oid").toString() : objectId.toString();
+            else taskId = where.get("id").toString();
+            TaskDto taskDto = taskService.findById(new ObjectId(taskId));
+            Assert.notNull(taskDto, "task not found");
+            userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+        } else {
+            userDetail = getLoginUser();
+        }
+
+
+        long count = taskService.updateByWhere(where, update, userDetail);
         HashMap<String, Long> countValue = new HashMap<>();
         countValue.put("count", count);
 
@@ -465,9 +497,9 @@ public class TaskController extends BaseController {
                 String name = taskDto.getName();
                 log.info("subtask addMessage ,id :{},name :{},status:{}  ", id, name, status);
                 if ("error".equals(status)) {
-                    messageService.addMigration(name, idString, MsgTypeEnum.STOPPED_BY_ERROR, Level.ERROR, getLoginUser());
+                    messageService.addMigration(name, idString, MsgTypeEnum.STOPPED_BY_ERROR, Level.ERROR, userDetail);
                 } else if ("running".equals(status)) {
-                    messageService.addMigration(name, idString, MsgTypeEnum.CONNECTED, Level.INFO, getLoginUser());
+                    messageService.addMigration(name, idString, MsgTypeEnum.CONNECTED, Level.INFO, userDetail);
                 }
             }
         } catch (Exception e) {
@@ -577,7 +609,11 @@ public class TaskController extends BaseController {
     @PostMapping("running/{id}")
     public ResponseMessage<TaskOpResp> running(@PathVariable("id") String id) {
         log.info("subTask running status report by http, id = {}", id);
-        String successId = taskService.running(MongoUtils.toObjectId(id), getLoginUser());
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
+        Assert.notNull(taskDto, "task is empty");
+        UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+
+        String successId = taskService.running(MongoUtils.toObjectId(id), userDetail);
         TaskOpResp taskOpResp = new TaskOpResp();
         if (StringUtils.isBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
@@ -594,7 +630,11 @@ public class TaskController extends BaseController {
     @PostMapping("runError/{id}")
     public ResponseMessage<TaskOpResp> runError(@PathVariable("id") String id, @RequestParam(value = "errMsg", required = false) String errMsg,
                                                 @RequestParam(value = "errStack", required = false) String errStack) {
-        String successId = taskService.runError(MongoUtils.toObjectId(id), getLoginUser(), errMsg, errStack);
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
+        Assert.notNull(taskDto, "task is empty");
+        UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+
+        String successId = taskService.runError(MongoUtils.toObjectId(id), userDetail, errMsg, errStack);
         TaskOpResp taskOpResp = new TaskOpResp();
         if (StringUtils.isBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
@@ -611,7 +651,11 @@ public class TaskController extends BaseController {
     @Operation(summary = "任务执行完成回调接口")
     @PostMapping("complete/{id}")
     public ResponseMessage<TaskOpResp> complete(@PathVariable("id") String id) {
-        String successId = taskService.complete(MongoUtils.toObjectId(id), getLoginUser());
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
+        Assert.notNull(taskDto, "task is empty");
+        UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+
+        String successId = taskService.complete(MongoUtils.toObjectId(id), userDetail);
         TaskOpResp taskOpResp = new TaskOpResp();
         if (StringUtils.isBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
@@ -628,7 +672,11 @@ public class TaskController extends BaseController {
     @Operation(summary = "停止成功回调接口")
     @PostMapping("stopped/{id}")
     public ResponseMessage<TaskOpResp> stopped(@PathVariable("id") String id) {
-        String successId = taskService.stopped(MongoUtils.toObjectId(id), getLoginUser());
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
+        Assert.notNull(taskDto, "task is empty");
+        UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+
+        String successId = taskService.stopped(MongoUtils.toObjectId(id), userDetail);
         TaskOpResp taskOpResp = new TaskOpResp();
         if (StringUtils.isBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
@@ -977,13 +1025,21 @@ public class TaskController extends BaseController {
 
     @GetMapping("transformParam/{taskId}")
     public ResponseMessage<TransformerWsMessageDto> findTransformParam(@PathVariable("taskId") String taskId) {
-        TransformerWsMessageDto dto = taskService.findTransformParam(taskId, getLoginUser());
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        Assert.notNull(taskDto, "task is empty");
+        UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+
+        TransformerWsMessageDto dto = taskService.findTransformParam(taskId, userDetail);
         return success(dto);
     }
 
     @GetMapping("transformAllParam/{taskId}")
     public ResponseMessage<TransformerWsMessageDto> findTransformAllParam(@PathVariable("taskId") String taskId) {
-        TransformerWsMessageDto dto = taskService.findTransformAllParam(taskId, getLoginUser());
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        Assert.notNull(taskDto, "task is empty");
+        UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+
+        TransformerWsMessageDto dto = taskService.findTransformAllParam(taskId, userDetail);
         return success(dto);
     }
 

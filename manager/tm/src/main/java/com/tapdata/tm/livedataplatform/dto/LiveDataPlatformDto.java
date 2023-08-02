@@ -8,9 +8,9 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class LiveDataPlatformDto extends BaseDto {
-    private String mode;
+    private String mode; // 数据集成 integration, 数据服务 service
 
-    private String fdmStorageCluster;
+    private String fdmStorageCluster; // 自建: self、全托管: full-management
 
     private String fdmStorageConnectionId;
 

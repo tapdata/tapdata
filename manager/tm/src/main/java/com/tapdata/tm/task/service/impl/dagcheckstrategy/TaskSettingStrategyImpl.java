@@ -11,11 +11,15 @@ import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
+import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
+import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -32,6 +36,8 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
     
     private TaskService taskService;
     private DataSourceService dataSourceService;
+    private WorkerService workerService;
+    private TaskDagCheckLogService taskDagCheckLogService;
 
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.TASK_SETTING_CHECK;
     
@@ -93,6 +99,22 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
                     result.add(checkLog);
                 }
             }
+        }
+
+        // check plan task and cron task
+        if (taskDto.isPlanStartDateFlag() || taskDto.getCrontabExpressionFlag()) {
+            CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, userDetail, "task", taskDto.getName());
+            if (StringUtils.isNotBlank(taskDto.getAgentId()) && calculationEngineVo.getRunningNum() >= calculationEngineVo.getTaskLimit()) {
+                // 调度失败
+                taskDto.setCrontabScheduleMsg("Task.ScheduleLimit");
+                taskService.save(taskDto, userDetail);
+
+                TaskDagCheckLog planLog = taskDagCheckLogService.createLog(taskId.toHexString(), "",
+                        userDetail.getUserId(), Level.WARN, templateEnum,
+                        MessageUtil.getDagCheckMsg(locale, "TASK_SCHEDULE_LIMIT"), "");
+                result.add(planLog);
+            }
+
         }
 
         return result;

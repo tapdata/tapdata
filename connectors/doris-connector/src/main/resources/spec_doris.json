@@ -37,6 +37,14 @@
           "required": true,
           "x-index": 30
         },
+        "catalog": {
+          "type": "string",
+          "title": "${catalog}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "catalog_name",
+          "x-index": 35
+        },
         "database": {
           "type": "string",
           "title": "${database}",
@@ -309,6 +317,7 @@
       "host": "DB Address",
       "port": "Port",
       "dorisHttp": "Http Address",
+      "catalog": "Doris Catalog",
       "database": "DB Name",
       "user": "User",
       "password": "Password",
@@ -317,7 +326,7 @@
       "timezoneTips": "Affect Type: DATE",
       "writeByteBufferCapacity": "Write buffer capacity(KB)",
       "writeFormat": "Write format",
-      "doc": "docs/readme_zh_CN.md",
+      "doc": "docs/readme_en_US.md",
       "duplicateKey": "duplicateKey",
       "distributedKey": "distributedKey",
       "replicationNum": "replicationNum"
@@ -326,6 +335,7 @@
       "host": "数据库地址",
       "port": "端口",
       "dorisHttp": "http接口地址",
+      "catalog": "Doris目录",
       "database": "数据库名称",
       "user": "账号",
       "password": "密码",
@@ -343,6 +353,7 @@
       "host": "数据库地址",
       "port": "端口",
       "dorisHttp": "http接口地址",
+      "catalog": "Doris目錄",
       "database": "数据库名称",
       "user": "账号",
       "password": "密码",

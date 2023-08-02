@@ -170,7 +170,6 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
     public Query applyUserDetail(Query query, UserDetail userDetail) {
         Assert.notNull(query, "Entity must not be null!");
         Assert.notNull(userDetail, "UserDetail must not be null!");
-
         boolean hasAdminRole = userDetail.getAuthorities().contains(new SimpleGrantedAuthority("ADMIN"));
         if (hasAdminRole) {
             removeFilter("customId", query);

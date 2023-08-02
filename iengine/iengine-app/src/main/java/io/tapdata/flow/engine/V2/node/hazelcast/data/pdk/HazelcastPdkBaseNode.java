@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
@@ -45,6 +46,10 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -125,9 +130,25 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				.maxRetryTimeMinute(maxRetryTimeSecond)
 				.logListener(logListener)
 				.startRetry(taskRetryService::start)
-				.resetRetry(taskRetryService::reset);
+				.resetRetry(taskRetryService::reset)
+				.signFunctionRetry(() -> signFunctionRetry(taskDto.getId().toHexString()))
+				.clearFunctionRetry(() -> clearFunctionRetry(taskDto.getId().toHexString()));
 		this.pdkMethodInvokerList.add(pdkMethodInvoker);
 		return pdkMethodInvoker;
+	}
+
+	public void signFunctionRetry(String taskId) {
+		CommonUtils.ignoreAnyError(() ->
+				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING),
+						ConnectorConstant.TASK_COLLECTION), "Failed to sign function retry status");
+	}
+
+	public void clearFunctionRetry(String taskId) {
+		CommonUtils.ignoreAnyError(() -> {
+			Update update = new Update().set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING)
+					.set("functionRetryEx", System.currentTimeMillis() + 5 * 60 * 1000L);
+			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
+		}, "Failed to sign function retry status");
 	}
 
 	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {

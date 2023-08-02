@@ -1,6 +1,7 @@
 package com.tapdata.tm.worker.vo;
 
 import com.mongodb.BasicDBObject;
+import com.tapdata.tm.worker.dto.WorkSchedule;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -9,8 +10,9 @@ import java.util.ArrayList;
 public class CalculationEngineVo {
     private String ProcessId;
     private String filter;
-    private ArrayList<BasicDBObject> threadLog;
+    private ArrayList<WorkSchedule> threadLog;
     private int available;
     private boolean manually;
-    private int taskAvailable;
+    private int taskLimit;
+    private int runningNum;
 }

@@ -1,0 +1,18 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "buildProfile"
+        },
+        "u": {
+          "$set": {
+            "value": "DFS"
+          }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]

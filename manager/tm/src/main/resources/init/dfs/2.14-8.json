@@ -1,0 +1,27 @@
+[
+  {
+	"update": "ExternalStorage",
+	"updates": [
+	  {
+		"q": {
+		  "name": "InMemory"
+		},
+		"u": {
+		  "$set": {
+			"init": true
+		  }
+		}
+	  },
+	  {
+		"q": {
+		  "name": "Tapdata MongoDB External Storage"
+		},
+		"u": {
+		  "$set": {
+			"init": true
+		  }
+		}
+	  }
+	]
+  }
+]

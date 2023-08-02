@@ -3,6 +3,7 @@ package com.tapdata.tm.inspect.service;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.lang.Assert;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
@@ -16,14 +17,18 @@ import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
-import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.constant.AlarmSettingTypeEnum;
+import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
@@ -31,9 +36,7 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
-import com.tapdata.tm.inspect.bean.Stats;
-import com.tapdata.tm.inspect.bean.Task;
-import com.tapdata.tm.inspect.bean.Timing;
+import com.tapdata.tm.inspect.bean.*;
 import com.tapdata.tm.inspect.constant.InspectMethod;
 import com.tapdata.tm.inspect.constant.InspectResultEnum;
 import com.tapdata.tm.inspect.constant.InspectStatusEnum;
@@ -48,8 +51,8 @@ import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.constant.SyncType;
-import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
@@ -66,6 +69,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -74,6 +78,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -87,41 +92,31 @@ import java.util.stream.Collectors;
 public class InspectService extends BaseService<InspectDto, InspectEntity, ObjectId, InspectRepository> {
 
     @Autowired
+    @Lazy
     private DataFlowService dataFlowService;
-
     @Autowired
     private MessageService messageService;
-
-
     @Autowired
     private SettingsService settingsService;
-
     @Autowired
     private UserLogService userLogService;
-
     @Autowired
     private InspectDetailsService inspectDetailsService;
     @Autowired
     private InspectResultService inspectResultService;
-
     @Autowired
-    private UserService userService;
-
-    @Autowired
-    MessageQueueService messageQueueService;
-
+    private MessageQueueService messageQueueService;
     @Autowired
     private WorkerService workerService;
+    @Autowired
+    private AlarmSettingService alarmSettingService;
+    @Autowired
+    private AlarmService alarmService;
+    private final MetadataInstancesService metadataInstancesService;
 
-		@Autowired
-		private AlarmSettingService alarmSettingService;
-		@Autowired
-		private AlarmRuleService alarmRuleService;
-		@Autowired
-		private AlarmService alarmService;
-
-    public InspectService(@NonNull InspectRepository repository) {
+    public InspectService(@NonNull InspectRepository repository, MetadataInstancesService metadataInstancesService) {
         super(repository, InspectDto.class, InspectEntity.class);
+        this.metadataInstancesService = metadataInstancesService;
     }
 
     protected void beforeSave(InspectDto inspect, UserDetail user) {
@@ -347,7 +342,7 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
      * 新建数据复制任务的时候，需要新建数据校验，就调用这个方法
      * 数据开发，目前不支持数据校验
      *
-     * @param inspectDto
+     * @param taskDto
      * @param userDetail
      * @return
      */
@@ -363,13 +358,144 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
                 inspectDto.setUserId(userDetail.getUserId());
                 inspectDto.setMode("manual");
                 inspectDto.setInspectMethod("cdcField");
-                inspectDto.setAgentTags(Arrays.asList("private"));
+//                inspectDto.setAgentTags(Arrays.asList("private"));
                 workerService.scheduleTaskToEngine(inspectDto, userDetail);
                 super.save(inspectDto, userDetail);
             }
         } catch (Exception e) {
             log.error("新建任务同时，新建数据校验失败", e);
         }
+    }
+
+    public InspectDto createCheckByTask(TaskDto taskDto, UserDetail userDetail) {
+        InspectDto inspectDto = new InspectDto();
+        inspectDto.setFlowId(taskDto.getId().toHexString());
+        inspectDto.setName(taskDto.getName() + "_inspect_" + DateUtil.formatTime(DateUtil.date()));
+        inspectDto.setMode("manual");
+        inspectDto.setInspectMethod("row_count");
+        inspectDto.setInspectDifferenceMode("All");
+        Limit limit = new Limit();
+        limit.setKeep(100);
+        inspectDto.setLimit(limit);
+        inspectDto.setEnabled(true);
+        inspectDto.setStatus("waiting");
+        inspectDto.setPing_time(System.currentTimeMillis());
+
+        inspectDto.setScheduleTimes(0);
+
+        List<AlarmSettingVO> alarmSettings = new ArrayList<>();
+        alarmSettings.add(AlarmSettingVO.builder()
+                .type(AlarmSettingTypeEnum.INSPECT)
+                .open(true)
+                .key(AlarmKeyEnum.INSPECT_TASK_ERROR)
+                .notify(Lists.newArrayList(NotifyEnum.SYSTEM, NotifyEnum.EMAIL)).build());
+        Map<String, Object> map = Maps.newHashMap();
+        map.put("maxDifferentialRows", 0);
+        alarmSettings.add(AlarmSettingVO.builder()
+                .type(AlarmSettingTypeEnum.INSPECT)
+                .open(true)
+                .key(AlarmKeyEnum.INSPECT_COUNT_ERROR)
+                .notify(Lists.newArrayList(NotifyEnum.SYSTEM, NotifyEnum.EMAIL))
+                .params(map).build());
+        inspectDto.setAlarmSettings(alarmSettings);
+
+        List<Task> taskList = new ArrayList<>();
+        List<MetadataInstancesDto> instancesDtos = metadataInstancesService.findByTaskId(taskDto.getId().toHexString(), userDetail);
+        Assert.notEmpty(instancesDtos);
+        Map<String, List<MetadataInstancesDto>> metaMap = instancesDtos.stream().collect(Collectors.groupingBy(MetadataInstancesDto::getNodeId));
+
+        taskDto.getDag().getSources().forEach(node -> {
+            List<MetadataInstancesDto> metadataInstancesDtos = metaMap.get(node.getId());
+            if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
+                metadataInstancesDtos.forEach(meta -> {
+                    Task task = new Task();
+                    task.setTaskId(UUIDUtil.getUUID());
+                    task.setFullMatch(true);
+                    task.setShowAdvancedVerification(false);
+
+                    Source source = new Source();
+                    source.setNodeId(node.getId());
+                    source.setConnectionName(node.getName());
+                    source.setNodeName(node.getName());
+
+                    AtomicReference<String> sortColumn = new AtomicReference<>("");
+                    meta.getFields().stream().filter(field -> field.getPrimaryKeyPosition() == 1).findFirst().ifPresent(key -> {
+                        sortColumn.set(key.getFieldName());
+                    });
+                    if (StringUtils.isEmpty(sortColumn.get())) {
+                        meta.getFields().stream().filter(field -> field.getColumnPosition() == 1).findFirst().ifPresent(key -> {
+                            sortColumn.set(key.getFieldName());
+                        });
+                    }
+                    source.setSortColumn(sortColumn.get());
+                    source.setTable(meta.getOriginalName());
+                    if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+                        DatabaseNode databaseNode = (DatabaseNode) node;
+                        source.setConnectionId(databaseNode.getConnectionId());
+                        source.setDatabaseType(databaseNode.getDatabaseType());
+                    } else {
+                        TableNode tableNode = (TableNode) node;
+                        source.setConnectionId(tableNode.getConnectionId());
+                        source.setDatabaseType(tableNode.getDatabaseType());
+                    }
+                    if (Lists.newArrayList("Clickhouse", "Kafka").contains(source.getDatabaseType())) {
+                        throw new BizException("Kafka or Clickhouse not suppport row count inspect!");
+                    }
+
+                    task.setSource(source);
+                    taskList.add(task);
+                });
+            }
+        });
+
+        taskDto.getDag().getTargets().forEach(node -> {
+            List<MetadataInstancesDto> metadataInstancesDtos = metaMap.get(node.getId());
+            if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
+                metadataInstancesDtos.forEach(meta -> {
+
+                    Task task = taskList.stream().filter(t -> meta.getAncestorsName().equals(t.getSource().getTable()))
+                            .findFirst().orElseThrow(() -> new BizException("not found task by AncestorsName:" + meta.getAncestorsName()));
+
+                    Source target = new Source();
+                    target.setNodeId(node.getId());
+                    target.setConnectionName(node.getName());
+                    target.setNodeName(node.getName());
+
+                    AtomicReference<String> sortColumn = new AtomicReference<>("");
+                    meta.getFields().stream().filter(field -> field.getPrimaryKeyPosition() == 1).findFirst().ifPresent(key -> {
+                        sortColumn.set(key.getFieldName());
+                    });
+                    if (StringUtils.isEmpty(sortColumn.get())) {
+                        meta.getFields().stream().filter(field -> field.getColumnPosition() == 1).findFirst().ifPresent(key -> {
+                            sortColumn.set(key.getFieldName());
+                        });
+                    }
+
+                    target.setSortColumn(sortColumn.get());
+                    target.setTable(meta.getOriginalName());
+                    if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+                        DatabaseNode databaseNode = (DatabaseNode) node;
+                        target.setConnectionId(databaseNode.getConnectionId());
+                        target.setDatabaseType(databaseNode.getDatabaseType());
+                    } else {
+                        TableNode tableNode = (TableNode) node;
+                        target.setConnectionId(tableNode.getConnectionId());
+                        target.setDatabaseType(tableNode.getDatabaseType());
+                    }
+                    if (Lists.newArrayList("Clickhouse", "Kafka").contains(target.getDatabaseType())) {
+                        throw new BizException("Kafka or Clickhouse not suppport row count inspect!");
+                    }
+
+                    task.setTarget(target);
+                });
+            }
+        });
+
+        inspectDto.setTasks(taskList);
+
+        save(inspectDto, userDetail);
+
+        return inspectDto;
     }
 
 

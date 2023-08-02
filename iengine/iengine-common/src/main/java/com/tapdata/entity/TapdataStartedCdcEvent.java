@@ -1,5 +1,7 @@
 package com.tapdata.entity;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * @author samuel
  * @Description

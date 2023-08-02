@@ -159,7 +159,9 @@ public class OEMReplaceUtil {
     public static String replace(String item, Map<String, Object> oemConfig) {
         if (null == oemConfig || oemConfig.isEmpty() || null == item || "".equals(item.trim())) return item;
         for (Map.Entry<String, Object> entry : oemConfig.entrySet()) {
-            item = item.replaceAll(entry.getKey(), String.valueOf(entry.getValue()));
+            String key = entry.getKey();
+            if (null == key) continue;
+            item = item.replaceAll(key, String.valueOf(entry.getValue()));
         }
         return item;
     }

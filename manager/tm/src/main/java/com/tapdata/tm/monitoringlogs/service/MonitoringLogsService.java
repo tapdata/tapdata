@@ -204,7 +204,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
     }
 
     public List<MonitoringLogCountVo> count(String taskId, String taskRecordId) {
-       List<MonitoringLogCountVo> data = new ArrayList<>();
+        List<MonitoringLogCountVo> data = new ArrayList<>();
         if (null == taskId || null == taskRecordId) {
             return data;
         }
@@ -302,7 +302,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
                 .timestamp(System.currentTimeMillis())
                 .level("INFO")
                 .message("Start task...")
-                ;
+        ;
 
 
         save(builder.build(), user);
@@ -396,7 +396,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
                 // 2022-12-08 18:56:44【新任务@14:19:54】【模型推演检测】：
                 String date = DateUtil.toLocalDateTime(log.getDate()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN));
                 String message = "{0}【{1}】【{2}节点】{3}";
-							info.setLog(MessageFormat.format(message, date, taskName, nodeName, log.getMessage() + (StringUtils.isNotEmpty(log.getErrorStack()) ? "\n" + log.getErrorStack() : "")));
+                info.setLog(MessageFormat.format(message, date, taskName, nodeName, log.getMessage() + (StringUtils.isNotEmpty(log.getErrorStack()) ? "\n" + log.getErrorStack() : "")));
                 info.setGrade(Level.valueOf(log.getLevel()));
                 info.setCreateAt(log.getDate());
                 info.setId(log.getId());

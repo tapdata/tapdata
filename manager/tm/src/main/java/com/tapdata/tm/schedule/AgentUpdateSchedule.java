@@ -6,6 +6,7 @@ import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -24,7 +25,8 @@ public class AgentUpdateSchedule {
     /**
      * @desc 执行扫描，每1分钟执行一次
      */
-    @Scheduled(cron = "0/5 * * * * ?")
+    @Scheduled(cron = "0 */1 * * * ?")
+    @SchedulerLock(name = "AgentUpdateSchedule", lockAtMostFor = "PT1M", lockAtLeastFor = "PT1M")
     public void execute() {
         log.debug("清理 clusterOperation");
         clusterOperationService.cleanOperation();

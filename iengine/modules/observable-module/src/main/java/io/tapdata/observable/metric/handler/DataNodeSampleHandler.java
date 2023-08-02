@@ -27,6 +27,7 @@ import org.apache.commons.lang3.ObjectUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -164,7 +165,9 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	private Long batchProcessStartTs;
 
 	public void handleBatchReadFuncStart(String table, Long startAt) {
-		snapshotStartAt = startAt;
+		if (snapshotTableCounter == null || BigInteger.ZERO.equals(snapshotTableCounter.value())) {
+			snapshotStartAt = startAt;
+		}
 		batchAcceptLastTs = startAt;
 		currentSnapshotTable = table;
 		currentSnapshotTableInsertRowTotal = 0L;

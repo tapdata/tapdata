@@ -145,13 +145,17 @@ public class UserLogService extends BaseService {
      * @param type
      */
     private void addUserLog(Modular modular, Operation operation, UserDetail userDetail, ObjectId sourceId, UserLogType type, String parameter1, String parameter2, Boolean rename) {
+        addUserLog(modular, operation, userDetail, sourceId, type, parameter1, parameter2, rename, false);
+    }
+
+    private void addUserLog(Modular modular, Operation operation, UserDetail userDetail, ObjectId sourceId, UserLogType type, String parameter1, String parameter2, Boolean rename, boolean systemStart) {
         try {
             UserLogs userLogs = new UserLogs();
             userLogs.setModular(modular.getValue());
             userLogs.setOperation(operation != null ? operation.getValue() : null);
             userLogs.setUserId(userDetail.getUserId());
             String userName = StringUtils.isEmpty(userDetail.getUsername()) ? userDetail.getEmail() : userDetail.getUsername();
-            userLogs.setUsername(userName);
+            userLogs.setUsername(systemStart ? "system" : userName);
             userLogs.setSourceId(sourceId);
             userLogs.setType(type.getValue());
 
@@ -182,6 +186,11 @@ public class UserLogService extends BaseService {
     public void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1) {
         ObjectId sourceObjectId = sourceId != null ? new ObjectId(sourceId) : null;
         addUserLog(modular, OperationType, userDetail, sourceObjectId, UserLogType.USER_OPERATION, parameter1, null, false);
+    }
+
+    public void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1, Object systemStart) {
+        ObjectId sourceObjectId = sourceId != null ? new ObjectId(sourceId) : null;
+        addUserLog(modular, OperationType, userDetail, sourceObjectId, UserLogType.USER_OPERATION, parameter1, null, false, systemStart != null);
     }
 
     public void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail , String parameter1) {
@@ -215,5 +224,20 @@ public class UserLogService extends BaseService {
     @Override
     protected void beforeSave(BaseDto dto, UserDetail userDetail) {
 
+    }
+
+    public Page<UserLogDto> find(Filter filter, UserDetail userDetail) {
+
+        if (filter == null) {
+            filter = new Filter();
+        }
+
+        List<UserLogs> entityList = userLogRepository.findAll(filter, userDetail);
+
+        long total = userLogRepository.count(filter.getWhere(), userDetail);
+
+        List<UserLogDto> items = convertToDto(entityList, UserLogDto.class, "password");
+
+        return new Page<>(total, items);
     }
 }

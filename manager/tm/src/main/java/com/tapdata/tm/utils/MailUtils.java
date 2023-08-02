@@ -7,8 +7,10 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.TMApplication;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
+import com.tapdata.tm.message.service.BlacklistService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -16,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 import javax.mail.Message;
@@ -29,6 +32,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 
 /**
@@ -61,11 +65,19 @@ public class MailUtils {
     @Autowired
     SettingsService settingsService;
 
+    @Autowired
+    BlacklistService blacklistService;
+
     /**
      * 发送html形式的邮件
      */
     @Deprecated
     public SendStatus sendHtmlMail(String subject, String to, String username, String agentName, String emailHref, String maiContent) {
+
+        if (blacklistService.inBlacklist(to)) {
+            return new SendStatus("false", String.format("Email %s in blacklist.", to));
+        }
+
         SendStatus sendStatus = new SendStatus("false", "");
         // 读取html模板
         String html = readHtmlToString("mailTemplate.html");
@@ -135,6 +147,11 @@ public class MailUtils {
      * 发送html形式的邮件
      */
     public SendStatus sendHtmlMail(String to, String username, String agentName, String emailHref, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum) {
+
+        if (blacklistService.inBlacklist(to)) {
+            return new SendStatus("false", String.format("Email %s in blacklist.", to));
+        }
+
         SendStatus sendStatus = new SendStatus("false", "");
         // 读取html模板
         String html = readHtmlToString("mailTemplate.html");
@@ -208,6 +225,10 @@ public class MailUtils {
      * 发送html形式的邮件
      */
     public SendStatus sendHtmlMail(String to, String username, String agentName, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum, String sourceId) {
+        if (blacklistService.inBlacklist(to)) {
+            return new SendStatus("false", String.format("Email %s in blacklist.", to));
+        }
+
         SendStatus sendStatus = new SendStatus("false", "");
         if (StringUtils.isEmpty(to)) {
             sendStatus.setErrorMessage("mail is null");
@@ -288,6 +309,9 @@ public class MailUtils {
      * 企业版发送的通知邮件，没有点击连接
      */
     public SendStatus sendHtmlMail(String to, String username, String serverName, String title, String mailContent ) {
+        if (blacklistService.inBlacklist(to)) {
+            return new SendStatus("false", String.format("Email %s in blacklist.", to));
+        }
         return new SendStatus("true", "");
     }
 
@@ -475,40 +499,40 @@ public class MailUtils {
         String mailContent = "";
         if (SystemEnum.AGENT.equals(systemEnum)) {
             if (MsgTypeEnum.CONNECTION_INTERRUPTED.equals(msgTypeEnum)) {
-                mailContent = "状态已由运行中变为离线，可能会影响您的任务正常运行，请及时处理。";
+                mailContent = "Status has changed from running to offline, your tasks may become abnormal, please check it.";
             } else if (MsgTypeEnum.CONNECTED.equals(msgTypeEnum)) {
-                mailContent = "状态已由离线变为运行中，状态恢复正常。";
+                mailContent = "Status has changed from offline to running, You can now continue with your data journey !";
             } else if (MsgTypeEnum.WILL_RELEASE_AGENT.equals(msgTypeEnum)) {
-                mailContent = "因超过一周未使用即将在明天晚上20:00自动回收，如果您需要继续使用可以在清理前登录系统自动延长使用时间。";
+                mailContent = "It has been over a week since your last usage, and the compute resources will be automatically reclaimed tomorrow evening at 20:00. If you wish to continue using them, please log in to the system before the cleanup to automatically extend your usage time.";
             } else if (MsgTypeEnum.RELEASE_AGENT.equals(msgTypeEnum)) {
-                mailContent = "因超过一周未使用已自动回收，如果您需要继续使用可通过新手引导再次创建。";
+                mailContent = "It has been over a week since your last usage, and the compute resources have been automatically reclaimed. If you wish to continue using them, you can recreate them through the guided setup process.";
             }
 
         } else if (SystemEnum.MIGRATION.equals(systemEnum)) {
             if (MsgTypeEnum.STOPPED_BY_ERROR.equals(msgTypeEnum)) {
-                mailContent = "运行出错，任务已停止运行，请及时处理。";
+                mailContent = "Task has stopped by error, please check it.";
             } else if (MsgTypeEnum.DELETED.equals(msgTypeEnum)) {
-                mailContent = "任务已经被删除";
+                mailContent = "Task has been deleted";
             } else if (MsgTypeEnum.PAUSED.equals(msgTypeEnum)) {
-                mailContent = "任务已停止";
+                mailContent = "Task has paused";
             } else if (MsgTypeEnum.STARTED.equals(msgTypeEnum)) {
-                mailContent = "任务已启动";
+                mailContent = "Task has started";
             }
         } else if (SystemEnum.SYNC.equals(systemEnum)) {
             if (MsgTypeEnum.STOPPED_BY_ERROR.equals(msgTypeEnum)) {
-                mailContent = "运行出错，任务已停止运行，请及时处理。";
+                mailContent = "Task has stopped by error, please check it.";
             } else if (MsgTypeEnum.DELETED.equals(msgTypeEnum)) {
-                mailContent = "任务已经被删除";
+                mailContent = "Task has been deleted";
             } else if (MsgTypeEnum.PAUSED.equals(msgTypeEnum)) {
-                mailContent = "任务已停止";
+                mailContent = "Task has paused";
             } else if (MsgTypeEnum.STARTED.equals(msgTypeEnum)) {
-                mailContent = "任务已启动";
+                mailContent = "Task has started";
             }
         } else if (SystemEnum.DATAFLOW.equals(systemEnum)) {
             if (MsgTypeEnum.STOPPED_BY_ERROR.equals(msgTypeEnum)) {
-                mailContent = "运行出错，任务已停止运行，请及时处理。";
+                mailContent = "Task has stopped by error, please check it.";
             } else if (MsgTypeEnum.CONNECTED.equals(msgTypeEnum)) {
-                mailContent = "任务状态变为运行中";
+                mailContent = "Task Status has changed to Running";
             }
         }
         return mailContent;
@@ -533,31 +557,31 @@ public class MailUtils {
         String mailTitle = "";
         if (SystemEnum.AGENT.equals(systemEnum)) {
             if (MsgTypeEnum.CONNECTION_INTERRUPTED.equals(msgTypeEnum)) {
-                mailTitle = "【Tapdata】Agent离线提醒";
+                mailTitle = "【Tapdata Cloud】Agent is offline";
             } else if (MsgTypeEnum.CONNECTED.equals(msgTypeEnum)) {
-                mailTitle = "【Tapdata】Agent状态恢复提醒";
+                mailTitle = "【Tapdata Cloud】Agent is online";
 
 
             } else if (MsgTypeEnum.WILL_RELEASE_AGENT.equals(msgTypeEnum)) {
-                mailTitle = "【Tapdata】测试Agent资源即将回收提醒";
+                mailTitle = "【Tapdata Cloud】Test Agent resource will be recycled";
             } else if (MsgTypeEnum.RELEASE_AGENT.equals(msgTypeEnum)) {
-                mailTitle = "【Tapdata】测试Agent资源回收提醒";
+                mailTitle = "【Tapdata Cloud】Test Agent resource has been recycled";
             }
 
         } else if (SystemEnum.MIGRATION.equals(systemEnum)) {
             if (MsgTypeEnum.STOPPED_BY_ERROR.equals(msgTypeEnum)) {
-                mailTitle = "【Tapdata】运行任务出错提醒";
+                mailTitle = "【Tapdata Cloud】Task has stopped by error";
 
             }
         } else if (SystemEnum.SYNC.equals(systemEnum)) {
             if (MsgTypeEnum.STOPPED_BY_ERROR.equals(msgTypeEnum)) {
-                mailTitle = "【Tapdata】运行任务出错提醒";
+                mailTitle = "【Tapdata Cloud】Task has stopped by error";
             }
         } else if (SystemEnum.DATAFLOW.equals(systemEnum)) {
             if (MsgTypeEnum.STOPPED_BY_ERROR.equals(msgTypeEnum)) {
-                mailTitle = "【Tapdata】运行任务出错提醒";
+                mailTitle = "【Tapdata Cloud】Task has stopped by error";
             } else if (MsgTypeEnum.CONNECTED.equals(msgTypeEnum)) {
-                mailTitle = "【Tapdata】运行任务提醒";
+                mailTitle = "【Tapdata Cloud】Task Status has changed to Running";
             }
         }
         Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("email/replace.json");
@@ -569,6 +593,23 @@ public class MailUtils {
      * 发送HTML邮件
      */
     public static void sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
+        if (CollectionUtils.isEmpty(adressees)) return;
+
+        BlacklistService blacklistService = SpringContextHelper.getBean(BlacklistService.class);
+        if (blacklistService != null) {
+            List<String> notInBlacklistAddress = adressees.stream().filter(to -> !blacklistService.inBlacklist(to)).collect(Collectors.toList());
+            if (log.isDebugEnabled()) {
+                log.debug("Blacklist filter address {}, {}", adressees, notInBlacklistAddress);
+            }
+            adressees = notInBlacklistAddress;
+            //adressees.removeAll(blacklist);
+            if (CollectionUtils.isEmpty(adressees)) {
+                return;
+            }
+        } else {
+            log.warn("Check blacklist failed before send email, not found BlacklistService.");
+        }
+
         boolean flag = true;
         if (StringUtils.isAnyBlank(parms.getHost(), parms.getFrom(),parms.getUser(), parms.getPass()) || CollectionUtils.isEmpty(adressees)) {
             log.error("mail account info empty, params:{}", JSON.toJSONString(parms));
@@ -624,7 +665,7 @@ public class MailUtils {
                 "</p>\n" +
                 "<br />" +
                 "<br />" +
-                "This mail was sent by Tapdata. " +
+                "This mail was sent by Tapdata Cloud. " +
                 "</body>\n" +
                 "</html>";
     }

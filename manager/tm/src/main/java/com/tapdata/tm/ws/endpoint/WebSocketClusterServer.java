@@ -15,12 +15,14 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.log.dto.LogDto;
 import com.tapdata.tm.log.service.LogService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.uploadlog.service.UploadLogService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MD5Util;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -29,6 +31,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -43,6 +47,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -75,6 +80,8 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
 
     @Autowired
     MessageQueueService messageQueueService;
+    @Autowired
+    private UserService userService;
 
 
     /**
@@ -91,6 +98,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
      */
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+        log.debug("Receive {}: {}", session.getId(), message.getPayload());
         handleMessage(session, message);
     }
 
@@ -117,7 +125,14 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
             return;
         }
         WebSocketSession webSocketSession = agentInfo.getSession();
-        webSocketSession.sendMessage(new TextMessage(message));
+        sendMessage(webSocketSession, message);
+    }
+
+    private static void sendMessage(WebSocketSession session, String message) throws IOException {
+        if (session != null && message != null) {
+            log.debug("Send to {}: {}", session.getId(), message);
+            session.sendMessage(new TextMessage(message));
+        }
     }
 
     // todo 发送分开
@@ -131,7 +146,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
             messageQueueService.save(queueDto);
         } else {
             WebSocketSession webSocketSession = agentInfo.getSession();
-            webSocketSession.sendMessage(new TextMessage(message));
+            sendMessage(webSocketSession, message);
         }
     }
 
@@ -140,7 +155,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
         try {
             Map map = JsonUtil.parseJson(message.getPayload(), Map.class);
             if (map == null || map.get("sign") == null) {
-                session.sendMessage(new TextMessage("Payload or sign is null"));
+                sendMessage(session, "Payload or sign is null");
                 return;
             }
             String msgReceived = JsonUtil.toJsonUseJackson(map);
@@ -153,12 +168,12 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
             Long timeStamp = MapUtils.getAsLong(map, "timestamp");
 
             if (!checkSign(sign, timeStamp, message.getPayload())) {
-                session.sendMessage(new TextMessage("Check sign failed"));
+                sendMessage(session, "Check sign failed");
                 return;
             }
 
             if (!map.containsKey("type")) {
-                session.sendMessage(new TextMessage("Type is empty"));
+                sendMessage(session, "Type is empty");
                 return;
             }
 
@@ -220,24 +235,38 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
                     uploadLogService.handleUploadHeartBeat(map);
                     break;
                 default:
-                    session.sendMessage(new TextMessage("Type is not supported"));
+                    sendMessage(session, "Type is not supported");
                     break;
             }
 
         } catch (Exception e) {
             log.error("Handle message failed,message: {}", e.getMessage(), e);
             try {
-                session.sendMessage(new TextMessage("Handle message failed,message:" + e.getMessage()));
+                sendMessage(session, "Handle message failed,message:" + e.getMessage());
             } catch (Exception ex) {
                 log.error("Websocket send message failed,message: {}", ex.getMessage(), ex);
             }
         }
     }
 
-    private void getLatestDownloadUrl(WebSocketSession session) {
-        WebSocketResult webSocketResult = WebSocketResult.ok(tcmService.getDownloadUrl(), "downloadUrl");
+    private String getUserId(WebSocketSession session){
         try {
-            session.sendMessage(new TextMessage(JsonUtil.toJson(webSocketResult)));
+            List<String> userIds = session.getHandshakeHeaders().get("user_id");
+            if (CollectionUtils.isNotEmpty(userIds)){
+                UserDetail userDetail = userService.loadUserByExternalId(userIds.get(0));
+                return userDetail != null ? userDetail.getExternalUserId() : null;
+            }
+        }catch (Exception e){
+            log.error("WebSocket get userId error,message: {}", e.getMessage());
+        }
+
+        return null;
+    }
+
+    private void getLatestDownloadUrl(WebSocketSession session) {
+        WebSocketResult webSocketResult = WebSocketResult.ok(tcmService.getDownloadUrl(getUserId(session)), "downloadUrl");
+        try {
+            sendMessage(session, JsonUtil.toJson(webSocketResult));
         } catch (Exception e) {
             log.error("Websocket send message failed,message: {}", e.getMessage(), e);
         }
@@ -255,7 +284,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
         WebSocketResult webSocketResult = WebSocketResult.ok(versionInfo, "checkTapdataAgentVersion");
 
         try {
-            session.sendMessage(new TextMessage(JsonUtil.toJson(webSocketResult)));
+            sendMessage(session, JsonUtil.toJson(webSocketResult));
         } catch (Exception e) {
             log.error("Websocket send message failed,message: {}", e.getMessage(), e);
         }

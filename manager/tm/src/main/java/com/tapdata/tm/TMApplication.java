@@ -26,8 +26,6 @@ import org.springframework.scheduling.annotation.EnableAsync;
 
 import java.util.TimeZone;
 
-import static io.tapdata.pdk.core.utils.CommonUtils.dateString;
-
 /**
  * @author lg<lirufei0808 @ gmail.com>
  * @date 2020/9/9 6:54 上午

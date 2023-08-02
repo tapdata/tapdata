@@ -27,6 +27,7 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
 import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
@@ -145,8 +146,8 @@ public class TestConnectionHandler implements WebSocketHandler {
 						SchedulableDto schedulableDto = new SchedulableDto();
 						schedulableDto.setAgentTags(tags);
 						schedulableDto.setUserId(userDetail.getUserId());
-						workerService.scheduleTaskToEngine(schedulableDto, userDetail, "testConnection", "testConnection");
-						receiver.set(schedulableDto.getAgentId());
+						CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(schedulableDto, userDetail, "testConnection", "testConnection");
+						receiver.set(calculationEngineVo.getProcessId());
 					}, () -> {
 						Object accessNodeProcessId = data.get("accessNodeProcessId");
 						FunctionUtils.isTureOrFalse(Objects.nonNull(accessNodeProcessId)).trueOrFalseHandle(() -> {

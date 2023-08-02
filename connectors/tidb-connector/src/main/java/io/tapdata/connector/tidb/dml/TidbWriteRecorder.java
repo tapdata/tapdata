@@ -2,12 +2,10 @@ package io.tapdata.connector.tidb.dml;
 
 import io.tapdata.common.WriteRecorder;
 import io.tapdata.connector.tidb.ddl.TidbSqlMaker;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
-import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;

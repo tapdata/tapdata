@@ -901,6 +901,21 @@ public class LogCollectorService {
         //数据源id对应创建的挖掘任务id
         Map<String, String> newLogCollectorMap = new HashMap<>();
 
+
+        //对于增量任务，新增的挖掘任务，需要判断原增量任务的挖掘时间点
+        boolean cdcTask;
+        Map<String, TaskDto.SyncPoint> syncPointMap;
+        if (ParentTaskDto.TYPE_CDC.equals(oldTaskDto.getType())) {
+            cdcTask = true;
+            List<TaskDto.SyncPoint> syncPoints = oldTaskDto.getSyncPoints();
+            syncPointMap = syncPoints.stream().collect(Collectors.toMap(TaskDto.SyncPoint::getConnectionId, s -> s, (s1, s2) -> s1));
+        } else {
+            cdcTask = false;
+            syncPointMap = new HashMap<>();
+        }
+
+
+
         datasourceMap.forEach((k, v) -> {
             //获取需要日志挖掘的表名
             //Set<String> tableSet = new HashSet<>();
@@ -997,6 +1012,16 @@ public class LogCollectorService {
             attr.put("pdkHash", dataSource.getPdkHash());
             logCollectorNode.setAttrs(attr);
 
+            TaskDto taskDto = new TaskDto();
+            if (cdcTask) {
+                TaskDto.SyncPoint earliestPoint = getEarliestCDCTime(connectionIds, syncPointMap);
+                if (earliestPoint != null) {
+                    earliestPoint.setNodeId(logCollectorNode.getId());
+                    earliestPoint.setNodeName(logCollectorNode.getName());
+                    taskDto.setSyncPoints(Lists.of(earliestPoint));
+                }
+            }
+
             HazelCastImdgNode hazelCastImdgNode = new HazelCastImdgNode();
             hazelCastImdgNode.setId(UUIDUtil.getUUID());
             AtomicReference<String> targetName = new AtomicReference<>("Shared Mining Target");
@@ -1013,7 +1038,6 @@ public class LogCollectorService {
             List<Edge> edges = Lists.newArrayList(edge);
             Dag dag1 = new Dag(edges, nodes);
             DAG build = DAG.build(dag1);
-            TaskDto taskDto = new TaskDto();
             taskDto.setName("来自" + dataSource.getName() + "的共享挖掘任务");
             int i = 1;
             String taskName = taskDto.getName();
@@ -1187,6 +1211,25 @@ public class LogCollectorService {
 
         //这个stop是异步的， 需要重启，重启的逻辑是通过定时任务跑的
         pause(oldLogCollectorTask, user);
+    }
+
+    private TaskDto.SyncPoint getEarliestCDCTime(List<String> connectionIds, Map<String, TaskDto.SyncPoint> syncPointMap) {
+        TaskDto.SyncPoint earliestPoint = null;
+        for (String connectionId : connectionIds) {
+            TaskDto.SyncPoint syncPoint = syncPointMap.get(connectionId);
+            if (syncPoint != null) {
+                if (earliestPoint == null) {
+                    earliestPoint = syncPoint;
+                    continue;
+                }
+                Long dateTime = syncPoint.getDateTime();
+                if (dateTime < earliestPoint.getDateTime()) {
+                    earliestPoint = syncPoint;
+                }
+
+            }
+        }
+        return earliestPoint;
     }
 
     /**

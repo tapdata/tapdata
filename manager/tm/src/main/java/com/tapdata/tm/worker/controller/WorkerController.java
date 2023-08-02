@@ -14,6 +14,7 @@ import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.tm.worker.dto.CheckTaskUsedAgentDto;
 import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -373,6 +374,7 @@ public class WorkerController extends BaseController {
         String processId = json.getString("process_id");
         String workerType = json.getString("worker_type");
         String checkSingletonLock = WorkerSingletonLock.formatSingletonLock(json.getString("singletonLock"));
+        checkSingletonLock = "force";
 
         WorkerDto oldWorker = workerService.findOne(Query.query(Criteria
                 .where("process_id").is(processId)
@@ -417,7 +419,7 @@ public class WorkerController extends BaseController {
             return success();
         }
         List<String> ids = JsonUtil.parseJson(processId, new TypeToken<List<String>>(){}.getType());
-        return success(workerService.getProcessInfo(ids));
+        return success(workerService.getProcessInfo(ids, getLoginUser()));
     }
 
 
@@ -447,4 +449,21 @@ public class WorkerController extends BaseController {
         return success(dto);
     }
 
+    @PostMapping("/share/create")
+    public ResponseMessage<Void> createShareWorker(@RequestBody WorkerExpireDto workerExpireDto) {
+        workerService.createShareWorker(workerExpireDto, getLoginUser());
+        return success();
+    }
+
+    @GetMapping("/share/get")
+    public ResponseMessage<WorkerExpireDto> getShareWorker() {
+        return success(workerService.getShareWorker(getLoginUser()));
+    }
+
+    @PostMapping("/share/delete")
+    @Operation(summary = "删除共享实例")
+    public ResponseMessage<Void> deleteShareWorker() {
+        workerService.deleteShareWorker(getLoginUser());
+        return success();
+    }
 }

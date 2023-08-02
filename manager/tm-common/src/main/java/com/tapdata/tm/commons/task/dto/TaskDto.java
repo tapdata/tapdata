@@ -48,6 +48,9 @@ public class TaskDto extends ParentTaskDto {
     public static final String ATTRS_USED_SHARE_CACHE = "usedShareCache";
     public static final String ATTRS_SKIP_ERROR_EVENT = "skipErrorEvent";
 
+    public static final String RETRY_STATUS_RUNNING = "Retrying";
+    public static final String RETRY_STATUS_NONE = "";
+
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
     @JsonDeserialize( using = DagDeserialize.class)
@@ -157,6 +160,10 @@ public class TaskDto extends ParentTaskDto {
 
     /** ldp需要新增的表名列表 */
     private List<String> ldpNewTables;
+
+    private String functionRetryStatus;
+    private Long functionRetryEx;
+    private String taskRetryStatus;
 
     /** 使用的共享挖掘任务停止 */
     private Boolean shareCdcStop;

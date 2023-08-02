@@ -33,6 +33,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static io.tapdata.entity.simplify.TapSimplify.sleep;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 
@@ -56,6 +57,7 @@ public class SelectDbStreamLoader extends Throwable {
     private SelectDbJdbcContext selectDbJdbcContext;
     private Future<CloseableHttpResponse> pendingLoadFuture;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private int catchCount = 0;
 
     public SelectDbStreamLoader(SelectDbContext selectDbContext, CloseableHttpClient httpClient) {
         this.selectDbContext = selectDbContext;

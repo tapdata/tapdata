@@ -230,6 +230,7 @@ public class TaskEntity extends BaseEntity {
     private boolean needCreateRecord;
 
     private Boolean crontabExpressionFlag;
+    private String crontabScheduleMsg;
 
     private String testTaskId;
     private String transformTaskId;
@@ -245,6 +246,10 @@ public class TaskEntity extends BaseEntity {
     private String pageVersion;
 
     private Boolean fdmMain;
+
+    private String functionRetryStatus;
+    private Long functionRetryEx;
+    private String taskRetryStatus;
 
     /** 使用的共享挖掘任务停止 */
     private Boolean shareCdcStop;

@@ -3,8 +3,8 @@ spring:
     active: '@profile.active@'
     include: '@env.PRODUCT@,default'
 
-    data:
-        mongodb:
+  data:
+      mongodb:
             cursorBatchSize: 1000
             default:
                 uri: 'mongodb://127.0.0.1:27017/tapdata_v29'

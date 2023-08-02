@@ -80,7 +80,7 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 	@Override
 	public T find(String key) throws Exception {
 		Object obj = iMap.get(key);
-		if (obj == null)
+		if(obj == null)
 			return null;
 		obj = handleObjectWhenDiffClassLoader(obj);
 		return (T) obj;

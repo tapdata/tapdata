@@ -162,6 +162,7 @@ public class RabbitmqService extends AbstractMqService {
             return;
         }
         channel.queueDeclare(tapTable.getId(), true, false, false, null);
+
         for (TapRecordEvent event : tapRecordEvents) {
             if (null != isAlive && !isAlive.get()) {
                 break;

@@ -1,9 +1,12 @@
 package com.tapdata.tm.worker.service;
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
+import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
-import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
@@ -28,31 +31,36 @@ import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.scheduleTasks.dto.ScheduleTasksDto;
 import com.tapdata.tm.scheduleTasks.service.ScheduleTasksService;
+import com.tapdata.tm.task.service.TaskExtendService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.WorkerSingletonLock;
+import com.tapdata.tm.worker.dto.WorkSchedule;
 import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.WorkerExpire;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.firedome.MultiTaggedCounter;
 import io.micrometer.core.instrument.Metrics;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.NonNull;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.BsonValue;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -60,6 +68,8 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -69,9 +79,9 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
-@Setter(onMethod_ = {@Autowired})
 public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, WorkerRepository> {
 
+    @Autowired
     private DataFlowService dataFlowService;
     @Autowired
     private ClusterStateService clusterStateService;
@@ -81,13 +91,16 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     private SettingsService settingsService;
     @Autowired
     private ScheduleTasksService scheduleTasksService;
-
     @Autowired
     private TaskService taskService;
+    @Autowired
+    private TaskExtendService taskExtendService;
+    @Autowired
+    private UserService userService;
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     private final MultiTaggedCounter workerPing;
-
-
 
     public WorkerService(@NonNull WorkerRepository repository) {
         super(repository, WorkerDto.class, Worker.class);
@@ -108,9 +121,24 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (Objects.isNull(userDetail)) {
             return null;
         }
-        // 引擎定时任务是5秒
-        Query query = getAvailableAgentQuery();
-        return repository.findAll(query, userDetail);
+
+        Criteria criteria = getAvailableAgentCriteria();
+        return getWorkers(userDetail, criteria);
+    }
+
+    private List<Worker> getWorkers(UserDetail userDetail, Criteria criteria) {
+        if (settingsService.isCloud()) {
+            // query user have share worker
+            WorkerExpire workerExpire = mongoTemplate.findOne(Query.query(Criteria.where("userId").is(userDetail.getUserId())), WorkerExpire.class);
+            if (Objects.nonNull(workerExpire) && workerExpire.getExpireTime().after(new Date())) {
+                criteria.orOperator(Criteria.where("user_id").is(userDetail.getUserId()), Criteria.where("createUser").is(workerExpire.getShareUser()));
+                return repository.findAll(Query.query(criteria));
+            } else {
+                return repository.findAll(Query.query(criteria), userDetail);
+            }
+        } else {
+            return repository.findAll(Query.query(criteria), userDetail);
+        }
     }
 
     public List<Worker> findAllAgent(UserDetail userDetail) {
@@ -119,7 +147,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         }
         Criteria criteria = Criteria.where("worker_type").is("connector")
                 .and("isDeleted").ne(true);
-        return repository.findAll(Query.query(criteria), userDetail);
+
+        return getWorkers(userDetail, criteria);
     }
 
     @NotNull
@@ -137,16 +166,15 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
     private Criteria getAvailableAgentCriteria() {
         int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
-        Criteria criteria = Criteria.where("worker_type").is("connector")
+        return Criteria.where("worker_type").is("connector")
                 .and("ping_time").gte(System.currentTimeMillis() - (overTime * 1000L))
                 .and("isDeleted").ne(true).and("stopping").ne(true)
                 .and("agentTags").ne("disabledScheduleTask");
-        return criteria;
     }
 
-    public List<Worker> findAvailableAgentBySystem(UserDetail user) {
-        Query query = getAvailableAgentQuery();
-        return repository.findAll(query, user);
+    public List<Worker> findAvailableAgentBySystem(UserDetail userDetail) {
+        Criteria criteria = getAvailableAgentCriteria();
+        return getWorkers(userDetail, criteria);
     }
 
     public List<Worker> findAvailableAgentBySystem(List<String> processIdList) {
@@ -161,11 +189,12 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (Objects.isNull(userDetail)) {
             return null;
         }
-        Query query = getAvailableAgentQuery();
+        Criteria criteria = getAvailableAgentCriteria();
         if (CollectionUtils.isNotEmpty(processIdList)) {
-            query.addCriteria(Criteria.where("process_id").in(processIdList));
+            criteria.and("process_id").in(processIdList);
         }
-        return repository.findAll(query, userDetail);
+
+        return getWorkers(userDetail, criteria);
     }
 
     @Override
@@ -238,14 +267,19 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return new ObjectId().toHexString() + '-' + BigInteger.valueOf(new Date().getTime()).toString(32);
     }
 
-    public Map<String, WorkerProcessInfoDto> getProcessInfo(List<String> ids) {
+    public Map<String, WorkerProcessInfoDto> getProcessInfo(List<String> ids, UserDetail userDetail) {
 
         Map<String, WorkerProcessInfoDto> result = new HashMap<>();
         List<WorkerDto> workers = findAll(Query.query(Criteria.where("workerType").is("connector").and("process_id").in(ids)));
 
         workers.forEach(worker -> {
 
-            Query query = Query.query(Criteria.where("agentId").is(worker.getProcessId()).and("status").is(TaskDto.STATUS_RUNNING));
+            // query task : 1.status is running 2.crontabExpressionFlag is true
+            Criteria criteria = Criteria.where("agentId").is(worker.getProcessId())
+                    .and("is_deleted").ne(true)
+                    .and("user_id").is(userDetail.getUserId())
+                    .orOperator(Criteria.where("status").is(TaskDto.STATUS_RUNNING), Criteria.where("crontabExpressionFlag").is(true));
+            Query query = Query.query(criteria);
             query.fields().include("id", "name", "syncType");
             //List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
             List<TaskDto> tasks = taskService.findAll(query);
@@ -288,7 +322,6 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         CalculationEngineVo calculationEngineVo = calculationEngine(entity, userDetail, type);
         String processId = calculationEngineVo.getProcessId();
         String filter = calculationEngineVo.getFilter();
-        ArrayList<BasicDBObject> threadLog = calculationEngineVo.getThreadLog();
 
         ScheduleTasksDto scheduleTasksDto = new ScheduleTasksDto();
         scheduleTasksDto.setTask_name("TM_SCHEDULE");
@@ -301,7 +334,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         scheduleTasksDto.setLast_updated(new Date());
         scheduleTasksDto.setPing_time(System.currentTimeMillis());
         scheduleTasksDto.setFilter(filter);
-        scheduleTasksDto.setThread(threadLog);
+        scheduleTasksDto.setThread(calculationEngineVo.getThreadLog());
         scheduleTasksService.save(scheduleTasksDto, userDetail);
 
         return calculationEngineVo;
@@ -311,6 +344,12 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
         String filter;
         int availableNum;
+        int taskLimit = 0;
+        int runningNum = 0;
+
+        ArrayList<WorkSchedule> threadLog = new ArrayList<>();
+
+        AtomicReference<String> scheduleAgentId = new AtomicReference<>("");
 
         Object jobHeartTimeout = settingsService.getByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT).getValue();
         Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
@@ -330,116 +369,111 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                     .and("process_id").is(agentId);
             WorkerDto worker = findOne(Query.query(where));
 
-            int num = taskService.runningTaskNum(agentId, userDetail);
+            runningNum = taskService.runningTaskNum(agentId, userDetail);
             if (Objects.nonNull(worker)) {
-                if (worker.getLimitTaskNum() > num || !type.equals("task")) {
-                    calculationEngineVo.setProcessId(agentId);
-                    calculationEngineVo.setManually(true);
+                availableNum = 1;
+                taskLimit = getLimitTaskNum(worker, userDetail);
 
-                    calculationEngineVo.setFilter(where.toString());
-                    ArrayList<BasicDBObject> threadLog = new ArrayList<>();
-                    threadLog.add(new BasicDBObject()
-                            .append("process_id", worker.getProcessId())
-                            .append("weight", worker.getWeight())
-                            .append("running_thread", worker.getRunningThread())
-                    );
-                    calculationEngineVo.setThreadLog(threadLog);
+                calculationEngineVo.setProcessId(agentId);
+                scheduleAgentId.set(agentId);
+                calculationEngineVo.setManually(true);
 
-                    entity.setAgentId(calculationEngineVo.getProcessId());
-                    entity.setScheduleTime(System.currentTimeMillis());
-                    return calculationEngineVo;
-                }
+                calculationEngineVo.setFilter(where.toString());
+
+                WorkSchedule workSchedule = new WorkSchedule();
+                workSchedule.setProcessId(worker.getProcessId());
+                workSchedule.setWeight(worker.getWeight());
+                workSchedule.setTaskRunNum(runningNum);
+                workSchedule.setTaskLimit(taskLimit);
+                threadLog.add(workSchedule);
+                calculationEngineVo.setThreadLog(threadLog);
+
+                entity.setAgentId(calculationEngineVo.getProcessId());
+                entity.setScheduleTime(System.currentTimeMillis());
+
+                calculationEngineVo.setAvailable(availableNum);
+                calculationEngineVo.setTaskLimit(taskLimit);
+                calculationEngineVo.setRunningNum(runningNum);
+                return calculationEngineVo;
             }
         }
         // 53迭代Task上增加了指定Flow Engine的功能 --end
-        BasicDBObject thread = new BasicDBObject();
-        //优先调度到用户自己的agent上。用于内部测试使用。不要修改此逻辑！！！
-        //和steven确认了 之前指定agent的逻辑是 work中process_id存的是entity.getUserId()
-        Criteria whereSelf = Criteria.where("worker_type").is("connector")
+
+        Criteria where = Criteria.where("worker_type").is("connector")
                 .and("ping_time").gte(findTime)
                 .and("isDeleted").ne(true)
-                .and("stopping").ne(true)
-                .and("agentTags").ne("disabledScheduleTask")
-                .and("process_id").is(entity.getUserId());
-        Worker selfWorkers = repository.findOne(Query.query(whereSelf)).orElse(null);
-        ArrayList<BasicDBObject> threadLog = new ArrayList<>();
-        if(selfWorkers != null){
-            filter = whereSelf.toString();
-            availableNum = 1;
-
-            thread.append("process_id",selfWorkers.getProcessId());
-            threadLog.add(new BasicDBObject()
-                    .append("process_id", selfWorkers.getProcessId())
-                    .append("weight", selfWorkers.getWeight())
-                    .append("running_thread", selfWorkers.getRunningThread())
-            );
-        } else {
-            Criteria where = Criteria.where("worker_type").is("connector")
-                    .and("ping_time").gte(findTime)
-                    .and("isDeleted").ne(true)
-                    .and("stopping").ne(true);
-            if (isCloud) {
+                .and("stopping").ne(true);
+        if (isCloud) {
+            // query user have share worker
+            WorkerExpire workerExpire = mongoTemplate.findOne(Query.query(Criteria.where("userId").is(userDetail.getUserId())), WorkerExpire.class);
+            if (Objects.nonNull(workerExpire) && workerExpire.getExpireTime().after(new Date())) {
+                where.and("user_id").in(userDetail.getUserId(), workerExpire.getShareTmUserId());
+            } else {
                 where.and("user_id").is(userDetail.getUserId());
             }
+        }
 
-            if (isCloud && entity.getAgentTags() != null && entity.getAgentTags().size() > 0) {
-                List<String> agentTags = new ArrayList<>();
-                for (int i = 0; i < entity.getAgentTags().size(); i++) {
-                    String s = entity.getAgentTags().get(i);
-                    if (!s.equals("unidirectional")) {
-                        agentTags.add(s);
-                    }
+        if (isCloud && entity.getAgentTags() != null && entity.getAgentTags().size() > 0) {
+            List<String> agentTags = new ArrayList<>();
+            for (int i = 0; i < entity.getAgentTags().size(); i++) {
+                String s = entity.getAgentTags().get(i);
+                if (!s.equals("unidirectional")) {
+                    agentTags.add(s);
                 }
-                if (CollectionUtils.isNotEmpty(agentTags)) {
-                    where.and("agentTags").all(agentTags);
-                } else {
-                    where.and("agentTags").ne("disabledScheduleTask");
-                }
+            }
+            if (CollectionUtils.isNotEmpty(agentTags)) {
+                where.and("agentTags").all(agentTags);
             } else {
                 where.and("agentTags").ne("disabledScheduleTask");
             }
-
-            Query query = Query.query(where);
-            List<WorkerDto> workers = findAllDto(query, userDetail);
-            int workerNum = 0;
-            for (int i = 0; i < workers.size(); i++) {
-                WorkerDto worker = workers.get(i);
-                if (worker.getWeight() == null) {
-                    worker.setWeight(1);
-                }
-                long num = taskService.runningTaskNum(worker.getProcessId(), userDetail);
-                if (worker.getLimitTaskNum() > num || !type.equals("task")) {
-                    workerNum++;
-
-                    worker.setRunningThread((int) num);
-                    threadLog.add(new BasicDBObject()
-                            .append("process_id", worker.getProcessId())
-                            .append("weight", worker.getWeight())
-                            .append("running_thread", worker.getRunningThread())
-                    );
-                    float load = (float) (worker.getRunningThread() / worker.getWeight());
-                    if (i == 0 || thread.get("load") == null) {
-                        thread.append("load", load);
-                        thread.append("process_id", worker.getProcessId());
-                    } else if (thread.get("load") != null && load < (float) thread.get("load")) {
-                        thread.append("load", load);
-                        thread.append("process_id", worker.getProcessId());
-                    }
-                }
-            }
-
-            if (StringUtils.isBlank((String) thread.get("process_id"))) {
-                if (workerNum < workers.size()) {
-                    calculationEngineVo.setTaskAvailable(workerNum);
-                }
-            }
-
-            filter = where.toString();
-            availableNum = workers.size();
+        } else {
+            where.and("agentTags").ne("disabledScheduleTask");
         }
 
+        Query query = Query.query(where);
+        List<WorkerDto> workers = findAll(query);
+        availableNum = workers.size();
 
-        String processId = (String) thread.get("process_id");
+        AtomicInteger scheduleWeight = new AtomicInteger();
+        AtomicInteger scheduleRunNum = new AtomicInteger();
+        AtomicInteger scheduleTaskLimit = new AtomicInteger();
+
+        for (int i = 0; i < workers.size(); i++) {
+            WorkerDto worker = workers.get(i);
+            FunctionUtils.isTureOrFalse(worker.getUserId().equals(userDetail.getUserId())).trueOrFalseHandle(() -> worker.setWeight(99), () -> worker.setWeight(1));
+
+            String processId = worker.getProcessId();
+            runningNum = taskService.runningTaskNum(processId, userDetail);
+            taskLimit = getLimitTaskNum(worker, userDetail);
+            Integer weight = worker.getWeight();
+
+            WorkSchedule workSchedule = new WorkSchedule();
+            workSchedule.setProcessId(processId);
+            workSchedule.setWeight(weight);
+            workSchedule.setTaskRunNum(runningNum);
+            workSchedule.setTaskLimit(taskLimit);
+            threadLog.add(workSchedule);
+
+            if (i == 0 || workSchedule.getProcessId() == null) {
+                scheduleAgentId.set(processId);
+                scheduleWeight.set(weight);
+                scheduleRunNum.set(runningNum);
+                scheduleTaskLimit.set(taskLimit);
+            } else if (worker.getWeight() > scheduleWeight.get()) {
+                scheduleAgentId.set(processId);
+                scheduleWeight.set(weight);
+                scheduleRunNum.set(runningNum);
+                scheduleTaskLimit.set(taskLimit);
+            } else if (worker.getWeight().equals(scheduleWeight.get()) &&  (taskLimit - runningNum) > (scheduleTaskLimit.get() - scheduleRunNum.get())) {
+                scheduleAgentId.set(processId);
+                scheduleWeight.set(weight);
+                scheduleRunNum.set(runningNum);
+                scheduleTaskLimit.set(taskLimit);
+            }
+        }
+
+        filter = where.toString();
+        String processId = scheduleAgentId.get();
 
         entity.setAgentId(processId);
         entity.setScheduleTime(System.currentTimeMillis());
@@ -449,6 +483,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         calculationEngineVo.setThreadLog(threadLog);
         calculationEngineVo.setAvailable(availableNum);
         calculationEngineVo.setManually(false);
+        calculationEngineVo.setTaskLimit(scheduleTaskLimit.get());
+        calculationEngineVo.setRunningNum(scheduleRunNum.get());
 
         return calculationEngineVo;
     }
@@ -488,8 +524,6 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         update.set("updateStatus", "fail");
         update.set("updateMsg", "time out");
         UpdateResult updateResult = update(query, update);
-
-        BsonValue upsertedId = updateResult.getUpsertedId();
         log.info("clean worker :{}", updateResult.getModifiedCount());
     }
 
@@ -572,22 +606,22 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
         boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
         Criteria where = Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType());
-        if (!WorkerSingletonLock.checkDBTag(worker.getSingletonLock(), worker.getWorkerType(), isCloud, () -> Optional
-                .of(Query.query(where))
-                .map(query -> {
-                    query.fields().include("singletonLock", "ping_time");
-                    return query;
-                }).flatMap(query -> repository.findOne(query).map(w -> {
-                    // 如果超时，返回当前 worker tag 表示可以启动
-                    if (isAgentTimeout(w.getPingTime())) {
-                        return null;
-                    }
-                    return w.getSingletonLock();
-                }))
-                .orElse(worker.getSingletonLock())
-        )) {
-            return null;
-        }
+//        if (!WorkerSingletonLock.checkDBTag(worker.getSingletonLock(), worker.getWorkerType(), isCloud, () -> Optional
+//                .of(Query.query(where))
+//                .map(query -> {
+//                    query.fields().include("singletonLock", "ping_time");
+//                    return query;
+//                }).flatMap(query -> repository.findOne(query).map(w -> {
+//                    // 如果超时，返回当前 worker tag 表示可以启动
+//                    if (isAgentTimeout(w.getPingTime())) {
+//                        return null;
+//                    }
+//                    return w.getSingletonLock();
+//                }))
+//                .orElse(worker.getSingletonLock())
+//        )) {
+//            return null;
+//        }
 
         repository.upsert(Query.query(where),
                 convertToEntity(Worker.class, worker), loginUser
@@ -658,10 +692,127 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
     public WorkerDto findByProcessId(String processId, UserDetail userDetail, String... fields) {
         Criteria criteria = Criteria.where("process_id").is(processId);
-        Query query = new Query(criteria);
-        if (fields != null && fields.length != 0) {
-            query.fields().include(fields);
+        Worker worker = getWorkers(userDetail, criteria).stream().findFirst().orElse(null);
+        return BeanUtil.copyProperties(worker, WorkerDto.class);
+    }
+
+    public void createShareWorker(WorkerExpireDto workerExpireDto, UserDetail loginUser) {
+        String userId = workerExpireDto.getUserId();
+        if (StringUtils.isBlank(userId)) {
+            throw new BizException("SHARE_AGENT_USER_ID_IS_NULL", "userId is null");
         }
-        return findOne(query, userDetail);
+
+        // check user is existed
+        WorkerExpire one = mongoTemplate.findOne(Query.query(Criteria.where("userId").is(userId)), WorkerExpire.class);
+        if (Objects.nonNull(one)) {
+            throw new BizException("SHARE_AGENT_USER_EXISTED", "have applied for a public agent");
+        }
+
+        Object shareAgentDaysValue = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.SHARE_AGENT_EXPRIRE_DAYS);
+        int shareAgentDays = Integer.parseInt(shareAgentDaysValue.toString());
+
+        Object shareAgentUserValue = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.SHARE_AGENT_CREATE_USER);
+        if (Objects.isNull(shareAgentUserValue)) {
+            throw new BizException("SHARE_AGENT_CREATE_USER_NOT_FOUND", "Shared Agent user not found");
+        }
+        String[] shareAgentUser = shareAgentUserValue.toString().split(",");
+
+        // get share agent user by random
+        String shareAgentUserRandom = shareAgentUser[new Random().nextInt(shareAgentUser.length)];
+
+        WorkerExpire workerExpire = new WorkerExpire();
+        workerExpire.setUserId(loginUser.getUserId());
+        workerExpire.setShareUser(shareAgentUserRandom);
+        workerExpire.setCreateUser(loginUser.getUsername());
+        Date date = new Date();
+        workerExpire.setCreateAt(date);
+        workerExpire.setLastUpdAt(date);
+        UserDetail userDetail = userService.loadUserByUsername(shareAgentUserRandom);
+        Assert.notNull(userDetail, "userDetail is null");
+        workerExpire.setShareTmUserId(userDetail.getUserId());
+        workerExpire.setShareTcmUserId(userDetail.getTcmUserId());
+        workerExpire.setExpireTime(DateUtil.offsetDay(date, shareAgentDays));
+        workerExpire.setSubscribeId(workerExpireDto.getSubscribeId());
+
+        mongoTemplate.insert(workerExpire);
+    }
+
+    public WorkerExpireDto getShareWorker(UserDetail userDetail) {
+        WorkerExpire workerExpire = mongoTemplate.findOne(Query.query(Criteria.where("userId").is(userDetail.getUserId())), WorkerExpire.class);
+        if (Objects.nonNull(workerExpire)) {
+            return BeanUtil.copyProperties(workerExpire, WorkerExpireDto.class);
+        }
+
+        return null;
+    }
+
+    public void checkWorkerExpire() {
+        Date date = new Date();
+        Criteria expireTime = Criteria.where("expireTime").lt(date).gt(DateUtil.offsetHour(date, -1));
+        List<WorkerExpire> workerExpires = mongoTemplate.find(Query.query(expireTime), WorkerExpire.class);
+        if (CollectionUtils.isNotEmpty(workerExpires)) {
+            workerExpires.forEach(workerExpire -> {
+                // query worker by shareUser
+                List<WorkerDto> shareWorkers = findAll(Query.query(Criteria.where("user_id").is(workerExpire.getShareTmUserId())));
+                shareWorkers.forEach(workerDto -> {
+                    String processId = workerDto.getProcessId();
+                    CommonUtils.ignoreAnyError(() -> taskExtendService.stopTaskByAgentIdAndUserId(processId, workerExpire.getUserId()), "TM");
+                });
+            });
+        }
+    }
+
+    public int getLimitTaskNum(WorkerDto workerDto, UserDetail user) {
+        if (workerDto == null || workerDto.getProcessId() == null) {
+            return -1;
+        }
+
+        // query by public agent -- start
+        if (!user.getUserId().equals(workerDto.getUserId())) {
+            return 2;
+        }
+        // query by public agent -- end
+
+        // query limit by tags -- start
+        if (CollectionUtils.isEmpty(workerDto.getAgentTags())) {
+            return Integer.MAX_VALUE;
+        }
+
+        String limitString = null;
+        for (String agentTag : workerDto.getAgentTags()) {
+            if (agentTag.startsWith("limitScheduleTask")) {
+                limitString = agentTag;
+                break;
+            }
+        }
+
+        if (org.apache.commons.lang3.StringUtils.isBlank(limitString)) {
+            return Integer.MAX_VALUE;
+        }
+
+        List<String> list = Splitter.on(':')
+                .trimResults()
+                .omitEmptyStrings()
+                .splitToList(limitString);
+
+        if (list.size() < 2) {
+            return Integer.MAX_VALUE;
+        }
+
+        int limit = Integer.MAX_VALUE;
+        try {
+            limit = Integer.parseInt(list.get(1));
+        } catch (Exception ignore) {
+        }
+
+        return limit;
+        // query limit by tags -- end
+    }
+
+    public void deleteShareWorker(UserDetail loginUser) {
+        Query query = Query.query(Criteria.where("userId").is(loginUser.getUserId()));
+        Date date = new Date();
+        Update expireTime = Update.update("expireTime", date).set("is_deleted", true).set("last_updated", date);
+        mongoTemplate.updateFirst(query, expireTime, WorkerExpire.class);
     }
 }

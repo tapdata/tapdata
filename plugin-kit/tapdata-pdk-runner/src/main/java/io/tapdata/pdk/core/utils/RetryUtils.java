@@ -66,6 +66,7 @@ public class RetryUtils extends CommonUtils {
 				if (doRetry) {
 					Optional.ofNullable(invoker.getLogListener())
 							.ifPresent(log -> log.info(LOG_PREFIX + String.format("Method (%s) retry succeed", method.name().toLowerCase())));
+					invoker.getClearFunctionRetry().run();
 				}
 				break;
 			} catch (Throwable errThrowable) {
@@ -123,6 +124,7 @@ public class RetryUtils extends CommonUtils {
 					callBeforeRetryMethodIfNeed(retryOptions, logTag);
 					if (null != invoker.getStartRetry()) {
 						invoker.getStartRetry().run();
+						invoker.getSignFunctionRetry().run();
 					}
 					doRetry = true;
 				} else {

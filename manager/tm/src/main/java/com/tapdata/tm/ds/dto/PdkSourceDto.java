@@ -6,6 +6,7 @@ import lombok.*;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @Author: Zed
@@ -42,4 +43,5 @@ public class PdkSourceDto {
     private Integer pdkAPIBuildNumber;
     private String authentication;
     private List<String> tags;
+    private Map<String, String> manifest;
 }
