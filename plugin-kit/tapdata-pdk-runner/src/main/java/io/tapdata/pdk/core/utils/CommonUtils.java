@@ -353,11 +353,14 @@ public class CommonUtils {
     public static int getPdkBuildNumer() {
         AtomicInteger pdkAPIBuildNumber = new AtomicInteger(0);
         ignoreAnyError(() -> {
-            InputStream resourceAsStream = CommonUtils.class.getClassLoader().getResourceAsStream("pluginKit.properties");
-            Properties properties = new Properties();
-            properties.load(resourceAsStream);
-            String pdkAPIVersion = properties.getProperty("tapdata.pdk.api.verison");
-            pdkAPIBuildNumber.set(getPdkBuildNumer(pdkAPIVersion));
+            try (
+                    InputStream resourceAsStream = CommonUtils.class.getClassLoader().getResourceAsStream("pluginKit.properties");
+            ) {
+                Properties properties = new Properties();
+                properties.load(resourceAsStream);
+                String pdkAPIVersion = properties.getProperty("tapdata.pdk.api.verison");
+                pdkAPIBuildNumber.set(getPdkBuildNumer(pdkAPIVersion));
+            }
         }, "");
         return pdkAPIBuildNumber.get();
     }
