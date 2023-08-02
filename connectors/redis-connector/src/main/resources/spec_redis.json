@@ -73,9 +73,10 @@
           "type": "string",
           "title": "${database}",
           "x-decorator": "FormItem",
-          "x-component": "Input",
+          "x-component": "InputNumber",
           "apiServerKey": "database_name",
           "x-index": 4,
+          "description": "${databaseProp}",
           "required": true
         },
         "schemaKey": {
@@ -436,7 +437,8 @@
       "keySuffixTooltip": "Key suffix (a specialized combination for data replication). When stored in Hash or non single key mode, each data can be stored in a custom suffix key",
       "valueDataTooltip": "The format of each row of data stored, supporting text and JSON formats",
       "valueJoinStringTooltip": "If the data is in TEXT format, the interval character can be customized",
-      "csvFormatTooltip": "Turn on the CSV formatting switch to convert TEXT to a standard line of CSV"
+      "csvFormatTooltip": "Turn on the CSV formatting switch to convert TEXT to a standard line of CSV",
+      "databaseProp": "Please enter a integer between 0 and 15"
     },
     "zh_CN": {
       "doc": "docs/redis_zh_CN.md",
@@ -476,7 +478,9 @@
       "keySuffixTooltip": "键后缀（数据复制专用组合），存储为Hash或非单键方式时，可以将每条数据存入自定义后缀的键",
       "valueDataTooltip": "存储的每行数据的格式，支持TEXT、JSON格式",
       "valueJoinStringTooltip": "若数据为TEXT格式，可自定义间隔符",
-      "csvFormatTooltip": "打开CSV格式化开关，可以将TEXT转换为CSV的标准行"
+      "csvFormatTooltip": "打开CSV格式化开关，可以将TEXT转换为CSV的标准行",
+      "databaseProp": "请输入0-15的整数"
+
     },
     "zh_TW": {
       "doc": "docs/redis_zh_TW.md",
@@ -516,7 +520,9 @@
       "keySuffixTooltip": "鍵尾碼（數據複製專用組合），存儲為Hash或非單鍵管道時，可以將每條數據存入自定義尾碼的鍵",
       "valueDataTooltip": "存儲的每行數據的格式，支持TEXT、JSON格式",
       "valueJoinStringTooltip": "若數據為TEXT格式，可自定義間隔符",
-      "csvFormatTooltip": "打開CSV格式化開關，可以將TEXT轉換為CSV的標準行"
+      "csvFormatTooltip": "打開CSV格式化開關，可以將TEXT轉換為CSV的標準行",
+      "databaseProp": "請輸入0-15的整數"
+
     }
   },
   "dataTypes": {
