@@ -381,16 +381,14 @@ public class KafkaService extends AbstractMqService {
                     }
                     if(record.containsKey("header")){
                         Map<String, Object> head = (Map<String, Object>) record.get("header");
-                        if(head.containsKey("mqOp")){
-                            recordHeaders.add("mqOp",head.get("mqOp").toString().getBytes());
-                        }else {
-                            recordHeaders.add("mqOp",mqOp.toString().getBytes());
+                        for (String s : head.keySet()) {
+                            recordHeaders.add(s,head.get(s).toString().getBytes());
                         }
                     }else {
                         recordHeaders.add("mqOp",mqOp.toString().getBytes());
                     }
                 }
-                byte[] body = jsonParser.toJsonBytes(record);
+                byte[] body = jsonParser.toJsonBytes(allData);
                 MqOp finalMqOp = mqOp;
                 Callback callback = (metadata, exception) -> {
                     try {
