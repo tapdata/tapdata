@@ -123,10 +123,10 @@ public class KafkaConnector extends ConnectorBase {
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
         String enableScript = connectorContext.getNodeConfig().getString("enableScript");
-        if ("false".equals(enableScript)){
-            kafkaService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
-        }else {
+        if ("true".equals(enableScript)){
             kafkaService.produce(connectorContext,tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
+        }else {
+            kafkaService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
         }
     }
 
