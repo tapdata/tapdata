@@ -41,7 +41,7 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -56,6 +56,8 @@ import static com.tapdata.constant.ConnectorConstant.LOOKUP_TABLE_SUFFIX;
 public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	public static final String TAG = HazelcastMergeNode.class.getSimpleName();
+	public static final int DEFAULT_MERGE_CACHE_IN_MEM_SIZE = 100000;
+	public static final int DEFAULT_LOOKUP_THREAD_NUM = 8;
 	private Logger logger = LogManager.getLogger(HazelcastMergeNode.class);
 
 	// 缓存表信息{"前置节点id": "Hazelcast缓存资源{"join value string": {"pk value string": "after data"}}"}
@@ -78,6 +80,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	private final Map<String, io.tapdata.pdk.apis.entity.merge.MergeTableProperties> preNodeIdPdkMergeTablePropertieMap = new ConcurrentHashMap<>();
 	private Map<String, Integer> sourceNodeLevelMap;
 	private String mergeMode;
+	private ExecutorService lookupThreadPool;
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -132,6 +135,19 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		TapCreateIndexEvent mergeConfigCreateIndexEvent = generateCreateIndexEventsForTarget();
 		this.createIndexEvent = new TapdataEvent();
 		this.createIndexEvent.setTapEvent(mergeConfigCreateIndexEvent);
+		int lookupThreadNum;
+		try {
+			lookupThreadNum = Integer.parseInt(CommonUtils.getProperty("MERGE_LOOKUP_THREAD_NUM", String.valueOf(DEFAULT_LOOKUP_THREAD_NUM)));
+		} catch (NumberFormatException e) {
+			lookupThreadNum = DEFAULT_LOOKUP_THREAD_NUM;
+		}
+		obsLogger.info("Merge table processor lookup thread num: " + lookupThreadNum);
+		lookupThreadPool = new ThreadPoolExecutor(lookupThreadNum, lookupThreadNum, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
+				r -> {
+					Thread thread = new Thread(r);
+					thread.setName("Merge-Processor-Lookup-Runner");
+					return thread;
+				});
 	}
 
 	private void initSourceNodeLevelMap(List<MergeTableProperties> mergeProperties, int level) {
@@ -145,7 +161,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			mergeProperties = mergeTableNode.getMergeProperties();
 		}
 		if (null == this.sourceNodeLevelMap) {
-			this.sourceNodeLevelMap = new HashMap<>();
+			this.sourceNodeLevelMap = new ConcurrentHashMap<>();
 		}
 		for (MergeTableProperties mergeProperty : mergeProperties) {
 			this.sourceNodeLevelMap.put(mergeProperty.getId(), level);
@@ -170,44 +186,58 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	@Override
 	protected void tryProcess(List<HazelcastProcessorBaseNode.BatchEventWrapper> tapdataEvents, Consumer<List<BatchProcessResult>> consumer) {
 		List<BatchProcessResult> batchProcessResults = new ArrayList<>();
+		List<CompletableFuture<Void>> lookupCfs = new ArrayList<>();
+		List<BatchEventWrapper> batchCache = new ArrayList<>();
+		Boolean lastNeedCache = null;
 		if (this.createIndexEvent != null) {
 			BatchProcessResult batchProcessResult = new BatchProcessResult(new BatchEventWrapper(this.createIndexEvent, null), null);
 			batchProcessResults.add(batchProcessResult);
-			acceptIfNeed(consumer, batchProcessResults);
+			acceptIfNeed(consumer, batchProcessResults, lookupCfs);
 			batchProcessResults.clear();
 			this.createIndexEvent = null;
 		}
-		List<BatchEventWrapper> batchCache = new ArrayList<>();
 		for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
 			TapdataEvent tapdataEvent = batchEventWrapper.getTapdataEvent();
 			boolean needCache = needCache(tapdataEvent);
-			if (!tapdataEvent.isDML() || !needCache) {
-				if (doBatchCacheIfNeed(batchCache)) {
-					for (BatchEventWrapper eventWrapper : batchCache) {
-						String preTableName = getPreTableName(eventWrapper.getTapdataEvent());
-						batchProcessResults.add(new BatchProcessResult(eventWrapper, ProcessResult.create().tableId(preTableName)));
-					}
+			if (null == lastNeedCache) {
+				lastNeedCache = needCache;
+			}
+			boolean needLookup = needLookup(tapdataEvent);
+			if (!tapdataEvent.isDML() || lastNeedCache != needCache) {
+				if (lastNeedCache) {
+					doBatchCache(batchCache);
+				}
+				for (BatchEventWrapper eventWrapper : batchCache) {
+					String preTableName = getPreTableName(eventWrapper.getTapdataEvent());
+					batchProcessResults.add(new BatchProcessResult(eventWrapper, ProcessResult.create().tableId(preTableName)));
 				}
 				batchProcessResults.add(new BatchProcessResult(new BatchEventWrapper(tapdataEvent, null), null));
-				acceptIfNeed(consumer, batchProcessResults);
+				acceptIfNeed(consumer, batchProcessResults, lookupCfs);
 				batchCache.clear();
 				batchProcessResults.clear();
-			} else {
-				wrapMergeInfo(tapdataEvent);
-				batchCache.add(batchEventWrapper);
+				lookupCfs.clear();
 			}
-			lookupAndWrapMergeInfoIfNeed(tapdataEvent);
+			wrapMergeInfo(tapdataEvent);
+			batchCache.add(batchEventWrapper);
+			if (needLookup) {
+				CompletableFuture<Void> lookupCf = lookupAndWrapMergeInfoConcurrent(tapdataEvent);
+				lookupCfs.add(lookupCf);
+			}
+			lastNeedCache = needCache;
 		}
-		if (doBatchCacheIfNeed(batchCache)) {
+		if (CollectionUtils.isNotEmpty(batchCache)) {
+			if (null != lastNeedCache && lastNeedCache) {
+				doBatchCache(batchCache);
+			}
 			for (BatchEventWrapper eventWrapper : batchCache) {
 				String preTableName = getPreTableName(eventWrapper.getTapdataEvent());
 				batchProcessResults.add(new BatchProcessResult(eventWrapper, ProcessResult.create().tableId(preTableName)));
 			}
-			acceptIfNeed(consumer, batchProcessResults);
+			acceptIfNeed(consumer, batchProcessResults, lookupCfs);
 		}
 	}
 
-	private void acceptIfNeed(Consumer<List<BatchProcessResult>> consumer, List<BatchProcessResult> batchProcessResults) {
+	private void acceptIfNeed(Consumer<List<BatchProcessResult>> consumer, List<BatchProcessResult> batchProcessResults, List<CompletableFuture<Void>> lookupCfs) {
 		batchProcessResults = batchProcessResults.stream().filter(batchProcessResult -> {
 			TapdataEvent tapdataEvent = batchProcessResult.getBatchEventWrapper().getTapdataEvent();
 			if (tapdataEvent.isDML()) {
@@ -218,24 +248,32 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			return true;
 		}).collect(Collectors.toList());
 		if (CollectionUtils.isNotEmpty(batchProcessResults)) {
+			if (CollectionUtils.isNotEmpty(lookupCfs)) {
+				try {
+					CompletableFuture.allOf(lookupCfs.toArray(new CompletableFuture[0])).join();
+				} catch (Exception e) {
+					errorHandle(e);
+					return;
+				}
+			}
 			consumer.accept(batchProcessResults);
 		}
 	}
 
-	private void lookupAndWrapMergeInfoIfNeed(TapdataEvent tapdataEvent) {
-		MergeInfo mergeInfo = wrapMergeInfo(tapdataEvent);
-		if (needLookup(tapdataEvent)) {
+	private CompletableFuture<Void> lookupAndWrapMergeInfoConcurrent(TapdataEvent tapdataEvent) {
+		Runnable runnable = () -> {
+			MergeInfo mergeInfo = wrapMergeInfo(tapdataEvent);
 			List<MergeLookupResult> mergeLookupResults = lookup(tapdataEvent);
 			mergeInfo.setMergeLookupResults(mergeLookupResults);
-		}
+		};
+//			runnable.run();
+		return CompletableFuture.runAsync(runnable, lookupThreadPool);
 	}
 
-	private boolean doBatchCacheIfNeed(List<BatchEventWrapper> batchCache) {
+	private void doBatchCache(List<BatchEventWrapper> batchCache) {
 		if (CollectionUtils.isNotEmpty(batchCache)) {
 			cache(batchCache.stream().map(BatchEventWrapper::getTapdataEvent).collect(Collectors.toList()));
-			return true;
 		}
-		return false;
 	}
 
 	@Override
@@ -252,7 +290,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		if (needCache(tapdataEvent)) {
 			cache(tapdataEvent);
 		}
-		lookupAndWrapMergeInfoIfNeed(tapdataEvent);
+		lookupAndWrapMergeInfoConcurrent(tapdataEvent);
 		consumer.accept(tapdataEvent, ProcessResult.create().tableId(preTableName));
 	}
 
@@ -321,7 +359,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				if (StringUtils.isBlank(cacheName)) {
 					break;
 				}
-				externalStorageDto.setInMemSize(1000);
+				externalStorageDto.setInMemSize(DEFAULT_MERGE_CACHE_IN_MEM_SIZE);
 				externalStorageDto.setWriteDelaySeconds(1);
 				ConstructIMap<Document> hazelcastConstruct = new ConstructIMap<>(jetContext.hazelcastInstance(), HazelcastMergeNode.class.getSimpleName(), cacheName, externalStorageDto);
 				this.mergeCacheMap.put(mergeProperty.getId(), hazelcastConstruct);
@@ -1022,6 +1060,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 					}
 				}
 			}
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(lookupThreadPool).ifPresent(ExecutorService::shutdownNow), TAG);
 		} finally {
 			super.doClose();
 		}

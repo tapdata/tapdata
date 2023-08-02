@@ -371,12 +371,14 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	}
 
 	private static class InitialBatchProcessor {
-		static final int BATCH_SIZE = 1000;
-		static final long BATCH_TIMEOUT_MS = 1000L;
+		static final int DEFAULT_BATCH_SIZE = 1000;
+		static final long DEFAULT_BATCH_TIMEOUT_MS = 1000L;
 		static final int NOT_RUN = 1;
 		static final int RUNNING = 2;
 		static final int FINISH = 3;
-		LinkedBlockingQueue<BatchEventWrapper> tapdataEventQueue = new LinkedBlockingQueue<>(BATCH_SIZE * 2);
+		int batchSize;
+		long batchTimeoutMs;
+		LinkedBlockingQueue<BatchEventWrapper> tapdataEventQueue = new LinkedBlockingQueue<>(DEFAULT_BATCH_SIZE * 2);
 		int status = 1;
 		private Node node;
 		ExecutorService batchConsumerThreadPool;
@@ -390,6 +392,16 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				return thread;
 			});
 			this.batchConsumerThreadPool.submit(() -> batchProcessor.process(this));
+			try {
+				batchSize = Integer.parseInt(CommonUtils.getProperty("PROCESSOR_BATCH_SIZE", String.valueOf(DEFAULT_BATCH_SIZE)));
+			} catch (NumberFormatException e) {
+				batchSize = DEFAULT_BATCH_SIZE;
+			}
+			try {
+				batchTimeoutMs = Long.parseLong(CommonUtils.getProperty("PROCESSOR_BATCH_TIMEOUT_MS", String.valueOf(DEFAULT_BATCH_TIMEOUT_MS)));
+			} catch (NumberFormatException e) {
+				batchTimeoutMs = DEFAULT_BATCH_TIMEOUT_MS;
+			}
 		}
 
 		void notRun() {
@@ -415,7 +427,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		List<BatchEventWrapper> drainTo() {
 			List<BatchEventWrapper> tapdataEvents = new ArrayList<>();
 			try {
-				Queues.drain(tapdataEventQueue, tapdataEvents, BATCH_SIZE, BATCH_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+				Queues.drain(tapdataEventQueue, tapdataEvents, batchSize, batchTimeoutMs, TimeUnit.MILLISECONDS);
 			} catch (InterruptedException ignored) {
 			}
 			return tapdataEvents;
