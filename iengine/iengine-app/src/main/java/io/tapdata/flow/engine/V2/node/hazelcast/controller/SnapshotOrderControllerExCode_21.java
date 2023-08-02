@@ -51,4 +51,9 @@ public interface SnapshotOrderControllerExCode_21 {
 			describeCN = "修改主从合并模式后，需要重置任务再运行"
 	)
 	String CANNOT_CHANGE_MERGE_MODE_WITH_OUT_RESET = "21009";
+	@TapExCode(
+			describe = "Merge node not found",
+			describeCN = "主从合并节点未找到"
+	)
+	String TABLE_MERGE_NODE_NOT_FOUND = "21010";
 }

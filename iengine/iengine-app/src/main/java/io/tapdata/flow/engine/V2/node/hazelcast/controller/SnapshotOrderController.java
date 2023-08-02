@@ -49,19 +49,21 @@ public class SnapshotOrderController implements Serializable {
 			throw new TapCodeException(SnapshotOrderControllerExCode_21.CREATE_CONTROLLER_TASK_NULL);
 		}
 		List<Node> nodes = taskDto.getDag().getNodes();
+		MergeTableNode mergeTableNode;
 		Node foundNode = nodes.stream().filter(node -> node instanceof MergeTableNode).findFirst().orElse(null);
-		MergeTableNode mergeTableNode = null;
+		if (foundNode instanceof MergeTableNode) {
+			mergeTableNode = (MergeTableNode) foundNode;
+		} else {
+			throw new TapCodeException(SnapshotOrderControllerExCode_21.TABLE_MERGE_NODE_NOT_FOUND);
+		}
 		if (null == snapshotOrderList) {
 			snapshotOrderList = new ArrayList<>();
-			if (null != foundNode) {
-				mergeTableNode = (MergeTableNode) foundNode;
-				List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
-				recursiveBuildSnapshotOrderListByMergeNode(mergeProperties, snapshotOrderList, mergeTableNode, 1);
-			}
+			List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
+			recursiveBuildSnapshotOrderListByMergeNode(mergeProperties, snapshotOrderList, mergeTableNode, 1);
 		}
 		SnapshotOrderController snapshotOrderController = new SnapshotOrderController(taskDto, snapshotOrderList);
 		snapshotOrderController.setMergeTableNode(mergeTableNode);
-		return new SnapshotOrderController(taskDto, snapshotOrderList);
+		return snapshotOrderController;
 	}
 
 	private static void recursiveBuildSnapshotOrderListByMergeNode(List<MergeTableProperties> mergeTableProperties, List<NodeControlLayer> snapshotOrderList, MergeTableNode mergeNode, int level) {

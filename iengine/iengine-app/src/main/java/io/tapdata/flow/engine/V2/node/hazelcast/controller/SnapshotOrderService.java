@@ -8,6 +8,7 @@ import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.exception.TapCodeException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Base64;
 import java.util.Collections;
@@ -51,7 +52,7 @@ public class SnapshotOrderService {
 				Map<String, Object> map = (Map<String, Object>) object;
 				Object listObj = map.get(SNAPSHOT_ORDER_LIST_KEY);
 				if (listObj instanceof List) {
-					snapshotOrderList = (List<NodeControlLayer>) object;
+					snapshotOrderList = (List<NodeControlLayer>) listObj;
 					SnapshotOrderController.init(taskDto, snapshotOrderList);
 				}
 				Object mergeModeObj = map.get(MERGE_MODE_KEY);
@@ -60,11 +61,38 @@ public class SnapshotOrderService {
 				}
 			}
 		}
+		snapshotOrderList = resetSnapshotOrderListIfInvalid(snapshotOrderList);
+		if (null == snapshotOrderList) {
+			oldMergeMode = null;
+		}
 		SnapshotOrderController snapshotOrderController = SnapshotOrderController.create(taskDto, snapshotOrderList);
 		handleSnapshotOrderMode(taskDto, oldMergeMode, snapshotOrderController.getSnapshotOrderList());
 		controllerMap.remove(taskId);
 		controllerMap.put(taskId, snapshotOrderController);
 		return snapshotOrderController;
+	}
+
+	@Nullable
+	private static List<NodeControlLayer> resetSnapshotOrderListIfInvalid(List<NodeControlLayer> snapshotOrderList) {
+		if (null != snapshotOrderList) {
+			boolean valid = true;
+			for (NodeControlLayer nodeControlLayer : snapshotOrderList) {
+				if (CollectionUtils.isEmpty(nodeControlLayer.getNodeControllers())) {
+					valid = false;
+				}
+				for (NodeController nodeController : nodeControlLayer.getNodeControllers()) {
+					if (null == nodeController.getNode() || null == nodeController.getStatus()) {
+						valid = false;
+						break;
+					}
+				}
+				if (!valid) {
+					snapshotOrderList = null;
+					break;
+				}
+			}
+		}
+		return snapshotOrderList;
 	}
 
 	private static void handleSnapshotOrderMode(TaskDto taskDto, String oldMergeMode, List<NodeControlLayer> snapshotOrderList) {

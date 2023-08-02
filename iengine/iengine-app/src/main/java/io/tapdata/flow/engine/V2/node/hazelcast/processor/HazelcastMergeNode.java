@@ -77,6 +77,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	private final Map<String, Node<?>> preNodeMap = new ConcurrentHashMap<>();
 	private final Map<String, io.tapdata.pdk.apis.entity.merge.MergeTableProperties> preNodeIdPdkMergeTablePropertieMap = new ConcurrentHashMap<>();
 	private Map<String, Integer> sourceNodeLevelMap;
+	private String mergeMode;
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -126,6 +127,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		initSourceConnectionMap(null);
 		initSourcePkOrUniqueFieldMap(null);
 		initSourceNodeLevelMap(null, 1);
+		this.mergeMode = ((MergeTableNode) getNode()).getMergeMode();
 
 		TapCreateIndexEvent mergeConfigCreateIndexEvent = generateCreateIndexEventsForTarget();
 		this.createIndexEvent = new TapdataEvent();
@@ -162,6 +164,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		initSourceNodeMap(null);
 		initSourceConnectionMap(null);
 		initSourcePkOrUniqueFieldMap(null);
+		initSourceNodeLevelMap(null, 1);
 	}
 
 	@Override
@@ -170,7 +173,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		if (this.createIndexEvent != null) {
 			BatchProcessResult batchProcessResult = new BatchProcessResult(new BatchEventWrapper(this.createIndexEvent, null), null);
 			batchProcessResults.add(batchProcessResult);
-			consumer.accept(batchProcessResults);
+			acceptIfNeed(consumer, batchProcessResults);
 			batchProcessResults.clear();
 			this.createIndexEvent = null;
 		}
@@ -186,7 +189,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 					}
 				}
 				batchProcessResults.add(new BatchProcessResult(new BatchEventWrapper(tapdataEvent, null), null));
-				consumer.accept(batchProcessResults);
+				acceptIfNeed(consumer, batchProcessResults);
 				batchCache.clear();
 				batchProcessResults.clear();
 			} else {
@@ -200,6 +203,21 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				String preTableName = getPreTableName(eventWrapper.getTapdataEvent());
 				batchProcessResults.add(new BatchProcessResult(eventWrapper, ProcessResult.create().tableId(preTableName)));
 			}
+			acceptIfNeed(consumer, batchProcessResults);
+		}
+	}
+
+	private void acceptIfNeed(Consumer<List<BatchProcessResult>> consumer, List<BatchProcessResult> batchProcessResults) {
+		batchProcessResults = batchProcessResults.stream().filter(batchProcessResult -> {
+			TapdataEvent tapdataEvent = batchProcessResult.getBatchEventWrapper().getTapdataEvent();
+			if (tapdataEvent.isDML()) {
+				String preNodeId = getPreNodeId(batchProcessResult.getBatchEventWrapper().getTapdataEvent());
+				Integer level = sourceNodeLevelMap.get(preNodeId);
+				return !MergeTableNode.SUB_TABLE_FIRST_MERGE_MODE.equals(mergeMode) || level == null || level <= 1;
+			}
+			return true;
+		}).collect(Collectors.toList());
+		if (CollectionUtils.isNotEmpty(batchProcessResults)) {
 			consumer.accept(batchProcessResults);
 		}
 	}
@@ -450,7 +468,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	private String getPreNodeId(TapdataEvent tapdataEvent) {
 		List<String> nodeIds = tapdataEvent.getNodeIds();
 		if (CollectionUtils.isEmpty(nodeIds)) {
-			throw new RuntimeException("From node id list is empty");
+			throw new RuntimeException("From node id list is empty, " + tapdataEvent);
 		}
 		return nodeIds.get(nodeIds.size() - 1);
 	}
