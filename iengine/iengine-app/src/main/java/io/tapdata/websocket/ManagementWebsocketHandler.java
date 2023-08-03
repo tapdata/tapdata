@@ -2,12 +2,7 @@ package io.tapdata.websocket;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.ConfigurationCenter;
-import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.PkgAnnoUtil;
-import com.tapdata.constant.UUIDGenerator;
+import com.tapdata.constant.*;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.ping.PingDto;
 import com.tapdata.tm.commons.ping.PingType;
@@ -30,13 +25,8 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 import org.springframework.util.concurrent.ListenableFuture;
-import org.springframework.web.socket.CloseStatus;
-import org.springframework.web.socket.TextMessage;
-import org.springframework.web.socket.WebSocketHandler;
-import org.springframework.web.socket.WebSocketHttpHeaders;
-import org.springframework.web.socket.WebSocketMessage;
-import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.adapter.standard.StandardWebSocketSession;
+import org.springframework.web.socket.*;
+import org.springframework.web.socket.adapter.NativeWebSocketSession;
 import org.springframework.web.socket.client.WebSocketClient;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -52,11 +42,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.websocket.WebSocketEventResult.Type.HANDLE_EVENT_ERROR_RESULT;
@@ -380,11 +366,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	@Override
 	public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) {
 		logger.info("Web socket closed, session: {}, status code: {}, reason: {}", currentWsUrl != null ? currentWsUrl : "", closeStatus.getCode(), closeStatus.getReason());
-		StandardWebSocketSession standardWebSocketSession = (StandardWebSocketSession) session;
-		WsSession wsSession = standardWebSocketSession.getNativeSession(WsSession.class);
-		if (wsSession != null) {
-			wsSession.onClose(new CloseReason(CloseReason.CloseCodes.getCloseCode(closeStatus.getCode()), null));
-		}
+		this.session.release(closeStatus);
 		handleWhenPingFailed();
 	}
 
@@ -434,13 +416,24 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		}
 
 		synchronized void release() {
+			release(null);
+		}
+		synchronized void release(CloseStatus closeStatus) {
 			if (null != session) {
 				try {
+					if (null != closeStatus && session instanceof NativeWebSocketSession) {
+						WsSession nativeSession = ((NativeWebSocketSession) session).getNativeSession(WsSession.class);
+						if (null != nativeSession) {
+							CloseReason.CloseCode closeCode = CloseReason.CloseCodes.getCloseCode(closeStatus.getCode());
+							CloseReason closeReason = new CloseReason(closeCode, null);
+							nativeSession.onClose(closeReason);
+						}
+					}
 					session.close();
+					session = null;
 				} catch (IOException e) {
-					logger.warn("Close session failed: {}", e.getMessage());
+					logger.warn("Close session('{}':{}) failed: {}", session.getId(), session.getUri(), e.getMessage(), e);
 				}
-				session = null;
 			}
 		}
 
