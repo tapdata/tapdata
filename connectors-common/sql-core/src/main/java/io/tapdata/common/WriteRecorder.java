@@ -125,7 +125,7 @@ public abstract class WriteRecorder {
     }
 
     //many types of insert data
-    public abstract void addInsertBatch(Map<String, Object> after) throws SQLException;
+    public abstract void addInsertBatch(Map<String, Object> after, WriteListResult<TapRecordEvent> listResult) throws SQLException;
 
     //(most often) update data
     public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {

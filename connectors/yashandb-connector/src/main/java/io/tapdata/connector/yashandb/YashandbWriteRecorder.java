@@ -24,7 +24,7 @@ public class YashandbWriteRecorder extends WriteRecorder {
     public static final String DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS = "insert_on_nonexists";
 
     @Override
-    public void addInsertBatch(Map<String, Object> after) throws SQLException {
+    public void addInsertBatch(Map<String, Object> after, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         //after is empty will be skipped
         if (EmptyKit.isEmpty(after)) {
             return;

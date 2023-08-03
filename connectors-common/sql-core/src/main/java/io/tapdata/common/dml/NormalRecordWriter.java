@@ -1,5 +1,6 @@
-package io.tapdata.common;
+package io.tapdata.common.dml;
 
+import io.tapdata.common.JdbcContext;
 import io.tapdata.common.exception.AbstractExceptionCollector;
 import io.tapdata.common.exception.ExceptionCollector;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -18,13 +19,13 @@ import java.util.function.Consumer;
 
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
-public class RecordWriter {
+public class NormalRecordWriter {
 
-    protected WriteRecorder insertRecorder;
+    protected NormalWriteRecorder insertRecorder;
     protected String insertPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
-    protected WriteRecorder updateRecorder;
+    protected NormalWriteRecorder updateRecorder;
     protected String updatePolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
-    protected WriteRecorder deleteRecorder;
+    protected NormalWriteRecorder deleteRecorder;
     protected String version;
     protected Connection connection;
     protected final TapTable tapTable;
@@ -32,12 +33,12 @@ public class RecordWriter {
     };
     protected boolean isTransaction = false;
 
-    public RecordWriter(JdbcContext jdbcContext, TapTable tapTable) throws SQLException {
+    public NormalRecordWriter(JdbcContext jdbcContext, TapTable tapTable) throws SQLException {
         this.connection = jdbcContext.getConnection();
         this.tapTable = tapTable;
     }
 
-    public RecordWriter(Connection connection, TapTable tapTable) throws SQLException {
+    public NormalRecordWriter(Connection connection, TapTable tapTable) throws SQLException {
         this.connection = connection;
         this.tapTable = tapTable;
         isTransaction = true;
@@ -70,7 +71,7 @@ public class RecordWriter {
                     insertRecorder.executeBatch(listResult);
                     updateRecorder.executeBatch(listResult);
                     TapDeleteRecordEvent deleteRecordEvent = (TapDeleteRecordEvent) recordEvent;
-                    deleteRecorder.addDeleteBatch(deleteRecordEvent.getBefore());
+                    deleteRecorder.addDeleteBatch(deleteRecordEvent.getBefore(), listResult);
                     deleteRecorder.addAndCheckCommit(recordEvent, listResult);
                 }
             }
@@ -106,17 +107,17 @@ public class RecordWriter {
         }
     }
 
-    public RecordWriter setVersion(String version) {
+    public NormalRecordWriter setVersion(String version) {
         this.version = version;
         return this;
     }
 
-    public RecordWriter setInsertPolicy(String insertPolicy) {
+    public NormalRecordWriter setInsertPolicy(String insertPolicy) {
         this.insertPolicy = insertPolicy;
         return this;
     }
 
-    public RecordWriter setUpdatePolicy(String updatePolicy) {
+    public NormalRecordWriter setUpdatePolicy(String updatePolicy) {
         this.updatePolicy = updatePolicy;
         return this;
     }
