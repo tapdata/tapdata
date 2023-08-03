@@ -466,7 +466,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
                     .append(escapeChar).append(')');
         }
         sb.append(')');
-        if (commentInField) {
+        if (commentInField && EmptyKit.isNotBlank(tapTable.getComment())) {
             sb.append(" comment='").append(tapTable.getComment()).append("'");
         }
         return sb.toString();
