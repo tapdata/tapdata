@@ -56,8 +56,10 @@ import static com.tapdata.constant.ConnectorConstant.LOOKUP_TABLE_SUFFIX;
 public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	public static final String TAG = HazelcastMergeNode.class.getSimpleName();
-	public static final int DEFAULT_MERGE_CACHE_IN_MEM_SIZE = 100000;
+	public static final int DEFAULT_MERGE_CACHE_IN_MEM_SIZE = 10000;
 	public static final int DEFAULT_LOOKUP_THREAD_NUM = 8;
+	public static final String MERGE_LOOKUP_THREAD_NUM_PROP_KEY = "MERGE_LOOKUP_THREAD_NUM";
+	public static final String MERGE_CACHE_IN_MEM_SIZE_PROP_KEY = "MERGE_CACHE_IN_MEM_SIZE";
 	private Logger logger = LogManager.getLogger(HazelcastMergeNode.class);
 
 	// 缓存表信息{"前置节点id": "Hazelcast缓存资源{"join value string": {"pk value string": "after data"}}"}
@@ -135,12 +137,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		TapCreateIndexEvent mergeConfigCreateIndexEvent = generateCreateIndexEventsForTarget();
 		this.createIndexEvent = new TapdataEvent();
 		this.createIndexEvent.setTapEvent(mergeConfigCreateIndexEvent);
-		int lookupThreadNum;
-		try {
-			lookupThreadNum = Integer.parseInt(CommonUtils.getProperty("MERGE_LOOKUP_THREAD_NUM", String.valueOf(DEFAULT_LOOKUP_THREAD_NUM)));
-		} catch (NumberFormatException e) {
-			lookupThreadNum = DEFAULT_LOOKUP_THREAD_NUM;
-		}
+		int lookupThreadNum = CommonUtils.getPropertyInt(MERGE_LOOKUP_THREAD_NUM_PROP_KEY, DEFAULT_LOOKUP_THREAD_NUM);
 		obsLogger.info("Merge table processor lookup thread num: " + lookupThreadNum);
 		lookupThreadPool = new ThreadPoolExecutor(lookupThreadNum, lookupThreadNum, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
 				r -> {
@@ -359,7 +356,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				if (StringUtils.isBlank(cacheName)) {
 					break;
 				}
-				externalStorageDto.setInMemSize(DEFAULT_MERGE_CACHE_IN_MEM_SIZE);
+				int mergeCacheInMemSize = CommonUtils.getPropertyInt(MERGE_CACHE_IN_MEM_SIZE_PROP_KEY, DEFAULT_MERGE_CACHE_IN_MEM_SIZE);
+				externalStorageDto.setInMemSize(mergeCacheInMemSize);
 				externalStorageDto.setWriteDelaySeconds(1);
 				ConstructIMap<Document> hazelcastConstruct = new ConstructIMap<>(jetContext.hazelcastInstance(), HazelcastMergeNode.class.getSimpleName(), cacheName, externalStorageDto);
 				this.mergeCacheMap.put(mergeProperty.getId(), hazelcastConstruct);

@@ -35,6 +35,10 @@ import java.util.function.Consumer;
  **/
 public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	private static final String TAG = HazelcastProcessorBaseNode.class.getSimpleName();
+	public static final String PROCESSOR_BATCH_SIZE_PROP_KEY = "PROCESSOR_BATCH_SIZE";
+	public static final String PROCESSOR_BATCH_TIMEOUT_MS_PROP_KEY = "PROCESSOR_BATCH_TIMEOUT_MS";
+	public static final int DEFAULT_BATCH_SIZE = 1000;
+	public static final long DEFAULT_BATCH_TIMEOUT_MS = 1000L;
 
 	/**
 	 * Ignore process
@@ -371,8 +375,6 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	}
 
 	private static class InitialBatchProcessor {
-		static final int DEFAULT_BATCH_SIZE = 1000;
-		static final long DEFAULT_BATCH_TIMEOUT_MS = 1000L;
 		static final int NOT_RUN = 1;
 		static final int RUNNING = 2;
 		static final int FINISH = 3;
@@ -392,16 +394,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				return thread;
 			});
 			this.batchConsumerThreadPool.submit(() -> batchProcessor.process(this));
-			try {
-				batchSize = Integer.parseInt(CommonUtils.getProperty("PROCESSOR_BATCH_SIZE", String.valueOf(DEFAULT_BATCH_SIZE)));
-			} catch (NumberFormatException e) {
-				batchSize = DEFAULT_BATCH_SIZE;
-			}
-			try {
-				batchTimeoutMs = Long.parseLong(CommonUtils.getProperty("PROCESSOR_BATCH_TIMEOUT_MS", String.valueOf(DEFAULT_BATCH_TIMEOUT_MS)));
-			} catch (NumberFormatException e) {
-				batchTimeoutMs = DEFAULT_BATCH_TIMEOUT_MS;
-			}
+			this.batchSize = CommonUtils.getPropertyInt(PROCESSOR_BATCH_SIZE_PROP_KEY, DEFAULT_BATCH_SIZE);
+			this.batchTimeoutMs = CommonUtils.getPropertyLong(PROCESSOR_BATCH_TIMEOUT_MS_PROP_KEY, DEFAULT_BATCH_TIMEOUT_MS);
 		}
 
 		void notRun() {
