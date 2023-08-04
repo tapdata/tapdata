@@ -56,7 +56,7 @@ import static com.tapdata.constant.ConnectorConstant.LOOKUP_TABLE_SUFFIX;
 public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	public static final String TAG = HazelcastMergeNode.class.getSimpleName();
-	public static final int DEFAULT_MERGE_CACHE_IN_MEM_SIZE = 10000;
+	public static final int DEFAULT_MERGE_CACHE_IN_MEM_SIZE = 100;
 	public static final int DEFAULT_LOOKUP_THREAD_NUM = 8;
 	public static final String MERGE_LOOKUP_THREAD_NUM_PROP_KEY = "MERGE_LOOKUP_THREAD_NUM";
 	public static final String MERGE_CACHE_IN_MEM_SIZE_PROP_KEY = "MERGE_CACHE_IN_MEM_SIZE";
