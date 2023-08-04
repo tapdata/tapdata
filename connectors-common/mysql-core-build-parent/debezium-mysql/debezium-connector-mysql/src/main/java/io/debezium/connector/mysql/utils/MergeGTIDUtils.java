@@ -93,7 +93,7 @@ public class MergeGTIDUtils {
                 if (null == this.next) {
                     switch (mode) {
                         case OverMaxError:
-                            throw new RuntimeException("Over max: " + this.end);
+                            throw new TapPdkOffsetOutOfLogEx("mysql", null, new RuntimeException("Over max " + this.end));
                         case OverMaxIgnore:
                             this.start = begin;
                             break;
