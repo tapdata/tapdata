@@ -49,14 +49,12 @@ public class SnapshotOrderController implements Serializable {
 			throw new TapCodeException(SnapshotOrderControllerExCode_21.CREATE_CONTROLLER_TASK_NULL);
 		}
 		List<Node> nodes = taskDto.getDag().getNodes();
-		MergeTableNode mergeTableNode;
+		MergeTableNode mergeTableNode = null;
 		Node foundNode = nodes.stream().filter(node -> node instanceof MergeTableNode).findFirst().orElse(null);
 		if (foundNode instanceof MergeTableNode) {
 			mergeTableNode = (MergeTableNode) foundNode;
-		} else {
-			throw new TapCodeException(SnapshotOrderControllerExCode_21.TABLE_MERGE_NODE_NOT_FOUND);
 		}
-		if (null == snapshotOrderList) {
+		if (null == snapshotOrderList && null != mergeTableNode) {
 			snapshotOrderList = new ArrayList<>();
 			List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
 			recursiveBuildSnapshotOrderListByMergeNode(mergeProperties, snapshotOrderList, mergeTableNode, 1);
