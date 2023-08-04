@@ -34,6 +34,9 @@ public class MysqlExceptionCollector extends AbstractExceptionCollector implemen
         if (cause instanceof ServerException && "HY000".equals(((ServerException) cause).getSqlState())) {
             throw new TapPdkOffsetOutOfLogEx(pdkId, offset, ErrorKit.getLastCause(cause));
         }
+        if (cause instanceof TapPdkOffsetOutOfLogEx) {
+            throw new TapPdkOffsetOutOfLogEx(pdkId, offset, ErrorKit.getLastCause(cause));
+        }
     }
 
     @Override
