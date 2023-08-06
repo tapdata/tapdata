@@ -109,4 +109,11 @@ public class ExcelSchema extends FileSchema {
         return sampleResult;
     }
 
+    @Override
+    protected synchronized void putValidIntoMap(Map<String, Object> map, String key, Object value) {
+        if (!map.containsKey(key) || EmptyKit.isNull(map.get(key))) {
+            map.put(key, value);
+        }
+    }
+
 }

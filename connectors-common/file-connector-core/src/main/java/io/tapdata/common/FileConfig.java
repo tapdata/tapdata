@@ -8,6 +8,7 @@ import io.tapdata.kit.EmptyKit;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -41,6 +42,8 @@ public class FileConfig implements Serializable {
         beanUtils.mapToBean(map, this);
         if (EmptyKit.isNotBlank(filePathString)) {
             filePathSet = Arrays.stream(filePathString.split(",")).collect(Collectors.toSet());
+        } else {
+            filePathSet = Collections.singleton("");
         }
         if (EmptyKit.isNotBlank(includeRegString)) {
             includeRegs = Arrays.stream(includeRegString.split(",")).collect(Collectors.toSet());
