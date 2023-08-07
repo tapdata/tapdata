@@ -10,6 +10,8 @@ import io.tapdata.entity.utils.DataMap;
  */
 public class MysqlColumn extends CommonColumn {
 
+    private String version;
+
     public MysqlColumn(DataMap dataMap) {
         this.columnName = dataMap.getString("columnName");
         this.dataType = dataMap.getString("dataType");
@@ -24,8 +26,16 @@ public class MysqlColumn extends CommonColumn {
                 defaultValue(columnDefaultValue).comment(this.remarks);
     }
 
+    public MysqlColumn withVersion(String version) {
+        this.version = version;
+        return this;
+    }
+
     @Override
     protected Boolean isNullable() {
+        if ("5.6".compareTo(version) > 0) {
+            return true;
+        }
         return "YES".equals(this.nullable);
     }
 

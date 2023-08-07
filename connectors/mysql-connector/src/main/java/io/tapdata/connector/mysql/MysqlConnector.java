@@ -70,29 +70,28 @@ public class MysqlConnector extends CommonDbConnector {
 
 	private final AtomicBoolean started = new AtomicBoolean(false);
 
-
-	@Override
-	public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
-		mysqlConfig = new MysqlConfig().load(tapConnectionContext.getConnectionConfig());
-		mysqlJdbcContext = new MysqlJdbcContextV2(mysqlConfig);
-		commonDbConfig = mysqlConfig;
-		jdbcContext = mysqlJdbcContext;
-		commonSqlMaker = new CommonSqlMaker('`');
-		exceptionCollector = new MysqlExceptionCollector();
-		if (tapConnectionContext instanceof TapConnectorContext) {
-			this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
-			this.mysqlReader = new MysqlReader(mysqlJdbcContext);
-			this.version = mysqlJdbcContext.queryVersion();
-			this.timezone = mysqlJdbcContext.queryTimeZone();
-			ddlSqlGenerator = new MysqlDDLSqlGenerator(version, ((TapConnectorContext) tapConnectionContext).getTableMap());
-		}
-		fieldDDLHandlers = new BiClassHandlers<>();
-		fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
-		fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
-		fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
-		fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
-		started.set(true);
-	}
+    @Override
+    public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
+        mysqlConfig = new MysqlConfig().load(tapConnectionContext.getConnectionConfig());
+        mysqlJdbcContext = new MysqlJdbcContextV2(mysqlConfig);
+        commonDbConfig = mysqlConfig;
+        jdbcContext = mysqlJdbcContext;
+        commonSqlMaker = new CommonSqlMaker('`');
+        exceptionCollector = new MysqlExceptionCollector();
+        this.version = mysqlJdbcContext.queryVersion();
+        if (tapConnectionContext instanceof TapConnectorContext) {
+            this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
+            this.mysqlReader = new MysqlReader(mysqlJdbcContext);
+            this.timezone = mysqlJdbcContext.queryTimeZone();
+            ddlSqlGenerator = new MysqlDDLSqlGenerator(version, ((TapConnectorContext) tapConnectionContext).getTableMap());
+        }
+        fieldDDLHandlers = new BiClassHandlers<>();
+        fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
+        fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
+        fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
+        fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
+        started.set(true);
+    }
 
 	@Override
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
@@ -142,8 +141,6 @@ public class MysqlConnector extends CommonDbConnector {
 		//connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
 		//connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
 		connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
-		connectorFunctions.supportCountRawCommandFunction(this::countRawCommand);
-		connectorFunctions.supportCountByPartitionFilterFunction(this::countByAdvanceFilter);
 		connectorFunctions.supportTransactionBeginFunction(this::begin);
 		connectorFunctions.supportTransactionCommitFunction(this::commit);
 		connectorFunctions.supportTransactionRollbackFunction(this::rollback);
@@ -261,10 +258,9 @@ public class MysqlConnector extends CommonDbConnector {
 		}
 	}
 
-	protected TapField makeTapField(
-			DataMap dataMap) {
-		return new MysqlColumn(dataMap).getTapField();
-	}
+    protected TapField makeTapField(DataMap dataMap) {
+        return new MysqlColumn(dataMap).withVersion(version).getTapField();
+    }
 
 	protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws SQLException {
 		CreateTableOptions createTableOptions = new CreateTableOptions();
