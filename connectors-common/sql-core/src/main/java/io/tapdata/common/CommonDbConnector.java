@@ -97,6 +97,9 @@ public abstract class CommonDbConnector extends ConnectorBase {
                         tapField.setPos(keyPos.incrementAndGet());
                         tapField.setPrimaryKey(primaryKey.contains(tapField.getName()));
                         tapField.setPrimaryKeyPos(primaryKey.indexOf(tapField.getName()) + 1);
+                        if (tapField.getPrimaryKey()) {
+                            tapField.setNullable(false);
+                        }
                         tapTable.add(tapField);
                     });
             tapTable.setIndexList(tapIndexList);
