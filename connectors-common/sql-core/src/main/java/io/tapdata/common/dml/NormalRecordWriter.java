@@ -7,6 +7,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -32,13 +33,14 @@ public class NormalRecordWriter {
     protected ExceptionCollector exceptionCollector = new AbstractExceptionCollector() {
     };
     protected boolean isTransaction = false;
+    protected Log tapLogger;
 
     public NormalRecordWriter(JdbcContext jdbcContext, TapTable tapTable) throws SQLException {
         this.connection = jdbcContext.getConnection();
         this.tapTable = tapTable;
     }
 
-    public NormalRecordWriter(Connection connection, TapTable tapTable) throws SQLException {
+    public NormalRecordWriter(Connection connection, TapTable tapTable) {
         this.connection = connection;
         this.tapTable = tapTable;
         isTransaction = true;
@@ -50,9 +52,12 @@ public class NormalRecordWriter {
         try {
             insertRecorder.setVersion(version);
             insertRecorder.setInsertPolicy(insertPolicy);
+            insertRecorder.setTapLogger(tapLogger);
             updateRecorder.setVersion(version);
             updateRecorder.setUpdatePolicy(updatePolicy);
+            updateRecorder.setTapLogger(tapLogger);
             deleteRecorder.setVersion(version);
+            deleteRecorder.setTapLogger(tapLogger);
             //insert,update,delete events must consecutive, so execute the other two first
             for (TapRecordEvent recordEvent : tapRecordEvents) {
                 if (recordEvent instanceof TapInsertRecordEvent) {
@@ -119,6 +124,11 @@ public class NormalRecordWriter {
 
     public NormalRecordWriter setUpdatePolicy(String updatePolicy) {
         this.updatePolicy = updatePolicy;
+        return this;
+    }
+
+    public NormalRecordWriter setTapLogger(Log tapLogger) {
+        this.tapLogger = tapLogger;
         return this;
     }
 }
