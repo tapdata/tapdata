@@ -57,6 +57,7 @@
 		<module>http-receiver-connector</module>
 		<module>yashandb-connector</module>
 		<module>greenplum-connector</module>
+		<module>dws-connector</module>
     </modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
