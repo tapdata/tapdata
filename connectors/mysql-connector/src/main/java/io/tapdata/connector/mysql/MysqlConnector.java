@@ -262,20 +262,6 @@ public class MysqlConnector extends CommonDbConnector {
         return new MysqlColumn(dataMap).getTapField();
     }
 
-    private List<TapIndex> discoverIndex(String tableName) {
-        List<TapIndex> tapIndexList = TapSimplify.list();
-        List<DataMap> indexList;
-        try {
-            indexList = jdbcContext.queryAllIndexes(Collections.singletonList(tableName));
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-        Map<String, List<DataMap>> indexMap = indexList.stream()
-                .collect(Collectors.groupingBy(idx -> idx.getString("indexName"), LinkedHashMap::new, Collectors.toList()));
-        indexMap.forEach((key, value) -> tapIndexList.add(makeTapIndex(key, value)));
-        return tapIndexList;
-    }
-
     private String getCreateIndexSql(TapTable tapTable, TapIndex tapIndex) {
         StringBuilder sb = new StringBuilder("create ");
         char escapeChar = commonDbConfig.getEscapeChar();

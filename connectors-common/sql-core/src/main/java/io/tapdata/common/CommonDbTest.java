@@ -142,6 +142,14 @@ public class CommonDbTest implements AutoCloseable {
         return true;
     }
 
+    protected static String getTestCreateTable() {
+        return TEST_CREATE_TABLE;
+    }
+
+    protected static String getTestUpdateRecord() {
+        return TEST_UPDATE_RECORD;
+    }
+
     public Boolean testReadPrivilege() {
         return true;
     }

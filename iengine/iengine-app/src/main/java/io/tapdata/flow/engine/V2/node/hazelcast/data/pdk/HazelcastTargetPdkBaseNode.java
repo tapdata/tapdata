@@ -160,10 +160,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
-		initExactlyOnceWriteIfNeed();
 		queueConsumerThreadPool.submitSync(() -> {
 			super.doInit(context);
 			createPdkAndInit(context);
+			initExactlyOnceWriteIfNeed();
 			initTargetVariable();
 			initTargetQueueConsumer();
 			initTargetConcurrentProcessorIfNeed();

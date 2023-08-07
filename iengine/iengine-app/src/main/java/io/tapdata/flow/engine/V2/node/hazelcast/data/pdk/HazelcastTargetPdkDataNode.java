@@ -150,6 +150,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						if (null != funcAspect) funcAspect.setThrowable(e);
 						throw e;
 					}
+					if (StringUtils.isNotBlank(tableId) && StringUtils.equalsAny(tableId, ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME)) {
+						continue;
+					}
 					dropTable(existsDataProcessEnum, tableId);
 					boolean createdTable = createTable(tapTable);
 					clearData(existsDataProcessEnum, tableId);

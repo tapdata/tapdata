@@ -12,6 +12,7 @@
 		<module>sql-core</module>
 		<module>mysql-core-build-parent</module>
 		<module>postgres-core</module>
+		<module>dws-core</module>
         <module>mq-core</module>
 		<module>kafka-core</module>
         <module>logminer-core</module>

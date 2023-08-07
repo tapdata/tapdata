@@ -18,6 +18,7 @@ import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.FilterResult;
@@ -36,6 +37,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static io.tapdata.entity.simplify.TapSimplify.list;
 
 public abstract class CommonDbConnector extends ConnectorBase {
 
@@ -366,8 +369,12 @@ public abstract class CommonDbConnector extends ConnectorBase {
 
     protected void createIndex(TapConnectorContext connectorContext, TapTable tapTable, TapCreateIndexEvent createIndexEvent) throws SQLException {
         List<String> sqlList = TapSimplify.list();
-        List<TapIndex> indexList = createIndexEvent.getIndexList().stream().filter(v -> discoverIndex(tapTable.getId()).stream()
-                .noneMatch(i -> DbKit.ignoreCreateIndex(i, v))).collect(Collectors.toList());
+        List<TapIndex> indexList = createIndexEvent.getIndexList()
+                .stream()
+                .filter(v -> discoverIndex(tapTable.getId())
+                        .stream()
+                        .noneMatch(i -> DbKit.ignoreCreateIndex(i, v)))
+                .collect(Collectors.toList());
         if (EmptyKit.isNotEmpty(indexList)) {
             indexList.stream().filter(i -> !i.isPrimary()).forEach(i ->
                     sqlList.add(getCreateIndexSql(tapTable, i)));
@@ -391,7 +398,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         return index;
     }
 
-    private List<TapIndex> discoverIndex(String tableName) {
+    protected List<TapIndex> discoverIndex(String tableName) {
         List<TapIndex> tapIndexList = TapSimplify.list();
         List<DataMap> indexList;
         try {
