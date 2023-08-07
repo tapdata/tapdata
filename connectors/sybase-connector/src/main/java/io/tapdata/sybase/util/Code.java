@@ -11,6 +11,7 @@ import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Random;
 import java.util.StringJoiner;
 
 /**
@@ -52,7 +53,7 @@ public class Code {
     }
 
 
-    public static final String INSERT_POC_TEST_SQL = "insert into tester.poc_test_no_txt (" +
+    public static final String INSERT_POC_TEST_SQL = "insert into tester.poc_test_no_txt_0 (" +
             "char_col," +
             "datetime_col," +
             "decimal_col," +
@@ -75,24 +76,31 @@ public class Code {
         pstmt.executeUpdate();
     }
 
-    public static void insert(String sql, Connection connection) throws Exception {
+    public static String rad(){
+        Random random = new Random();
+        int i = random.nextInt(81) + 41;
+        return String.valueOf((char)i);
+    }
+
+    public static void insert(String sql, Connection connection, int index0) throws Exception {
         PreparedStatement p = connection.prepareStatement(sql);
         int index = 1;
-        p.setString(index++, new String("F".getBytes("utf-8"), "big5"));
-        p.setTimestamp(index++, new Timestamp(System.currentTimeMillis()));
+        String rad = rad();
+        p.setString(index++, index0 %2 == 0 ? null : new String((rad).getBytes("utf-8"), "big5"));
+        p.setTimestamp(index++, index0 %3 == 0 ? null : new Timestamp(System.currentTimeMillis()));
         p.setDouble(index++, 2.36);
         p.setDouble(index++, 2.36);
         p.setInt(index++, 8);
         p.setDouble(index++, 3.33);
         p.setDouble(index++, 4.33);
-        p.setString(index++, new String("B這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
-        p.setTimestamp(index++, new Timestamp(System.currentTimeMillis()));
+        p.setString(index++, index0 %5 == 0 ? null : new String( (rad + "這個是一段正體字文字，我要把它從cp850轉成utf-8").getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
+        p.setTimestamp(index++, index0 %7 == 0 ? null : new Timestamp(System.currentTimeMillis()));
         p.setInt(index++, 3);
-        p.setString(index++, new String("BFdsd".getBytes("utf-8"), "big5"));
+        p.setString(index++, index0 %11 == 0 ? null : new String((rad + "Fdsd").getBytes("utf-8"), "big5"));
 //        p.setString(index++, new String(("" +
 //                "，我要把它從cp850轉成utf-8").getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
         p.setInt(index++, 3);
-        p.setString(index++, new String("V這個是一段正體字文字，我要把它從cp850轉成utf-8".getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
+        p.setString(index++, index0 %13 == 0 ? null : new String((rad + "這個是一段正體字文字，我要把它從cp850轉成utf-8").getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
         p.executeUpdate();
     }
 
@@ -144,18 +152,18 @@ public class Code {
 //            System.out.println(new Date(parse.getTime()).getTime());
 //            System.out.println(new Date(parse.getTime()).toInstant().getNano());
 
-//            Class.forName("net.sourceforge.jtds.jdbc.Driver");
-//            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "tester", "guest1234");
-//            Statement statement = conn.createStatement();
-//            //insertOne("INSERT INTO tester.poc_test (varchar_col) VALUES (?)", conn);
-//            conn.setAutoCommit(false);
-//            for (int i = 0; i < 10; i++) {
-//                insert(INSERT_POC_TEST_SQL, conn);
-//            }
-//            conn.rollback();
-//
-//            //select("select top 2 * from tester.poc_test_no_id order by datetime_col asc", statement);
-//            conn.close();
+            Class.forName("net.sourceforge.jtds.jdbc.Driver");
+            Connection conn = DriverManager.getConnection("jdbc:jtds:sybase://139.198.105.8:45000/testdb", "tester", "guest1234");
+            Statement statement = conn.createStatement();
+            //insertOne("INSERT INTO tester.poc_test (varchar_col) VALUES (?)", conn);
+            //conn.setAutoCommit(false);
+            for (int i = 0; i < 2000000; i++) {
+                insert(INSERT_POC_TEST_SQL, conn, i+1);
+            }
+            //conn.rollback();
+
+            //select("select top 2 * from tester.poc_test_no_id order by datetime_col asc", statement);
+            conn.close();
         } catch (Exception e) {
             System.out.println(e.getMessage());
         }

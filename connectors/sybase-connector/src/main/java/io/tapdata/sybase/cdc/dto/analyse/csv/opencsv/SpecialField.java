@@ -47,4 +47,8 @@ public class SpecialField {
     public boolean needSpecial() {
         return this.needSpecial;
     }
+
+    public void setNeedSpecial(boolean needSpecial) {
+        this.needSpecial = needSpecial;
+    }
 }

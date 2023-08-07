@@ -210,6 +210,15 @@
               "value": "+14:00"
             }
           ]
+        },
+        "checkTableInConnectionTest": {
+          "type": "boolean",
+          "title": "${checkTableInConnectionTest}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "default": false,
+          "x-display" : "hidden",
+          "x-index": 70
         }
       }
     },
@@ -317,7 +326,8 @@
       "schema": "Schema",
       "fetch_interval": "CDC delay time in seconds",
       "auto_encode": "Automatic encoding and decoding ",
-      "cdcCacheTime": "CDC incremental file cache time (in minutes)"
+      "cdcCacheTime": "CDC incremental file cache time (in minutes)",
+      "checkTableInConnectionTest": "Open table check"
     },
     "zh_CN": {
       "host": "地址",
@@ -335,7 +345,8 @@
       "schema": "Schema",
       "fetch_interval": "CDC延时（单位秒）",
       "auto_encode": "自动编解码",
-      "cdcCacheTime": "CDC 增量文件缓存时间（单位：分钟）"
+      "cdcCacheTime": "CDC 增量文件缓存时间（单位：分钟）",
+      "checkTableInConnectionTest": "开启表数据检查"
     },
     "zh_TW": {
       "host": "地址",
@@ -353,7 +364,8 @@
       "schema": "Schema",
       "fetch_interval": "CDC延時（組織秒）",
       "auto_encode": "自動編解碼",
-      "cdcCacheTime": "CDC增量檔案緩存時間（組織：分鐘）"
+      "cdcCacheTime": "CDC增量檔案緩存時間（組織：分鐘）",
+      "checkTableInConnectionTest": "開啟錶數據檢查"
     }
   },
   "dataTypes": {

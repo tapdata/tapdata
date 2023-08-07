@@ -2,7 +2,9 @@ package io.tapdata.sybase.cdc.service;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.sybase.cdc.CdcRoot;
@@ -29,6 +31,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -95,7 +98,7 @@ public class CdcHandle {
         srcConfig.setMax_retries(10);
         srcConfig.setRetry_wait_duration_ms(1000);
         srcConfig.setTransaction_store_location("" + sybasePocPath + "/config/sybase2csv/data");
-        srcConfig.setTransaction_store_cache_limit(100000);
+        srcConfig.setTransaction_store_cache_limit(1000);
 
 
         SybaseDstLocalStorage dstLocalStorage = new SybaseDstLocalStorage();
@@ -144,7 +147,8 @@ public class CdcHandle {
         }
         Map<String, Object> tables = map();
         for (String cdcTable : cdcTables) {
-            tables.put(cdcTable, null);
+            root.getContext().getLog().info("table: {}, contains timestamp: {}", cdcTable, root.getContainsTimestampFieldTables().contains(cdcTable));
+            tables.put(cdcTable, null != root.getContainsTimestampFieldTables() && root.getContainsTimestampFieldTables().contains(cdcTable) ? SybaseFilterConfig.ignoreColumns() : SybaseFilterConfig.unIgnoreColumns());
         }
         filterConfig.setAllow(tables);
         filterConfigs.add(filterConfig);

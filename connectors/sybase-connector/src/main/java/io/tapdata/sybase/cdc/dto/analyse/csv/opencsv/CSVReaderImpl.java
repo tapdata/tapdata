@@ -2,6 +2,7 @@ package io.tapdata.sybase.cdc.dto.analyse.csv.opencsv;
 
 import au.com.bytecode.opencsv.CSVParser;
 import au.com.bytecode.opencsv.CSVReader;
+import io.tapdata.entity.logger.Log;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -21,7 +22,11 @@ public class CSVReaderImpl extends CSVReader {
     private int skipLines;
     private boolean linesSkiped;
     public static final int DEFAULT_SKIP_LINES = 0;
-
+    Log log;
+    public void setLog(Log log){
+        this.log = log;
+        this.parser.setLog(log);
+    }
     public CSVReaderImpl(Reader reader, List<SpecialField> specialFields) {
         this(reader, ',', '"', '\\', specialFields);
     }

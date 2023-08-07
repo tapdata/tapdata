@@ -24,6 +24,7 @@ public class CdcRoot {
     private List<String> cdcTables;
     private String cliPath;
     private Predicate<Void> isAlive;
+    private List<String> containsTimestampFieldTables;
 
     public CdcRoot(Predicate<Void> isAlive) {
         this.isAlive = isAlive;
@@ -118,5 +119,13 @@ public class CdcRoot {
 
     public void setIsAlive(Predicate<Void> isAlive) {
         this.isAlive = isAlive;
+    }
+
+    public List<String> getContainsTimestampFieldTables() {
+        return containsTimestampFieldTables;
+    }
+
+    public void setContainsTimestampFieldTables(List<String> containsTimestampFieldTables) {
+        this.containsTimestampFieldTables = containsTimestampFieldTables;
     }
 }

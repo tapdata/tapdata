@@ -13,6 +13,7 @@ import java.util.Properties;
  **/
 public class SybaseConfig extends CommonDbConfig {
     protected String username;
+    private Boolean checkTableInConnectionTest;
 
     public SybaseConfig() {
         setDbType("sybase");
@@ -60,5 +61,13 @@ public class SybaseConfig extends CommonDbConfig {
         properties.put("addtionalString", this.getExtParams());
         properties.put("jdbcDriver", this.getJdbcDriver());
         return properties;
+    }
+
+    public boolean isCheckTableInConnectionTest() {
+        return null != checkTableInConnectionTest && checkTableInConnectionTest;
+    }
+
+    public void setCheckTableInConnectionTest(boolean checkTableInConnectionTest) {
+        this.checkTableInConnectionTest = checkTableInConnectionTest;
     }
 }

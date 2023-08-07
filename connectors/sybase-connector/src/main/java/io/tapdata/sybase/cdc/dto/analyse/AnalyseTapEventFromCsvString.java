@@ -73,6 +73,13 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
             final String fieldName = fieldEntry.getKey();
             final TableTypeEntity typeEntity = fieldEntry.getValue();
             final String sybaseType = typeEntity.getType();
+
+            //ignore timestamp
+            if (null != sybaseType && sybaseType.toUpperCase().startsWith("TIMESTAMP")) {
+                index++;
+                continue;
+            }
+
             int fieldValueIndex = index * 3;
             if (!isDel) {
                 final Object value = recordKeyCount <= fieldValueIndex ? null : record.get(fieldValueIndex);

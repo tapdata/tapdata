@@ -1,5 +1,6 @@
 package io.tapdata.sybase.cdc.dto.start;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -56,5 +57,24 @@ public class SybaseFilterConfig implements ConfigEntity {
         map.put("types", types);
         map.put("allow", allow);
         return map;
+    }
+
+    public static final Map<String, List<String>> ignoreColumns = new HashMap<String, List<String>>(){{
+        put("block", new ArrayList<String>(){{add("timestamp");}});
+    }};
+    public static final Map<String, List<String>> unIgnoreColumns = new HashMap<String, List<String>>(){{
+        put("block", new ArrayList<String>());
+    }};
+
+    public static Map<String, List<String>> unIgnoreColumns(){
+        return new HashMap<String, List<String>>(){{
+            put("block", new ArrayList<String>());
+        }};
+    }
+
+    public static Map<String, List<String>> ignoreColumns(){
+        return new HashMap<String, List<String>>(){{
+            put("block", new ArrayList<String>(){{add("timestamp");}});
+        }};
     }
 }

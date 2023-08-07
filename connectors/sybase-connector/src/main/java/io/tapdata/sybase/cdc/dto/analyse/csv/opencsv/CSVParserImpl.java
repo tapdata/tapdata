@@ -1,6 +1,8 @@
 package io.tapdata.sybase.cdc.dto.analyse.csv.opencsv;
 
 import au.com.bytecode.opencsv.CSVParser;
+import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.sybase.cdc.dto.read.TableTypeEntity;
 
 import java.io.IOException;
@@ -89,6 +91,11 @@ public class CSVParserImpl extends CSVParser {
         return this.parseLine(nextLine, false);
     }
 
+    Log log;
+    public void setLog(Log log){
+        this.log = log;
+    }
+
     private String[] parseLine(String nextLine, boolean multi) throws IOException {
         if (!multi && this.pending != null) {
             this.pending = null;
@@ -115,14 +122,19 @@ public class CSVParserImpl extends CSVParser {
 
             for(int i = 0; i < nextLine.length(); ++i) {
                 char c = nextLine.charAt(i);
-                SpecialField specialField = specialFields.get(parserFieldIndex);
-                if (specialField.needSpecial()) {
-                    int length = specialField.getLength();
-                    if (sb.length() < length) {
-                        sb.append(c);
-                        continue;
-                    } else {
-                        inQuotes = false;
+
+                //this.log.warn( "Size: " + parserFieldIndex);
+
+                if (parserFieldIndex < specialFields.size()) {
+                    SpecialField specialField = specialFields.get(parserFieldIndex);
+                    if (specialField.needSpecial()) {
+                        int length = specialField.getLength();
+                        if (sb.length() < length) {
+                            sb.append(c);
+                            continue;
+                        } else {
+                            inQuotes = false;
+                        }
                     }
                 }
 
@@ -134,7 +146,9 @@ public class CSVParserImpl extends CSVParser {
                 } else if (c != this.quotechar) {
                     if (c == this.separator && !inQuotes) {
                         tokensOnThisLine.add(sb.toString());
-                        parserFieldIndex++;
+                        if ( tokensOnThisLine.size() % 3 == 0) {
+                            parserFieldIndex++;
+                        }
                         sb.setLength(0);
                         this.inField = false;
                     } else if (!this.strictQuotes || inQuotes) {

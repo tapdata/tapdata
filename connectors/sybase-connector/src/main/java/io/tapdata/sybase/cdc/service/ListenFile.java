@@ -219,6 +219,8 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 int indexOf = absolutePath.lastIndexOf('.');
                 String fileType = absolutePath.substring(indexOf + 1);
                 if (file.isFile() && fileType.equalsIgnoreCase("csv")) {
+
+
                     //root.getContext().getLog().warn("File is modify: {}", file.getAbsolutePath());
                     String csvFileName = file.getName();
                     String[] split = csvFileName.split("\\.");
@@ -261,6 +263,8 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         }
                         AtomicReference<LinkedHashMap<String, TableTypeEntity>> tapTableAto = new AtomicReference<>(tapTable);
                         AtomicReference<CdcPosition.CSVOffset> csvOffsetAto = new AtomicReference<>(csvOffset);
+                        ReadCSVOfBigFile readCSVOfBigFile = new ReadCSVOfBigFile();
+                        readCSVOfBigFile.setLog(root.getContext().getLog());
                         try {
                             analyseCsvFile.analyse(file.getAbsolutePath(), tapTable, (compile, firstIndex, lastIndex) -> {
                                 int csvFileLines = compile.size();
@@ -276,7 +280,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                         try {
                                             recordEvent = analyseRecord.analyse(compile.get(index), tableItem, tableName, config, nodeConfig);
                                         } catch (Exception e) {
-                                            root.getContext().getLog().warn("An cdc event failed to accept, error csv format, csv line: {}, msg: {}", compile.get(index), e.getMessage());
+                                            root.getContext().getLog().warn("An cdc event failed to accept in {} of {}, error csv format, csv line: {}, msg: {}", tableName, absolutePath, compile.get(index), e.getMessage());
                                             continue;
                                         }
                                         if (null != recordEvent) {
@@ -290,7 +294,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                         }
                                     }
                                 }
-                            }).compile(new ReadCSVOfBigFile(), csvOffset.getLine());
+                            }).compile(readCSVOfBigFile, csvOffset.getLine());
                         } finally {
                             if (!events[0].isEmpty()) {
                                 csvOffset.setOver(true);
