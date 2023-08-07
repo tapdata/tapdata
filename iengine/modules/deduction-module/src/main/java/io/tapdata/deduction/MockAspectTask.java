@@ -50,12 +50,15 @@ public class MockAspectTask extends AbstractAspectTask {
             return null;
           }
           String tableId = TapEventUtil.getTableId(tapEvent);
-					if (StringUtils.equals(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN) && !multipleTables) {
-						tableId = nodeId;
-					}
+          if (StringUtils.equalsAny(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)
+                  && !multipleTables) {
+            tableId = nodeId;
+          }
 
           TapTable tapTable = processorBaseContext.getTapTableMap().get(tableId);
-//          SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
+          if (StringUtils.equalsAny(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+            SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
+          }
           break;
       }
     }

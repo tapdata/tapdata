@@ -62,7 +62,14 @@ public class TapTableUtil {
 
 	@NotNull
 	public static TapTableMap<String, TapTable> getTapTableMap(Node<?> node, Long tmCurrentTime) {
-		return getTapTableMap(null, node, tmCurrentTime);
+		List<TapTable> tapTableList = getTapTables(node);
+		TapTableMap<String, TapTable> tapTableMap;
+		if (CollectionUtils.isNotEmpty(tapTableList)) {
+			tapTableMap = TapTableMap.create(null, node, tapTableList, tmCurrentTime);
+		} else {
+			tapTableMap = TapTableMap.create(node.getId());
+		}
+		return tapTableMap;
 	}
 
 	/**

@@ -263,7 +263,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			List<MergeLookupResult> mergeLookupResults = lookup(tapdataEvent);
 			mergeInfo.setMergeLookupResults(mergeLookupResults);
 		};
-//			runnable.run();
 		return CompletableFuture.runAsync(runnable, lookupThreadPool);
 	}
 
@@ -287,7 +286,11 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		if (needCache(tapdataEvent)) {
 			cache(tapdataEvent);
 		}
-		lookupAndWrapMergeInfoConcurrent(tapdataEvent);
+		MergeInfo mergeInfo = wrapMergeInfo(tapdataEvent);
+		if (needLookup(tapdataEvent)) {
+			List<MergeLookupResult> mergeLookupResults = lookup(tapdataEvent);
+			mergeInfo.setMergeLookupResults(mergeLookupResults);
+		}
 		consumer.accept(tapdataEvent, ProcessResult.create().tableId(preTableName));
 	}
 
