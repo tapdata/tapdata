@@ -65,7 +65,8 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
         }
         if (null == conflictKeys || conflictKeys.isEmpty()) {
             // todo 报错, 分区表"%s"没有主键或唯一索引，不支持冲突更新操作，请改用追加模式
-            throw new RuntimeException("");
+            throw new RuntimeException(String.format("The partitioned table \"%s\" lacks a primary key or unique index, ", tapTable.getId()) +
+                    "and does not support conflict update operations. Please switch to the append mode.");
         }
         return conflictKeys;
     }
