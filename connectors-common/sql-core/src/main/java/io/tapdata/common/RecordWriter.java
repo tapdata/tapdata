@@ -86,7 +86,7 @@ public class RecordWriter {
         } catch (SQLException e) {
             exceptionCollector.collectTerminateByServer(e);
             exceptionCollector.collectViolateNull(null, e);
-            TapRecordEvent errorEvent = listResult.getErrorMap().keySet().stream().findFirst().orElse(null);
+            TapRecordEvent errorEvent = null == listResult.getErrorMap() ? null : listResult.getErrorMap().keySet().stream().findFirst().orElse(null);
             exceptionCollector.collectViolateUnique(toJson(tapTable.primaryKeys(true)), errorEvent, null, e);
             exceptionCollector.collectWritePrivileges("writeRecord", Collections.emptyList(), e);
             exceptionCollector.collectWriteType(null, null, errorEvent, e);

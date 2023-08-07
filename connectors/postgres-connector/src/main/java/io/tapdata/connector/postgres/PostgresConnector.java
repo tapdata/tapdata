@@ -30,6 +30,8 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.postgresql.geometric.*;
 import org.postgresql.jdbc.PgArray;
@@ -37,7 +39,9 @@ import org.postgresql.jdbc.PgSQLXML;
 import org.postgresql.util.PGInterval;
 import org.postgresql.util.PGobject;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -176,6 +180,20 @@ public class PostgresConnector extends CommonDbConnector {
         connectorFunctions.supportTransactionCommitFunction(this::commitTransaction);
         connectorFunctions.supportTransactionRollbackFunction(this::rollbackTransaction);
     }
+//    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+//        RetryOptions retryOptions = RetryOptions.create();
+//        if (null != matchThrowable(throwable, BatchUpdateException.class)) {
+//            retryOptions.setNeedRetry(true);
+//            retryOptions.beforeRetryMethod(() -> {
+//                try {
+//                    this.onStop(tapConnectionContext);
+//                    this.onStart(tapConnectionContext);
+//                } catch (Throwable ignore) {
+//                }
+//            });
+//        }
+//        return retryOptions;
+//    }
 
     //clear resource outer and jdbc context
     private void onDestroy(TapConnectorContext connectorContext) throws Throwable {

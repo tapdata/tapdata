@@ -1,6 +1,7 @@
 package io.tapdata.common;
 
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
@@ -86,6 +87,40 @@ public abstract class WriteRecorder {
             Map<TapRecordEvent, Throwable> map = batchCache.stream().collect(Collectors.toMap(Function.identity(), (v) -> e));
             listResult.addErrors(map);
             throw e;
+        }
+        atomicLong.addAndGet(succeed);
+    }
+//    public synchronized void executeBatch(WriteListResult<TapRecordEvent> listResult) throws SQLException {
+//        final Object waitLock = new Object();
+//        if (null == listResult) return;
+//        int times = 3;
+//        while (times > 0) {
+//            try {
+//                batch();
+//            } catch (SQLException e) {
+//                if (times <= 1) {
+//                    Map<TapRecordEvent, Throwable> map = batchCache.stream().collect(Collectors.toMap(Function.identity(), (v) -> e));
+//                    listResult.addErrors(map);
+//                    throw e;
+//                }
+//                try {
+//                    TapLogger.warn(TAG, "Retry in target, SQL execute fail: {}", e.getMessage());
+//                    waitLock.wait(1000);
+//                } catch (Exception ignore) {}
+//            }
+//            times--;
+//        }
+//    }
+
+    private void batch() throws SQLException {
+        long succeed = batchCache.size();
+        if (succeed <= 0) {
+            return;
+        }
+        if (preparedStatement != null) {
+            preparedStatement.executeBatch();
+            preparedStatement.clearBatch();
+            batchCache.clear();
         }
         atomicLong.addAndGet(succeed);
     }
