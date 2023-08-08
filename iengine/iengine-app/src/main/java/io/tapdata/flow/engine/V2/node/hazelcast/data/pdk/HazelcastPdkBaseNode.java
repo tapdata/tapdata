@@ -191,8 +191,10 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			DmlPolicyEnum updatePolicy = null == dmlPolicy.getUpdatePolicy() ? DmlPolicyEnum.ignore_on_nonexists : dmlPolicy.getUpdatePolicy();
 			if (updatePolicy == DmlPolicyEnum.insert_on_nonexists) {
 				connectorCapabilities.alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS);
-			} else {
+			} else if (updatePolicy == DmlPolicyEnum.ignore_on_nonexists) {
 				connectorCapabilities.alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+			} else {
+				connectorCapabilities.alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_IGNORE_LOG_ON_NON_EXISTS);
 			}
 		} else {
 			// Default
