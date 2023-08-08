@@ -35,32 +35,41 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
 
     @Override
     public void addInsertBatch(Map<String, Object> after) throws SQLException {
-        if (dwsTapTable.isPartition()) {
-            if (EmptyKit.isEmpty(after)) {
-                return;
-            }
-            if (EmptyKit.isNotEmpty(uniqueCondition)) {
+        if (EmptyKit.isEmpty(after)) {
+            return;
+        }
+        if (EmptyKit.isNotEmpty(uniqueCondition)) {
+            if (dwsTapTable.isPartition()){
                 if (insertPolicy.equals("ignore_on_exists")) {
                     conflictIgnoreInsert(after);
                 } else {
                     conflictUpdateInsert(after);
                 }
-            } else {
-                justInsert(after);
+            }else {
+                if (insertPolicy.equals("ignore_on_exists")) {
+                    notExistsInsert(after);
+                } else {
+                    withUpdateInsert(after);
+                }
             }
-            preparedStatement.addBatch();
-        } else {
-            super.addInsertBatch(after);
+        }else {
+            justInsert(after);
         }
+        preparedStatement.addBatch();
     }
 
 
     private Collection<String> buildConflictKeys() {
         Collection<String> conflictKeys = tapTable.primaryKeys(false);
         if (null == conflictKeys || conflictKeys.isEmpty()) {
-            TapIndex firstUniqueIndex = tapTable.getIndexList().stream().filter(index -> index.isUnique()).findFirst().orElse(null);
-            if (null != firstUniqueIndex) {
-                conflictKeys = firstUniqueIndex.getIndexFields().stream().map(f -> f.getName()).collect(Collectors.toList());
+            if (null!=tapTable.getIndexList()){
+                TapIndex firstUniqueIndex = tapTable.getIndexList()
+                        .stream()
+                        .filter(index -> index.isUnique())
+                        .findFirst().orElse(null);
+                if (null != firstUniqueIndex) {
+                    conflictKeys = firstUniqueIndex.getIndexFields().stream().map(f -> f.getName()).collect(Collectors.toList());
+                }
             }
         }
         if (null == conflictKeys || conflictKeys.isEmpty()) {
@@ -118,16 +127,17 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
 
     //with update
     private void withUpdateInsert(Map<String, Object> after) throws SQLException {
+        Set<String> setKeys = buildSetKeys();
         if (EmptyKit.isNull(preparedStatement)) {
             String insertSql;
             if (hasPk) {
-                insertSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + updatedColumn.stream().map(k -> "\"" + k + "\"=?")
+                insertSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + setKeys.stream().map(k -> "\"" + k + "\"=?")
                         .collect(Collectors.joining(", ")) + " WHERE " + uniqueCondition.stream().map(k -> "\"" + k + "\"=?")
                         .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
                         + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
                         + StringKit.copyString("?", allColumn.size(), ",") + " WHERE NOT EXISTS (SELECT * FROM upsert)";
             } else {
-                insertSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + updatedColumn.stream().skip(1).map(k -> "\"" + k + "\"=?")
+                insertSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + setKeys.stream().map(k -> "\"" + k + "\"=?")
                         .collect(Collectors.joining(", ")) + " WHERE " + uniqueCondition.stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
                         .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
                         + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
@@ -145,7 +155,7 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
                 preparedStatement.setObject(pos++, filterInvalid(after.get(key)));
             }
         } else {
-            for (String key : updatedColumn.stream().skip(1).collect(Collectors.toSet())) {
+            for (String key : setKeys.stream().collect(Collectors.toSet())) {
                 preparedStatement.setObject(pos++, filterInvalid(after.get(key)));
             }
             for (String key : uniqueCondition) {
@@ -214,7 +224,11 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
         }
         checkDistributeValue(after, before);
         if (updatePolicy.equals(ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS)) {
-            conflictUpdateInsert(after);
+            if (dwsTapTable.isPartition()){
+                conflictUpdateInsert(after);
+            }else {
+                insertUpdate(after, getBeforeForUpdate(after, before, listResult));
+            }
         } else {
             justUpdate(after, getBeforeForUpdate(after, before, listResult));
         }
@@ -270,6 +284,7 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
     }
 
     private void insertUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
+        Set<String> setKeys = buildSetKeys();
         //firstField
         TapField firstField;
         Set<String> fieldsExcludeFirstField = new HashSet();
@@ -288,7 +303,7 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
                         .stream()
                         .filter(key -> !key.equals(firstField.getName()))
                         .collect(Collectors.toSet());
-                updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + fieldsExcludeFirstField.stream().map(k -> "\"" + k + "\"=?")
+                updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + setKeys.stream().map(k -> "\"" + k + "\"=?")
                         .collect(Collectors.joining(", ")) + " WHERE " + before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
                         .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
                         + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
@@ -298,7 +313,7 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
         }
         preparedStatement.clearParameters();
         int pos = 1;
-        List<String> afterFilter = hasPk ? updatedColumn.stream().collect(Collectors.toList()) : fieldsExcludeFirstField.stream().collect(Collectors.toList());
+        List<String> afterFilter = hasPk ? updatedColumn.stream().collect(Collectors.toList()) : setKeys.stream().collect(Collectors.toList());
         for (String key : afterFilter) {
             preparedStatement.setObject(pos++, filterInvalid(after.get(key)));
         }
