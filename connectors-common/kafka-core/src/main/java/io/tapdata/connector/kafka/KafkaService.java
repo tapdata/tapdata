@@ -7,7 +7,9 @@ import io.tapdata.connector.kafka.admin.Admin;
 import io.tapdata.connector.kafka.admin.DefaultAdmin;
 import io.tapdata.connector.kafka.config.*;
 import io.tapdata.connector.kafka.util.Krb5Util;
+import io.tapdata.connector.kafka.util.ObjectUtils;
 import io.tapdata.constant.MqTestItem;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -16,11 +18,15 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.script.ScriptFactory;
+import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.exception.StopException;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.ErrorKit;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
@@ -32,6 +38,9 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.internals.RecordHeaders;
 
+import javax.script.Invocable;
+import javax.script.ScriptEngine;
+import javax.script.ScriptException;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -49,6 +58,9 @@ public class KafkaService extends AbstractMqService {
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
     private String connectorId;
     private KafkaProducer<byte[], byte[]> kafkaProducer;
+    private KafkaConfig kafkaConfig;
+    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata"); //script factory
+
 
     public KafkaService() {
 
@@ -222,7 +234,21 @@ public class KafkaService extends AbstractMqService {
             });
         }
     }
-
+    public static Object executeScript(ScriptEngine scriptEngine, String function, Object ... params) {
+        if (scriptEngine != null) {
+            Invocable invocable = (Invocable) scriptEngine;
+            try {
+                return invocable.invokeFunction(function, params);
+            } catch (StopException e) {
+//                TapLogger.info(TAG, "Get data and stop script.");
+                throw new RuntimeException(e);
+            } catch (ScriptException | NoSuchMethodException | RuntimeException e) {
+//                TapLogger.error(TAG, "Run script error, message: {}", e.getMessage(), e);
+                throw new RuntimeException(e);
+            }
+        }
+        return null;
+    }
     @Override
     public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, Supplier<Boolean> isAlive) {
         AtomicLong insert = new AtomicLong(0);
@@ -273,6 +299,141 @@ public class KafkaService extends AbstractMqService {
                 ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(tapTable.getId(),
                         null, event.getTime(), getKafkaMessageKey(data, tapTable), body,
                         new RecordHeaders().add("mqOp", mqOp.getOp().getBytes()));
+                kafkaProducer.send(producerRecord, callback);
+            }
+        } catch (RejectedExecutionException e) {
+            tapLogger.warn("task stopped, some data produce failed!", e);
+        } catch (Exception e) {
+            tapLogger.error("produce error, or task interrupted!", e);
+        }
+        try {
+            while (null != isAlive && isAlive.get()) {
+                if (countDownLatch.await(500L, TimeUnit.MILLISECONDS)) {
+                    break;
+                }
+            }
+        } catch (InterruptedException e) {
+            tapLogger.error("error occur when await", e);
+        } finally {
+            writeListResultConsumer.accept(listResult.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
+        }
+//            this.produce(null,tapRecordEvents,tapTable,writeListResultConsumer,isAlive);
+    }
+
+    @Override
+    public void produce(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, Supplier<Boolean> isAlive){
+        AtomicLong insert = new AtomicLong(0);
+        AtomicLong update = new AtomicLong(0);
+        AtomicLong delete = new AtomicLong(0);
+        WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
+        CountDownLatch countDownLatch = new CountDownLatch(tapRecordEvents.size());
+        ScriptEngine scriptEngine;
+        String script = connectorContext.getNodeConfig().getString("script");
+        Map<String,Object> record = new HashMap();
+        try {
+            scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT,
+                    new ScriptOptions().engineName("graal.js"));
+            scriptEngine.eval(script);
+        } catch (Exception e) {
+            throw new CoreException("Engine initialization failed!");
+        }
+        try {
+            for (TapRecordEvent event : tapRecordEvents) {
+                if (null != isAlive && !isAlive.get()) {
+                    break;
+                }
+                Map<String, Object> data;
+                Map<String,Map<String,Object>> allData = new HashMap();
+                MqOp mqOp = MqOp.INSERT;
+                if (event instanceof TapInsertRecordEvent) {
+                    data = ((TapInsertRecordEvent) event).getAfter();
+                    allData.put("before",new HashMap<String,Object>());
+                    allData.put("after",data);
+                } else if (event instanceof TapUpdateRecordEvent) {
+                    data = ((TapUpdateRecordEvent) event).getAfter();
+                    Map<String, Object> before = ((TapUpdateRecordEvent) event).getBefore();
+                    allData.put("before",null == before ? new HashMap<>(): before);
+                    allData.put("after",data);
+                    mqOp = MqOp.UPDATE;
+                } else if (event instanceof TapDeleteRecordEvent) {
+                    data = ((TapDeleteRecordEvent) event).getBefore();
+                    allData.put("before",data);
+                    allData.put("after",new HashMap<String,Object>());
+                    mqOp = MqOp.DELETE;
+                } else {
+                    data = new HashMap<>();
+                }
+                byte[] kafkaMessageKey = getKafkaMessageKey(data, tapTable);
+                record.put("data",allData);
+                Map<String, Object> header = new HashMap();
+                header.put("mqOp",mqOp.getOp());
+                record.put("header",header);
+                String op = mqOp.getOp();
+                Collection<String> conditionKeys = tapTable.primaryKeys(true);
+                kafkaConfig = (KafkaConfig)new KafkaConfig().load(connectorContext.getConnectionConfig());
+                RecordHeaders recordHeaders = new RecordHeaders();
+                byte[] body = {};
+                Object eventObj = ObjectUtils.covertData(executeScript(scriptEngine, "process", record, op, conditionKeys));
+                if(null==eventObj){
+                    continue;
+                }else {
+                    Map<String,Object> res = (Map<String,Object>) eventObj;
+                    if (null==res.get("data")) {
+                        throw new RuntimeException("data cannot be null");
+                    }else {
+                        Object obj = res.get("data");
+                        if(obj instanceof Map){
+                            Map<String, Map<String,Object>> map = (Map<String, Map<String,Object>>) res.get("data");
+                            if (map.containsKey("before")&&map.get("before").isEmpty()){
+                                map.remove("before");
+                            }
+                            if (map.containsKey("after")&&map.get("after").isEmpty()){
+                                map.remove("after");
+                            }
+                            res.put("data",map);
+                            body = jsonParser.toJsonBytes(res.get("data"));
+                        }else {
+                            body = obj.toString().getBytes();
+                        }
+                    }
+                    if(res.containsKey("header")){
+                        Object obj = res.get("header");
+                        if(obj instanceof Map){
+                            Map<String, Object> head = (Map<String, Object>) res.get("header");
+                            for (String s : head.keySet()) {
+                                recordHeaders.add(s,head.get(s).toString().getBytes());
+                            }
+                        }else {
+                            throw new RuntimeException("header must be a collection type");
+                        }
+                    }else {
+                        recordHeaders.add("mqOp",mqOp.toString().getBytes());
+                    }
+                }
+                MqOp finalMqOp = mqOp;
+                Callback callback = (metadata, exception) -> {
+                    try {
+                        if (EmptyKit.isNotNull(exception)) {
+                            listResult.addError(event, exception);
+                        }
+                        switch (finalMqOp) {
+                            case INSERT:
+                                insert.incrementAndGet();
+                                break;
+                            case UPDATE:
+                                update.incrementAndGet();
+                                break;
+                            case DELETE:
+                                delete.incrementAndGet();
+                                break;
+                        }
+                    } finally {
+                        countDownLatch.countDown();
+                    }
+                };
+                ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(tapTable.getId(),
+                        null, event.getTime(), kafkaMessageKey, body,
+                        recordHeaders);
                 kafkaProducer.send(producerRecord, callback);
             }
         } catch (RejectedExecutionException e) {

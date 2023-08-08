@@ -41,6 +41,7 @@ public class CopyIntoUtils {
     private static final String COMMIT_PATTERN = "http://%s/copy/query";
     private static final HttpClientBuilder httpClientBuilder = HttpClients.custom().disableRedirectHandling();
     private static String uuidName;
+    private static String tableName;
     public CopyIntoUtils(TapConnectionContext tapConnectionContext) {
         this.tapConnectionContext = tapConnectionContext;
         setConfig(tapConnectionContext);
@@ -57,7 +58,7 @@ public class CopyIntoUtils {
         primaryKeys = key;
     }
 
-    public static void upload(String uuid, byte[] bytes) throws IOException {
+    public synchronized static void upload(String uuid, byte[] bytes,TapTable table) throws IOException {
         if (selectdbHttp == null) {
             throw new RuntimeException("load_url cannot be empty, or the host cannot connect.Please check your configuration.");
         }
@@ -65,10 +66,11 @@ public class CopyIntoUtils {
         String uploadUuidName =  uuid + ".json";
         uuidName = uploadUuidName;
         String location = getUploadAddress(uploadLoadUrl, uuidName);
+        tableName = table.getId();
         put(location, uuidName, bytes);
     }
 
-    public static Response copyInto(TapTable table) throws IOException {
+    public synchronized static Response copyInto() throws IOException {
 
         OkHttpClient.Builder builder = new OkHttpClient().newBuilder();
         builder.connectTimeout(15, TimeUnit.SECONDS);
@@ -77,12 +79,12 @@ public class CopyIntoUtils {
         MediaType mediaType = MediaType.parse("application/json");
         String DUPLICATE_KEY_SQL = "{\"sql\": \"copy into " +
                 database + "." +
-                table.getId() + " from @~(\\\"" +
+                tableName + " from @~(\\\"" +
                 uuidName + "\\\") PROPERTIES (\\\"file.strip_outer_array\\\"=\\\"true\\\",\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"json\\\",\\\"file.column_separator\\\"=\\\"" +
                 Constants.FIELD_DELIMITER_DEFAULT + "\\\")\"}";
         String UNIQUE_KEY_SQL = "{\"sql\": \"copy into " +
                 database + "." +
-                table.getId() + " from @~(\\\"" +
+                tableName + " from @~(\\\"" +
                 uuidName + "\\\") PROPERTIES (\\\"file.strip_outer_array\\\"=\\\"true\\\",\\\"copy.use_delete_sign\\\"=\\\"true\\\",\\\"copy.async\\\"=\\\"false\\\",\\\"file.type\\\"=\\\"json\\\",\\\"file.column_separator\\\"=\\\"" +
                 Constants.FIELD_DELIMITER_DEFAULT + "\\\")\"}";
 

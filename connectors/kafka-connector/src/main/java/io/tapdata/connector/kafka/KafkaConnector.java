@@ -122,7 +122,12 @@ public class KafkaConnector extends ConnectorBase {
     }
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
-        kafkaService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
+        String enableScript = connectorContext.getNodeConfig().getString("enableScript");
+        if ("true".equals(enableScript)){
+            kafkaService.produce(connectorContext,tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
+        }else {
+            kafkaService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
+        }
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) {
