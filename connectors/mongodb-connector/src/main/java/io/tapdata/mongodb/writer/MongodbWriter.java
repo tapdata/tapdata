@@ -98,7 +98,8 @@ public class MongodbWriter {
 
 		if (bulkWriteModel.isEmpty()) {
 			throw new RuntimeException("Bulk write data failed, write model list is empty, received record size: " + tapRecordEvents.size()
-			+" tapRecordEvents:"+ JSON.toJSONString(tapRecordEvents));
+					+ " tapRecordEvents:" + JSON.toJSONString(tapRecordEvents) + " TapTable:" + JSON.toJSONString(table)
+					+ " pks: " + JSON.toJSONString(pks));
 		}
 
 		BulkWriteOptions bulkWriteOptions;
