@@ -1,8 +1,5 @@
 package io.debezium.connector.mysql.utils;
 
-import io.debezium.DebeziumException;
-import io.tapdata.exception.TapPdkOffsetOutOfLogEx;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -93,7 +90,7 @@ public class MergeGTIDUtils {
                 if (null == this.next) {
                     switch (mode) {
                         case OverMaxError:
-                            throw new TapPdkOffsetOutOfLogEx("mysql", null, new RuntimeException("Over max " + this.end));
+                            throw new GTIDException("Over max: " + this.end);
                         case OverMaxIgnore:
                             this.start = begin;
                             break;
@@ -145,7 +142,7 @@ public class MergeGTIDUtils {
                 if (null == this.next) {
                     switch (mode) {
                         case OverMaxError:
-                            throw new TapPdkOffsetOutOfLogEx("mysql", null, new RuntimeException("Over max " + this.end));
+                            throw new GTIDException("Over max: " + this.end);
                         case OverMaxIgnore:
                             break;
                         case OverMaxMerge:
