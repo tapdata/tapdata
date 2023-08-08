@@ -78,10 +78,10 @@ public class MysqlConnector extends CommonDbConnector {
         jdbcContext = mysqlJdbcContext;
         commonSqlMaker = new CommonSqlMaker('`');
         exceptionCollector = new MysqlExceptionCollector();
+        this.version = mysqlJdbcContext.queryVersion();
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
             this.mysqlReader = new MysqlReader(mysqlJdbcContext);
-            this.version = mysqlJdbcContext.queryVersion();
             this.timezone = mysqlJdbcContext.queryTimeZone();
             ddlSqlGenerator = new MysqlDDLSqlGenerator(version, ((TapConnectorContext) tapConnectionContext).getTableMap());
         }
@@ -258,7 +258,7 @@ public class MysqlConnector extends CommonDbConnector {
     }
 
     protected TapField makeTapField(DataMap dataMap) {
-        return new MysqlColumn(dataMap).getTapField();
+        return new MysqlColumn(dataMap).withVersion(version).getTapField();
     }
 
     protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws SQLException {

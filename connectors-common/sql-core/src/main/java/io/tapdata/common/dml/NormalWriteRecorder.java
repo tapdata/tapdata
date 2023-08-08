@@ -1,6 +1,8 @@
 package io.tapdata.common.dml;
 
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.kit.EmptyKit;
@@ -29,7 +31,7 @@ public abstract class NormalWriteRecorder {
     protected String version;
     protected String insertPolicy;
     protected String updatePolicy;
-    private char escapeChar = '"';
+    protected char escapeChar = '"';
 
     protected String preparedStatementKey;
     protected Map<String, PreparedStatement> preparedStatementMap = new HashMap<>();
@@ -37,6 +39,7 @@ public abstract class NormalWriteRecorder {
 
     protected final AtomicLong atomicLong = new AtomicLong(0); //record counter
     protected final List<TapRecordEvent> batchCache = TapSimplify.list(); //event cache
+    protected Log tapLogger;
 
     public NormalWriteRecorder(Connection connection, TapTable tapTable, String schema) {
         this.connection = connection;
@@ -68,7 +71,16 @@ public abstract class NormalWriteRecorder {
         }
         try {
             if (preparedStatement != null) {
-                preparedStatement.executeBatch();
+                int[] writeResults = preparedStatement.executeBatch();
+                if ("log_on_nonexists".equals(updatePolicy) && batchCache.get(0) instanceof TapUpdateRecordEvent) {
+                    Iterator<TapRecordEvent> iterator = batchCache.iterator();
+                    int index = 0;
+                    while (iterator.hasNext()) {
+                        if (0 == writeResults[index++]) {
+                            tapLogger.info("update record ignored: {}", iterator.next());
+                        }
+                    }
+                }
                 preparedStatement.clearBatch();
                 batchCache.clear();
             }
@@ -104,6 +116,10 @@ public abstract class NormalWriteRecorder {
         this.updatePolicy = updatePolicy;
     }
 
+    public void setTapLogger(Log tapLogger) {
+        this.tapLogger = tapLogger;
+    }
+
     public void setEscapeChar(char escapeChar) {
         this.escapeChar = escapeChar;
     }
@@ -117,28 +133,35 @@ public abstract class NormalWriteRecorder {
         if (EmptyKit.isEmpty(after)) {
             return;
         }
-        switch (insertPolicy) {
-            case "update_on_exists":
-                upsert(after, listResult);
-                break;
-            case "ignore_on_exists":
-                insertIgnore(after, listResult);
-                break;
-            default:
-                justInsert(after);
-                break;
+        if (EmptyKit.isEmpty(uniqueCondition)) {
+            justInsert(after);
+        } else {
+            switch (insertPolicy) {
+                case "update_on_exists":
+                    upsert(after, listResult);
+                    break;
+                case "ignore_on_exists":
+                    insertIgnore(after, listResult);
+                    break;
+                default:
+                    justInsert(after);
+                    break;
+            }
         }
         preparedStatement.addBatch();
     }
 
+    //插入唯一键冲突时转更新
     protected void upsert(Map<String, Object> after, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         throw new UnsupportedOperationException("upsert is not supported");
     }
 
+    //插入唯一键冲突时忽略
     protected void insertIgnore(Map<String, Object> after, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         throw new UnsupportedOperationException("insertIgnore is not supported");
     }
 
+    //直接插入
     protected void justInsert(Map<String, Object> after) throws SQLException {
         if (EmptyKit.isNull(preparedStatement)) {
             String insertSql = "INSERT INTO " + escapeChar + schema + escapeChar + "." + escapeChar + tapTable.getId() + escapeChar + " ("
@@ -149,7 +172,7 @@ public abstract class NormalWriteRecorder {
         preparedStatement.clearParameters();
         int pos = 1;
         for (String key : allColumn) {
-            preparedStatement.setObject(pos++, after.get(key));
+            preparedStatement.setObject(pos++, filterValue(after.get(key)));
         }
     }
 
@@ -157,29 +180,26 @@ public abstract class NormalWriteRecorder {
         if (EmptyKit.isEmpty(after)) {
             return;
         }
+        //去除After和Before的多余字段
         Map<String, Object> lastBefore = getBeforeForUpdate(after, before);
+        Map<String, Object> lastAfter = getAfterForUpdate(after, lastBefore);
         switch (updatePolicy) {
             case "insert_on_nonexists":
-                insertUpdate(after, lastBefore, listResult);
-                break;
-            case "log_on_nonexists":
-                updateIgnoreWithLog(after, lastBefore, listResult);
+                insertUpdate(lastAfter, lastBefore, listResult);
                 break;
             default:
-                justUpdate(after, lastBefore, listResult);
+                justUpdate(lastAfter, lastBefore, listResult);
                 break;
         }
         preparedStatement.addBatch();
     }
 
+    //未更新到数据时转插入
     protected void insertUpdate(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         throw new UnsupportedOperationException("upsert is not supported");
     }
 
-    protected void updateIgnoreWithLog(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
-        throw new UnsupportedOperationException("insertIgnore is not supported");
-    }
-
+    //直接更新（未更新到数据时忽略）
     protected void justUpdate(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         boolean containsNull = !hasPk && before.containsValue(null);
         String preparedStatementKey = String.join(",", after.keySet()) + "|" + containsNull;
@@ -187,33 +207,24 @@ public abstract class NormalWriteRecorder {
             preparedStatement = preparedStatementMap.get(preparedStatementKey);
         } else {
             if (EmptyKit.isNull(this.preparedStatementKey)) {
-                preparedStatement = connection.prepareStatement(getUpdateSql(before, containsNull));
+                preparedStatement = connection.prepareStatement(getUpdateSql(after, before, containsNull));
                 preparedStatementMap.put(preparedStatementKey, preparedStatement);
             } else {
                 executeBatch(listResult);
-                this.preparedStatementKey = preparedStatementKey;
                 preparedStatement = preparedStatementMap.get(preparedStatementKey);
                 if (EmptyKit.isNull(preparedStatement)) {
-                    preparedStatement = connection.prepareStatement(getUpdateSql(before, containsNull));
+                    preparedStatement = connection.prepareStatement(getUpdateSql(after, before, containsNull));
                     preparedStatementMap.put(preparedStatementKey, preparedStatement);
                 }
             }
+            this.preparedStatementKey = preparedStatementKey;
         }
         preparedStatement.clearParameters();
         int pos = 1;
-        for (String key : updatedColumn) {
-            preparedStatement.setObject(pos++, after.get(key));
+        for (String key : after.keySet()) {
+            preparedStatement.setObject(pos++, filterValue(after.get(key)));
         }
-        if (!containsNull) {
-            for (String key : before.keySet()) {
-                preparedStatement.setObject(pos++, before.get(key));
-            }
-        } else {
-            for (String key : before.keySet()) {
-                preparedStatement.setObject(pos++, before.get(key));
-                preparedStatement.setObject(pos++, before.get(key));
-            }
-        }
+        setBeforeValue(containsNull, before, pos);
     }
 
     private Map<String, Object> getBeforeForUpdate(Map<String, Object> after, Map<String, Object> before) {
@@ -227,31 +238,46 @@ public abstract class NormalWriteRecorder {
         return lastBefore;
     }
 
-    protected String getUpdateSql(Map<String, Object> before, boolean containsNull) {
+    private Map<String, Object> getAfterForUpdate(Map<String, Object> after, Map<String, Object> before) {
+        Map<String, Object> lastAfter = new HashMap<>();
+        for (Map.Entry<String, Object> entry : after.entrySet()) {
+            if (EmptyKit.isNotNull(entry.getValue()) && entry.getValue().equals(before.get(entry.getKey()))) {
+                continue;
+            }
+            lastAfter.put(entry.getKey(), entry.getValue());
+        }
+        return lastAfter;
+    }
+
+    protected String getUpdateSql(Map<String, Object> after, Map<String, Object> before, boolean containsNull) {
         if (!containsNull) {
             return "UPDATE " + escapeChar + schema + escapeChar + "." + escapeChar + tapTable.getId() + escapeChar + " SET " +
-                    updatedColumn.stream().map(k -> escapeChar + k + escapeChar + "=?").collect(Collectors.joining(", ")) + " WHERE " +
+                    after.keySet().stream().map(k -> escapeChar + k + escapeChar + "=?").collect(Collectors.joining(", ")) + " WHERE " +
                     before.keySet().stream().map(k -> escapeChar + k + escapeChar + "=?").collect(Collectors.joining(" AND "));
         } else {
             return "UPDATE " + escapeChar + schema + escapeChar + "." + escapeChar + tapTable.getId() + escapeChar + " SET " +
-                    updatedColumn.stream().map(k -> escapeChar + k + escapeChar + "=?").collect(Collectors.joining(", ")) + " WHERE " +
+                    after.keySet().stream().map(k -> escapeChar + k + escapeChar + "=?").collect(Collectors.joining(", ")) + " WHERE " +
                     before.keySet().stream().map(k -> "(" + escapeChar + k + escapeChar + "=? OR (" + escapeChar + k + escapeChar + " IS NULL AND ? IS NULL))")
                             .collect(Collectors.joining(" AND "));
         }
     }
 
-    //(most often) delete data
     public void addDeleteBatch(Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         if (EmptyKit.isEmpty(before)) {
             return;
         }
-        if (EmptyKit.isNotEmpty(uniqueCondition)) {
-            before.keySet().removeIf(k -> !uniqueCondition.contains(k));
+        Map<String, Object> lastBefore = new HashMap<>();
+        uniqueCondition.stream().filter(before::containsKey).forEach(v -> lastBefore.put(v, before.get(v)));
+        //Mongo为源端时，非_id为更新条件时，lastBefore为空，此时需要原始before直接删除
+        if (EmptyKit.isEmpty(lastBefore)) {
+            justDelete(before, listResult);
+        } else {
+            justDelete(lastBefore, listResult);
         }
-        justDelete(before, listResult);
         preparedStatement.addBatch();
     }
 
+    //直接删除
     protected void justDelete(Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         boolean containsNull = !hasPk && before.containsValue(null);
         String preparedStatementKey = "|" + containsNull;
@@ -263,16 +289,31 @@ public abstract class NormalWriteRecorder {
                 preparedStatementMap.put(preparedStatementKey, preparedStatement);
             } else {
                 executeBatch(listResult);
-                this.preparedStatementKey = preparedStatementKey;
                 preparedStatement = preparedStatementMap.get(preparedStatementKey);
                 if (EmptyKit.isNull(preparedStatement)) {
                     preparedStatement = connection.prepareStatement(getDeleteSql(before, containsNull));
                     preparedStatementMap.put(preparedStatementKey, preparedStatement);
                 }
             }
+            this.preparedStatementKey = preparedStatementKey;
         }
         preparedStatement.clearParameters();
         int pos = 1;
+        setBeforeValue(containsNull, before, pos);
+    }
+
+    protected String getDeleteSql(Map<String, Object> before, boolean containsNull) {
+        if (!containsNull) {
+            return "DELETE FROM " + escapeChar + schema + escapeChar + "." + escapeChar + tapTable.getId() + escapeChar + " WHERE " +
+                    before.keySet().stream().map(k -> escapeChar + k + escapeChar + "=?").collect(Collectors.joining(" AND "));
+        } else {
+            return "DELETE FROM " + escapeChar + schema + escapeChar + "." + escapeChar + tapTable.getId() + escapeChar + " WHERE " +
+                    before.keySet().stream().map(k -> "(" + escapeChar + k + escapeChar + "=? OR (" + escapeChar + k + escapeChar + " IS NULL AND ? IS NULL))")
+                            .collect(Collectors.joining(" AND "));
+        }
+    }
+
+    protected void setBeforeValue(boolean containsNull, Map<String, Object> before, int pos) throws SQLException {
         if (!containsNull) {
             for (String key : before.keySet()) {
                 preparedStatement.setObject(pos++, before.get(key));
@@ -285,14 +326,7 @@ public abstract class NormalWriteRecorder {
         }
     }
 
-    protected String getDeleteSql(Map<String, Object> before, boolean containsNull) {
-        if (!containsNull) {
-            return "DELETE FROM " + escapeChar + schema + escapeChar + "." + escapeChar + tapTable.getId() + escapeChar + " WHERE " +
-                    before.keySet().stream().map(k -> escapeChar + k + escapeChar + "=?").collect(Collectors.joining(" AND "));
-        } else {
-            return "DELETE FROM " + escapeChar + schema + escapeChar + "." + escapeChar + tapTable.getId() + escapeChar + " WHERE " +
-                    before.keySet().stream().map(k -> "(" + escapeChar + k + escapeChar + "=? OR (" + escapeChar + k + escapeChar + " IS NULL AND ? IS NULL))")
-                            .collect(Collectors.joining(" AND "));
-        }
+    protected Object filterValue(Object value) throws SQLException {
+        return value;
     }
 }
