@@ -11,6 +11,7 @@ public abstract class TapPdkBaseException extends TapCodeException {
 	private static final long serialVersionUID = 4820551931387403402L;
 
 	protected String pdkId;
+	protected String serverErrorCode;
 
 	protected TapPdkBaseException(String code, String pdkId, Throwable cause) {
 		super(code, cause);
@@ -30,6 +31,15 @@ public abstract class TapPdkBaseException extends TapCodeException {
 
 	public String getPdkId() {
 		return pdkId;
+	}
+
+	public String getServerErrorCode() {
+		return serverErrorCode;
+	}
+
+	public TapPdkBaseException withServerErrorCode(String serverErrorCode) {
+		this.serverErrorCode = serverErrorCode;
+		return this;
 	}
 
 	@Override

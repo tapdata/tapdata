@@ -16,6 +16,11 @@ public class MysqlExceptionCollector extends AbstractExceptionCollector implemen
     private final static String pdkId = "mysql";
 
     @Override
+    protected String getPdkId() {
+        return pdkId;
+    }
+
+    @Override
     public void collectTerminateByServer(Throwable cause) {
         if (cause instanceof SQLException && "08003".equals(((SQLException) cause).getSQLState())) {
             throw new TapPdkTerminateByServerEx(pdkId, ErrorKit.getLastCause(cause));

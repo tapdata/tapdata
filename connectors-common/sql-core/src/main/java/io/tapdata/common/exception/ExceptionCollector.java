@@ -23,4 +23,6 @@ public interface ExceptionCollector {
     void collectViolateNull(String targetFieldName, Throwable cause) throws RuntimeException;
 
     void collectCdcConfigInvalid(Throwable cause) throws RuntimeException;
+
+    void revealException(Throwable cause) throws RuntimeException;
 }

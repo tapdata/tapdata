@@ -1,8 +1,16 @@
 package io.tapdata.common.exception;
 
+import io.tapdata.exception.TapPdkRetryableEx;
+import io.tapdata.kit.ErrorKit;
+
+import java.sql.SQLException;
 import java.util.List;
 
 public abstract class AbstractExceptionCollector implements ExceptionCollector {
+
+    protected String getPdkId() {
+        return "pdk-unknown";
+    }
 
     @Override
     public void collectTerminateByServer(Throwable cause) {
@@ -52,5 +60,12 @@ public abstract class AbstractExceptionCollector implements ExceptionCollector {
     @Override
     public void collectCdcConfigInvalid(Throwable cause) {
         throw new RuntimeException(cause);
+    }
+
+    @Override
+    public void revealException(Throwable cause) {
+        if (cause instanceof SQLException) {
+            throw new TapPdkRetryableEx(getPdkId(), ErrorKit.getLastCause(cause)).withServerErrorCode(String.valueOf(((SQLException) cause).getErrorCode()));
+        }
     }
 }

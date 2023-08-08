@@ -15,6 +15,11 @@ public class ClickhouseExceptionCollector extends AbstractExceptionCollector imp
     private final static String pdkId = "clickhouse";
 
     @Override
+    protected String getPdkId() {
+        return pdkId;
+    }
+
+    @Override
     public void collectTerminateByServer(Throwable cause) {
         if (cause instanceof SQLException && ((SQLException) cause).getErrorCode() == 394) {
             throw new TapPdkTerminateByServerEx(pdkId, ErrorKit.getLastCause(cause));

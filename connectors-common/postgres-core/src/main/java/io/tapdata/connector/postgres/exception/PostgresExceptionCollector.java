@@ -15,6 +15,11 @@ public class PostgresExceptionCollector extends AbstractExceptionCollector imple
     private final static String pdkId = "postgres";
 
     @Override
+    protected String getPdkId() {
+        return pdkId;
+    }
+
+    @Override
     public void collectTerminateByServer(Throwable cause) {
         if (cause instanceof SQLException && "57014".equals(((SQLException) cause).getSQLState())) {
             throw new TapPdkTerminateByServerEx(pdkId, ErrorKit.getLastCause(cause));
@@ -128,6 +133,13 @@ public class PostgresExceptionCollector extends AbstractExceptionCollector imple
                             ErrorKit.getLastCause(cause));
                 case "0"://append error type
             }
+        }
+    }
+
+    @Override
+    public void revealException(Throwable cause) {
+        if (cause instanceof SQLException) {
+            throw new TapPdkRetryableEx(getPdkId(), ErrorKit.getLastCause(cause)).withServerErrorCode(((SQLException) cause).getSQLState());
         }
     }
 }
