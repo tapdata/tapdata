@@ -76,8 +76,9 @@ public abstract class NormalWriteRecorder {
                     Iterator<TapRecordEvent> iterator = batchCache.iterator();
                     int index = 0;
                     while (iterator.hasNext()) {
-                        if (0 == writeResults[index++]) {
-                            tapLogger.info("update record ignored: {}", iterator.next());
+                        TapRecordEvent event = iterator.next();
+                        if (0 >= writeResults[index++]) {
+                            tapLogger.info("update record ignored: {}", event);
                         }
                     }
                 }
