@@ -105,9 +105,9 @@ public class SelectDbStreamLoader extends Throwable {
         dataOutputStream.write(s.getBytes(StandardCharsets.UTF_8));
         dataOutputStream.write(Constants.LINE_DELIMITER_DEFAULT.getBytes(StandardCharsets.UTF_8));
         final byte[] finalBytes = byteArrayOutputStream.toByteArray();
-        String uuid = UUID.randomUUID().toString() + "_" + System.currentTimeMillis();
-        CopyIntoUtils.upload(uuid, finalBytes);
-        Response response = CopyIntoUtils.copyInto(table);
+        String uuid = UUID.randomUUID() + "_" + System.currentTimeMillis() + "_" +  Thread.currentThread().getId();
+        CopyIntoUtils.upload(uuid, finalBytes,table);
+        Response response = CopyIntoUtils.copyInto();
         HashMap<String, String> selectDBCopyIntoLog;
         selectDBCopyIntoLog = this.selectDbJdbcContext.getSelectDBCopyIntoLog(uuid);
         if (!"FINISHED".equals(selectDBCopyIntoLog.get("State"))
