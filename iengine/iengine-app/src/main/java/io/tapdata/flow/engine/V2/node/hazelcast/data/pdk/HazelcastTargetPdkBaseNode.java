@@ -441,10 +441,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		} catch (Throwable e) {
 			executeAspect(WriteErrorAspect.class, () -> new WriteErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
 			Throwable throwableWrapper;
-			if (!(e instanceof TapCodeException)) {
-				throwableWrapper = new TapCodeException(TaskTargetProcessorExCode_15.UNKNOWN_ERROR, e);
+			Throwable tapCodeEx = CommonUtils.matchThrowable(e, TapCodeException.class);
+			if (!(tapCodeEx instanceof TapCodeException)) {
+				throwableWrapper = new TapCodeException(TaskTargetProcessorExCode_15.UNKNOWN_ERROR, tapCodeEx);
 			} else {
-				throwableWrapper = e;
+				throwableWrapper = tapCodeEx;
 			}
 			errorHandle(throwableWrapper, null);
 		} finally {

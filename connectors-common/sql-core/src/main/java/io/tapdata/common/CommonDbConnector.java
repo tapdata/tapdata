@@ -550,6 +550,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
             } catch (SQLException e) {
                 exceptionCollector.collectTerminateByServer(e);
                 exceptionCollector.collectReadPrivileges("batchReadWithoutOffset", Collections.emptyList(), e);
+                exceptionCollector.revealException(e);
                 throw e;
             }
             //last events those less than eventBatchSize
@@ -564,13 +565,20 @@ public abstract class CommonDbConnector extends ConnectorBase {
         String sql = commonSqlMaker.buildSelectClause(table, filter) + getSchemaAndTable(table.getId()) + commonSqlMaker.buildSqlByAdvanceFilter(filter);
         jdbcContext.query(sql, resultSet -> {
             FilterResults filterResults = new FilterResults();
-            while (resultSet.next()) {
-                List<String> allColumn = DbKit.getColumnsFromResultSet(resultSet);
-                filterResults.add(DbKit.getRowFromResultSet(resultSet, allColumn));
-                if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
-                    consumer.accept(filterResults);
-                    filterResults = new FilterResults();
+            try {
+                while (resultSet.next()) {
+                    List<String> allColumn = DbKit.getColumnsFromResultSet(resultSet);
+                    filterResults.add(DbKit.getRowFromResultSet(resultSet, allColumn));
+                    if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
+                        consumer.accept(filterResults);
+                        filterResults = new FilterResults();
+                    }
                 }
+            } catch (SQLException e) {
+                exceptionCollector.collectTerminateByServer(e);
+                exceptionCollector.collectReadPrivileges("batchReadWithoutOffset", Collections.emptyList(), e);
+                exceptionCollector.revealException(e);
+                throw e;
             }
             if (EmptyKit.isNotEmpty(filterResults.getResults())) {
                 consumer.accept(filterResults);
@@ -583,14 +591,21 @@ public abstract class CommonDbConnector extends ConnectorBase {
         String sql = commonSqlMaker.buildSelectClause(table, filter) + commonSqlMaker.buildRowNumberPreClause(filter) + getSchemaAndTable(table.getId()) + commonSqlMaker.buildSqlByAdvanceFilterV2(filter);
         jdbcContext.query(sql, resultSet -> {
             FilterResults filterResults = new FilterResults();
-            while (resultSet.next()) {
-                List<String> allColumn = DbKit.getColumnsFromResultSet(resultSet);
-                allColumn.remove("ROWNO_");
-                filterResults.add(DbKit.getRowFromResultSet(resultSet, allColumn));
-                if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
-                    consumer.accept(filterResults);
-                    filterResults = new FilterResults();
+            try {
+                while (resultSet.next()) {
+                    List<String> allColumn = DbKit.getColumnsFromResultSet(resultSet);
+                    allColumn.remove("ROWNO_");
+                    filterResults.add(DbKit.getRowFromResultSet(resultSet, allColumn));
+                    if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
+                        consumer.accept(filterResults);
+                        filterResults = new FilterResults();
+                    }
                 }
+            } catch (SQLException e) {
+                exceptionCollector.collectTerminateByServer(e);
+                exceptionCollector.collectReadPrivileges("batchReadWithoutOffset", Collections.emptyList(), e);
+                exceptionCollector.revealException(e);
+                throw e;
             }
             if (EmptyKit.isNotEmpty(filterResults.getResults())) {
                 consumer.accept(filterResults);

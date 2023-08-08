@@ -4,6 +4,7 @@ import io.tapdata.ErrorCodeConfig;
 import io.tapdata.ErrorCodeEntity;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.exception.TapPdkBaseException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.ErrorHandleFunction;
@@ -105,9 +106,15 @@ public class RetryUtils extends CommonUtils {
 					if (!needDefaultRetry) {
 						throwIfNeed(invoker, retryOptions, message, errThrowable);
 					}
+					String serverErrorCode;
+					if (errThrowable instanceof TapPdkBaseException) {
+						serverErrorCode = ((TapPdkBaseException) errThrowable).getServerErrorCode();
+					} else {
+						serverErrorCode = "null";
+					}
 					Optional.ofNullable(invoker.getLogListener())
-							.ifPresent(log -> log.warn(String.format(LOG_PREFIX + "Method (%s) encountered an error, triggering auto retry.\n - Error message: %s\n - Remaining retry %s time(s)\n - Period %s second(s)",
-									method.name().toLowerCase(), errThrowable.getMessage(), invoker.getRetryTimes(), retryPeriodSeconds)));
+							.ifPresent(log -> log.warn(String.format(LOG_PREFIX + "Method (%s) encountered an error, triggering auto retry.\n - Error code: %s, message: %s\n - Remaining retry %s time(s)\n - Period %s second(s)",
+									method.name().toLowerCase(), serverErrorCode, errThrowable.getMessage(), invoker.getRetryTimes(), retryPeriodSeconds)));
 					invoker.setRetryTimes(retryTimes - 1);
 					if (async) {
 						ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node, method, invoker), retryPeriodSeconds, TimeUnit.SECONDS);

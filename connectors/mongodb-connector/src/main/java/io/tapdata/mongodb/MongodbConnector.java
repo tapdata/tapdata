@@ -89,7 +89,7 @@ public class MongodbConnector extends ConnectorBase {
 	private final int[] lock = new int[0];
 	MongoCollection<Document> mongoCollection;
 	private MongoBatchOffset batchOffset = null;
-
+	private MongodbExceptionCollector exceptionCollector;
 	private MongodbStreamReader mongodbStreamReader;
 
 	private volatile MongodbWriter mongodbWriter;
@@ -910,6 +910,7 @@ public class MongodbConnector extends ConnectorBase {
 				throw new RuntimeException(String.format("create mongodb connection failed %s", e.getMessage()), e);
 			}
 		}
+		exceptionCollector = new MongodbExceptionCollector();
 	}
 
 	private void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) throws Throwable {
@@ -964,6 +965,7 @@ public class MongodbConnector extends ConnectorBase {
 
 			mongodbWriter.writeRecord(tapRecordEvents, table, writeListResultConsumer);
 		} catch (Throwable e) {
+			exceptionCollector.revealException(e);
 			errorHandle(e, connectorContext);
 		}
 	}
@@ -1195,6 +1197,7 @@ public class MongodbConnector extends ConnectorBase {
 				}
 			}
 		} catch (Exception e) {
+			exceptionCollector.revealException(e);
 			errorHandle(e, connectorContext);
 		}
 	}
@@ -1234,6 +1237,7 @@ public class MongodbConnector extends ConnectorBase {
 			} catch (Exception ignored) {
 			}
 			mongodbStreamReader = null;
+			exceptionCollector.revealException(e);
 			errorHandle(e, connectorContext);
 		}
 

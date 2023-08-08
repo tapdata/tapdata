@@ -97,6 +97,7 @@ public class NormalRecordWriter {
             exceptionCollector.collectWritePrivileges("writeRecord", Collections.emptyList(), e);
             exceptionCollector.collectWriteType(null, null, errorEvent, e);
             exceptionCollector.collectWriteLength(null, null, errorEvent, e);
+            exceptionCollector.revealException(e);
             throw e;
         } finally {
             insertRecorder.releaseResource();
