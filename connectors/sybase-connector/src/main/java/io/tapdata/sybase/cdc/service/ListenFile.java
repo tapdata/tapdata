@@ -17,6 +17,7 @@ import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
+import io.tapdata.sybase.util.ConfigPaths;
 import io.tapdata.sybase.util.Utils;
 import io.tapdata.sybase.util.YamlUtil;
 import org.apache.commons.io.FileUtils;
@@ -41,7 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ListenFile implements CdcStep<CdcRoot> {
     public static final String TAG = ListenFile.class.getSimpleName();
     private final CdcRoot root;
-    private final String monitorPath; ///sybase-poc/config/sybase2csv/csv/testdb/tester
+    private final String monitorPath; ///sybase-poc/config/csv/testdb/tester
     private final StopLock lock;
     private final AnalyseCsvFile analyseCsvFile;
     private final String monitorFileName;
@@ -75,7 +76,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         this.tables = tables;
         analyseRecord = new AnalyseTapEventFromCsvString();
         this.batchSize = batchSize;
-        this.schemaConfigPath = root.getSybasePocPath() + "/config/sybase2csv/csv/schemas.yaml";
+        this.schemaConfigPath = root.getSybasePocPath() + ConfigPaths.SCHEMA_CONFIG_PATH;
         this.config = new ConnectionConfig(root.getContext());
         this.nodeConfig = new NodeConfig(root.getContext());
         //currentFileNames = new ConcurrentHashMap<>();
@@ -173,26 +174,26 @@ public class ListenFile implements CdcStep<CdcRoot> {
             @Override
             public void onStop(FileAlterationObserver observer) {
                 super.onStop(observer);
-                try {
-                    if (!tables.isEmpty()) {
-                        //遍历monitorPath 所有子目录下的
-                        for (String table : tables) {
-                            final String tableSpace = monitorPath + "/" + table;
-                            File tableSpaceFile = new File(tableSpace);
-                            if (!tableSpaceFile.exists()) continue;
-                            File[] files = tableSpaceFile.listFiles();
-                            if (null != files && files.length > 0) {
-                                for (File file : files) {
-                                    if (null != file && file.exists() && file.isFile()) {
-                                        deleteCSVWithConfigTime(file, cdcCacheTime);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    context.getLog().warn("Failed exec stop once, msg: {}", e.getMessage());
-                }
+//                try {
+//                    if (!tables.isEmpty()) {
+//                        //遍历monitorPath 所有子目录下的
+//                        for (String table : tables) {
+//                            final String tableSpace = monitorPath + "/" + table;
+//                            File tableSpaceFile = new File(tableSpace);
+//                            if (!tableSpaceFile.exists()) continue;
+//                            File[] files = tableSpaceFile.listFiles();
+//                            if (null != files && files.length > 0) {
+//                                for (File file : files) {
+//                                    if (null != file && file.exists() && file.isFile()) {
+//                                        deleteCSVWithConfigTime(file, cdcCacheTime);
+//                                    }
+//                                }
+//                            }
+//                        }
+//                    }
+//                } catch (Exception e) {
+//                    context.getLog().warn("Failed exec stop once, msg: {}", e.getMessage());
+//                }
             }
 
             @Override
@@ -284,6 +285,11 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                             continue;
                                         }
                                         if (null != recordEvent) {
+                                            //事件发生的时间早于任务启动时间，当前事件需要被忽略
+                                            if (lineItem <= 0 && ((TapRecordEvent)recordEvent).getReferenceTime() < position.getCdcStartTime()) {
+                                                continue;
+                                            }
+
                                             events[0].add(recordEvent);
                                             lineItem = offset.addAndGet();
                                             if (events[0].size() == batchSize) {

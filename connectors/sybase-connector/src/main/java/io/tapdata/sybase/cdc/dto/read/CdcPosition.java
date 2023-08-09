@@ -11,9 +11,23 @@ import java.util.Optional;
  **/
 public class CdcPosition {
     Map<String, PositionOffset> tableOffset;
+    long cdcStartTime;
 
     public CdcPosition() {
         tableOffset = new LinkedHashMap<>();
+    }
+
+    public CdcPosition cdcStartTime(long cdcStartTime) {
+        this.cdcStartTime = cdcStartTime;
+        return this;
+    }
+
+    public long getCdcStartTime() {
+        return cdcStartTime;
+    }
+
+    public void setCdcStartTime(long cdcStartTime) {
+        this.cdcStartTime = cdcStartTime;
     }
 
     public CdcPosition(String tableName, PositionOffset positionOffset) {

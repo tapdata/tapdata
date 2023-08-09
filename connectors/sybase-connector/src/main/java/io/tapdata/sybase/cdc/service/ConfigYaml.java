@@ -1,5 +1,6 @@
 package io.tapdata.sybase.cdc.service;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
@@ -8,11 +9,16 @@ import io.tapdata.sybase.cdc.dto.start.SybaseDstLocalStorage;
 import io.tapdata.sybase.cdc.dto.start.SybaseExtConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseFilterConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseGeneralConfig;
+import io.tapdata.sybase.cdc.dto.start.SybaseReInitConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseSrcConfig;
+import io.tapdata.sybase.util.ConfigPaths;
 import io.tapdata.sybase.util.HostUtils;
 import io.tapdata.sybase.util.YamlUtil;
+import org.apache.commons.io.FileUtils;
 import org.yaml.snakeyaml.DumperOptions;
 
+import java.io.File;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +65,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
 
     public CdcRoot configSybaseFilter() {
         this.root.checkStep();
-        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/filter_sybasease.yaml");
+        YamlUtil yamlUtil = new YamlUtil(root.getFilterTableConfigPath());
         Object allow = yamlUtil.get("allow");
         if (filterConfig != null && !filterConfig.isEmpty()) {
 //            if (allow instanceof Collection) {
@@ -80,7 +86,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
 
     private void configSybaseSrc() {
         this.root.checkStep();
-        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/src_sybasease.yaml", DumperOptions.ScalarStyle.DOUBLE_QUOTED);
+        YamlUtil yamlUtil = new YamlUtil(configPath + ConfigPaths.SYBASE_SRC_PATH, DumperOptions.ScalarStyle.DOUBLE_QUOTED);
         Map<String, Object> allow = yamlUtil.get();
         Map<String, Object> map;
         try {
@@ -102,7 +108,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
 
     private void configDstLocalstorage() {
         this.root.checkStep();
-        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/dst_localstorage.yaml", DumperOptions.ScalarStyle.DOUBLE_QUOTED);
+        YamlUtil yamlUtil = new YamlUtil(configPath + ConfigPaths.DST_LOCAL_STORAGE_PATH, DumperOptions.ScalarStyle.DOUBLE_QUOTED);
         Map<String, Object> allow = yamlUtil.get();
         Map<String, Object> map;
         try {
@@ -122,7 +128,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
     }
 
     private void configGeneral() {
-        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/general.yaml", DumperOptions.ScalarStyle.SINGLE_QUOTED);
+        YamlUtil yamlUtil = new YamlUtil(configPath + ConfigPaths.GENERAL_CONFIG_PATH, DumperOptions.ScalarStyle.SINGLE_QUOTED);
         Map<String, Object> allow = yamlUtil.get();
         Map<String, Object> map;
         try {
@@ -142,7 +148,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
     }
 
     private void configExt() {
-        YamlUtil yamlUtil = new YamlUtil(configPath + "/config/sybase2csv/ext_sybasease.yaml", DumperOptions.ScalarStyle.SINGLE_QUOTED);
+        YamlUtil yamlUtil = new YamlUtil(configPath + ConfigPaths.EXT_CONFIG_PATH, DumperOptions.ScalarStyle.SINGLE_QUOTED);
         Map<String, Object> allow = yamlUtil.get();
         Map<String, Object> map;
         try {
@@ -159,6 +165,36 @@ class ConfigYaml implements CdcStep<CdcRoot> {
             allow.putAll(map);
         }
         yamlUtil.update(allow);
+    }
+
+
+    public List<Map<String, Object>> configSybaseFilter(List<Map<String, Object>>  filterConfig) {
+        this.root.checkStep();
+        YamlUtil yamlUtil = new YamlUtil(root.getFilterTableConfigPath());
+        yamlUtil.update(map(entry(SybaseFilterConfig.configKey, filterConfig)));
+        return filterConfig;
+    }
+
+    public List<LinkedHashMap<String, Object>> configReInitTable(List<SybaseReInitConfig> filterConfig) {
+        String taskId = root.getCdcId();
+        if (null == taskId) throw new CoreException("Can not get task id when write reinit.yaml");
+
+        String path = String.format(ConfigPaths.RE_INIT_TABLE_CONFIG_PATH, configPath, taskId);
+        File reInitYaml = new File(path);
+        if (!reInitYaml.exists() || !reInitYaml.isFile()) {
+           try {
+               boolean newFile = reInitYaml.createNewFile();
+           }catch (Exception e){
+               throw new CoreException("Unable create yaml which named is {}, please create by yourself", path);
+           }
+        }
+        YamlUtil yamlUtil = new YamlUtil(path, DumperOptions.ScalarStyle.SINGLE_QUOTED);
+        List<LinkedHashMap<String, Object>> list = new ArrayList<>();
+        if (filterConfig != null && !filterConfig.isEmpty()) {
+            list.addAll(SybaseReInitConfig.fixYaml0(filterConfig));
+            yamlUtil.update(map(entry(SybaseReInitConfig.configKey, list)));
+        }
+        return list;
     }
 
     private void configEtcHost() {

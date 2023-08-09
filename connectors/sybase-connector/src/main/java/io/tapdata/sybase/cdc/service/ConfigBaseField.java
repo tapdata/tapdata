@@ -5,6 +5,7 @@ import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.sybase.SybaseConnector;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
+import io.tapdata.sybase.util.ConfigPaths;
 import io.tapdata.sybase.util.Utils;
 import io.tapdata.sybase.util.ZipUtils;
 import org.apache.commons.io.FileUtils;
@@ -44,7 +45,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
             stateMap.put("taskId", cdcId = UUID.randomUUID().toString().replaceAll("-", "_"));
         }
         root.setCdcId(cdcId);
-        String targetPath = "sybase-poc-temp/" + cdcId + "/";
+        String targetPath = "sybase-poc-temp/";// + cdcId + "/";
         File sybasePocPath = new File(targetPath);
         if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) sybasePocPath.mkdir();
         String pocPathFromLocal = getPocPathFromLocal();
@@ -89,7 +90,8 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
         }
 
         this.root.setSybasePocPath(targetPath);
-        stateMap.put("cdcPath", targetPath);
+        root.getContext().getGlobalStateMap().put(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR, targetPath);
+        stateMap.put(ConfigPaths.SYBASE_USE_TASK_CONFIG_KEY, ( targetPath.endsWith("/") ? targetPath : targetPath + "/" ) + ConfigPaths.SYBASE_USE_TASK_CONFIG_DIR + cdcId) ;
 
         final String cliPath = "sybase-poc/replicant-cli";
         File cliFile = new File(cliPath);
