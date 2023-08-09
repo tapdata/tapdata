@@ -341,9 +341,7 @@ public class MysqlConnector extends CommonDbConnector {
 	}
 
 
-	private Map<
-			String, Object> filterTimeForMysql(ResultSet resultSet, ResultSetMetaData metaData,
-											   Set<String> dateTypeSet) throws SQLException {
+	private Map<String, Object> filterTimeForMysql(ResultSet resultSet, ResultSetMetaData metaData, Set<String> dateTypeSet) throws SQLException {
 		Map<String, Object> data = new HashMap<>();
 		for (int i = 0; i < metaData.getColumnCount(); i++) {
 			String columnName = metaData.getColumnName(i + 1);
@@ -363,7 +361,7 @@ public class MysqlConnector extends CommonDbConnector {
 						value = resultSet.getString(i + 1);
 					}
 				}
-				if (value != null) {
+				if (value != null && dateTypeSet.contains(columnName)) {
 					String valueS = value.toString();
 					// 如果是0000开头的时间，或者包含 -00, 就认为是null
 					if (valueS.startsWith("0000") || valueS.contains("-00")) {
