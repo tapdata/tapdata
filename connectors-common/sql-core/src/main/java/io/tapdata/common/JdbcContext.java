@@ -48,6 +48,7 @@ public abstract class JdbcContext implements AutoCloseable {
             return hikariDataSource.getConnection();
         } catch (SQLException e) {
             exceptionCollector.collectUserPwdInvalid(getConfig().getUser(), e);
+            exceptionCollector.revealException(e);
             throw e;
         }
     }
