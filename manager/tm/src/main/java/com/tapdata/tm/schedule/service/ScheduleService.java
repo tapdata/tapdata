@@ -1,8 +1,12 @@
 package com.tapdata.tm.schedule.service;
 
 
+import cn.hutool.core.bean.BeanUtil;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.entity.TaskRecord;
+import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
@@ -16,15 +20,20 @@ import org.bson.types.ObjectId;
 import org.quartz.CronScheduleBuilder;
 import org.quartz.CronTrigger;
 import org.quartz.TriggerBuilder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 @Service
 @Slf4j
-public class ScheduleService{
+public class ScheduleService {
+
+	@Autowired
+	private TaskRecordService taskRecordService;
 
     public void executeTask(TaskDto taskDto) {
         WorkerService workerService = SpringContextHelper.getBean(WorkerService.class);
@@ -70,7 +79,7 @@ public class ScheduleService{
             taskDto.setCrontabScheduleMsg("");
             taskService.save(taskDto, userDetail);
 
-            if (Lists.newArrayList(TaskDto.STATUS_STOP, TaskDto.STATUS_COMPLETE).contains(status)){
+            if (!TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType()) && Lists.newArrayList(TaskDto.STATUS_STOP, TaskDto.STATUS_COMPLETE).contains(status)){
                 taskService.renew(taskId, userDetail, true);
             }
 
@@ -81,8 +90,24 @@ public class ScheduleService{
             return;
         }
         if (scheduleDate < new Date().getTime()) {
-
-            if (TaskDto.TYPE_INITIAL_SYNC_CDC.equals(taskDto.getType()) && TaskDto.STATUS_RUNNING.equals(status)) {
+					if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())) {
+						TaskEntity taskSnapshot = new TaskEntity();
+						BeanUtil.copyProperties(taskDto, taskSnapshot);
+						taskSnapshot.setStatus(TaskDto.STATUS_RUNNING);
+						taskSnapshot.setStartTime(new Date());
+						ObjectId objectId = ObjectId.get();
+						taskSnapshot.setTaskRecordId(objectId.toHexString());
+						TaskRecord taskRecord = new TaskRecord(objectId.toHexString(), taskDto.getId().toHexString(), taskSnapshot, "system", new Date());
+						// 创建记录
+						taskRecordService.createRecord(taskRecord);
+						taskDto.setTaskRecordId(objectId.toString());
+						taskDto.setAttrs(new HashMap<>());
+						taskDto.setScheduleDate(newScheduleDate);
+						taskDto.setCrontabScheduleMsg("");
+						taskService.save(taskDto, userDetail);
+						// 执行记录
+						taskService.start(taskDto.getId(), userDetail, true);
+					} else if (TaskDto.TYPE_INITIAL_SYNC_CDC.equals(taskDto.getType()) && TaskDto.STATUS_RUNNING.equals(status)) {
                 CompletableFuture<String> pause = CompletableFuture.supplyAsync(() -> {
                     taskService.pause(taskId, userDetail, false, false, true);
                     return "ok";
