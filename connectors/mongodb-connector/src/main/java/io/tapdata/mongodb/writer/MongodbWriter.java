@@ -3,6 +3,7 @@ package io.tapdata.mongodb.writer;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoBulkWriteException;
 import com.mongodb.bulk.BulkWriteError;
+import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -12,6 +13,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.mongodb.MongodbUtil;
@@ -26,11 +28,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.bson.Document;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -50,16 +48,18 @@ public class MongodbWriter {
 	private KVMap<Object> globalStateMap;
 	private ConnectionString connectionString;
 	private MongodbConfig mongodbConfig;
+	private final Log tapLogger;
 
 	private boolean is_cloud;
 
-	public MongodbWriter(KVMap<Object> globalStateMap, MongodbConfig mongodbConfig, MongoClient mongoClient) {
+	public MongodbWriter(KVMap<Object> globalStateMap, MongodbConfig mongodbConfig, MongoClient mongoClient, Log tapLogger) {
 		this.globalStateMap = globalStateMap;
 		this.mongoClient = mongoClient;
 		this.mongoDatabase = mongoClient.getDatabase(mongodbConfig.getDatabase());
 		this.connectionString = new ConnectionString(mongodbConfig.getUri());
 		this.mongodbConfig = mongodbConfig;
 		this.is_cloud = AppType.init().isCloud();
+		this.tapLogger = tapLogger;
 	}
 
 	/**
@@ -128,6 +128,29 @@ public class MongodbWriter {
 				.insertedCount(inserted.get())
 				.modifiedCount(updated.get())
 				.removedCount(deleted.get()));
+	}
+
+	public void writeUpdateRecordWithLog(TapRecordEvent tapRecordEvent, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+		if (null == tapRecordEvent) {
+			return;
+		}
+		AtomicLong inserted = new AtomicLong(0); //insert count
+		AtomicLong updated = new AtomicLong(0); //update count
+		AtomicLong deleted = new AtomicLong(0); //delete count
+		WriteListResult<TapRecordEvent> writeListResult = writeListResult();
+		Object pksCache = table.primaryKeys(true);
+		if (null == pksCache) pksCache = table.primaryKeys();
+		final Collection<String> pks = (Collection<String>) pksCache;
+		UpdateOptions options = new UpdateOptions().upsert(true);
+		MongoCollection<Document> collection = getMongoCollection(table.getId());
+		BulkWriteResult result = collection.bulkWrite(Collections.singletonList(normalWriteMode(inserted, updated, deleted, options, collection, pks, tapRecordEvent)));
+		if (result.getMatchedCount() <= 0) {
+			tapLogger.info("update record ignored: {}", tapRecordEvent);
+		}
+		writeListResultConsumer.accept(writeListResult
+				.insertedCount(0)
+				.modifiedCount(1)
+				.removedCount(0));
 	}
 
 	private boolean handleBulkWriteError(
