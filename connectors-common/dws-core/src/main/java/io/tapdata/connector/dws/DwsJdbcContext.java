@@ -83,7 +83,7 @@ public class DwsJdbcContext extends JdbcContext {
     public List<String> queryDistributedKeys(String schema,String tableName) {
         List<String> distributedKeys = new ArrayList();
         try {
-            query(String.format("SELECT getdistributekey('"+schema+"."+tableName+"')"),
+            query(String.format("SELECT getdistributekey('\""+schema+"\".\""+tableName+"\"')"),
                     resultSet -> {
                             if (null != resultSet && resultSet.next()) {
                                 String distributeStr = resultSet.getString(1);

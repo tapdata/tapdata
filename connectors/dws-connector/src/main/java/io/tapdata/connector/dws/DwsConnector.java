@@ -235,6 +235,8 @@ public class DwsConnector extends PostgresConnector {
                 dwsTapTable.set(new DwsTapTable(tapTable, false, distributedKeys));
             }
             dwsTapTableMap.put(tapTable.getId(), dwsTapTable.get());
+            /*connectorContext.getLog().info("dwsTapTableMap: tapTable=>{},isPartition=>{},getDistributedKeys=>{}", dwsTapTableMap.get(tapTable.getId()).getTapTable(),
+                    dwsTapTableMap.get(tapTable.getId()).isPartition(),dwsTapTableMap.get(tapTable.getId()).getDistributedKeys());*/
         }
 
         if (isTransaction) {

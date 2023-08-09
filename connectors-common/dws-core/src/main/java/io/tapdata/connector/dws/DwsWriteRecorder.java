@@ -148,7 +148,7 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
         preparedStatement.clearParameters();
         int pos = 1;
         if (hasPk) {
-            for (String key : updatedColumn) {
+            for (String key : setKeys) {
                 preparedStatement.setObject(pos++, filterInvalid(after.get(key)));
             }
             for (String key : uniqueCondition) {
@@ -285,9 +285,6 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
 
     private void insertUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
         Set<String> setKeys = buildSetKeys();
-        //firstField
-        TapField firstField;
-        Set<String> fieldsExcludeFirstField = new HashSet();
         if (EmptyKit.isNull(preparedStatement)) {
             String updateSql;
             if (hasPk) {
@@ -297,12 +294,6 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
                         + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
                         + StringKit.copyString("?", allColumn.size(), ",") + " WHERE NOT EXISTS (SELECT * FROM upsert)";
             } else {
-                //firstField
-                firstField = tapTable.getNameFieldMap().values().stream().filter(field -> field.getPos() == 1).findFirst().orElse(null);
-                fieldsExcludeFirstField = after.keySet()
-                        .stream()
-                        .filter(key -> !key.equals(firstField.getName()))
-                        .collect(Collectors.toSet());
                 updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + setKeys.stream().map(k -> "\"" + k + "\"=?")
                         .collect(Collectors.joining(", ")) + " WHERE " + before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
                         .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
