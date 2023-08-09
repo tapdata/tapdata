@@ -32,7 +32,7 @@ public class NodeConfig {
         encode = Optional.ofNullable(nodeConfig.getString("encode")).orElse("cp850");
         decode = Optional.ofNullable(nodeConfig.getString("decode")).orElse("big5");
         autoEncode = (boolean)Optional.ofNullable(nodeConfig.get("autoEncode")).orElse(false);
-        cdcCacheTime = Optional.ofNullable(nodeConfig.getInteger("cdcCacheTime")).orElse(2);
+        cdcCacheTime = Optional.ofNullable(nodeConfig.getInteger("cdcCacheTime")).orElse(10);
         if (cdcCacheTime < 1) {
             cdcCacheTime = 2;
         }

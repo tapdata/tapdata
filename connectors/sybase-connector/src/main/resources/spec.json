@@ -300,7 +300,7 @@
           "title": "${cdcCacheTime}",
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
-          "default": 2,
+          "default": 10,
           "x-index": 90,
           "x-display": "hidden",
           "required": true

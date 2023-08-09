@@ -118,6 +118,7 @@ public class SybaseConnector extends CommonDbConnector {
     private Boolean isCdc = Boolean.FALSE;
     private ConnectionConfig connectionConfig;
     private NodeConfig nodeConfig;
+    private CdcPosition position;
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private Log log;
@@ -139,17 +140,17 @@ public class SybaseConnector extends CommonDbConnector {
         exceptionCollector = new MysqlExceptionCollector();
         log = tapConnectionContext.getLog();
         if (tapConnectionContext instanceof TapConnectorContext) {
+            TapConnectorContext context = (TapConnectorContext) tapConnectionContext;
             this.mysqlWriter = new SybaseSqlBatchWriter(sybaseContext);
             this.sybaseReader = new SybaseReader(sybaseContext);
             this.version = sybaseContext.queryVersion();
-            //this.timezone = sybaseContext.queryTimeZone();
-            ddlSqlGenerator = new MysqlDDLSqlGenerator(version, ((TapConnectorContext) tapConnectionContext).getTableMap());
+            ddlSqlGenerator = new MysqlDDLSqlGenerator(version, context.getTableMap());
             root = new CdcRoot(unused -> isAlive());
             lock = new StopLock(true);
-            KVMap<Object> stateMap = ((TapConnectorContext) tapConnectionContext).getStateMap();
+            KVMap<Object> stateMap = context.getStateMap();
             Object taskId = stateMap.get("taskId");
             if (null == taskId) {
-                String id = ((TapConnectorContext) tapConnectionContext).getId();
+                String id = context.getId();
                 if (null == id) {
                     id = UUID.randomUUID().toString().replaceAll("-", "_");
                 }
@@ -159,24 +160,20 @@ public class SybaseConnector extends CommonDbConnector {
             nodeConfig = new NodeConfig((TapConnectorContext) tapConnectionContext);
 
             overwriteType = Optional.ofNullable(OverwriteType.type(String.valueOf(stateMap.get("tableOverType")))).orElse(OverwriteType.OVERWRITE);
-            stateMap.put("tableOverType", overwriteType.getType());
+
 
             needEncode = nodeConfig.isAutoEncode();
             encode = needEncode ? Optional.ofNullable(nodeConfig.getEncode()).orElse("cp850") : null;
             decode = needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
             outCode = needEncode ? Optional.ofNullable(nodeConfig.getOutDecode()).orElse("utf-8") : null;
 
-            Object isRestart = stateMap.get("isRestart");
-            if (null != isRestart && isRestart instanceof Boolean && (Boolean) isRestart) {
-                cdcHandle.safeStopShell();
-                cdcStart((TapConnectorContext) tapConnectionContext);
+            //未重置后重启
+            if (OverwriteType.RESUME.getType().equals(stateMap.get("tableOverType"))) {
+                CdcHandle.safeStopShell(context.getLog());
+                cdcHandle = null;
+                cdcStart(context);
             }
         }
-//		fieldDDLHandlers = new BiClassHandlers<>();
-//		fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
-//		fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
-//		fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
-//		fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
         started.set(true);
     }
 
@@ -185,12 +182,10 @@ public class SybaseConnector extends CommonDbConnector {
         started.set(false);
         try {
             Optional.ofNullable(this.sybaseReader).ifPresent(MysqlReader::close);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) { }
         try {
             Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) { }
         if (null != sybaseContext) {
             try {
                 this.sybaseContext.close();
@@ -200,6 +195,13 @@ public class SybaseConnector extends CommonDbConnector {
             }
         }
 
+        if (connectionContext instanceof TapConnectorContext) {
+            if (null == cdcHandle) {
+                CdcHandle.safeStopShell(connectionContext.getLog());
+            } else {
+                cdcHandle.stopCdc();
+            }
+        }
         Optional.ofNullable(lock).ifPresent(StopLock::stop);
         if (root != null) {
             root.notifyAll();
@@ -217,6 +219,17 @@ public class SybaseConnector extends CommonDbConnector {
         Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::releaseCdc);
         KVMap<Object> stateMap = context.getStateMap();
         stateMap.put("tableOverType", OverwriteType.OVERWRITE.getType());
+
+        final String closeCdcPositionSql = "dbcc settrunc('ltm','ignore')";
+        if (null == sybaseConfig) {
+            sybaseConfig = new SybaseConfig().load(context.getConnectionConfig());
+        }
+        sybaseContext = new SybaseContext(sybaseConfig);
+        try {
+            sybaseContext.execute(closeCdcPositionSql);
+        } catch (Exception e) {
+            context.getLog().error("Fail to close cdc log, please execute sql in client: {}", closeCdcPositionSql);
+        }
     }
 
     @Override
@@ -535,6 +548,7 @@ public class SybaseConnector extends CommonDbConnector {
 
     private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) throws Throwable {
         cdcStart(tapConnectorContext);
+        tapConnectorContext.getStateMap().put("tableOverType", OverwriteType.RESUME.getType());
         return new CdcPosition();
     }
 
@@ -547,7 +561,7 @@ public class SybaseConnector extends CommonDbConnector {
                 //throw new CoreException(" Repeated startup of cdc processes is not allowed, the CDC execution information has expired");
                 try {
                     cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
-                    cdcHandle.safeStopShell();
+                    CdcHandle.safeStopShell(tapConnectorContext.getLog());
                 } catch (CoreException e) {
                     if (e.getCode() == Code.STREAM_READ_WARN) {
                         tapConnectorContext.getLog().info(e.getMessage());
@@ -574,7 +588,7 @@ public class SybaseConnector extends CommonDbConnector {
                     FilenameUtils.concat(cdcHandle.getRoot().getSybasePocPath(), "config/sybase2csv/csv/" + config.getDatabase() + "/" + config.getSchema()),
                     "object_metadata.yaml",
                     tables,
-                    offset instanceof CdcPosition ? (CdcPosition) offset : new CdcPosition(),
+                    position = offset instanceof CdcPosition ? (CdcPosition) offset : ( position != null ? position : new CdcPosition() ),
                     batchSize,
                     consumer
             );
@@ -584,7 +598,11 @@ public class SybaseConnector extends CommonDbConnector {
         } catch (Exception e) {
             tapConnectorContext.getLog().error("Sybase cdc is stopped now, error: {}", e.getMessage());
         } finally {
-            Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::stopCdc);
+            if (null == cdcHandle) {
+                cdcHandle = new CdcHandle(null, tapConnectorContext, lock);
+            } else {
+                cdcHandle.stopCdc();
+            }
         }
     }
 
@@ -745,7 +763,7 @@ public class SybaseConnector extends CommonDbConnector {
     }
 
     private void cdcStart(TapConnectorContext tapConnectorContext) {
-        ((TapConnectorContext) tapConnectorContext).getStateMap().put("isRestart", true);
+        //((TapConnectorContext) tapConnectorContext).getStateMap().put("isRestart", true);
         Iterator<Entry<TapTable>> tableIterator = tapConnectorContext.getTableMap().iterator();
         Set<String> tableIds = new HashSet<>();
         while (tableIterator.hasNext()) {

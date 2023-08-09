@@ -231,7 +231,7 @@ public class CdcHandle {
         //@todo
         Optional.ofNullable(root.getProcess()).ifPresent(Process::destroy);
 
-        safeStopShell();
+        safeStopShell(context.getLog());
         //@todo
         root.setProcess(null);
         try {
@@ -249,34 +249,34 @@ public class CdcHandle {
         }
     }
 
-    public void safeStopShell() {
+    public static void safeStopShell(Log log) {
         try {
-            stopShell(new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"}, list("grep sybase-poc/replicant-cli"));
+            stopShell(log, new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"}, list("grep sybase-poc/replicant-cli"));
         } catch (Exception e) {
-            root.getContext().getLog().warn("Can not auto stop cdc tool, please go to server and kill process by shell {} and after find process PID by shell {}",
+            if (null != log) log.warn("Can not auto stop cdc tool, please go to server and kill process by shell {} and after find process PID by shell {}",
                     "kill pid1 pid2 pid3 ",
                     "ps -ef|grep sybase-poc/replicant-cli");
         }
     }
 
-    private void stopShell(String[] cmd, List<String> ignoreShells) {
+    private static void stopShell(Log log, String[] cmd, List<String> ignoreShells) {
         //String cmd = "ps -ef|grep sybase-poc/replicant-cli";
         ///bin/sh -c export JAVA_TOOL_OPTIONS="-Duser.language=en"; /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
         //sh /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
         //java -Duser.timezone=UTC -Djava.system.class.loader=tech.replicant.util.ReplicantClassLoader -classpath /tapdata/apps/sybase-poc/replicant-cli/target/replicant-core.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts-5089.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/* tech.replicant.Main real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
-        List<Integer> port = port(cmd, ignoreShells);
+        List<Integer> port = port(log, cmd, ignoreShells);
         if (!port.isEmpty()) {
             StringJoiner joiner = new StringJoiner(" ");
             for (Integer portNum : port) {
                 joiner.add("" + portNum);
             }
-            root.getContext().getLog().warn(port.toString());
-            execCmd("kill " + joiner.toString());
+            if (null != log) log.warn(port.toString());
+            execCmd(log, "kill " + joiner.toString());
         }
     }
 
 
-    private List<Integer> port(String[] cmd, List<String> ignoreShells) {
+    private static List<Integer> port(Log log, String[] cmd, List<String> ignoreShells) {
         List<Integer> port = new ArrayList<>();
         StringBuilder sb = new StringBuilder();
         BufferedReader br = null;
@@ -288,7 +288,7 @@ public class CdcHandle {
                 br = new BufferedReader(new InputStreamReader(p.getInputStream()));
                 String line;
                 while ((line = br.readLine()) != null) {
-                    root.getContext().getLog().info(line);
+                    log.info(line);
                     boolean needIgnore = false;
                     if (!ignoreShells.isEmpty()) {
                         for (String ignoreShell : ignoreShells) {
@@ -339,7 +339,7 @@ public class CdcHandle {
         return port;
     }
 
-    public String execCmd(String cmd) {
+    public static String execCmd(Log log, String cmd) {
         StringBuilder sb = new StringBuilder();
         BufferedReader br = null;
         try {
@@ -358,7 +358,7 @@ public class CdcHandle {
                 sb.append(line);
             }
         } catch (Exception e) {
-            root.getContext().getLog().warn("Can not auto stop cdc tool, please go to server and kill process by shell {} and after find process PID by shell {}",
+            if (null != log)  log.warn("Can not auto stop cdc tool, please go to server and kill process by shell {} and after find process PID by shell {}",
                     "kill pid1 pid2 pid3 ",
                     "ps -ef|grep sybase-poc/replicant-cli");
         } finally {
