@@ -6,7 +6,6 @@ import io.tapdata.sybase.cdc.dto.start.CdcStartVariables;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 /**
@@ -15,7 +14,7 @@ import java.util.function.Predicate;
  * @create 2023/7/13 11:09
  **/
 public class CdcRoot {
-    private String cdcId;
+    private String taskCdcId;
     private File cdcFile;
     private Process process;
     private TapConnectorContext context;
@@ -65,6 +64,7 @@ public class CdcRoot {
     }
 
     public static final String POC_TEMP_CONFIG_PATH = "sybase-poc-temp/config/filter_sybasease.yaml";
+
     public String getFilterTableConfigPath() {
         return new File(POC_TEMP_CONFIG_PATH).getAbsolutePath();
     }
@@ -101,12 +101,12 @@ public class CdcRoot {
         }
     }
 
-    public String getCdcId() {
-        return cdcId;
+    public String getTaskCdcId() {
+        return taskCdcId;
     }
 
-    public void setCdcId(String cdcId) {
-        this.cdcId = cdcId;
+    public void setTaskCdcId(String taskCdcId) {
+        this.taskCdcId = taskCdcId;
     }
 
     public String getCliPath() {

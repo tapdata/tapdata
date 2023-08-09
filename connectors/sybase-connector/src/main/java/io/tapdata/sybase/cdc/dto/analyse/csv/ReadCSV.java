@@ -1,9 +1,7 @@
 package io.tapdata.sybase.cdc.dto.analyse.csv;
 
 import io.tapdata.sybase.cdc.dto.analyse.csv.opencsv.SpecialField;
-import io.tapdata.sybase.cdc.dto.read.TableTypeEntity;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 
 /**
@@ -14,7 +12,7 @@ import java.util.List;
 public interface ReadCSV {
     public static final int CDC_BATCH_SIZE = 500;
 
-    public default void read(String csvPath, CdcAccepter accepter){
+    public default void read(String csvPath, CdcAccepter accepter) {
         read(csvPath, 0, accepter);
     }
 

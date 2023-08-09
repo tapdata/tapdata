@@ -30,7 +30,7 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
      *                 }
      */
     @Override
-    public TapRecordEvent analyse(List<String> record, LinkedHashMap<String, TableTypeEntity> tapTable, String tableId, ConnectionConfig config, NodeConfig nodeConfig) {
+    public TapRecordEvent analyse(List<String> record, LinkedHashMap<String, TableTypeEntity> tapTable, String tableId, ConnectionConfig config, NodeConfig nodeConfig, CsvAnalyseFilter filter) {
         // 6,NULL,1,
         // 2023-07-13 20:43:05.0,NULL,1,
         // "sfas"",""dsafas",NULL,1,
@@ -63,6 +63,9 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
         }
         if (null == cdcInfo) cdcInfo = new HashMap<>();
 
+        if (null != filter && filter.filter(cdcInfo)) {
+            return null;
+        }
 
         int index = 0;
         Map<String, Object> after = new HashMap<>();

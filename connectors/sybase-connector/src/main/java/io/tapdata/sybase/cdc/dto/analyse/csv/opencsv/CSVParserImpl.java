@@ -2,8 +2,6 @@ package io.tapdata.sybase.cdc.dto.analyse.csv.opencsv;
 
 import au.com.bytecode.opencsv.CSVParser;
 import io.tapdata.entity.logger.Log;
-import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.sybase.cdc.dto.read.TableTypeEntity;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,7 +90,8 @@ public class CSVParserImpl extends CSVParser {
     }
 
     Log log;
-    public void setLog(Log log){
+
+    public void setLog(Log log) {
         this.log = log;
     }
 
@@ -120,7 +119,7 @@ public class CSVParserImpl extends CSVParser {
             }
             int parserFieldIndex = 0;
 
-            for(int i = 0; i < nextLine.length(); ++i) {
+            for (int i = 0; i < nextLine.length(); ++i) {
                 char c = nextLine.charAt(i);
 
                 //this.log.warn( "Size: " + parserFieldIndex);
@@ -146,7 +145,7 @@ public class CSVParserImpl extends CSVParser {
                 } else if (c != this.quotechar) {
                     if (c == this.separator && !inQuotes) {
                         tokensOnThisLine.add(sb.toString());
-                        if ( tokensOnThisLine.size() % 3 == 0) {
+                        if (tokensOnThisLine.size() % 3 == 0) {
                             parserFieldIndex++;
                         }
                         sb.setLength(0);
@@ -189,7 +188,7 @@ public class CSVParserImpl extends CSVParser {
                 tokensOnThisLine.add(sb.toString());
             }
 
-            return (String[])tokensOnThisLine.toArray(new String[tokensOnThisLine.size()]);
+            return (String[]) tokensOnThisLine.toArray(new String[tokensOnThisLine.size()]);
         }
     }
 
@@ -204,7 +203,7 @@ public class CSVParserImpl extends CSVParser {
     protected boolean isAllWhiteSpace(CharSequence sb) {
         boolean result = true;
 
-        for(int i = 0; i < sb.length(); ++i) {
+        for (int i = 0; i < sb.length(); ++i) {
             char c = sb.charAt(i);
             if (!Character.isWhitespace(c)) {
                 return false;

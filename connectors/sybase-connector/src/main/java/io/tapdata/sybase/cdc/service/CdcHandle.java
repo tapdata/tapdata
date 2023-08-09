@@ -2,9 +2,7 @@ package io.tapdata.sybase.cdc.service;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVMap;
-import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.sybase.cdc.CdcRoot;
@@ -25,6 +23,7 @@ import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
 import io.tapdata.sybase.util.Code;
 import io.tapdata.sybase.util.ConfigPaths;
+import io.tapdata.sybase.util.ConnectorUtil;
 import io.tapdata.sybase.util.Utils;
 import org.apache.commons.io.FileUtils;
 
@@ -33,8 +32,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,12 +51,12 @@ import static io.tapdata.entity.simplify.TapSimplify.entry;
  * @create 2023/7/13 11:49
  **/
 public class CdcHandle {
-    CdcRoot root;
-    StopLock lock;
-    TapConnectorContext context;
-    FileMonitor fileMonitor;
-    final Object closeLock = new Object();
-    ListenFile listenFile;
+    private CdcRoot root;
+    private StopLock lock;
+    private TapConnectorContext context;
+    private FileMonitor fileMonitor;
+    private final Object closeLock = new Object();
+    private ListenFile listenFile;
 
     public CdcHandle(CdcRoot root, TapConnectorContext context, StopLock lock) {
         this.root = root;
@@ -167,9 +164,10 @@ public class CdcHandle {
     }
 
     //Step #end 1
+
     /**
      * @deprecated
-     * */
+     */
     public synchronized void releaseCdc() {
         if (null != listenFile) listenFile.onStop();
         Optional.ofNullable(root.getProcess()).ifPresent(Process::destroy);
@@ -382,7 +380,7 @@ public class CdcHandle {
         this.root = root;
     }
 
-    public List<Map<String, Object>> addTableAndRestartProcess(ConnectionConfig config, String database, String schema, List<String> newTables, Log log){
+    public List<Map<String, Object>> addTableAndRestartProcess(ConnectionConfig config, String database, String schema, List<String> newTables, Log log) {
         CdcRoot compileBaseFile = new ConfigBaseField(root, "").compile();
         ConfigYaml configYaml = new ConfigYaml(compileBaseFile, root.getVariables());
         //配置filter.yaml
@@ -404,10 +402,10 @@ public class CdcHandle {
                     sybasePocPath,
                     root.getFilterTableConfigPath(),
                     sybasePocPath,
-                    root.getCdcId(),
+                    ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext()),
                     "--" + OverwriteType.RESUME.getType(),
                     sybasePocPath,
-                    root.getCdcId()
+                    root.getTaskCdcId()
                     ),
                     "Fail to reInit when an new task start with new tables, msg: {}",
                     root.getContext().getLog());
@@ -423,7 +421,7 @@ public class CdcHandle {
 
     /**
      * @deprecated onley on alone task to config
-     * */
+     */
     public List<SybaseFilterConfig> compileFilterTableYamlConfig(ConnectionConfig connectionConfig) {
         List<SybaseFilterConfig> filterConfigs = new ArrayList<>();
         SybaseFilterConfig filterConfig = new SybaseFilterConfig();
@@ -457,7 +455,7 @@ public class CdcHandle {
             throw new CoreException("Can not fund cdc monitor table map in global state map");
         }
         try {
-            tableSetList= (List<Map<String, Object>> ) filterTablesObj;
+            tableSetList = (List<Map<String, Object>>) filterTablesObj;
         } catch (Exception exception) {
             throw new CoreException("Can not fund cdc monitor table map in global state map, msg: {}", exception.getMessage());
         }

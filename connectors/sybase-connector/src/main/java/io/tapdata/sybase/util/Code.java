@@ -1,16 +1,12 @@
 package io.tapdata.sybase.util;
 
 import java.sql.Connection;
-import java.sql.Date;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Random;
 import java.util.StringJoiner;
 
@@ -76,31 +72,31 @@ public class Code {
         pstmt.executeUpdate();
     }
 
-    public static String rad(){
+    public static String rad() {
         Random random = new Random();
         int i = random.nextInt(81) + 41;
-        return String.valueOf((char)i);
+        return String.valueOf((char) i);
     }
 
     public static void insert(String sql, Connection connection, int index0) throws Exception {
         PreparedStatement p = connection.prepareStatement(sql);
         int index = 1;
         String rad = rad();
-        p.setString(index++, index0 %2 == 0 ? null : new String((rad).getBytes("utf-8"), "big5"));
-        p.setTimestamp(index++, index0 %3 == 0 ? null : new Timestamp(System.currentTimeMillis()));
+        p.setString(index++, index0 % 2 == 0 ? null : new String((rad).getBytes("utf-8"), "big5"));
+        p.setTimestamp(index++, index0 % 3 == 0 ? null : new Timestamp(System.currentTimeMillis()));
         p.setDouble(index++, 2.36);
         p.setDouble(index++, 2.36);
         p.setInt(index++, 8);
         p.setDouble(index++, 3.33);
         p.setDouble(index++, 4.33);
-        p.setString(index++, index0 %5 == 0 ? null : new String( (rad + "這個是一段正體字文字，我要把它從cp850轉成utf-8").getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
-        p.setTimestamp(index++, index0 %7 == 0 ? null : new Timestamp(System.currentTimeMillis()));
+        p.setString(index++, index0 % 5 == 0 ? null : new String((rad + "這個是一段正體字文字，我要把它從cp850轉成utf-8").getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
+        p.setTimestamp(index++, index0 % 7 == 0 ? null : new Timestamp(System.currentTimeMillis()));
         p.setInt(index++, 3);
-        p.setString(index++, index0 %11 == 0 ? null : new String((rad + "Fdsd").getBytes("utf-8"), "big5"));
+        p.setString(index++, index0 % 11 == 0 ? null : new String((rad + "Fdsd").getBytes("utf-8"), "big5"));
 //        p.setString(index++, new String(("" +
 //                "，我要把它從cp850轉成utf-8").getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
         p.setInt(index++, 3);
-        p.setString(index++, index0 %13 == 0 ? null : new String((rad + "這個是一段正體字文字，我要把它從cp850轉成utf-8").getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
+        p.setString(index++, index0 % 13 == 0 ? null : new String((rad + "這個是一段正體字文字，我要把它從cp850轉成utf-8").getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
         p.executeUpdate();
     }
 
@@ -158,7 +154,7 @@ public class Code {
             //insertOne("INSERT INTO tester.poc_test (varchar_col) VALUES (?)", conn);
             //conn.setAutoCommit(false);
             for (int i = 0; i < 2000000; i++) {
-                insert(INSERT_POC_TEST_SQL, conn, i+1);
+                insert(INSERT_POC_TEST_SQL, conn, i + 1);
             }
             //conn.rollback();
 

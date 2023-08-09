@@ -96,17 +96,17 @@ public class DefaultConvert implements SybaseDataTypeConvert {
         }
     }
 
-    private String dateTimeFormat(String datetimeType, final int defaultCount){
+    private String dateTimeFormat(String datetimeType, final int defaultCount) {
         String formatStart = "yyyy-MM-dd HH:mm:ss";
         if (null == datetimeType || "".equals(datetimeType)) return formatStart;
         int sCount = defaultCount;
-        if (datetimeType.matches(".*\\(\\d*\\).*")){
+        if (datetimeType.matches(".*\\(\\d*\\).*")) {
             int index = datetimeType.lastIndexOf('(');
             int lIndex = datetimeType.lastIndexOf(')');
-            if (index > 0 && lIndex > index){
+            if (index > 0 && lIndex > index) {
                 try {
                     sCount = Integer.parseInt(datetimeType.substring(index, lIndex));
-                }catch (Exception e){
+                } catch (Exception e) {
 
                 }
             }

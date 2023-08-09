@@ -25,7 +25,9 @@ import org.apache.commons.io.monitor.FileAlterationObserver;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,22 +91,22 @@ public class ListenFile implements CdcStep<CdcRoot> {
             }
             final Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap = getTableFromConfig(root.getCdcTables());
             //currentFileNames = null;
-            if (null != tables) {
-                try {
-                    if (null != monitorPath) {
-                        File historyFile = new File(monitorPath);
-                        if (historyFile.exists()) {
-                            try {
-                                FileUtils.delete(historyFile);
-                            } catch (Exception e) {
-                                root.getContext().getLog().info("Can not to delete cdc cache file in {}", monitorPath);
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    root.getContext().getLog().error("Cdc stop fail, can not remove monitor files, msg: {}", e.getMessage());
-                }
-            }
+            //if (null != tables) {
+            //    try {
+            //        if (null != monitorPath) {
+            //            File historyFile = new File(monitorPath);
+            //            if (historyFile.exists()) {
+            //                try {
+            //                    FileUtils.delete(historyFile);
+            //                } catch (Exception e) {
+            //                    root.getContext().getLog().info("Can not to delete cdc cache file in {}", monitorPath);
+            //                }
+            //            }
+            //        }
+            //    } catch (Exception e) {
+            //        root.getContext().getLog().error("Cdc stop fail, can not remove monitor files, msg: {}", e.getMessage());
+            //    }
+            //}
         } catch (Exception e) {
             root.getContext().getLog().warn("Cdc monitor stop fail, msg: {}", e.getMessage());
         }
@@ -130,7 +132,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         final Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap = getTableFromConfig(root.getCdcTables());
         AtomicBoolean hasHandelInit = new AtomicBoolean(false);
 
-        final Integer cdcCacheTime = Optional.ofNullable(nodeConfig.getCdcCacheTime()).orElse(10) * 60 * 1000;
+        final Integer cdcCacheTime = Optional.ofNullable(nodeConfig.getCdcCacheTime()).orElse(10) * 60000;
         fileMonitor.monitor(monitorPath, new FileListener() {
             @Override
             public void onStart(FileAlterationObserver observer) {
@@ -148,13 +150,15 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                         File tableSpaceFile = new File(tableSpace);
                                         if (!tableSpaceFile.exists()) continue;
                                         File[] files = tableSpaceFile.listFiles();
-                                        if (null != files && files.length > 0) {
-                                            for (File file : files) {
-                                                if (null != file && file.exists() && file.isFile()) {
-                                                    monitor(file, tableMap);
-                                                }
-                                            }
-                                        }
+                                        if (null == files || files.length < 1) continue;
+                                        Arrays.stream(files)
+                                                .filter(Objects::nonNull)
+                                                .sorted(Comparator.comparing(File::getName))
+                                                .filter(file ->
+                                                        file.exists() &&
+                                                                file.isFile() &&
+                                                                isRecentCSV(file, analyseCsvFile.getPosition().getCdcStartTime(), cdcCacheTime))
+                                                .forEach(file -> monitor(file, tableMap));
                                     }
                                 }
                             } catch (Exception e) {
@@ -174,26 +178,26 @@ public class ListenFile implements CdcStep<CdcRoot> {
             @Override
             public void onStop(FileAlterationObserver observer) {
                 super.onStop(observer);
-//                try {
-//                    if (!tables.isEmpty()) {
-//                        //遍历monitorPath 所有子目录下的
-//                        for (String table : tables) {
-//                            final String tableSpace = monitorPath + "/" + table;
-//                            File tableSpaceFile = new File(tableSpace);
-//                            if (!tableSpaceFile.exists()) continue;
-//                            File[] files = tableSpaceFile.listFiles();
-//                            if (null != files && files.length > 0) {
-//                                for (File file : files) {
-//                                    if (null != file && file.exists() && file.isFile()) {
-//                                        deleteCSVWithConfigTime(file, cdcCacheTime);
-//                                    }
-//                                }
-//                            }
-//                        }
-//                    }
-//                } catch (Exception e) {
-//                    context.getLog().warn("Failed exec stop once, msg: {}", e.getMessage());
-//                }
+                //try {
+                //    if (!tables.isEmpty()) {
+                //        //遍历monitorPath 所有子目录下的
+                //        for (String table : tables) {
+                //            final String tableSpace = monitorPath + "/" + table;
+                //            File tableSpaceFile = new File(tableSpace);
+                //            if (!tableSpaceFile.exists()) continue;
+                //            File[] files = tableSpaceFile.listFiles();
+                //            if (null != files && files.length > 0) {
+                //                for (File file : files) {
+                //                    if (null != file && file.exists() && file.isFile()) {
+                //                        deleteCSVWithConfigTime(file, cdcCacheTime);
+                //                    }
+                //                }
+                //            }
+                //        }
+                //    }
+                //} catch (Exception e) {
+                //    context.getLog().warn("Failed exec stop once, msg: {}", e.getMessage());
+                //}
             }
 
             @Override
@@ -220,8 +224,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 int indexOf = absolutePath.lastIndexOf('.');
                 String fileType = absolutePath.substring(indexOf + 1);
                 if (file.isFile() && fileType.equalsIgnoreCase("csv")) {
-
-
                     //root.getContext().getLog().warn("File is modify: {}", file.getAbsolutePath());
                     String csvFileName = file.getName();
                     String[] split = csvFileName.split("\\.");
@@ -279,14 +281,25 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                         }
                                         TapEvent recordEvent;
                                         try {
-                                            recordEvent = analyseRecord.analyse(compile.get(index), tableItem, tableName, config, nodeConfig);
+                                            recordEvent = analyseRecord.analyse(compile.get(index), tableItem, tableName, config, nodeConfig, cdcInfo -> {
+                                                //cdcInfo: 每条csv携带的增量事件信息 not null
+                                                //过滤增量时间点小于当前任务的启动时间的数据
+                                                Object timestamp = cdcInfo.get("timestamp");
+                                                if (null == timestamp) return true;
+                                                long cdcReference = -1;
+                                                try {
+                                                    cdcReference = Long.parseLong((String) timestamp);
+                                                } catch (Exception ignore) {
+                                                }
+                                                return position.getCdcStartTime() > -1 && cdcReference >= position.getCdcStartTime();
+                                            });
                                         } catch (Exception e) {
                                             root.getContext().getLog().warn("An cdc event failed to accept in {} of {}, error csv format, csv line: {}, msg: {}", tableName, absolutePath, compile.get(index), e.getMessage());
                                             continue;
                                         }
                                         if (null != recordEvent) {
                                             //事件发生的时间早于任务启动时间，当前事件需要被忽略
-                                            if (lineItem <= 0 && ((TapRecordEvent)recordEvent).getReferenceTime() < position.getCdcStartTime()) {
+                                            if (lineItem <= 0 && ((TapRecordEvent) recordEvent).getReferenceTime() < position.getCdcStartTime()) {
                                                 continue;
                                             }
 
@@ -313,23 +326,31 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 return isThisFile;
             }
 
-            private void deleteCSVWithConfigTime(File file, Integer cdcCacheTime){
+            private void deleteCSVWithConfigTime(File file, Integer cdcCacheTime) {
+                if (!isRecentCSV(file, System.currentTimeMillis(), cdcCacheTime)) {
+                    try {
+                        monitor(file, tableMap);
+                        FileUtils.delete(file);
+                    } catch (Exception ignore) {
+                        root.getContext().getLog().warn("Can not to delete cdc cache file in {} of table name: {}", file.getAbsolutePath());
+                    }
+                }
+            }
+
+            private boolean isRecentCSV(File file, long compileTime, Integer cdcCacheTime) {
                 String absolutePath = file.getAbsolutePath();
                 int indexOf = absolutePath.lastIndexOf('.');
                 String fileType = absolutePath.substring(indexOf + 1);
                 if (file.isFile() && fileType.equalsIgnoreCase("csv")) {
                     long lastModify = file.lastModified();
-                    long now = System.currentTimeMillis();
-                    if ((now - lastModify) > cdcCacheTime) {
-                        root.getContext().getLog().debug("File: {}, last modify time: {}, now: {}, cdc cache time: {}, need delete: true", file.getName(), lastModify, now, cdcCacheTime);
-                        try {
-                            monitor(file, tableMap);
-                            FileUtils.delete(file);
-                        } catch (Exception ignore) {
-                            root.getContext().getLog().warn("Can not to delete cdc cache file in {} of table name: {}", file.getAbsolutePath());
-                        }
+                    //long now = System.currentTimeMillis();
+                    // .    .    .
+                    if (compileTime <= (cdcCacheTime + lastModify)) {
+                        root.getContext().getLog().debug("File: {}, last modify time: {}, now: {}, cdc cache time: {}, need delete: true", file.getName(), lastModify, cdcCacheTime, cdcCacheTime);
+                        return true;
                     }
                 }
+                return false;
             }
         });
 
@@ -346,7 +367,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
         Map<String, LinkedHashMap<String, TableTypeEntity>> table = new LinkedHashMap<>();
         if (null == tableId || tableId.isEmpty()) return table;
         final ConnectionConfig config = new ConnectionConfig(root.getContext());
-        final String username = config.getUsername();
         final String database = config.getDatabase();
         final String schema = config.getSchema();
         try {

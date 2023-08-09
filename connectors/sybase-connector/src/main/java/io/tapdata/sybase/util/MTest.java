@@ -28,6 +28,7 @@ public class MTest {
             "varchar_col" +
             ") " +
             "values (?,?,?,?,?,?,?,?,?,?,?,?,? )";
+
     public static void insert(String sql, Connection connection) throws Exception {
         PreparedStatement p = connection.prepareStatement(sql);
         int index = 1;
@@ -39,7 +40,7 @@ public class MTest {
         p.setInt(index++, 8);
         p.setDouble(index++, 3.33);
         p.setDouble(index++, 4.33);
-        p.setString(index++, new String( (rad + "這個是一段正體字文字，我要把它從cp850轉成utf-8").getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
+        p.setString(index++, new String((rad + "這個是一段正體字文字，我要把它從cp850轉成utf-8").getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
         p.setTimestamp(index++, new Timestamp(System.currentTimeMillis()));
         p.setInt(index++, 3);
         p.setString(index++, new String((rad + "Fdsd").getBytes("utf-8"), "big5"));
@@ -49,6 +50,7 @@ public class MTest {
         p.setString(index++, new String((rad + "這個是一段正體字文字，我要把它從cp850轉成utf-8").getBytes("big5-hkscs"), "cp850")); // 使用setBytes方法设置二?制?据
         p.executeUpdate();
     }
+
     public static void main(String[] args) {
 
         try {

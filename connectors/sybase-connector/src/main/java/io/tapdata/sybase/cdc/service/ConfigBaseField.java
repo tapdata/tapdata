@@ -44,7 +44,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
         if (null == cdcId) {
             stateMap.put("taskId", cdcId = UUID.randomUUID().toString().replaceAll("-", "_"));
         }
-        root.setCdcId(cdcId);
+        root.setTaskCdcId(cdcId);
         String targetPath = "sybase-poc-temp/";// + cdcId + "/";
         File sybasePocPath = new File(targetPath);
         if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) sybasePocPath.mkdir();
@@ -91,7 +91,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
 
         this.root.setSybasePocPath(targetPath);
         root.getContext().getGlobalStateMap().put(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR, targetPath);
-        stateMap.put(ConfigPaths.SYBASE_USE_TASK_CONFIG_KEY, ( targetPath.endsWith("/") ? targetPath : targetPath + "/" ) + ConfigPaths.SYBASE_USE_TASK_CONFIG_DIR + cdcId) ;
+        stateMap.put(ConfigPaths.SYBASE_USE_TASK_CONFIG_KEY, (targetPath.endsWith("/") ? targetPath : targetPath + "/") + ConfigPaths.SYBASE_USE_TASK_CONFIG_DIR + cdcId);
 
         final String cliPath = "sybase-poc/replicant-cli";
         File cliFile = new File(cliPath);
@@ -104,7 +104,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
 
     @Override
     public boolean checkStep() {
-        return null == this.root && null != this.root.getCdcId() && null != this.root.getSybasePocPath() && null != this.root.getCliPath();
+        return null == this.root && null != this.root.getTaskCdcId() && null != this.root.getSybasePocPath() && null != this.root.getCliPath();
     }
 
     private String getPocPathFromResources() {

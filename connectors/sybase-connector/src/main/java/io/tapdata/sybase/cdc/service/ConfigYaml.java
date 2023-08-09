@@ -14,7 +14,6 @@ import io.tapdata.sybase.cdc.dto.start.SybaseSrcConfig;
 import io.tapdata.sybase.util.ConfigPaths;
 import io.tapdata.sybase.util.HostUtils;
 import io.tapdata.sybase.util.YamlUtil;
-import org.apache.commons.io.FileUtils;
 import org.yaml.snakeyaml.DumperOptions;
 
 import java.io.File;
@@ -168,7 +167,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
     }
 
 
-    public List<Map<String, Object>> configSybaseFilter(List<Map<String, Object>>  filterConfig) {
+    public List<Map<String, Object>> configSybaseFilter(List<Map<String, Object>> filterConfig) {
         this.root.checkStep();
         YamlUtil yamlUtil = new YamlUtil(root.getFilterTableConfigPath());
         yamlUtil.update(map(entry(SybaseFilterConfig.configKey, filterConfig)));
@@ -176,17 +175,17 @@ class ConfigYaml implements CdcStep<CdcRoot> {
     }
 
     public List<LinkedHashMap<String, Object>> configReInitTable(List<SybaseReInitConfig> filterConfig) {
-        String taskId = root.getCdcId();
+        String taskId = root.getTaskCdcId();
         if (null == taskId) throw new CoreException("Can not get task id when write reinit.yaml");
 
         String path = String.format(ConfigPaths.RE_INIT_TABLE_CONFIG_PATH, configPath, taskId);
         File reInitYaml = new File(path);
         if (!reInitYaml.exists() || !reInitYaml.isFile()) {
-           try {
-               boolean newFile = reInitYaml.createNewFile();
-           }catch (Exception e){
-               throw new CoreException("Unable create yaml which named is {}, please create by yourself", path);
-           }
+            try {
+                boolean newFile = reInitYaml.createNewFile();
+            } catch (Exception e) {
+                throw new CoreException("Unable create yaml which named is {}, please create by yourself", path);
+            }
         }
         YamlUtil yamlUtil = new YamlUtil(path, DumperOptions.ScalarStyle.SINGLE_QUOTED);
         List<LinkedHashMap<String, Object>> list = new ArrayList<>();

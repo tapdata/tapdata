@@ -50,10 +50,10 @@ public class Utils {
         return map;
     }
 
-    public static int parseLengthFromTypeName(String type){
+    public static int parseLengthFromTypeName(String type) {
         int length = 0;
         try {
-            if (null != type && type.matches(".*\\(\\d*\\)")){
+            if (null != type && type.matches(".*\\(\\d*\\)")) {
                 int indexOf = type.lastIndexOf('(');
                 int indexOfEnd = type.lastIndexOf(')');
                 if (indexOf > -1 && indexOfEnd > indexOf) {
@@ -61,7 +61,7 @@ public class Utils {
                     length = Integer.parseInt(len);
                 }
             }
-        } catch (Exception e){
+        } catch (Exception e) {
             length = 0;
         }
         return length;

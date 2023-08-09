@@ -2,12 +2,10 @@ package io.tapdata.sybase.cdc.dto.start;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -65,7 +63,7 @@ public class SybaseFilterConfig implements ConfigEntity {
         return map;
     }
 
-    public static List<SybaseFilterConfig> fromYaml(List<Map<String, Object>> mapList){
+    public static List<SybaseFilterConfig> fromYaml(List<Map<String, Object>> mapList) {
         List<SybaseFilterConfig> list = new ArrayList<>();
         if (null != mapList && !mapList.isEmpty()) {
             for (Map<String, Object> map : mapList) {
@@ -73,28 +71,32 @@ public class SybaseFilterConfig implements ConfigEntity {
                 config.setCatalog(((String) map.get("catalog")));
                 config.setSchema(((String) map.get("schema")));
                 config.setTypes(((List<String>) map.get("types")));
-                config.setAllow((Map<String, Object>)map.get("allow"));
+                config.setAllow((Map<String, Object>) map.get("allow"));
             }
         }
         return list;
     }
 
-    public static final Map<String, List<String>> ignoreColumns = new HashMap<String, List<String>>(){{
-        put("block", new ArrayList<String>(){{add("timestamp");}});
+    public static final Map<String, List<String>> ignoreColumns = new HashMap<String, List<String>>() {{
+        put("block", new ArrayList<String>() {{
+            add("timestamp");
+        }});
     }};
-    public static final Map<String, List<String>> unIgnoreColumns = new HashMap<String, List<String>>(){{
+    public static final Map<String, List<String>> unIgnoreColumns = new HashMap<String, List<String>>() {{
         put("block", new ArrayList<String>());
     }};
 
-    public static Map<String, List<String>> unIgnoreColumns(){
-        return new HashMap<String, List<String>>(){{
+    public static Map<String, List<String>> unIgnoreColumns() {
+        return new HashMap<String, List<String>>() {{
             put("block", new ArrayList<String>());
         }};
     }
 
-    public static Map<String, List<String>> ignoreColumns(){
-        return new HashMap<String, List<String>>(){{
-            put("block", new ArrayList<String>(){{add("timestamp");}});
+    public static Map<String, List<String>> ignoreColumns() {
+        return new HashMap<String, List<String>>() {{
+            put("block", new ArrayList<String>() {{
+                add("timestamp");
+            }});
         }};
     }
 
@@ -106,7 +108,7 @@ public class SybaseFilterConfig implements ConfigEntity {
                 LinkedHashMap<String, Object> map = new LinkedHashMap<>();
                 map.put("catalog", cl);
                 map.put("schema", s);
-                if (ri == null ) ri = new ArrayList<>();
+                if (ri == null) ri = new ArrayList<>();
                 map.put("types", ri.isEmpty() ? null : ri.get(0).getTypes());
                 Map<String, Object> tab = new HashMap<>();
                 for (SybaseFilterConfig config : ri) {

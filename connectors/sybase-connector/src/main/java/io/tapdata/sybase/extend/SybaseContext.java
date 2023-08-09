@@ -197,7 +197,7 @@ public class SybaseContext extends MysqlJdbcContextV2 {
     }
 
     protected String queryAllIndexesSql(String schema, List<String> tableNames) {
-        String tableSql = EmptyKit.isNotEmpty(tableNames) ? tableNames.size() == 1 ? "AND obj.name = '" + schema + "." + tableNames.get(0) + "'" : "AND obj.name IN (" + StringKit.joinString(tableNames.stream().map(s -> schema + "." + s).collect(Collectors.toList()), "'" , ",") + ")" : "";
+        String tableSql = EmptyKit.isNotEmpty(tableNames) ? tableNames.size() == 1 ? "AND obj.name = '" + schema + "." + tableNames.get(0) + "'" : "AND obj.name IN (" + StringKit.joinString(tableNames.stream().map(s -> schema + "." + s).collect(Collectors.toList()), "'", ",") + ")" : "";
         return String.format(SHOW_TABLE_CONFIG, tableSql);
     }
 

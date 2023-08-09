@@ -2,11 +2,11 @@ package io.tapdata.sybase.cdc.service;
 
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
+import io.tapdata.sybase.cdc.dto.analyse.csv.CdcAccepter;
 import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSV;
 import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVOfBigFile;
 import io.tapdata.sybase.cdc.dto.analyse.csv.opencsv.SpecialField;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
-import io.tapdata.sybase.cdc.dto.analyse.csv.CdcAccepter;
 import io.tapdata.sybase.cdc.dto.read.TableTypeEntity;
 
 import java.util.ArrayList;
@@ -65,7 +65,7 @@ public class AnalyseCsvFile implements CdcStep<Void> {
         return position;
     }
 
-    public void specialFields(){
+    public void specialFields() {
         if (null != tapTable && !tapTable.isEmpty()) {
             specialFields = new ArrayList<>();
             AtomicInteger index = new AtomicInteger(0);

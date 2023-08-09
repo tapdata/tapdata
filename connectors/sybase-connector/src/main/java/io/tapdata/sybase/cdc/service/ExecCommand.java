@@ -6,9 +6,9 @@ import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
 import io.tapdata.sybase.cdc.dto.start.CommandType;
 import io.tapdata.sybase.cdc.dto.start.OverwriteType;
+import io.tapdata.sybase.util.ConnectorUtil;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
@@ -59,7 +59,7 @@ class ExecCommand implements CdcStep<CdcRoot> {
                 sybasePocPath,
                 root.getFilterTableConfigPath(),
                 sybasePocPath,
-                root.getCdcId(),
+                ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext()),
                 "--" + OverwriteType.type(overwriteType)
         );
         //String cmd = START_CDC
@@ -114,7 +114,7 @@ class ExecCommand implements CdcStep<CdcRoot> {
             throw new CoreException("Command exec failed, unable to start cdc command: {}, msg: {}", cmd, e.getMessage());
         } finally {
             root.getContext().getLog().info("You can cat {}/config/sybase2csv/trace/{}/trace.log to view the log information generated during the corresponding cdc execution",
-                    sybasePocPath, root.getCdcId());
+                    sybasePocPath, root.getTaskCdcId());
         }
 
         return this.root;
