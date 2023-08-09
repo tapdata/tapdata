@@ -8,6 +8,7 @@ import io.tapdata.connector.postgres.cdc.PostgresCdcRunner;
 import io.tapdata.connector.postgres.cdc.offset.PostgresOffset;
 import io.tapdata.connector.postgres.config.PostgresConfig;
 import io.tapdata.connector.postgres.ddl.PostgresDDLSqlGenerator;
+import io.tapdata.connector.postgres.dml.PostgresRecordWriter;
 import io.tapdata.connector.postgres.exception.PostgresExceptionCollector;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
@@ -275,17 +276,17 @@ public class PostgresConnector extends CommonDbConnector {
                 connection = postgresJdbcContext.getConnection();
                 transactionConnectionMap.put(threadName, connection);
             }
-            new PostgresRecordWriter(postgresJdbcContext, connection, tapTable)
-                    .setVersion(postgresVersion)
+            new PostgresRecordWriter(postgresJdbcContext, connection, tapTable, postgresVersion)
                     .setInsertPolicy(insertDmlPolicy)
                     .setUpdatePolicy(updateDmlPolicy)
+                    .setTapLogger(tapLogger)
                     .write(tapRecordEvents, writeListResultConsumer);
 
         } else {
-            new PostgresRecordWriter(postgresJdbcContext, tapTable)
-                    .setVersion(postgresVersion)
+            new PostgresRecordWriter(postgresJdbcContext, tapTable, postgresVersion)
                     .setInsertPolicy(insertDmlPolicy)
                     .setUpdatePolicy(updateDmlPolicy)
+                    .setTapLogger(tapLogger)
                     .write(tapRecordEvents, writeListResultConsumer);
         }
     }
@@ -300,6 +301,7 @@ public class PostgresConnector extends CommonDbConnector {
             if (throwable instanceof SQLException) {
                 exceptionCollector.collectTerminateByServer(throwable);
                 exceptionCollector.collectCdcConfigInvalid(throwable);
+                exceptionCollector.revealException(throwable);
             }
             throw throwable;
         }
