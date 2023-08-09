@@ -142,7 +142,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		lookupThreadPool = new ThreadPoolExecutor(lookupThreadNum, lookupThreadNum, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
 				r -> {
 					Thread thread = new Thread(r);
-					thread.setName("Merge-Processor-Lookup-Runner");
+					thread.setName("Merge-Processor-Lookup-Thread-" + thread.getId());
 					return thread;
 				});
 	}

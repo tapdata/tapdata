@@ -40,7 +40,6 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
-import org.apache.commons.collections.map.LRUMap;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,6 +51,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /**
  * @author samuel
@@ -78,12 +78,12 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	});
 	private final AtomicReference<String> constructReferenceId = new AtomicReference<>();
 	private List<String> tableNames;
-	private Map<String, List<Document>> batchCacheData;
+	private Map<String, Map<String, List<Document>>> batchCacheData;
 	private LinkedBlockingQueue<ShareCdcTableMetricsDto> tableMetricsQueue = new LinkedBlockingQueue<>(1024);
 	private ExecutorService flushShareCdcTableMetricsThreadPool;
 	private List<ShareCdcTableMetricsDto> cacheMetricsList = new ArrayList<>();
 	private final AtomicLong lastFlushMetricsTimeMs = new AtomicLong();
-	private Map<String, ShareCdcTableMetricsDto> shareCdcTableMetricsDtoMap;
+	private Map<String, Map<String, ShareCdcTableMetricsDto>> shareCdcTableMetricsDtoMap;
 	private ClassHandlers ddlEventHandlers;
 	private final AtomicReference<LogContent> ddlLogContent = new AtomicReference<>();
 
@@ -107,7 +107,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				construct.insert(document);
 			}
 		}
-		this.batchCacheData = new LinkedHashMap<>();
+		this.batchCacheData = new ConcurrentHashMap<>();
 		this.flushShareCdcTableMetricsThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>(),
 				r -> new Thread(r, "Flush-Share-Cdc-Table-Metrics-Consumer-"
 						+ dataProcessorContext.getTaskDto().getId().toHexString() + "-" + getNode().getId()));
@@ -315,6 +315,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 
 	private <E extends TapEvent> WriteListResult<E> writeLogContents(List<LogContent> logContents) {
 		WriteListResult<E> writeListResult = new WriteListResult<>();
+		Map<String, List<Document>> batchCacheData = findInMapByThreadName(this.batchCacheData, tn -> new LinkedHashMap<>());
 		for (LogContent logContent : logContents) {
 			String tableId = ShareCdcUtil.getTableId(logContent);
 			Document document = logContent2Document(logContent);
@@ -480,16 +481,17 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			}
 			String key = getTableMetricsKey(connectionId, nodeId, tableId);
 			ShareCdcTableMetricsDto shareCdcTableMetricsDto;
-			if (!shareCdcTableMetricsDtoMap.containsKey(key)) {
+			Map<String, ShareCdcTableMetricsDto> metricsMap = findInMapByThreadName(this.shareCdcTableMetricsDtoMap, tn -> new LinkedHashMap<>());
+			if (!metricsMap.containsKey(key)) {
 				shareCdcTableMetricsDto = new ShareCdcTableMetricsDto();
 				shareCdcTableMetricsDto.setTaskId(dataProcessorContext.getTaskDto().getId().toHexString());
 				shareCdcTableMetricsDto.setConnectionId(connectionId);
 				shareCdcTableMetricsDto.setNodeId(nodeId);
 				shareCdcTableMetricsDto.setTableName(tableId);
 				shareCdcTableMetricsDto.setCount(1L);
-				shareCdcTableMetricsDtoMap.put(key, shareCdcTableMetricsDto);
+				metricsMap.put(key, shareCdcTableMetricsDto);
 			} else {
-				shareCdcTableMetricsDto = shareCdcTableMetricsDtoMap.get(key);
+				shareCdcTableMetricsDto = metricsMap.get(key);
 				shareCdcTableMetricsDto.setCount(shareCdcTableMetricsDto.getCount() + 1L);
 			}
 			shareCdcTableMetricsDto.setFirstEventTime(tapdataShareLogEvent.getSourceTime());
@@ -507,7 +509,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		if (MapUtils.isEmpty(shareCdcTableMetricsDtoMap)) {
 			return;
 		}
-		Collection<ShareCdcTableMetricsDto> shareCdcTableMetricsDtoList = shareCdcTableMetricsDtoMap.values();
+		Map<String, ShareCdcTableMetricsDto> metricsMap = findInMapByThreadName(this.shareCdcTableMetricsDtoMap, tn -> new LinkedHashMap<>());
+		Collection<ShareCdcTableMetricsDto> shareCdcTableMetricsDtoList = metricsMap.values();
 		for (ShareCdcTableMetricsDto shareCdcTableMetricsDto : shareCdcTableMetricsDtoList) {
 			while (isRunning()) {
 				try {
@@ -519,13 +522,13 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				}
 			}
 		}
-		shareCdcTableMetricsDtoMap.clear();
+		metricsMap.clear();
 	}
 
 	private void insertMany(String tableId) {
 		try {
 			HazelcastConstruct<Document> construct = getConstruct(tableId);
-			construct.insertMany(batchCacheData.get(tableId), unused -> !isRunning());
+			construct.insertMany(findInMapByThreadName(this.batchCacheData, tn -> new LinkedHashMap<>()).get(tableId), unused -> !isRunning());
 			if (logger.isDebugEnabled()) {
 				Ringbuffer ringbuffer = ((ConstructRingBuffer) construct).getRingbuffer();
 				logger.debug("Write ring buffer, head sequence: {}, tail sequence: {}, last data: {}", ringbuffer.headSequence(), ringbuffer.tailSequence(), ringbuffer.readOne(ringbuffer.tailSequence()));
@@ -591,6 +594,10 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		if (StringUtils.isBlank(offsetStr)) {
 			obsLogger.warn("Invalid offset string: " + offsetStr);
 		}
+	}
+
+	private <V> Map<String, V> findInMapByThreadName(Map<String, Map<String, V>> map, Function<String, ? extends Map<String, V>> mappingFunction) {
+		return map.computeIfAbsent(Thread.currentThread().getName(), mappingFunction);
 	}
 
 	@Override
