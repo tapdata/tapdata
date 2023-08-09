@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
  * @author jackin
  * @date 2022/7/26 09:28
  **/
-public class TapEventPartitionKeySelector implements PartitionKeySelector<TapEvent, Object, Map<String, Object>> {
+public class TapEventPartitionKeySelector extends BasePartitionKeySelector<TapEvent, Object, Map<String, Object>> {
 
 	private Function<TapEvent, List<String>> keyFunction;
 	private Map<String, List<String>> tableKeys = new HashMap<>();
@@ -41,30 +41,11 @@ public class TapEventPartitionKeySelector implements PartitionKeySelector<TapEve
 		return partitionValue;
 	}
 
-	private void getPartitionValue(List<Object> partitionValue, List<String> keys, Map<String, Object> row) {
+	protected void getPartitionValue(List<Object> partitionValue, List<String> keys, Map<String, Object> row) {
 		if (MapUtils.isNotEmpty(row)) {
 			for (String key : keys) {
 				partitionValue.add(MapUtil.getValueByKey(row, key));
 			}
 		}
-	}
-
-	/**
-	 * retrieve original value from TapValue for hash instead of TapValue object for hash
-	 *
-	 * @param values
-	 * @return
-	 */
-	public List<Object> convert2OriginValue(final List<Object> values) {
-		if (CollectionUtils.isEmpty(values)) {
-			return values;
-		}
-		return values.stream().filter(Objects::nonNull).map(v -> {
-			if (v instanceof TapValue) {
-				return ((TapValue<?, ?>) v).getValue();
-			} else {
-				return v;
-			}
-		}).collect(Collectors.toList());
 	}
 }

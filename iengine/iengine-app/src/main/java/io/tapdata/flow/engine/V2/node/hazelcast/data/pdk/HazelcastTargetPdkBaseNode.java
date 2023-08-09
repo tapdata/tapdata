@@ -7,22 +7,13 @@ import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.StringUtil;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataCompleteSnapshotEvent;
-import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataShareLogEvent;
-import com.tapdata.entity.TapdataStartedCdcEvent;
-import com.tapdata.entity.TapdataStartingCdcEvent;
-import com.tapdata.entity.TapdataTaskErrorEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -62,6 +53,8 @@ import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderControll
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.BasePartitionKeySelector;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.PartitionKeySelector;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -111,6 +104,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
 	public static final long DEFAULT_TARGET_BATCH_INTERVAL_MS = 1000;
 	public static final int DEFAULT_TARGET_BATCH = 1000;
+	public static final int DEFAULT_CDC_CONCURRENT_WRITE_NUM = 4;
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
 	private AtomicBoolean firstBatchEvent = new AtomicBoolean();
 	private AtomicBoolean firstStreamEvent = new AtomicBoolean();
@@ -150,7 +144,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 //        });
 		queueConsumerThreadPool = AsyncUtils.createThreadPoolExecutor(String.format("Target-Queue-Consumer-%s[%s]@task-%s", getNode().getName(), getNode().getId(), dataProcessorContext.getTaskDto().getName()), 1, new ConnectorOnTaskThreadGroup(dataProcessorContext), TAG);
 		//threadPoolExecutorEx = AsyncUtils.createThreadPoolExecutor("Target-" + getNode().getName() + "@task-" + dataProcessorContext.getTaskDto().getName(), 1, new ConnectorOnTaskThreadGroup(dataProcessorContext), TAG);
-		flushOffsetExecutor = new ScheduledThreadPoolExecutor(1, r->{
+		flushOffsetExecutor = new ScheduledThreadPoolExecutor(1, r -> {
 			Thread thread = new Thread(r);
 			thread.setName(String.format("Flush-Offset-Thread-%s(%s)-%s(%s)", dataProcessorContext.getTaskDto().getName(), dataProcessorContext.getTaskDto().getId().toHexString(), getNode().getName(), getNode().getId()));
 			return thread;
@@ -194,8 +188,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			CreateIndexFunction createIndexFunction = connectorFunctions.getCreateIndexFunction();
 			TapCreateIndexEvent indexEvent = createIndexEvent(exactlyOnceTable.getId(), exactlyOnceTable.getIndexList());
 			PDKInvocationMonitor.invoke(
-							getConnectorNode(), PDKMethod.TARGET_CREATE_INDEX,
-							() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), exactlyOnceTable, indexEvent), TAG);
+					getConnectorNode(), PDKMethod.TARGET_CREATE_INDEX,
+					() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), exactlyOnceTable, indexEvent), TAG);
 		}
 		Node node = getNode();
 		if (node instanceof TableNode) {
@@ -203,10 +197,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			String tableName = tableNode.getTableName();
 			exactlyOnceWriteTables.add(tableName);
 			ExactlyOnceWriteCleanerEntity exactlyOnceWriteCleanerEntity = new ExactlyOnceWriteCleanerEntity(
-							tableNode.getId(),
-							tableName,
-							tableNode.getIncrementExactlyOnceEnableTimeWindowDay(),
-							tableNode.getConnectionId()
+					tableNode.getId(),
+					tableName,
+					tableNode.getIncrementExactlyOnceEnableTimeWindowDay(),
+					tableNode.getConnectionId()
 			);
 			ExactlyOnceWriteCleaner.getInstance().registerCleaner(exactlyOnceWriteCleanerEntity);
 			exactlyOnceWriteCleanerEntities.add(exactlyOnceWriteCleanerEntity);
@@ -228,33 +222,33 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				handleTapTablePrimaryKeys(tapTable);
 				tapCreateTableEvent.set(createTableEvent(tapTable));
 				executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
-								.createTableEvent(tapCreateTableEvent.get())
-								.connectorContext(getConnectorNode().getConnectorContext())
-								.dataProcessorContext(dataProcessorContext)
-								.start(), (createTableFuncAspect ->
-								PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> {
-									if (createTableV2Function != null) {
-										CreateTableOptions createTableOptions = createTableV2Function.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
-										if (createTableFuncAspect != null)
-											createTableFuncAspect.createTableOptions(createTableOptions);
-									} else {
-										createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
-									}
-								}, TAG)));
+						.createTableEvent(tapCreateTableEvent.get())
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
+						.start(), (createTableFuncAspect ->
+						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> {
+							if (createTableV2Function != null) {
+								CreateTableOptions createTableOptions = createTableV2Function.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
+								if (createTableFuncAspect != null)
+									createTableFuncAspect.createTableOptions(createTableOptions);
+							} else {
+								createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
+							}
+						}, TAG)));
 			} else {
 				// only execute start function aspect so that it would be cheated as input
 				AspectUtils.executeAspect(new CreateTableFuncAspect()
-								.createTableEvent(tapCreateTableEvent.get())
-								.connectorContext(getConnectorNode().getConnectorContext())
-								.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
+						.createTableEvent(tapCreateTableEvent.get())
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
 			}
 			//
 //			String s = JSONUtil.obj2Json(Collections.singletonList(tapTable));
 			clientMongoOperator.insertOne(Collections.singletonList(tapTable),
-							ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
+					ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
 		} catch (Throwable throwable) {
 			throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_TABLE_FAILED, "Table model: " + tapTable, throwable)
-							.addEvent(tapCreateTableEvent.get());
+					.addEvent(tapCreateTableEvent.get());
 		}
 		return createdTable;
 	}
@@ -265,7 +259,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void initTargetConcurrentProcessorIfNeed() {
-		if (getNode() instanceof DataParentNode) {
+		Node node = getNode();
+		if (node instanceof DataParentNode) {
 			DataParentNode dataParentNode = (DataParentNode) getNode();
 			final Boolean initialConcurrent = dataParentNode.getInitialConcurrent();
 			if (initialConcurrent != null) {
@@ -284,6 +279,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum);
 					this.cdcPartitionConcurrentProcessor.start();
 				}
+			}
+		} else if (node instanceof HazelCastImdgNode) {
+			Optional.ofNullable(((HazelCastImdgNode) node).getCdcConcurrent()).ifPresent(ccr -> this.cdcConcurrent = ccr);
+			Optional.ofNullable(((HazelCastImdgNode) node).getCdcConcurrentWriteNum()).ifPresent(ccw -> this.cdcConcurrentWriteNum = ccw);
+			if (this.cdcConcurrent) {
+				this.cdcConcurrentWriteNum = this.cdcConcurrentWriteNum > 0 ? this.cdcConcurrentWriteNum : DEFAULT_CDC_CONCURRENT_WRITE_NUM;
+				this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(this.cdcConcurrentWriteNum);
+				this.cdcPartitionConcurrentProcessor.start();
 			}
 		}
 	}
@@ -671,7 +674,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void handleTapdataHeartbeatEvent(TapdataEvent tapdataEvent) {
 		flushSyncProgressMap(tapdataEvent);
-		saveToSnapshot();
 	}
 
 	private TapRecordEvent handleTapdataRecordEvent(TapdataEvent tapdataEvent) {
@@ -968,18 +970,34 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@NotNull
-	private PartitionConcurrentProcessor initConcurrentProcessor(int cdcConcurrentWriteNum) {
-		int batchSize = Math.max(this.targetBatch / cdcConcurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
+	private PartitionConcurrentProcessor initConcurrentProcessor(int concurrentWriteNum) {
+		int batchSize = Math.max(this.targetBatch / concurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
+		PartitionKeySelector<TapEvent, Object, Map<String, Object>> tapEventPartitionKeySelector = null;
+		Node node = getNode();
+		if (node instanceof DataParentNode) {
+			tapEventPartitionKeySelector = new TapEventPartitionKeySelector(tapEvent -> {
+				final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
+				TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
+				handleTapTablePrimaryKeys(tapTable);
+				return new ArrayList<>(tapTable.primaryKeys(true));
+			});
+		} else if (node instanceof HazelCastImdgNode) {
+			tapEventPartitionKeySelector = new BasePartitionKeySelector<TapEvent, Object, Map<String, Object>>() {
+				@Override
+				public List<Object> select(TapEvent event, Map<String, Object> row) {
+					String tableId = TapEventUtil.getTableId(event);
+					if (StringUtils.isNotBlank(tableId)) {
+						return Collections.singletonList(tableId);
+					}
+					return null;
+				}
+			};
+		}
 		return new PartitionConcurrentProcessor(
-				cdcConcurrentWriteNum,
+				concurrentWriteNum,
 				batchSize,
 				new KeysPartitioner(),
-				new TapEventPartitionKeySelector(tapEvent -> {
-					final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
-					TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
-					handleTapTablePrimaryKeys(tapTable);
-					return new ArrayList<>(tapTable.primaryKeys(true));
-				}),
+				tapEventPartitionKeySelector,
 				this::handleTapdataEvents,
 				this::flushSyncProgressMap,
 				this::errorHandle,
@@ -1000,7 +1018,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.queueConsumerThreadPool).ifPresent(ExecutorService::shutdownNow), TAG);
-			CommonUtils.ignoreAnyError(()->Optional.ofNullable(this.flushOffsetExecutor).ifPresent(ExecutorService::shutdownNow), TAG);
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.flushOffsetExecutor).ifPresent(ExecutorService::shutdownNow), TAG);
 			CommonUtils.ignoreAnyError(this::saveToSnapshot, TAG);
 		} finally {
 			super.doClose();
