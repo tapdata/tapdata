@@ -149,6 +149,9 @@ public class SybaseConnector extends CommonDbConnector {
             encode = needEncode ? Optional.ofNullable(nodeConfig.getEncode()).orElse("cp850") : null;
             decode = needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
             outCode = needEncode ? Optional.ofNullable(nodeConfig.getOutDecode()).orElse("utf-8") : null;
+            //KVMap<Object> globalStateMap = ((TapConnectorContext) tapConnectionContext).getGlobalStateMap();
+            //globalStateMap.remove("aliveStreamTask");
+            //tapConnectionContext.getLog().info("Global state map: {}", globalStateMap.);
         }
         started.set(true);
     }
@@ -169,7 +172,7 @@ public class SybaseConnector extends CommonDbConnector {
         if (connectionContext instanceof TapConnectorContext) {
             if (null != cdcHandle) cdcHandle.releaseTaskResources();
             Set<String> taskIdInGlobalStateMap = ConnectorUtil.removeTaskIdInGlobalStateMap(taskId, (TapConnectorContext) connectionContext);
-            connectionContext.getLog().info("TaskIdInGlobalStateMap: {}", taskIdInGlobalStateMap);
+            connectionContext.getLog().info("Task id: {}, TaskIdInGlobalStateMap: {}", taskId, taskIdInGlobalStateMap);
             synchronized (SybaseConnector.filterConfigLock) {
                 if (null == taskIdInGlobalStateMap || taskIdInGlobalStateMap.isEmpty()) {
                     ConnectorUtil.safeStopShell(connectionContext.getLog(), (TapConnectorContext) connectionContext);
@@ -655,7 +658,7 @@ public class SybaseConnector extends CommonDbConnector {
         }
 
         synchronized (filterConfigLock) {
-            File filterConfigFile = new File(CdcRoot.POC_TEMP_CONFIG_PATH);
+            File filterConfigFile = new File(String.format(CdcRoot.POC_TEMP_CONFIG_PATH, ConnectorUtil.getCurrentInstanceHostPortFromConfig(tapConnectorContext)));
             Object targetPath = globalStateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR);
 
             ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
@@ -664,6 +667,7 @@ public class SybaseConnector extends CommonDbConnector {
             Set<String> tableSet = ConnectorUtil.getTableFroMaintenanceCdcMonitorTableMap(tapConnectorContext, config);
 
             boolean cdcProcessIsAlive = false;
+            tapConnectorContext.getLog().info("Cdc path: {}", targetPath);
             if (filterConfigFile.exists() && filterConfigFile.isFile() && !tableSet.isEmpty() && null != targetPath) {
                 List<Integer> port = ConnectorUtil.port(new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"},
                         list("grep sybase-poc/replicant-cli"),
@@ -679,7 +683,7 @@ public class SybaseConnector extends CommonDbConnector {
                 tableIds.stream().filter(t -> Objects.nonNull(t) && !tableSet.contains(t)).forEach(newTableInTask::add);
                 int portSize = port.size();
                 if (portSize < 2) {
-                    tapConnectorContext.getLog().warn("Cdc process not alive, will start cdc process now");
+                    tapConnectorContext.getLog().warn("Cdc process not alive, but fund some fail process in server which will be kill before start cdc process now");
                     List<Map<String, Object>> mapList = cdcHandle.compileFilterTableYamlConfig(connectionConfig, tapConnectorContext, newTableInTask);
                     root.getVariables().setFilterConfig(ConnectorUtil.fromYaml(mapList));
                     if (portSize > 0) {
@@ -698,6 +702,7 @@ public class SybaseConnector extends CommonDbConnector {
             }
 
             if (!cdcProcessIsAlive) {
+                tapConnectorContext.getLog().info("Cdc process is not alive, will init cdc process now");
                 //首次启动CDC增量时
                 cdcHandle.initCdc(overwriteType);
                 List<SybaseFilterConfig> filterConfig = root.getVariables().getFilterConfig();

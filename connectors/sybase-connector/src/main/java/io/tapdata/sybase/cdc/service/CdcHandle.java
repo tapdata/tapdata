@@ -270,21 +270,25 @@ public class CdcHandle {
 
             //执行命令
             String sybasePocPath = root.getSybasePocPath();
-            ConnectorUtil.execCmd(String.format(ExecCommand.RE_INIT_AND_ADD_TABLE,
-                    root.getCliPath(),
-                    CommandType.CDC,
-                    sybasePocPath,
-                    sybasePocPath,
-                    sybasePocPath,
-                    root.getFilterTableConfigPath(),
-                    sybasePocPath,
-                    ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext()),
-                    "--" + OverwriteType.RESUME.getType(),
-                    sybasePocPath,
-                    root.getTaskCdcId()
-                    ),
-                    "Fail to reInit when an new task start with new tables, msg: {}",
-                    root.getContext().getLog());
+            try {
+                ConnectorUtil.execCmd(String.format(ExecCommand.RE_INIT_AND_ADD_TABLE,
+                            root.getCliPath(),
+                            CommandType.CDC,
+                            sybasePocPath,
+                            sybasePocPath,
+                            sybasePocPath,
+                            root.getFilterTableConfigPath(),
+                            sybasePocPath,
+                            ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext()),
+                            "--" + OverwriteType.RESUME.getType(),
+                            sybasePocPath,
+                            root.getTaskCdcId()
+                        ),
+                        "Fail to reInit when an new task start with new tables, msg: {}",
+                        root.getContext().getLog());
+            } finally {
+                log.info("Cdc process is reInit with {}", newTables);
+            }
         }
         //命令结束后，写入filter.yaml
         List<Map<String, Object>> sybaseFilter = configYaml.configSybaseFilter(filterTableYamlConfig);

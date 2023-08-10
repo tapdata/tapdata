@@ -317,6 +317,8 @@ public class ConnectorUtil {
             hostPortInfo.remove(instanceHostPort);
             if (hostPortInfo.isEmpty()) {
                 globalStateMap.remove("CdcMonitorTableMap");
+            } else {
+                globalStateMap.put("CdcMonitorTableMap", hostPortInfo);
             }
         }
     }
@@ -594,8 +596,13 @@ public class ConnectorUtil {
                 } catch (IOException e) {
                 }
             }
+            log.info("shell is {}", cmd);
         }
         return sb.toString();
     }
 
+    public static void showGlobalStateMapStatus(TapConnectorContext tapConnectionContext){
+        Log log = tapConnectionContext.getLog();
+        KVMap<Object> globalStateMap = tapConnectionContext.getGlobalStateMap();
+    }
 }

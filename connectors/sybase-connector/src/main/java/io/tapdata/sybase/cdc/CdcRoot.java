@@ -1,7 +1,9 @@
 package io.tapdata.sybase.cdc;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.sybase.cdc.dto.start.CdcStartVariables;
+import io.tapdata.sybase.util.ConnectorUtil;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -63,10 +65,13 @@ public class CdcRoot {
         return sybasePocPath.endsWith("/") ? sybasePocPath.substring(0, sybasePocPath.length() - 1) : sybasePocPath;
     }
 
-    public static final String POC_TEMP_CONFIG_PATH = "sybase-poc-temp/sybase-poc/config/sybase2csv/filter_sybasease.yaml";
+    public static final String POC_TEMP_CONFIG_PATH = "sybase-poc-temp/%s/sybase-poc/config/sybase2csv/filter_sybasease.yaml";
 
     public String getFilterTableConfigPath() {
-        return new File(POC_TEMP_CONFIG_PATH).getAbsolutePath();
+        if (null == context) {
+            throw new CoreException("Unable get filter table config yaml, tapConnectionContext is empty");
+        }
+        return new File(String.format(CdcRoot.POC_TEMP_CONFIG_PATH, ConnectorUtil.getCurrentInstanceHostPortFromConfig(context))).getAbsolutePath();
     }
 
     public void setSybasePocPath(String sybasePocPath) {
