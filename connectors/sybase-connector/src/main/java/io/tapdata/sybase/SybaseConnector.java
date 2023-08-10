@@ -169,9 +169,10 @@ public class SybaseConnector extends CommonDbConnector {
         if (connectionContext instanceof TapConnectorContext) {
             if (null != cdcHandle) cdcHandle.releaseTaskResources();
             Set<String> taskIdInGlobalStateMap = ConnectorUtil.removeTaskIdInGlobalStateMap(taskId, (TapConnectorContext) connectionContext);
+            connectionContext.getLog().info("TaskIdInGlobalStateMap: {}", taskIdInGlobalStateMap);
             synchronized (SybaseConnector.filterConfigLock) {
                 if (null == taskIdInGlobalStateMap || taskIdInGlobalStateMap.isEmpty()) {
-                    CdcHandle.safeStopShell(connectionContext.getLog());
+                    ConnectorUtil.safeStopShell(connectionContext.getLog(), (TapConnectorContext) connectionContext);
                     ConnectorUtil.removeCdcMonitorTableMap((TapConnectorContext) connectionContext);
                 }
             }
@@ -664,9 +665,10 @@ public class SybaseConnector extends CommonDbConnector {
 
             boolean cdcProcessIsAlive = false;
             if (filterConfigFile.exists() && filterConfigFile.isFile() && !tableSet.isEmpty() && null != targetPath) {
-                List<Integer> port = CdcHandle.port(new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"},
+                List<Integer> port = ConnectorUtil.port(new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"},
                         list("grep sybase-poc/replicant-cli"),
-                        root.getContext().getLog()
+                        root.getContext().getLog(),
+                        ConnectorUtil.getCurrentInstanceHostPortFromConfig(tapConnectorContext)
                 );
                 String path = (String) targetPath;
                 this.root.setSybasePocPath(path);
@@ -681,7 +683,7 @@ public class SybaseConnector extends CommonDbConnector {
                     List<Map<String, Object>> mapList = cdcHandle.compileFilterTableYamlConfig(connectionConfig, tapConnectorContext, newTableInTask);
                     root.getVariables().setFilterConfig(ConnectorUtil.fromYaml(mapList));
                     if (portSize > 0) {
-                        CdcHandle.safeStopShell(tapConnectorContext.getLog());
+                        ConnectorUtil.safeStopShell(tapConnectorContext.getLog(), tapConnectorContext);
                     }
                 } else {
                     cdcProcessIsAlive = true;

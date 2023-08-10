@@ -6,6 +6,7 @@ import io.tapdata.sybase.SybaseConnector;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
 import io.tapdata.sybase.util.ConfigPaths;
+import io.tapdata.sybase.util.ConnectorUtil;
 import io.tapdata.sybase.util.Utils;
 import io.tapdata.sybase.util.ZipUtils;
 import org.apache.commons.io.FileUtils;
@@ -45,7 +46,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
             stateMap.put("taskId", cdcId = UUID.randomUUID().toString().replaceAll("-", "_"));
         }
         root.setTaskCdcId(cdcId);
-        String targetPath = "sybase-poc-temp/";// + cdcId + "/";
+        String targetPath = "sybase-poc-temp/"+ ConnectorUtil.getCurrentInstanceHostPortFromConfig(root.getContext()) + "/";
         File sybasePocPath = new File(targetPath);
         if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) sybasePocPath.mkdir();
         String pocPathFromLocal = getPocPathFromLocal();

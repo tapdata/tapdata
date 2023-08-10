@@ -1,6 +1,7 @@
 package io.tapdata.sybase.util;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
@@ -21,6 +22,9 @@ import io.tapdata.sybase.cdc.dto.start.SybaseReInitConfig;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.SybaseContext;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -32,9 +36,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Collectors;
+
+import static io.tapdata.base.ConnectorBase.list;
 
 /**
  * @author GavinXiao
@@ -151,17 +158,32 @@ public class ConnectorUtil {
         return (String) taskId;
     }
 
+
+    public static String getCurrentInstanceHostPortFromConfig(TapConnectorContext context){
+        ConnectionConfig config = new ConnectionConfig(context);
+        final String host = config.getHost();
+        int port = config.getPort();
+        return host + ":" + port;
+    }
+
     /**
      * 在GlobalStateMap中维护任务正在进行cdc的任务ID列表
      */
     public static void maintenanceTaskIdInGlobalStateMap(String taskId, TapConnectorContext context) {
+        final String instanceHostPort = getCurrentInstanceHostPortFromConfig(context);
         KVMap<Object> globalStateMap = context.getGlobalStateMap();
         synchronized (SybaseConnector.filterConfigLock) {
             Object aliveStreamTask = globalStateMap.get("aliveStreamTask");
-            if (!(aliveStreamTask instanceof Set)) {
-                aliveStreamTask = new HashSet<String>();
+            if (!(aliveStreamTask instanceof Map)) {
+                aliveStreamTask = new HashMap<String, Set<String>>();
+                Set<String> taskIdSet = new HashSet<>();
+                taskIdSet.add(taskId);
+                ((Map<String, Set<String>>)aliveStreamTask).put(instanceHostPort, taskIdSet);
+            } else {
+                Map<String, Set<String>> setMap = (Map<String, Set<String>>) aliveStreamTask;
+                Set<String> set = setMap.computeIfAbsent(instanceHostPort, k -> new HashSet<>());
+                set.add(taskId);
             }
-            ((Set<String>) aliveStreamTask).add(taskId);
             globalStateMap.put("aliveStreamTask", aliveStreamTask);
         }
     }
@@ -170,55 +192,113 @@ public class ConnectorUtil {
      * 把当前任务从GlobalStateMap的任务正在进行cdc的任务ID列表中移除
      */
     public static Set<String> removeTaskIdInGlobalStateMap(String taskId, TapConnectorContext context) {
+        final String instanceHostPort = getCurrentInstanceHostPortFromConfig(context);
         KVMap<Object> globalStateMap = context.getGlobalStateMap();
         Object aliveStreamTask = null;
         synchronized (SybaseConnector.filterConfigLock) {
             aliveStreamTask = globalStateMap.get("aliveStreamTask");
-            if (aliveStreamTask instanceof Set) {
-                Set<String> streamTask = (Set<String>) aliveStreamTask;
-                if (streamTask.contains(taskId)) {
-                    streamTask.remove(taskId);
-                    globalStateMap.put("aliveStreamTask", aliveStreamTask);
+            if (aliveStreamTask instanceof Map) {
+                Map<String, Set<String>> streamTask = (Map<String, Set<String>>) aliveStreamTask;
+                if (streamTask.containsKey(instanceHostPort)) {
+                    Set<String> taskIdSet = streamTask.get(instanceHostPort);
+                    if (taskIdSet.contains(taskId)) {
+                        taskIdSet.remove(taskId);
+                        globalStateMap.put("aliveStreamTask", aliveStreamTask);
+                    }
+                    return taskIdSet;
                 }
+            } else {
+                globalStateMap.remove("aliveStreamTask");
             }
         }
-        return (Set<String>) aliveStreamTask;
+        return null;
     }
 
     /**
      * 在GlobalStateMap中维护任务正在被cdc监听的表
+     * {
+     *     "${host:port}" : [
+     *          {
+     *             "catalog": "${database}",
+     *             "schema": "$schema",
+     *             "type": [VIEW,TABLE],
+     *             "allow": {
+     *                 "${tableName}": {},
+     *                 ...
+     *             }
+     *          },
+     *          ...
+     *     ],
+     *     ...
+     * }
      */
     public static List<Map<String, Object>> maintenanceCdcMonitorTableMap(List<Map<String, Object>> sybaseFilters, TapConnectorContext tapConnectionContext) {
+        final String instanceHostPort = getCurrentInstanceHostPortFromConfig(tapConnectionContext);
         KVMap<Object> globalStateMap = tapConnectionContext.getGlobalStateMap();
-        globalStateMap.put("CdcMonitorTableMap", sybaseFilters);
+        Object cdcMonitorTableMap = globalStateMap.get("CdcMonitorTableMap");
+        if (null == cdcMonitorTableMap || !(cdcMonitorTableMap instanceof Map)) {
+            Map<String, List<Map<String, Object>>> hostPortInfo = new HashMap<>();
+            hostPortInfo.put(instanceHostPort, sybaseFilters);
+            globalStateMap.put("CdcMonitorTableMap", hostPortInfo);
+        } else {
+            Map<String, List<Map<String, Object>>> hostPortInfo = (Map<String, List<Map<String, Object>>>) cdcMonitorTableMap;
+            //List<Map<String, Object>> maps = hostPortInfo.get(instanceHostPort);
+            //if (null == maps) {
+            //    hostPortInfo.put(instanceHostPort, sybaseFilters);
+            //} else {
+            //    boolean hasThisInstance = false;
+            //    for (Map<String, Object> info : maps) {
+            //        if (null == info) continue;
+            //
+            //    }
+            //}
+            hostPortInfo.put(instanceHostPort, sybaseFilters);
+            globalStateMap.put("CdcMonitorTableMap", hostPortInfo);
+        }
         return sybaseFilters;
+    }
+
+    public static List<Map<String, Object>> getCurrentInstanceCdcMonitorTableMapFromGlobalStateMap(TapConnectorContext tapConnectionContext) {
+        final String instanceHostPort = getCurrentInstanceHostPortFromConfig(tapConnectionContext);
+        KVMap<Object> globalStateMap = tapConnectionContext.getGlobalStateMap();
+        Object cdcMonitorTableMap = globalStateMap.get("CdcMonitorTableMap");
+        return null == cdcMonitorTableMap || !(cdcMonitorTableMap instanceof Map) ? new ArrayList<>() : Optional.ofNullable(((Map<String, List<Map<String, Object>>>)cdcMonitorTableMap).get(instanceHostPort)).orElse(new ArrayList<>());
     }
 
     public static Set<String> getTableFroMaintenanceCdcMonitorTableMap(TapConnectorContext tapConnectorContext, ConnectionConfig config) {
         KVMap<Object> globalStateMap = tapConnectorContext.getGlobalStateMap();
         Object cdcMonitorTableSet = globalStateMap.get("CdcMonitorTableMap");
-        List<Map<String, Object>> monitorTableSet = (List<Map<String, Object>>) cdcMonitorTableSet;
-        config = Optional.ofNullable(config).orElse(new ConnectionConfig(tapConnectorContext));
-        String database = config.getDatabase();
-        String schema = config.getSchema();
         Set<String> tableSet = new HashSet<>();
-        if (null != monitorTableSet && !monitorTableSet.isEmpty()) {
-            monitorTableSet.stream().filter(Objects::nonNull).forEach(tableInfoMap -> {
-                Object catalogName = tableInfoMap.get("catalog");
-                Object schemaName = tableInfoMap.get("schema");
-                if (null != catalogName && catalogName.equals(database) && null != schemaName && schemaName.equals(schema)) {
-                    Object allowObj = tableInfoMap.get(SybaseFilterConfig.configKey);
-                    if (allowObj instanceof Collection) {
-                        Collection<Object> allowList = (Collection<Object>) allowObj;
-                        if (!allowList.isEmpty()) {
-                            allowList.stream().filter(item -> Objects.nonNull(item) && item instanceof Map).forEach(tabInfo -> {
-                                Map<String, Object> tableMap = (Map<String, Object>) tabInfo;
-                                tableSet.addAll(tableMap.keySet());
-                            });
+        config = Optional.ofNullable(config).orElse(new ConnectionConfig(tapConnectorContext));
+        final String database = config.getDatabase();
+        final String schema = config.getSchema();
+        final String host = config.getHost();
+        int port = config.getPort();
+        final String instanceHostPort = host + ":" + port;
+        if (cdcMonitorTableSet instanceof Map) {
+            //@todo host_port
+            Map<String, List<Map<String, Object>>> hostPortInfo = (Map<String, List<Map<String, Object>>>) cdcMonitorTableSet;
+            if (null == hostPortInfo || hostPortInfo.isEmpty()) return tableSet;
+            List<Map<String, Object>> monitorTableSet = hostPortInfo.get(instanceHostPort);
+            //List<Map<String, Object>> monitorTableSet = (List<Map<String, Object>>) cdcMonitorTableSet;
+            if (null != monitorTableSet && !monitorTableSet.isEmpty()) {
+                monitorTableSet.stream().filter(Objects::nonNull).forEach(tableInfoMap -> {
+                    Object catalogName = tableInfoMap.get("catalog");
+                    Object schemaName = tableInfoMap.get("schema");
+                    if (null != catalogName && catalogName.equals(database) && null != schemaName && schemaName.equals(schema)) {
+                        Object allowObj = tableInfoMap.get(SybaseFilterConfig.configKey);
+                        if (allowObj instanceof Collection) {
+                            Collection<Object> allowList = (Collection<Object>) allowObj;
+                            if (!allowList.isEmpty()) {
+                                allowList.stream().filter(item -> Objects.nonNull(item) && item instanceof Map).forEach(tabInfo -> {
+                                    Map<String, Object> tableMap = (Map<String, Object>) tabInfo;
+                                    tableSet.addAll(tableMap.keySet());
+                                });
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
         }
         return tableSet;
     }
@@ -228,7 +308,17 @@ public class ConnectorUtil {
      */
     public static void removeCdcMonitorTableMap(TapConnectorContext tapConnectionContext) {
         KVMap<Object> globalStateMap = tapConnectionContext.getGlobalStateMap();
-        globalStateMap.remove("CdcMonitorTableMap");
+        Object cdcMonitorTableMap = globalStateMap.get("CdcMonitorTableMap");
+        if (null == cdcMonitorTableMap || !(cdcMonitorTableMap instanceof Map)) {
+            globalStateMap.remove("CdcMonitorTableMap");
+        } else {
+            final String instanceHostPort = getCurrentInstanceHostPortFromConfig(tapConnectionContext);
+            Map<String, List<Map<String, Object>>> hostPortInfo = (Map<String, List<Map<String, Object>>>) cdcMonitorTableMap;
+            hostPortInfo.remove(instanceHostPort);
+            if (hostPortInfo.isEmpty()) {
+                globalStateMap.remove("CdcMonitorTableMap");
+            }
+        }
     }
 
     /**
@@ -372,7 +462,7 @@ public class ConnectorUtil {
 
     public static Map<String, List<String>> unIgnoreColumns() {
         Map<String, List<String>> hashMap = new HashMap<>();
-        hashMap.put("block", new ArrayList<String>());
+        hashMap.put("block", new ArrayList<>());
         return  hashMap;
     }
 
@@ -383,4 +473,129 @@ public class ConnectorUtil {
         hashMap.put("block", timestamp);
         return hashMap;
     }
+
+    public static void safeStopShell(Log log, TapConnectorContext tapConnectionContext) {
+        String instanceHostPort = getCurrentInstanceHostPortFromConfig(tapConnectionContext);
+        try {
+            stopShell(new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"}, list("grep sybase-poc/replicant-cli"), log, instanceHostPort);
+        } catch (Exception e) {
+            log.warn("Can not auto stop cdc tool, please go to server and kill process by shell {} and after find process PID by shell {}",
+                    "kill pid1 pid2 pid3 ",
+                    "ps -ef|grep sybase-poc/replicant-cli");
+        }
+    }
+
+    private static void stopShell(String[] cmd, List<String> ignoreShells, Log log, String instanceHostPort) {
+        //String cmd = "ps -ef|grep sybase-poc/replicant-cli";
+        ///bin/sh -c export JAVA_TOOL_OPTIONS="-Duser.language=en"; /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
+        //sh /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
+        //java -Duser.timezone=UTC -Djava.system.class.loader=tech.replicant.util.ReplicantClassLoader -classpath /tapdata/apps/sybase-poc/replicant-cli/target/replicant-core.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts-5089.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/* tech.replicant.Main real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
+        List<Integer> port = port(cmd, ignoreShells, log, instanceHostPort);
+        if (!port.isEmpty()) {
+            StringJoiner joiner = new StringJoiner(" ");
+            for (Integer portNum : port) {
+                joiner.add("" + portNum);
+            }
+            log.warn(port.toString());
+            execCmd("kill " + joiner.toString(), String.format("Can not auto stop cdc tool, please go to server and kill process by shell %s and after find process PID by shell %s, {}",
+                    "kill pid1 pid2 pid3 ",
+                    "ps -ef|grep sybase-poc/replicant-cli"), log);
+        }
+    }
+
+
+    public static List<Integer> port(String[] cmd, List<String> ignoreShells, Log log, String instanceHostPort) {
+        List<Integer> port = new ArrayList<>();
+        StringBuilder sb = new StringBuilder();
+        BufferedReader br = null;
+        boolean execFlag = true;
+        try {
+            if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
+                Process p = Runtime.getRuntime().exec(cmd);
+                p.waitFor();
+                br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                String line;
+                while ((line = br.readLine()) != null) {
+                    log.info(line);
+                    boolean needIgnore = false;
+                    if (!ignoreShells.isEmpty()) {
+                        for (String ignoreShell : ignoreShells) {
+                            if (line.contains(ignoreShell)) {
+                                needIgnore = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (needIgnore || !line.contains(instanceHostPort)) continue;
+                    String[] split = line.split("( )+");
+                    if (split.length > 2) {
+                        String portStr = split[1];
+                        try {
+                            port.add(Integer.parseInt(portStr));
+                        } catch (Exception ignore) {
+                        }
+                    }
+                }
+                br.close();
+                br = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+                while ((line = br.readLine()) != null) {
+                    sb.append(System.lineSeparator());
+                    sb.append(line);
+                    if (line.length() > 0) {
+                        execFlag = false;
+                    }
+                }
+                if (execFlag) {
+
+                } else {
+                    throw new RuntimeException(sb.toString());
+                }
+            } else {
+                //throw new RuntimeException("不支持的操作系统类型");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+            //log.error("执行失败",e);
+        } finally {
+            if (br != null) {
+                try {
+                    br.close();
+                } catch (IOException e) {
+                }
+            }
+        }
+        return port;
+    }
+
+    public static String execCmd(String cmd, String errorMsg, Log log) {
+        StringBuilder sb = new StringBuilder();
+        BufferedReader br = null;
+        try {
+            Process p = Runtime.getRuntime().exec(cmd);
+            p.waitFor();
+            br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            String line;
+            while ((line = br.readLine()) != null) {
+                sb.append(System.lineSeparator());
+                sb.append(line);
+            }
+            br.close();
+            br = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+            while ((line = br.readLine()) != null) {
+                sb.append(System.lineSeparator());
+                sb.append(line);
+            }
+        } catch (Exception e) {
+            log.warn(errorMsg, e.getMessage());
+        } finally {
+            if (br != null) {
+                try {
+                    br.close();
+                } catch (IOException e) {
+                }
+            }
+        }
+        return sb.toString();
+    }
+
 }

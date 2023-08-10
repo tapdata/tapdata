@@ -224,7 +224,7 @@ public class CdcHandle {
         }
     }
 
-    //Step #end 2
+//Step #end 2
 //    public synchronized void stopCdc() {
 //        if (null != listenFile) listenFile.onStop();
 //        //@todo
@@ -248,130 +248,6 @@ public class CdcHandle {
 //        }
 //    }
 
-    public static void safeStopShell(Log log) {
-        try {
-            stopShell(new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"}, list("grep sybase-poc/replicant-cli"), log);
-        } catch (Exception e) {
-            log.warn("Can not auto stop cdc tool, please go to server and kill process by shell {} and after find process PID by shell {}",
-                    "kill pid1 pid2 pid3 ",
-                    "ps -ef|grep sybase-poc/replicant-cli");
-        }
-    }
-
-    private static void stopShell(String[] cmd, List<String> ignoreShells, Log log) {
-        //String cmd = "ps -ef|grep sybase-poc/replicant-cli";
-        ///bin/sh -c export JAVA_TOOL_OPTIONS="-Duser.language=en"; /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
-        //sh /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
-        //java -Duser.timezone=UTC -Djava.system.class.loader=tech.replicant.util.ReplicantClassLoader -classpath /tapdata/apps/sybase-poc/replicant-cli/target/replicant-core.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts-5089.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/* tech.replicant.Main real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
-        List<Integer> port = port(cmd, ignoreShells, log);
-        if (!port.isEmpty()) {
-            StringJoiner joiner = new StringJoiner(" ");
-            for (Integer portNum : port) {
-                joiner.add("" + portNum);
-            }
-            log.warn(port.toString());
-            execCmd("kill " + joiner.toString(), String.format("Can not auto stop cdc tool, please go to server and kill process by shell %s and after find process PID by shell %s, {}",
-                    "kill pid1 pid2 pid3 ",
-                    "ps -ef|grep sybase-poc/replicant-cli"), log);
-        }
-    }
-
-
-    public static List<Integer> port(String[] cmd, List<String> ignoreShells, Log log) {
-        List<Integer> port = new ArrayList<>();
-        StringBuilder sb = new StringBuilder();
-        BufferedReader br = null;
-        boolean execFlag = true;
-        try {
-            if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
-                Process p = Runtime.getRuntime().exec(cmd);
-                p.waitFor();
-                br = new BufferedReader(new InputStreamReader(p.getInputStream()));
-                String line;
-                while ((line = br.readLine()) != null) {
-                    log.info(line);
-                    boolean needIgnore = false;
-                    if (!ignoreShells.isEmpty()) {
-                        for (String ignoreShell : ignoreShells) {
-                            if (line.contains(ignoreShell)) {
-                                needIgnore = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (needIgnore) continue;
-                    String[] split = line.split("( )+");
-                    if (split.length > 2) {
-                        String portStr = split[1];
-                        try {
-                            port.add(Integer.parseInt(portStr));
-                        } catch (Exception ignore) {
-                        }
-                    }
-                }
-                br.close();
-                br = new BufferedReader(new InputStreamReader(p.getErrorStream()));
-                while ((line = br.readLine()) != null) {
-                    sb.append(System.lineSeparator());
-                    sb.append(line);
-                    if (line.length() > 0) {
-                        execFlag = false;
-                    }
-                }
-                if (execFlag) {
-
-                } else {
-                    throw new RuntimeException(sb.toString());
-                }
-            } else {
-                //throw new RuntimeException("不支持的操作系统类型");
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e.getMessage());
-            //log.error("执行失败",e);
-        } finally {
-            if (br != null) {
-                try {
-                    br.close();
-                } catch (IOException e) {
-                }
-            }
-        }
-        return port;
-    }
-
-    public static String execCmd(String cmd, String errorMsg, Log log) {
-        StringBuilder sb = new StringBuilder();
-        BufferedReader br = null;
-        try {
-            Process p = Runtime.getRuntime().exec(cmd);
-            p.waitFor();
-            br = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            String line;
-            while ((line = br.readLine()) != null) {
-                sb.append(System.lineSeparator());
-                sb.append(line);
-            }
-            br.close();
-            br = new BufferedReader(new InputStreamReader(p.getErrorStream()));
-            while ((line = br.readLine()) != null) {
-                sb.append(System.lineSeparator());
-                sb.append(line);
-            }
-        } catch (Exception e) {
-            log.warn(errorMsg, e.getMessage());
-        } finally {
-            if (br != null) {
-                try {
-                    br.close();
-                } catch (IOException e) {
-                }
-            }
-        }
-        return sb.toString();
-    }
-
-
     public CdcRoot getRoot() {
         return root;
     }
@@ -394,7 +270,7 @@ public class CdcHandle {
 
             //执行命令
             String sybasePocPath = root.getSybasePocPath();
-            execCmd(String.format(ExecCommand.RE_INIT_AND_ADD_TABLE,
+            ConnectorUtil.execCmd(String.format(ExecCommand.RE_INIT_AND_ADD_TABLE,
                     root.getCliPath(),
                     CommandType.CDC,
                     sybasePocPath,
@@ -450,12 +326,9 @@ public class CdcHandle {
     public List<Map<String, Object>> compileFilterTableYamlConfig(ConnectionConfig connectionConfig, TapConnectorContext context, List<String> initTables) {
         List<SybaseFilterConfig> filterConfigs = new ArrayList<>();
         List<Map<String, Object>> tableSetList = null;
-        Object filterTablesObj = context.getGlobalStateMap().get("CdcMonitorTableMap");
-        if (null == filterTablesObj) {
-            throw new CoreException("Can not fund cdc monitor table map in global state map");
-        }
+
         try {
-            tableSetList = (List<Map<String, Object>>) filterTablesObj;
+            tableSetList = ConnectorUtil.getCurrentInstanceCdcMonitorTableMapFromGlobalStateMap(context);
         } catch (Exception exception) {
             throw new CoreException("Can not fund cdc monitor table map in global state map, msg: {}", exception.getMessage());
         }
