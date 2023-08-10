@@ -2,6 +2,7 @@ package io.tapdata.connector.dws;
 
 import io.tapdata.common.JdbcContext;
 import io.tapdata.common.RecordWriter;
+import io.tapdata.common.dml.NormalRecordWriter;
 import io.tapdata.connector.dws.bean.DwsTapTable;
 import io.tapdata.connector.dws.config.DwsConfig;
 import io.tapdata.connector.dws.exception.DwsExceptionCollector;
@@ -15,7 +16,7 @@ import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
 
-public class DwsRecordWriter extends RecordWriter {
+public class DwsRecordWriter extends NormalRecordWriter {
     DwsConfig dwsConfig;
     public DwsRecordWriter(JdbcContext jdbcContext, DwsTapTable dwsTapTable) throws SQLException {
         super(jdbcContext, dwsTapTable.getTapTable());

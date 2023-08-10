@@ -3,7 +3,7 @@ package io.tapdata.connector.dws;
 import io.tapdata.common.WriteRecorder;
 import io.tapdata.connector.dws.bean.DwsTapTable;
 import io.tapdata.connector.dws.config.DwsConfig;
-import io.tapdata.connector.postgres.PostgresWriteRecorder;
+import io.tapdata.connector.postgres.dml.PostgresWriteRecorder;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
@@ -29,12 +29,12 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
 
     public DwsWriteRecorder(Connection connection, DwsTapTable dwsTapTable, String schema, boolean hasUnique) {
         super(connection, dwsTapTable.getTapTable(), schema);
-        uniqueConditionIsIndex = uniqueConditionIsIndex && hasUnique;
+//        uniqueConditionIsIndex = uniqueConditionIsIndex && hasUnique;
         this.dwsTapTable = dwsTapTable;
     }
 
     @Override
-    public void addInsertBatch(Map<String, Object> after) throws SQLException {
+    public void addInsertBatch(Map<String, Object> after, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         if (EmptyKit.isEmpty(after)) {
             return;
         }
@@ -148,14 +148,14 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
         preparedStatement.clearParameters();
         int pos = 1;
         if (hasPk) {
-            for (String key : updatedColumn) {
+            for (String key : setKeys) {
                 preparedStatement.setObject(pos++, filterInvalid(after.get(key)));
             }
             for (String key : uniqueCondition) {
                 preparedStatement.setObject(pos++, filterInvalid(after.get(key)));
             }
         } else {
-            for (String key : setKeys.stream().collect(Collectors.toSet())) {
+            for (String key : setKeys) {
                 preparedStatement.setObject(pos++, filterInvalid(after.get(key)));
             }
             for (String key : uniqueCondition) {
@@ -203,7 +203,7 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
     }
 
     //just insert
-    private void justInsert(Map<String, Object> after) throws SQLException {
+    protected void justInsert(Map<String, Object> after) throws SQLException {
         if (EmptyKit.isNull(preparedStatement)) {
             String insertSql = "INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
                     + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") " +
@@ -227,10 +227,10 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
             if (dwsTapTable.isPartition()){
                 conflictUpdateInsert(after);
             }else {
-                insertUpdate(after, getBeforeForUpdate(after, before, listResult));
+                insertUpdate(after, getBeforeForUpdate(after, before));
             }
         } else {
-            justUpdate(after, getBeforeForUpdate(after, before, listResult));
+            justUpdate(after, getBeforeForUpdate(after, before));
         }
         preparedStatement.addBatch();
     }
@@ -315,7 +315,7 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
     }
 
     @Override
-    public void addDeleteBatch(Map<String, Object> before) throws SQLException {
+    public void addDeleteBatch(Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         if (EmptyKit.isEmpty(before)) {
             return;
         }
@@ -345,5 +345,31 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
             return ((String) obj).replace("\u0000", "");
         }
         return obj;
+    }
+    protected void dealNullBefore(Map<String, Object> before, int pos) throws SQLException {
+        if (hasPk) {
+            for (String key : before.keySet()) {
+                preparedStatement.setObject(pos++, before.get(key));
+            }
+        } else {
+            for (String key : before.keySet()) {
+                preparedStatement.setObject(pos++, before.get(key));
+                preparedStatement.setObject(pos++, before.get(key));
+            }
+        }
+    }
+
+    protected int dealNullBeforeWithReturn(Map<String, Object> before, int pos) throws SQLException {
+        if (hasPk) {
+            for (String key : before.keySet()) {
+                preparedStatement.setObject(pos++, before.get(key));
+            }
+        } else {
+            for (String key : before.keySet()) {
+                preparedStatement.setObject(pos++, before.get(key));
+                preparedStatement.setObject(pos++, before.get(key));
+            }
+        }
+        return pos;
     }
 }

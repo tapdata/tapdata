@@ -228,7 +228,7 @@ public abstract class NormalWriteRecorder {
         setBeforeValue(containsNull, before, pos);
     }
 
-    private Map<String, Object> getBeforeForUpdate(Map<String, Object> after, Map<String, Object> before) {
+    protected Map<String, Object> getBeforeForUpdate(Map<String, Object> after, Map<String, Object> before) {
         //in some datasource, before of events is always empty, so before is unreliable
         Map<String, Object> lastBefore = new HashMap<>();
         if (EmptyKit.isEmpty(uniqueCondition)) {
@@ -239,7 +239,7 @@ public abstract class NormalWriteRecorder {
         return lastBefore;
     }
 
-    private Map<String, Object> getAfterForUpdate(Map<String, Object> after, Map<String, Object> before) {
+    protected Map<String, Object> getAfterForUpdate(Map<String, Object> after, Map<String, Object> before) {
         Map<String, Object> lastAfter = new HashMap<>();
         for (Map.Entry<String, Object> entry : after.entrySet()) {
             if (EmptyKit.isNotNull(entry.getValue()) && entry.getValue().equals(before.get(entry.getKey()))) {

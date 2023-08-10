@@ -7,7 +7,7 @@ import io.tapdata.connector.dws.bean.DwsTapTable;
 import io.tapdata.connector.dws.config.DwsConfig;
 import io.tapdata.connector.postgres.PostgresConnector;
 import io.tapdata.connector.postgres.PostgresJdbcContext;
-import io.tapdata.connector.postgres.PostgresRecordWriter;
+import io.tapdata.connector.postgres.dml.PostgresRecordWriter;
 import io.tapdata.connector.postgres.PostgresTest;
 import io.tapdata.connector.postgres.bean.PostgresColumn;
 import io.tapdata.connector.postgres.cdc.PostgresCdcRunner;
@@ -235,8 +235,9 @@ public class DwsConnector extends PostgresConnector {
                 dwsTapTable.set(new DwsTapTable(tapTable, false, distributedKeys));
             }
             dwsTapTableMap.put(tapTable.getId(), dwsTapTable.get());
-            /*connectorContext.getLog().info("dwsTapTableMap: tapTable=>{},isPartition=>{},getDistributedKeys=>{}", dwsTapTableMap.get(tapTable.getId()).getTapTable(),
-                    dwsTapTableMap.get(tapTable.getId()).isPartition(),dwsTapTableMap.get(tapTable.getId()).getDistributedKeys());*/
+            connectorContext.getLog().info("DwsTapTableMap has been loaded successfully,tapTable:{},isPartition:{},getDistributedKeys:{}",
+                    dwsTapTableMap.get(tapTable.getId()).getTapTable(),
+                    dwsTapTableMap.get(tapTable.getId()).isPartition(),dwsTapTableMap.get(tapTable.getId()).getDistributedKeys());
         }
 
         if (isTransaction) {
