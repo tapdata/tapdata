@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * @author samuel
@@ -20,8 +21,8 @@ public class ShareCdcTaskContext extends ShareCdcContext implements Serializable
 	private Node node;
 	private Connections connections;
 
-	public ShareCdcTaskContext(Long cdcStartTs, ConfigurationCenter configurationCenter, TaskDto taskDto, Node node, Connections connections) {
-		super(cdcStartTs, configurationCenter);
+	public ShareCdcTaskContext(Long cdcStartTs, ConfigurationCenter configurationCenter, TaskDto taskDto, Node node, Connections connections, List<String> tables) {
+		super(cdcStartTs, configurationCenter, tables);
 		this.taskDto = taskDto;
 		this.node = node;
 		this.connections = connections;

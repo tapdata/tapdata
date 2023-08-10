@@ -120,7 +120,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				.map(Connections::getNamespace)
 				.map(ShareCdcUtil::joinNamespaces)
 				.orElse(null);
-			this.tableNames = NodeUtil.getTableNames(shareCdcTaskContext.getNode());
+			this.tableNames = shareCdcTaskContext.getTables();
 			step = canShareCdc(step);
 			this.readRunners = new ArrayList<>();
 			logger.info(logWrapper(++step, "Init read thread pool completed"));

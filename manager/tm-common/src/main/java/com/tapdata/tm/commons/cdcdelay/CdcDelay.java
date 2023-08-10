@@ -112,4 +112,9 @@ public class CdcDelay implements ICdcDelay {
         }
         return recordEvent.getReferenceTime();
     }
+
+    public CdcDelay filter(boolean isFilter) {
+        this.isFilter = isFilter;
+        return this;
+    }
 }
