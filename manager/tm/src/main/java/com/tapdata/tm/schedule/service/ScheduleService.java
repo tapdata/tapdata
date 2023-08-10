@@ -25,7 +25,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 @Service
@@ -161,23 +160,24 @@ public class ScheduleService {
      * @param taskService
      */
     private void performTaskWithSpin(ObjectId taskId, String compareStatus, TaskService taskService) {
-        int maxAttempts = 10;
-        int attempts = 0;
+			TaskDto taskDto;
+			String status;
+			int maxAttempts = 10;
+			int attempts = 0;
+			do {
+				taskDto = taskService.findByTaskId(taskId, "status");
+				status = taskDto.getStatus();
+				// If the status is not "OK", sleep for 3 seconds before the next attempt
+				if (compareStatus.equals(status)) break;
 
-        TaskDto taskDto = taskService.findByTaskId(taskId, "status");
-        String status = taskDto.getStatus();
-        do {
-            // If the status is not "OK", sleep for 3 seconds before the next attempt
-            if (!compareStatus.equals(status)) {
-                attempts++;
-                try {
-                    Thread.sleep(3000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        } while (!compareStatus.equals(status) && attempts < maxAttempts);
-    }
+				try {
+					attempts++;
+					Thread.sleep(3000);
+				} catch (InterruptedException ignore) {
+					break;
+				}
+			} while (attempts < maxAttempts);
+		}
 
 }
 
