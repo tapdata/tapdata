@@ -6,14 +6,20 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.thymeleaf.spring5.SpringTemplateEngine;
 
-@Controller
+@Controller("/cache")
 @Setter(onMethod_ = {@Autowired})
 public class CacheController {
     private SpringTemplateEngine templateEngine ;
 
-    @RequestMapping("/cache/clear")
+    @RequestMapping
+    public String cacheIndex() {
+        templateEngine.clearTemplateCache();
+        return "cache/index";
+    }
+
+    @RequestMapping("/clear")
     public String clear() {
         templateEngine.clearTemplateCache();
-        return "redirect:/";
-    }
+			return "redirect:/cache";
+		}
 }
