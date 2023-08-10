@@ -141,7 +141,7 @@ public class MongodbWriter {
 		Object pksCache = table.primaryKeys(true);
 		if (null == pksCache) pksCache = table.primaryKeys();
 		final Collection<String> pks = (Collection<String>) pksCache;
-		UpdateOptions options = new UpdateOptions().upsert(true);
+		UpdateOptions options = new UpdateOptions().upsert(false);
 		MongoCollection<Document> collection = getMongoCollection(table.getId());
 		BulkWriteResult result = collection.bulkWrite(Collections.singletonList(normalWriteMode(inserted, updated, deleted, options, collection, pks, tapRecordEvent)));
 		if (result.getMatchedCount() <= 0) {
