@@ -162,7 +162,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			initTargetQueueConsumer();
 			initTargetConcurrentProcessorIfNeed();
 			initTapEventFilter();
-			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 1L, 1L, TimeUnit.SECONDS);
+			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 3L, 3L, TimeUnit.SECONDS);
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 	}
