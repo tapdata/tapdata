@@ -12,6 +12,7 @@ import io.tapdata.sybase.cdc.dto.start.SybaseGeneralConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseReInitConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseSrcConfig;
 import io.tapdata.sybase.util.ConfigPaths;
+import io.tapdata.sybase.util.ConnectorUtil;
 import io.tapdata.sybase.util.HostUtils;
 import io.tapdata.sybase.util.YamlUtil;
 import org.yaml.snakeyaml.DumperOptions;
@@ -190,7 +191,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
         YamlUtil yamlUtil = new YamlUtil(path, DumperOptions.ScalarStyle.SINGLE_QUOTED);
         List<LinkedHashMap<String, Object>> list = new ArrayList<>();
         if (filterConfig != null && !filterConfig.isEmpty()) {
-            list.addAll(SybaseReInitConfig.fixYaml0(filterConfig));
+            list.addAll(ConnectorUtil.fixYaml0(filterConfig));
             yamlUtil.update(map(entry(SybaseReInitConfig.configKey, list)));
         }
         return list;

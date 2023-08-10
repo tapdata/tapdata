@@ -28,13 +28,7 @@ class ExecCommand implements CdcStep<CdcRoot> {
     private CommandType commandType;
     private OverwriteType overwriteType;
     private boolean isRunCdc;
-
-
-    //private final static String RESTART_CDC = "%s/bin/replicant --reinitialize %s/config/filter_sybasease.yaml";
-
-    private final static String EXPORT_JAVA_HOME = "export JAVA_TOOL_OPTIONS=\"-Duser.language=en\"";
-    public final static String START_CDC = "$pocCliPath$/bin/replicant $commandType$ $pocPath$/config/sybase2csv/src_sybasease.yaml $pocPath$/config/sybase2csv/dst_localstorage.yaml --general $pocPath$/config/sybase2csv/general.yaml --filter $pocPath$/config/sybase2csv/filter_sybasease.yaml --extractor $pocPath$/config/sybase2csv/ext_sybasease.yaml --id $taskId$ --replace $overwriteType$ --verbose";
-
+    //public final static String START_CDC = "$pocCliPath$/bin/replicant $commandType$ $pocPath$/config/sybase2csv/src_sybasease.yaml $pocPath$/config/sybase2csv/dst_localstorage.yaml --general $pocPath$/config/sybase2csv/general.yaml --filter $pocPath$/config/sybase2csv/filter_sybasease.yaml --extractor $pocPath$/config/sybase2csv/ext_sybasease.yaml --id $taskId$ --replace $overwriteType$ --verbose";
 
     public ExecCommand(CdcRoot root, CommandType commandType, OverwriteType overwriteType) {
         this.root = root;
@@ -43,14 +37,16 @@ class ExecCommand implements CdcStep<CdcRoot> {
         isRunCdc = false;
     }
 
+    private final static String EXPORT_JAVA_HOME = "export JAVA_TOOL_OPTIONS=\"-Duser.language=en\"";
+
     private final static String START_CDC_0 = "%s/bin/replicant %s %s/config/sybase2csv/src_sybasease.yaml %s/config/sybase2csv/dst_localstorage.yaml --general %s/config/sybase2csv/general.yaml --filter %s --extractor %s/config/sybase2csv/ext_sybasease.yaml --id %s --replace %s --verbose";
 
     public final static String RE_INIT_AND_ADD_TABLE = START_CDC_0 + " --reinitialize %s/config/sybase2csv/task/%s/sybasease_reinit.yaml";
 
     @Override
     public synchronized CdcRoot compile() {
-        //if (isRunCdc) return root;
         String sybasePocPath = root.getSybasePocPath();
+        String processId = ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext());
         String cmd = String.format(START_CDC_0,
                 root.getCliPath(),
                 CommandType.type(commandType),
@@ -59,7 +55,7 @@ class ExecCommand implements CdcStep<CdcRoot> {
                 sybasePocPath,
                 root.getFilterTableConfigPath(),
                 sybasePocPath,
-                ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext()),
+                processId,
                 "--" + OverwriteType.type(overwriteType)
         );
         //String cmd = START_CDC
@@ -71,16 +67,11 @@ class ExecCommand implements CdcStep<CdcRoot> {
         root.getContext().getLog().info("shell is {}", cmd);
         try {
             Thread.sleep(500);
-            String[] cmds = new String[]{
-                    "/bin/sh",
-                    "-c",
-                    EXPORT_JAVA_HOME + "; " + cmd
-            };
+            String[] cmds = new String[]{"/bin/sh", "-c", EXPORT_JAVA_HOME + "; " + cmd};
             Process exec = run(cmds);
             if (null == exec) {
                 throw new CoreException("Cdc tool can not running, fail to get stream data");
             }
-            //isRunCdc = true;
             String name = exec.getClass().getName();
             long cdcPid = -1;
             Class<? extends Process> aClass = exec.getClass();
@@ -101,22 +92,18 @@ class ExecCommand implements CdcStep<CdcRoot> {
                 } else {
                     root.getContext().getLog().info("Cdc tool is running, but can not get it's pid, {}, {}", aClass.getName());
                 }
-            } catch (Exception ignore) {
-            }
+            } catch (Exception ignore) { }
             if (cdcPid > 0) {
                 root.getContext().getLog().info("Cdc tool is running which pid is {}", cdcPid);
             } else {
                 root.getContext().getLog().info("Cdc tool is running, but can not get it's pid, {}, {}", aClass.getName());
             }
-
-
         } catch (Exception e) {
             throw new CoreException("Command exec failed, unable to start cdc command: {}, msg: {}", cmd, e.getMessage());
         } finally {
             root.getContext().getLog().info("You can cat {}/config/sybase2csv/trace/{}/trace.log to view the log information generated during the corresponding cdc execution",
-                    sybasePocPath, root.getTaskCdcId());
+                    sybasePocPath, processId);
         }
-
         return this.root;
     }
 
@@ -187,23 +174,17 @@ class ExecCommand implements CdcStep<CdcRoot> {
                         execFlag = false;
                     }
                 }
-                if (execFlag) {
-
-                } else {
+                if (!execFlag) {
                     throw new RuntimeException(sb.toString());
                 }
-            } else {
-                //throw new RuntimeException("不支持的操作系统类型");
             }
         } catch (Exception e) {
             throw new RuntimeException(e.getMessage());
-            //log.error("执行失败",e);
         } finally {
             if (br != null) {
                 try {
                     br.close();
-                } catch (IOException e) {
-                }
+                } catch (IOException e) { }
             }
         }
         return port;
@@ -250,10 +231,10 @@ class ExecCommand implements CdcStep<CdcRoot> {
         root.setProcess(exec);
         try {
             exec.exitValue();
-            throw new CoreException(RUN_TOOL_FAIL, "Cdc tool can not running, fail to get stream data");//Utils.readFromInputStream(exec.getErrorStream(), StandardCharsets.UTF_8));
-        } catch (Exception ignore) {
+        } catch (Exception e) {
+            return exec;
         }
-        return exec;
+        throw new CoreException(RUN_TOOL_FAIL, "Cdc tool can not running, fail to get stream data");
     }
 
     public CdcRoot getRoot() {

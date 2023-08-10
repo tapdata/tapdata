@@ -18,7 +18,6 @@ import java.util.List;
  * @author GavinXiao
  * @description ReadCSVOfBigFile create by Gavin
  * @create 2023/7/24 12:10
- * @TODO
  **/
 public class ReadCSVOfBigFile implements ReadCSV {
     Log log;
@@ -80,7 +79,6 @@ public class ReadCSVOfBigFile implements ReadCSV {
         ) {
             reader.setLog(log);
             while (null != (strArr = reader.readNext())) {
-                //log.info(strArr.toString());
                 lines.add(new ArrayList<>(Arrays.asList(strArr)));
                 index++;
                 int size = lines.size();

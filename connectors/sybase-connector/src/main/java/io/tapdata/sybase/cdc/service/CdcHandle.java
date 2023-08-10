@@ -381,8 +381,8 @@ public class CdcHandle {
     }
 
     public List<Map<String, Object>> addTableAndRestartProcess(ConnectionConfig config, String database, String schema, List<String> newTables, Log log) {
-        CdcRoot compileBaseFile = new ConfigBaseField(root, "").compile();
-        ConfigYaml configYaml = new ConfigYaml(compileBaseFile, root.getVariables());
+        //CdcRoot compileBaseFile = new ConfigBaseField(root, "").compile();
+        ConfigYaml configYaml = new ConfigYaml(root, root.getVariables());
         //配置filter.yaml
         List<Map<String, Object>> filterTableYamlConfig = compileFilterTableYamlConfig(config, root.getContext(), newTables);
 
@@ -436,7 +436,7 @@ public class CdcHandle {
         Map<String, Object> tables = map();
         for (String cdcTable : cdcTables) {
             root.getContext().getLog().debug("table: {}, contains timestamp: {}", cdcTable, root.getContainsTimestampFieldTables().contains(cdcTable));
-            tables.put(cdcTable, null != root.getContainsTimestampFieldTables() && root.getContainsTimestampFieldTables().contains(cdcTable) ? SybaseFilterConfig.ignoreColumns() : SybaseFilterConfig.unIgnoreColumns());
+            tables.put(cdcTable, null != root.getContainsTimestampFieldTables() && root.getContainsTimestampFieldTables().contains(cdcTable) ? ConnectorUtil.ignoreColumns() : ConnectorUtil.unIgnoreColumns());
         }
         filterConfig.setAllow(tables);
         filterConfigs.add(filterConfig);
@@ -473,12 +473,12 @@ public class CdcHandle {
             Map<String, Object> tables = map();
             for (String cdcTable : initTables) {
                 //root.getContext().getLog().debug("table: {}, contains timestamp: {}", cdcTable, root.getContainsTimestampFieldTables().contains(cdcTable));
-                tables.put(cdcTable, null != root.getContainsTimestampFieldTables() && root.getContainsTimestampFieldTables().contains(cdcTable) ? SybaseFilterConfig.ignoreColumns() : SybaseFilterConfig.unIgnoreColumns());
+                tables.put(cdcTable, null != root.getContainsTimestampFieldTables() && root.getContainsTimestampFieldTables().contains(cdcTable) ? ConnectorUtil.ignoreColumns() : ConnectorUtil.unIgnoreColumns());
             }
             filterConfig.setAllow(tables);
             filterConfigs.add(filterConfig);
 
-            List<Map<String, Object>> currentSybaseFilterConfigs = SybaseFilterConfig.fixYaml(filterConfigs);
+            List<Map<String, Object>> currentSybaseFilterConfigs = ConnectorUtil.fixYaml(filterConfigs);
             Map<String, List<Map<String, Object>>> catalogMap = tableSetList.stream().collect(Collectors.groupingBy(t -> (String) t.get("catalog")));
             boolean exists = false;
             if (!catalogMap.isEmpty() && catalogMap.containsKey(database)) {
@@ -526,11 +526,8 @@ public class CdcHandle {
         if (null == cdcTables || cdcTables.isEmpty()) {
             return filterConfigs;
         }
-        Map<String, Object> tables = map();
-        for (String cdcTable : cdcTables) {
-            tables.put(cdcTable, null);
-        }
-        filterConfig.setAllow(tables);
+        Set<String> tables = new HashSet<>(cdcTables);
+        filterConfig.setAdd_tables(new ArrayList<>(tables));
         filterConfigs.add(filterConfig);
         CdcStartVariables variables = this.root.getVariables();
         if (null != variables) {

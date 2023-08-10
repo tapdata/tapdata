@@ -71,6 +71,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -485,8 +486,16 @@ public class SybaseConnector extends CommonDbConnector {
             }
             ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
             root.setContext(tapConnectorContext);
+            String sybasePocPath = cdcHandle.getRoot().getSybasePocPath();
+            if (null == sybasePocPath || "".equals(sybasePocPath.trim())) {
+                Object path = tapConnectorContext.getGlobalStateMap().get(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR);
+                if (null == path) {
+                    throw new CoreException("Can not get sybase poc cdc base path from global state map");
+                }
+                sybasePocPath = String.valueOf(path);
+            }
             cdcHandle.startListen(
-                    FilenameUtils.concat(cdcHandle.getRoot().getSybasePocPath(), ConfigPaths.SYBASE_USE_CSV_DIR + "/" + config.getDatabase() + "/" + config.getSchema()),
+                    sybasePocPath + ConfigPaths.SYBASE_USE_CSV_DIR + "/" + config.getDatabase() + "/" + config.getSchema(),
                     ConfigPaths.YAML_METADATA_NAME,
                     tables,
                     offset instanceof CdcPosition ? (CdcPosition) offset : new CdcPosition(),
@@ -626,7 +635,7 @@ public class SybaseConnector extends CommonDbConnector {
         Set<String> tableIds = ConnectorUtil.getAllTableFromTask(tapConnectorContext);
         if (root == null) root = new CdcRoot(unused -> isAlive());
         List<String> cdcTables = root.getCdcTables();
-        if (!ConnectorUtil.equalsTable(cdcTables, tableIds)) {
+        if (null != cdcTables && !ConnectorUtil.equalsTable(cdcTables, tableIds)) {
             tableIds.addAll(cdcTables);
         }
         final Set<String> containsTimestampFieldTables = ConnectorUtil.containsTimestampFieldTables(tableIds, sybaseContext);
@@ -648,15 +657,13 @@ public class SybaseConnector extends CommonDbConnector {
             File filterConfigFile = new File(CdcRoot.POC_TEMP_CONFIG_PATH);
             Object targetPath = globalStateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR);
 
-            Object cdcMonitorTableSet = globalStateMap.get("CdcMonitorTableMap");
-            Map<String, Map<String, Set<String>>> tableSetMap = (Map<String, Map<String, Set<String>>>) cdcMonitorTableSet;
             ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
             String database = config.getDatabase();
             String schema = config.getSchema();
-            Set<String> tableSet = null == tableSetMap ? null : tableSetMap.get(database) == null ? null : tableSetMap.get(database).get(schema);
+            Set<String> tableSet = ConnectorUtil.getTableFroMaintenanceCdcMonitorTableMap(tapConnectorContext, config);
 
             boolean cdcProcessIsAlive = false;
-            if (filterConfigFile.exists() && filterConfigFile.isFile() && null != tableSet && !tableSet.isEmpty() && null != targetPath) {
+            if (filterConfigFile.exists() && filterConfigFile.isFile() && !tableSet.isEmpty() && null != targetPath) {
                 List<Integer> port = CdcHandle.port(new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"},
                         list("grep sybase-poc/replicant-cli"),
                         root.getContext().getLog()
@@ -672,7 +679,7 @@ public class SybaseConnector extends CommonDbConnector {
                 if (portSize < 2) {
                     tapConnectorContext.getLog().warn("Cdc process not alive, will start cdc process now");
                     List<Map<String, Object>> mapList = cdcHandle.compileFilterTableYamlConfig(connectionConfig, tapConnectorContext, newTableInTask);
-                    root.getVariables().setFilterConfig(SybaseFilterConfig.fromYaml(mapList));
+                    root.getVariables().setFilterConfig(ConnectorUtil.fromYaml(mapList));
                     if (portSize > 0) {
                         CdcHandle.safeStopShell(tapConnectorContext.getLog());
                     }
@@ -692,7 +699,7 @@ public class SybaseConnector extends CommonDbConnector {
                 //首次启动CDC增量时
                 cdcHandle.initCdc(overwriteType);
                 List<SybaseFilterConfig> filterConfig = root.getVariables().getFilterConfig();
-                List<Map<String, Object>> linkedHashMaps = SybaseFilterConfig.fixYaml(filterConfig);
+                List<Map<String, Object>> linkedHashMaps = ConnectorUtil.fixYaml(filterConfig);
                 ConnectorUtil.maintenanceCdcMonitorTableMap(linkedHashMaps, tapConnectorContext);
                 //globalStateMap.put("CdcMonitorTableMap", linkedHashMaps);
             }

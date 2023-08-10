@@ -16,15 +16,21 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.sybase.SybaseConnector;
 import io.tapdata.sybase.cdc.dto.start.OverwriteType;
+import io.tapdata.sybase.cdc.dto.start.SybaseFilterConfig;
+import io.tapdata.sybase.cdc.dto.start.SybaseReInitConfig;
+import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.SybaseContext;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -188,6 +194,35 @@ public class ConnectorUtil {
         return sybaseFilters;
     }
 
+    public static Set<String> getTableFroMaintenanceCdcMonitorTableMap(TapConnectorContext tapConnectorContext, ConnectionConfig config) {
+        KVMap<Object> globalStateMap = tapConnectorContext.getGlobalStateMap();
+        Object cdcMonitorTableSet = globalStateMap.get("CdcMonitorTableMap");
+        List<Map<String, Object>> monitorTableSet = (List<Map<String, Object>>) cdcMonitorTableSet;
+        config = Optional.ofNullable(config).orElse(new ConnectionConfig(tapConnectorContext));
+        String database = config.getDatabase();
+        String schema = config.getSchema();
+        Set<String> tableSet = new HashSet<>();
+        if (null != monitorTableSet && !monitorTableSet.isEmpty()) {
+            monitorTableSet.stream().filter(Objects::nonNull).forEach(tableInfoMap -> {
+                Object catalogName = tableInfoMap.get("catalog");
+                Object schemaName = tableInfoMap.get("schema");
+                if (null != catalogName && catalogName.equals(database) && null != schemaName && schemaName.equals(schema)) {
+                    Object allowObj = tableInfoMap.get(SybaseFilterConfig.configKey);
+                    if (allowObj instanceof Collection) {
+                        Collection<Object> allowList = (Collection<Object>) allowObj;
+                        if (!allowList.isEmpty()) {
+                            allowList.stream().filter(item -> Objects.nonNull(item) && item instanceof Map).forEach(tabInfo -> {
+                                Map<String, Object> tableMap = (Map<String, Object>) tabInfo;
+                                tableSet.addAll(tableMap.keySet());
+                            });
+                        }
+                    }
+                }
+            });
+        }
+        return tableSet;
+    }
+
     /**
      * 清空GlobalStateMap中维护任务正在被cdc监听的表
      */
@@ -270,5 +305,82 @@ public class ConnectorUtil {
     public synchronized static void removeGlobalCdcProcessId(TapConnectorContext tapConnectionContext) {
         KVMap<Object> globalStateMap = tapConnectionContext.getGlobalStateMap();
         globalStateMap.remove("globalSybaseCdcProcessId");
+    }
+
+    public static List<Map<String, Object>> fixYaml(List<SybaseFilterConfig> configs) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        if (null == configs || configs.isEmpty()) return list;
+        configs.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(SybaseFilterConfig::getCatalog)).forEach((cl, r) -> {
+            r.stream().collect(Collectors.groupingBy(SybaseFilterConfig::getSchema)).forEach((s, ri) -> {
+                LinkedHashMap<String, Object> map = new LinkedHashMap<>();
+                map.put("catalog", cl);
+                map.put("schema", s);
+                if (ri == null) ri = new ArrayList<>();
+                map.put("types", ri.isEmpty() ? null : ri.get(0).getTypes());
+                Map<String, Object> tab = new HashMap<>();
+                for (SybaseFilterConfig config : ri) {
+                    tab.putAll(config.getAllow());
+                }
+                map.put("allow", tab);
+                list.add(map);
+            });
+        });
+        return list;
+    }
+
+    public static List<LinkedHashMap<String, Object>> fixYaml0(List<SybaseReInitConfig> configs) {
+        List<LinkedHashMap<String, Object>> list = new ArrayList<>();
+        if (null == configs || configs.isEmpty()) return list;
+        configs.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(SybaseReInitConfig::getCatalog)).forEach((cl, r) -> {
+            r.stream().collect(Collectors.groupingBy(SybaseReInitConfig::getSchema)).forEach((s, ri) -> {
+                LinkedHashMap<String, Object> map = new LinkedHashMap<>();
+                map.put("catalog", cl);
+                map.put("schema", s);
+                Set<String> tab = new HashSet<>();
+                for (SybaseReInitConfig sybaseReInitConfig : ri) {
+                    tab.addAll(sybaseReInitConfig.getAdd_tables());
+                }
+                map.put("add-tables", tab);
+                list.add(map);
+            });
+        });
+        return list;
+    }
+
+    public static List<SybaseFilterConfig> fromYaml(List<Map<String, Object>> mapList) {
+        List<SybaseFilterConfig> list = new ArrayList<>();
+        if (null != mapList && !mapList.isEmpty()) {
+            for (Map<String, Object> map : mapList) {
+                SybaseFilterConfig config = new SybaseFilterConfig();
+                config.setCatalog(((String) map.get("catalog")));
+                config.setSchema(((String) map.get("schema")));
+                config.setTypes(((List<String>) map.get("types")));
+                config.setAllow((Map<String, Object>) map.get("allow"));
+            }
+        }
+        return list;
+    }
+
+//    public static final Map<String, List<String>> ignoreColumns = new HashMap<String, List<String>>() {{
+//        put("block", new ArrayList<String>() {{
+//            add("timestamp");
+//        }});
+//    }};
+//    public static final Map<String, List<String>> unIgnoreColumns = new HashMap<String, List<String>>() {{
+//        put("block", new ArrayList<String>());
+//    }};
+
+    public static Map<String, List<String>> unIgnoreColumns() {
+        Map<String, List<String>> hashMap = new HashMap<>();
+        hashMap.put("block", new ArrayList<String>());
+        return  hashMap;
+    }
+
+    public static Map<String, List<String>> ignoreColumns() {
+        Map<String, List<String>> hashMap = new HashMap<>();
+        List<String> timestamp = new ArrayList<>();
+        timestamp.add("timestamp");
+        hashMap.put("block", timestamp);
+        return hashMap;
     }
 }

@@ -63,7 +63,7 @@ public class CdcRoot {
         return sybasePocPath.endsWith("/") ? sybasePocPath.substring(0, sybasePocPath.length() - 1) : sybasePocPath;
     }
 
-    public static final String POC_TEMP_CONFIG_PATH = "sybase-poc-temp/config/filter_sybasease.yaml";
+    public static final String POC_TEMP_CONFIG_PATH = "sybase-poc-temp/sybase-poc/config/sybase2csv/filter_sybasease.yaml";
 
     public String getFilterTableConfigPath() {
         return new File(POC_TEMP_CONFIG_PATH).getAbsolutePath();
