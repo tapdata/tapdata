@@ -14,6 +14,7 @@ import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.entity.task.NodeUtil;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.ConstructIterator;
 import io.tapdata.construct.HazelcastConstruct;
@@ -86,6 +87,9 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	private Future<?> future;
 	private StreamReadConsumer streamReadConsumer;
 	private CountDownLatch readCountDown;
+	private static final String[] NOT_CHECK_POINT_TABLES = {
+			ConnHeartbeatUtils.TABLE_NAME
+	};
 
 	ShareCdcPDKTaskReader(Object offset) {
 		super();
@@ -186,6 +190,9 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	private int checkTableStartPointValid(int step) throws ShareCdcUnsupportedException {
 		logger.info(logWrapper(++step, "Check tables start point valid"));
 		for (String tableName : tableNames) {
+			if (Arrays.binarySearch(NOT_CHECK_POINT_TABLES, tableName) >= 0) {
+				continue;
+			}
 			ConstructRingBuffer<Document> constructRingBuffer = getConstruct(tableName);
 			// Check cdc start timestamp is available in log storage
 			try {
