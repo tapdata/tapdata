@@ -1,9 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.google.common.collect.Maps;
-import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.StringUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
@@ -35,8 +33,6 @@ import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
-import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleaner;
-import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleanerEntity;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
@@ -49,7 +45,6 @@ import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
@@ -187,20 +182,36 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	private void createTable(TapTableMap<String, TapTable> tapTableMap, TableInitFuncAspect funcAspect, Node<?> node, ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
 		TapTable tapTable = tapTableMap.get(tableId);
+		List<String> updateConditionFields = getUpdateConditionFields(node, tapTable);
 		if (null == tapTable) {
 			TapCodeException e = new TapCodeException(TaskTargetProcessorExCode_15.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: " + tableId);
 			if (null != funcAspect) funcAspect.setThrowable(e);
 			throw e;
 		}
 		dropTable(existsDataProcessEnum, tableId);
-		boolean createdTable = createTable(tapTable);
+		boolean createUnique = tapTable.getIndexList().stream().anyMatch(idx -> !idx.isPrimary() && idx.isUnique() && (idx.getIndexFields().size() == updateConditionFields.size()) &&
+				(idx.getIndexFields().stream().allMatch(idxField -> updateConditionFields.contains(idxField.getName()))));
+		AtomicBoolean succeed = new AtomicBoolean(false);
+		boolean createdTable = createTable(tapTable, succeed);
 		clearData(existsDataProcessEnum, tableId);
-		createTargetIndex(node, tableId, tapTable, createdTable);
+		createUnique &= succeed.get();
+		createTargetIndex(updateConditionFields, createUnique, tableId, tapTable, createdTable);
 		if (null != funcAspect)
 			funcAspect.state(TableInitFuncAspect.STATE_PROCESS).completed(tableId, createdTable);
 	}
 
-	private void createTargetIndex(Node node, String tableId, TapTable tapTable, boolean createdTable) {
+	private List<String> getUpdateConditionFields(Node<?> node, TapTable tapTable) {
+		if (node instanceof TableNode) {
+			return ((TableNode) node).getUpdateConditionFields();
+		} else if (node instanceof DatabaseNode) {
+			Map<String, List<String>> updateConditionFieldMap = ((DatabaseNode) node).getUpdateConditionFieldMap();
+			return updateConditionFieldMap.computeIfAbsent(tapTable.getId(), s -> new ArrayList<>(tapTable.primaryKeys(true)));
+		} else {
+			return null;
+		}
+	}
+
+	private void createTargetIndex(List<String> updateConditionFields, boolean createUnique, String tableId, TapTable tapTable, boolean createdTable) {
 
 		if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.appendWrite.name())) {
 			return;
@@ -213,15 +224,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		AtomicReference<TapCreateIndexEvent> indexEvent = new AtomicReference<>();
 		try {
 			List<TapIndex> tapIndices = new ArrayList<>();
-			TapIndex tapIndex = new TapIndex();
+			TapIndex tapIndex = new TapIndex().unique(createUnique);
 			List<TapIndexField> tapIndexFields = new ArrayList<>();
-			List<String> updateConditionFields = null;
-			if (node instanceof TableNode) {
-				updateConditionFields = ((TableNode) node).getUpdateConditionFields();
-			} else if (node instanceof DatabaseNode) {
-				Map<String, List<String>> updateConditionFieldMap = ((DatabaseNode) node).getUpdateConditionFieldMap();
-				updateConditionFields = updateConditionFieldMap.computeIfAbsent(tapTable.getId(), s -> new ArrayList<>(tapTable.primaryKeys(true)));
-			}
 			if (null == updateConditionFields) {
 				obsLogger.warn("Table " + tableId + " index fields is null, will not create index automatically");
 				return;
@@ -236,7 +240,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 //					obsLogger.info("Table " + tableId + " use the primary key as the update condition, which is created when the table is create, and ignored");
 					return;
 				}
-
 				updateConditionFields.forEach(field -> {
 					TapIndexField tapIndexField = new TapIndexField();
 					tapIndexField.setName(field);
@@ -541,7 +544,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private boolean executeCreateTableFunction(TapCreateTableEvent tapCreateTableEvent) {
 		String tgtTableName = getTgtTableNameFromTapEvent(tapCreateTableEvent);
 		TapTable tgtTapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
-		return createTable(tgtTapTable);
+		return createTable(tgtTapTable, new AtomicBoolean());
 	}
 
 	private boolean executeCreateIndexFunction(TapCreateIndexEvent tapCreateIndexEvent) {
