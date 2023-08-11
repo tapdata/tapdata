@@ -85,9 +85,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
 
     public void onStop() {
         try {
-            if (null != fileMonitor) {
-                fileMonitor.stop();
-            }
+            Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
 //            final Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap = getTableFromConfig(root.getCdcTables());
 //            //currentFileNames = null;
 //            if (null != tables) {

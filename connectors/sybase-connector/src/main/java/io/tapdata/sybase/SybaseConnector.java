@@ -65,6 +65,7 @@ import io.tapdata.sybase.extend.SybaseConnectionTest;
 import io.tapdata.sybase.extend.SybaseContext;
 import io.tapdata.sybase.extend.SybaseReader;
 import io.tapdata.sybase.extend.SybaseSqlBatchWriter;
+import io.tapdata.sybase.extend.SybaseSqlMaker;
 import io.tapdata.sybase.extend.SybaseSqlMarker;
 import io.tapdata.sybase.util.Code;
 import io.tapdata.sybase.util.Utils;
@@ -136,7 +137,7 @@ public class SybaseConnector extends CommonDbConnector {
         sybaseContext = new SybaseContext(sybaseConfig);
         commonDbConfig = sybaseConfig;
         jdbcContext = sybaseContext;
-        commonSqlMaker = new CommonSqlMaker('`');
+        commonSqlMaker = new SybaseSqlMaker('"');
         exceptionCollector = new MysqlExceptionCollector();
         log = tapConnectionContext.getLog();
         if (tapConnectionContext instanceof TapConnectorContext) {
@@ -179,6 +180,10 @@ public class SybaseConnector extends CommonDbConnector {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
+        Log log = connectionContext.getLog();
+        if (null == log) {
+            throw new CoreException("Can not get Log from TapConnectionContext when task on stop");
+        }
         started.set(false);
         try {
             Optional.ofNullable(this.sybaseReader).ifPresent(MysqlReader::close);
@@ -186,12 +191,13 @@ public class SybaseConnector extends CommonDbConnector {
         try {
             Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy);
         } catch (Exception ignored) { }
+
         if (null != sybaseContext) {
             try {
                 this.sybaseContext.close();
                 this.sybaseContext = null;
             } catch (Exception e) {
-                TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
+                log.error("Release connector failed, error: {}, {}" + e.getMessage(), getStackString(e));
             }
         }
 
@@ -212,8 +218,7 @@ public class SybaseConnector extends CommonDbConnector {
         if (null == cdcHandle)
             cdcHandle = new CdcHandle(new CdcRoot(unused -> isAlive()), context, new StopLock(isAlive()));
         CdcRoot root = cdcHandle.getRoot();
-        if (null == root) cdcHandle.setRoot(new CdcRoot(unused -> isAlive()));
-        root = cdcHandle.getRoot();
+        if (null == root) cdcHandle.setRoot(root = new CdcRoot(unused -> isAlive()));
         TapConnectorContext rootContext = root.getContext();
         if (null == rootContext) root.setContext(context);
         Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::releaseCdc);
@@ -221,14 +226,14 @@ public class SybaseConnector extends CommonDbConnector {
         stateMap.put("tableOverType", OverwriteType.OVERWRITE.getType());
 
         final String closeCdcPositionSql = "dbcc settrunc('ltm','ignore')";
-        if (null == sybaseConfig) {
-            sybaseConfig = new SybaseConfig().load(context.getConnectionConfig());
-        }
-        sybaseContext = new SybaseContext(sybaseConfig);
         try {
+            if (null == sybaseConfig) {
+                sybaseConfig = new SybaseConfig().load(context.getConnectionConfig());
+            }
+            sybaseContext = new SybaseContext(sybaseConfig);
             sybaseContext.execute(closeCdcPositionSql);
         } catch (Exception e) {
-            context.getLog().error("Fail to close cdc log, please execute sql in client: {}", closeCdcPositionSql);
+            context.getLog().warn("Fail to close cdc log, please execute sql in client: {}", closeCdcPositionSql);
         }
     }
 

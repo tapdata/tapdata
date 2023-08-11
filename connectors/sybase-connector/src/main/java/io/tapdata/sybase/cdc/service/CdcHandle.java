@@ -200,10 +200,11 @@ public class CdcHandle {
         if (null != listenFile) listenFile.onStop();
         Optional.ofNullable(root.getProcess()).ifPresent(Process::destroy);
         Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
-        KVMap<Object> stateMap = context.getStateMap();
-        Object cdcPath = stateMap.get("cdcPath");
+        Object cdcPath = "";
         try {
             if (context != null) {
+                KVMap<Object> stateMap = context.getStateMap();
+                cdcPath = stateMap.get("cdcPath");
                 if (null == cdcPath || "/*".equals(cdcPath) || "".equals(cdcPath.toString().trim())) {
                     return;
                 }
@@ -220,7 +221,8 @@ public class CdcHandle {
                 }
             }
         } catch (Exception e) {
-            context.getLog().warn("Can not release cdc path, please go to path: {}, and clean the file", cdcPath);
+            Object finalCdcPath = cdcPath;
+            Optional.ofNullable(context.getLog()).ifPresent(log -> log.warn("Can not release cdc path, please go to path: {}, and clean the file", finalCdcPath));
         }
         //Optional.ofNullable()
     }
