@@ -24,6 +24,8 @@ public class IMClientImpl implements IMClient {
     private String service;
     private List<String> baseUrls;
     private String token;
+    private String cachedAccessToken;
+    private String cachedCookie;
     private Integer terminal;
 
     private AtomicLong msgCounter;
@@ -253,5 +255,21 @@ public class IMClientImpl implements IMClient {
             resultMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
         }
         return memory;
+    }
+
+    public String getCachedAccessToken() {
+        return cachedAccessToken;
+    }
+
+    public void setCachedAccessToken(String cachedAccessToken) {
+        this.cachedAccessToken = cachedAccessToken;
+    }
+
+    public String getCachedCookie() {
+        return cachedCookie;
+    }
+
+    public void setCachedCookie(String cachedCookie) {
+        this.cachedCookie = cachedCookie;
     }
 }

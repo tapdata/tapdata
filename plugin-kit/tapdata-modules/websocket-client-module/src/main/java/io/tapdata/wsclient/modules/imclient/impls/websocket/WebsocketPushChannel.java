@@ -1,5 +1,6 @@
 package io.tapdata.wsclient.modules.imclient.impls.websocket;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import io.netty.channel.*;
 import io.tapdata.entity.error.CoreException;
@@ -172,14 +173,28 @@ public class WebsocketPushChannel extends PushChannel {
         Map<String, String> headers = new HashMap<>();
         JSONObject data = null;
         String jsonStr = Objects.requireNonNull(InstanceFactory.instance(JsonParser.class)).toJson(loginObj);
-        String theUrl = baseUrl;
+
+        if(imClient.getCachedAccessToken() == null) {
+            imClient.setCachedAccessToken(refreshAccessToken(baseUrl));
+        }
+        String theUrl = baseUrl + "?access_token=" + imClient.getCachedAccessToken();
         TapEngineUtils tapEngineUtils = InstanceFactory.instance(TapEngineUtils.class);
         if(tapEngineUtils != null) {
             theUrl = tapEngineUtils.signUrl("POST", theUrl, jsonStr);
         }
 
         try {
-            data = HttpUtils.post(theUrl, jsonStr, headers);
+            String finalTheUrl = theUrl;
+            if(imClient.getCachedCookie() != null) {
+                headers.put("Cookie", imClient.getCachedCookie());
+            }
+            data = HttpUtils.post(theUrl, jsonStr, headers, (code, message) -> {
+                if(code == 401) {
+                    String newToken = refreshAccessToken(baseUrl);
+                    imClient.setCachedAccessToken(newToken);
+                }
+                throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Login failed, accessToken {}, code {} message {} for theUrl {}", imClient.getCachedAccessToken(), code, message, finalTheUrl);
+            });
         } catch (IOException e) {
             throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Login url {} loginObj {} headers {} failed, {}", baseUrl, loginObj, headers, e.getMessage());
         }
@@ -213,6 +228,40 @@ public class WebsocketPushChannel extends PushChannel {
         if(protocol == null || wsPort == null || host == null || sid == null) {
             throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Illegal parameters for wsPort " + wsPort + " host " + host + " server " + server + " sid " + sid + " protocol " + protocol);
         }
+    }
+
+    private String refreshAccessToken(String baseUrl) {
+        String token = imClient.getToken();
+        if(token == null) {
+            throw new CoreException(NetErrors.TOKEN_NOT_FOUND, "Token not found");
+        }
+        int pos = baseUrl.indexOf("/api/") + "/api/".length();
+        String newBaseUrl = baseUrl.substring(0, pos);
+
+        JSONObject param = new JSONObject();
+        param.put("accesscode", imClient.getToken());
+        String newToken = null;
+        JSONObject jsonObject = null;
+        try {
+            String theUrl = newBaseUrl + "users/generatetoken";
+            TapEngineUtils tapEngineUtils = InstanceFactory.instance(TapEngineUtils.class);
+            String jsonStr = JSON.toJSONString(param);
+            theUrl = tapEngineUtils.signUrl("POST", theUrl, jsonStr);
+            jsonObject = HttpUtils.post(theUrl, jsonStr, null);
+            newToken = jsonObject.getString("id");
+            String userId = jsonObject.getString("userId");
+            if(userId != null) {
+                imClient.setCachedCookie("user_id=" + userId);
+            } else {
+                imClient.setCachedCookie(null);
+            }
+        } catch (IOException e) {
+            throw new CoreException(NetErrors.GENERATE_TOKEN_FAILED, e, "Generate access token failed, " + e.getMessage());
+        }
+        if(newToken == null) {
+            throw new CoreException(NetErrors.GENERATE_TOKEN_FAILED, "Generate access token failed, token not found in result " + jsonObject);
+        }
+        return newToken;
     }
 
     private void connectWS(String protocol, final String host, final int port, String path) {
