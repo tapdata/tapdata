@@ -180,7 +180,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (null != dataProcessorContext.getTapTableMap()) {
 			dataProcessorContext.getTapTableMap().putNew(exactlyOnceTable.getId(), exactlyOnceTable, exactlyOnceTable.getId());
 		}
-		boolean create = createTable(exactlyOnceTable);
+		boolean create = createTable(exactlyOnceTable, new AtomicBoolean());
 		if (create) {
 			obsLogger.info("Create exactly once write cache table: {}", exactlyOnceTable);
 			CreateIndexFunction createIndexFunction = connectorFunctions.getCreateIndexFunction();
@@ -209,7 +209,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		obsLogger.info("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
 	}
 
-	protected boolean createTable(TapTable tapTable) {
+	protected boolean createTable(TapTable tapTable, AtomicBoolean succeed) {
 		AtomicReference<TapCreateTableEvent> tapCreateTableEvent = new AtomicReference<>();
 		boolean createdTable;
 		try {
@@ -227,6 +227,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> {
 							if (createTableV2Function != null) {
 								CreateTableOptions createTableOptions = createTableV2Function.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
+								succeed.set(!createTableOptions.getTableExists());
 								if (createTableFuncAspect != null)
 									createTableFuncAspect.createTableOptions(createTableOptions);
 							} else {
