@@ -1,5 +1,6 @@
 package io.tapdata.sybase.cdc.dto.read;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -10,7 +11,7 @@ import java.util.Optional;
  * @create 2023/7/12 18:54
  **/
 public class CdcPosition {
-    Map<String, PositionOffset> tableOffset;
+    Map<String, Map<String, Map<String, PositionOffset>>> tableOffset;
     long cdcStartTime;
 
     public CdcPosition() {
@@ -30,21 +31,32 @@ public class CdcPosition {
         this.cdcStartTime = cdcStartTime;
     }
 
-    public CdcPosition(String tableName, PositionOffset positionOffset) {
-        tableOffset = new LinkedHashMap<>();
-        tableOffset.put(tableName, positionOffset);
+    public CdcPosition(String database, String schema, String tableName, PositionOffset positionOffset) {
+        tableOffset = new HashMap<>();
+        Map<String, Map<String, PositionOffset>> schemaMap = new HashMap<>();
+        tableOffset.put(database, schemaMap);
+        schemaMap.put(schema, new LinkedHashMap<>());
+        schemaMap.get(schema).put(tableName, positionOffset);
     }
 
-    public CdcPosition(Map<String, PositionOffset> positionOffsetMap) {
+    public CdcPosition(Map<String, Map<String, Map<String, PositionOffset>>> positionOffsetMap) {
         tableOffset = Optional.ofNullable(positionOffsetMap).orElse(new LinkedHashMap<>());
     }
 
-    public PositionOffset get(String tableName) {
-        return null == tableOffset ? null : tableOffset.get(tableName);
+    public PositionOffset get(String database, String schema, String tableName) {
+        if (null == tableOffset) return null;
+        Map<String, Map<String, PositionOffset>> databaseMap = tableOffset.get(database);
+        if (null == databaseMap) return null;
+        Map<String, PositionOffset> schemaMap = databaseMap.get(schema);
+        if (null == schemaMap) return null;
+        return schemaMap.get(tableName);
     }
 
-    public void add(String tableName, PositionOffset offset) {
-        tableOffset.put(tableName, offset);
+    public void add(String database, String schema, String tableName, PositionOffset offset) {
+        if (null == tableOffset) tableOffset = new HashMap<>();
+        Map<String, Map<String, PositionOffset>> databaseMap = tableOffset.computeIfAbsent(database, k -> new HashMap<>());
+        Map<String, PositionOffset> schemaMap = databaseMap.computeIfAbsent(schema, k -> new LinkedHashMap<>());
+        schemaMap.put(tableName, offset);
     }
 
     public static class PositionOffset {
@@ -98,11 +110,11 @@ public class CdcPosition {
         }
     }
 
-    public Map<String, PositionOffset> getTableOffset() {
+    public Map<String, Map<String, Map<String, PositionOffset>>> getTableOffset() {
         return tableOffset;
     }
 
-    public void setTableOffset(Map<String, PositionOffset> tableOffset) {
+    public void setTableOffset(Map<String, Map<String, Map<String, PositionOffset>>> tableOffset) {
         this.tableOffset = tableOffset;
     }
 }

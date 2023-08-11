@@ -127,7 +127,7 @@ public class CdcHandle {
         this.root.setVariables(
                 startVariables
                         .extConfig(extConfig)
-                        .filterConfig(compileFilterTableYamlConfig(connectionConfig))
+                        .filterConfig(compileFilterTableYamlConfig0(root.getCdcTables()))
                         .srcConfig(srcConfig)
                         .sybaseDstLocalStorage(dstLocalStorage)
                         .sybaseGeneralConfig(generalConfig)
@@ -145,7 +145,7 @@ public class CdcHandle {
     public synchronized CdcPosition startListen(
             String monitorPath,
             String monitorFileName,
-            List<String> tables,
+            Map<String, Map<String, List<String>>> tables,
             CdcPosition position,
             int batchSize,
             StreamReadConsumer consumer) {
@@ -225,28 +225,28 @@ public class CdcHandle {
     }
 
 //Step #end 2
-//    public synchronized void stopCdc() {
-//        if (null != listenFile) listenFile.onStop();
-//        //@todo
-//        Optional.ofNullable(root.getProcess()).ifPresent(Process::destroy);
-//
-//        safeStopShell();
-//        //@todo
-//        root.setProcess(null);
-//        try {
-//            Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
-//        } catch (Exception e) {
-//            root.getContext().getLog().info(e.getMessage());
-//        }
-//
-//        NodeConfig nodeConfig = new NodeConfig(context);
-//        try {
-//            //缓冲作用，延时停止，等待数据库进程释放
-//            closeLock.wait(nodeConfig.getCloseDelayMill());
-//        } catch (Exception e) {
-//
-//        }
-//    }
+    public synchronized void stopCdc() {
+        if (null != listenFile) listenFile.onStop();
+        //@todo
+        Optional.ofNullable(root.getProcess()).ifPresent(Process::destroy);
+
+        ConnectorUtil.safeStopShell(context);
+        //@todo
+        root.setProcess(null);
+        try {
+            Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
+        } catch (Exception e) {
+            root.getContext().getLog().info(e.getMessage());
+        }
+
+        NodeConfig nodeConfig = new NodeConfig(context);
+        try {
+            //缓冲作用，延时停止，等待数据库进程释放
+            closeLock.wait(nodeConfig.getCloseDelayMill());
+        } catch (Exception e) {
+
+        }
+    }
 
     public CdcRoot getRoot() {
         return root;
@@ -256,15 +256,15 @@ public class CdcHandle {
         this.root = root;
     }
 
-    public List<Map<String, Object>> addTableAndRestartProcess(ConnectionConfig config, String database, String schema, List<String> newTables, Log log) {
+    public List<Map<String, Object>> addTableAndRestartProcess(ConnectionConfig config, Map<String, Map<String, List<String>>> allTables, Map<String, Map<String, List<String>>> appendTables, Log log) {
         //CdcRoot compileBaseFile = new ConfigBaseField(root, "").compile();
         ConfigYaml configYaml = new ConfigYaml(root, root.getVariables());
         //配置filter.yaml
-        List<Map<String, Object>> filterTableYamlConfig = compileFilterTableYamlConfig(config, root.getContext(), newTables);
+        List<Map<String, Object>> filterTableYamlConfig = compileFilterTableYamlConfig(allTables);
 
-        if (null != newTables && !newTables.isEmpty()) {
+        if (null != appendTables && !appendTables.isEmpty()) {
             //配置 reInit.yaml
-            List<SybaseReInitConfig> initTables = compileReInitTableYamlConfig(newTables, database, schema, log);
+            List<SybaseReInitConfig> initTables = compileReInitTableYamlConfig(appendTables, log);
             //写入 reInit.yaml
             List<LinkedHashMap<String, Object>> initTable = configYaml.configReInitTable(initTables);
 
@@ -294,114 +294,48 @@ public class CdcHandle {
         return sybaseFilter;
     }
 
-
-    /**
-     * @deprecated onley on alone task to config
-     */
-    public List<SybaseFilterConfig> compileFilterTableYamlConfig(ConnectionConfig connectionConfig) {
+    public List<Map<String, Object>> compileFilterTableYamlConfig(Map<String, Map<String, List<String>>> appendTables) {
+        return ConnectorUtil.fixYaml(compileFilterTableYamlConfig0(appendTables));
+    }
+    public List<SybaseFilterConfig> compileFilterTableYamlConfig0(Map<String, Map<String, List<String>>> appendTables) {
         List<SybaseFilterConfig> filterConfigs = new ArrayList<>();
-        SybaseFilterConfig filterConfig = new SybaseFilterConfig();
-        filterConfig.setCatalog(connectionConfig.getDatabase());
-        filterConfig.setSchema(connectionConfig.getSchema());
-        filterConfig.setTypes(list("TABLE", "VIEW"));
-
-        List<String> cdcTables = root.getCdcTables();
-        if (null == cdcTables || cdcTables.isEmpty()) {
-            throw new CoreException(Code.STREAM_READ_WARN, "Not any table need to cdc");
-        }
-        Map<String, Object> tables = map();
-        for (String cdcTable : cdcTables) {
-            root.getContext().getLog().debug("table: {}, contains timestamp: {}", cdcTable, root.getContainsTimestampFieldTables().contains(cdcTable));
-            tables.put(cdcTable, null != root.getContainsTimestampFieldTables() && root.getContainsTimestampFieldTables().contains(cdcTable) ? ConnectorUtil.ignoreColumns() : ConnectorUtil.unIgnoreColumns());
-        }
-        filterConfig.setAllow(tables);
-        filterConfigs.add(filterConfig);
-        CdcStartVariables variables = this.root.getVariables();
-        if (null != variables) {
-            variables.filterConfig(filterConfigs);
-        }
+        appendTables.forEach((database, mapInfo) -> mapInfo.forEach((schema, initTables) -> {
+                if (null != initTables && !initTables.isEmpty()) {
+                    if (null == database || null == schema) {
+                        throw new CoreException("Unable get database or schema name, please set database or schema in connection config");
+                    }
+                    SybaseFilterConfig filterConfig = new SybaseFilterConfig();
+                    filterConfig.setCatalog(database);
+                    filterConfig.setSchema(schema);
+                    filterConfig.setTypes(list("TABLE", "VIEW"));
+                    Map<String, Object> tables = map();
+                    for (String cdcTable : initTables) {
+                        final boolean contains = root.hasContainsTimestampFieldTables(database, schema, cdcTable);
+                        root.getContext().getLog().debug("table: {}, contains timestamp: {}", cdcTable, contains);
+                        tables.put(cdcTable, contains ? ConnectorUtil.ignoreColumns() : ConnectorUtil.unIgnoreColumns());
+                    }
+                    filterConfig.setAllow(tables);
+                    filterConfigs.add(filterConfig);
+                }
+            })
+        );
         return filterConfigs;
     }
 
-    public List<Map<String, Object>> compileFilterTableYamlConfig(ConnectionConfig connectionConfig, TapConnectorContext context, List<String> initTables) {
-        List<SybaseFilterConfig> filterConfigs = new ArrayList<>();
-        List<Map<String, Object>> tableSetList = null;
-
-        try {
-            tableSetList = ConnectorUtil.getCurrentInstanceCdcMonitorTableMapFromGlobalStateMap(context);
-        } catch (Exception exception) {
-            throw new CoreException("Can not fund cdc monitor table map in global state map, msg: {}", exception.getMessage());
-        }
-
-        if (null != initTables && !initTables.isEmpty()) {
-            String database = connectionConfig.getDatabase();
-            String schema = connectionConfig.getSchema();
-            if (null == database || null == schema) {
-                throw new CoreException("Unable get database or schema name, please set database or schema in connection config");
-            }
-            SybaseFilterConfig filterConfig = new SybaseFilterConfig();
-            filterConfig.setCatalog(database);
-            filterConfig.setSchema(schema);
-            filterConfig.setTypes(list("TABLE", "VIEW"));
-            Map<String, Object> tables = map();
-            for (String cdcTable : initTables) {
-                //root.getContext().getLog().debug("table: {}, contains timestamp: {}", cdcTable, root.getContainsTimestampFieldTables().contains(cdcTable));
-                tables.put(cdcTable, null != root.getContainsTimestampFieldTables() && root.getContainsTimestampFieldTables().contains(cdcTable) ? ConnectorUtil.ignoreColumns() : ConnectorUtil.unIgnoreColumns());
-            }
-            filterConfig.setAllow(tables);
-            filterConfigs.add(filterConfig);
-
-            List<Map<String, Object>> currentSybaseFilterConfigs = ConnectorUtil.fixYaml(filterConfigs);
-            Map<String, List<Map<String, Object>>> catalogMap = tableSetList.stream().collect(Collectors.groupingBy(t -> (String) t.get("catalog")));
-            boolean exists = false;
-            if (!catalogMap.isEmpty() && catalogMap.containsKey(database)) {
-                List<Map<String, Object>> databaseMap = catalogMap.get(database);
-                Map<String, List<Map<String, Object>>> schemaMap = databaseMap.stream().collect(Collectors.groupingBy(t -> (String) t.get("schema")));
-                if (!schemaMap.isEmpty() && schemaMap.containsKey(schema)) {
-                    exists = true;
-                    Map<String, Object> schemaInfo = schemaMap.get(schema).get(0);
-                    Object allowObj = schemaInfo.get(SybaseFilterConfig.configKey);
-                    for (Map<String, Object> currentSybaseFilterConfig : currentSybaseFilterConfigs) {
-                        if (!(allowObj instanceof List)) {
-                            schemaInfo.putAll(currentSybaseFilterConfig);
-                        } else {
-                            List<Map<String, Object>> allowInfo = (List<Map<String, Object>>) allowObj;
-                            Set<String> tableNameSet = new HashSet<>();
-                            for (Map<String, Object> map : allowInfo) {
-                                tableNameSet.addAll(map.keySet());
-                            }
-                            for (Map.Entry<String, Object> entry : tables.entrySet()) {
-                                if (!tableNameSet.contains(entry.getKey())) {
-                                    allowInfo.add(map(entry(entry.getKey(), entry.getValue())));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if (!exists) {
-                tableSetList.addAll(currentSybaseFilterConfigs);
-            }
-        }
-
-//        CdcStartVariables variables = this.root.getVariables();
-//        if (null != variables) {
-//            variables.filterConfig(filterConfigs);
-//        }
-        return tableSetList;
-    }
-
-    public synchronized List<SybaseReInitConfig> compileReInitTableYamlConfig(List<String> cdcTables, String database, String schema, Log log) {
+    public synchronized List<SybaseReInitConfig> compileReInitTableYamlConfig(Map<String, Map<String, List<String>>> appendTables, Log log) {
         List<SybaseReInitConfig> filterConfigs = new ArrayList<>();
-        SybaseReInitConfig filterConfig = new SybaseReInitConfig();
-        filterConfig.setCatalog(database);
-        filterConfig.setSchema(schema);
-        if (null == cdcTables || cdcTables.isEmpty()) {
-            return filterConfigs;
+        if (null != appendTables && !appendTables.isEmpty()) {
+            appendTables.forEach((database, info) -> {
+                if (null == info || info.isEmpty()) return;
+                info.forEach((schema, tables) -> {
+                    SybaseReInitConfig filterConfig = new SybaseReInitConfig();
+                    filterConfig.setCatalog(database);
+                    filterConfig.setSchema(schema);
+                    filterConfig.setAdd_tables(tables);
+                    filterConfigs.add(filterConfig);
+                });
+            });
         }
-        Set<String> tables = new HashSet<>(cdcTables);
-        filterConfig.setAdd_tables(new ArrayList<>(tables));
-        filterConfigs.add(filterConfig);
         CdcStartVariables variables = this.root.getVariables();
         if (null != variables) {
             variables.reInitConfigs(filterConfigs);

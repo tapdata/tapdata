@@ -15,11 +15,13 @@ import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
+import io.tapdata.pdk.apis.functions.connector.source.ConnectionConfigWithTables;
 import io.tapdata.sybase.SybaseConnector;
 import io.tapdata.sybase.cdc.dto.start.OverwriteType;
 import io.tapdata.sybase.cdc.dto.start.SybaseFilterConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseReInitConfig;
 import io.tapdata.sybase.extend.ConnectionConfig;
+import io.tapdata.sybase.extend.SybaseConfig;
 import io.tapdata.sybase.extend.SybaseContext;
 
 import java.io.BufferedReader;
@@ -27,6 +29,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -159,7 +162,7 @@ public class ConnectorUtil {
     }
 
 
-    public static String getCurrentInstanceHostPortFromConfig(TapConnectorContext context){
+    public static String getCurrentInstanceHostPortFromConfig(TapConnectorContext context) {
         ConnectionConfig config = new ConnectionConfig(context);
         final String host = config.getHost();
         int port = config.getPort();
@@ -178,7 +181,7 @@ public class ConnectorUtil {
                 aliveStreamTask = new HashMap<String, Set<String>>();
                 Set<String> taskIdSet = new HashSet<>();
                 taskIdSet.add(taskId);
-                ((Map<String, Set<String>>)aliveStreamTask).put(instanceHostPort, taskIdSet);
+                ((Map<String, Set<String>>) aliveStreamTask).put(instanceHostPort, taskIdSet);
             } else {
                 Map<String, Set<String>> setMap = (Map<String, Set<String>>) aliveStreamTask;
                 Set<String> set = setMap.computeIfAbsent(instanceHostPort, k -> new HashSet<>());
@@ -217,19 +220,19 @@ public class ConnectorUtil {
     /**
      * 在GlobalStateMap中维护任务正在被cdc监听的表
      * {
-     *     "${host:port}" : [
-     *          {
-     *             "catalog": "${database}",
-     *             "schema": "$schema",
-     *             "type": [VIEW,TABLE],
-     *             "allow": {
-     *                 "${tableName}": {},
-     *                 ...
-     *             }
-     *          },
-     *          ...
-     *     ],
-     *     ...
+     * "${host:port}" : [
+     * {
+     * "catalog": "${database}",
+     * "schema": "$schema",
+     * "type": [VIEW,TABLE],
+     * "allow": {
+     * "${tableName}": {},
+     * ...
+     * }
+     * },
+     * ...
+     * ],
+     * ...
      * }
      */
     public static List<Map<String, Object>> maintenanceCdcMonitorTableMap(List<Map<String, Object>> sybaseFilters, TapConnectorContext tapConnectionContext) {
@@ -262,7 +265,7 @@ public class ConnectorUtil {
         final String instanceHostPort = getCurrentInstanceHostPortFromConfig(tapConnectionContext);
         KVMap<Object> globalStateMap = tapConnectionContext.getGlobalStateMap();
         Object cdcMonitorTableMap = globalStateMap.get("CdcMonitorTableMap");
-        return null == cdcMonitorTableMap || !(cdcMonitorTableMap instanceof Map) ? new ArrayList<>() : Optional.ofNullable(((Map<String, List<Map<String, Object>>>)cdcMonitorTableMap).get(instanceHostPort)).orElse(new ArrayList<>());
+        return null == cdcMonitorTableMap || !(cdcMonitorTableMap instanceof Map) ? new ArrayList<>() : Optional.ofNullable(((Map<String, List<Map<String, Object>>>) cdcMonitorTableMap).get(instanceHostPort)).orElse(new ArrayList<>());
     }
 
     public static Set<String> getTableFroMaintenanceCdcMonitorTableMap(TapConnectorContext tapConnectorContext, ConnectionConfig config) {
@@ -276,7 +279,7 @@ public class ConnectorUtil {
         int port = config.getPort();
         final String instanceHostPort = host + ":" + port;
         if (cdcMonitorTableSet instanceof Map) {
-            //@todo host_port
+
             Map<String, List<Map<String, Object>>> hostPortInfo = (Map<String, List<Map<String, Object>>>) cdcMonitorTableSet;
             if (null == hostPortInfo || hostPortInfo.isEmpty()) return tableSet;
             List<Map<String, Object>> monitorTableSet = hostPortInfo.get(instanceHostPort);
@@ -325,15 +328,15 @@ public class ConnectorUtil {
      * 在GlobalStateMap中维护任务正在执行的CDC命令 类型
      */
     public static OverwriteType maintenanceTableOverType(TapConnectorContext tapConnectionContext) {
-        OverwriteType tableOverType = OverwriteType.type(String.valueOf(tapConnectionContext.getGlobalStateMap().get("tableOverType")));
-        tapConnectionContext.getGlobalStateMap().put("tableOverType", tableOverType.getType());
+        OverwriteType tableOverType = OverwriteType.type(String.valueOf(tapConnectionContext.getStateMap().get("tableOverType")));
+        tapConnectionContext.getStateMap().put("tableOverType", tableOverType.getType());
         return tableOverType;
     }
 
     /**
      * 获取任务里加载的所有表
      */
-    public static Set<String> getAllTableFromTask(TapConnectorContext tapConnectionContext) {
+    public static Map<String, Map<String, List<String>>> getAllTableFromTask(TapConnectorContext tapConnectionContext) {
         Iterator<Entry<TapTable>> tableIterator = tapConnectionContext.getTableMap().iterator();
         Set<String> tableIds = new HashSet<>();
         while (tableIterator.hasNext()) {
@@ -346,13 +349,27 @@ public class ConnectorUtil {
             }
         }
         tapConnectionContext.getLog().info("Task table will be monitor in cdc: {}", tableIds);
-        return tableIds;
+        ConnectionConfig config = new ConnectionConfig(tapConnectionContext);
+        Map<String, Map<String, List<String>>> tables = new HashMap<>();
+        Map<String, List<String>> schemaTables = new HashMap<>();
+        schemaTables.put(config.getSchema(), new ArrayList<>(tableIds));
+        tables.put(config.getDatabase(), schemaTables);
+        return tables;
     }
 
     /**
      * 通过查询获取表是否包含timestamp字段，并返回包含这个字段的表
+     *
+     * @deprecated
      */
-    public static Set<String> containsTimestampFieldTables(Set<String> tableIds, SybaseContext sybaseContext) {
+    public static Map<String, Map<String, List<String>>> containsTimestampFieldTables(Map<String, Map<String, List<String>>> info, TapConnectorContext context, List<String> tableIds, SybaseContext sybaseContext) {
+        if (null == info) info = new HashMap<>();
+        ConnectionConfig config = new ConnectionConfig(context);
+        selectTimestampMap(config, info, sybaseContext, tableIds);
+        return info;
+    }
+
+    private static void selectTimestampMap(final ConnectionConfig config, Map<String, Map<String, List<String>>> info, SybaseContext sybaseContext, Collection<String> tableIds) {
         final Set<String> containsTimestampFieldTables = new HashSet<>();
         try {
             List<DataMap> tableList = sybaseContext.queryAllTables(new ArrayList<>(tableIds));
@@ -374,27 +391,41 @@ public class ConnectorUtil {
         } catch (Exception e) {
             throw new CoreException("Can not get any tables from sybase, filter by: {}, msg: {}", tableIds, e.getMessage());
         }
-        return containsTimestampFieldTables;
+        Map<String, List<String>> item = new HashMap<>();
+        item.put(config.getSchema(), new ArrayList<>(containsTimestampFieldTables));
+        info.put(config.getDatabase(), item);
     }
 
     /**
-     * 在globalStateMap中维护一个唯一的cdc进程ID
+     * 通过查询获取表是否包含timestamp字段，并返回包含这个字段的表
+     */
+    public static Map<String, Map<String, List<String>>> containsTimestampFieldTablesV2(Map<String, Map<String, List<String>>> info, TapConnectorContext context, List<ConnectionConfigWithTables> connectionConfigWithTables) {
+        for (ConnectionConfigWithTables withTable : connectionConfigWithTables) {
+            ConnectionConfig config = new ConnectionConfig(withTable.getConnectionConfig());
+            SybaseContext sybaseContext = new SybaseContext(new SybaseConfig().load(withTable.getConnectionConfig()));
+            selectTimestampMap(config, info, sybaseContext, new HashSet<>(withTable.getTables()));
+        }
+        return info;
+    }
+
+    /**
+     * 在StateMap中维护一个唯一的cdc进程ID
      */
     public synchronized static String maintenanceGlobalCdcProcessId(TapConnectorContext tapConnectionContext) {
-        KVMap<Object> globalStateMap = tapConnectionContext.getGlobalStateMap();
-        Object globalSybaseCdcProcessId = globalStateMap.get("globalSybaseCdcProcessId");
+        KVMap<Object> stateMap = tapConnectionContext.getStateMap();
+        Object globalSybaseCdcProcessId = stateMap.get("globalSybaseCdcProcessId");
         if (!(globalSybaseCdcProcessId instanceof String)) {
-            globalStateMap.put("globalSybaseCdcProcessId", globalSybaseCdcProcessId = UUID.randomUUID().toString().replaceAll("-", "_").substring(0, 15));
+            stateMap.put("globalSybaseCdcProcessId", globalSybaseCdcProcessId = UUID.randomUUID().toString().replaceAll("-", "_").substring(0, 15));
         }
         return (String) globalSybaseCdcProcessId;
     }
 
     /**
-     * 把globalStateMap中维护的一个唯一的cdc进程ID重置
+     * 把StateMap中维护的一个唯一的cdc进程ID重置
      */
     public synchronized static void removeGlobalCdcProcessId(TapConnectorContext tapConnectionContext) {
-        KVMap<Object> globalStateMap = tapConnectionContext.getGlobalStateMap();
-        globalStateMap.remove("globalSybaseCdcProcessId");
+        KVMap<Object> stateMap = tapConnectionContext.getStateMap();
+        stateMap.remove("globalSybaseCdcProcessId");
     }
 
     public static List<Map<String, Object>> fixYaml(List<SybaseFilterConfig> configs) {
@@ -463,7 +494,7 @@ public class ConnectorUtil {
     public static Map<String, List<String>> unIgnoreColumns() {
         Map<String, List<String>> hashMap = new HashMap<>();
         hashMap.put("block", new ArrayList<>());
-        return  hashMap;
+        return hashMap;
     }
 
     public static Map<String, List<String>> ignoreColumns() {
@@ -474,30 +505,40 @@ public class ConnectorUtil {
         return hashMap;
     }
 
-    public static void safeStopShell(Log log, TapConnectorContext tapConnectionContext) {
+    public static final String[] killShellCmd = new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"};
+    public static final List<String> ignoreShells = list("grep sybase-poc/replicant-cli");
+    public static final int sleepAfterKill = 5000;//kill -15 before 5000ms to find process again, then to exec kill -9
+    public static void safeStopShell(TapConnectorContext tapConnectionContext) {
+        safeStopShell(tapConnectionContext, port(killShellCmd, ignoreShells, tapConnectionContext.getLog(), getCurrentInstanceHostPortFromConfig(tapConnectionContext)));
+    }
+
+    public static void safeStopShell(TapConnectorContext tapConnectionContext, List<Integer> port) {
         String instanceHostPort = getCurrentInstanceHostPortFromConfig(tapConnectionContext);
         try {
-            stopShell(new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"}, list("grep sybase-poc/replicant-cli"), log, instanceHostPort);
+            if (!port.isEmpty()) {
+                Log log = tapConnectionContext.getLog();
+                stopShell(port, "-15", log);
+                Thread.sleep(sleepAfterKill);
+                port = port(killShellCmd, ignoreShells, tapConnectionContext.getLog(), instanceHostPort);
+                if (!port.isEmpty()) {
+                    stopShell(port, "-9", log);
+                }
+            }
         } catch (Exception e) {
-            log.warn("Can not auto stop cdc tool, please go to server and kill process by shell {} and after find process PID by shell {}",
+            tapConnectionContext.getLog().warn("Can not auto stop cdc tool, please go to server and kill process by shell {} and after find process PID by shell {}",
                     "kill pid1 pid2 pid3 ",
                     "ps -ef|grep sybase-poc/replicant-cli");
         }
     }
 
-    private static void stopShell(String[] cmd, List<String> ignoreShells, Log log, String instanceHostPort) {
-        //String cmd = "ps -ef|grep sybase-poc/replicant-cli";
-        ///bin/sh -c export JAVA_TOOL_OPTIONS="-Duser.language=en"; /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
-        //sh /tapdata/apps/sybase-poc/replicant-cli/bin/replicant real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
-        //java -Duser.timezone=UTC -Djava.system.class.loader=tech.replicant.util.ReplicantClassLoader -classpath /tapdata/apps/sybase-poc/replicant-cli/target/replicant-core.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts-5089.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/ts.jar:/tapdata/apps/sybase-poc/replicant-cli/lib/* tech.replicant.Main real-time /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/src_sybasease.yaml /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/dst_localstorage.yaml --general /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/general.yaml --filter /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/filter_sybasease.yaml --extractor /tapdata/apps/sybase-poc-temp/b5a9c529fd164b5/sybase-poc/config/sybase2csv/ext_sybasease.yaml --id b5a9c529fd164b5 --replace --overwrite --verbose
-        List<Integer> port = port(cmd, ignoreShells, log, instanceHostPort);
+    private static void stopShell(List<Integer> port, String killType, Log log) {
         if (!port.isEmpty()) {
             StringJoiner joiner = new StringJoiner(" ");
             for (Integer portNum : port) {
                 joiner.add("" + portNum);
             }
             log.warn(port.toString());
-            execCmd("kill " + joiner.toString(), String.format("Can not auto stop cdc tool, please go to server and kill process by shell %s and after find process PID by shell %s, {}",
+            execCmd("kill " + (null != killType && "".equals(killType.trim()) ? killType + " " : "") + joiner.toString(), String.format("Can not auto stop cdc tool, please go to server and kill process by shell %s and after find process PID by shell %s, {}",
                     "kill pid1 pid2 pid3 ",
                     "ps -ef|grep sybase-poc/replicant-cli"), log);
         }
@@ -564,6 +605,9 @@ public class ConnectorUtil {
                 }
             }
         }
+        if (!port.isEmpty()) {
+            port.sort(Comparator.comparingInt(o -> o));
+        }
         return port;
     }
 
@@ -598,4 +642,14 @@ public class ConnectorUtil {
         return sb.toString();
     }
 
+    public static Map<String, Map<String, List<String>>> groupTableFromConnectionConfigWithTables(List<ConnectionConfigWithTables> connectionConfigWithTables) {
+        Map<String, Map<String, List<String>>> table = new HashMap<>();
+        return table;
+    }
+
+    public static Map<String, Map<String, List<String>>> filterAppendTable(Map<String, Map<String, List<String>>> ago, Map<String, Map<String, List<String>>> now) {
+
+
+        return null;
+    }
 }

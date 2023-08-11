@@ -91,7 +91,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
         }
 
         this.root.setSybasePocPath(targetPath);
-        root.getContext().getGlobalStateMap().put(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR, targetPath);
+        root.getContext().getStateMap().put(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR, targetPath);
         stateMap.put(ConfigPaths.SYBASE_USE_TASK_CONFIG_KEY, (targetPath.endsWith("/") ? targetPath : targetPath + "/") + ConfigPaths.SYBASE_USE_TASK_CONFIG_DIR + cdcId);
 
         final String cliPath = "sybase-poc/replicant-cli";

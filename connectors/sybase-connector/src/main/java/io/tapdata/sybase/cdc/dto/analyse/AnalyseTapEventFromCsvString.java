@@ -99,8 +99,7 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
         long cdcReference = System.currentTimeMillis();
         try {
             cdcReference = Long.parseLong((String) timestamp);
-        } catch (Exception ignore) {
-        }
+        } catch (Exception ignore) { }
         switch (cdcType) {
             case INSERT:
                 return TapSimplify.insertRecordEvent(after, tableId).referenceTime(cdcReference);

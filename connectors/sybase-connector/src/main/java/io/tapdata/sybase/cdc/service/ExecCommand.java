@@ -76,8 +76,7 @@ class ExecCommand implements CdcStep<CdcRoot> {
             long cdcPid = -1;
             Class<? extends Process> aClass = exec.getClass();
             KVMap<Object> stateMap = root.getContext().getStateMap();
-            KVMap<Object> globalStateMap = root.getContext().getGlobalStateMap();
-            globalStateMap.put("tableOverType", OverwriteType.RESUME.getType());
+            stateMap.put("tableOverType", OverwriteType.RESUME.getType());
             try {
                 if ("java.lang.UNIXProcess".equals(name)) {
                     Field pid = aClass.getDeclaredField("pid");
