@@ -493,8 +493,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                     .sorted((Field f1, Field f2) ->{
                         int f1pos = f1.getColumnPosition() == null ? -1 : f1.getColumnPosition();
                         int f2pos = f2.getColumnPosition() == null ? -1 : f2.getColumnPosition();
-                        if (f1pos >= f2pos) {
+                        if (f1pos > f2pos) {
                             return 1;
+                        }else if(f1pos == f2pos){
+                            return 0;
                         }
                         return -1;
                     })
