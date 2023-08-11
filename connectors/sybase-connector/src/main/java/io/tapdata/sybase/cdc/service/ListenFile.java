@@ -24,7 +24,9 @@ import org.apache.commons.io.monitor.FileAlterationObserver;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,24 +88,24 @@ public class ListenFile implements CdcStep<CdcRoot> {
             if (null != fileMonitor) {
                 fileMonitor.stop();
             }
-            final Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap = getTableFromConfig(root.getCdcTables());
-            //currentFileNames = null;
-            if (null != tables) {
-                try {
-                    if (null != monitorPath) {
-                        File historyFile = new File(monitorPath);
-                        if (historyFile.exists()) {
-                            try {
-                                FileUtils.delete(historyFile);
-                            } catch (Exception e) {
-                                root.getContext().getLog().info("Can not to delete cdc cache file in {}", monitorPath);
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    root.getContext().getLog().error("Cdc stop fail, can not remove monitor files, msg: {}", e.getMessage());
-                }
-            }
+//            final Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap = getTableFromConfig(root.getCdcTables());
+//            //currentFileNames = null;
+//            if (null != tables) {
+//                try {
+//                    if (null != monitorPath) {
+//                        File historyFile = new File(monitorPath);
+//                        if (historyFile.exists()) {
+//                            try {
+//                                FileUtils.delete(historyFile);
+//                            } catch (Exception e) {
+//                                root.getContext().getLog().info("Can not to delete cdc cache file in {}", monitorPath);
+//                            }
+//                        }
+//                    }
+//                } catch (Exception e) {
+//                    root.getContext().getLog().error("Cdc stop fail, can not remove monitor files, msg: {}", e.getMessage());
+//                }
+//            }
         } catch (Exception e) {
             root.getContext().getLog().warn("Cdc monitor stop fail, msg: {}", e.getMessage());
         }
@@ -129,7 +131,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         final Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap = getTableFromConfig(root.getCdcTables());
         AtomicBoolean hasHandelInit = new AtomicBoolean(false);
 
-        final Integer cdcCacheTime = Optional.ofNullable(nodeConfig.getCdcCacheTime()).orElse(10) * 60 * 1000;
+        final Integer cdcCacheTime = Optional.ofNullable(nodeConfig.getCdcCacheTime()).orElse(10) * 60000;
         fileMonitor.monitor(monitorPath, new FileListener() {
             @Override
             public void onStart(FileAlterationObserver observer) {
@@ -146,14 +148,14 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                         final String tableSpace = monitorPath + "/" + table;
                                         File tableSpaceFile = new File(tableSpace);
                                         if (!tableSpaceFile.exists()) continue;
-                                        File[] files = tableSpaceFile.listFiles();
-                                        if (null != files && files.length > 0) {
-                                            for (File file : files) {
-                                                if (null != file && file.exists() && file.isFile()) {
-                                                    monitor(file, tableMap);
-                                                }
-                                            }
-                                        }
+                                        Arrays.stream(Objects.requireNonNull(tableSpaceFile.listFiles()))
+                                                .filter(Objects::nonNull)
+                                                .sorted(Comparator.comparing(File::getName))
+                                                .filter(file ->
+                                                        file.exists() &&
+                                                                file.isFile() &&
+                                                                isRecentCSV(file, System.currentTimeMillis() , cdcCacheTime))
+                                                .forEach(file -> monitor(file, tableMap));
                                     }
                                 }
                             } catch (Exception e) {
@@ -307,23 +309,31 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 return isThisFile;
             }
 
-            private void deleteCSVWithConfigTime(File file, Integer cdcCacheTime){
+            private void deleteCSVWithConfigTime(File file, Integer cdcCacheTime) {
+                if (!isRecentCSV(file, System.currentTimeMillis(), cdcCacheTime)) {
+                    try {
+                        monitor(file, tableMap);
+                        FileUtils.delete(file);
+                    } catch (Exception ignore) {
+                        root.getContext().getLog().warn("Can not to delete cdc cache file in {} of table name: {}", file.getAbsolutePath());
+                    }
+                }
+            }
+
+            private boolean isRecentCSV(File file, long compileTime, Integer cdcCacheTime) {
                 String absolutePath = file.getAbsolutePath();
                 int indexOf = absolutePath.lastIndexOf('.');
                 String fileType = absolutePath.substring(indexOf + 1);
                 if (file.isFile() && fileType.equalsIgnoreCase("csv")) {
                     long lastModify = file.lastModified();
-                    long now = System.currentTimeMillis();
-                    if ((now - lastModify) > cdcCacheTime) {
-                        root.getContext().getLog().debug("File: {}, last modify time: {}, now: {}, cdc cache time: {}, need delete: true", file.getName(), lastModify, now, cdcCacheTime);
-                        try {
-                            monitor(file, tableMap);
-                            FileUtils.delete(file);
-                        } catch (Exception ignore) {
-                            root.getContext().getLog().warn("Can not to delete cdc cache file in {} of table name: {}", file.getAbsolutePath());
-                        }
+                    //long now = System.currentTimeMillis();
+                    // .    .    .
+                    if (compileTime <= (cdcCacheTime + lastModify)) {
+                        root.getContext().getLog().debug("File: {}, last modify time: {}, now: {}, cdc cache time: {}, need delete: true", file.getName(), lastModify, cdcCacheTime, cdcCacheTime);
+                        return true;
                     }
                 }
+                return false;
             }
         });
 
