@@ -729,7 +729,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void handleTapdataHeartbeatEvent(TapdataEvent tapdataEvent) {
 		flushSyncProgressMap(tapdataEvent);
-		saveToSnapshot();
 	}
 
 	private TapRecordEvent handleTapdataRecordEvent(TapdataEvent tapdataEvent) {
