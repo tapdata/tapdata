@@ -175,7 +175,7 @@ public class SybaseConnector extends CommonDbConnector {
             connectionContext.getLog().info("Task id: {}, TaskIdInGlobalStateMap: {}", taskId, taskIdInGlobalStateMap);
             synchronized (SybaseConnector.filterConfigLock) {
                 if (null == taskIdInGlobalStateMap || taskIdInGlobalStateMap.isEmpty()) {
-                    ConnectorUtil.safeStopShell(connectionContext.getLog(), (TapConnectorContext) connectionContext);
+                    ConnectorUtil.safeStopShell((TapConnectorContext) connectionContext);
                     ConnectorUtil.removeCdcMonitorTableMap((TapConnectorContext) connectionContext);
                 }
             }
@@ -687,7 +687,7 @@ public class SybaseConnector extends CommonDbConnector {
                     List<Map<String, Object>> mapList = cdcHandle.compileFilterTableYamlConfig(connectionConfig, tapConnectorContext, newTableInTask);
                     root.getVariables().setFilterConfig(ConnectorUtil.fromYaml(mapList));
                     if (portSize > 0) {
-                        ConnectorUtil.safeStopShell(tapConnectorContext.getLog(), tapConnectorContext);
+                        ConnectorUtil.safeStopShell(tapConnectorContext);
                     }
                 } else {
                     cdcProcessIsAlive = true;
