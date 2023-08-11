@@ -188,14 +188,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (null != dataProcessorContext.getTapTableMap()) {
 			dataProcessorContext.getTapTableMap().putNew(exactlyOnceTable.getId(), exactlyOnceTable, exactlyOnceTable.getId());
 		}
-		boolean create = createTable(exactlyOnceTable);
+		boolean create = createTable(exactlyOnceTable, new AtomicBoolean());
 		if (create) {
 			obsLogger.info("Create exactly once write cache table: {}", exactlyOnceTable);
 			CreateIndexFunction createIndexFunction = connectorFunctions.getCreateIndexFunction();
 			TapCreateIndexEvent indexEvent = createIndexEvent(exactlyOnceTable.getId(), exactlyOnceTable.getIndexList());
 			PDKInvocationMonitor.invoke(
-							getConnectorNode(), PDKMethod.TARGET_CREATE_INDEX,
-							() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), exactlyOnceTable, indexEvent), TAG);
+					getConnectorNode(), PDKMethod.TARGET_CREATE_INDEX,
+					() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), exactlyOnceTable, indexEvent), TAG);
 		}
 		Node node = getNode();
 		if (node instanceof TableNode) {
@@ -203,10 +203,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			String tableName = tableNode.getTableName();
 			exactlyOnceWriteTables.add(tableName);
 			ExactlyOnceWriteCleanerEntity exactlyOnceWriteCleanerEntity = new ExactlyOnceWriteCleanerEntity(
-							tableNode.getId(),
-							tableName,
-							tableNode.getIncrementExactlyOnceEnableTimeWindowDay(),
-							tableNode.getConnectionId()
+					tableNode.getId(),
+					tableName,
+					tableNode.getIncrementExactlyOnceEnableTimeWindowDay(),
+					tableNode.getConnectionId()
 			);
 			ExactlyOnceWriteCleaner.getInstance().registerCleaner(exactlyOnceWriteCleanerEntity);
 			exactlyOnceWriteCleanerEntities.add(exactlyOnceWriteCleanerEntity);
@@ -217,7 +217,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		obsLogger.info("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
 	}
 
-	protected boolean createTable(TapTable tapTable) {
+	protected boolean createTable(TapTable tapTable, AtomicBoolean succeed) {
 		AtomicReference<TapCreateTableEvent> tapCreateTableEvent = new AtomicReference<>();
 		boolean createdTable;
 		try {
@@ -228,33 +228,34 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				handleTapTablePrimaryKeys(tapTable);
 				tapCreateTableEvent.set(createTableEvent(tapTable));
 				executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
-								.createTableEvent(tapCreateTableEvent.get())
-								.connectorContext(getConnectorNode().getConnectorContext())
-								.dataProcessorContext(dataProcessorContext)
-								.start(), (createTableFuncAspect ->
-								PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> {
-									if (createTableV2Function != null) {
-										CreateTableOptions createTableOptions = createTableV2Function.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
-										if (createTableFuncAspect != null)
-											createTableFuncAspect.createTableOptions(createTableOptions);
-									} else {
-										createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
-									}
-								}, TAG)));
+						.createTableEvent(tapCreateTableEvent.get())
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
+						.start(), (createTableFuncAspect ->
+						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> {
+							if (createTableV2Function != null) {
+								CreateTableOptions createTableOptions = createTableV2Function.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
+								succeed.set(!createTableOptions.getTableExists());
+								if (createTableFuncAspect != null)
+									createTableFuncAspect.createTableOptions(createTableOptions);
+							} else {
+								createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
+							}
+						}, TAG)));
 			} else {
 				// only execute start function aspect so that it would be cheated as input
 				AspectUtils.executeAspect(new CreateTableFuncAspect()
-								.createTableEvent(tapCreateTableEvent.get())
-								.connectorContext(getConnectorNode().getConnectorContext())
-								.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
+						.createTableEvent(tapCreateTableEvent.get())
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
 			}
 			//
 //			String s = JSONUtil.obj2Json(Collections.singletonList(tapTable));
 			clientMongoOperator.insertOne(Collections.singletonList(tapTable),
-							ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
+					ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
 		} catch (Throwable throwable) {
 			throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_TABLE_FAILED, "Table model: " + tapTable, throwable)
-							.addEvent(tapCreateTableEvent.get());
+					.addEvent(tapCreateTableEvent.get());
 		}
 		return createdTable;
 	}
