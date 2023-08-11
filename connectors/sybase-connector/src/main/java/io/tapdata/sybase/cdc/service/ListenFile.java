@@ -3,6 +3,7 @@ package io.tapdata.sybase.cdc.service;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.sybase.cdc.CdcRoot;
@@ -19,6 +20,8 @@ import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
 import io.tapdata.sybase.util.Utils;
 import io.tapdata.sybase.util.YamlUtil;
+import io.tapdata.sybase.cdc.dto.start.CommandType;
+import io.tapdata.sybase.cdc.dto.start.OverwriteType;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.monitor.FileAlterationObserver;
 
@@ -34,6 +37,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static io.tapdata.base.ConnectorBase.list;
 
 /**
  * @author GavinXiao
@@ -55,6 +60,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
     private final NodeConfig nodeConfig;
     private StreamReadConsumer cdcConsumer;
     FileMonitor fileMonitor;
+    long lastHeartbeatTime = 0;
 
     protected ListenFile(CdcRoot root,
                          String monitorPath,
@@ -133,6 +139,17 @@ public class ListenFile implements CdcStep<CdcRoot> {
         fileMonitor.monitor(monitorPath, new FileListener() {
             @Override
             public void onStart(FileAlterationObserver observer) {
+                Log log = context.getLog();
+                if (System.currentTimeMillis() - lastHeartbeatTime > 150000) {
+                    List<Integer> port = CdcHandle.port(log, new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"}, list("grep sybase-poc/replicant-cli"));
+                    if (null != port && port.size() < 3) {
+                        context.getLog().info("The CDC process will be restarted: no incremental files were detected to have been created or modified for a long time (2.5 minutes). Please check if incremental data has occurred on the source side");
+                        //超过2.5分钟未检测到CSV文件变更，重启cdc工具
+                        CdcHandle.safeStopShell(log, port);
+                        new ExecCommand(root, CommandType.CDC, OverwriteType.RESUME).compile();
+                    }
+                    lastHeartbeatTime = System.currentTimeMillis();
+                }
                 if (null == cdcConsumer) return;
                 try {
                     super.onStart(observer);
@@ -147,12 +164,17 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                         File tableSpaceFile = new File(tableSpace);
                                         if (!tableSpaceFile.exists()) continue;
                                         Arrays.stream(Objects.requireNonNull(tableSpaceFile.listFiles()))
-                                                .filter(Objects::nonNull)
+                                                .filter(file -> {
+                                                    if (Objects.nonNull(file) && file.exists() && file.isFile()) {
+                                                        String absolutePath = file.getAbsolutePath();
+                                                        int indexOf = absolutePath.lastIndexOf('.');
+                                                        String fileType = absolutePath.substring(indexOf + 1);
+                                                        return file.isFile() && fileType.equalsIgnoreCase("csv") && isRecentCSV(file, System.currentTimeMillis() , cdcCacheTime);
+                                                    } else {
+                                                        return false;
+                                                    }
+                                                })
                                                 .sorted(Comparator.comparing(File::getName))
-                                                .filter(file ->
-                                                        file.exists() &&
-                                                                file.isFile() &&
-                                                                isRecentCSV(file, System.currentTimeMillis() , cdcCacheTime))
                                                 .forEach(file -> monitor(file, tableMap));
                                     }
                                 }
@@ -180,14 +202,19 @@ public class ListenFile implements CdcStep<CdcRoot> {
                             final String tableSpace = monitorPath + "/" + table;
                             File tableSpaceFile = new File(tableSpace);
                             if (!tableSpaceFile.exists()) continue;
-                            File[] files = tableSpaceFile.listFiles();
-                            if (null != files && files.length > 0) {
-                                for (File file : files) {
-                                    if (null != file && file.exists() && file.isFile()) {
-                                        deleteCSVWithConfigTime(file, cdcCacheTime);
-                                    }
-                                }
-                            }
+                            Arrays.stream(Objects.requireNonNull(tableSpaceFile.listFiles()))
+                                    .filter(file -> {
+                                        if (Objects.nonNull(file) && file.exists() && file.isFile()) {
+                                            String absolutePath = file.getAbsolutePath();
+                                            int indexOf = absolutePath.lastIndexOf('.');
+                                            String fileType = absolutePath.substring(indexOf + 1);
+                                            return file.isFile() && fileType.equalsIgnoreCase("csv");
+                                        } else {
+                                            return false;
+                                        }
+                                    })
+                                    .sorted(Comparator.comparing(File::getName))
+                                    .forEach(file -> monitor(file, tableMap));
                         }
                     }
                 } catch (Exception e) {
@@ -214,13 +241,12 @@ public class ListenFile implements CdcStep<CdcRoot> {
             }
 
             private boolean monitor(File file, Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap) {
+                lastHeartbeatTime = System.currentTimeMillis();
                 boolean isThisFile = false;
                 String absolutePath = file.getAbsolutePath();
                 int indexOf = absolutePath.lastIndexOf('.');
                 String fileType = absolutePath.substring(indexOf + 1);
                 if (file.isFile() && fileType.equalsIgnoreCase("csv")) {
-
-
                     //root.getContext().getLog().warn("File is modify: {}", file.getAbsolutePath());
                     String csvFileName = file.getName();
                     String[] split = csvFileName.split("\\.");

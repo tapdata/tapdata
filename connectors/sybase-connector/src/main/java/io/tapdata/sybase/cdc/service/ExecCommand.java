@@ -79,14 +79,14 @@ class ExecCommand implements CdcStep<CdcRoot> {
                     cdcPid = (Integer) pid.get(pid);
                     stateMap.put("cdcPid", cdcPid);
                 } else {
-                    root.getContext().getLog().info("Cdc tool is running, but can not get it's pid, {}, {}", aClass.getName());
+                    root.getContext().getLog().info("Cdc tool is running, but can not get it's pid, {}", aClass.getName());
                 }
             } catch (Exception ignore) {
             }
             if (cdcPid > 0) {
                 root.getContext().getLog().info("Cdc tool is running which pid is {}", cdcPid);
             } else {
-                root.getContext().getLog().info("Cdc tool is running, but can not get it's pid, {}, {}", aClass.getName());
+                root.getContext().getLog().info("Cdc tool is running, but can not get it's pid, {}", aClass.getName());
             }
         } catch (Exception e) {
             throw new CoreException("Command exec failed, unable to start cdc command: {}, msg: {}", cmd, e.getMessage());
@@ -106,10 +106,10 @@ class ExecCommand implements CdcStep<CdcRoot> {
         root.setProcess(exec);
         try {
             exec.exitValue();
-            throw new CoreException(RUN_TOOL_FAIL, "Cdc tool can not running, fail to get stream data");//Utils.readFromInputStream(exec.getErrorStream(), StandardCharsets.UTF_8));
         } catch (Exception ignore) {
+            return exec;
         }
-        return exec;
+        throw new CoreException(RUN_TOOL_FAIL, "Cdc tool can not running, fail to get stream data");//Utils.readFromInputStream(exec.getErrorStream(), StandardCharsets.UTF_8));
     }
 
 //    private String shellOutput(InputStream inputStream){

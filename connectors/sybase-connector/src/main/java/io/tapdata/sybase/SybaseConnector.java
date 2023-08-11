@@ -203,7 +203,7 @@ public class SybaseConnector extends CommonDbConnector {
 
         if (connectionContext instanceof TapConnectorContext) {
             if (null == cdcHandle) {
-                CdcHandle.safeStopShell(connectionContext.getLog());
+                CdcHandle.safeStopShell(log);
             } else {
                 cdcHandle.stopCdc();
             }
@@ -562,7 +562,7 @@ public class SybaseConnector extends CommonDbConnector {
             root.setCdcTables(tables);
         }
         try {
-            if (null == cdcHandle || null == root.getProcess()) {
+            if (null == cdcHandle) {
                 //throw new CoreException(" Repeated startup of cdc processes is not allowed, the CDC execution information has expired");
                 try {
                     cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
@@ -575,20 +575,21 @@ public class SybaseConnector extends CommonDbConnector {
                 }
                 cdcHandle.startCdc(overwriteType);
             }
-            Process process = root.getProcess();
-
-            if (!process.isAlive()) {
-                String msg = Utils.readFromInputStream(process.getErrorStream(), StandardCharsets.UTF_8);
-                throw new CoreException("Cdc tool can not running, fail to get stream data. {}", msg);
-            }
-            try {
-                process.exitValue();
-                throw new CoreException("Cdc monitor thread is close, can not monitor cdc events, mag: ", Utils.readFromInputStream(process.getErrorStream(), StandardCharsets.UTF_8));
-            } catch (Exception ignore) {
-            }
-
+//            Process process = root.getProcess();
+//
+//            if (!process.isAlive()) {
+//                String msg = Utils.readFromInputStream(process.getErrorStream(), StandardCharsets.UTF_8);
+//                throw new CoreException("Cdc tool can not running, fail to get stream data. {}", msg);
+//            }
+//            try {
+//                process.exitValue();
+//                throw new CoreException("Cdc monitor thread is close, can not monitor cdc events, mag: ", Utils.readFromInputStream(process.getErrorStream(), StandardCharsets.UTF_8));
+//            } catch (Exception ignore) {
+//            }
+            KVMap<Object> stateMap = tapConnectorContext.getStateMap();
             ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
             root.setContext(tapConnectorContext);
+            root.setCdcId((String)stateMap.get("taskId"));
             cdcHandle.startListen(
                     FilenameUtils.concat(cdcHandle.getRoot().getSybasePocPath(), "config/sybase2csv/csv/" + config.getDatabase() + "/" + config.getSchema()),
                     "object_metadata.yaml",
@@ -808,23 +809,24 @@ public class SybaseConnector extends CommonDbConnector {
         List<String> cdcTables = root.getCdcTables();
         root.setContainsTimestampFieldTables(new ArrayList<>(containsTimestampFieldTables));
 
-        if (!equalsTable(cdcTables, tableIds)) {
-            root.setCdcTables(new ArrayList<>(tableIds));
-            if (null == cdcHandle) {
-                try {
-                    cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
-                } catch (CoreException e) {
-                    if (e.getCode() == Code.STREAM_READ_WARN) {
-                        tapConnectorContext.getLog().info(e.getMessage());
-                    }
-                    throw e;
+        //if (!equalsTable(cdcTables, tableIds)) {
+        root.setCdcTables(new ArrayList<>(tableIds));
+        if (null == cdcHandle) {
+            try {
+                cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
+            } catch (CoreException e) {
+                if (e.getCode() == Code.STREAM_READ_WARN) {
+                    tapConnectorContext.getLog().info(e.getMessage());
                 }
-                cdcHandle.initCdc(overwriteType);
-            } else {
+                throw e;
+            }
+            cdcHandle.initCdc(overwriteType);
+        }
+            //else {
 //                cdcHandle.compileFilterTableYamlConfig(new ConnectionConfig(tapConnectorContext));
 //                cdcHandle.refreshCdc(overwriteType);
-            }
-        }
+            //}
+        //}
     }
 
     private boolean equalsTable(List<String> cdcTables, Set<String> tables) {
