@@ -60,7 +60,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
     private final NodeConfig nodeConfig;
     private StreamReadConsumer cdcConsumer;
     FileMonitor fileMonitor;
-    long lastHeartbeatTime = 0;
+    //long lastHeartbeatTime = 0;
 
     protected ListenFile(CdcRoot root,
                          String monitorPath,
@@ -140,16 +140,16 @@ public class ListenFile implements CdcStep<CdcRoot> {
             @Override
             public void onStart(FileAlterationObserver observer) {
                 Log log = context.getLog();
-                if (System.currentTimeMillis() - lastHeartbeatTime > 150000) {
-                    List<Integer> port = CdcHandle.port(log, new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"}, list("grep sybase-poc/replicant-cli"));
-                    if (null != port && port.size() < 3) {
-                        context.getLog().info("The CDC process will be restarted: no incremental files were detected to have been created or modified for a long time (2.5 minutes). Please check if incremental data has occurred on the source side");
-                        //超过2.5分钟未检测到CSV文件变更，重启cdc工具
-                        CdcHandle.safeStopShell(log, port);
-                        new ExecCommand(root, CommandType.CDC, OverwriteType.RESUME).compile();
-                    }
-                    lastHeartbeatTime = System.currentTimeMillis();
-                }
+//                if (System.currentTimeMillis() - lastHeartbeatTime > 150000) {
+//                    List<Integer> port = CdcHandle.port(log, new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"}, list("grep sybase-poc/replicant-cli"));
+//                    if (null != port && port.size() < 3) {
+//                        context.getLog().info("The CDC process will be restarted: no incremental files were detected to have been created or modified for a long time (2.5 minutes). Please check if incremental data has occurred on the source side");
+//                        //超过2.5分钟未检测到CSV文件变更，重启cdc工具
+//                        CdcHandle.safeStopShell(log, port);
+//                        new ExecCommand(root, CommandType.CDC, OverwriteType.RESUME).compile();
+//                    }
+//                    lastHeartbeatTime = System.currentTimeMillis();
+//                }
                 if (null == cdcConsumer) return;
                 try {
                     super.onStart(observer);
@@ -241,7 +241,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
             }
 
             private boolean monitor(File file, Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap) {
-                lastHeartbeatTime = System.currentTimeMillis();
+                //lastHeartbeatTime = System.currentTimeMillis();
                 boolean isThisFile = false;
                 String absolutePath = file.getAbsolutePath();
                 int indexOf = absolutePath.lastIndexOf('.');

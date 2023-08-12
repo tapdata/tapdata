@@ -84,6 +84,7 @@ public class CdcHandle {
 
     private synchronized void compileYamlConfig() {
         String sybasePocPath = root.getSybasePocPath();
+        NodeConfig nodeConfig = new NodeConfig(root.getContext());
 
         //@todo set CdcStartVariables from context config
         CdcStartVariables startVariables = CdcStartVariables.create();
@@ -111,7 +112,7 @@ public class CdcHandle {
 
         SybaseGeneralConfig generalConfig = new SybaseGeneralConfig();
         LivenessMonitor monitor = new LivenessMonitor();
-        monitor.setEnable(true);
+        monitor.setEnable(false);
         monitor.setInactive_timeout_ms(900_000);
         monitor.setMin_free_memory_threshold_percent(5);
         monitor.setLiveness_check_interval_ms(60_000);
@@ -126,6 +127,17 @@ public class CdcHandle {
         SybaseExtConfig extConfig = new SybaseExtConfig();
         SybaseExtConfig.Realtime realtime = extConfig.getRealtime();
         realtime.setFetchIntervals(nodeConfig.getFetchInterval());
+        if (nodeConfig.isHeartbeat()) {
+            String hbDatabase = nodeConfig.getHbDatabase();
+            String hbSchema = nodeConfig.getHbSchema();
+            SybaseExtConfig.Heartbeat heartbeat = new SybaseExtConfig.Heartbeat();
+            heartbeat.setEnable(true);
+            heartbeat.setInterval_ms(10000L);
+            heartbeat.setCatalog(hbDatabase);
+            heartbeat.setSchema(hbSchema);
+            extConfig.setHeartbeat(heartbeat);
+            root.getContext().getLog().info("Heartbeat is open which has created at {}.{} , please ensure", hbDatabase, hbSchema);
+        }
 
         this.root.setVariables(
                 startVariables
@@ -249,7 +261,7 @@ public class CdcHandle {
         try {
             //缓冲作用，延时停止，等待数据库进程释放
             closeLock.wait(nodeConfig.getCloseDelayMill());
-        } catch (Exception e) {
+        } catch (Exception e) {0
 
         }
     }
@@ -272,6 +284,7 @@ public class CdcHandle {
                 port = port(log, new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"}, list("grep sybase-poc/replicant-cli"));
                 if (!port.isEmpty()) {
                     stopShell("-9", log, port);
+                    Thread.sleep(5000);
                 }
             }
         } catch (Exception e) {

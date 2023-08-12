@@ -17,6 +17,9 @@ public class NodeConfig {
     String outDecode;
     boolean autoEncode;
     private Integer cdcCacheTime;
+    private boolean heartbeat;
+    private String hbDatabase;
+    private String hbSchema;
 
     public NodeConfig(TapConnectorContext context) {
         this(null == context || null == context.getNodeConfig() ? new DataMap() : context.getNodeConfig());
@@ -33,6 +36,9 @@ public class NodeConfig {
         decode = Optional.ofNullable(nodeConfig.getString("decode")).orElse("big5");
         autoEncode = (boolean)Optional.ofNullable(nodeConfig.get("autoEncode")).orElse(false);
         cdcCacheTime = Optional.ofNullable(nodeConfig.getInteger("cdcCacheTime")).orElse(10);
+        heartbeat = (Boolean) Optional.ofNullable(nodeConfig.get("heartbeat")).orElse(false);
+        hbDatabase = Optional.ofNullable(nodeConfig.getString("hbDatabase")).orElse("");
+        hbSchema = Optional.ofNullable(nodeConfig.getString("hbSchema")).orElse("");
         if (cdcCacheTime < 1) {
             cdcCacheTime = 2;
         }
@@ -87,5 +93,29 @@ public class NodeConfig {
 
     public void setCdcCacheTime(Integer cdcCacheTime) {
         this.cdcCacheTime = cdcCacheTime;
+    }
+
+    public boolean isHeartbeat() {
+        return heartbeat;
+    }
+
+    public void setHeartbeat(boolean heartbeat) {
+        this.heartbeat = heartbeat;
+    }
+
+    public String getHbDatabase() {
+        return hbDatabase;
+    }
+
+    public void setHbDatabase(String hbDatabase) {
+        this.hbDatabase = hbDatabase;
+    }
+
+    public String getHbSchema() {
+        return hbSchema;
+    }
+
+    public void setHbSchema(String hbSchema) {
+        this.hbSchema = hbSchema;
     }
 }

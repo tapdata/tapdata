@@ -225,6 +225,60 @@
     "node": {
       "type": "object",
       "properties": {
+        "heartbeat": {
+          "type": "boolean",
+          "title": "${heartbeat}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "default": false,
+          "x-index": 1,
+          "x-decorator-props": {
+            "tooltip": "${heartbeat_tip}"
+          }
+        },
+        "hbDatabase": {
+          "type": "string",
+          "title": "${heart_database}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "",
+          "x-index": 2,
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.heartbeat"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] ? true : false}}"
+              }
+            }
+          }
+        },
+        "hbSchema": {
+          "type": "string",
+          "title": "${heartbeat_schema}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "",
+          "x-display": "hidden",
+          "x-index": 3,
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.heartbeat"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] ? true : false}}"
+              }
+            }
+          }
+        },
         "fetchInterval": {
           "type": "string",
           "title": "${fetch_interval}",
@@ -327,7 +381,11 @@
       "fetch_interval": "CDC delay time in seconds",
       "auto_encode": "Automatic encoding and decoding ",
       "cdcCacheTime": "CDC incremental file cache time (in minutes)",
-      "checkTableInConnectionTest": "Open table check"
+      "checkTableInConnectionTest": "Open table check",
+      "heartbeat": "Open CDC Heartbeat Monitor",
+      "heartbeat_tip": "After enabling CDC heartbeat monitoring, a heartbeat table will be created on the source side(replicate_io_cdc_heartbeat)",
+      "heart_database": " The database where the heartbeat table is located ",
+      "heart_schema": " The schema where the heartbeat table is located "
     },
     "zh_CN": {
       "host": "地址",
@@ -346,7 +404,11 @@
       "fetch_interval": "CDC延时（单位秒）",
       "auto_encode": "自动编解码",
       "cdcCacheTime": "CDC 增量文件缓存时间（单位：分钟）",
-      "checkTableInConnectionTest": "开启表数据检查"
+      "checkTableInConnectionTest": "开启表数据检查",
+      "heartbeat": "开启CDC心跳监听",
+      "heartbeat_tip": "开启CDC心跳监听后会在源端创建心跳表（replicate_io_cdc_heartbeat）",
+      "heart_database": "心跳表所在DataBase",
+      "heart_schema": "心跳表所在Schema"
     },
     "zh_TW": {
       "host": "地址",
@@ -365,7 +427,11 @@
       "fetch_interval": "CDC延時（組織秒）",
       "auto_encode": "自動編解碼",
       "cdcCacheTime": "CDC增量檔案緩存時間（組織：分鐘）",
-      "checkTableInConnectionTest": "開啟錶數據檢查"
+      "checkTableInConnectionTest": "開啟錶數據檢查",
+      "heartbeat": "开启CDC心跳监听",
+      "heartbeat_tip": " 開啟CDC心跳監聽後會在源端創建心跳錶（replicate_io_cdc_heartbeat）",
+      "heart_database": "心跳錶所在Database",
+      "heart_schema": "心跳錶所在Schema"
     }
   },
   "dataTypes": {

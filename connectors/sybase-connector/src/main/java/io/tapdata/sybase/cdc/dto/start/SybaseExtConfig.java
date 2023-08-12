@@ -1,6 +1,7 @@
 package io.tapdata.sybase.cdc.dto.start;
 
 import java.util.LinkedHashMap;
+import java.util.Optional;
 
 /**
  * @author GavinXiao
@@ -10,10 +11,12 @@ import java.util.LinkedHashMap;
 public class SybaseExtConfig implements ConfigEntity {
     Snapshot snapshot;
     Realtime realtime;
+    Heartbeat heartbeat;
 
     public SybaseExtConfig() {
         snapshot = new Snapshot();
         realtime = new Realtime();
+        heartbeat = null;
     }
 
     public Snapshot getSnapshot() {
@@ -32,11 +35,20 @@ public class SybaseExtConfig implements ConfigEntity {
         this.realtime = realtime;
     }
 
+    public Heartbeat getHeartbeat() {
+        return heartbeat;
+    }
+
+    public void setHeartbeat(Heartbeat heartbeat) {
+        this.heartbeat = heartbeat;
+    }
+
     @Override
     public Object toYaml() {
         LinkedHashMap<String, Object> hashMap = new LinkedHashMap<>();
-        if (null != snapshot) hashMap.put("snapshot", snapshot.toYaml());
-        if (null != realtime) hashMap.put("realtime", realtime.toYaml());
+        Optional.ofNullable(snapshot).ifPresent(h -> hashMap.put("snapshot", snapshot.toYaml()));
+        Optional.ofNullable(realtime).ifPresent(h -> hashMap.put("realtime", realtime.toYaml()));
+        Optional.ofNullable(heartbeat).ifPresent(h -> hashMap.put("heartbeat", heartbeat.toYaml()));
         return hashMap;
     }
 
@@ -168,6 +180,60 @@ public class SybaseExtConfig implements ConfigEntity {
 
         public void setTraceDBTasks(boolean traceDBTasks) {
             this.traceDBTasks = traceDBTasks;
+        }
+    }
+
+    public static class Heartbeat implements ConfigEntity {
+        boolean enable;
+        String catalog;
+        String schema;
+        long interval_ms;
+
+        public Heartbeat() {
+            this.enable = false;
+            this.interval_ms = 10000L;
+        }
+
+        public boolean isEnable() {
+            return enable;
+        }
+
+        public void setEnable(boolean enable) {
+            this.enable = enable;
+        }
+
+        public String getCatalog() {
+            return catalog;
+        }
+
+        public void setCatalog(String catalog) {
+            this.catalog = catalog;
+        }
+
+        public String getSchema() {
+            return schema;
+        }
+
+        public void setSchema(String schema) {
+            this.schema = schema;
+        }
+
+        public long getInterval_ms() {
+            return interval_ms;
+        }
+
+        public void setInterval_ms(long interval_ms) {
+            this.interval_ms = interval_ms;
+        }
+
+        @Override
+        public Object toYaml() {
+            LinkedHashMap<String, Object> hashMap = new LinkedHashMap<>();
+            hashMap.put("enable", enable);
+            hashMap.put("catalog", catalog);
+            hashMap.put("schema", schema);
+            hashMap.put("interval-ms", interval_ms);
+            return hashMap;
         }
     }
 }
