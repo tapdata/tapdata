@@ -537,7 +537,7 @@ public class ConnectorUtil {
             for (Integer portNum : port) {
                 joiner.add("" + portNum);
             }
-            log.warn(port.toString());
+            log.debug(port.toString());
             execCmd("kill " + (null != killType && "".equals(killType.trim()) ? killType + " " : "") + joiner.toString(), String.format("Can not auto stop cdc tool, please go to server and kill process by shell %s and after find process PID by shell %s, {}",
                     "kill pid1 pid2 pid3 ",
                     "ps -ef|grep sybase-poc/replicant-cli"), log);
@@ -556,8 +556,10 @@ public class ConnectorUtil {
                 p.waitFor();
                 br = new BufferedReader(new InputStreamReader(p.getInputStream()));
                 String line;
+                StringJoiner joiner = new StringJoiner("\n");
                 while ((line = br.readLine()) != null) {
-                    log.info(line);
+                    //log.debug(line);
+                    joiner.add(line);
                     boolean needIgnore = false;
                     if (!ignoreShells.isEmpty()) {
                         for (String ignoreShell : ignoreShells) {
@@ -577,6 +579,7 @@ public class ConnectorUtil {
                         }
                     }
                 }
+                log.debug(joiner.toString());
                 br.close();
                 br = new BufferedReader(new InputStreamReader(p.getErrorStream()));
                 while ((line = br.readLine()) != null) {

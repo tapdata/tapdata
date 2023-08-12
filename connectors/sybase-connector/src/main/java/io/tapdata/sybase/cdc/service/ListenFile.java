@@ -3,6 +3,7 @@ package io.tapdata.sybase.cdc.service;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.sybase.cdc.CdcRoot;
@@ -12,18 +13,22 @@ import io.tapdata.sybase.cdc.dto.analyse.AnalyseTapEventFromCsvString;
 import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVOfBigFile;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
 import io.tapdata.sybase.cdc.dto.read.TableTypeEntity;
+import io.tapdata.sybase.cdc.dto.start.CommandType;
+import io.tapdata.sybase.cdc.dto.start.OverwriteType;
 import io.tapdata.sybase.cdc.dto.watch.FileListener;
 import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
 import io.tapdata.sybase.util.ConfigPaths;
+import io.tapdata.sybase.util.ConnectorUtil;
 import io.tapdata.sybase.util.Utils;
 import io.tapdata.sybase.util.YamlUtil;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.monitor.FileAlterationObserver;
 
 import java.io.File;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -36,6 +41,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static io.tapdata.base.ConnectorBase.list;
 
 /**
  * @author GavinXiao
@@ -57,6 +64,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
     private final NodeConfig nodeConfig;
     private StreamReadConsumer cdcConsumer;
     FileMonitor fileMonitor;
+    long lastHeartbeatTime = 0;
 
     protected ListenFile(CdcRoot root,
                          String monitorPath,
@@ -157,25 +165,26 @@ public class ListenFile implements CdcStep<CdcRoot> {
             @Override
             public void onStart(FileAlterationObserver observer) {
                 if (null == cdcConsumer) return;
+                Log log = context.getLog();
+                String hostPortFromConfig = ConnectorUtil.getCurrentInstanceHostPortFromConfig(context);
+                if (System.currentTimeMillis() - lastHeartbeatTime > 150000) {
+                    List<Integer> port = ConnectorUtil.port(ConnectorUtil.killShellCmd, ConnectorUtil.ignoreShells, log, hostPortFromConfig);
+                    if (port.size() < 3) {
+                        log.info("The CDC process will be restarted: no incremental files were detected to have been created or modified for a long time (2.5 minutes). Please check if incremental data has occurred on the source side");
+                        //超过2.5分钟未检测到CSV文件变更，重启cdc工具
+                        ConnectorUtil.safeStopShell(context, port);
+                        new ExecCommand(root, CommandType.CDC, OverwriteType.RESUME).compile();
+                    }
+                    lastHeartbeatTime = System.currentTimeMillis();
+                }
                 try {
                     super.onStart(observer);
-                    if (hasHandelInit.get()) {
-                        if (null != cdcConsumer) {
-                            try {
-                                if (!tables.isEmpty()) {
-                                    hasHandelInit.set(true);
-                                    foreachTable(false);
-                                }
-                            } catch (Exception e) {
-                                cdcConsumer.streamReadEnded();
-                                //context.getLog().warn("Start monitor file failed, msg: {}", e.getMessage());
-                                throw new CoreException("Start monitor file failed, msg: {}", e.getMessage());
-                            }
-                        }
+                    if (hasHandelInit.get() && !tables.isEmpty()) {
+                        hasHandelInit.set(true);
+                        foreachTable(false);
                     }
                 } catch (Exception e) {
                     cdcConsumer.streamReadEnded();
-                    context.getLog().warn("Start monitor file failed, msg: {}", e.getMessage());
                     throw new CoreException("Start monitor file failed, msg: {}", e.getMessage());
                 }
             }
@@ -209,6 +218,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
             }
 
             private boolean monitor(File file, Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap) {
+                lastHeartbeatTime = System.currentTimeMillis();
                 root.getContext().getLog().warn("File change: {}", file.getAbsolutePath());
                 boolean isThisFile = false;
                 String absolutePath = file.getAbsolutePath();
@@ -370,49 +380,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
             throw new CoreException("Can not monitor cdc for sybase, msg: {}", e.getMessage());
         }
         return this.root;
-    }
-
-    /**
-     * @deprecated
-     */
-    private Map<String, LinkedHashMap<String, TableTypeEntity>> getTableFromConfig(List<String> tableId) {
-        Map<String, LinkedHashMap<String, TableTypeEntity>> table = new LinkedHashMap<>();
-        if (null == tableId || tableId.isEmpty()) return table;
-        final ConnectionConfig config = new ConnectionConfig(root.getContext());
-        final String database = config.getDatabase();
-        final String schema = config.getSchema();
-        try {
-            YamlUtil schemas = new YamlUtil(schemaConfigPath);
-            List<Map<String, Object>> schemaList = (List<Map<String, Object>>) schemas.get("schemas");
-            for (Map<String, Object> objectMap : schemaList) {
-                Object catalog = objectMap.get("catalog");
-                Object schemaItem = objectMap.get("schema");
-                if (null != catalog && null != schemaItem && catalog.equals(database) && schemaItem.equals(schema)) {
-                    Object tables = objectMap.get("tables");
-                    if (!(tables instanceof Collection)) continue;
-                    ((Collection<Map<String, Object>>) tables).stream()
-                            .filter(map -> Objects.nonNull(map) && tableId.contains(String.valueOf(map.get("name"))))
-                            .forEach(tableInfo -> {
-                                Object columns = tableInfo.get("columns");
-                                if (columns instanceof Collection) {
-                                    String tableName = String.valueOf(tableInfo.get("name"));
-                                    Collection<Map<String, Object>> columnsList = (Collection<Map<String, Object>>) columns;
-                                    LinkedHashMap<String, TableTypeEntity> tableClo = new LinkedHashMap<>();
-                                    columnsList.stream().filter(Objects::nonNull).forEach(clo -> {
-                                        String name = String.valueOf(clo.get("name"));
-                                        String type = String.valueOf(clo.get("type"));
-                                        tableClo.put(name, new TableTypeEntity(type, name, Utils.parseLengthFromTypeName(type)));
-                                    });
-                                    table.put(tableName, tableClo);
-                                }
-                            });
-                    break;
-                }
-            }
-        } catch (Exception e) {
-            root.getContext().getLog().warn("Can not read file {} to get {}'s schemas, msg: {}", schemaConfigPath, tableId, e.getMessage());
-        }
-        return table;
     }
 
     private Map<String, LinkedHashMap<String, TableTypeEntity>> getTableFromConfig(Map<String, Map<String, List<String>>> tableId) {
