@@ -142,13 +142,22 @@ public class SybaseConnector extends CommonDbConnector {
         log = tapConnectionContext.getLog();
         if (tapConnectionContext instanceof TapConnectorContext) {
             TapConnectorContext context = (TapConnectorContext) tapConnectionContext;
+            KVMap<Object> stateMap = context.getStateMap();
+            String hostPortFromConfig = CdcHandle.getCurrentInstanceHostPortFromConfig(context);
+            String targetPath = "sybase-poc-temp/" + hostPortFromConfig + "/";
+            List<Integer> port = cdcPort(context, hostPortFromConfig);
+            if (!port.isEmpty()) {
+                stateMap.put("IsSameHostPortTask", true);
+                throw new CoreException("Enabling multiple CDC processes on the same Sybase instance is not supported. The current host:port={} enabled CDC process pid list is: {}", hostPortFromConfig, port);
+            }
+
+
             this.mysqlWriter = new SybaseSqlBatchWriter(sybaseContext);
             this.sybaseReader = new SybaseReader(sybaseContext);
             this.version = sybaseContext.queryVersion();
             ddlSqlGenerator = new MysqlDDLSqlGenerator(version, context.getTableMap());
             root = new CdcRoot(unused -> isAlive());
             lock = new StopLock(true);
-            KVMap<Object> stateMap = context.getStateMap();
             Object taskId = stateMap.get("taskId");
             if (null == taskId) {
                 String id = context.getId();
@@ -170,7 +179,7 @@ public class SybaseConnector extends CommonDbConnector {
 
             //未重置后重启
             if (OverwriteType.RESUME.getType().equals(stateMap.get("tableOverType"))) {
-                CdcHandle.safeStopShell(context.getLog());
+                CdcHandle.safeStopShell(context.getLog(), targetPath);
                 cdcHandle = null;
                 cdcStart(context);
             }
@@ -202,10 +211,18 @@ public class SybaseConnector extends CommonDbConnector {
         }
 
         if (connectionContext instanceof TapConnectorContext) {
-            if (null == cdcHandle) {
-                CdcHandle.safeStopShell(log);
-            } else {
-                cdcHandle.stopCdc();
+            TapConnectorContext context = (TapConnectorContext) connectionContext;
+            KVMap<Object> stateMap = context.getStateMap();
+            String hostPortFromConfig = CdcHandle.getCurrentInstanceHostPortFromConfig(context);
+            String targetPath = "sybase-poc-temp/" + hostPortFromConfig + "/";
+            List<Integer> port = CdcHandle.port(log, new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli"));
+            Object isSameHostPortTask = stateMap.get("IsSameHostPortTask");
+            if (!port.isEmpty() && (null == isSameHostPortTask || !(isSameHostPortTask instanceof Boolean) || !(Boolean) isSameHostPortTask)) {
+                if (null == cdcHandle) {
+                    CdcHandle.safeStopShell(log, targetPath);
+                } else {
+                    cdcHandle.stopCdc();
+                }
             }
         }
         Optional.ofNullable(lock).ifPresent(StopLock::stop);
@@ -566,7 +583,9 @@ public class SybaseConnector extends CommonDbConnector {
                 //throw new CoreException(" Repeated startup of cdc processes is not allowed, the CDC execution information has expired");
                 try {
                     cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
-                    CdcHandle.safeStopShell(tapConnectorContext.getLog());
+                    String hostPortFromConfig = CdcHandle.getCurrentInstanceHostPortFromConfig(tapConnectorContext);
+                    String targetPath = "sybase-poc-temp/" + hostPortFromConfig + "/";
+                    CdcHandle.safeStopShell(tapConnectorContext.getLog(), targetPath);
                 } catch (CoreException e) {
                     if (e.getCode() == Code.STREAM_READ_WARN) {
                         tapConnectorContext.getLog().info(e.getMessage());
@@ -768,59 +787,69 @@ public class SybaseConnector extends CommonDbConnector {
         return tableId;
     }
 
+    public final static Object cdcLock = new Object();
     private void cdcStart(TapConnectorContext tapConnectorContext) {
-        //((TapConnectorContext) tapConnectorContext).getStateMap().put("isRestart", true);
-        Iterator<Entry<TapTable>> tableIterator = tapConnectorContext.getTableMap().iterator();
-        Set<String> tableIds = new HashSet<>();
-        while (tableIterator.hasNext()) {
-            Entry<TapTable> next = tableIterator.next();
-            if (null != next) {
-                String key = next.getKey();
-                if (null != key && !"".equals(key.trim())) {
-                    tableIds.add(key);
-                }
+        synchronized (cdcLock) {
+            String hostPortFromConfig = CdcHandle.getCurrentInstanceHostPortFromConfig(tapConnectorContext);
+            List<Integer> port = cdcPort(tapConnectorContext, hostPortFromConfig);
+            if (!port.isEmpty()) {
+                tapConnectorContext.getStateMap().put("IsSameHostPortTask", true);
+                throw new CoreException("Enabling multiple CDC processes on the same Sybase instance is not supported. The current host:port={} enabled CDC process pid list is: {}", hostPortFromConfig, port);
             }
-        }
-        tapConnectorContext.getLog().info("Task table will be monitor in cdc: {}", tableIds);
 
-        Set<String> containsTimestampFieldTables = new HashSet<>();
-        try {
-            List<DataMap> tableList = sybaseContext.queryAllTables(new ArrayList<>(tableIds));
-            Map<String, List<DataMap>> tableName = tableList.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(t -> t.getString("tableName")));
-            if (null != tableName && !tableName.isEmpty()) {
-                tableName.forEach((tab, con) -> {
-                    if (null != con) {
-                        List<DataMap> collect = con.stream().filter(col -> null != col
-                                && null != col.getString("dataType")
-                                && col.getString("dataType").toUpperCase(Locale.ROOT).contains("TIMESTAMP"))
-                                .collect(Collectors.toList());
-                        if (!collect.isEmpty()) {
-                            containsTimestampFieldTables.add(tab);
-                        }
+            //((TapConnectorContext) tapConnectorContext).getStateMap().put("isRestart", true);
+            Iterator<Entry<TapTable>> tableIterator = tapConnectorContext.getTableMap().iterator();
+            Set<String> tableIds = new HashSet<>();
+            while (tableIterator.hasNext()) {
+                Entry<TapTable> next = tableIterator.next();
+                if (null != next) {
+                    String key = next.getKey();
+                    if (null != key && !"".equals(key.trim())) {
+                        tableIds.add(key);
                     }
-                });
-            }
-
-        }catch (Exception e){
-            throw new CoreException("Can not get any tables from sybase, filter by: {}, msg: {}", tableIds, e.getMessage());
-        }
-
-        if (root == null) root = new CdcRoot(unused -> isAlive());
-        List<String> cdcTables = root.getCdcTables();
-        root.setContainsTimestampFieldTables(new ArrayList<>(containsTimestampFieldTables));
-
-        //if (!equalsTable(cdcTables, tableIds)) {
-        root.setCdcTables(new ArrayList<>(tableIds));
-        if (null == cdcHandle) {
-            try {
-                cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
-            } catch (CoreException e) {
-                if (e.getCode() == Code.STREAM_READ_WARN) {
-                    tapConnectorContext.getLog().info(e.getMessage());
                 }
-                throw e;
             }
-            cdcHandle.initCdc(overwriteType);
+            tapConnectorContext.getLog().info("Task table will be monitor in cdc: {}", tableIds);
+
+            Set<String> containsTimestampFieldTables = new HashSet<>();
+            try {
+                List<DataMap> tableList = sybaseContext.queryAllTables(new ArrayList<>(tableIds));
+                Map<String, List<DataMap>> tableName = tableList.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(t -> t.getString("tableName")));
+                if (null != tableName && !tableName.isEmpty()) {
+                    tableName.forEach((tab, con) -> {
+                        if (null != con) {
+                            List<DataMap> collect = con.stream().filter(col -> null != col
+                                    && null != col.getString("dataType")
+                                    && col.getString("dataType").toUpperCase(Locale.ROOT).contains("TIMESTAMP"))
+                                    .collect(Collectors.toList());
+                            if (!collect.isEmpty()) {
+                                containsTimestampFieldTables.add(tab);
+                            }
+                        }
+                    });
+                }
+
+            } catch (Exception e) {
+                throw new CoreException("Can not get any tables from sybase, filter by: {}, msg: {}", tableIds, e.getMessage());
+            }
+
+            if (root == null) root = new CdcRoot(unused -> isAlive());
+            List<String> cdcTables = root.getCdcTables();
+            root.setContainsTimestampFieldTables(new ArrayList<>(containsTimestampFieldTables));
+
+            //if (!equalsTable(cdcTables, tableIds)) {
+            root.setCdcTables(new ArrayList<>(tableIds));
+            if (null == cdcHandle) {
+                try {
+                    cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
+                } catch (CoreException e) {
+                    if (e.getCode() == Code.STREAM_READ_WARN) {
+                        tapConnectorContext.getLog().info(e.getMessage());
+                    }
+                    throw e;
+                }
+                cdcHandle.initCdc(overwriteType);
+            }
         }
             //else {
 //                cdcHandle.compileFilterTableYamlConfig(new ConnectionConfig(tapConnectorContext));
@@ -843,5 +872,9 @@ public class SybaseConnector extends CommonDbConnector {
         tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("TABLE_ROWS")));
         tableInfo.setStorageSize(Long.valueOf(dataMap.getString("DATA_LENGTH")));
         return tableInfo;
+    }
+
+    public static List<Integer> cdcPort(TapConnectorContext context, String hostPortFromConfig) {
+        return CdcHandle.port(context.getLog(), new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli | grep " + "sybase-poc-temp/" + hostPortFromConfig + "/"}, list("grep sybase-poc/replicant-cli"));
     }
 }

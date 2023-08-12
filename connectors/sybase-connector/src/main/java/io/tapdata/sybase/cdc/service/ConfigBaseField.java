@@ -14,7 +14,10 @@ import java.io.File;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.UUID;
+
+import static io.tapdata.base.ConnectorBase.list;
 
 /**
  * @author GavinXiao
@@ -44,9 +47,12 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
             stateMap.put("taskId", cdcId = UUID.randomUUID().toString().replaceAll("-", "_"));
         }
         root.setCdcId(cdcId);
-        String targetPath = "sybase-poc-temp/" + cdcId + "/";
+        String hostPortFromConfig = CdcHandle.getCurrentInstanceHostPortFromConfig(root.getContext());
+        String targetPath = "sybase-poc-temp/" + hostPortFromConfig + "/";
         File sybasePocPath = new File(targetPath);
-        if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) sybasePocPath.mkdir();
+        if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) {
+            sybasePocPath.mkdir();
+        }
         String pocPathFromLocal = getPocPathFromLocal();
         File fromLocal = new File(pocPathFromLocal);
         File targetFile = new File(FilenameUtils.concat(sybasePocPath.getAbsolutePath(), "sybase-poc"));
