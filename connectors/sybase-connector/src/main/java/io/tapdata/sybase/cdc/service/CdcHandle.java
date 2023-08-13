@@ -102,7 +102,7 @@ public class CdcHandle {
         srcConfig.setMax_retries(10);
         srcConfig.setRetry_wait_duration_ms(1000);
         srcConfig.setTransaction_store_location("" + sybasePocPath + "/config/sybase2csv/data");
-        srcConfig.setTransaction_store_cache_limit(1000);
+        srcConfig.setTransaction_store_cache_limit(100000);
 
 
         SybaseDstLocalStorage dstLocalStorage = new SybaseDstLocalStorage();
