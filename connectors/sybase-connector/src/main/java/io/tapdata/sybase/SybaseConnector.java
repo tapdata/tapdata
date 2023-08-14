@@ -215,7 +215,7 @@ public class SybaseConnector extends CommonDbConnector {
             KVMap<Object> stateMap = context.getStateMap();
             String hostPortFromConfig = CdcHandle.getCurrentInstanceHostPortFromConfig(context);
             String targetPath = "sybase-poc-temp/" + hostPortFromConfig + "/";
-            List<Integer> port = CdcHandle.port(log, new String[]{"ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli"));
+            List<Integer> port = cdcPort(context, hostPortFromConfig);
             Object isSameHostPortTask = stateMap.get("IsSameHostPortTask");
             if (!port.isEmpty() && (null == isSameHostPortTask || !(isSameHostPortTask instanceof Boolean) || !(Boolean) isSameHostPortTask)) {
                 if (null == cdcHandle) {
@@ -256,7 +256,7 @@ public class SybaseConnector extends CommonDbConnector {
 
         String hostPortFromConfig = CdcHandle.getCurrentInstanceHostPortFromConfig(context);
         String targetPath = "sybase-poc-temp/" + hostPortFromConfig + "/";
-        List<Integer> port = CdcHandle.port(log, new String[]{"ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli"));
+        List<Integer> port = cdcPort(context, hostPortFromConfig);
         Object isSameHostPortTask = stateMap.get("IsSameHostPortTask");
         if (!port.isEmpty() && (null == isSameHostPortTask || !(isSameHostPortTask instanceof Boolean) || !(Boolean) isSameHostPortTask)) {
             CdcHandle.safeStopShell(log, targetPath);

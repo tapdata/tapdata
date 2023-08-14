@@ -270,7 +270,7 @@ public class CdcHandle {
 
     public static void safeStopShell(Log log, String targetPath) {
         try {
-            safeStopShell(log, port(log, new String[]{"ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli")), targetPath);
+            safeStopShell(log, port(log, new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli")), targetPath);
         } catch (Exception e) {
             if (null != log) log.warn("Can not auto stop cdc tool, please go to server and kill process by shell {} and after find process PID by shell {}",
                     "kill pid1 pid2 pid3 ",
@@ -283,7 +283,7 @@ public class CdcHandle {
             if (!port.isEmpty()) {
                 stopShell("-15", log, port);
                 Thread.sleep(5000);
-                port = port(log, new String[]{"ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli"));
+                port = port(log, new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli"));
                 if (!port.isEmpty()) {
                     stopShell("-9", log, port);
                     Thread.sleep(5000);
@@ -335,7 +335,7 @@ public class CdcHandle {
                         }
                     }
                     if (needIgnore) continue;
-                    String[] split = line.split("( )+");
+                    String[] split = line.trim().split("( )+");
                     if (split.length > 2) {
                         String portStr = split[1];
                         try {
