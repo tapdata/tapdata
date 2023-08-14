@@ -136,7 +136,8 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
     }
 
     private String getPocPathFromLocal() {
-        boolean isLinuxCore = "linux".equalsIgnoreCase(System.getProperty("os.name"));
+        String osName = System.getProperty("os.name");
+        boolean isLinuxCore = null != osName && !osName.contains("win") && !osName.contains("Win");//"linux".equalsIgnoreCase(System.getProperty("os.name"));
         String pocPath = isLinuxCore ? "sybase-poc.zip" : "D:\\sybase-poc.zip";
         File file = new File(pocPath);
         if (!file.exists() || !file.isFile()) {

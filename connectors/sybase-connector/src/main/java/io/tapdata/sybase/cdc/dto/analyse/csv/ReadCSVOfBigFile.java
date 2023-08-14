@@ -34,6 +34,7 @@ public class ReadCSVOfBigFile implements ReadCSV {
         List<List<String>> lines = new ArrayList<>();
         String[] strArr = null;
         offset = Math.max(offset, 0);
+        final int lastOffset = offset;
         int index = offset - 1;
         try (
                 FileInputStream inputStream = new FileInputStream(csvPath);
@@ -41,7 +42,8 @@ public class ReadCSVOfBigFile implements ReadCSV {
                 BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
                 CSVReader reader = new CSVReader(bufferedReader)
         ) {
-            while (null != (strArr = reader.readNext())) {
+            int lineIndex = 0;
+            while (lineIndex++ >= lastOffset && null != (strArr = reader.readNext()) ) {
                 lines.add(new ArrayList<>(Arrays.asList(strArr)));
                 index++;
                 int size = lines.size();
