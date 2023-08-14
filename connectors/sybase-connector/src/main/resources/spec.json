@@ -283,7 +283,7 @@
         },
         "hbSchema": {
           "type": "string",
-          "title": "${heartbeat_schema}",
+          "title": "${heart_schema}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "default": "",

@@ -129,12 +129,12 @@ public class CdcHandle {
         if (nodeConfig.isHeartbeat()) {
             String hbDatabase = nodeConfig.getHbDatabase();
             String hbSchema = nodeConfig.getHbSchema();
-            SybaseExtConfig.Heartbeat heartbeat = new SybaseExtConfig.Heartbeat();
+            SybaseExtConfig.Realtime.Heartbeat heartbeat = new SybaseExtConfig.Realtime.Heartbeat();
             heartbeat.setEnable(true);
             heartbeat.setInterval_ms(10000L);
             heartbeat.setCatalog(hbDatabase);
             heartbeat.setSchema(hbSchema);
-            extConfig.setHeartbeat(heartbeat);
+            realtime.setHeartbeat(heartbeat);
             root.getContext().getLog().info("Heartbeat is open which has created at {}.{} , please ensure", hbDatabase, hbSchema);
         }
 
@@ -365,7 +365,7 @@ public class CdcHandle {
                 } catch (IOException ignore) { }
             }
         }
-        port.sort(Comparator.comparingInt(o -> o));
+        //port.sort(Comparator.comparingInt(o -> o));
         return port;
     }
 

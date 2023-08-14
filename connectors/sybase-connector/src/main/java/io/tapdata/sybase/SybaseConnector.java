@@ -232,6 +232,7 @@ public class SybaseConnector extends CommonDbConnector {
     }
 
     private void release(TapConnectorContext context) {
+        Log log = context.getLog();
         if (null == cdcHandle)
             cdcHandle = new CdcHandle(new CdcRoot(unused -> isAlive()), context, new StopLock(isAlive()));
         CdcRoot root = cdcHandle.getRoot();
@@ -250,7 +251,17 @@ public class SybaseConnector extends CommonDbConnector {
             sybaseContext = new SybaseContext(sybaseConfig);
             sybaseContext.execute(closeCdcPositionSql);
         } catch (Exception e) {
-            context.getLog().warn("Fail to close cdc log, please execute sql in client: {}", closeCdcPositionSql);
+            log.warn("Fail to close cdc log, please execute sql in client: {}", closeCdcPositionSql);
+        }
+
+        String hostPortFromConfig = CdcHandle.getCurrentInstanceHostPortFromConfig(context);
+        String targetPath = "sybase-poc-temp/" + hostPortFromConfig + "/";
+        List<Integer> port = CdcHandle.port(log, new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli"));
+        Object isSameHostPortTask = stateMap.get("IsSameHostPortTask");
+        if (!port.isEmpty() && (null == isSameHostPortTask || !(isSameHostPortTask instanceof Boolean) || !(Boolean) isSameHostPortTask)) {
+            CdcHandle.safeStopShell(log, targetPath);
+        } else if (!port.isEmpty() && port.size() <= 2) {
+            CdcHandle.safeStopShell(log, targetPath);
         }
     }
 
