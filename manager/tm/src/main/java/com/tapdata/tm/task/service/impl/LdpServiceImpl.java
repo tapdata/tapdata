@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service.impl;
 
 import com.google.common.collect.Lists;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.DAG;
@@ -50,6 +51,7 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -971,49 +973,29 @@ public class LdpServiceImpl implements LdpService {
 
 	public void addLdpDirectory(UserDetail user, Map<String, String> oldLdpMap) {
 		try {
-			Criteria criteria = Criteria.where("value").in(Lists.newArrayList(LdpDirEnum.LDP_DIR_SOURCE.getValue(),
-							LdpDirEnum.LDP_DIR_FDM.getValue(), LdpDirEnum.LDP_DIR_MDM.getValue(), LdpDirEnum.LDP_DIR_TARGET.getValue()))
-					.and("item_type").in(Lists.newArrayList(LdpDirEnum.LDP_DIR_SOURCE.getItemType(),
-							LdpDirEnum.LDP_DIR_FDM.getItemType(), LdpDirEnum.LDP_DIR_MDM.getItemType(), LdpDirEnum.LDP_DIR_TARGET.getItemType()))
-					.and("parent_id").exists(false);
-			Query query = new Query(criteria);
-
-			user.setAuthorities(new HashSet<>());
-			List<MetadataDefinitionDto> ldpDirs = metadataDefinitionService.findAllDto(query, user);
-			List<String> existValues = new ArrayList<>();
-			if (CollectionUtils.isNotEmpty(ldpDirs)) {
-				existValues = ldpDirs.stream().map(MetadataDefinitionDto::getValue).collect(Collectors.toList());
-			}
-
 			Map<String, String> kvMap = Arrays.stream(LdpDirEnum.values()).collect(Collectors.toMap(LdpDirEnum::getValue, LdpDirEnum::getItemType));
-
 			List<String> values = Arrays.stream(LdpDirEnum.values()).filter(e -> !e.equals(LdpDirEnum.LDP_DIR_API)).map(LdpDirEnum::getValue).collect(Collectors.toList());
 
-			values.removeAll(existValues);
-
-
-			List<MetadataDefinitionDto> newTags = new ArrayList<>();
 			for (String value : values) {
 				MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
 				metadataDefinitionDto.setValue(value);
 				metadataDefinitionDto.setItemType(Lists.newArrayList(kvMap.get(value)));
-				newTags.add(metadataDefinitionDto);
-			}
 
-			if (CollectionUtils.isNotEmpty(newTags)) {
-				List<MetadataDefinitionDto> ldpDirTags = metadataDefinitionService.save(newTags, user);
+				// Use upsert, Prevent data from being inserted repeatedly
+				metadataDefinitionDto = metadataDefinitionService.upsertByWhere(Where.where("value", value)
+						.and("user_id", user.getUserId())
+						.and("parent_id", new Document("$exists", false))
+					, metadataDefinitionDto, user);
 
-				if (oldLdpMap != null) {
-					for (MetadataDefinitionDto ldpDirTag : ldpDirTags) {
-						Update update = Update.update("parent_id", ldpDirTag.getId().toHexString());
-						String value = oldLdpMap.get(ldpDirTag.getValue());
-						if (StringUtils.isNotBlank(value)) {
-							metadataDefinitionService.update(new Query(Criteria.where("parent_id").is(oldLdpMap.get(ldpDirTag.getValue()))), update, user);
-						}
+				if (null != oldLdpMap && null != metadataDefinitionDto) {
+					Update update = Update.update("parent_id", metadataDefinitionDto.getId().toHexString());
+					String oldValue = oldLdpMap.get(value);
+
+					if (StringUtils.isNotBlank(oldValue)) {
+						metadataDefinitionService.update(new Query(Criteria.where("parent_id").is(oldValue)), update, user);
 					}
 				}
 			}
-
 		} catch (Exception e) {
 			log.warn("init ldp directory failed, userId = {}", user.getUserId());
 		}
