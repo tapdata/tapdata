@@ -50,6 +50,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
         String hostPortFromConfig = CdcHandle.getCurrentInstanceHostPortFromConfig(root.getContext());
         String targetPath = "sybase-poc-temp/" + hostPortFromConfig + "/";
         File sybasePocPath = new File(targetPath);
+        if (sybasePocPath.exists() && sybasePocPath.isDirectory()) sybasePocPath.delete();
         if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) {
             sybasePocPath.mkdir();
         }
