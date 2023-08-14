@@ -107,7 +107,7 @@ public class FieldAddDelProcessorNode extends FieldProcessorNode {
                     field.setColumnPosition(positionMap.get(field.getFieldName()));
                 }
             });
-            outputSchema.getFields().sort(Comparator.comparing(Field::getColumnPosition));
+            outputSchema.getFields().sort(Comparator.comparing(f -> null == f.getColumnPosition() ? 0 : f.getColumnPosition()));
         }
         return outputSchema;
     }

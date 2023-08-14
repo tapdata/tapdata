@@ -171,6 +171,7 @@ public class SchemaUtils {
             field.setJavaType(operation.getJava_type());
             field.setJavaType1(operation.getJava_type());
         }
+				field.setColumnPosition(0);
         return field;
     }
 
