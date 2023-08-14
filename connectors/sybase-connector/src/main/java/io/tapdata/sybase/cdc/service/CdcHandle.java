@@ -23,6 +23,7 @@ import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
 import io.tapdata.sybase.util.Code;
+import io.tapdata.sybase.util.HostUtils;
 import io.tapdata.sybase.util.Utils;
 import org.apache.commons.io.FileUtils;
 
@@ -223,7 +224,7 @@ public class CdcHandle {
                     return;
                 }
                 File file = new File(String.valueOf(cdcPath));
-                if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
+                if (HostUtils.isLinuxCore()) {
                     final String shell = "rm -rf " + cdcPath;
                     root.getContext().getLog().info("clean cdc path: {}", shell);
                     root.getContext().getLog().info(Utils.run(shell));
@@ -269,7 +270,7 @@ public class CdcHandle {
 
     public static void safeStopShell(Log log, String targetPath) {
         try {
-            safeStopShell(log, port(log, new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli")), targetPath);
+            safeStopShell(log, port(log, new String[]{"ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli")), targetPath);
         } catch (Exception e) {
             if (null != log) log.warn("Can not auto stop cdc tool, please go to server and kill process by shell {} and after find process PID by shell {}",
                     "kill pid1 pid2 pid3 ",
@@ -282,7 +283,7 @@ public class CdcHandle {
             if (!port.isEmpty()) {
                 stopShell("-15", log, port);
                 Thread.sleep(5000);
-                port = port(log, new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli"));
+                port = port(log, new String[]{"ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli"));
                 if (!port.isEmpty()) {
                     stopShell("-9", log, port);
                     Thread.sleep(5000);
@@ -317,7 +318,7 @@ public class CdcHandle {
         BufferedReader br = null;
         boolean execFlag = true;
         try {
-            if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
+            if (HostUtils.isLinuxCore()) {
                 Process p = Runtime.getRuntime().exec(cmd);
                 p.waitFor();
                 br = new BufferedReader(new InputStreamReader(p.getInputStream()));

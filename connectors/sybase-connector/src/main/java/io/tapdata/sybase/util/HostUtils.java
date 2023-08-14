@@ -13,6 +13,7 @@ import java.util.List;
  * 修改hosts文件
  */
 public abstract class HostUtils {
+    public static String osCore = System.getProperty("os.name");
 
     public synchronized static boolean updateHostName(String hostName, String ip) throws Exception {
         if (StringUtils.isEmpty(hostName) || StringUtils.isEmpty(ip)) {
@@ -27,7 +28,7 @@ public abstract class HostUtils {
         String fileName = null;
 
         // 判断系统
-        if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
+        if (HostUtils.isLinuxCore()) {
             fileName = "/etc/hosts";
         } else {
             fileName = "C://WINDOWS//system32//drivers//etc//hosts";
@@ -142,5 +143,11 @@ public abstract class HostUtils {
         }
 
         return strRet;
+    }
+
+    public static boolean isLinuxCore(){
+        if (null == osCore) osCore = System.getProperty("os.name");
+        if (null == osCore) return false;
+        return !osCore.contains("win") && !osCore.contains("Win");//"linux".equalsIgnoreCase(System.getProperty("os.name"));
     }
 }

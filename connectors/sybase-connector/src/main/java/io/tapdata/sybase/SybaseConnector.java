@@ -215,7 +215,7 @@ public class SybaseConnector extends CommonDbConnector {
             KVMap<Object> stateMap = context.getStateMap();
             String hostPortFromConfig = CdcHandle.getCurrentInstanceHostPortFromConfig(context);
             String targetPath = "sybase-poc-temp/" + hostPortFromConfig + "/";
-            List<Integer> port = CdcHandle.port(log, new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli"));
+            List<Integer> port = CdcHandle.port(log, new String[]{"ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli"));
             Object isSameHostPortTask = stateMap.get("IsSameHostPortTask");
             if (!port.isEmpty() && (null == isSameHostPortTask || !(isSameHostPortTask instanceof Boolean) || !(Boolean) isSameHostPortTask)) {
                 if (null == cdcHandle) {
@@ -256,7 +256,7 @@ public class SybaseConnector extends CommonDbConnector {
 
         String hostPortFromConfig = CdcHandle.getCurrentInstanceHostPortFromConfig(context);
         String targetPath = "sybase-poc-temp/" + hostPortFromConfig + "/";
-        List<Integer> port = CdcHandle.port(log, new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli"));
+        List<Integer> port = CdcHandle.port(log, new String[]{"ps -ef|grep sybase-poc/replicant-cli | grep " + targetPath }, list("grep sybase-poc/replicant-cli"));
         Object isSameHostPortTask = stateMap.get("IsSameHostPortTask");
         if (!port.isEmpty() && (null == isSameHostPortTask || !(isSameHostPortTask instanceof Boolean) || !(Boolean) isSameHostPortTask)) {
             CdcHandle.safeStopShell(log, targetPath);
@@ -720,11 +720,14 @@ public class SybaseConnector extends CommonDbConnector {
         }
     }
 
+    public final static String HEART_BEAT_CDC_TABLE_NAME = "replicate_io_cdc_heartbeat";
     @Override
     protected void singleThreadDiscoverSchema(List<DataMap> subList, Consumer<List<TapTable>> consumer) throws SQLException {
         List<TapTable> tapTableList = TapSimplify.list();
-        List<String> subTableNames = subList.stream().map(v -> v.getString("tableName")).collect(Collectors.toList());
-        Map<String, List<DataMap>> tables = subList.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(map -> map.getString("tableName")));
+        //List<String> subTableNames = subList.stream().map(v -> v.getString("tableName")).collect(Collectors.toList());
+        Map<String, List<DataMap>> tables = subList.stream()
+                .filter(map -> null !=map && !HEART_BEAT_CDC_TABLE_NAME.equals(map.getString("tableName")))
+                .collect(Collectors.groupingBy(map -> map.getString("tableName")));
 
         //List<DataMap> columnList = sybaseContext.queryAllColumns(subTableNames);
         List<DataMap> indexList = sybaseContext.queryAllIndexes(new ArrayList<>(tables.keySet()));
@@ -886,6 +889,6 @@ public class SybaseConnector extends CommonDbConnector {
     }
 
     public static List<Integer> cdcPort(TapConnectorContext context, String hostPortFromConfig) {
-        return CdcHandle.port(context.getLog(), new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli | grep " + "sybase-poc-temp/" + hostPortFromConfig + "/"}, list("grep sybase-poc/replicant-cli"));
+        return CdcHandle.port(context.getLog(), new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli | grep sybase-poc-temp/" + hostPortFromConfig + "/"}, list("grep sybase-poc/replicant-cli"));
     }
 }

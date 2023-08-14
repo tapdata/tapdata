@@ -5,6 +5,7 @@ import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.sybase.SybaseConnector;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
+import io.tapdata.sybase.util.HostUtils;
 import io.tapdata.sybase.util.Utils;
 import io.tapdata.sybase.util.ZipUtils;
 import org.apache.commons.io.FileUtils;
@@ -62,7 +63,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
         final String configPath = FilenameUtils.concat(targetPath, "config");
         if (fromLocal.exists() && fromLocal.isDirectory()) {
             try {
-                if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
+                if (HostUtils.isLinuxCore()) {
                     final String shell = "cp -r "
                             + (pocPathFromLocal.endsWith("/") ? (pocPathFromLocal + "*") : (pocPathFromLocal + "/*"))
                             + " "
@@ -137,8 +138,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
     }
 
     private String getPocPathFromLocal() {
-        String osName = System.getProperty("os.name");
-        boolean isLinuxCore = null != osName && !osName.contains("win") && !osName.contains("Win");//"linux".equalsIgnoreCase(System.getProperty("os.name"));
+        boolean isLinuxCore = HostUtils.isLinuxCore();//"linux".equalsIgnoreCase(System.getProperty("os.name"));
         String pocPath = isLinuxCore ? "sybase-poc.zip" : "D:\\sybase-poc.zip";
         File file = new File(pocPath);
         if (!file.exists() || !file.isFile()) {
