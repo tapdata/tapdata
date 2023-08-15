@@ -6,15 +6,21 @@ import io.tapdata.entity.serializer.JavaCustomSerializer;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.DecimalFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.time.*;
-import java.time.format.DateTimeFormatter;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.Objects;
 import java.util.TimeZone;
@@ -201,6 +207,17 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
                 return toLong();
             default:
                 throw new CoreException(TapAPIErrorCodes.ERROR_ILLEGAL_DATETIME_ORIGIN_TYPE, "Illegal originType {} for DateTime", originType);
+        }
+    }
+
+    public static DateTime withDateStr(String dateStr) {
+        if (dateStr == null)
+            throw new IllegalArgumentException("DateTime constructor dateStr is null");
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        try {
+            return new DateTime(sdf.parse(dateStr).getTime());
+        } catch (ParseException e) {
+            throw new IllegalArgumentException("DateTime constructor illegal dateStr: " + dateStr);
         }
     }
 

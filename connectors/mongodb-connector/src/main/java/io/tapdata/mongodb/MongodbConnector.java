@@ -14,6 +14,7 @@ import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.*;
 import io.tapdata.entity.schema.value.*;
@@ -948,7 +949,7 @@ public class MongodbConnector extends ConnectorBase {
 			if (mongodbWriter == null) {
 				synchronized (this) {
 					if (mongodbWriter == null) {
-						mongodbWriter = new MongodbWriter(connectorContext.getGlobalStateMap(), mongoConfig, mongoClient);
+						mongodbWriter = new MongodbWriter(connectorContext.getGlobalStateMap(), mongoConfig, mongoClient, connectorContext.getLog());
 						ConnectorCapabilities connectorCapabilities = connectorContext.getConnectorCapabilities();
 						if (null != connectorCapabilities) {
 							mongoConfig.setInsertDmlPolicy(null == connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY) ?
@@ -962,8 +963,25 @@ public class MongodbConnector extends ConnectorBase {
 					}
 				}
 			}
-
-			mongodbWriter.writeRecord(tapRecordEvents, table, writeListResultConsumer);
+			if ("log_on_nonexists".equals(mongoConfig.getUpdateDmlPolicy())) {
+				List<TapRecordEvent> noUpdateRecordEvents = new ArrayList<>();
+				for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
+					if (tapRecordEvent instanceof TapUpdateRecordEvent) {
+						if (EmptyKit.isNotEmpty(noUpdateRecordEvents)) {
+							mongodbWriter.writeRecord(noUpdateRecordEvents, table, writeListResultConsumer);
+							noUpdateRecordEvents.clear();
+						}
+						mongodbWriter.writeUpdateRecordWithLog(tapRecordEvent, table, writeListResultConsumer);
+					} else {
+						noUpdateRecordEvents.add(tapRecordEvent);
+					}
+				}
+				if (EmptyKit.isNotEmpty(noUpdateRecordEvents)) {
+					mongodbWriter.writeRecord(noUpdateRecordEvents, table, writeListResultConsumer);
+				}
+			} else {
+				mongodbWriter.writeRecord(tapRecordEvents, table, writeListResultConsumer);
+			}
 		} catch (Throwable e) {
 			exceptionCollector.revealException(e);
 			errorHandle(e, connectorContext);
