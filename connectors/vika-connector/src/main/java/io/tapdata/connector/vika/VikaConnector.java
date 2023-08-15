@@ -41,6 +41,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
@@ -79,6 +80,7 @@ import java.util.stream.Collectors;
 
 @TapConnectorClass("spec_vika.json")
 public class VikaConnector extends ConnectorBase {
+    public static final Object apiLock = new Object();
     private VikaApiClient vikaApiClient;
     private ApiHttpClient apiHttpClient;
     private volatile SpaceApi spaceApi;
@@ -88,7 +90,7 @@ public class VikaConnector extends ConnectorBase {
 
     private final Integer groupNum = 10;
 
-    // {api: {count: 5, time:45395435345}}
+// {api: {count: 5, time:45395435345}}
 //    private final Map<String, Pair<Integer, Long>> limitMap = new ConcurrentHashMap<>();
 
     @Override
@@ -139,7 +141,8 @@ public class VikaConnector extends ConnectorBase {
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId));
+        Log log = connectionContext.getLog();
+        List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId), log);
         if (EmptyKit.isNotEmpty(nodes)) {
             List<Node> nodeList = nodes.stream().filter(node -> "Datasheet".equals(node.getType())).collect(Collectors.toList());
             List<List<Node>> partition = Lists.partition(nodeList, tableSize);
@@ -149,13 +152,13 @@ public class VikaConnector extends ConnectorBase {
                 for (Node node : list) {
 
                     String datasheetId = node.getId();
-                    List<DataSheetView> views = getDataSheetViewApi(apiHttpClient).getViews(datasheetId).getViews();
+                    List<DataSheetView> views = (List<DataSheetView>) Restrictor.limitRule(() -> getDataSheetViewApi(apiHttpClient).getViews(datasheetId).getViews(), log);
                     if (EmptyKit.isEmpty(views)) {
                         continue;
                     }
                     for (DataSheetView view : views) {
                         TapTable tapTable = table(node.getName());
-                        List<Field> fields = getFieldApi(apiHttpClient).getFields(datasheetId, view.getId()).getFields();
+                        List<Field> fields = (List<Field>) Restrictor.limitRule(() -> getFieldApi(apiHttpClient).getFields(datasheetId, view.getId()).getFields(), log);
                         for (Field field : fields) {
                             TapField tapField = new TapField(field.getName(), field.getType());
                             tapTable.add(tapField);
@@ -174,6 +177,7 @@ public class VikaConnector extends ConnectorBase {
         String hostUrl = config.getString("hostUrl");
         String credential = config.getString("credential");
         String spaceId = config.getString("spaceId");
+        Log log = connectionContext.getLog();
 
         VikaApiClient vikaApiClient;
         if (EmptyKit.isNotEmpty(hostUrl)) {
@@ -192,7 +196,7 @@ public class VikaConnector extends ConnectorBase {
 
         TestItem testConnect;
         try {
-            getSpaceApi(apiHttpClient).getSpaces();
+            Restrictor.limitRule0(() -> getSpaceApi(apiHttpClient).getSpaces(), log);
             testConnect = testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY);
         } catch (Exception e) {
             testConnect = testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage());
@@ -204,17 +208,18 @@ public class VikaConnector extends ConnectorBase {
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-        SpaceRespone spaces = getSpaceApi(apiHttpClient).getSpaces();
+        Log log = connectionContext.getLog();
+        SpaceRespone spaces = (SpaceRespone) Restrictor.limitRule(() -> getSpaceApi(apiHttpClient).getSpaces(), log);
         if (EmptyKit.isNotEmpty(spaces.getSpaces())) {
 
             AtomicInteger count = new AtomicInteger();
 
-            List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId));
+            List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId), log);
             if (EmptyKit.isNotEmpty(nodes)) {
                 List<String> datasheetIds = nodes.stream().filter(node -> "Datasheet".equals(node.getType())).map(Node::getId).collect(Collectors.toList());
                 if (EmptyKit.isNotEmpty(datasheetIds)) {
                     for (String datasheetId : datasheetIds) {
-                        GetDatasheetViewRespone views = getDataSheetViewApi(apiHttpClient).getViews(datasheetId);
+                        GetDatasheetViewRespone views = (GetDatasheetViewRespone) Restrictor.limitRule(() -> getDataSheetViewApi(apiHttpClient).getViews(datasheetId), log);
                         if (EmptyKit.isNotEmpty(views.getViews())) {
                             count.getAndAdd(views.getViews().size());
                         }
@@ -265,8 +270,9 @@ public class VikaConnector extends ConnectorBase {
         CreateTableOptions createTableOptions = new CreateTableOptions();
         TapTable tapTable = tapCreateTableEvent.getTable();
         String tableId = tapTable.getId();
+        Log log = tapConnectorContext.getLog();
 
-        List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId));
+        List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId), log);
         boolean match = nodes.stream().anyMatch(node -> tableId.equals(node.getName()));
         createTableOptions.setTableExists(match);
         if (!match) {
@@ -322,7 +328,7 @@ public class VikaConnector extends ConnectorBase {
 
             createDatasheetRequest.setFields(fields);
 
-            Restrictor.limitRule0(() -> vikaApiClient.getDatasheetApi().addDatasheet(spaceId, createDatasheetRequest));
+            Restrictor.limitRule0(() -> vikaApiClient.getDatasheetApi().addDatasheet(spaceId, createDatasheetRequest), log);
         }
         return createTableOptions;
     }
@@ -344,16 +350,25 @@ public class VikaConnector extends ConnectorBase {
      * 如果需要上传多份文件，需要重复调用此接口。
      *
      */
-    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable, Exception {
+    private synchronized void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable, Exception {
+        String insertDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
+        if (insertDmlPolicy == null) {
+            insertDmlPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
+        }
+        String updateDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
+        if (updateDmlPolicy == null) {
+            updateDmlPolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
+        }
         String tableId = tapTable.getId();
         Object fieldsObj = connectorContext.getNodeConfig().get("ignoreFields");
+        Log log = connectorContext.getLog();
         Set<String> ignoreValueFields = new HashSet<>();
         Optional.ofNullable(fieldsObj).ifPresent(fields -> {
             if (fields instanceof Collection){
                 ignoreValueFields.addAll((Collection<String>) fieldsObj);
             }
         });
-        List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId));
+        List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId), log);
         Node nodeTemp = nodes.stream().filter(node -> tableId.equals(node.getName())).findAny().orElse(null);
         boolean match = Objects.nonNull(nodeTemp);
         if (match) {
@@ -367,7 +382,7 @@ public class VikaConnector extends ConnectorBase {
                         List<Map<String, List<?>>> recordList = new ArrayList<>();
                         List<TapRecordEvent> insertRecordEvents = partition.get(i - 1);
 
-                        List<Record> allRecords = getRecordFromVika(tapTable, insertRecordEvents, datasheetId);
+                        List<Record> allRecords = getRecordFromVika(tapTable, insertRecordEvents, datasheetId, log);
                         Collection<String> primaryKeys = tapTable.primaryKeys(true);
                         Map<String, List<Record>> groupRecords = allRecords.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(entity ->
                             asKey(primaryKeys, tapTable, entity.getFields())
@@ -385,20 +400,22 @@ public class VikaConnector extends ConnectorBase {
                                 //没有查出记录做新增
                                 recordItem.add(new RecordMap().withFields(after));
                             } else {
-                                //@TODO 查出记录了， 做更新或者丢弃
-                                isChangeStatus = "U";
-                                for (Record record : all) {
-                                    if (null == record) continue;
-                                    UpdateRecord updateRecord = new UpdateRecord();
-                                    updateRecord.withRecordId(record.getRecordId());
-                                    Map<String, Object> itemMap = new HashMap<>(after);
-                                    //指定的字段存在值时不更新这些字段，直接使用存在的值
-                                    ignoreValueFields.stream().filter(Objects::nonNull).forEach(field ->
-                                            Optional.ofNullable(record.getFields().get(field)).ifPresent(value -> itemMap.put(field, value))
-                                    );
-                                    updateRecord.setFields(itemMap);
-                                    recordItem.add(updateRecord);
-                                }
+                                //查出记录了， 做更新或者丢弃
+//                                if (insertDmlPolicy.equals(ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS)) {
+                                    isChangeStatus = "U";
+                                    for (Record record : all) {
+                                        if (null == record) continue;
+                                        UpdateRecord updateRecord = new UpdateRecord();
+                                        updateRecord.withRecordId(record.getRecordId());
+                                        Map<String, Object> itemMap = new HashMap<>(after);
+                                        //指定的字段存在值时不更新这些字段，直接使用存在的值
+                                        ignoreValueFields.stream().filter(Objects::nonNull).forEach(field ->
+                                                Optional.ofNullable(record.getFields().get(field)).ifPresent(value -> itemMap.put(field, value))
+                                        );
+                                        updateRecord.setFields(itemMap);
+                                        recordItem.add(updateRecord);
+                                    }
+//                                }
                             }
                             if (isChangeStatus.equals(itemStatus)) {
                                 objects.addAll(recordItem);
@@ -424,14 +441,14 @@ public class VikaConnector extends ConnectorBase {
                                             UpdateRecordRequest request = new UpdateRecordRequest();
                                             request.setFieldKey(FieldKey.Name);
                                             request.setRecords((List<UpdateRecord>) event);
-                                            Restrictor.limitRule(() -> vikaApiClient.getRecordApi().updateRecords(datasheetId, request));
+                                            Restrictor.limitRule(() -> vikaApiClient.getRecordApi().updateRecords(datasheetId, request), log);
                                             writeListResultConsumer.accept(new WriteListResult<TapRecordEvent>().modifiedCount(request.getRecords().size()));
                                             break;
                                         case "I" :
                                             CreateRecordRequest record = new CreateRecordRequest();
                                             record.setFieldKey(FieldKey.Name);
                                             record.setRecords((List<RecordMap>) event);
-                                            Restrictor.limitRule(() -> vikaApiClient.getRecordApi().addRecords(datasheetId, record));
+                                            Restrictor.limitRule(() -> vikaApiClient.getRecordApi().addRecords(datasheetId, record), log);
                                             writeListResultConsumer.accept(new WriteListResult<TapRecordEvent>().insertedCount(event.size()));
                                             break;
                                     }
@@ -446,11 +463,13 @@ public class VikaConnector extends ConnectorBase {
                         TapUpdateRecordEvent event = collect.get(i - 1);
 
                         Map<String, Object> after = event.getAfter();
-                        List<Record> all = getRecordFromVika(tapTable, list(event), datasheetId);
+                        List<Record> all = getRecordFromVika(tapTable, list(event), datasheetId, log);
                         //ignoreFields
                         if (null == all || all.isEmpty()) {
-                            //@TODO 不存在时插入 或 丢弃
-
+//不存在时插入 或 丢弃
+//                            if (ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS.equals(updateDmlPolicy)) {
+//
+//                            }
                         } else {
                             all.forEach(l -> {
                                 UpdateRecord updateRecord = new UpdateRecord();
@@ -474,7 +493,7 @@ public class VikaConnector extends ConnectorBase {
                         request.setFieldKey(FieldKey.Name);
                         request.setRecords(partition.get(i - 1));
 
-                        Restrictor.limitRule(() -> vikaApiClient.getRecordApi().updateRecords(datasheetId, request));
+                        Restrictor.limitRule(() -> vikaApiClient.getRecordApi().updateRecords(datasheetId, request), log);
                         writeListResultConsumer.accept(new WriteListResult<TapRecordEvent>().modifiedCount(request.getRecords().size()));
                         //updateCount.addAndGet(request.getRecords().size());
                     }
@@ -497,12 +516,12 @@ public class VikaConnector extends ConnectorBase {
                         ApiQueryParam queryParam = new ApiQueryParam();
                         queryParam.withFilter(StringUtils.join(querys, "&&"));
 
-                        Pager<Record> records = (Pager<Record>) Restrictor.limitRule(() -> vikaApiClient.getRecordApi().getRecords(datasheetId, queryParam));
+                        Pager<Record> records = (Pager<Record>) Restrictor.limitRule(() -> vikaApiClient.getRecordApi().getRecords(datasheetId, queryParam), log);
                         if (records.getTotalItems() > 0) {
                             List<String> recordList = records.stream().map(Record::getRecordId).collect(Collectors.toList());
                             List<List<String>> splitList = CollectionUtil.splitListParallel(recordList, 10);
                             for (List<String> list : splitList) {
-                                Restrictor.limitRule0(() -> vikaApiClient.getRecordApi().deleteRecords(datasheetId, list));
+                                Restrictor.limitRule0(() -> vikaApiClient.getRecordApi().deleteRecords(datasheetId, list), log);
 
                                 //deleteCount.addAndGet(list.size());
                                 writeListResultConsumer.accept(new WriteListResult<TapRecordEvent>().removedCount(list.size()));
@@ -532,7 +551,7 @@ public class VikaConnector extends ConnectorBase {
         return querySub.toString();
     }
 
-    private List<Record> getRecordFromVika(TapTable tapTable, List<TapRecordEvent> events, String datasheetId){
+    private List<Record> getRecordFromVika(TapTable tapTable, List<TapRecordEvent> events, String datasheetId, Log log){
         //Map<String, Object> before = event.getBefore();
         StringJoiner query = new StringJoiner(",");
         Collection<String> primaryKeys = tapTable.primaryKeys(true);
@@ -557,14 +576,14 @@ public class VikaConnector extends ConnectorBase {
         int first = 1;
         ApiQueryParam queryParam = new ApiQueryParam(first, 1000);
         queryParam.withFilter(queryStr);
-        Pager<Record> recordPager = (Pager<Record>) Restrictor.limitRule(() -> vikaApiClient.getRecordApi().getRecords(datasheetId, queryParam));
+        Pager<Record> recordPager = (Pager<Record>) Restrictor.limitRule(() -> vikaApiClient.getRecordApi().getRecords(datasheetId, queryParam), log);
         List<Record> all = recordPager.all();
         while (first < recordPager.getTotalPages()) {
             first++;
             ApiQueryParam quertTemp = new ApiQueryParam(first, 1000);
             quertTemp.withFilter(queryStr);
 
-            Pager<Record> recordPagerTemp = (Pager<Record>) Restrictor.limitRule(() -> vikaApiClient.getRecordApi().getRecords(datasheetId, quertTemp));
+            Pager<Record> recordPagerTemp = (Pager<Record>) Restrictor.limitRule(() -> vikaApiClient.getRecordApi().getRecords(datasheetId, quertTemp), log);
             all.addAll(recordPagerTemp.all());
         }
 
@@ -572,11 +591,12 @@ public class VikaConnector extends ConnectorBase {
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
+        Log log = tapConnectorContext.getLog();
         String tableId = tapClearTableEvent.getTableId();
-        List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId));
+        List<Node> nodes = (List<Node>) Restrictor.limitRule(() -> vikaApiClient.getNodeApi().getNodes(spaceId), log);
         Node nodeTemp = nodes.stream().filter(node -> tableId.equals(node.getName())).findAny().orElse(null);
         if (Objects.nonNull(nodeTemp)) {
-            Restrictor.limitRule0(() -> vikaApiClient.getRecordApi().deleteAllRecords(nodeTemp.getId()));
+            Restrictor.limitRule0(() -> vikaApiClient.getRecordApi().deleteAllRecords(nodeTemp.getId()), log);
         }
     }
 }

@@ -225,7 +225,7 @@ var csvTableConfig = {
                 "type":"Money",
                 "comment":"子单涨价或降价的金额"
             },
-            "优惠券":{
+            "限时促销+满优惠":{
                 "type":"Money",
                 "comment":"子单优惠金额（元）"
             },
@@ -284,6 +284,10 @@ var csvTableConfig = {
             "退款金额（元）":{
                 "type":"Money",
                 "comment":"退款金额（元）"
+            },
+            "子单退款金额（元）":{
+                "type":"Money",
+                "comment":"子单退款金额（元）"
             },
             "完成时间":{
                 'type': 'DateTime0',

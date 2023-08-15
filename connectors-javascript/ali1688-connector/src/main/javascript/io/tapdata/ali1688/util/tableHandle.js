@@ -340,13 +340,47 @@ class ShippingOrder extends DefaultTable {
                 }
 
                 if (isValue(nodeConfig.logCompile) && nodeConfig.logCompile) {
-                    log.warn("Original data of Simple about 订单编号={}: {}", idOfStr, JSON.stringify(pageList[index]))
+                    let jsonStr = JSON.stringify(pageList[index]);
+                    let logs = [];
+                    if (jsonStr.length > 1000){
+                        for (let l = 0; ; l++){
+                            let offset = jsonStr.length - l*1000;
+                            let step = offset > 1000 ? 1000 : offset;
+                            let subStr = jsonStr.substr(l*1000, step);
+                            logs.push(subStr);
+                            if (offset <= 1000) {
+                                break;
+                            }
+                        }
+                    } else {
+                        logs.push(jsonStr);
+                    }
+                    for (let logIndex = 0; logIndex < logs.length; logIndex++) {
+                        log.warn("[{}]: Original data of Simple about 订单编号={}: {}", logIndex+1, idOfStr, logs[logIndex])
+                    }
                     //log.warn("Original data of Detail about 订单编号={}: {}", idOfStr, JSON.stringify(orderMixedDetail))
                     log.warn("After data about 订单编号={}: {}", idOfStr, tapUtil.fromJson(afterEvent.length === 1? afterEvent[0] : afterEvent))
                 } else {
                     let filterOrders = nodeConfig.filter.split(",");
                     if (filterOrders.includes(idOfStr)) {
-                        log.warn("Original data of Simple about 订单编号={}: {}", idOfStr, JSON.stringify(pageList[index]))
+                        let jsonStr = JSON.stringify(pageList[index]);
+                        let logs = [];
+                        if (jsonStr.length > 1000){
+                            for (let l = 0; ; l++){
+                                let offset = jsonStr.length - l*1000;
+                                let step = offset > 1000 ? 1000 : offset;
+                                let subStr = jsonStr.substr(l*1000, step);
+                                logs.push(subStr);
+                                if (offset <= 1000) {
+                                    break;
+                                }
+                            }
+                        } else {
+                            logs.push(jsonStr);
+                        }
+                        for (let logIndex = 0; logIndex < logs.length; logIndex++) {
+                            log.warn("[{}]: Original data of Simple about 订单编号={}: {}", logIndex+1, idOfStr, logs[logIndex])
+                        }
                         //log.warn("Original data of Detail about 订单编号={}: {}", idOfStr, JSON.stringify(orderMixedDetail))
                         log.warn("After data about 订单编号={}: {}", idOfStr, tapUtil.fromJson(afterEvent.length === 1 ? afterEvent[0] : afterEvent))
                     }
@@ -424,7 +458,7 @@ class ShippingOrder extends DefaultTable {
             case 'signinsuccess': typeName = '买家已签收';break;
             case 'confirm_goods': typeName = '已收货';break;
             case 'success': typeName = '交易成功';break;
-            case 'cancel': typeName = '交易取消';break;
+            case 'cancel': typeName = '交易关闭';break;
             case 'terminated': typeName = '交易终止';break;
             default: typeName = '其他状态';
         }
@@ -575,24 +609,29 @@ class ShippingOrder extends DefaultTable {
                 sub.put('商品名称', r.name);
                 sub.put('子单原始单价（元）', r.price);
                 sub.put('产品ID（非在线产品为空）', bigintConvertAsString(r.productID));
+                let allUrl = '';
                 if(r.productImgUrl) {
                     let urls = r.productImgUrl;
-                    let allUrl = '';
                     for(let index = 0; index < urls.length; index++) {
-                        allUrl = allUrl + urls[index] + "; ";
-                        // if(urls.length > index + 1){
-                        //   allUrl + ', ';
-                        // }
+                        let url = urls[index];
+                        if (url.search("80x80.jpg") === -1) {
+                            allUrl = urls[index];
+                            break;
+                        }
                     }
-                    sub.put('商品图片url', allUrl);
+                    if (allUrl.length <= 0 && urls.length > 0 ) {
+                        allUrl = urls[0];
+                    }
                 }
+                sub.put('商品图片url', allUrl);
                 sub.put('产品快照url', r.productSnapshotUrl);
                 sub.put('子单数量', r.quantity);
-                sub.put('退款金额（元）', r.refund);
+                sub.put('子单退款金额（元）', r.refund);
                 sub.put('skuID', bigintConvertAsString(r.skuID));
                 sub.put('排序字段', r.sort);
                 // sub['子订单状态'] = r.status);
-                sub.put('商品明细条目ID', bigintConvertAsString(r.subItemID));
+                let subItemID = bigintConvertAsString(r.subItemID);
+                sub.put('商品明细条目ID', subItemID);
                 // sub['类型'] = r.type;
                 sub.put('售卖单位', r.unit);
                 sub.put('重量', r.weight);
@@ -648,61 +687,92 @@ class ShippingOrder extends DefaultTable {
                 if(record.logistics) {
                     let logistics = record.logistics;
                     logistics.forEach(logi => {
-                        if(logi.sendGoods && logi.sendGoods.length > 0) {
-                            let sendGoods = logi.sendGoods;
-                            sendGoods.forEach(good => {
-                                if(good.goodName === r.name) {
-                                    sub.put("货物单位", good.unit);
-                                    sub.put("货物数量", good.quantity);
-                                    sub.put("货物名称", bigintConvertAsString(good.goodName));
+                        let orderEntryIds = logi.orderEntryIds;
+                        let isSelfLog = false;
+                        if (logi.sendGoods) {
+                            for (let y = 0; y < logi.sendGoods.length; y++) {
+                                let sendGoodsName = logi.sendGoods[y].goodName;
+                                if (sendGoodsName == r.name) {
+                                    isSelfLog = true;
+                                    break;
                                 }
-                            });
-
-                            if(logi.receiver) {
-                                let receiver = logi.receiver;
-                                //sub.put("收货人", receiver.receiverName);
-                                sub.put("收货地址", bigintConvertAsString(receiver.receiverProvince) + " "
-                                    + bigintConvertAsString(receiver.receiverCity) + " "
-                                    + bigintConvertAsString(receiver.receiverCounty) + " "
-                                    + bigintConvertAsString(receiver.receiverAddress));
-                                sub.put("收货人", bigintConvertAsString(receiver.receiverName));
-                                sub.put("收货区号", bigintConvertAsString(receiver.receiverCountyCode));
-                                sub.put("收货手机号码", bigintConvertAsString(receiver.receiverMobile));
                             }
-                            if(logi.sender) {
-                                let sender = logi.sender;
-                                sub.put("发货人", bigintConvertAsString(sender.senderName));
-                                sub.put("发货地址", bigintConvertAsString(sender.senderProvince) + " "
-                                    + bigintConvertAsString(sender.senderCity) + " "
-                                    + bigintConvertAsString(sender.senderCounty) + " "
-                                    + bigintConvertAsString(sender.senderAddress));
-                                sub.put("发货电话", bigintConvertAsString(sender.senderMobile));
-                                sub.put("发货区号", bigintConvertAsString(sender.senderCountyCode));
-                            }
-                            // log.info("logistics " + JSON.stringify(Pretty(logistics));
-                            // log.info("logistics.sendGoods " + logistics.sendGoods);
-                            sub.put("物流公司", bigintConvertAsString(logi.logisticsCompanyName));
-                            sub.put("物流编号", bigintConvertAsString(logi.logisticsId));
-                            sub.put("物流公司ID", bigintConvertAsString(logi.logisticsCompanyId));
-                            sub.put("运单号码", bigintConvertAsString(logi.logisticsBillNo));
                         }
+                        if (!isSelfLog) {
+                            isSelfLog = isValue(orderEntryIds) && subItemID == orderEntryIds;
+                        }
+                        if (isSelfLog) {
+                            if (logi.sendGoods && logi.sendGoods.length > 0) {
+                                let sendGoods = logi.sendGoods;
+                                sendGoods.forEach(good => {
+                                    if (good.goodName === r.name) {
+                                        sub.put("货物单位", good.unit);
+                                        sub.put("货物数量", good.quantity);
+                                        sub.put("货物名称", bigintConvertAsString(good.goodName));
+                                    }
+                                });
 
-                        let lstatus = logi.status;
-                        //物流状态。WAITACCEPT:未受理;CANCEL:已撤销;ACCEPT:已受理;
-                        // TRANSPORT:运输中;NOGET:揽件失败;SIGN:已签收;UNSIGN:签收异常
-                        let statusName = '';
-                        switch(lstatus) {
-                            case 'WAITACCEPT': statusName = '未受理';break;
-                            case 'CANCEL': statusName = '已撤销';break;
-                            case 'ACCEPT': statusName = '已受理';break;
-                            case 'TRANSPORT': statusName = '运输中';break;
-                            case 'NOGET': statusName = '揽件失败';break;
-                            case 'SIGN': statusName = '已签收';break;
-                            case 'UNSIGN': statusName = '签收异常';break;
-                            default: statusName = logi.message;
+                                if (logi.receiver) {
+                                    let receiver = logi.receiver;
+                                    //sub.put("收货人", receiver.receiverName);
+                                    sub.put("收货地址", bigintConvertAsString(receiver.receiverProvince) + " "
+                                        + bigintConvertAsString(receiver.receiverCity) + " "
+                                        + bigintConvertAsString(receiver.receiverCounty) + " "
+                                        + bigintConvertAsString(receiver.receiverAddress));
+                                    sub.put("收货人", bigintConvertAsString(receiver.receiverName));
+                                    sub.put("收货区号", bigintConvertAsString(receiver.receiverCountyCode));
+                                    sub.put("收货手机号码", bigintConvertAsString(receiver.receiverMobile));
+                                }
+                                if (logi.sender) {
+                                    let sender = logi.sender;
+                                    sub.put("发货人", bigintConvertAsString(sender.senderName));
+                                    sub.put("发货地址", bigintConvertAsString(sender.senderProvince) + " "
+                                        + bigintConvertAsString(sender.senderCity) + " "
+                                        + bigintConvertAsString(sender.senderCounty) + " "
+                                        + bigintConvertAsString(sender.senderAddress));
+                                    sub.put("发货电话", bigintConvertAsString(sender.senderMobile));
+                                    sub.put("发货区号", bigintConvertAsString(sender.senderCountyCode));
+                                }
+                                // log.info("logistics " + JSON.stringify(Pretty(logistics));
+                                // log.info("logistics.sendGoods " + logistics.sendGoods);
+                                sub.put("物流公司", bigintConvertAsString(logi.logisticsCompanyName));
+                                sub.put("物流编号", bigintConvertAsString(logi.logisticsId));
+                                sub.put("物流公司ID", bigintConvertAsString(logi.logisticsCompanyId));
+                                sub.put("运单号码", bigintConvertAsString(logi.logisticsBillNo));
+                            }
+
+                            let lstatus = logi.status;
+                            //物流状态。WAITACCEPT:未受理;CANCEL:已撤销;ACCEPT:已受理;
+                            // TRANSPORT:运输中;NOGET:揽件失败;SIGN:已签收;UNSIGN:签收异常
+                            let statusName = '';
+                            switch (lstatus) {
+                                case 'WAITACCEPT':
+                                    statusName = '未受理';
+                                    break;
+                                case 'CANCEL':
+                                    statusName = '已撤销';
+                                    break;
+                                case 'ACCEPT':
+                                    statusName = '已受理';
+                                    break;
+                                case 'TRANSPORT':
+                                    statusName = '运输中';
+                                    break;
+                                case 'NOGET':
+                                    statusName = '揽件失败';
+                                    break;
+                                case 'SIGN':
+                                    statusName = '已签收';
+                                    break;
+                                case 'UNSIGN':
+                                    statusName = '签收异常';
+                                    break;
+                                default:
+                                    statusName = logi.message;
+                            }
+                            sub.put("物流状态", statusName);
+                            sub.put("物流备注", bigintConvertAsString(logi.remarks));
                         }
-                        sub.put("物流状态", statusName);
-                        sub.put("物流备注", bigintConvertAsString(logi.remarks));
                     });
                 }
                 records.push(sub);
@@ -728,8 +798,8 @@ class ShippingOrder extends DefaultTable {
         try {
             number = isValue(record['子单数量']) ? parseInt(record['子单数量']) : 0;//运费
             let finalUtil = coverFloat((total / (number * 1.00)));
-            record.put("子单实际单价（元）", judgeDivisor(finalUtil * 1000, 10) ? finalUtil : coverFloat(((total + redPackage) / (number * 1.00))) );//.toFixed(2))
-            record.put("优惠券", -1 * (redPackage > 0 ? redPackage : 0));
+            record.put("子单实际单价（元）", !isLoop(total, number) ? finalUtil : coverFloat(((total + redPackage) / (number * 1.00))) );//.toFixed(2))
+            record.put("限时促销+满优惠", -1 * (redPackage > 0 ? redPackage : 0));
         } catch (e ) {
             log.info("Error to set '子单实际单价（元）' into record, '子单数量' is an invalid argument ");
         }
@@ -737,18 +807,32 @@ class ShippingOrder extends DefaultTable {
     }
 }
 
-function judgeDivisor(m, n) {
-    let num = {};
-    let i = 0;
-    //let x = parseInt(m / n);
-    m = m % n;
-    let result = "";
-    while (m !== 0 && !(m in num)) {
-        num[m] = i++;
-        result += parseInt((m * 10) / n);
-        m = m * 10 % n;
+function greatestCommonDivisor(a, b) {
+    let c = 0;
+    while (true) {// 循环的辗转相除法
+        c = a % b;
+        a = b;
+        b = c;
+        if (b === 0) {
+            return a;
+        }
     }
-    return m === 0;
+}
+function isLoop(a, b) {
+    // 1.化简，分子分母同时除以最大公约数
+    let commonDivisor = greatestCommonDivisor(a, b);
+    b = b / commonDivisor;
+    // 2.判断分母是否为2的次幂，5的次幂，或者2 5结合
+    // 首先让其除以2的次幂
+    while (b % 2 === 0) {
+        b /= 2;
+    }
+    // 然后让其除以5的次幂
+    while (b % 5 === 0) {
+        b /= 5;
+    }
+    // 最后判断是否为1,如果为1 说明没有 2或者5或者2和5结合构成 以外的因子
+    return b !== 1;
 }
 
 
@@ -970,7 +1054,7 @@ function convertDateStr(dateStr) {
         //log.info("str " + str);
         let zone = parseInt(timezone.substring(0, 3), 10)
         //log.info("zone " + zone);
-        let date = dateUtils.parseDate(str, 'yyyy-MM-dd hh:mm:ss.sss', zone);
+        let date = dateUtils.parseDate(str, 'yyyy-MM-dd HH:mm:ss.SSSSSS', zone);
         //log.info("date " + date);
         // 创建日期对象
         return date.getTime();

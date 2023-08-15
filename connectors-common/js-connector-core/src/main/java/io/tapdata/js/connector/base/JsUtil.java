@@ -211,6 +211,8 @@ public class JsUtil {
 //        System.out.println(SecurityUtil.hmacSha1ToHexStr(data, "**J8uHFtF3MHy"));
 
         System.out.println(util.timeStamp2Date(System.currentTimeMillis(), "yyyyMMddHHmmsssss"));
+        //1683343636000 1683372419992
+        System.out.println(util.parseDate("2023-05-06 11:27:16.000", "yyyy-MM-dd hh:mm:ss.sss", 0).getTime());
     }
 
     public Date parseDate(String dataStr, String format, int timeZone){

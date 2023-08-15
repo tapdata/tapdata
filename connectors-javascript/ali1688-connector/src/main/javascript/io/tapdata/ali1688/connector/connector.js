@@ -160,14 +160,16 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
         log.info("Command type is empty, unable to execute command");
         return ;
     }
+    let config = connectionConfig.get("__TAPDATA_CONFIG");
+    let appKey = config.get("appKey");
+    let secretKey = config.get("secretKey");
     switch (command){
         case 'OAuth':
-            let config = connectionConfig.get("__TAPDATA_CONFIG");
             //log.warn("Value: appKey- {} , secretKey- {}, code- {}", config.get("appKey"), config.get("secretKey"), config.get("code"));
             let clientInfo = {
-                "app_key": config.get("appKey"),
-                "client_id": config.get("appKey"),
-                "client_secret": config.get("secretKey"),
+                "app_key": appKey,
+                "client_id": appKey,
+                "client_secret": secretKey,
                 "redirect_uri": "https://redirect.tapdata.io/oauth/complete/ali1688",
                 "code": connectionConfig.get("code")
             };
@@ -181,6 +183,22 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
             }
            // log.warn("code: {}", JSON.stringify(getToken.result))
             return connectionConfig;
+        case 'GetOauthCode':
+            //https://auth.1688.com/oauth/authorize?client_id=@{appKey}@&site=1688&redirect_uri=https://redirect.tapdata.io/oauth/complete/ali1688&state=1688&_aop_signature=
+            //log.warn("Value: appKey- {} , secretKey- {}, code- {}", config.get("appKey"), config.get("secretKey"), config.get("code"));
+            let urlInfo = {
+                "app_key": appKey,
+                "site": 1688,
+                "state": 1688,
+                "redirect_uri": "https://redirect.tapdata.io/oauth/complete/ali1688",
+                "code": connectionConfig.get("code")
+            };
+            let _aop_signature = getSignatureRules(secretKey,"https://auth.1688.com/oauth/authorize", urlInfo);
+            // log.warn("code: {}", JSON.stringify(getToken.result))
+            return "https://auth.1688.com/oauth/authorize?client_id="
+                + appKey
+                + "site=1688&redirect_uri=https://redirect.tapdata.io/oauth/complete/ali1688&state=1688&_aop_signature="
+                + _aop_signature;
     }
 }
 

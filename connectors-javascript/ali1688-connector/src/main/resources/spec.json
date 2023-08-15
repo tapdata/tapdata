@@ -30,14 +30,31 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "default": "",
-          "x-index": 999998,
-          "x-display": "hidden"
+          "x-index": 999998
         }
       }
     },
     "connection": {
       "type": "object",
       "properties": {
+        "appKey": {
+          "type": "String",
+          "title": "App Key",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "",
+          "x-index": 10,
+          "required": true
+        },
+        "secretKey": {
+          "type": "String",
+          "title": "App Secret",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "",
+          "x-index": 20,
+          "required": true
+        },
         "code": {
           "type": "String",
           "title": "${code}",
@@ -47,7 +64,7 @@
             "style": {"display": "none"}
           },
           "apiServerKey": "code",
-          "x-index": 10,
+          "x-index": 30,
           "required": true
         },
         "line": {
@@ -65,10 +82,10 @@
               "x-component": "Button",
               "x-content": "${OAuthButtonTitle}",
               "title": "",
-              "x-index": 20,
+              "x-index": 22,
               "x-component-props": {
                 "type": "primary",
-                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'ali1688', oauthUrl: 'https://auth.1688.com/oauth/authorize?client_id=8668585&site=1688&redirect_uri=https://redirect.tapdata.io/oauth/complete/ali1688&state=1688&_aop_signature=186DE0E262390646944ADBDB671EE2346759E18E53423B34E834932A9EAAB224'})}}"
+                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'ali1688', oauthUrl: 'https://auth.1688.com/oauth/authorize?client_id=@{appKey}@&site=1688&redirect_uri=https://redirect.tapdata.io/oauth/complete/ali1688&state=1688&_aop_signature=186DE0E262390646944ADBDB671EE2346759E18E53423B34E834932A9EAAB224'})}}"
               },
               "x-decorator-props":{"style":{"width":"120px"}}
             },
@@ -78,7 +95,7 @@
               "x-decorator": "FormItem",
               "x-component": "Text",
               "apiServerKey": "AAA",
-              "x-index": 30,
+              "x-index": 23,
               "required": true,
               "x-component-props": {
                 "content": "{{$values.code ? '${OAuthButtonOK}' : '${OAuthButton}'}}",
@@ -86,27 +103,15 @@
               }
             }
           },
-          "x-index": 20
-        },
-        "appKey": {
-          "type": "String",
-          "title": "Api Key",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "default": "8668585",
-          "x-index": 999998,
-          "required": true,
-          "x-display": "hidden"
-        },
-        "secretKey": {
-          "type": "String",
-          "title": "Secret Key",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "default": "J8uHFtF3MHy",
-          "x-index": 999999,
-          "required": true,
-          "x-display": "hidden"
+          "x-reactions": [{
+            "dependencies": ["appKey", "secretKey"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] && $deps[1] ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          }],
+          "x-index": 40
         },
         "tableType": {
           "type": "String",

@@ -51,7 +51,7 @@
 				"method": "POST",
 				"header": [],
 				"url": {
-					"raw": "https://gw.open.1688.com/openapi/http/1/system.oauth2/getToken/8668585?grant_type=authorization_code&need_refresh_token=true&client_id=8668585&client_secret=J8uHFtF3MHy&redirect_uri=https://www.tapdata.io&code=d8864e8d-b1e6-475c-89b8-6c9899ac9e93",
+					"raw": "https://gw.open.1688.com/openapi/http/1/system.oauth2/getToken/:appKey?grant_type=authorization_code&need_refresh_token=true&client_id={{appKey}}&client_secret={{secretKey}}&redirect_uri=https://www.tapdata.io&code=d8864e8d-b1e6-475c-89b8-6c9899ac9e93",
 					"protocol": "https",
 					"host": [
 						"gw",
@@ -67,6 +67,7 @@
 						"getToken",
 						"8668585"
 					],
+					"variable": [{"key": "appKey", "value": ""}],
 					"query": [
 						{
 							"key": "grant_type",
@@ -130,11 +131,11 @@
 						},
 						{
 							"key": "client_id",
-							"value": "8668585"
+							"value": ""
 						},
 						{
 							"key": "client_secret",
-							"value": "J8uHFtF3MHy"
+							"value": ""
 						},
 						{
 							"key": "redirect_uri",
