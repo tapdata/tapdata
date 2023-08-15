@@ -3208,7 +3208,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private static Update resetUpdate() {
         Update update = new Update()
                 .unset("startTime")
-                .unset("lastStartDate")
                 .unset("stopTime")
                 .unset("stopRetryTimes")
                 .unset("currentEventTimestamp")
