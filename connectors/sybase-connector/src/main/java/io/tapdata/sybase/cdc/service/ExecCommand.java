@@ -6,6 +6,7 @@ import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
 import io.tapdata.sybase.cdc.dto.start.CommandType;
 import io.tapdata.sybase.cdc.dto.start.OverwriteType;
+import io.tapdata.sybase.extend.NodeConfig;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -21,7 +22,7 @@ class ExecCommand implements CdcStep<CdcRoot> {
     private final OverwriteType overwriteType;
 
     private final static String EXPORT_JAVA_HOME = "export JAVA_TOOL_OPTIONS=\"-Duser.language=en\"";
-    private final static String START_CDC = "$pocCliPath$/bin/replicant $commandType$ $pocPath$/config/sybase2csv/src_sybasease.yaml $pocPath$/config/sybase2csv/dst_localstorage.yaml --general $pocPath$/config/sybase2csv/general.yaml --filter $pocPath$/config/sybase2csv/filter_sybasease.yaml --extractor $pocPath$/config/sybase2csv/ext_sybasease.yaml --id $taskId$ --replace $overwriteType$ --verbose";
+    private final static String START_CDC = "$pocCliPath$/bin/replicant $commandType$ $pocPath$/config/sybase2csv/src_sybasease.yaml $pocPath$/config/sybase2csv/dst_localstorage.yaml --general $pocPath$/config/sybase2csv/general.yaml --filter $pocPath$/config/sybase2csv/filter_sybasease.yaml --extractor $pocPath$/config/sybase2csv/ext_sybasease.yaml --id $taskId$ --replace $overwriteType$ $openCdcDetailLog$";// --verbose";
 
     protected ExecCommand(CdcRoot root, CommandType commandType, OverwriteType overwriteType) {
         this.root = root;
@@ -31,13 +32,15 @@ class ExecCommand implements CdcStep<CdcRoot> {
 
     @Override
     public CdcRoot compile() {
+        NodeConfig config = new NodeConfig(root.getContext());
         String sybasePocPath = root.getSybasePocPath();
         String cmd = START_CDC
                 .replace("$taskId$", root.getCdcId())
                 .replaceAll("\\$pocCliPath\\$", root.getCliPath())
                 .replaceAll("\\$pocPath\\$", sybasePocPath)
                 .replace("$commandType$", CommandType.type(commandType))
-                .replace("$overwriteType$", "--" + OverwriteType.type(overwriteType));
+                .replace("$overwriteType$", "--" + OverwriteType.type(overwriteType))
+                .replace("$openCdcDetailLog$", config.isOpenCdcDetailLog() ? "--verbose" : "");
         root.getContext().getLog().info("shell is {}", cmd);
         try {
             Thread.sleep(500);

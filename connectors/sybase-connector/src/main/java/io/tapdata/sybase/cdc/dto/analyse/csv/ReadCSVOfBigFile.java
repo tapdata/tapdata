@@ -8,6 +8,7 @@ import io.tapdata.sybase.cdc.dto.analyse.csv.opencsv.SpecialField;
 import io.tapdata.sybase.cdc.dto.read.TableTypeEntity;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -36,14 +37,16 @@ public class ReadCSVOfBigFile implements ReadCSV {
         offset = Math.max(offset, 0);
         final int lastOffset = offset;
         int index = offset - 1;
+        File file = new File(csvPath);
         try (
-                FileInputStream inputStream = new FileInputStream(csvPath);
+                FileInputStream inputStream = new FileInputStream(file);
                 InputStreamReader inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
                 BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
                 CSVReader reader = new CSVReader(bufferedReader)
         ) {
             int lineIndex = 0;
-            while (lineIndex++ >= lastOffset && null != (strArr = reader.readNext()) ) {
+            //while (null != (strArr = reader.readNext())) {
+            while (null != (strArr = reader.readNext()) && lineIndex++ >= lastOffset) {
                 lines.add(new ArrayList<>(Arrays.asList(strArr)));
                 index++;
                 int size = lines.size();

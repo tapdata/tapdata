@@ -64,8 +64,8 @@ public class CdcHandle {
         this.root.setContext(context);
     }
 
-    public CdcHandle streamReadConsumer(StreamReadConsumer cdcConsumer, Log log, String monitorPath) {
-        this.fileMonitor = new FileMonitor(cdcConsumer, 1000, log, monitorPath);
+    public CdcHandle streamReadConsumer(StreamReadConsumer cdcConsumer, Log log, String monitorPath, long interval) {
+        this.fileMonitor = new FileMonitor(cdcConsumer, interval, log, monitorPath);
         return this;
     }
 
@@ -195,9 +195,10 @@ public class CdcHandle {
             List<String> tables,
             CdcPosition position,
             int batchSize,
+            long interval,
             StreamReadConsumer consumer) {
         if (null == position) position = new CdcPosition();
-        streamReadConsumer(consumer, context.getLog(), monitorPath);
+        streamReadConsumer(consumer, context.getLog(), monitorPath, interval);
         listenFile = new ListenFile(this.root,
                 monitorPath,
                 tables,

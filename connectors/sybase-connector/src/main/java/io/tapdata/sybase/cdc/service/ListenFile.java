@@ -11,6 +11,7 @@ import io.tapdata.sybase.cdc.CdcStep;
 import io.tapdata.sybase.cdc.dto.analyse.AnalyseRecord;
 import io.tapdata.sybase.cdc.dto.analyse.AnalyseTapEventFromCsvString;
 import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVOfBigFile;
+import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVQuickly;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
 import io.tapdata.sybase.cdc.dto.read.TableTypeEntity;
 import io.tapdata.sybase.cdc.dto.watch.FileListener;
@@ -61,6 +62,8 @@ public class ListenFile implements CdcStep<CdcRoot> {
     private StreamReadConsumer cdcConsumer;
     FileMonitor fileMonitor;
     //long lastHeartbeatTime = 0;
+    final ReadCSVOfBigFile readCSVOfBigFile = new ReadCSVOfBigFile();
+
 
     protected ListenFile(CdcRoot root,
                          String monitorPath,
@@ -86,6 +89,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         this.schemaConfigPath = root.getSybasePocPath() + "/config/sybase2csv/csv/schemas.yaml";
         this.config = new ConnectionConfig(root.getContext());
         this.nodeConfig = new NodeConfig(root.getContext());
+        readCSVOfBigFile.setLog(root.getContext().getLog());
         //currentFileNames = new ConcurrentHashMap<>();
     }
 
@@ -164,16 +168,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                         File tableSpaceFile = new File(tableSpace);
                                         if (!tableSpaceFile.exists()) continue;
                                         Arrays.stream(Objects.requireNonNull(tableSpaceFile.listFiles()))
-                                                .filter(file -> {
-                                                    if (Objects.nonNull(file) && file.exists() && file.isFile()) {
-                                                        String absolutePath = file.getAbsolutePath();
-                                                        int indexOf = absolutePath.lastIndexOf('.');
-                                                        String fileType = absolutePath.substring(indexOf + 1);
-                                                        return file.isFile() && fileType.equalsIgnoreCase("csv") && isRecentCSV(file, System.currentTimeMillis() , cdcCacheTime);
-                                                    } else {
-                                                        return false;
-                                                    }
-                                                })
+                                                .filter(file -> isRecentCSV(file, System.currentTimeMillis() , cdcCacheTime))
                                                 .sorted(Comparator.comparing(File::getName))
                                                 .forEach(file -> monitor(file, tableMap));
                                     }
@@ -203,16 +198,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                             File tableSpaceFile = new File(tableSpace);
                             if (!tableSpaceFile.exists()) continue;
                             Arrays.stream(Objects.requireNonNull(tableSpaceFile.listFiles()))
-                                    .filter(file -> {
-                                        if (Objects.nonNull(file) && file.exists() && file.isFile()) {
-                                            String absolutePath = file.getAbsolutePath();
-                                            int indexOf = absolutePath.lastIndexOf('.');
-                                            String fileType = absolutePath.substring(indexOf + 1);
-                                            return file.isFile() && fileType.equalsIgnoreCase("csv");
-                                        } else {
-                                            return false;
-                                        }
-                                    })
+                                    .filter(this::isCSV)
                                     .sorted(Comparator.comparing(File::getName))
                                     .forEach(file -> monitor(file, tableMap));
                         }
@@ -222,10 +208,23 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 }
             }
 
+            private boolean isCSV(File file) {
+                if (Objects.nonNull(file) && file.exists() && file.isFile()) {
+                    String absolutePath = file.getAbsolutePath();
+                    int indexOf = absolutePath.lastIndexOf('.');
+                    String fileType = absolutePath.substring(indexOf + 1);
+                    return fileType.equalsIgnoreCase("csv");
+                } else {
+                    return false;
+                }
+            }
+
             @Override
             public void onFileChange(File file0) {
                 try {
-                    monitor(file0, tableMap);
+                    if (isCSV(file0)) {
+                        monitor(file0, tableMap);
+                    }
                 } catch (Exception e) {
                     context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
                 }
@@ -233,20 +232,23 @@ public class ListenFile implements CdcStep<CdcRoot> {
 
             @Override
             public void onFileCreate(File file0) {
-                try {
-                    monitor(file0, tableMap);
-                } catch (Exception e) {
-                    context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
-                }
+//                try {
+//                    monitor(file0, tableMap);
+//                } catch (Exception e) {
+//                    context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
+//                }
             }
 
             private boolean monitor(File file, Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap) {
                 //lastHeartbeatTime = System.currentTimeMillis();
-                boolean isThisFile = false;
-                String absolutePath = file.getAbsolutePath();
-                int indexOf = absolutePath.lastIndexOf('.');
-                String fileType = absolutePath.substring(indexOf + 1);
-                if (file.isFile() && fileType.equalsIgnoreCase("csv")) {
+                long start = System.currentTimeMillis();
+                try {
+                    boolean isThisFile = false;
+                    String absolutePath = file.getAbsolutePath();
+                    try {
+                        Thread.sleep(100);
+                    } catch (Exception ignore){}
+
                     //root.getContext().getLog().warn("File is modify: {}", file.getAbsolutePath());
                     String csvFileName = file.getName();
                     String[] split = csvFileName.split("\\.");
@@ -259,54 +261,49 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     //deleteTempCSV(tableName, absolutePath);
                     CdcPosition position = analyseCsvFile.getPosition();
                     if (null != tableName && tables.contains(tableName)) {
-                        isThisFile = true;
-                        //final TapTable tapTable = tableMap.get(tableName);
-                        if (tableMap.isEmpty()) {
-                            tableMap.putAll(getTableFromConfig(tables));
-                        }
-                        LinkedHashMap<String, TableTypeEntity> tapTable = tableMap.get(tableName);
-                        if (null == tapTable) {
-                            tableMap.putAll(getTableFromConfig(tables));
-                            tapTable = tableMap.get(tableName);
-                        }
-                        if (null == tapTable || tapTable.isEmpty()) {
-                            root.getContext().getLog().warn("Can not get table info from schemas.yaml of table {}", tableName);
-                            return isThisFile;
-                        }
+                            isThisFile = true;
+                            //final TapTable tapTable = tableMap.get(tableName);
+                            if (tableMap.isEmpty()) {
+                                tableMap.putAll(getTableFromConfig(tables));
+                            }
+                            LinkedHashMap<String, TableTypeEntity> tapTable = tableMap.get(tableName);
+                            if (null == tapTable) {
+                                tableMap.putAll(getTableFromConfig(tables));
+                                tapTable = tableMap.get(tableName);
+                            }
+                            if (null == tapTable || tapTable.isEmpty()) {
+                                root.getContext().getLog().warn("Can not get table info from schemas.yaml of table {}", tableName);
+                                return isThisFile;
+                            }
 
-                        final List<TapEvent>[] events = new List[]{new ArrayList<>()};
-                        CdcPosition.PositionOffset positionOffset = position.get(tableName);
-                        if (null == positionOffset) {
-                            positionOffset = new CdcPosition.PositionOffset();
-                            position.add(tableName, positionOffset);
-                        }
-                        CdcPosition.CSVOffset csvOffset = positionOffset.csvOffset(absolutePath);
-                        if (null == csvOffset) {
-                            csvOffset = new CdcPosition.CSVOffset();
-                            csvOffset.setOver(false);
-                            csvOffset.setLine(0);
-                            positionOffset.csvOffset(absolutePath, csvOffset);
-                        }
-                        AtomicReference<LinkedHashMap<String, TableTypeEntity>> tapTableAto = new AtomicReference<>(tapTable);
-                        AtomicReference<CdcPosition.CSVOffset> csvOffsetAto = new AtomicReference<>(csvOffset);
-                        ReadCSVOfBigFile readCSVOfBigFile = new ReadCSVOfBigFile();
-                        readCSVOfBigFile.setLog(root.getContext().getLog());
-                        try {
-                            analyseCsvFile.analyse(file.getAbsolutePath(), tapTable, (compile, firstIndex, lastIndex) -> {
-                                int csvFileLines = compile.size();
-                                LinkedHashMap<String, TableTypeEntity> tableItem = tapTableAto.get();
-                                CdcPosition.CSVOffset offset = csvOffsetAto.get();
-                                int lineItem = offset.getLine();
-                                if (lineItem <= lastIndex) {
-                                    for (int index = 0; index < csvFileLines; index++) {
-                                        if ((firstIndex + index) < lineItem) {
-                                            continue;
-                                        }
+                            final List<TapEvent>[] events = new List[]{new ArrayList<>()};
+                            CdcPosition.PositionOffset positionOffset = position.get(tableName);
+                            if (null == positionOffset) {
+                                positionOffset = new CdcPosition.PositionOffset();
+                                position.add(tableName, positionOffset);
+                            }
+                            CdcPosition.CSVOffset csvOffset = positionOffset.csvOffset(absolutePath);
+                            if (null == csvOffset) {
+                                csvOffset = new CdcPosition.CSVOffset();
+                                csvOffset.setOver(false);
+                                csvOffset.setLine(0);
+                                positionOffset.csvOffset(absolutePath, csvOffset);
+                            }
+                            AtomicReference<LinkedHashMap<String, TableTypeEntity>> tapTableAto = new AtomicReference<>(tapTable);
+                            AtomicReference<CdcPosition.CSVOffset> csvOffsetAto = new AtomicReference<>(csvOffset);
+                            try {
+                                analyseCsvFile.analyse(file.getAbsolutePath(), tapTable, (compile, firstIndex, lastIndex) -> {
+                                    //int csvFileLines = compile.size();
+                                    LinkedHashMap<String, TableTypeEntity> tableItem = tapTableAto.get();
+                                    CdcPosition.CSVOffset offset = csvOffsetAto.get();
+                                    int lineItem = offset.getLine();
+
+                                    for (List<String> list : compile) {
                                         TapEvent recordEvent;
                                         try {
-                                            recordEvent = analyseRecord.analyse(compile.get(index), tableItem, tableName, config, nodeConfig);
+                                            recordEvent = analyseRecord.analyse(list, tableItem, tableName, config, nodeConfig);
                                         } catch (Exception e) {
-                                            root.getContext().getLog().warn("An cdc event failed to accept in {} of {}, error csv format, csv line: {}, msg: {}", tableName, absolutePath, compile.get(index), e.getMessage());
+                                            root.getContext().getLog().warn("An cdc event failed to accept in {} of {}, error csv format, csv line: {}, msg: {}", tableName, absolutePath, list, e.getMessage());
                                             continue;
                                         }
                                         if (null != recordEvent) {
@@ -319,18 +316,42 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                             }
                                         }
                                     }
+//                                    if (lineItem <= lastIndex) {
+//                                        for (int index = 0; index < csvFileLines; index++) {
+//                                            if ((firstIndex + index) < lineItem) {
+//                                                continue;
+//                                            }
+//                                            TapEvent recordEvent;
+//                                            try {
+//                                                recordEvent = analyseRecord.analyse(compile.get(index), tableItem, tableName, config, nodeConfig);
+//                                            } catch (Exception e) {
+//                                                root.getContext().getLog().warn("An cdc event failed to accept in {} of {}, error csv format, csv line: {}, msg: {}", tableName, absolutePath, compile.get(index), e.getMessage());
+//                                                continue;
+//                                            }
+//                                            if (null != recordEvent) {
+//                                                events[0].add(recordEvent);
+//                                                lineItem = offset.addAndGet();
+//                                                if (events[0].size() == batchSize) {
+//                                                    offset.setOver(false);
+//                                                    cdcConsumer.accept(events[0], position);
+//                                                    events[0] = new ArrayList<>();
+//                                                }
+//                                            }
+//                                        }
+//                                    }
+                                }).compile(readCSVOfBigFile, csvOffset.getLine());
+                            } finally {
+                                if (!events[0].isEmpty()) {
+                                    csvOffset.setOver(true);
+                                    cdcConsumer.accept(events[0], position);
+                                    events[0] = new ArrayList<>();
                                 }
-                            }).compile(readCSVOfBigFile, csvOffset.getLine());
-                        } finally {
-                            if (!events[0].isEmpty()) {
-                                csvOffset.setOver(true);
-                                cdcConsumer.accept(events[0], position);
-                                events[0] = new ArrayList<>();
                             }
                         }
-                    }
+                    return isThisFile;
+                } finally {
+                    root.getContext().getLog().debug("File {} monitor cost {}ms", file.getName(), System.currentTimeMillis() - start);
                 }
-                return isThisFile;
             }
 
             private void deleteCSVWithConfigTime(File file, Integer cdcCacheTime) {
@@ -345,10 +366,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
             }
 
             private boolean isRecentCSV(File file, long compileTime, Integer cdcCacheTime) {
-                String absolutePath = file.getAbsolutePath();
-                int indexOf = absolutePath.lastIndexOf('.');
-                String fileType = absolutePath.substring(indexOf + 1);
-                if (file.isFile() && fileType.equalsIgnoreCase("csv")) {
+                if (isCSV(file)) {
                     long lastModify = file.lastModified();
                     //long now = System.currentTimeMillis();
                     // .    .    .

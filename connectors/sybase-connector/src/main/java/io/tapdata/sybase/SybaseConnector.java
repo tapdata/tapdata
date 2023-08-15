@@ -50,6 +50,8 @@ import io.tapdata.pdk.apis.entity.TapFilter;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.sybase.cdc.CdcRoot;
@@ -130,6 +132,8 @@ public class SybaseConnector extends CommonDbConnector {
     String decode;
     String outCode;
     boolean needEncode = false;
+
+    public final static int STREAM_ERROR_RETRY_CODE = 90909;
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
@@ -303,28 +307,28 @@ public class SybaseConnector extends CommonDbConnector {
                 //.supportCountRawCommandFunction(this::countRawCommand);
     }
 
-//    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
-//        RetryOptions retryOptions = RetryOptions.create();
-//        retryOptions.setNeedRetry(true);
-//        retryOptions.beforeRetryMethod(() -> {
-//            try {
-//                synchronized (this) {
-//                    //mysqlJdbcContext是否有效
-//                    if (sybaseContext == null || !checkValid() || !started.get()) {
-//                        //如果无效执行onStop,有效就return
-//                        this.onStop(tapConnectionContext);
-//                        if (isAlive()) {
-//                            this.onStart(tapConnectionContext);
-//                        }
-//                    } else {
-//                        mysqlWriter.selfCheck();
-//                    }
-//                }
-//            } catch (Throwable ignore) {
-//            }
-//        });
-//        return retryOptions;
-//    }
+    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+        RetryOptions retryOptions = RetryOptions.create();
+        retryOptions.setNeedRetry(true);
+        retryOptions.beforeRetryMethod(() -> {
+            try {
+                synchronized (this) {
+                    //mysqlJdbcContext是否有效
+                    if (sybaseContext == null || !checkValid() || !started.get()) {
+                        //如果无效执行onStop,有效就return
+                        this.onStop(tapConnectionContext);
+                        if (isAlive()) {
+                            this.onStart(tapConnectionContext);
+                        }
+                    } else {
+                        mysqlWriter.selfCheck();
+                    }
+                }
+            } catch (Throwable ignore) {
+            }
+        });
+        return retryOptions;
+    }
     protected void runRawCommand(TapConnectorContext connectorContext, String command, TapTable tapTable, int eventBatchSize, Consumer<List<TapEvent>> eventsOffsetConsumer) throws Throwable {
         final List<TapEvent>[] tapEvents = new List[]{list()};
         try {
@@ -589,6 +593,7 @@ public class SybaseConnector extends CommonDbConnector {
         if (null == root.getCdcTables() || root.getCdcTables().isEmpty()) {
             root.setCdcTables(tables);
         }
+        if  (nodeConfig == null) nodeConfig = new NodeConfig(tapConnectorContext);
         try {
             if (null == cdcHandle) {
                 //throw new CoreException(" Repeated startup of cdc processes is not allowed, the CDC execution information has expired");
@@ -626,13 +631,14 @@ public class SybaseConnector extends CommonDbConnector {
                     tables,
                     position = offset instanceof CdcPosition ? (CdcPosition) offset : ( position != null ? position : new CdcPosition() ),
                     batchSize,
+                    nodeConfig.getFetchInterval() * 1000,
                     consumer
             );
             while (isAlive()) {
                 sleep(500);
             }
         } catch (Exception e) {
-            tapConnectorContext.getLog().error("Sybase cdc is stopped now, error: {}", e.getMessage());
+            throw new CoreException(90909, "Sybase cdc is stopped now, error: {}", e.getMessage(), e);
         } finally {
             if (null == cdcHandle) {
                 cdcHandle = new CdcHandle(null, tapConnectorContext, lock);

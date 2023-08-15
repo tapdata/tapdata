@@ -20,6 +20,7 @@ public class NodeConfig {
     private boolean heartbeat;
     private String hbDatabase;
     private String hbSchema;
+    private boolean openCdcDetailLog;
 
     public NodeConfig(TapConnectorContext context) {
         this(null == context || null == context.getNodeConfig() ? new DataMap() : context.getNodeConfig());
@@ -39,6 +40,11 @@ public class NodeConfig {
         heartbeat = (Boolean) Optional.ofNullable(nodeConfig.get("heartbeat")).orElse(false);
         hbDatabase = Optional.ofNullable(nodeConfig.getString("hbDatabase")).orElse("");
         hbSchema = Optional.ofNullable(nodeConfig.getString("hbSchema")).orElse("");
+        try {
+            openCdcDetailLog = Optional.ofNullable((Boolean)nodeConfig.get("openCdcDetailLog")).orElse(false);
+        } catch (Exception e) {
+            openCdcDetailLog = false;
+        }
         if (cdcCacheTime < 1) {
             cdcCacheTime = 2;
         }
@@ -117,5 +123,13 @@ public class NodeConfig {
 
     public void setHbSchema(String hbSchema) {
         this.hbSchema = hbSchema;
+    }
+
+    public boolean isOpenCdcDetailLog() {
+        return openCdcDetailLog;
+    }
+
+    public void setOpenCdcDetailLog(boolean openCdcDetailLog) {
+        this.openCdcDetailLog = openCdcDetailLog;
     }
 }
