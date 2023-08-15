@@ -7,6 +7,7 @@ import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlGenerator;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseSqlMaker;
 import io.tapdata.connector.clickhouse.dml.ClickhouseBatchWriter;
+import io.tapdata.connector.clickhouse.dml.ClickhouseRecordWriter;
 import io.tapdata.connector.clickhouse.dml.TapTableWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -270,23 +271,19 @@ public class ClickhouseConnector extends CommonDbConnector {
             }
             startMergeThreadIfNeeded(tapConnectorContext, tapTable);
         }
-        WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>();
-        TapTableWriter instance = clickhouseWriter.partition(clickhouseJdbcContext, this::isAlive);
-        try {
-            for (TapRecordEvent event : tapRecordEvents) {
-                if (!isAlive()) {
-                    throw new InterruptedException("node not alive");
-                }
-                instance.addBath(tapTable, event, writeListResult);
-            }
-            instance.summit(writeListResult);
-        } catch (Exception e) {
-            exceptionCollector.collectTerminateByServer(e);
-            exceptionCollector.collectWritePrivileges("writeRecord", Collections.emptyList(), e);
-            exceptionCollector.collectViolateNull(null, e);
-            throw e;
+        String insertDmlPolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
+        if (insertDmlPolicy == null) {
+            insertDmlPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
         }
-        consumer.accept(writeListResult);
+        String updateDmlPolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
+        if (updateDmlPolicy == null) {
+            updateDmlPolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
+        }
+        new ClickhouseRecordWriter(clickhouseJdbcContext, tapTable)
+                .setInsertPolicy(insertDmlPolicy)
+                .setUpdatePolicy(updateDmlPolicy)
+                .setTapLogger(tapLogger)
+                .write(tapRecordEvents, consumer, this::isAlive);
     }
 
     private void startMergeThreadIfNeeded(TapConnectorContext tapConnectorContext, TapTable tapTable) {

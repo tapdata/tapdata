@@ -17,6 +17,7 @@ import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
@@ -46,7 +47,7 @@ public class NormalRecordWriter {
         isTransaction = true;
     }
 
-    public void write(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
+    public void write(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, Supplier<Boolean> isAlive) throws SQLException {
         //result of these events
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
         try {
@@ -60,6 +61,9 @@ public class NormalRecordWriter {
             deleteRecorder.setTapLogger(tapLogger);
             //insert,update,delete events must consecutive, so execute the other two first
             for (TapRecordEvent recordEvent : tapRecordEvents) {
+                if (null != isAlive && !isAlive.get()) {
+                    break;
+                }
                 if (recordEvent instanceof TapInsertRecordEvent) {
                     updateRecorder.executeBatch(listResult);
                     deleteRecorder.executeBatch(listResult);
