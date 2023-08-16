@@ -15,8 +15,8 @@ import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.ProcessorNodeType;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.commons.util.ProcessorNodeType;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -25,6 +25,7 @@ import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
+import com.tapdata.tm.permissions.constants.DataPermissionMenu;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.LogSettingParam;
@@ -157,7 +158,18 @@ public class TaskController extends BaseController {
             userDetail = getLoginUser();
         }
 
-        return success(taskService.find(filter, userDetail));
+			final Filter finalFilter = filter;
+			Page<TaskDto> result = Optional.ofNullable(filter.getWhere()).map(o -> o.get("syncType")).map(s -> {
+				if (TaskDto.SYNC_TYPE_MIGRATE.equals(s)) {
+					return DataPermissionMenu.MigrateTack;
+				} else if (TaskDto.SYNC_TYPE_SYNC.equals(s)) {
+					return DataPermissionMenu.SyncTack;
+				}
+				return null;
+			}).map(syncType -> syncType.openInController(userDetail, true, () -> taskService.find(finalFilter, userDetail)
+			)).orElseGet(() -> taskService.find(finalFilter, userDetail));
+
+			return success(result);
     }
 
 

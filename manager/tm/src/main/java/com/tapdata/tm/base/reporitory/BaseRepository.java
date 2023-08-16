@@ -11,6 +11,7 @@ import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.annotation.SetOnInsert;
 import com.tapdata.manager.common.utils.ReflectionUtils;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.entity.BaseEntity;
@@ -170,14 +171,16 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
     public Query applyUserDetail(Query query, UserDetail userDetail) {
         Assert.notNull(query, "Entity must not be null!");
         Assert.notNull(userDetail, "UserDetail must not be null!");
+
+			removeFilter("customId", query);
+			query.addCriteria(Criteria.where("customId").is(userDetail.getCustomerId()));
+				if (DataPermissionHelper.setFilterConditions(query, userDetail)) {
+					return query;
+				}
+
         boolean hasAdminRole = userDetail.getAuthorities().contains(new SimpleGrantedAuthority("ADMIN"));
-        if (hasAdminRole) {
-            removeFilter("customId", query);
-            query.addCriteria(Criteria.where("customId").is(userDetail.getCustomerId()));
-        } else {
-            removeFilter("customId", query);
+        if (!hasAdminRole) {
             removeFilter("user_id", query);
-            query.addCriteria(Criteria.where("customId").is(userDetail.getCustomerId()));
             if ((!userDetail.isRoot()) && !userDetail.isFreeAuth()) {
                 query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
             }
@@ -196,6 +199,26 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
             log.error("Remove {} in query {} failed", key, query, e);
         }
     }
+
+    public static void addOrFilter(Query query, Criteria... values) throws NoSuchFieldException, IllegalAccessException {
+			Field criteriaField = Query.class.getDeclaredField("criteria");
+			criteriaField.setAccessible(true);
+			Map<String, CriteriaDefinition> criteria = (Map<String, CriteriaDefinition>) criteriaField.get(query);
+
+			CriteriaDefinition criteriaDefinition = criteria.get(null);
+			if (criteriaDefinition instanceof Criteria) {
+				Criteria c = (Criteria) criteriaDefinition;
+				c.orOperator(values);
+			} else {
+				criteriaDefinition = criteria.get("$or");
+				if (criteriaDefinition instanceof Criteria) {
+					Criteria c = (Criteria) criteriaDefinition;
+					c.orOperator(values);
+				} else {
+					query.addCriteria(new Criteria().orOperator(values));
+				}
+			}
+		}
 
     /**
      * set user data to Criteria

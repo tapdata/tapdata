@@ -2,6 +2,7 @@
 package com.tapdata.tm.ds.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import com.tapdata.tm.commons.schema.ScheduleTimeEnum;
 import com.tapdata.tm.commons.schema.bean.FileSources;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
@@ -34,7 +35,7 @@ import java.util.TimeZone;
 @CompoundIndexes(
         @CompoundIndex(name = "unq_ds_name_create_user", def = "{'createUser':1, 'name':1}", unique = true)
 )
-public class DataSourceEntity extends BaseEntity {
+public class DataSourceEntity extends BaseEntity implements IDataPermissionEntity {
     public static final String STATUS_INVALID = "invalid";
     public static final String STATUS_READY = "ready";
     public static final String STATUS_TESTING = "testing";

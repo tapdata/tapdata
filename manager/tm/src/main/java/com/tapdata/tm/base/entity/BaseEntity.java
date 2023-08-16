@@ -1,7 +1,7 @@
 package com.tapdata.tm.base.entity;
 
 import com.tapdata.manager.common.annotation.SetOnInsert;
-import com.tapdata.tm.base.validation.constraints.In;
+import com.tapdata.tm.commons.base.DataPermissionAction;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -51,4 +52,6 @@ public class BaseEntity extends Entity implements Serializable {
 	@SetOnInsert
 	@Indexed
 	private String createUser;
+
+	private List<DataPermissionAction> permissions;
 }

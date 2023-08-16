@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.schema.Tag;
@@ -25,7 +26,7 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("Task")
-public class TaskEntity extends BaseEntity {
+public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
     /** 扩展参数*/
     private Map<String, Object> attrs;
 

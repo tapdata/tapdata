@@ -1,6 +1,5 @@
 package com.tapdata.tm.commons.base.dto;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -14,6 +13,7 @@ import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.Set;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -43,4 +43,7 @@ public class BaseDto implements Serializable {
 	private String userId;
 	private String lastUpdBy;
 	private String createUser;
+
+	// 数据授权配置，需要配合 IDataPermissionDto 使用
+	private Set<String> permissionActions;
 }
