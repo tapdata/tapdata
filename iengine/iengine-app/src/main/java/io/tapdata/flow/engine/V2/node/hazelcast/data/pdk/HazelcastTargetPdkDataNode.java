@@ -188,6 +188,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != funcAspect) funcAspect.setThrowable(e);
 			throw e;
 		}
+		if (StringUtils.isNotBlank(tableId) && StringUtils.equalsAny(tableId, ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME)) {
+			return;
+		}
 		dropTable(existsDataProcessEnum, tableId);
 		boolean createUnique = tapTable.getIndexList() != null && tapTable.getIndexList().stream().anyMatch(idx -> !idx.isPrimary() && idx.isUnique() && (idx.getIndexFields().size() == updateConditionFields.size()) &&
 				(idx.getIndexFields().stream().allMatch(idxField -> updateConditionFields.contains(idxField.getName()))));

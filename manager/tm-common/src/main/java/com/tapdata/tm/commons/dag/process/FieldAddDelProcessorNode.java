@@ -14,6 +14,7 @@ import org.apache.commons.collections4.CollectionUtils;
 
 import java.io.Serializable;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -100,15 +101,17 @@ public class FieldAddDelProcessorNode extends FieldProcessorNode {
 
         // check fieldsAfter sort fields
         if (CollectionUtils.isNotEmpty(fieldsAfter)) {
-            Map<String, Integer> positionMap = fieldsAfter.stream()
-                    .collect(Collectors.toMap(Postion::getField_name, Postion::getColumnPosition, (e1, e2) -> e1));
-            outputSchema.getFields().forEach(field -> {
-                if (positionMap.containsKey(field.getFieldName())) {
-                    field.setColumnPosition(positionMap.get(field.getFieldName()));
-                }
-            });
-            outputSchema.getFields().sort(Comparator.comparing(f -> null == f.getColumnPosition() ? 0 : f.getColumnPosition()));
-        }
+					Map<String, Integer> positionMap = new HashMap<>();
+					for (Postion p : fieldsAfter) {
+						positionMap.put(p.getField_name(), null == p.getColumnPosition() ? 0 : p.getColumnPosition());
+					}
+					outputSchema.getFields().forEach(field -> {
+						if (positionMap.containsKey(field.getFieldName())) {
+							field.setColumnPosition(positionMap.get(field.getFieldName()));
+						}
+					});
+					outputSchema.getFields().sort(Comparator.comparing(f -> null == f.getColumnPosition() ? 0 : f.getColumnPosition()));
+				}
         return outputSchema;
     }
 
