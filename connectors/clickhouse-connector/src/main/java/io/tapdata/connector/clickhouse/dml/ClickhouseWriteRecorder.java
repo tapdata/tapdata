@@ -88,4 +88,16 @@ public class ClickhouseWriteRecorder extends NormalWriteRecorder {
         }
     }
 
+    @Override
+    protected Object filterValue(Object value, String dataType) {
+        if (dataType.contains("Int")) {
+            if (value instanceof Float) {
+                return ((Float) value).intValue();
+            } else if (value instanceof Double) {
+                return ((Double) value).intValue();
+            }
+        }
+        return value;
+    }
+
 }
