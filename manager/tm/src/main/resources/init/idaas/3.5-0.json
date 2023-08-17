@@ -2,7 +2,7 @@
   {
     "update": "Permission",
     "updates": [
-			{"q": {"name": "v2_datasource_creation"}, "u": {"$set": {"parentId": "v2_datasource_menu", "description": "创建连接", "name": "v2_datasource_creation", "need_permission": true, "order": 1, "resources": [], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
+			{"q": {"name": "v2_datasource_creation"}, "u": {"$set": {"parentId": "v2_datasource_menu", "description": "创建连接", "name": "v2_datasource_creation", "need_permission": true, "order": 1, "resources": [{"type": "page", "code": "v2_datasource_creation", "path": "/connections/create"}], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
 			{"q": {"name": "v2_datasource_copy"}, "u": {"$set": {"parentId": "v2_datasource_menu", "description": "复制连接", "name": "v2_datasource_copy", "need_permission": true, "order": 2, "resources": [], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
 			{"q": {"name": "v2_datasource_all_data"}, "u": {"$set": {"parentId": "v2_datasource_menu", "description": "全部数据授权", "name": "v2_datasource_all_data", "need_permission": true, "order": 1, "resources": [], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
 			{"q": {"name": "v2_data_replication_creation"}, "u": {"$set": {"parentId": "v2_data_replication", "description": "创建任务", "name": "v2_data_replication_creation", "need_permission": true, "order": 1, "resources": [], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
