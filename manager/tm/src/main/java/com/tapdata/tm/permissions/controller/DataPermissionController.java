@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -115,14 +116,12 @@ public class DataPermissionController extends BaseController {
 				objectIds.add(new ObjectId(dataId));
 			}
 		} else {
-			for (String dataId : vo.getDataIds()) {
-				Set<String> userCreateIds = service.findDataActions(userDetail, dataPermissionDataType, new ObjectId(dataId));
-				for (String id : vo.getDataIds()) {
-					if (userCreateIds.contains(id)) {
-						objectIds.add(new ObjectId(id));
-					} else {
-						ignoreIds.add(id);
-					}
+			Set<String> userCreateIds = service.filterNotCreator(userDetail, dataPermissionDataType, vo.getDataIds().stream().map(ObjectId::new).collect(Collectors.toSet()));
+			for (String id : vo.getDataIds()) {
+				if (userCreateIds.contains(id)) {
+					objectIds.add(new ObjectId(id));
+				} else {
+					ignoreIds.add(id);
 				}
 			}
 		}
