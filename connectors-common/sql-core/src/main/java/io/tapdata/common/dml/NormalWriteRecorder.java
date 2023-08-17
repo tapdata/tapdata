@@ -26,6 +26,7 @@ public abstract class NormalWriteRecorder {
     protected final List<String> allColumn;
     protected final List<String> updatedColumn;
     protected final List<String> uniqueCondition;
+    protected final Map<String, String> columnTypeMap;
     protected boolean hasPk = false;
 
     protected String version;
@@ -57,6 +58,7 @@ public abstract class NormalWriteRecorder {
         if (EmptyKit.isEmpty(updatedColumn)) {
             updatedColumn.addAll(allColumn);
         }
+        columnTypeMap = tapTable.getNameFieldMap().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getDataType()));
     }
 
     /**
@@ -173,7 +175,7 @@ public abstract class NormalWriteRecorder {
         preparedStatement.clearParameters();
         int pos = 1;
         for (String key : allColumn) {
-            preparedStatement.setObject(pos++, filterValue(after.get(key)));
+            preparedStatement.setObject(pos++, filterValue(after.get(key), columnTypeMap.get(key)));
         }
     }
 
@@ -223,7 +225,7 @@ public abstract class NormalWriteRecorder {
         preparedStatement.clearParameters();
         int pos = 1;
         for (String key : after.keySet()) {
-            preparedStatement.setObject(pos++, filterValue(after.get(key)));
+            preparedStatement.setObject(pos++, filterValue(after.get(key), columnTypeMap.get(key)));
         }
         setBeforeValue(containsNull, before, pos);
     }
@@ -317,17 +319,17 @@ public abstract class NormalWriteRecorder {
     protected void setBeforeValue(boolean containsNull, Map<String, Object> before, int pos) throws SQLException {
         if (!containsNull) {
             for (String key : before.keySet()) {
-                preparedStatement.setObject(pos++, before.get(key));
+                preparedStatement.setObject(pos++, filterValue(before.get(key), columnTypeMap.get(key)));
             }
         } else {
             for (String key : before.keySet()) {
-                preparedStatement.setObject(pos++, before.get(key));
-                preparedStatement.setObject(pos++, before.get(key));
+                preparedStatement.setObject(pos++, filterValue(before.get(key), columnTypeMap.get(key)));
+                preparedStatement.setObject(pos++, filterValue(before.get(key), columnTypeMap.get(key)));
             }
         }
     }
 
-    protected Object filterValue(Object value) throws SQLException {
+    protected Object filterValue(Object value, String dataType) throws SQLException {
         return value;
     }
 }

@@ -40,20 +40,20 @@ public class OldPostgresWriteRecorder extends PostgresWriteRecorder {
         preparedStatement.clearParameters();
         int pos = 1;
         for (String key : updatedColumn) {
-            preparedStatement.setObject(pos++, filterValue(after.get(key)));
+            preparedStatement.setObject(pos++, filterValue(after.get(key), columnTypeMap.get(key)));
         }
         if (!containsNull) {
             for (String key : uniqueCondition) {
-                preparedStatement.setObject(pos++, filterValue(after.get(key)));
+                preparedStatement.setObject(pos++, filterValue(after.get(key), columnTypeMap.get(key)));
             }
         } else {
             for (String key : uniqueCondition) {
-                preparedStatement.setObject(pos++, filterValue(after.get(key)));
-                preparedStatement.setObject(pos++, filterValue(after.get(key)));
+                preparedStatement.setObject(pos++, filterValue(after.get(key), columnTypeMap.get(key)));
+                preparedStatement.setObject(pos++, filterValue(after.get(key), columnTypeMap.get(key)));
             }
         }
         for (String key : allColumn) {
-            preparedStatement.setObject(pos++, filterValue(after.get(key)));
+            preparedStatement.setObject(pos++, filterValue(after.get(key), columnTypeMap.get(key)));
         }
     }
 
@@ -80,16 +80,16 @@ public class OldPostgresWriteRecorder extends PostgresWriteRecorder {
         preparedStatement.clearParameters();
         int pos = 1;
         for (String key : allColumn) {
-            preparedStatement.setObject(pos++, filterValue(after.get(key)));
+            preparedStatement.setObject(pos++, filterValue(after.get(key), columnTypeMap.get(key)));
         }
         if (!containsNull) {
             for (String key : uniqueCondition) {
-                preparedStatement.setObject(pos++, filterValue(after.get(key)));
+                preparedStatement.setObject(pos++, filterValue(after.get(key), columnTypeMap.get(key)));
             }
         } else {
             for (String key : uniqueCondition) {
-                preparedStatement.setObject(pos++, filterValue(after.get(key)));
-                preparedStatement.setObject(pos++, filterValue(after.get(key)));
+                preparedStatement.setObject(pos++, filterValue(after.get(key), columnTypeMap.get(key)));
+                preparedStatement.setObject(pos++, filterValue(after.get(key), columnTypeMap.get(key)));
             }
         }
     }

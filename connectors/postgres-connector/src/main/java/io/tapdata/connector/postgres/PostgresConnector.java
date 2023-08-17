@@ -282,14 +282,14 @@ public class PostgresConnector extends CommonDbConnector {
                     .setInsertPolicy(insertDmlPolicy)
                     .setUpdatePolicy(updateDmlPolicy)
                     .setTapLogger(tapLogger)
-                    .write(tapRecordEvents, writeListResultConsumer);
+                    .write(tapRecordEvents, writeListResultConsumer, this::isAlive);
 
         } else {
             new PostgresRecordWriter(postgresJdbcContext, tapTable, postgresVersion)
                     .setInsertPolicy(insertDmlPolicy)
                     .setUpdatePolicy(updateDmlPolicy)
                     .setTapLogger(tapLogger)
-                    .write(tapRecordEvents, writeListResultConsumer);
+                    .write(tapRecordEvents, writeListResultConsumer, this::isAlive);
         }
     }
 

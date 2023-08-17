@@ -44,20 +44,20 @@ public class PostgresWriteRecorder extends NormalWriteRecorder {
         preparedStatement.clearParameters();
         int pos = 1;
         for (String key : updatedColumn) {
-            preparedStatement.setObject(pos++, filterValue(all.get(key)));
+            preparedStatement.setObject(pos++, filterValue(all.get(key), columnTypeMap.get(key)));
         }
         if (!containsNull) {
             for (String key : uniqueCondition) {
-                preparedStatement.setObject(pos++, filterValue(before.get(key)));
+                preparedStatement.setObject(pos++, filterValue(before.get(key), columnTypeMap.get(key)));
             }
         } else {
             for (String key : uniqueCondition) {
-                preparedStatement.setObject(pos++, filterValue(before.get(key)));
-                preparedStatement.setObject(pos++, filterValue(before.get(key)));
+                preparedStatement.setObject(pos++, filterValue(before.get(key), columnTypeMap.get(key)));
+                preparedStatement.setObject(pos++, filterValue(before.get(key), columnTypeMap.get(key)));
             }
         }
         for (String key : allColumn) {
-            preparedStatement.setObject(pos++, filterValue(all.get(key)));
+            preparedStatement.setObject(pos++, filterValue(all.get(key), columnTypeMap.get(key)));
         }
     }
 
@@ -78,7 +78,7 @@ public class PostgresWriteRecorder extends NormalWriteRecorder {
     }
 
     @Override
-    protected Object filterValue(Object value) {
+    protected Object filterValue(Object value, String dataType) {
         if (EmptyKit.isNull(value)) {
             return null;
         }
