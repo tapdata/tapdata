@@ -3,13 +3,17 @@ package com.tapdata.tm.base.service;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.base.dto.UpdateDto;
-import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.util.ThrowableUtils;
+import com.tapdata.tm.config.security.UserDetail;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +30,10 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -376,6 +383,7 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
             T target = dtoClass.getDeclaredConstructor().newInstance();
 
             BeanUtils.copyProperties(entity, target, ignoreProperties);
+					DataPermissionHelper.convert(entity, target);
 
             return target;
         } catch (Exception e) {

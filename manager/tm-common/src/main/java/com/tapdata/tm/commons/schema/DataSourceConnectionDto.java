@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.schema;
 
 import com.google.common.collect.Lists;
+import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.schema.bean.FileSources;
@@ -20,7 +21,7 @@ import java.util.*;
  * create at 2021/11/15 上午10:25
  */
 @Data
-public class DataSourceConnectionDto extends BaseDto {
+public class DataSourceConnectionDto extends BaseDto implements IDataPermissionDto {
 
         public static final String STATUS_INVALID = "invalid";
         public static final String STATUS_READY = "ready";

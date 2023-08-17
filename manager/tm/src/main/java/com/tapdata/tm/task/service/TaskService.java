@@ -71,6 +71,7 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.schedule.ChartSchedule;
 import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
@@ -1567,9 +1568,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Where where = filter.getWhere();
 
         Criteria criteria = new Criteria();
-        if (!userDetail.isRoot()) {
-            criteria.and("user_id").is(userDetail.getUserId());
-        }
         Criteria orToCriteria = parseOrToCriteria(where);
 
         // Supplementary data verification status
@@ -1590,6 +1588,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         criteria.andOperator(orToCriteria);
         query.addCriteria(criteria);
+			if (!userDetail.isRoot() && !DataPermissionHelper.setFilterConditions(query, userDetail)) {
+					criteria.and("user_id").is(userDetail.getUserId());
+			}
 
         TmPageable tmPageable = new TmPageable();
         Integer page = (filter.getSkip() / filter.getLimit()) + 1;
@@ -1641,6 +1642,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         query.limit(100000);
         query.skip(0);
         long count = repository.count(query, userDetail);
+        query = repository.filterToQuery(filter);
         query.skip(filter.getSkip());
         query.limit(filter.getLimit());
         List<TaskEntity> taskEntityList = repository.findAll(query, userDetail);

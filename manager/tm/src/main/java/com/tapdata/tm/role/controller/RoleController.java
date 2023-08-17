@@ -7,24 +7,23 @@
 package com.tapdata.tm.role.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
-import com.tapdata.tm.base.dto.Field;
-import com.tapdata.tm.base.dto.Filter;
-import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.dto.ResponseMessage;
-import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.role.dto.RoleDto;
 import com.tapdata.tm.role.service.RoleService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
-import java.util.HashMap;
-import java.util.Map;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/roles")
@@ -168,6 +167,7 @@ public class RoleController extends BaseController {
 	@Operation(summary = "Delete a model instance by {{id}} from the data source")
 	@DeleteMapping("{id}")
 	public ResponseMessage<Void> delete(@PathVariable("id") String id) {
+		DataPermissionHelper.cleanAuthOfRoleDelete(Collections.singleton(id));
 		roleService.deleteById(MongoUtils.toObjectId(id), getLoginUser());
 		return success();
 	}

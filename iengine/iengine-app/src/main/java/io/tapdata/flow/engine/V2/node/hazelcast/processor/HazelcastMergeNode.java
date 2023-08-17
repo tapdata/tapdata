@@ -2,10 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.*;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.OperationType;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -79,6 +76,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
+       if(AppType.init().isCloud())
+        externalStorageDto = ExternalStorageUtil.getTargetNodeExternalStorage(
+				processorBaseContext.getNode(),
+				processorBaseContext.getEdges(),
+				clientMongoOperator,
+				processorBaseContext.getNodes());
 	}
 
 	private void selfCheckNode(Node node) {

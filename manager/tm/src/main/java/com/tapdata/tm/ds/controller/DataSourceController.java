@@ -24,6 +24,7 @@ import com.tapdata.tm.ds.vo.AllDataSourceConnectionVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
+import com.tapdata.tm.permissions.constants.DataPermissionMenu;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.BeanUtil;
@@ -155,10 +156,11 @@ public class DataSourceController extends BaseController {
             userDetail = getLoginUser();
         }
 
-        //隐藏密码
-        Page<DataSourceConnectionDto> dataSourceConnectionDtoPage = dataSourceService.list(filter, noSchema, userDetail);
-
-        return success(dataSourceConnectionDtoPage);
+			final NoSchemaFilter finalFilter = filter;
+			final Boolean finalNoSchema = noSchema;
+			return success(DataPermissionMenu.Connections.openInController(userDetail, true, () -> {
+				return dataSourceService.list(finalFilter, finalNoSchema, userDetail);
+			}));
     }
 
 

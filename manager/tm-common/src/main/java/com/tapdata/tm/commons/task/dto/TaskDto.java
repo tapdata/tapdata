@@ -2,6 +2,7 @@ package com.tapdata.tm.commons.task.dto;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.base.convert.DagDeserialize;
 import com.tapdata.tm.commons.base.convert.DagSerialize;
 import com.tapdata.tm.commons.dag.DAG;
@@ -22,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Task
  */
 @Data
-public class TaskDto extends ParentTaskDto {
+public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     /** migrate迁移  logColleshareCachector 挖掘任务*/
     public static final String SYNC_TYPE_SYNC = "sync";
     public static final String SYNC_TYPE_MIGRATE = "migrate";

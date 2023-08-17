@@ -177,7 +177,7 @@ public class MongodbExecuteCommandFunction {
       throw new RuntimeException(String.format("Process execute %s failed, pipeline cannot be blank", executeObject));
     }
 
-    return mongoClient.getDatabase(database).getCollection(collection).aggregate(pipelines);
+    return mongoClient.getDatabase(database).getCollection(collection).aggregate(pipelines).allowDiskUse(true);
   }
 
   public Object aggregate(Map<String, Object> executeObj, MongoClient mongoClient) {
