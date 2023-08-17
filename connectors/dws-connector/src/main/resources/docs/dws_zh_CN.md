@@ -112,3 +112,4 @@ PARTITION BY RANGE ("WR_RETURNED_DATE_SK")
 
 具体可参考GaussDB(DWS)官方文档<https://support.huaweicloud.com/dws/index.html>
 
+
