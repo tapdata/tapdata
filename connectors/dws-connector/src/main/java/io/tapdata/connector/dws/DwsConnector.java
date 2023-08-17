@@ -253,14 +253,14 @@ public class DwsConnector extends PostgresConnector {
                     .setVersion(postgresVersion)
                     .setInsertPolicy(insertDmlPolicy)
                     .setUpdatePolicy(updateDmlPolicy)
-                    .write(tapRecordEvents, writeListResultConsumer);
+                    .write(tapRecordEvents, writeListResultConsumer, this::isAlive);
 
         } else {
             new DwsRecordWriter(dwsJdbcContext, dwsTapTable.get())
                     .setVersion(postgresVersion)
                     .setInsertPolicy(insertDmlPolicy)
                     .setUpdatePolicy(updateDmlPolicy)
-                    .write(tapRecordEvents, writeListResultConsumer);
+                    .write(tapRecordEvents, writeListResultConsumer, this::isAlive);
         }
     }
 

@@ -1,218 +1,113 @@
-## **Connection configuration help**
-### **1. POSTGRESQL installation instructions**
-Please follow the instructions below to ensure that the PostgreSQL database is successfully added and used in Tapdata.
-### **2. Supported version**
-PostgreSQL 9.4, 9.5, 9.6, 10.x, 11.x, 12 versions
-### **3. CDC principle and support**
-#### **3.1 Principles of CDC**
-PostgreSQL's logical decoding function first appeared in version 9.4. It is a mechanism that allows to extract the changes committed to the transaction log and process these changes in a user-friendly way through the output plugin.
-This output plugin must be installed before running the PostgreSQL server and enabled with a replication slot so that the client can use the changes.
-#### **3.2 CDC Support**
-- **Logical Decoding** (Logical Decoding): used to parse logic change events from WAL logs
-- **Replication Protocol** (Replication Protocol): Provides a mechanism for consumers to subscribe to (or even synchronously subscribe) database changes in real time
-- **Export snapshot**: Allows to export a consistent snapshot of the database (pg_export_snapshot)
-- **Replication Slot**: Used to save consumer offsets and track subscriber progress.
-  Therefore, based on the above, we need to install a logical decoder. The existing decoders are as options
+# Connection Configuration Help
 
-### **4. Prerequisites**
-#### **4.1 Modify REPLICA IDENTITY**
-This attribute determines the field of the log record when the data occurs `UPDATE, DELETE`
-- **DEFAULT**-Updates and deletes will contain the current value of the primary key column
-- **NOTHING**-Updates and deletes will not contain any previous values
-- **FULL**-Updates and deletes will include the previous values of all columns
-- **INDEX index name**-update and delete events will contain the previous value of the column included in the index definition named index name
-  If there are scenarios where multiple tables are merged and synchronized, Tapdata needs to adjust this attribute to FULL
-  Example
-```
-alter table'[schema]'.'[table name]' REPLICA IDENTITY FULL`
-```
+## 1. Supported versions
 
-#### **4.2 Plug-in installation**
-- [decorderbufs](https://github.com/debezium/postgres-decoderbufs)
-- [Protobuf-c 1.2+](https://github.com/protobuf-c/protobuf-c)
-- [protobuf](https://blog.csdn.net/gumingyaotangwei/article/details/78936608)
-- [PostGIS 2.1+ ](http://www.postgis.net/)
-- [wal2json](https://github.com/eulerto/wal2json/blob/master/README.md)
-- pgoutput(pg 10.0+)
+GaussDB(DWS) 8.1.3
 
-**Installation steps**<br>
-Take wal2json as an example, the installation steps are as follows<br>
-Ensure that the environment variable PATH contains "/bin"<br>
-```
-export PATH=$PATH:<postgres installation path>/bin
-```
-**Install plugin**<br>
-```
-git clone https://github.com/eulerto/wal2json -b master --single-branch \
-&& cd wal2json \
-&& USE_PGXS=1 make \
-&& USE_PGXS=1 make install \
-&& cd .. \
-&& rm -rf wal2json
-```
-Install plug-in error handling. The `make` command is executed, and an exception message similar to `fatal error: [xxx].h: No such file or directory` is encountered.<br>
-**Reason**: missing postgresql-server-dev<br>
-**Solution**: install postgresql-server-dev, take the debian system as an example<br>
-```
-// Version number such as: 9.4, 9.6, etc.
-apt-get install -y postgresql-server-dev-<version number>
-```
-**Configuration File**<br>
-If you are using a supported logic decoding plug-in (not pgoutput ), and it has been installed, configure the server to load the plug-in at startup:<br>
-```
-postgresql.conf
-shared_preload_libraries ='decoderbufs,wal2json'
-```
-Configure replication<br>
-```
-# REPLICATION
-wal_level = logical
-max_wal_senders = 1 # More than 0 is enough
-max_replication_slots = 1 # More than 0 is enough
+## 2. Connection configuration example
+
+    address:xxxxx
+    port:xxxx
+    database:test
+    schema:test_tapdata
+    user:tapdata
+    password:tapdata
+
+## 3. Distribute column
+
+In GaussDB(DWS), distribute column refers to the columns used for data distribution in a distribution table. They determine the distribution of data in distributed storage and are crucial for query performance and data distribution balance.
+
+### 3.1 Selection of Distribute column
+
+When creating a table, you can use the DISTRIBUTED BY clause to specify the distribution columns.
+
+```sql
+CREATE TABLE my_table (
+                        id INT,
+                        name VARCHAR,
+                        date DATE
+) DISTRIBUTED BY (id);
 ```
 
-#### **4.3 Permissions**
-##### **4.3.1 as source**
-- **Initialization**<br>
-```
-GRANT SELECT ON ALL TABLES IN SCHEMA <schemaname> TO <username>;
-```
-- **Increment**<br>
-  The user needs to have the replication login permission. If the log increment function is not required, the replication permission may not be set
-```
-CREATE ROLE <rolename> REPLICATION LOGIN;
-CREATE USER <username> ROLE <rolename> PASSWORD'<password>';
-// or
-CREATE USER <username> WITH REPLICATION LOGIN PASSWORD'<password>';
-```
-The configuration file pg_hba.conf needs to add the following content:<br>
-```
-pg_hba.conf
-local replication <youruser> trust
-host replication <youruser> 0.0.0.0/32 md5
-host replication <youruser> ::1/128 trust
+If no distribute columns are specified when creating a table, data storage will follow these scenarios:
+
+*   Scenario 1
+
+If the table includes a primary key or unique constraint, HASH distribution is chosen, and the distribute column is the one corresponding to the primary key or unique constraint.
+
+*   Scenario 2
+
+If the table does not include a primary key or unique constraint but contains columns that support distribution, HASH distribution is chosen, and the distribute column is the first column that supports distribution data types.
+
+*   Scenario 3
+
+If the table does not have a primary key or unique constraint and does not have columns supporting distribution data types, ROUNDROBIN distribution is chosen.
+
+### 3.2 Querying distribute column
+
+You can use the following SQL to query the distribute columns of the current table:
+
+```sql
+SELECT getdistributekey('"your_schema"."table_name"')
 ```
 
-##### **4.3.2 as a target**
-```
-GRANT INSERT, UPDATE, DELETE, TRUNCATE
-ON ALL TABLES IN SCHEMA <schemaname> TO <username>;
-```
-> **Note**: The above are just basic permissions settings, the actual scene may be more complicated
+### 3.3 Handling distribute column updates
 
-##### **4.4 Test Log Plugin**
-> **Note**: The following operations are recommended to be performed in a POC environment
->Connect to the postgres database, switch to the database that needs to be synchronized, and create a test table
-```
-- Assuming that the database to be synchronized is postgres and the model is public
-\c postgres
+Method 1: GaussDB(DWS) currently does not support updating distribute keys, so you can simply skip the error.
 
-create table public.test_decode
+Method 2: Modify the distribute column to a non-updatable column. Here is an example of adjusting the distribute column:
+
+    alter table customer_t1 DISTRIBUTE BY hash (c_customer_sk);
+
+### 3.4 Considerations
+
+*   When performing update operations on the source end, the database log needs to be able to read the data before the update. tapdata checks whether the distribution columns are modified before writing.
+
+  *   If there is no data before the update, an exception will be thrown:
+
+          Current Database cannot support update operation.
+  *   If a modification to the distribution column is detected, an exception will be thrown:
+
+          // GaussDB(DWS) database stipulates that distribution columns are not allowed to be updated.
+          Distributed key column distributedKey can't be updated in table table_name.Value: beforeData => afterData.
+
+*   Not all types of databases or data tables will record the data before the update, especially in the case of non-relational databases or certain special scenarios, where there is no built-in mechanism to record data before updates. Some database types, such as Redis, may lack an inherent mechanism for recording data prior to updates.
+
+## 4. Partition table
+
+A partition table logically divides a table into several physical blocks or partitions for storage. Each logical table is referred to as a partitioned table, and each physical block is referred to as a partition. A partitioned table is a logical table that does not store data; the data is actually stored in the partitions. When performing conditional queries, the system scans only the partitions that meet the conditions, avoiding full table scans and improving query performance.
+
+### 4.1 Creating partition table
+
+When data needs to be synchronized to a partition table, tapdata does not support automatic creation of partition tables. You need to manually create the partition table in advance. Here's an example of creating a partition table:
+
+```sql
+CREATE TABLE web_returns_p1
 (
-  uid integer not null
-      constraint users_pk
-          primary key,
-  name varchar(50),
-  age integer,
-  score decimal
+  "WR_RETURNED_DATE_SK"       integer,
+  "WR_RETURNED_TIME_SK"       integer,
+  "WR_ITEM_SK"                integer NOT NULL,
+  "WR_REFUNDED_CUSTOMER_SK"   integer,
+  primary key ("WR_RETURNED_DATE_SK","WR_ITEM_SK","WR_REFUNDED_CUSTOMER_SK")
 )
+  WITH (orientation = column)
+  DISTRIBUTE BY HASH ("WR_ITEM_SK","WR_REFUNDED_CUSTOMER_SK")
+  PARTITION BY RANGE ("WR_RETURNED_DATE_SK")
+(
+  PARTITION p2016 VALUES LESS THAN(20201231),
+  PARTITION p2017 VALUES LESS THAN(20211231),
+  PARTITION p2018 VALUES LESS THAN(20221231),
+  PARTITION pxxxx VALUES LESS THAN(maxvalue)
+  );
 ```
-You can create a test table according to your own situation<br>
-- Create a slot connection, take the wal2json plugin as an example
-```
-select * from pg_create_logical_replication_slot('slot_test','wal2json')
-```
-- After the creation is successful, insert a piece of data into the test table<br>
-- Monitor the log, check the returned result, and see if there is any information about the insert operation just now<br>
-```
-select * from pg_logical_slot_peek_changes('slot_test', null, null)
-```
--After success, destroy the slot connection and delete the test table<br>
-```
-select * from pg_drop_replication_slot('slot_test')
-drop table public.test_decode
-```
-#### **4.5 Exception Handling**
-- **Slot Cleanup**<br>
-  If tapdata is interrupted due to an uncontrollable exception (power failure, process crash, etc.), the slot connection cannot be deleted from the pg master node correctly, and a slot connection quota will always be occupied. You need to manually log in to the master node to delete
-  Query slot information
-```
-// Check if there is slot_name With tapdata_ cdc_ start information
- TABLE pg_replication_slots;
-```
-- **Delete slot node**<br>
-```
-select * from pg_drop_replication_slot('tapdata');
-```
-- **Delete operation**<br>
-  When using the wal2json plug-in to decode, if the source table does not have a primary key, the delete operation of incremental synchronization cannot be achieved
 
-#### **4.6 Incremental synchronization using the last update timestamp**
-##### **4.6.1 Noun Explanation**
-**schema**: Chinese is the model, pgsql has a total of 3 levels of directories, library -> model -> table. In the following command, the <schema> character needs to be filled in the name of the model where the table is located
-##### **4.6.2 Pre-preparation (this step only needs to be done once)**
-- **Create public function**
-  In the database, execute the following command
-```
-CREATE OR REPLACE FUNCTION <schema>.update_lastmodified_column()
-    RETURNS TRIGGER language plpgsql AS $$
-    BEGIN
-        NEW.last_update = now();
-        RETURN NEW;
-    END;
-$$;
-```
-- **Create field and trigger**
-> **Note**: The following operations need to be performed once for each table
-Assume that the table whose last update needs to be added is named mytable
-- **Create last_update field**
-```
-alter table <schema>.mytable add column last_udpate timestamp default now();
-```
-- **Create trigger**
-```
-create trigger trg_uptime before update on <schema>.mytable for each row execute procedure
-    update_lastmodified_column();
-```
-### **5. Full type field support**
-- smallint
-- integer
-- bigint
-- numeric
-- real
-- double precision
-- character
-- character varying
-- text
-- bytea
-- bit
-- bit varying
-- boolean
-- date
-- interval
-- timestamp
-- timestamp with time zone
-- point
-- line
-- lseg
-- box
-- path
-- polygon
-- circle
-- cidr
-- inet
-- macaddr
-- uuid
-- xml
-- json
-- tsvector (cdc not supported, no error)
-- tsquery (cdc not supported, no error)
-- oid
-- regproc (cdc not supported, no error)
-- regprocedure (cdc not supported, no error)
-- regoper (cdc not supported, no error)
-- regoperator (cdc not supported, no error)
-- regclass (cdc not supported, no error)
-- regtype (cdc not supported, no error)
-- regconfig (cdc not supported, no error)
-- regdictionary (cdc not supported, no error)
+### 4.2 Considerations:
+
+*   If a partition table does not have a primary key or unique index, tapdata does not support conflict update operations, and an exception message will be thrown.
+
+    The partitioned table table\_name lacks a primary key or unique index, and does not support conflict update operations. Please switch to the append mode.
+
+*   If you need to use a partition table and select a processing strategy for the target table, it is recommended to retain the table structure. Otherwise, tapdata will automatically create a regular table.
+
+For more details, please refer to the official GaussDB(DWS) documentation:<https://support.huaweicloud.com/dws/index.html>
+
