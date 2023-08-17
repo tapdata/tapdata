@@ -9,10 +9,12 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MongodbUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
@@ -252,6 +254,46 @@ public class ExternalStorageUtil {
 		}
 		if (null == externalStorageDto) {
 			externalStorageDto = getDefaultExternalStorage(externalStorageDtoMap, node);
+		}
+		return externalStorageDto;
+	}
+
+	public static ExternalStorageDto getTargetNodeExternalStorage(
+			Node node,
+			List<Edge> edges,
+			ClientMongoOperator clientMongoOperator,
+			List<Node> nodes
+	){
+		ExternalStorageDto externalStorageDto = new ExternalStorageDto();
+		Edge targetEdge = edges.stream().filter(e -> e.getSource().equals(node.getId())).findFirst().orElse(null);
+		if(targetEdge != null){
+			Node targetNode = nodes.stream().filter(n -> n.getId().equals(targetEdge.getTarget())).findFirst().orElse(null);
+			if(targetNode instanceof DataParentNode){
+				String connectionId = ((DataParentNode) targetNode).getConnectionId();
+				Query connQuery = Query.query(Criteria.where("_id").is(connectionId));
+				Connections connection = clientMongoOperator.findOne(connQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+				if(connection.getDatabase_type().equals("MongoDB")){
+					Map<String, Object> config =connection.getConfig();
+					String uri;
+					if((boolean)config.get("isUri")){
+						uri =(String)config.get("uri");
+					}else {
+						uri = "mongodb://%s:%s@%s/%s?%s";
+						uri = String.format(uri,config.get("user"),config.get("password"),
+								config.get("host"),config.get("database"),config.get("additionalString"));
+					}
+					externalStorageDto.setName(ConnectorConstant.TARGET_MONGO_DB_EXTERNAL_STORAGE_NAME);
+					externalStorageDto.setUri(uri);
+					externalStorageDto.setType("mongodb");
+					if(connection.getSsl()){
+						externalStorageDto.setSsl(connection.getSsl());
+						externalStorageDto.setSslCA(connection.getSslCA());
+						externalStorageDto.setSslKey(connection.getSslKey());
+						externalStorageDto.setSslPass(connection.getSslPass());
+						externalStorageDto.setSslValidate(connection.getSslValidate());
+					}
+				}
+			}
 		}
 		return externalStorageDto;
 	}
