@@ -3,10 +3,12 @@ package io.tapdata.flow.engine.V2.task.cleaner;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.entity.AppType;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
+import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
@@ -93,6 +95,7 @@ public abstract class TaskCleaner {
 		}
 		// Loop nodes
 		List<Node> nodes = taskDto.getDag().getNodes();
+		List<Edge> edges = taskDto.getDag().getEdges();
 		for (Node node : nodes) {
 			if (null == node) {
 				logger.warn("Reset/Delete task {}({}) found an empty node, will skip it", taskDto.getName(), taskDto.getId());
@@ -103,7 +106,11 @@ public abstract class TaskCleaner {
 				if (node instanceof TableNode || node instanceof DatabaseNode || node instanceof LogCollectorNode) {
 					dataNodeDestroy(node);
 				} else if (node instanceof MergeTableNode) {
-					mergeNodeDestroy(node);
+					if(AppType.init().isCloud()){
+						mergeNodeDestroy(node,edges,nodes);
+					}else {
+						mergeNodeDestroy(node);
+					}
 				} else if (node instanceof CacheNode) {
 					cacheNodeDestroy(node);
 				} else if (node instanceof AggregationProcessorNode) {
@@ -164,6 +171,20 @@ public abstract class TaskCleaner {
 		long startTs = System.currentTimeMillis();
 		try {
 			HazelcastMergeNode.clearCache(node);
+			succeed(node, NodeResetDesc.task_reset_merge_node, (System.currentTimeMillis() - startTs));
+		} catch (Throwable e) {
+			String msg = String.format("Clean merge node cache data occur an error: %s\n Task: %s(%s), node: %s(%s)", e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId());
+			TaskCleanerException taskCleanerException = new TaskCleanerException(msg, e, true);
+			failed(node, NodeResetDesc.task_reset_merge_node, (System.currentTimeMillis() - startTs), taskCleanerException);
+		}
+	}
+
+	private void mergeNodeDestroy(Node<?> node,
+								  List<Edge> edges,
+								  List<Node> nodes) {
+		long startTs = System.currentTimeMillis();
+		try {
+			HazelcastMergeNode.clearCache(node,nodes,edges);
 			succeed(node, NodeResetDesc.task_reset_merge_node, (System.currentTimeMillis() - startTs));
 		} catch (Throwable e) {
 			String msg = String.format("Clean merge node cache data occur an error: %s\n Task: %s(%s), node: %s(%s)", e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId());

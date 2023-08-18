@@ -4,6 +4,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
@@ -887,6 +888,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	public static void clearCache(Node<?> node) {
 		if (!(node instanceof MergeTableNode)) return;
 		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
+		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
+	}
+
+	public static void clearCache(Node<?> node, List<Node> nodes, List<Edge> edges) {
+		if (!(node instanceof MergeTableNode)) return;
+		ExternalStorageDto externalStorage = ExternalStorageUtil.getTargetNodeExternalStorage(node,edges,ConnectorConstant.clientMongoOperator,nodes);
 		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
 	}
 
