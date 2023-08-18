@@ -272,7 +272,7 @@ public class ExternalStorageUtil {
 				String connectionId = ((DataParentNode) targetNode).getConnectionId();
 				Query connQuery = Query.query(Criteria.where("_id").is(connectionId));
 				Connections connection = clientMongoOperator.findOne(connQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-				if(connection.getDatabase_type().equals("MongoDB")){
+				if(connection.getDatabase_type().equals("MongoDB") || connection.getDatabase_type().equals("MongoDB Atlas")){
 					Map<String, Object> config =connection.getConfig();
 					String uri;
 					if((boolean)config.get("isUri")){
