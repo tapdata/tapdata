@@ -21,7 +21,7 @@ public class RedisConfig {
     private String password;
     private String deploymentMode;
     private String sentinelName;
-    private String database;
+    private int database;
     private ArrayList<LinkedHashMap<String, Integer>> sentinelAddress;
     private List<HostAndPort> clusterNodes;
 
@@ -109,11 +109,11 @@ public class RedisConfig {
         this.password = password;
     }
 
-    public String getDatabase() {
+    public int getDatabase() {
         return database;
     }
 
-    public void setDatabase(String database) {
+    public void setDatabase(int database) {
         this.database = database;
     }
 

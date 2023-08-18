@@ -25,7 +25,7 @@ public class CommonJedis implements JedisCommands, Closeable {
 
     public RedisPipeline pipelined(RedisConfig redisConfig) {
         DefaultJedisClientConfig.Builder clientConfigBuilder = DefaultJedisClientConfig.builder()
-                .database(Integer.parseInt(redisConfig.getDatabase()))
+                .database(redisConfig.getDatabase())
                 .blockingSocketTimeoutMillis(60000)
                 .connectionTimeoutMillis(5000)
                 .socketTimeoutMillis(5000);
