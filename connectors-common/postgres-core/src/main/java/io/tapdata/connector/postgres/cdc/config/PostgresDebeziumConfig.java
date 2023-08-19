@@ -6,6 +6,7 @@ import io.tapdata.kit.EmptyKit;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.stream.Collectors;
 
 /**
@@ -20,6 +21,7 @@ public class PostgresDebeziumConfig {
     private List<String> observedTableList;
     private String slotName; //unique for each slot, so create it by postgres config and observed tables
     private String namespace;
+    private TimeZone timeZone;
 
     public PostgresDebeziumConfig() {
 
@@ -27,6 +29,11 @@ public class PostgresDebeziumConfig {
 
     public PostgresDebeziumConfig use(PostgresConfig postgresConfig) {
         this.postgresConfig = postgresConfig;
+        return this;
+    }
+
+    public PostgresDebeziumConfig use(TimeZone timeZone) {
+        this.timeZone = timeZone;
         return this;
     }
 
@@ -84,10 +91,12 @@ public class PostgresDebeziumConfig {
                 .with("converters", "timestamp,timestampTZ,time,timeTZ,geometry,other")
                 .with("timestamp.type", "io.tapdata.connector.postgres.converters.TimestampConverter")
                 .with("timestamp.schema.name", "io.debezium.postgresql.type.Timestamp")
+                .with("timestamp.timezone", timeZone.getRawOffset())
                 .with("timestampTZ.type", "io.tapdata.connector.postgres.converters.TimestampTZConverter")
                 .with("timestampTZ.schema.name", "io.debezium.postgresql.type.TimestampTZ")
                 .with("time.type", "io.tapdata.connector.postgres.converters.TimeConverter")
                 .with("time.schema.name", "io.debezium.postgresql.type.Time")
+                .with("time.timezone", timeZone.getRawOffset())
                 .with("timeTZ.type", "io.tapdata.connector.postgres.converters.TimeTZConverter")
                 .with("timeTZ.schema.name", "io.debezium.postgresql.type.TimeTZ")
                 .with("geometry.type", "io.tapdata.connector.postgres.converters.GeometryConverter")
