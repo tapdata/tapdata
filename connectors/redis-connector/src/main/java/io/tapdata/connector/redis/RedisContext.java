@@ -114,9 +114,7 @@ public class RedisContext implements AutoCloseable {
         while (true) {
             try {
                 jedis = jedisPool.getResource();
-                if (StringUtils.isNotBlank(redisConfig.getDatabase())) {
-                    jedis.select(Integer.parseInt(redisConfig.getDatabase()));
-                }
+                jedis.select(redisConfig.getDatabase());
                 return new CommonJedis(jedis);
             } catch (Exception e) {
                 if (e instanceof JedisConnectionException) {

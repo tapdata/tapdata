@@ -208,7 +208,7 @@
                             <goal>copy-resources</goal>
                         </goals>
                         <configuration>
-                            <outputDirectory>../dist</outputDirectory>
+                            <outputDirectory>${basedir}/../dist/</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${basedir}/target/</directory>
