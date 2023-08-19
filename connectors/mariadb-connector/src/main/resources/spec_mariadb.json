@@ -16,6 +16,11 @@
 		"alternatives": ["ignore_on_nonexists", "insert_on_nonexists"]
 	  }
 	],
+    "supportDDL": {
+      "events": [
+        "new_field_event", "alter_field_name_event", "alter_field_attributes_event", "drop_field_event"
+      ]
+    },
 	"connection": {
 	  "type": "object",
 	  "properties": {

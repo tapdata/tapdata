@@ -27,6 +27,11 @@
         "id": "api_server_supported"
       }
     ],
+    "supportDDL": {
+      "events": [
+        "new_field_event", "alter_field_name_event", "alter_field_attributes_event", "drop_field_event"
+      ]
+    },
     "connection": {
       "type": "object",
       "properties": {

@@ -1,13 +1,10 @@
 package io.tapdata.connector.adb;
 
-import io.tapdata.common.ddl.DDLFactory;
-import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.adb.write.AliyunADBBatchWriter;
 import io.tapdata.connector.mysql.MysqlConnector;
 import io.tapdata.connector.mysql.MysqlJdbcContextV2;
 import io.tapdata.connector.mysql.config.MysqlConfig;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
-import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -15,7 +12,6 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -81,8 +77,6 @@ public class AliyunADBMySQLConnector extends MysqlConnector {
         ) {
             aliyunADBMySQLTest.testOneByOne();
         }
-        List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDLParserType.MYSQL_CCJ_SQL_PARSER);
-        ddlCapabilities.forEach(connectionOptions::capability);
         return connectionOptions;
     }
 
