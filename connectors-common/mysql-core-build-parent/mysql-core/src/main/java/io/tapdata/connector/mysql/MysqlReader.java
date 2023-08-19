@@ -599,10 +599,10 @@ public class MysqlReader implements Closeable {
             Object value = struct.getWithoutDefault(fieldName);
             if (null != field.schema().name() && field.schema().name().startsWith("io.debezium.time.")) {
                 if (field.schema().type() == Schema.Type.INT64 && value instanceof Long && Long.MIN_VALUE == ((Long) value)) {
-                    result.put(fieldName, "0000-00-00 00:00:00");
+                    result.put(fieldName, null);
                     continue;
                 } else if (field.schema().type() == Schema.Type.INT32 && value instanceof Integer && Integer.MIN_VALUE == ((Integer) value)) {
-                    result.put(fieldName, "0000-00-00");
+                    result.put(fieldName, null);
                     continue;
                 }
             }
