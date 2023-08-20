@@ -23,7 +23,7 @@ public class ConfigPaths {
     public static final String SYBASE_USE_TASK_CONFIG_BASE_DIR = "sybase_cdc_path";
 
     public static final String SYBASE_USE_TASK_CONFIG_KEY = "taskCdcPath";
-    public static final String RE_INIT_TABLE_CONFIG_PATH = "%s/config/sybase2csv/task/%s/ext_sybasease.yaml";
+    public static final String RE_INIT_TABLE_CONFIG_PATH = "%s/config/sybase2csv/task/%s";
     public static final String SYBASE_USE_TASK_CONFIG_DIR = "/config/sybase2csv/task/";
 
     public static final String SYBASE_USE_DATA_DIR = "/config/sybase2csv/data";

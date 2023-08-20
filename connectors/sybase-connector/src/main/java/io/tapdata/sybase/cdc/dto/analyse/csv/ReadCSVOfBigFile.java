@@ -20,7 +20,7 @@ import java.util.List;
  * @create 2023/7/24 12:10
  **/
 public class ReadCSVOfBigFile implements ReadCSV {
-    Log log;
+    private Log log;
 
     public void setLog(Log log) {
         this.log = log;
@@ -32,13 +32,15 @@ public class ReadCSVOfBigFile implements ReadCSV {
         String[] strArr = null;
         offset = Math.max(offset, 0);
         int index = offset - 1;
+        final int lastOffset = offset;
         try (
                 FileInputStream inputStream = new FileInputStream(csvPath);
                 InputStreamReader inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
                 BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
                 CSVReader reader = new CSVReader(bufferedReader)
         ) {
-            while (null != (strArr = reader.readNext())) {
+            int lineIndex = 0;
+            while (null != (strArr = reader.readNext()) && lineIndex++ >= lastOffset) {
                 lines.add(new ArrayList<>(Arrays.asList(strArr)));
                 index++;
                 int size = lines.size();
@@ -56,6 +58,9 @@ public class ReadCSVOfBigFile implements ReadCSV {
         }
     }
 
+    /**
+     * @deprecated
+     * */
     @Override
     public void read(String csvPath, int offset, List<SpecialField> specialFields, CdcAccepter consumer) {
         if (null == specialFields) {

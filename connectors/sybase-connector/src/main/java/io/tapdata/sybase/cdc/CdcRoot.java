@@ -79,6 +79,7 @@ public class CdcRoot {
     }
 
     public CdcStartVariables getVariables() {
+        if (null == variables) variables = new CdcStartVariables();
         return variables;
     }
 

@@ -1,5 +1,6 @@
 package io.tapdata.common;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
@@ -72,30 +73,31 @@ public abstract class WriteRecorder {
      *
      * @param listResult results of WriteRecord
      */
-    public void executeBatch(WriteListResult<TapRecordEvent> listResult) throws SQLException {
-        long succeed = batchCache.size();
-        if (succeed <= 0) {
-            return;
-        }
-        try {
-            if (preparedStatement != null) {
-                preparedStatement.executeBatch();
-                preparedStatement.clearBatch();
-                batchCache.clear();
-            }
-        } catch (SQLException e) {
-            Map<TapRecordEvent, Throwable> map = batchCache.stream().collect(Collectors.toMap(Function.identity(), (v) -> e));
-            listResult.addErrors(map);
-            throw e;
-        }
-        atomicLong.addAndGet(succeed);
-    }
+//    public void executeBatch(WriteListResult<TapRecordEvent> listResult) throws SQLException {
+//        long succeed = batchCache.size();
+//        if (succeed <= 0) {
+//            return;
+//        }
+//        try {
+//            if (preparedStatement != null) {
+//                preparedStatement.executeBatch();
+//                preparedStatement.clearBatch();
+//                batchCache.clear();
+//            }
+//        } catch (SQLException e) {
+//            Map<TapRecordEvent, Throwable> map = batchCache.stream().collect(Collectors.toMap(Function.identity(), (v) -> e));
+//            listResult.addErrors(map);
+//            throw e;
+//        }
+//        atomicLong.addAndGet(succeed);
+//    }
 //    public synchronized void executeBatch(WriteListResult<TapRecordEvent> listResult) throws SQLException {
 //        final Object waitLock = new Object();
 //        if (null == listResult) return;
 //        int times = 3;
 //        while (times > 0) {
 //            try {
+//                if (times == 3) throw new SQLException("Test error");
 //                batch();
 //            } catch (SQLException e) {
 //                if (times <= 1) {
@@ -111,19 +113,58 @@ public abstract class WriteRecorder {
 //            times--;
 //        }
 //    }
-
-    private void batch() throws SQLException {
+//    private void batch() throws SQLException {
+//        long succeed = batchCache.size();
+//        if (succeed <= 0) {
+//            return;
+//        }
+//        if (preparedStatement != null) {
+//            preparedStatement.executeBatch();
+//            preparedStatement.clearBatch();
+//            batchCache.clear();
+//        }
+//        atomicLong.addAndGet(succeed);
+//    }
+    public void executeBatch(WriteListResult<TapRecordEvent> listResult) throws SQLException {
         long succeed = batchCache.size();
         if (succeed <= 0) {
             return;
         }
-        if (preparedStatement != null) {
-            preparedStatement.executeBatch();
-            preparedStatement.clearBatch();
-            batchCache.clear();
+        try {
+            if (preparedStatement != null) {
+                batch();
+                preparedStatement.clearBatch();
+                batchCache.clear();
+            }
+        } catch (SQLException e) {
+            Map<TapRecordEvent, Throwable> map = batchCache.stream().collect(Collectors.toMap(Function.identity(), (v) -> e));
+            listResult.addErrors(map);
+            throw e;
         }
         atomicLong.addAndGet(succeed);
     }
+    private synchronized void batch() throws SQLException {
+        if (preparedStatement != null) {
+            final Object waitLock = new Object();
+            int times = 3;
+            while (times > 0) {
+                try {
+                    preparedStatement.executeBatch();
+                    times = -1;
+                } catch (SQLException e) {
+                    if (times <= 1) {
+                        throw e;
+                    }
+                    try {
+                        TapLogger.warn(TAG, "Retry in target, SQL execute fail: {}", e.getMessage());
+                        waitLock.wait(1000);
+                    } catch (Exception ignore) {}
+                }
+                times--;
+            }
+        }
+    }
+
 
     //commit when cacheSize >= 1000
     public void addAndCheckCommit(TapRecordEvent recordEvent, WriteListResult<TapRecordEvent> listResult) throws SQLException {

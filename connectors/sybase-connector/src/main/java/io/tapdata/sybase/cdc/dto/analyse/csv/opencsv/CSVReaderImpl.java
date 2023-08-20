@@ -5,8 +5,10 @@ import io.tapdata.entity.logger.Log;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -21,6 +23,7 @@ public class CSVReaderImpl extends CSVReader {
     private int skipLines;
     private boolean linesSkiped;
     public static final int DEFAULT_SKIP_LINES = 0;
+    Iterator<String> iterator;
     Log log;
 
     public void setLog(Log log) {
@@ -69,6 +72,19 @@ public class CSVReaderImpl extends CSVReader {
         this.skipLines = line;
     }
 
+    public CSVReaderImpl(Reader reader, List<String> lines, char separator, char quotechar, char escape, int line, boolean strictQuotes, boolean ignoreLeadingWhiteSpace, List<SpecialField> specialFields) {
+        super(reader, separator, quotechar, escape, line, strictQuotes, ignoreLeadingWhiteSpace);
+        this.hasNext = true;
+        if (null == lines) {
+            this.br = new BufferedReader(reader);
+        } else {
+            this.iterator = lines.iterator();
+        }
+        this.parser = new CSVParserImpl(separator, quotechar, escape, strictQuotes, ignoreLeadingWhiteSpace);
+        this.parser.specialFields(specialFields);
+        this.skipLines = line;
+    }
+
     public List<String[]> readAll() throws IOException {
         ArrayList allElements = new ArrayList();
 
@@ -110,13 +126,17 @@ public class CSVReaderImpl extends CSVReader {
     private String getNextLine() throws IOException {
         if (!this.linesSkiped) {
             for (int i = 0; i < this.skipLines; ++i) {
-                this.br.readLine();
+                if (null != iterator) {
+                    getLine();
+                } else {
+                    this.br.readLine();
+                }
             }
 
             this.linesSkiped = true;
         }
 
-        String nextLine = this.br.readLine();
+        String nextLine = null == iterator ? this.br.readLine() :  getLine();
         if (nextLine == null) {
             this.hasNext = false;
         }
@@ -125,6 +145,12 @@ public class CSVReaderImpl extends CSVReader {
     }
 
     public void close() throws IOException {
-        this.br.close();
+        if (null == iterator) {
+            this.br.close();
+        }
+    }
+
+    private String getLine() {
+        return null != iterator && iterator.hasNext() ? iterator.next() : null;
     }
 }

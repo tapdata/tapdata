@@ -1,5 +1,6 @@
 package io.tapdata.sybase.cdc.dto.read;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -10,7 +11,9 @@ import java.util.Optional;
  * @description CdcPosition create by Gavin
  * @create 2023/7/12 18:54
  **/
-public class CdcPosition {
+public class CdcPosition implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     Map<String, Map<String, Map<String, PositionOffset>>> tableOffset;
     long cdcStartTime;
 
@@ -59,7 +62,8 @@ public class CdcPosition {
         schemaMap.put(tableName, offset);
     }
 
-    public static class PositionOffset {
+    public static class PositionOffset implements Serializable {
+        public static final long serialVersionUID = 2L;
         //private String fileName;
         Map<String, CSVOffset> csvFile;
 
@@ -84,7 +88,8 @@ public class CdcPosition {
         }
     }
 
-    public static class CSVOffset {
+    public static class CSVOffset implements Serializable {
+        public static final long serialVersionUID = 3L;
         private int line;
         private boolean isOver;
 

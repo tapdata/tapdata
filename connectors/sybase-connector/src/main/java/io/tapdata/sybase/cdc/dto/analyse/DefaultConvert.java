@@ -67,20 +67,21 @@ public class DefaultConvert implements SybaseDataTypeConvert {
                     } else if (type.startsWith("NUMERIC")) {
                         return objToNumber(fromValue);
                     } else if ("TEXT".equals(type)) {
-                        TapLogger.warn(TAG, "An TEXT data type not support in cdc now");
-                        return "";
+                        //TapLogger.warn(TAG, "An TEXT data type not support in cdc now");
+                        //return "";
+                        return objToBinary(fromValue);
                     } else if (type.contains("CHAR")
                             || type.contains("TEXT")
                             || type.contains("SYSNAME")) {
                         return objToString(fromValue, config, nodeConfig);
                     } else if (type.startsWith("VARBINARY")) {
-                        TapLogger.warn(TAG, "An VARBINARY data type not support in cdc now");
-                        return null;
-                        //return objToBinary(fromValue);
+                        //TapLogger.warn(TAG, "An VARBINARY data type not support in cdc now");
+                        //return null;
+                        return objToBinary(fromValue);
                     } else if (type.contains("BINARY")) {
-                        TapLogger.warn(TAG, "An BINARY data type not support in cdc now");
-                        return null;
-                        //return objToBinary(fromValue);
+                        //TapLogger.warn(TAG, "An BINARY data type not support in cdc now");
+                        //return null;
+                        return objToBinary(fromValue);
                     } else if (type.contains("IMAGE")) {
                         TapLogger.warn(TAG, "An IMAGE data type not support in cdc now");
                         return null;

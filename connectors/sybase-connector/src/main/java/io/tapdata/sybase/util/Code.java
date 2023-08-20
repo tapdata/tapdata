@@ -153,9 +153,31 @@ public class Code {
             Statement statement = conn.createStatement();
             //insertOne("INSERT INTO tester.poc_test (varchar_col) VALUES (?)", conn);
             //conn.setAutoCommit(false);
-            for (int i = 0; i < 2000000; i++) {
-                insert(INSERT_POC_TEST_SQL, conn, i + 1);
+            ResultSet resultSet = statement.executeQuery("select count(*) as c from tester.poc_test_no_txt_not_null_s");
+            resultSet.next();
+            int size = resultSet.getInt("c");
+            int n = 65;
+            int count = 100000;
+            String var = String.valueOf((char)n);
+            for (int i = 1; i < size + 1;i++) {
+                String sql = "update tester.poc_test_no_txt_not_null_s set char_col = '" + var + "' where id=" + i;
+                statement.execute(sql);
+                System.out.println(sql);
+                Thread.sleep(15);
+                if(i  == size) {
+                    i = 1;
+                    n++;
+                    if (n > 96) n = 65;
+                    var = String.valueOf((char)n);
+                }
+                if (count > 0) count--;
+                else break;
             }
+
+//            for (int i = 0; i < 2000000; i++) {
+//
+//                insert(INSERT_POC_TEST_SQL, conn, i + 1);
+//            }
             //conn.rollback();
 
             //select("select top 2 * from tester.poc_test_no_id order by datetime_col asc", statement);

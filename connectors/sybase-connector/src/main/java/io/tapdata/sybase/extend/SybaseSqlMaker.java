@@ -97,22 +97,15 @@ public class SybaseSqlMaker extends CommonSqlMaker {
         }
     }
 
-    /**
-     * build subSql after where for advance query
-     *
-     * @param filter condition of advance query
-     * @return where substring
-     */
-    public String buildSqlByAdvanceFilter(TapAdvanceFilter filter) {
-        StringBuilder builder = new StringBuilder();
-        buildWhereClause(builder, filter);
-        buildOrderClause(builder, filter);
-        buildLimitOffsetClause(builder, filter);
-        return builder.toString();
+    public void buildLimitOffsetClause0(StringBuilder builder, TapAdvanceFilter filter) {
+        if (EmptyKit.isNotNull(filter.getLimit())) {
+            builder.append("Top ").append(filter.getLimit()).append(' ');
+        }
     }
 
     public String buildSelectClause(TapTable tapTable, TapAdvanceFilter filter) {
         StringBuilder builder = new StringBuilder("SELECT ");
+        buildLimitOffsetClause0(builder, filter);
         Projection projection = filter.getProjection();
         if (EmptyKit.isNull(projection) || (EmptyKit.isEmpty(projection.getIncludeFields()) && EmptyKit.isEmpty(projection.getExcludeFields()))) {
             builder.append("*");
@@ -128,6 +121,29 @@ public class SybaseSqlMaker extends CommonSqlMaker {
         }
         builder.append(" FROM ");
         return builder.toString();
+    }
+
+    /**
+     * build subSql after where for advance query
+     *
+     * @param filter condition of advance query
+     * @return where substring
+     */
+    public String buildSqlByAdvanceFilter(TapAdvanceFilter filter) {
+        StringBuilder builder = new StringBuilder();
+        buildWhereClause(builder, filter);
+        buildOrderClause(builder, filter);
+        //buildLimitOffsetClause(builder, filter);
+        return builder.toString();
+    }
+
+    public void buildLimitOffsetClause(StringBuilder builder, TapAdvanceFilter filter) {
+//        if (EmptyKit.isNotNull(filter.getLimit())) {
+//            builder.append("LIMIT ").append(filter.getLimit()).append(' ');
+//        }
+//        if (EmptyKit.isNotNull(filter.getSkip())) {
+//            builder.append("OFFSET ").append(filter.getSkip()).append(' ');
+//        }
     }
 
     public void buildWhereClause(StringBuilder builder, TapAdvanceFilter filter) {
@@ -169,15 +185,6 @@ public class SybaseSqlMaker extends CommonSqlMaker {
         if (EmptyKit.isNotEmpty(filter.getSortOnList())) {
             builder.append("ORDER BY ");
             builder.append(filter.getSortOnList().stream().map(v -> v.toString(String.valueOf(escapeChar))).collect(Collectors.joining(", "))).append(' ');
-        }
-    }
-
-    public void buildLimitOffsetClause(StringBuilder builder, TapAdvanceFilter filter) {
-        if (EmptyKit.isNotNull(filter.getLimit())) {
-            builder.append("LIMIT ").append(filter.getLimit()).append(' ');
-        }
-        if (EmptyKit.isNotNull(filter.getSkip())) {
-            builder.append("OFFSET ").append(filter.getSkip()).append(' ');
         }
     }
 

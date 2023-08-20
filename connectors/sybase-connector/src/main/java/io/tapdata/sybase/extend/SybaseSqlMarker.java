@@ -163,7 +163,7 @@ public class SybaseSqlMarker implements SqlMaker {
                 String opStr = queryOperatorEnum.getOpStr();
                 if (value instanceof Number) {
                     whereList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + opStr + value);
-                } else if (value instanceof DateTime) {
+                }else if (value instanceof DateTime) {
                     whereList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + opStr + "'" + dateTimeToStr((DateTime) value, "yyyy-MM-dd HH:mm:ss") + "'");
                 } else {
                     whereList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + opStr + "'" + value + "'");
@@ -213,7 +213,7 @@ public class SybaseSqlMarker implements SqlMaker {
         QueryOperator leftBoundary = tapPartitionFilter.getLeftBoundary();
         QueryOperator rightBoundary = tapPartitionFilter.getRightBoundary();
         List<QueryOperator> queryOperators = TapSimplify.list(leftBoundary, rightBoundary);
-        queryOperators.forEach(o -> {
+        queryOperators.forEach(o->{
             String queryOperatorSql = getQueryOperatorSql(o);
             if (StringUtils.isNotBlank(queryOperatorSql)) {
                 whereList.add(queryOperatorSql);
@@ -221,7 +221,7 @@ public class SybaseSqlMarker implements SqlMaker {
         });
         DataMap match = tapPartitionFilter.getMatch();
         if (MapUtils.isNotEmpty(match)) {
-            match.forEach((k, v) -> {
+            match.forEach((k,v)->{
                 String valueStr = MysqlUtil.object2String(v);
                 whereList.add(String.format("`%s`<=>%s", k, valueStr));
             });

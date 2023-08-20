@@ -21,10 +21,7 @@ import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
-import io.tapdata.sybase.util.Code;
-import io.tapdata.sybase.util.ConfigPaths;
-import io.tapdata.sybase.util.ConnectorUtil;
-import io.tapdata.sybase.util.Utils;
+import io.tapdata.sybase.util.*;
 import org.apache.commons.io.FileUtils;
 
 import java.io.BufferedReader;
@@ -65,8 +62,8 @@ public class CdcHandle {
         this.root.setContext(context);
     }
 
-    public CdcHandle streamReadConsumer(StreamReadConsumer cdcConsumer, Log log, String monitorPath) {
-        this.fileMonitor = new FileMonitor(cdcConsumer, 1000, log, monitorPath);
+    public CdcHandle streamReadConsumer(StreamReadConsumer cdcConsumer, Log log, String monitorPath, long delay) {
+        this.fileMonitor = new FileMonitor(cdcConsumer, delay < 1000 | delay > 200000 ? 3000 : delay, log, monitorPath);
         return this;
     }
 
@@ -100,7 +97,7 @@ public class CdcHandle {
         srcConfig.setMax_retries(10);
         srcConfig.setRetry_wait_duration_ms(1000);
         srcConfig.setTransaction_store_location(sybasePocPath + ConfigPaths.SYBASE_USE_DATA_DIR);
-        srcConfig.setTransaction_store_cache_limit(1000);
+        srcConfig.setTransaction_store_cache_limit(100000);
 
         SybaseDstLocalStorage dstLocalStorage = new SybaseDstLocalStorage();
         dstLocalStorage.setStorage_location(sybasePocPath + ConfigPaths.SYBASE_USE_CSV_DIR);
@@ -123,6 +120,17 @@ public class CdcHandle {
         SybaseExtConfig extConfig = new SybaseExtConfig();
         SybaseExtConfig.Realtime realtime = extConfig.getRealtime();
         realtime.setFetchIntervals(nodeConfig.getFetchInterval());
+        if (nodeConfig.isHeartbeat()) {
+            String hbDatabase = nodeConfig.getHbDatabase();
+            String hbSchema = nodeConfig.getHbSchema();
+            SybaseExtConfig.Realtime.Heartbeat heartbeat = new SybaseExtConfig.Realtime.Heartbeat();
+            heartbeat.setEnable(true);
+            heartbeat.setInterval_ms(10000L);
+            heartbeat.setCatalog(hbDatabase);
+            heartbeat.setSchema(hbSchema);
+            realtime.setHeartbeat(heartbeat);
+            root.getContext().getLog().info("Heartbeat is open which has created at {}.{} , please ensure", hbDatabase, hbSchema);
+        }
 
         this.root.setVariables(
                 startVariables
@@ -148,9 +156,10 @@ public class CdcHandle {
             Map<String, Map<String, List<String>>> tables,
             CdcPosition position,
             int batchSize,
+            long delay,
             StreamReadConsumer consumer) {
         if (null == position) position = new CdcPosition();
-        streamReadConsumer(consumer, context.getLog(), monitorPath);
+        streamReadConsumer(consumer, context.getLog(), monitorPath, delay);
         listenFile = new ListenFile(this.root,
                 monitorPath,
                 tables,
@@ -180,7 +189,7 @@ public class CdcHandle {
                     return;
                 }
                 File file = new File(String.valueOf(cdcPath));
-                if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
+                if (HostUtils.isLinuxCore()) {
                     final String shell = "rm -rf " + cdcPath;
                     root.getContext().getLog().info("clean cdc path: {}", shell);
                     root.getContext().getLog().info(Utils.run(shell));
@@ -208,7 +217,7 @@ public class CdcHandle {
                     return;
                 }
                 File file = new File(String.valueOf(cdcPath));
-                if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
+                if (HostUtils.isLinuxCore()) {
                     final String shell = "rm -rf " + cdcPath;
                     root.getContext().getLog().info("clean cdc path: {}", shell);
                     root.getContext().getLog().info(Utils.run(shell));
@@ -270,21 +279,26 @@ public class CdcHandle {
 
             //执行命令
             String sybasePocPath = root.getSybasePocPath();
-            ConnectorUtil.execCmd(String.format(ExecCommand.RE_INIT_AND_ADD_TABLE,
-                    root.getCliPath(),
-                    CommandType.CDC,
-                    sybasePocPath,
-                    sybasePocPath,
-                    sybasePocPath,
-                    root.getFilterTableConfigPath(),
-                    sybasePocPath,
-                    ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext()),
-                    "--" + OverwriteType.RESUME.getType(),
-                    sybasePocPath,
-                    root.getTaskCdcId()
-                    ),
-                    "Fail to reInit when an new task start with new tables, msg: {}",
-                    root.getContext().getLog());
+            String reInitResult = "";
+            try {
+                reInitResult = ConnectorUtil.execCmd(String.format(ExecCommand.RE_INIT_AND_ADD_TABLE,
+                        root.getCliPath(),
+                        CommandType.CDC,
+                        sybasePocPath,
+                        sybasePocPath,
+                        sybasePocPath,
+                        root.getFilterTableConfigPath(),
+                        sybasePocPath,
+                        ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext()),
+                        "--" + OverwriteType.RESUME.getType(),
+                        sybasePocPath,
+                        root.getTaskCdcId()
+                        ),
+                        "Fail to reInit when an new task start with new tables, msg: {}",
+                        root.getContext().getLog());
+            } finally {
+                root.getContext().getLog().info("Cdc process has restart, msg: {}", reInitResult);
+            }
         }
         //命令结束后，写入filter.yaml
         List<Map<String, Object>> sybaseFilter = configYaml.configSybaseFilter(filterTableYamlConfig);
@@ -341,5 +355,14 @@ public class CdcHandle {
             variables.reInitConfigs(filterConfigs);
         }
         return filterConfigs;
+    }
+
+    public boolean reflshCdcTable(Map<String, Map<String, List<String>>> tables) {
+        if (null == listenFile) {
+            root.getContext().getLog().warn("Refresh cdc table fail, listen monitor not aliveable");
+            return false;
+        }
+        listenFile.reflshCdcTable(tables);
+        return true;
     }
 }

@@ -25,6 +25,7 @@ import io.tapdata.sybase.extend.SybaseConfig;
 import io.tapdata.sybase.extend.SybaseContext;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
@@ -472,6 +473,7 @@ public class ConnectorUtil {
         List<SybaseFilterConfig> list = new ArrayList<>();
         if (null != mapList && !mapList.isEmpty()) {
             for (Map<String, Object> map : mapList) {
+                if (null == map) continue;
                 SybaseFilterConfig config = new SybaseFilterConfig();
                 config.setCatalog(((String) map.get("catalog")));
                 config.setSchema(((String) map.get("schema")));
@@ -505,11 +507,16 @@ public class ConnectorUtil {
         return hashMap;
     }
 
-    public static final String[] killShellCmd = new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli"};
+    private static final String[] killShellCmd = new String[]{"/bin/sh", "-c", "ps -ef|grep sybase-poc/replicant-cli |grep sybase-poc-temp/%s"};
+    public static String[] getKillShellCmd (TapConnectorContext tapConnectionContext){
+        String [] temp = new String[]{killShellCmd[0], killShellCmd[1], killShellCmd[2]};
+        temp[2] = String.format(temp[2], getCurrentInstanceHostPortFromConfig(tapConnectionContext));
+        return temp;
+    }
     public static final List<String> ignoreShells = list("grep sybase-poc/replicant-cli");
     public static final int sleepAfterKill = 5000;//kill -15 before 5000ms to find process again, then to exec kill -9
     public static void safeStopShell(TapConnectorContext tapConnectionContext) {
-        safeStopShell(tapConnectionContext, port(killShellCmd, ignoreShells, tapConnectionContext.getLog(), getCurrentInstanceHostPortFromConfig(tapConnectionContext)));
+        safeStopShell(tapConnectionContext, port(getKillShellCmd(tapConnectionContext), ignoreShells, tapConnectionContext.getLog(), getCurrentInstanceHostPortFromConfig(tapConnectionContext)));
     }
 
     public static void safeStopShell(TapConnectorContext tapConnectionContext, List<Integer> port) {
@@ -519,7 +526,7 @@ public class ConnectorUtil {
                 Log log = tapConnectionContext.getLog();
                 stopShell(port, "-15", log);
                 Thread.sleep(sleepAfterKill);
-                port = port(killShellCmd, ignoreShells, tapConnectionContext.getLog(), instanceHostPort);
+                port = port(getKillShellCmd(tapConnectionContext), ignoreShells, tapConnectionContext.getLog(), instanceHostPort);
                 if (!port.isEmpty()) {
                     stopShell(port, "-9", log);
                 }
@@ -551,14 +558,14 @@ public class ConnectorUtil {
         BufferedReader br = null;
         boolean execFlag = true;
         try {
-            if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
+            if (HostUtils.isLinuxCore()) {
                 Process p = Runtime.getRuntime().exec(cmd);
                 p.waitFor();
                 br = new BufferedReader(new InputStreamReader(p.getInputStream()));
                 String line;
                 StringJoiner joiner = new StringJoiner("\n");
                 while ((line = br.readLine()) != null) {
-                    //log.debug(line);
+                    //log.warn(line);
                     joiner.add(line);
                     boolean needIgnore = false;
                     if (!ignoreShells.isEmpty()) {
@@ -570,7 +577,7 @@ public class ConnectorUtil {
                         }
                     }
                     if (needIgnore || !line.contains(instanceHostPort)) continue;
-                    String[] split = line.split("( )+");
+                    String[] split = line.trim().split("( )+");
                     if (split.length > 2) {
                         String portStr = split[1];
                         try {
@@ -608,9 +615,9 @@ public class ConnectorUtil {
                 }
             }
         }
-        if (!port.isEmpty()) {
-            port.sort(Comparator.comparingInt(o -> o));
-        }
+//        if (!port.isEmpty()) {
+//            port.sort(Comparator.comparingInt(o -> o));
+//        }
         return port;
     }
 
@@ -647,12 +654,86 @@ public class ConnectorUtil {
 
     public static Map<String, Map<String, List<String>>> groupTableFromConnectionConfigWithTables(List<ConnectionConfigWithTables> connectionConfigWithTables) {
         Map<String, Map<String, List<String>>> table = new HashMap<>();
+        if (null != connectionConfigWithTables && !connectionConfigWithTables.isEmpty()) {
+            connectionConfigWithTables.stream()
+                .filter(ent -> null != ent && null != ent.getConnectionConfig() && null != ent.getConnectionConfig().get("database"))
+                .collect(Collectors.groupingBy(ent -> String.valueOf(ent.getConnectionConfig().get("database"))))
+                .forEach((database, ent) -> {
+                    Map<String, List<String>> schemaInfo = new HashMap<>();
+                    ent.stream()
+                        .filter(tabEnt -> null != tabEnt && null != tabEnt.getConnectionConfig() && null != tabEnt.getConnectionConfig().get("schema"))
+                        .collect(Collectors.groupingBy(tabEnt -> String.valueOf(tabEnt.getConnectionConfig().get("schema"))))
+                        .forEach((schema, tabEnt) -> {
+                            Set<String> tableNameSet = new HashSet<>();
+                            for (ConnectionConfigWithTables config : tabEnt) {
+                                tableNameSet.addAll(config.getTables());
+                            }
+                            schemaInfo.put(schema, new ArrayList<>(tableNameSet));
+                        });
+                    if (!schemaInfo.isEmpty()) {
+                        table.put(database, schemaInfo);
+                    }
+                });
+        }
         return table;
     }
 
     public static Map<String, Map<String, List<String>>> filterAppendTable(Map<String, Map<String, List<String>>> ago, Map<String, Map<String, List<String>>> now) {
+        if (null == now || now.isEmpty()) return null;
+        if (null == ago || ago.isEmpty()) return now;
+        Map<String, Map<String, List<String>>> appendTab = new HashMap<>();
+        int appendCount = 0;
+        for (Map.Entry<String, Map<String, List<String>>> tabInfo : now.entrySet()) {
+            String database = tabInfo.getKey();
+            Map<String, List<String>> schemaTab = tabInfo.getValue();
+            if (null == schemaTab || schemaTab.isEmpty()) continue;
+            Map<String, List<String>> agoSchemaInfo = ago.get(database);
+            if (null == agoSchemaInfo || agoSchemaInfo.isEmpty()) {
+                appendTab.put(database, schemaTab);
+                continue;
+            }
+            Map<String, List<String>> appendSchema = new HashMap<>();
+            appendTab.put(database, appendSchema);
+            for (Map.Entry<String, List<String>> schemaNow : schemaTab.entrySet()) {
+                String schema = schemaNow.getKey();
+                List<String> tabNow = schemaNow.getValue();
+                if (null == tabNow || tabNow.isEmpty()) continue;
+                List<String> tabAgo = agoSchemaInfo.get(schema);
+                if (null == tabAgo || tabAgo.isEmpty()) {
+                    appendSchema.put(schema, tabNow);
+                    continue;
+                }
+                Set<String> appendTableSet = new HashSet<>();
+                for (String tabNameNow : tabNow) {
+                    if (null == tabNameNow || "".equals(tabNameNow.trim())) continue;
+                    if (!tabAgo.contains(tabNameNow)) {
+                        appendTableSet.add(tabNameNow);
+                        appendCount++;
+                    }
+                }
+                appendSchema.put(schema, new ArrayList<>(appendTableSet));
+            }
+        }
+        return appendCount > 0 ? appendTab : null;
+    }
 
 
-        return null;
+    public static void createFile(String path, String fileName, Log log) {
+        if (null == fileName || "".equals(fileName.trim())) return;
+        try {
+            File targetFile = new File(null == path || "".equals(path) ? fileName : ( path + (path.endsWith("/")? "" :"/") + fileName ) );
+            if (!targetFile.exists() || !targetFile.isFile()) {
+                if (null != path && !"".equals(path.trim())) {
+                    File file = new File(path);
+                    if (!file.exists() || !file.isDirectory()) {
+                        file.mkdirs();
+                    }
+                }
+                targetFile.createNewFile();
+            }
+        } catch (Exception e) {
+            if (null != log)
+                log.warn("Can create file {} in {}, msg: {}", fileName, path, e.getMessage());
+        }
     }
 }

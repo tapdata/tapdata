@@ -1,8 +1,11 @@
 package io.tapdata.sybase.cdc.dto.analyse;
 
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
 import io.tapdata.sybase.util.Utils;
+
+import sun.misc.BASE64Decoder;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -21,6 +24,8 @@ import static io.tapdata.base.ConnectorBase.toJson;
  * @create 2023/7/15 18:31
  **/
 public interface SybaseDataTypeConvert {
+    public static final String TAG = SybaseDataTypeConvert.class.getSimpleName();
+
     public static final String INSERT = "I";
     public static final String UPDATE = "U";
     public static final String DELETE = "D";
@@ -136,10 +141,17 @@ public interface SybaseDataTypeConvert {
     }
 
     public default Object objToBinary(Object obj) {
+//        TapLogger.warn(TAG, "An BINARY data type not support in cdc now");
+//        return null;
         if (null == obj) return null;
         if (obj instanceof String) {
-            String binaryObj = (String) obj;
-            return "0x" + binaryObj;
+            try {
+                String binaryObj = (String) obj;
+                BASE64Decoder decoder = new BASE64Decoder();
+                return decoder.decodeBuffer(binaryObj);
+            } catch (Exception e) {
+                return null;
+            }
         }
         if (obj instanceof Map || obj instanceof Collection || obj.getClass().isArray()) {
             return toJson(obj).getBytes(StandardCharsets.UTF_8);

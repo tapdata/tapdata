@@ -5,10 +5,7 @@ import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.sybase.SybaseConnector;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
-import io.tapdata.sybase.util.ConfigPaths;
-import io.tapdata.sybase.util.ConnectorUtil;
-import io.tapdata.sybase.util.Utils;
-import io.tapdata.sybase.util.ZipUtils;
+import io.tapdata.sybase.util.*;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 
@@ -39,7 +36,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
     }
 
     @Override
-    public CdcRoot compile() {
+    public synchronized CdcRoot compile() {
         KVMap<Object> stateMap = root.getContext().getStateMap();
         String cdcId = String.valueOf(stateMap.get("taskId"));
         if (null == cdcId) {
@@ -48,23 +45,25 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
         root.setTaskCdcId(cdcId);
         String targetPath = "sybase-poc-temp/"+ ConnectorUtil.getCurrentInstanceHostPortFromConfig(root.getContext()) + "/";
         File sybasePocPath = new File(targetPath);
-        if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) sybasePocPath.mkdir();
+        if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) sybasePocPath.mkdirs();
         String pocPathFromLocal = getPocPathFromLocal();
         File fromLocal = new File(pocPathFromLocal);
         File targetFile = new File(FilenameUtils.concat(sybasePocPath.getAbsolutePath(), "sybase-poc"));
         targetPath = targetFile.getAbsolutePath();
-        if (!targetFile.exists() || !targetFile.isDirectory()) targetFile.mkdir();
+        if (!targetFile.exists() || !targetFile.isDirectory()) targetFile.mkdirs();
         final String configPath = FilenameUtils.concat(targetPath, "config");
         if (fromLocal.exists() && fromLocal.isDirectory()) {
             try {
-                if ("linux".equalsIgnoreCase(System.getProperty("os.name"))) {
-                    final String shell = "cp -r "
-                            + (pocPathFromLocal.endsWith("/") ? (pocPathFromLocal + "*") : (pocPathFromLocal + "/*"))
-                            + " "
-                            + (targetPath.endsWith("/") ? targetPath.substring(0, targetPath.length() - 1) : targetPath);
-                    root.getContext().getLog().info("MOVE FIEL: {}", shell);
+                if (HostUtils.isLinuxCore()) {
+                    final String copyFromPath = (pocPathFromLocal.endsWith("/") ? (pocPathFromLocal + "*") : (pocPathFromLocal + "/*"));
+                    final String shell = "cp -r " + copyFromPath + " " + configPath;
+                    root.getContext().getLog().info("COPY FILE: {}", shell);
+                    File file = new File(configPath);
+                    if (!file.exists() || !file.isDirectory()) {
+                        file.mkdirs();
+                    }
                     root.getContext().getLog().info(Utils.run(shell));
-                    if (!new File(configPath).exists()) {
+                    if (!new File(FilenameUtils.concat(configPath, "sybase2csv")).exists()) {
                         FileUtils.copyToDirectory(fromLocal, targetFile);
                     }
                 } else {
@@ -133,7 +132,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
     }
 
     private String getPocPathFromLocal() {
-        boolean isLinuxCore = "linux".equalsIgnoreCase(System.getProperty("os.name"));
+        boolean isLinuxCore = HostUtils.isLinuxCore();
         String pocPath = isLinuxCore ? "sybase-poc.zip" : "D:\\sybase-poc.zip";
         File file = new File(pocPath);
         if (!file.exists() || !file.isFile()) {

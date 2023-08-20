@@ -42,14 +42,15 @@ public class FileMonitor {
     public void stop() {
         try {
             monitor.stop();
-            if (null != cdcConsumer) {
-                cdcConsumer.streamReadEnded();
-            }
             if (null != log) {
                 log.info("Cdc is end and will not monitor about file: {}", monitorPath);
             }
         } catch (Exception e) {
-            throw new CoreException("File monitor can not be stop, msg: " + e.getMessage());
+            log.warn("File monitor can not be stop, msg: {}", e.getMessage());
+        } finally {
+            if (null != cdcConsumer) {
+                cdcConsumer.streamReadEnded();
+            }
         }
     }
 

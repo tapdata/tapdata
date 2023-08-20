@@ -1,5 +1,6 @@
 package io.tapdata.sybase.cdc.service;
 
+import cn.hutool.core.io.FileUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.sybase.cdc.CdcRoot;
@@ -15,6 +16,7 @@ import io.tapdata.sybase.util.ConfigPaths;
 import io.tapdata.sybase.util.ConnectorUtil;
 import io.tapdata.sybase.util.HostUtils;
 import io.tapdata.sybase.util.YamlUtil;
+import org.apache.commons.io.FileUtils;
 import org.yaml.snakeyaml.DumperOptions;
 
 import java.io.File;
@@ -63,8 +65,13 @@ class ConfigYaml implements CdcStep<CdcRoot> {
         return root;
     }
 
+    public static final String POC_TEMP_CONFIG_PATH = "sybase-poc-temp/%s/sybase-poc/config/sybase2csv";
+    public String getFilterTableConfigPath() {
+        return new File(String.format(POC_TEMP_CONFIG_PATH, ConnectorUtil.getCurrentInstanceHostPortFromConfig(root.getContext()))).getAbsolutePath();
+    }
     public CdcRoot configSybaseFilter() {
         this.root.checkStep();
+        ConnectorUtil.createFile(getFilterTableConfigPath(),"filter_sybasease.yaml", root.getContext().getLog());
         YamlUtil yamlUtil = new YamlUtil(root.getFilterTableConfigPath());
         Object allow = yamlUtil.get("allow");
         if (filterConfig != null && !filterConfig.isEmpty()) {
@@ -86,6 +93,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
 
     private void configSybaseSrc() {
         this.root.checkStep();
+        ConnectorUtil.createFile( configPath + "/config/sybase2csv","src_sybasease.yaml", root.getContext().getLog());
         YamlUtil yamlUtil = new YamlUtil(configPath + ConfigPaths.SYBASE_SRC_PATH, DumperOptions.ScalarStyle.DOUBLE_QUOTED);
         Map<String, Object> allow = yamlUtil.get();
         Map<String, Object> map;
@@ -108,6 +116,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
 
     private void configDstLocalstorage() {
         this.root.checkStep();
+        ConnectorUtil.createFile( configPath + "/config/sybase2csv","dst_localstorage.yaml", root.getContext().getLog());
         YamlUtil yamlUtil = new YamlUtil(configPath + ConfigPaths.DST_LOCAL_STORAGE_PATH, DumperOptions.ScalarStyle.DOUBLE_QUOTED);
         Map<String, Object> allow = yamlUtil.get();
         Map<String, Object> map;
@@ -128,6 +137,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
     }
 
     private void configGeneral() {
+        ConnectorUtil.createFile( configPath + "/config/sybase2csv","general.yaml", root.getContext().getLog());
         YamlUtil yamlUtil = new YamlUtil(configPath + ConfigPaths.GENERAL_CONFIG_PATH, DumperOptions.ScalarStyle.SINGLE_QUOTED);
         Map<String, Object> allow = yamlUtil.get();
         Map<String, Object> map;
@@ -148,6 +158,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
     }
 
     private void configExt() {
+        ConnectorUtil.createFile( configPath + "/config/sybase2csv","ext_sybasease.yaml", root.getContext().getLog());
         YamlUtil yamlUtil = new YamlUtil(configPath + ConfigPaths.EXT_CONFIG_PATH, DumperOptions.ScalarStyle.SINGLE_QUOTED);
         Map<String, Object> allow = yamlUtil.get();
         Map<String, Object> map;
@@ -169,6 +180,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
 
 
     public List<Map<String, Object>> configSybaseFilter(List<Map<String, Object>> filterConfig) {
+        ConnectorUtil.createFile(getFilterTableConfigPath(),"filter_sybasease.yaml", root.getContext().getLog());
         this.root.checkStep();
         YamlUtil yamlUtil = new YamlUtil(root.getFilterTableConfigPath());
         yamlUtil.update(map(entry(SybaseFilterConfig.configKey, filterConfig)));
@@ -177,18 +189,27 @@ class ConfigYaml implements CdcStep<CdcRoot> {
 
     public List<LinkedHashMap<String, Object>> configReInitTable(List<SybaseReInitConfig> filterConfig) {
         String taskId = root.getTaskCdcId();
-        if (null == taskId) throw new CoreException("Can not get task id when write reinit.yaml");
+        if (null == taskId) throw new CoreException("Can not get task id when write sybasease_reinit.yaml");
 
         String path = String.format(ConfigPaths.RE_INIT_TABLE_CONFIG_PATH, configPath, taskId);
-        File reInitYaml = new File(path);
-        if (!reInitYaml.exists() || !reInitYaml.isFile()) {
-            try {
-                boolean newFile = reInitYaml.createNewFile();
-            } catch (Exception e) {
-                throw new CoreException("Unable create yaml which named is {}, please create by yourself", path);
-            }
-        }
-        YamlUtil yamlUtil = new YamlUtil(path, DumperOptions.ScalarStyle.SINGLE_QUOTED);
+        ConnectorUtil.createFile( path,"sybasease_reinit.yaml", root.getContext().getLog());
+
+//        File reInitYaml = new File(path);
+//        if (!reInitYaml.exists() || !reInitYaml.isFile()) {
+//            try {
+//                String path0 = configPath + "/config/sybase2csv/task/" + taskId;
+//                File file = new File(path0);
+//                if (!file.exists()) {
+//                    //ConnectorUtil.execCmd("mkdir " + path0, "Unable create dir which named is " + path0, root.getContext().getLog());
+//                    file.mkdirs();
+//                }
+//                //ConnectorUtil.execCmd("touch " + path, "Unable create yaml which named is " + path, root.getContext().getLog());
+//                boolean newFile = reInitYaml.createNewFile();
+//            } catch (Exception e) {
+//                throw new CoreException("Unable create yaml which named is {}, please create by yourself, {}", path, e.getMessage());
+//            }
+//        }
+        YamlUtil yamlUtil = new YamlUtil(path + "/sybasease_reinit.yaml", DumperOptions.ScalarStyle.SINGLE_QUOTED);
         List<LinkedHashMap<String, Object>> list = new ArrayList<>();
         if (filterConfig != null && !filterConfig.isEmpty()) {
             list.addAll(ConnectorUtil.fixYaml0(filterConfig));
