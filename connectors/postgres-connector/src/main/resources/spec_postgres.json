@@ -40,6 +40,7 @@
           "required": true,
           "type": "string",
           "title": "${port}",
+          "default": "5432",
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "apiServerKey": "database_port",

@@ -44,6 +44,7 @@
         "port": {
           "type": "string",
           "title": "${port}",
+          "default": "1688",
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "apiServerKey": "database_port",
