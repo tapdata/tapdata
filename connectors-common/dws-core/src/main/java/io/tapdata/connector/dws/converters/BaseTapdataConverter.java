@@ -1,4 +1,4 @@
-package io.tapdata.connector.postgres.converters;
+package io.tapdata.connector.dws.converters;
 
 import io.debezium.spi.converter.CustomConverter;
 import io.debezium.spi.converter.RelationalColumn;
@@ -18,10 +18,8 @@ public abstract class BaseTapdataConverter implements CustomConverter<SchemaBuil
     protected SchemaBuilder schemaBuilder;
     protected Object defaultValue;
     protected RelationalColumn column;
-    protected long milliSecondOffset = 0L;
 
     abstract SchemaBuilder initSchemaBuilder(Properties props);
-
     abstract Object initDefaultValue();
 
     abstract boolean needConvert(RelationalColumn column);

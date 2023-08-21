@@ -1,29 +1,30 @@
-package io.tapdata.connector.postgres;
+package io.tapdata.connector.dws;
 
 import io.tapdata.common.JdbcContext;
+import io.tapdata.connector.dws.config.DwsConfig;
+import io.tapdata.connector.dws.exception.DwsExceptionCollector;
 import io.tapdata.connector.postgres.config.PostgresConfig;
 import io.tapdata.connector.postgres.exception.PostgresExceptionCollector;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 
-import java.sql.SQLException;
-import java.text.DecimalFormat;
-import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.TimeZone;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class PostgresJdbcContext extends JdbcContext {
+public class DwsJdbcContext extends JdbcContext {
 
-    private final static String TAG = PostgresJdbcContext.class.getSimpleName();
+    private final static String TAG = DwsJdbcContext.class.getSimpleName();
 
-    public PostgresJdbcContext(PostgresConfig config) {
+    public DwsJdbcContext(DwsConfig config) {
         super(config);
-        exceptionCollector = new PostgresExceptionCollector();
+        exceptionCollector = new DwsExceptionCollector();
     }
 
     /**
@@ -42,17 +43,6 @@ public class PostgresJdbcContext extends JdbcContext {
         return version.get();
     }
 
-    public TimeZone queryTimeZone() throws SQLException {
-        AtomicReference<Long> timeOffset = new AtomicReference<>();
-        queryWithNext(POSTGRES_TIMEZONE, resultSet -> timeOffset.set(resultSet.getLong(1)));
-        DecimalFormat decimalFormat = new DecimalFormat("00");
-        if (timeOffset.get() >= 0) {
-            return TimeZone.getTimeZone(ZoneId.of("+" + decimalFormat.format(timeOffset.get()) + ":00"));
-        } else {
-            return TimeZone.getTimeZone(ZoneId.of(decimalFormat.format(timeOffset.get()) + ":00"));
-        }
-    }
-
     @Override
     protected String queryAllTablesSql(String schema, List<String> tableNames) {
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
@@ -69,6 +59,46 @@ public class PostgresJdbcContext extends JdbcContext {
     protected String queryAllIndexesSql(String schema, List<String> tableNames) {
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
         return String.format(PG_ALL_INDEX, getConfig().getDatabase(), schema, tableSql);
+    }
+
+    //查分区
+    public Integer queryFromPGPARTITION(List<String> tableNames) {
+        AtomicInteger count = new AtomicInteger();
+        String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND relname IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
+        try {
+            query(String.format("SELECT count(*) FROM \"pg_catalog\".\"pg_partition\" where 1=1 %s", tableSql),
+                    resultSet -> {
+                        if (null != resultSet && resultSet.next()) {
+                            count.set(resultSet.getInt(1));
+                        }
+                    });
+        } catch (Throwable e) {
+            TapLogger.error(TAG, "Execute queryAllIndexes failed, error: " + e.getMessage(), e);
+        }
+        return count.get();
+    }
+
+
+
+    public List<String> queryDistributedKeys(String schema,String tableName) {
+        List<String> distributedKeys = new ArrayList();
+        try {
+            query(String.format("SELECT getdistributekey('\""+schema+"\".\""+tableName+"\"')"),
+                    resultSet -> {
+                            if (null != resultSet && resultSet.next()) {
+                                String distributeStr = resultSet.getString(1);
+                                if (null != distributeStr){
+                                    String[] split = distributeStr.split(", ");
+                                    for (String key : split) {
+                                        distributedKeys.add(key);
+                                    }
+                                }
+                            }
+                    });
+        } catch (Throwable e) {
+            TapLogger.error(TAG, "Execute queryAllIndexes failed, error: " + e.getMessage(), e);
+        }
+        return distributedKeys;
     }
 
     public DataMap getTableInfo(String tableName) {
@@ -94,7 +124,6 @@ public class PostgresJdbcContext extends JdbcContext {
                     "        from pg_class c\n" +
                     "        where relname = t.table_name)\n" +
                     "FROM information_schema.tables t WHERE t.table_type='BASE TABLE' and t.table_catalog='%s' AND t.table_schema='%s' %s ORDER BY t.table_name";
-
     protected final static String PG_ALL_COLUMN =
             "SELECT\n" +
                     "    col.table_name \"tableName\",\n" +
@@ -151,7 +180,5 @@ public class PostgresJdbcContext extends JdbcContext {
             " pg_total_relation_size('\"' || table_schema || '\".\"' || table_name || '\"') AS size,\n" +
             " (select reltuples from pg_class  pc where pc.relname = t1.table_name ) as rowcount \n" +
             " FROM information_schema.tables t1 where t1.table_name ='%s' and t1.table_catalog='%s' and t1.table_schema='%s' ";
-
-    private final static String POSTGRES_TIMEZONE = "select date_part('hour', now() - now() at time zone 'UTC')";
 
 }

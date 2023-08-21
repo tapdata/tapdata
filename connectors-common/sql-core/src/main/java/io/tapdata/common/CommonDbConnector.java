@@ -391,7 +391,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         return index;
     }
 
-    private List<TapIndex> discoverIndex(String tableName) {
+    protected List<TapIndex> discoverIndex(String tableName) {
         List<TapIndex> tapIndexList = TapSimplify.list();
         List<DataMap> indexList;
         try {

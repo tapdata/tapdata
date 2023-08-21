@@ -1,4 +1,4 @@
-package io.tapdata.connector.postgres.converters;
+package io.tapdata.connector.dws.converters;
 
 import io.debezium.spi.converter.RelationalColumn;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -10,7 +10,6 @@ public class TimeConverter extends BaseTapdataConverter {
 
     @Override
     SchemaBuilder initSchemaBuilder(Properties props) {
-        milliSecondOffset = Long.parseLong(props.getProperty("timezone"));
         return SchemaBuilder.int64().name(props.getProperty("schema.name"));
     }
 
@@ -33,10 +32,10 @@ public class TimeConverter extends BaseTapdataConverter {
             for (String s : hourToSecond) {
                 microsecond = Double.parseDouble(s) + microsecond * 60;
             }
-            return (long) (microsecond * 1000000) - milliSecondOffset * 1000;
+            return (long) (microsecond * 1000000);
         }
         //for pg>=9.5
         Duration duration = (Duration) data;
-        return duration.getSeconds() * 1000000 - milliSecondOffset * 1000 + duration.getNano() / 1000;
+        return duration.getSeconds() * 1000000 + duration.getNano() / 1000;
     }
 }
