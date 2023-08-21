@@ -139,7 +139,9 @@ public class PostgresExceptionCollector extends AbstractExceptionCollector imple
     @Override
     public void revealException(Throwable cause) {
         if (cause instanceof SQLException) {
-            throw new TapPdkRetryableEx(getPdkId(), ErrorKit.getLastCause(cause)).withServerErrorCode(((SQLException) cause).getSQLState());
+            throw new TapPdkRetryableEx(getPdkId(), ErrorKit.getLastCause(cause))
+//                    .withServerErrorCode(((SQLException) cause).getSQLState())
+                    ;
         }
     }
 }
