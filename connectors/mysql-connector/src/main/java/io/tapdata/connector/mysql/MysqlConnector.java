@@ -288,10 +288,9 @@ public class MysqlConnector extends CommonDbConnector {
 			exceptionCollector.collectWritePrivileges("createTable", Collections.emptyList(), t);
 			throw new RuntimeException("Create table failed, message: " + t.getMessage(), t);
 		}
-
-		if (tapConnectorContext.getNodeConfig() != null && tapConnectorContext.getNodeConfig().getValue("syncIndex", false)) {
+		List<TapIndex> indexList = tapCreateTableEvent.getTable().getIndexList();
+		if (EmptyKit.isNotEmpty(indexList) && tapConnectorContext.getNodeConfig() != null && tapConnectorContext.getNodeConfig().getValue("syncIndex", false)) {
 			List<String> sqlList = TapSimplify.list();
-			List<TapIndex> indexList = tapCreateTableEvent.getTable().getIndexList();
 			List<TapIndex> createIndexList = new ArrayList<>();
 			List<TapIndex> existsIndexList = discoverIndex(tapCreateTableEvent.getTable().getId());
 			// 如果索引已经存在，就不再创建; 名字相同视为存在; 字段以及顺序相同, 也视为存在

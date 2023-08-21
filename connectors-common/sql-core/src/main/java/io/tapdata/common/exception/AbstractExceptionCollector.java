@@ -65,7 +65,9 @@ public abstract class AbstractExceptionCollector implements ExceptionCollector {
     @Override
     public void revealException(Throwable cause) {
         if (cause instanceof SQLException) {
-            throw new TapPdkRetryableEx(getPdkId(), ErrorKit.getLastCause(cause)).withServerErrorCode(String.valueOf(((SQLException) cause).getErrorCode()));
+            throw new TapPdkRetryableEx(getPdkId(), ErrorKit.getLastCause(cause))
+//                    .withServerErrorCode(String.valueOf(((SQLException) cause).getErrorCode()))
+                    ;
         }
     }
 }
