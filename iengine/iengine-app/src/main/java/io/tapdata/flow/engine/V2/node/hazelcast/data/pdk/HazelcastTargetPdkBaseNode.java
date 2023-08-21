@@ -105,6 +105,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	public static final long DEFAULT_TARGET_BATCH_INTERVAL_MS = 1000;
 	public static final int DEFAULT_TARGET_BATCH = 1000;
 	public static final int DEFAULT_CDC_CONCURRENT_WRITE_NUM = 4;
+	public static final long FLUSH_OFFSET_INTERNAL = 1L;
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
 	private AtomicBoolean firstBatchEvent = new AtomicBoolean();
 	private AtomicBoolean firstStreamEvent = new AtomicBoolean();
@@ -162,7 +163,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			initTargetQueueConsumer();
 			initTargetConcurrentProcessorIfNeed();
 			initTapEventFilter();
-			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 3L, 3L, TimeUnit.SECONDS);
+			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, FLUSH_OFFSET_INTERNAL, FLUSH_OFFSET_INTERNAL, TimeUnit.SECONDS);
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 	}
