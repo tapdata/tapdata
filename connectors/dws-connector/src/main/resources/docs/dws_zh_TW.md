@@ -1,218 +1,117 @@
-## **連接配置幫助**
-### **1. POSTGRESQL安裝說明**
-請遵循以下說明以確保在 Tapdata 中成功添加和使用PostgreSQL數據庫。
-### **2. 支持版本**
-PostgreSQL 9.4、9.5、9.6、10.x、11.x、12版本
-### **3. CDC原理和支持**
-#### **3.1 CDC原理**
-PostgreSQL 的邏輯解碼功能最早出現在9.4版本中，它是一種機制，允許提取提交到事務日誌中的更改，並通過輸出插件以用戶友好的方式處理這些更改。
-此輸出插件必須在運行PostgreSQL服務器之前安裝，並與一個複制槽一起啟用，以便客戶端能夠使用更改。
-#### **3.2 CDC支持**
-- **邏輯解碼**（Logical Decoding）：用於從 WAL 日誌中解析邏輯變更事件
-- **複製協議**（Replication Protocol）：提供了消費者實時訂閱（甚至同步訂閱）數據庫變更的機制
-- **快照導出**（export snapshot）：允許導出數據庫的一致性快照（pg_export_snapshot）
-- **複製槽**（Replication Slot）：用於保存消費者偏移量，跟踪訂閱者進度。
-  所以，根據以上，我們需要安裝邏輯解碼器，現有提供的解碼器如下拉框所示
+# 連接配置幫助
 
-### **4. 先決條件**
-#### **4.1 修改REPLICA IDENTITY**
-該屬性決定了當數據發生`UPDATE,DELETE`時，日誌記錄的字段
-- **DEFAULT** - 更新和刪除將包含primary key列的現前值
-- **NOTHING** - 更新和刪除將不包含任何先前值
-- **FULL** - 更新和刪除將包含所有列的先前值
-- **INDEX index name** - 更新和刪除事件將包含名為index name的索引定義中包含的列的先前值
-  如果有多表合併同步的場景，則Tapdata需要調整該屬性為FULL
-  示例
-```
-alter table '[schema]'.'[table name]' REPLICA IDENTITY FULL`
-```
+## 1.支援版本
 
-#### **4.2 插件安裝**
-- [decorderbufs](https://github.com/debezium/postgres-decoderbufs)
-- [Protobuf-c 1.2+](https://github.com/protobuf-c/protobuf-c)
-- [protobuf ](https://blog.csdn.net/gumingyaotangwei/article/details/78936608)
-- [PostGIS 2.1+ ](http://www.postgis.net/)
-- [wal2json ](https://github.com/eulerto/wal2json/blob/master/README.md)
-- pgoutput(pg 10.0+)
+GaussDB(DWS) 8.1.3
 
-**安裝步驟**<br>
-以 wal2json 為例，安裝步驟如下<br>
-確保環境變量PATH中包含"/bin"<br>
-```
-export PATH=$PATH:<postgres安裝路徑>/bin
-```
-**安裝插件**<br>
-```
-git clone https://github.com/eulerto/wal2json -b master --single-branch \
-&& cd wal2json \
-&& USE_PGXS=1 make \
-&& USE_PGXS=1 make install \
-&& cd .. \
-&& rm -rf wal2json
-```
-安裝插件報錯處理`make`命令執行，遇到類似 `fatal error: [xxx].h: No such file or directory `的異常信息<br>
-**原因**：缺少postgresql-server-dev<br>
-**解決方案**：安裝postgresql-server-dev，以debian系統為例<br>
-```
-// 版本號例如:9.4, 9.6等
-apt-get install -y postgresql-server-dev-<版本號>
-```
-**配置文件**<br>
-如果你正在使用一個支持的邏輯解碼插件(不能是 pgoutput )，並且它已經安裝，配置服務器在啟動時加載插件:<br>
-```
-postgresql.conf
-shared_preload_libraries = 'decoderbufs,wal2json'
-```
-配置replication<br>
-```
-# REPLICATION
-wal_level = logical
-max_wal_senders = 1 # 大於0即可
-max_replication_slots = 1 # 大於0即可
+## 2.連接配置範例
+
+    地址：xxxxx
+    端口：xxxx
+    資料庫：test
+    模型：test_tapdata
+    帳號：tapdata
+    密碼：tapdata
+
+## 3.分佈欄
+
+在GaussDB(DWS)中，分佈欄是指分佈表中用於數據分佈的欄，它決定了數據在分佈式存儲中的分佈方式。分佈欄的選擇對於查詢性能和數據分佈均衡至關重要。
+
+### 3.1分佈欄的選擇
+
+在創建表的時候，可以使用 `DISTRIBUTED BY` 子句來指定分佈欄
+
+```sql
+CREATE TABLE my_table (
+    id INT,
+    name VARCHAR,
+    date DATE
+) DISTRIBUTED BY (id);
 ```
 
-#### **4.3 權限**
-##### **4.3.1 作為源**
-- **初始化**<br>
-```
-GRANT SELECT ON ALL TABLES IN SCHEMA <schemaname> TO <username>;
-```
-- **增量**<br>
-  用戶需要有replication login權限，如果不需要日誌增量功能，則可以不設置replication權限
-```
-CREATE ROLE <rolename> REPLICATION LOGIN;
-CREATE USER <username> ROLE <rolename> PASSWORD '<password>';
-// or
-CREATE USER <username> WITH REPLICATION LOGIN PASSWORD '<password>';
-```
-配置文件 pg_hba.conf 需要添加如下內容：<br>
-```
-pg_hba.conf
-local   replication     <youruser>                     trust
-host    replication     <youruser>  0.0.0.0/32         md5
-host    replication     <youruser>  ::1/128            trust
+```sql
+CREATE TABLE my_table (
+    id INT,
+    name VARCHAR,
+    date DATE
+) DISTRIBUTED BY (id);
 ```
 
-##### **4.3.2 作為目標**
-```
-GRANT INSERT,UPDATE,DELETE,TRUNCATE
-ON ALL TABLES IN SCHEMA <schemaname> TO <username>;
-```
-> **注意**：以上只是基本權限的設置，實際場景可能更加複雜
+如果建表時沒有指定分佈欄，數據會以下幾種場景來存儲：
 
-##### **4.4  測試日誌插件**
-> **注意**：以下操作建議在POC環境進行
->連接postgres數據庫，切換至需要同步的數據庫，創建一張測試表
-```
--- 假設需要同步的數據庫為postgres，模型為public
-\c postgres
+*   場景一
 
-create table public.test_decode
+    若建表時包含主鍵/唯一約束，則選取HASH分佈，分佈欄為主鍵/唯一約束對應的欄。
+*   場景二
+
+    若建表時不包含主鍵/唯一約束，但存在數據類型支持作分佈欄的欄，則選取HASH分佈，分佈欄為第一個數據類型支持作分佈欄的欄。
+*   場景三
+
+    若建表時不包含主鍵/唯一約束，也不存在數據類型支持作分佈欄的欄，則選取ROUNDROBIN分佈。
+
+### 3.2查詢分佈欄
+
+可使用以下sql查詢當前表的分佈欄
+
+```sql
+SELECT getdistributekey('"your_schema"."table_name"')
+```
+
+### 3.3分佈欄更新處理
+
+方法一：GaussDB(DWS)目前暫不支援分佈鍵更新，直接跳過該報錯
+
+方法二：將分佈欄修改為一個不會更新的欄，以下為調整分佈欄示例
+
+```sql
+alter table customer_t1 DISTRIBUTE BY hash (c_customer_sk); 
+```
+
+### 3.4注意事項
+
+*   源端進行更新操作時，資料庫日誌中需要能讀取到更新前的數據，tapdata會在寫入前針對分佈欄檢查是否修改
+
+  *   如果不存在更新前數據，則會拋出以下異常
+      Current Database cannot support update operation.
+  *   如果監測到分佈欄進行了修改，則會拋出以下異常
+
+          // GaussDB(DWS)數據庫規定了分佈欄不允許被更新
+          Distributed key column distributedKey can't be updated in table table_name.Value: beforeData => afterData.
+*   並非所有類型的數據庫或數據表都會記錄更新前的數據，特別是在非關系型數據庫或一些特殊情況下，沒有內置的機製來記錄更新前的數據。一些可能沒有內置更新前的數據記錄機製的數據庫類型：例如Redis
+
+## 4.分區表
+
+分區表就是把邏輯上的一張表根據分區策略分成幾張物理塊庫進行存儲，這張邏輯上的表稱之為分區表，物理塊稱之為分區。分區表是一張邏輯表，不存儲數據，數據實際是存儲在分區上的。當進行條件查詢時，系統只會掃描滿足條件的分區，避免全表掃描，從而提升查詢性能。
+
+### 4.1分區表的創建
+
+當數據需要同步到分區表中時，tapdata不支援自動創建分區表，需要提前手動創建好分區表，分區表創建示例如下：
+
+```sql
+ CREATE TABLE web_returns_p1
 (
-  uid    integer not null
-      constraint users_pk
-          primary key,
-  name   varchar(50),
-  age    integer,
-  score  decimal
+		"WR_RETURNED_DATE_SK"       integer,
+		"WR_RETURNED_TIME_SK"       integer,
+		"WR_ITEM_SK"                integer NOT NULL,
+		"WR_REFUNDED_CUSTOMER_SK"   integer,
+		primary key ("WR_RETURNED_DATE_SK","WR_ITEM_SK","WR_REFUNDED_CUSTOMER_SK")
 )
+		WITH (orientation = column)
+		DISTRIBUTE BY HASH ("WR_ITEM_SK","WR_REFUNDED_CUSTOMER_SK")
+PARTITION BY RANGE ("WR_RETURNED_DATE_SK")
+(
+		PARTITION p2016 VALUES LESS THAN(20201231),
+		PARTITION p2017 VALUES LESS THAN(20211231),
+		PARTITION p2018 VALUES LESS THAN(20221231),
+		PARTITION pxxxx VALUES LESS THAN(maxvalue)
+);
 ```
-可以根據自己情況創建一張測試表<br>
-- 創建 slot 連接，以 wal2json 插件為例
-```
-select * from pg_create_logical_replication_slot('slot_test', 'wal2json')
-```
-- 創建成功後，對測試表插入一條數據<br>
-- 監聽日誌，查看返回結果，是否有剛才插入操作的信息<br>
-```
-select * from pg_logical_slot_peek_changes('slot_test', null, null)
-```
-- 成功後，銷毀slot連接，刪除測試表<br>
-```
-select * from pg_drop_replication_slot('slot_test')
-drop table public.test_decode
-```
-#### **4.5 異常處理**
-- **Slot清理**<br>
-  如果 tapdata 由於不可控異常（斷電、進程崩潰等），導致cdc中斷，會導致 slot 連接無法正確從 pg 主節點刪除，將一直佔用一個 slot 連接名額，需手動登錄主節點，進行刪除
-  查詢slot信息
-```
-// 查看是否有slot_name以tapdata_cdc_开头的信息
- TABLE pg_replication_slots;
-```
-- **刪除slot節點**<br>
-```
-select * from pg_drop_replication_slot('tapdata');
-```
-- **刪除操作**<br>
-  在使用 wal2json 插件解碼時，如果源表沒有主鍵，則無法實現增量同步的刪除操作
 
-#### **4.6 使用最後更新時間戳的方式進行增量同步**
-##### **4.6.1 名詞解釋**
-**schema**：中文為模型，pgsql一共有3級目錄，庫->模型->表，以下命令中<schema>字符，需要填入表所在的模型名稱
-##### **4.6.2 預先準備（該步驟只需要操作一次）**
-- **創建公共函數**
-  在數據庫中，執行以下命令
-```
-CREATE OR REPLACE FUNCTION <schema>.update_lastmodified_column()
-    RETURNS TRIGGER language plpgsql AS $$
-    BEGIN
-        NEW.last_update = now();
-        RETURN NEW;
-    END;
-$$;
-```
-- **創建字段和trigger**
-> **注意**：以下操作，每張表需要執行一次
-假設需要增加last update的表名為mytable
-- **創建last_update字段**
-```
-alter table <schema>.mytable add column last_udpate timestamp default now();
-```
-- **創建trigger**
-```
-create trigger trg_uptime before update on <schema>.mytable for each row execute procedure
-    update_lastmodified_column();
-```
-### **5. 全類型欄位支持**
-- smallint
-- integer
-- bigint
-- numeric
-- real
-- double precision
-- character
-- character varying
-- text
-- bytea
-- bit
-- bit varying
-- boolean
-- date
-- interval
-- timestamp
-- timestamp with time zone
-- point
-- line
-- lseg
-- box
-- path
-- polygon
-- circle
-- cidr
-- inet
-- macaddr
-- uuid
-- xml
-- json
-- tsvector (增量不支持不報錯)
-- tsquery (增量不支持不報錯)
-- oid
-- regproc (增量不支持不報錯)
-- regprocedure (增量不支持不報錯)
-- regoper (增量不支持不報錯)
-- regoperator (增量不支持不報錯)
-- regclass (增量不支持不報錯)
-- regtype (增量不支持不報錯)
-- regconfig (增量不支持不報錯)
-- regdictionary (增量不支持不報錯)
+### 4.2注意事項
+
+*   分區表沒有主鍵或唯一索引時，tapdata不支援衝突更新操作，會拋出以下異常信息
+    The partitioned table table\_name lacks a primary key or unique index, and does not support conflict update operations. Please switch to the append mode.
+*   如果需要使用分區表，在選擇目標表存在處理策略時，建議保留表結構，否則會由tapdata自動創建普通表
+
+具體可參考GaussDB(DWS)官方文檔<https://support.huaweicloud.com/dws/index.html>
+
