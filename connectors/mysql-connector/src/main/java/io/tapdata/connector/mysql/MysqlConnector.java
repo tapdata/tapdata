@@ -283,56 +283,55 @@ public class MysqlConnector extends CommonDbConnector {
                 createTableOptions.setTableExists(false);
             }
 
-        } catch (Throwable t) {
-            exceptionCollector.collectWritePrivileges("createTable", Collections.emptyList(), t);
-            throw new RuntimeException("Create table failed, message: " + t.getMessage(), t);
-        }
-
-        if (tapConnectorContext.getNodeConfig() != null && tapConnectorContext.getNodeConfig().getValue("syncIndex", false)) {
-            List<String> sqlList = TapSimplify.list();
-            List<TapIndex> indexList = tapCreateTableEvent.getTable().getIndexList();
-            List<TapIndex> createIndexList = new ArrayList<>();
-            List<TapIndex> existsIndexList = discoverIndex(tapCreateTableEvent.getTable().getId());
-            // 如果索引已经存在，就不再创建; 名字相同视为存在; 字段以及顺序相同, 也视为存在
-            if (EmptyKit.isNotEmpty(existsIndexList)) {
-                for (TapIndex tapIndex : indexList) {
-                    boolean exists = false;
-                    for (TapIndex existsIndex : existsIndexList) {
-                        if (tapIndex.getName().equals(existsIndex.getName())) {
-                            exists = true;
-                            break;
-                        }
-                        if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
-                            boolean same = true;
-                            for (int i = 0; i < tapIndex.getIndexFields().size(); i++) {
-                                if (!tapIndex.getIndexFields().get(i).getName().equals(existsIndex.getIndexFields().get(i).getName())
-                                        || tapIndex.getIndexFields().get(i).getFieldAsc() != existsIndex.getIndexFields().get(i).getFieldAsc()) {
-                                    same = false;
-                                    break;
-                                }
-                            }
-                            if (same) {
-                                exists = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!exists) {
-                        createIndexList.add(tapIndex);
-                    }
-                }
-            } else {
-                createIndexList.addAll(indexList);
-            }
-            TapLogger.info(TAG, "Table: {} will create Index list: {}", tapCreateTableEvent.getTable().getName(), createIndexList);
-            if (EmptyKit.isNotEmpty(createIndexList)) {
-                createIndexList.stream().filter(i -> !i.isPrimary()).forEach(i ->
-                        sqlList.add(getCreateIndexSql(tapCreateTableEvent.getTable(), i)));
-            }
-            jdbcContext.batchExecute(sqlList);
-        }
-        return createTableOptions;
-    }
+		} catch (Throwable t) {
+			exceptionCollector.collectWritePrivileges("createTable", Collections.emptyList(), t);
+			throw new RuntimeException("Create table failed, message: " + t.getMessage(), t);
+		}
+		List<TapIndex> indexList = tapCreateTableEvent.getTable().getIndexList();
+		if (EmptyKit.isNotEmpty(indexList) && tapConnectorContext.getNodeConfig() != null && tapConnectorContext.getNodeConfig().getValue("syncIndex", false)) {
+			List<String> sqlList = TapSimplify.list();
+			List<TapIndex> createIndexList = new ArrayList<>();
+			List<TapIndex> existsIndexList = discoverIndex(tapCreateTableEvent.getTable().getId());
+			// 如果索引已经存在，就不再创建; 名字相同视为存在; 字段以及顺序相同, 也视为存在
+			if (EmptyKit.isNotEmpty(existsIndexList)) {
+				for (TapIndex tapIndex : indexList) {
+					boolean exists = false;
+					for (TapIndex existsIndex : existsIndexList) {
+						if (tapIndex.getName().equals(existsIndex.getName())) {
+							exists = true;
+							break;
+						}
+						if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
+							boolean same = true;
+							for (int i = 0; i < tapIndex.getIndexFields().size(); i++) {
+								if (!tapIndex.getIndexFields().get(i).getName().equals(existsIndex.getIndexFields().get(i).getName())
+										|| tapIndex.getIndexFields().get(i).getFieldAsc() != existsIndex.getIndexFields().get(i).getFieldAsc()) {
+									same = false;
+									break;
+								}
+							}
+							if (same) {
+								exists = true;
+								break;
+							}
+						}
+					}
+					if (!exists) {
+						createIndexList.add(tapIndex);
+					}
+				}
+			} else {
+				createIndexList.addAll(indexList);
+			}
+			TapLogger.info(TAG, "Table: {} will create Index list: {}", tapCreateTableEvent.getTable().getName(), createIndexList);
+			if (EmptyKit.isNotEmpty(createIndexList)) {
+				createIndexList.stream().filter(i -> !i.isPrimary()).forEach(i ->
+						sqlList.add(getCreateIndexSql(tapCreateTableEvent.getTable(), i)));
+			}
+			jdbcContext.batchExecute(sqlList);
+		}
+		return createTableOptions;
+	}
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
         WriteListResult<TapRecordEvent> writeListResult = this.mysqlWriter.write(tapConnectorContext, tapTable, tapRecordEvents);
