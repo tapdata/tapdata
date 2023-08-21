@@ -138,6 +138,7 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 			fillBoolean(connectorConfig, externalStorageConfig, "checkServerIdentity", dto::isCheckServerIdentity);
 			testConnectionConfig.put("name", dto.getName());
 		}
+		connectorConfig.put("__connectionType", testConnectionConfig.get("connection_type"));
 
 		MessageInfo testConnectionMessageInfo = new MessageInfo();
 		testConnectionMessageInfo.setType(testConnectionType.getType());
