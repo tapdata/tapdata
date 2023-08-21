@@ -170,6 +170,7 @@ public class MergeTableNode extends ProcessorNode {
         TapMap tapMap = new TapMap();
         tapMap.setType((byte) 4);
         field.setTapType(JsonUtil.toJson(tapMap));
+        field.setColumnPosition(1);
         return field;
     }
 

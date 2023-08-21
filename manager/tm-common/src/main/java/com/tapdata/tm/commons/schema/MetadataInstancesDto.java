@@ -144,12 +144,7 @@ public class MetadataInstancesDto extends BaseDto {
                 noPrimarys.sort(Comparator.comparing(Field::getFieldName));
                 fields.addAll(noPrimarys);
             }
-            fields.stream().map(field ->{
-                if(null == field.getColumnPosition()){
-                    field.setColumnPosition(Integer.MAX_VALUE);
-                }
-                return field;
-            }).collect(Collectors.toList()).sort(Comparator.comparing(Field ::getColumnPosition));
+            fields.sort(Comparator.comparing(Field::getColumnPosition));
         }
     }
 }
