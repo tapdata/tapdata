@@ -41,7 +41,10 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_host",
-          "x-index": 1,
+          "x-decorator-props": {
+            "tooltip": "${hostTip}"
+          },
+          "x-index": 10,
           "required": true
         },
         "port": {
@@ -49,8 +52,12 @@
           "title": "${port}",
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
+          "default": 3306,
           "apiServerKey": "database_port",
-          "x-index": 2,
+          "x-decorator-props": {
+            "tooltip": "${portTip}"
+          },
+          "x-index": 20,
           "required": true
         },
         "database": {
@@ -59,7 +66,10 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_name",
-          "x-index": 3,
+          "x-decorator-props": {
+            "tooltip": "${databaseTip}"
+          },
+          "x-index": 30,
           "required": true
         },
         "username": {
@@ -68,7 +78,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_username",
-          "x-index": 4,
+          "x-index": 40,
           "required": true
         },
         "password": {
@@ -77,7 +87,7 @@
           "x-decorator": "FormItem",
           "x-component": "Password",
           "apiServerKey": "database_password",
-          "x-index": 5
+          "x-index": 50
         },
         "addtionalString": {
           "type": "string",
@@ -86,7 +96,11 @@
           "x-component": "Input",
           "default": "useUnicode=yes&characterEncoding=UTF-8",
           "apiServerKey": "addtionalString",
-          "x-index": 6
+          "advance": true,
+          "x-decorator-props": {
+            "tooltip": "${extParamsTip}"
+          },
+          "x-index": 60
         },
         "timezone": {
           "type": "string",
@@ -94,7 +108,11 @@
           "default": "",
           "x-decorator": "FormItem",
           "x-component": "Select",
-          "x-index": 7,
+          "advance": true,
+          "x-decorator-props": {
+            "tooltip": "${timezoneTip}"
+          },
+          "x-index": 70,
           "enum": [
             {
               "label": "Database Timezone",
@@ -237,34 +255,49 @@
     "default": "en_US",
     "en_US": {
       "host": "Host",
+      "hostTip": "The address of the database, it can be an IP address or a domain name, for example: 192.168.1.200",
       "port": "Port",
+      "portTip": "The port number of the database, the default port of Mysql is 3306",
       "database": "database",
+      "databaseTip": "The name of the database, you can list all Mysql databases with the \\\\\"show databases\\\\\" command, case sensitive",
       "username": "username",
       "password": "password",
       "addtionalString": "Connection Parameter String",
+      "extParamsTip": "Additional connection parameters in URI, you can write according to personalized scenarios",
       "timezone": "timezone",
+      "timezoneTip": "Specify the time zone, otherwise the database time zone will be used by default",
       "doc": "docs/mysql_en_US.md",
       "syncIndex": "Sync Index"
     },
     "zh_CN": {
       "host": "地址",
+      "hostTip": "数据库的地址，它可以是IP地址或者域名，例如：192.168.1.200",
       "port": "端口",
+      "portTip": "数据库的端口号，Mysql默认端口3306",
       "database": "数据库",
+      "databaseTip": "数据库名称，可以通过 show databases 命令列出Mysql所有数据库，区分大小写",
       "username": "账号",
       "password": "密码",
       "addtionalString": "连接参数",
+      "extParamsTip": "URI额外的连接参数，可以根据个性化场景书写",
       "timezone": "时区",
+      "timezoneTip": "指定时区，否则默认使用数据库时区",
       "doc": "docs/mysql_zh_CN.md",
       "syncIndex": "同步索引"
     },
     "zh_TW": {
       "host": "地址",
+      "hostTip": "數據庫的地址，它可以是IP地址或者域名，例如：192.168.1.200",
       "port": "端口",
+      "portTip": "數據庫的端口號，Mysql默認端口3306",
       "database": "數據庫",
+      "databaseTip": "數據庫名稱，可以通過 show databases 命令列出Mysql所有數據庫，區分大小寫",
       "username": "賬號",
       "password": "密碼",
       "addtionalString": "連接參數",
+      "extParamsTip": "URI額外的連接參數，可以根據個性化場景書寫",
       "timezone": "時區",
+      "timezoneTip": "指定時區，否則默認使用數據庫時區",
       "doc": "docs/mysql_zh_TW.md",
       "syncIndex": "同步索引"
     }
