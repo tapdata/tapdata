@@ -18,6 +18,8 @@ import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
+import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
+import com.tapdata.tm.monitor.vo.SyncStatusStatisticsVo;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.task.bean.TableStatusInfoDto;
 import com.tapdata.tm.task.service.TaskService;
