@@ -36,15 +36,22 @@
           "x-component": "Input",
           "apiServerKey": "database_host",
           "x-index": 1,
+          "x-decorator-props": {
+            "tooltip": "${hostTip}"
+          },
           "required": true
         },
         "port": {
           "type": "string",
           "title": "${port}",
+          "default": 8123,
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "apiServerKey": "database_port",
           "x-index": 2,
+          "x-decorator-props": {
+            "tooltip": "${portTip}"
+          },
           "required": true
         },
         "database": {
@@ -54,6 +61,9 @@
           "x-component": "Input",
           "apiServerKey": "database_name",
           "x-index": 3,
+          "x-decorator-props": {
+            "tooltip": "${databaseTip}"
+          },
           "required": true
         },
         "user": {
@@ -79,6 +89,9 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "extParams",
+          "x-decorator-props": {
+            "tooltip": "${extParamsTip}"
+          },
           "x-index": 6
         },
         "timezone": {
@@ -87,6 +100,9 @@
           "default": "",
           "x-decorator": "FormItem",
           "x-component": "Select",
+          "x-decorator-props": {
+            "tooltip": "${timezoneTip}"
+          },
           "x-index": 7,
           "enum": [
             {
@@ -232,34 +248,49 @@
     "default": "en_US",
     "en_US": {
       "host": "Host",
+      "hostTip": "The address of the database, it can be an IP address or a domain name, for example: 192.168.1.200",
       "port": "Port",
+      "portTip": "The port number of the database, the default port of ClickHouse is 8123",
       "database": "database",
+      "databaseTip": "The name of the database, you can list all databases with the \\\\\"show databases\\\\\" command, case sensitive",
       "user": "user",
       "password": "password",
       "extParams": "Connection Parameter String",
+      "extParamsTip": "Additional connection parameters in URI, you can write according to personalized scenarios",
       "timezone": "timezone",
+      "timezoneTip": "Specify the time zone, otherwise the database time zone will be used by default",
       "mergeMinutes": "Optimize Interval (Minutes)",
       "doc": "docs/clickhouse_en_US.md"
     },
     "zh_CN": {
       "host": "地址",
+      "hostTip": "数据库的地址，它可以是IP地址或者域名，例如：192.168.1.200",
       "port": "端口",
+      "portTip": "数据库的端口号，ClickHouse默认端口8123",
       "database": "数据库",
+      "databaseTip": "数据库名称，可以通过 show databases 命令列出ClickHouse所有数据库，区分大小写",
       "user": "账号",
       "password": "密码",
       "extParams": "连接参数",
+      "extParamsTip": "URI额外的连接参数，可以根据个性化场景书写",
       "timezone": "时区",
+      "timezoneTip": "指定时区，否则默认使用数据库时区",
       "mergeMinutes": "合并分区间隔(分钟)",
       "doc": "docs/clickhouse_zh_CN.md"
     },
     "zh_TW": {
       "host": "地址",
+      "hostTip": "數據庫的地址，它可以是IP地址或者域名，例如：192.168.1.200",
       "port": "端口",
+      "portTip": "數據庫的端口號，ClickHouse默認端口8123",
       "database": "數據庫",
+      "databaseTip": "數據庫名稱，可以通過 show databases 命令列出ClickHouse所有數據庫，區分大小寫",
       "user": "賬號",
       "password": "密碼",
       "extParams": "連接參數",
+      "extParamsTip": "URI額外的連接參數，可以根據個性化場景書寫",
       "timezone": "時區",
+      "timezoneTip": "指定時區，否則默認使用數據庫時區",
       "mergeMinutes": "合併分區間隔(分鐘)",
       "doc": "docs/clickhouse_zh_TW.md"
     }
