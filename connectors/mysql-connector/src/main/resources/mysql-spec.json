@@ -89,140 +89,143 @@
           "apiServerKey": "database_password",
           "x-index": 50
         },
-        "addtionalString": {
-          "type": "string",
-          "title": "${addtionalString}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "default": "useUnicode=yes&characterEncoding=UTF-8",
-          "apiServerKey": "addtionalString",
-          "advance": true,
-          "x-decorator-props": {
-            "tooltip": "${extParamsTip}"
-          },
-          "x-index": 60
-        },
-        "timezone": {
-          "type": "string",
-          "title": "${timezone}",
-          "default": "",
-          "x-decorator": "FormItem",
-          "x-component": "Select",
-          "advance": true,
-          "x-decorator-props": {
-            "tooltip": "${timezoneTip}"
-          },
-          "x-index": 70,
-          "enum": [
-            {
-              "label": "Database Timezone",
-              "value": ""
+        "OPTIONAL_FIELDS": {
+          "type": "void",
+          "properties": {
+            "addtionalString": {
+              "type": "string",
+              "title": "${addtionalString}",
+              "x-decorator": "FormItem",
+              "x-component": "Input",
+              "default": "useUnicode=yes&characterEncoding=UTF-8",
+              "apiServerKey": "addtionalString",
+              "x-decorator-props": {
+                "tooltip": "${extParamsTip}"
+              },
+              "x-index": 60
             },
-            {
-              "label": "UTC -11",
-              "value": "-11:00"
-            },
-            {
-              "label": "UTC -10",
-              "value": "-10:00"
-            },
-            {
-              "label": "UTC -09",
-              "value": "-09:00"
-            },
-            {
-              "label": "UTC -08",
-              "value": "-08:00"
-            },
-            {
-              "label": "UTC -07",
-              "value": "-07:00"
-            },
-            {
-              "label": "UTC -06",
-              "value": "-06:00"
-            },
-            {
-              "label": "UTC -05",
-              "value": "-05:00"
-            },
-            {
-              "label": "UTC -04",
-              "value": "-04:00"
-            },
-            {
-              "label": "UTC -03",
-              "value": "-03:00"
-            },
-            {
-              "label": "UTC -02",
-              "value": "-02:00"
-            },
-            {
-              "label": "UTC -01",
-              "value": "-01:00"
-            },
-            {
-              "label": "UTC",
-              "value": "+00:00"
-            },
-            {
-              "label": "UTC +01",
-              "value": "+01:00"
-            },
-            {
-              "label": "UTC +02",
-              "value": "+02:00"
-            },
-            {
-              "label": "UTC +03",
-              "value": "+03:00"
-            },
-            {
-              "label": "UTC +04",
-              "value": "+04:00"
-            },
-            {
-              "label": "UTC +05",
-              "value": "+05:00"
-            },
-            {
-              "label": "UTC +06",
-              "value": "+06:00"
-            },
-            {
-              "label": "UTC +07",
-              "value": "+07:00"
-            },
-            {
-              "label": "UTC +08",
-              "value": "+08:00"
-            },
-            {
-              "label": "UTC +09",
-              "value": "+09:00"
-            },
-            {
-              "label": "UTC +10",
-              "value": "+10:00"
-            },
-            {
-              "label": "UTC +11",
-              "value": "+11:00"
-            },
-            {
-              "label": "UTC +12",
-              "value": "+12:00"
-            },
-            {
-              "label": "UTC +13",
-              "value": "+13:00"
-            },
-            {
-              "label": "UTC +14",
-              "value": "+14:00"
+            "timezone": {
+              "type": "string",
+              "title": "${timezone}",
+              "default": "",
+              "x-decorator": "FormItem",
+              "x-component": "Select",
+              "x-decorator-props": {
+                "tooltip": "${timezoneTip}"
+              },
+              "x-index": 70,
+              "enum": [
+                {
+                  "label": "Database Timezone",
+                  "value": ""
+                },
+                {
+                  "label": "UTC -11",
+                  "value": "-11:00"
+                },
+                {
+                  "label": "UTC -10",
+                  "value": "-10:00"
+                },
+                {
+                  "label": "UTC -09",
+                  "value": "-09:00"
+                },
+                {
+                  "label": "UTC -08",
+                  "value": "-08:00"
+                },
+                {
+                  "label": "UTC -07",
+                  "value": "-07:00"
+                },
+                {
+                  "label": "UTC -06",
+                  "value": "-06:00"
+                },
+                {
+                  "label": "UTC -05",
+                  "value": "-05:00"
+                },
+                {
+                  "label": "UTC -04",
+                  "value": "-04:00"
+                },
+                {
+                  "label": "UTC -03",
+                  "value": "-03:00"
+                },
+                {
+                  "label": "UTC -02",
+                  "value": "-02:00"
+                },
+                {
+                  "label": "UTC -01",
+                  "value": "-01:00"
+                },
+                {
+                  "label": "UTC",
+                  "value": "+00:00"
+                },
+                {
+                  "label": "UTC +01",
+                  "value": "+01:00"
+                },
+                {
+                  "label": "UTC +02",
+                  "value": "+02:00"
+                },
+                {
+                  "label": "UTC +03",
+                  "value": "+03:00"
+                },
+                {
+                  "label": "UTC +04",
+                  "value": "+04:00"
+                },
+                {
+                  "label": "UTC +05",
+                  "value": "+05:00"
+                },
+                {
+                  "label": "UTC +06",
+                  "value": "+06:00"
+                },
+                {
+                  "label": "UTC +07",
+                  "value": "+07:00"
+                },
+                {
+                  "label": "UTC +08",
+                  "value": "+08:00"
+                },
+                {
+                  "label": "UTC +09",
+                  "value": "+09:00"
+                },
+                {
+                  "label": "UTC +10",
+                  "value": "+10:00"
+                },
+                {
+                  "label": "UTC +11",
+                  "value": "+11:00"
+                },
+                {
+                  "label": "UTC +12",
+                  "value": "+12:00"
+                },
+                {
+                  "label": "UTC +13",
+                  "value": "+13:00"
+                },
+                {
+                  "label": "UTC +14",
+                  "value": "+14:00"
+                }
+              ]
             }
-          ]
+          }
         }
       }
     },
