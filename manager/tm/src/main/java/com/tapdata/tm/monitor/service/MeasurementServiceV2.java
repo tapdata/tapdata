@@ -34,6 +34,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.MongoExpression;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.*;
@@ -998,6 +999,26 @@ public class MeasurementServiceV2 {
                 .sorted(Comparator.comparing(TableSyncStaticVo::getSyncRate).reversed())
                 .collect(Collectors.toList()));
     }
+
+	public List<SyncStatusStatisticsVo> queryTableSyncStatusStatistics(SyncStatusStatisticsParam param) {
+		AggregationResults<SyncStatusStatisticsVo> aggregationResults = mongoOperations.aggregate(Aggregation.newAggregation(
+			Aggregation.match(Criteria.where("tags.taskId").is(param.getTaskId())
+				.and("tags.taskRecordId").is(param.getTaskRecordId())
+				.and("tags.type").is("table")
+				.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE)),
+			Aggregation.unwind("$ss"),
+			Aggregation.project(Fields.from(
+				Fields.field("syncTotal", "$ss.vs.snapshotInsertRowTotal"),
+				Fields.field("dataTotal", "$ss.vs.snapshotRowTotal")
+			)).and(AggregationExpression.from(MongoExpression.create("{$cond:[{$gte:['$ss.vs.snapshotSyncRate', 1]}, '**Done**', {$cond:[{$lte:['$ss.vs.snapshotSyncRate', 0]}, '**Wait**', '$tags.table']}]}")))
+				.as("status"),
+			Aggregation.group("status")
+				.sum("syncTotal").as("syncTotal")
+				.sum("dataTotal").as("dataTotal")
+				.count().as("counts")
+		), MeasurementEntity.COLLECTION_NAME, SyncStatusStatisticsVo.class);
+		return aggregationResults.getMappedResults();
+	}
 
     /**
      * 根据任务id查询得到最近的一条分种类型的统计信息
