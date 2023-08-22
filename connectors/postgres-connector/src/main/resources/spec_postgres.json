@@ -112,6 +112,9 @@
           "x-decorator": "FormItem",
           "x-component": "Select",
           "apiServerKey": "logPlugin",
+          "x-decorator-props": {
+            "tooltip": "${logPluginNameTip}"
+          },
           "x-index": 80,
           "enum": [
             {
@@ -139,15 +142,6 @@
               "value": "pgoutput"
             }
           ]
-        },
-        "logPluginNameTip": {
-          "type": "void",
-          "title": " ",
-          "x-decorator": "FormItem",
-          "x-decorator-props": { "colon": false },
-          "x-component": "Text",
-          "x-component-props": { "icon": "info", "content": "${logPluginNameTip}" },
-          "x-index": 85
         },
         "timezone": {
           "type": "string",
