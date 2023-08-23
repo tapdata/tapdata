@@ -3,6 +3,7 @@ package com.tapdata.tm.monitor.controller;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitor.dto.BatchRequestDto;
 import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
@@ -80,7 +81,9 @@ public class MeasureController extends BaseController {
     public ResponseMessage<Page<TableSyncStaticVo>> querySyncStatic (@RequestParam String taskRecordId,
                                                                      @RequestParam(defaultValue = "1") Integer page,
                                                                      @RequestParam(defaultValue = "20") Integer size) {
-        return success(measurementServiceV2.querySyncStatic(new TableSyncStaticDto(taskRecordId, page, size), getLoginUser()));
+			UserDetail userDetail = getLoginUser();
+			userDetail.setFreeAuth();
+			return success(measurementServiceV2.querySyncStatic(new TableSyncStaticDto(taskRecordId, page, size), userDetail));
     }
 
     @Operation(summary = "表同步状态统计")
