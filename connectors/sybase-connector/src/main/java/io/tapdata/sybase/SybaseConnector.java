@@ -515,21 +515,21 @@ public class SybaseConnector extends CommonDbConnector {
     }
 
     private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) throws Throwable {
-        synchronized (filterConfigLock) {
-            List<Integer> port = ConnectorUtil.port(
-                    ConnectorUtil.getKillShellCmd(tapConnectorContext),
-                    ConnectorUtil.ignoreShells,
-                    tapConnectorContext.getLog(),
-                    ConnectorUtil.getCurrentInstanceHostPortFromConfig(tapConnectorContext)
-            );
-            if (port.isEmpty()) {
-                if (null != root) {
-                    root.setCdcTables(getCurrentTable(tapConnectorContext));
-                }
-                cdcStart(tapConnectorContext, null);
-                tapConnectorContext.getStateMap().put("timestampToStreamOffsetTarget", true);
-            }
-        }
+//        synchronized (filterConfigLock) {
+//            List<Integer> port = ConnectorUtil.port(
+//                    ConnectorUtil.getKillShellCmd(tapConnectorContext),
+//                    ConnectorUtil.ignoreShells,
+//                    tapConnectorContext.getLog(),
+//                    ConnectorUtil.getCurrentInstanceHostPortFromConfig(tapConnectorContext)
+//            );
+//            if (port.isEmpty()) {
+//                if (null != root) {
+//                    root.setCdcTables(getCurrentTable(tapConnectorContext));
+//                }
+//                cdcStart(tapConnectorContext, null);
+//                tapConnectorContext.getStateMap().put("timestampToStreamOffsetTarget", true);
+//            }
+//        }
         return new CdcPosition().cdcStartTime(null == startTime ? System.currentTimeMillis() : startTime);
     }
 
@@ -609,6 +609,7 @@ public class SybaseConnector extends CommonDbConnector {
      * */
     boolean hasMonitor = false;
     private void multiStreamStart(TapConnectorContext tapConnectorContext, List<ConnectionConfigWithTables> connectionConfigWithTables, Object offset, int batchSize, StreamReadConsumer consumer) {
+        if(batchSize < 200 || batchSize > 500) batchSize = 200;
         if (null == connectionConfigWithTables || connectionConfigWithTables.isEmpty()) return;
 
         if (null == root.getTaskCdcId()) {
@@ -620,14 +621,26 @@ public class SybaseConnector extends CommonDbConnector {
         //}
         Map<String, Map<String, List<String>>> tables = ConnectorUtil.groupTableFromConnectionConfigWithTables(connectionConfigWithTables);
         try {
-//            Object target = tapConnectorContext.getStateMap().get("timestampToStreamOffsetTarget");
-//            if (!(null != target && target instanceof Boolean && (Boolean)target)) {
-                cdcStart(tapConnectorContext, connectionConfigWithTables);
-//            } else {
-//               tapConnectorContext.getStateMap().put("timestampToStreamOffsetTarget", false);
-//            }
+            //Object target = tapConnectorContext.getStateMap().get("timestampToStreamOffsetTarget");
+            //if (!(null != target && target instanceof Boolean && (Boolean)target)) {
+            cdcStart(tapConnectorContext, connectionConfigWithTables);
+            //} else {
+            //   tapConnectorContext.getStateMap().put("timestampToStreamOffsetTarget", true);
+            //}
 
             root.setContext(tapConnectorContext);
+
+            if (null == cdcHandle) {
+                try {
+                    root.setSybasePocPath(getSybasePocPath(tapConnectorContext));
+                    cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
+                } catch (CoreException e) {
+                    if (e.getCode() == Code.STREAM_READ_WARN) {
+                        tapConnectorContext.getLog().info(e.getMessage());
+                    }
+                    throw e;
+                }
+            }
             String sybasePocPath = cdcHandle.getRoot().getSybasePocPath();
             if (null == sybasePocPath || "".equals(sybasePocPath.trim())) {
                 Object path = tapConnectorContext.getStateMap().get(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR);
@@ -651,13 +664,28 @@ public class SybaseConnector extends CommonDbConnector {
 
             while (isAlive()) {
                 try {
-                    root.wait(1000);
+                    root.wait(4000);
                 } catch (Exception ignore){}
+                List<Integer> port = ConnectorUtil.port(
+                        ConnectorUtil.getKillShellCmd(tapConnectorContext),
+                        ConnectorUtil.ignoreShells,
+                        tapConnectorContext.getLog(),
+                        ConnectorUtil.getCurrentInstanceHostPortFromConfig(tapConnectorContext)
+                );
+                if (port.size() < 2) {
+                    //CDC_PROCESS_FAIL_EXCEPTION_CODE
+                    throw new CoreException(SybaseConnector.CDC_PROCESS_FAIL_EXCEPTION_CODE, "Cdc task is normal, but not any cdc process is active, will retry to start cdc process");
+                }
             }
         } catch (Throwable e) {
             throw e;
             //tapConnectorContext.getLog().error("Sybase cdc is stopped now, error: {}", e.getMessage());
         }
+    }
+
+    public String getSybasePocPath(TapConnectorContext context) {
+        String targetPath = "sybase-poc-temp/"+ ConnectorUtil.getCurrentInstanceHostPortFromConfig(root.getContext()) + "/sybase-poc";
+        return new File(targetPath).getAbsolutePath();
     }
 
     @Override
@@ -834,9 +862,9 @@ public class SybaseConnector extends CommonDbConnector {
                 throw e;
             }
         }
-
+        String[] killShellCmd = ConnectorUtil.getKillShellCmd(tapConnectorContext);
         synchronized (filterConfigLock) {
-            File filterConfigFile = new File(String.format(CdcRoot.POC_TEMP_CONFIG_PATH, hostPortFromConfig));
+            File filterConfigFile = new File(String.format(CdcRoot.POC_TEMP_TRACE_LOG_PATH, hostPortFromConfig, taskId));
             Object targetPath = stateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR);
 
             //log.warn("TargetPath: {}", targetPath);
@@ -845,7 +873,6 @@ public class SybaseConnector extends CommonDbConnector {
             //Set<String> tableSet = ConnectorUtil.getTableFroMaintenanceCdcMonitorTableMap(tapConnectorContext, config);
 
             if (filterConfigFile.exists() && filterConfigFile.isFile() && null != targetPath && !"null".equals(targetPath)) {
-                String[] killShellCmd = ConnectorUtil.getKillShellCmd(tapConnectorContext);
                 //log.warn("shell cmds: {} {} {}", killShellCmd[0], killShellCmd[1], killShellCmd[2]);
                 List<Integer> port = ConnectorUtil.port(
                         killShellCmd,
@@ -889,9 +916,19 @@ public class SybaseConnector extends CommonDbConnector {
                     }
                 }
             } else {
-                log.info("Cdc process not init, will init now, {}", hostPortFromConfig);
                 //首次启动CDC增量时
-                cdcHandle.initCdc(overwriteType);
+                synchronized (filterConfigLock) {
+                    List<Integer> port = ConnectorUtil.port(
+                            killShellCmd,
+                            ConnectorUtil.ignoreShells,
+                            root.getContext().getLog(),
+                            hostPortFromConfig
+                    );
+                    if(port.isEmpty()) {
+                        log.info("Cdc process not init, will init now, {}", hostPortFromConfig);
+                        cdcHandle.initCdc(overwriteType);
+                    }
+                }
                 //List<SybaseFilterConfig> filterConfig = root.getVariables().getFilterConfig();
                 //List<Map<String, Object>> linkedHashMaps = ConnectorUtil.fixYaml(filterConfig);
                 //ConnectorUtil.maintenanceCdcMonitorTableMap(linkedHashMaps, tapConnectorContext);

@@ -69,6 +69,8 @@ public class CdcRoot {
     }
 
     public static final String POC_TEMP_CONFIG_PATH = "sybase-poc-temp/%s/sybase-poc/config/sybase2csv/filter_sybasease.yaml";
+    public static final String POC_TEMP_TRACE_LOG_PATH = "sybase-poc-temp/%s/sybase-poc/config/sybase2csv/trace/%s/trace.log";
+
 
     public String getFilterTableConfigPath() {
         return new File(String.format(POC_TEMP_CONFIG_PATH, ConnectorUtil.getCurrentInstanceHostPortFromConfig(context))).getAbsolutePath();
@@ -130,7 +132,7 @@ public class CdcRoot {
 
     public boolean hasContainsTimestampFieldTables(String database, String schema, String tableName) {
         List<String> tables = getContainsTimestampFieldTables(database, schema);
-        return null == tables || tables.isEmpty() || !tables.contains(tableName);
+        return null != tables && !tables.isEmpty() && tables.contains(tableName);
     }
 
     public void setContainsTimestampFieldTables(Map<String, Map<String, List<String>>> containsTimestampFieldTables) {

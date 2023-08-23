@@ -12,5 +12,6 @@ import java.util.LinkedHashMap;
  * @create 2023/7/14 9:59
  **/
 public interface AnalyseRecord<V, T> {
-    public T analyse(V record, LinkedHashMap<String, TableTypeEntity> tapTable, String tableId, ConnectionConfig config, NodeConfig nodeConfig, CsvAnalyseFilter filter);
+    public T analyse(V record, LinkedHashMap<String, TableTypeEntity> tapTable, String tableId, ConnectionConfig config, NodeConfig nodeConfig);
+    //public T analyse(V record, LinkedHashMap<String, TableTypeEntity> tapTable, String tableId, ConnectionConfig config, NodeConfig nodeConfig, CsvAnalyseFilter filter);
 }

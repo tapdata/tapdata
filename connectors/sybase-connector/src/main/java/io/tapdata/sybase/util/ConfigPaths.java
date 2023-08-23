@@ -16,6 +16,8 @@ public class ConfigPaths {
 
     public static final String EXT_CONFIG_PATH = "/config/sybase2csv/ext_sybasease.yaml";
 
+    public static final String LOCAL_STRANGE_PATH = "/config/sybase2csv/localstrange.yaml";
+
 
     public static final String SYBASE_USE_CONFIG_DIR = "/config/sybase2csv";
 

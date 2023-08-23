@@ -1,6 +1,5 @@
 package io.tapdata.sybase.cdc.dto.watch;
 
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import org.apache.commons.io.monitor.FileAlterationListener;
@@ -15,6 +14,11 @@ public class FileMonitor {
     private final StreamReadConsumer cdcConsumer;
     private final Log log;
     private final String monitorPath;
+    private final long interval;
+
+    public long getInterval() {
+        return interval;
+    }
 
     public StreamReadConsumer getCdcConsumer() {
         return cdcConsumer;
@@ -25,6 +29,7 @@ public class FileMonitor {
         this.cdcConsumer = cdcConsumer;
         this.log = log;
         this.monitorPath = monitorPath;
+        this.interval = interval;
     }
 
     /**
@@ -46,7 +51,7 @@ public class FileMonitor {
                 log.info("Cdc is end and will not monitor about file: {}", monitorPath);
             }
         } catch (Exception e) {
-            log.warn("File monitor can not be stop, msg: {}", e.getMessage());
+            log.info("File monitor can not be stop, msg: {}", e.getMessage());
         } finally {
             if (null != cdcConsumer) {
                 cdcConsumer.streamReadEnded();

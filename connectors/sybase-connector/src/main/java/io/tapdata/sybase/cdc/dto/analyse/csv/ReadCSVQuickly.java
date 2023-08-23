@@ -21,7 +21,7 @@ public class ReadCSVQuickly implements ReadCSV {
     @Override
     public void read(String csvPath, int offset, CdcAccepter consumer) {
 
-        List<List<String>> lines = new ArrayList<>();
+        List<String[]> lines = new ArrayList<>();
         String[] strArr = null;
         offset = Math.max(offset, 0);
         int index = offset - 1;
@@ -45,7 +45,7 @@ public class ReadCSVQuickly implements ReadCSV {
                             offset)) {
                 int lineIndex = 0;
                 while (null != (strArr = reader.readNext()) && lineIndex++ >= lastOffset) {
-                    lines.add(new ArrayList<>(Arrays.asList(strArr)));
+                    lines.add(strArr);
                     index++;
                     int size = lines.size();
                     if (size >= CDC_BATCH_SIZE) {

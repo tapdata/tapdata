@@ -41,6 +41,8 @@ class ExecCommand implements CdcStep<CdcRoot> {
 
     private final static String START_CDC_0 = "%s/bin/replicant %s %s/config/sybase2csv/src_sybasease.yaml %s/config/sybase2csv/dst_localstorage.yaml --general %s/config/sybase2csv/general.yaml --filter %s --extractor %s/config/sybase2csv/ext_sybasease.yaml --id %s --replace %s";     // --verbose
 
+    //private final static String START_CDC_0 = "%s/bin/replicant %s %s/config/sybase2csv/src_sybasease.yaml %s/config/sybase2csv/dst_localstorage.yaml --general %s/config/sybase2csv/general.yaml --filter %s --extractor %s/config/sybase2csv/ext_sybasease.yaml --applier %s/config/sybase2csv/localstrange.yaml --id %s --replace %s";     // --verbose
+
     public final static String RE_INIT_AND_ADD_TABLE = START_CDC_0 + " --reinitialize %s/config/sybase2csv/task/%s/sybasease_reinit.yaml";
 
     @Override
@@ -55,6 +57,7 @@ class ExecCommand implements CdcStep<CdcRoot> {
                 sybasePocPath,
                 root.getFilterTableConfigPath(),
                 sybasePocPath,
+                //sybasePocPath,
                 processId,
                 "--" + OverwriteType.type(overwriteType)
         );

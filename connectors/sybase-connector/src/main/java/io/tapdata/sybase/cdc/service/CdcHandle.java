@@ -7,16 +7,7 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
-import io.tapdata.sybase.cdc.dto.start.CdcStartVariables;
-import io.tapdata.sybase.cdc.dto.start.CommandType;
-import io.tapdata.sybase.cdc.dto.start.LivenessMonitor;
-import io.tapdata.sybase.cdc.dto.start.OverwriteType;
-import io.tapdata.sybase.cdc.dto.start.SybaseDstLocalStorage;
-import io.tapdata.sybase.cdc.dto.start.SybaseExtConfig;
-import io.tapdata.sybase.cdc.dto.start.SybaseFilterConfig;
-import io.tapdata.sybase.cdc.dto.start.SybaseGeneralConfig;
-import io.tapdata.sybase.cdc.dto.start.SybaseReInitConfig;
-import io.tapdata.sybase.cdc.dto.start.SybaseSrcConfig;
+import io.tapdata.sybase.cdc.dto.start.*;
 import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.extend.ConnectionConfig;
@@ -93,11 +84,12 @@ public class CdcHandle {
         srcConfig.setPort(connectionConfig.getPort());
         srcConfig.setPassword(connectionConfig.getPassword());
         srcConfig.setUsername(connectionConfig.getUsername());
-        srcConfig.setMax_connections(2);
+        srcConfig.setMax_connections(10);
         srcConfig.setMax_retries(10);
         srcConfig.setRetry_wait_duration_ms(1000);
         srcConfig.setTransaction_store_location(sybasePocPath + ConfigPaths.SYBASE_USE_DATA_DIR);
         srcConfig.setTransaction_store_cache_limit(100000);
+        srcConfig.setClient_charset("iso_1");
 
         SybaseDstLocalStorage dstLocalStorage = new SybaseDstLocalStorage();
         dstLocalStorage.setStorage_location(sybasePocPath + ConfigPaths.SYBASE_USE_CSV_DIR);
@@ -132,6 +124,13 @@ public class CdcHandle {
             root.getContext().getLog().info("Heartbeat is open which has created at {}.{} , please ensure", hbDatabase, hbSchema);
         }
 
+        //SybaseLocalStrange sybaseLocalStrange = new SybaseLocalStrange();
+        //sybaseLocalStrange.setSnapshotThreads(16)
+        //        .setSnapshotTxSizeRows(1_000_00)
+        //        .setRealtimeThreads(16)
+        //        .setSnapshotTxSizeRows(1_000_00)
+        //        .setRealtimeEncodeBinaryToBase64(true);
+
         this.root.setVariables(
                 startVariables
                         .extConfig(extConfig)
@@ -139,6 +138,7 @@ public class CdcHandle {
                         .srcConfig(srcConfig)
                         .sybaseDstLocalStorage(dstLocalStorage)
                         .sybaseGeneralConfig(generalConfig)
+                        //.sybaseLocalStrange(sybaseLocalStrange)
         );
     }
 
@@ -189,15 +189,17 @@ public class CdcHandle {
                     return;
                 }
                 File file = new File(String.valueOf(cdcPath));
-                if (HostUtils.isLinuxCore()) {
-                    final String shell = "rm -rf " + cdcPath;
-                    root.getContext().getLog().info("clean cdc path: {}", shell);
-                    root.getContext().getLog().info(Utils.run(shell));
-                    if (file.exists()) {
+                if (file.exists() && file.isDirectory() && !file.delete()) {
+                    if (HostUtils.isLinuxCore()) {
+                        final String shell = "rm -rf " + cdcPath;
+                        root.getContext().getLog().info("clean cdc path: {}", shell);
+                        root.getContext().getLog().info(Utils.run(shell));
+                        if (file.exists()) {
+                            FileUtils.delete(file);
+                        }
+                    } else {
                         FileUtils.delete(file);
                     }
-                } else {
-                    FileUtils.delete(file);
                 }
             }
         } catch (Exception e) {
@@ -325,7 +327,9 @@ public class CdcHandle {
                     Map<String, Object> tables = map();
                     for (String cdcTable : initTables) {
                         final boolean contains = root.hasContainsTimestampFieldTables(database, schema, cdcTable);
-                        root.getContext().getLog().debug("table: {}, contains timestamp: {}", cdcTable, contains);
+                        if (contains) {
+                            root.getContext().getLog().debug("table: {}, contains timestamp: {}", cdcTable, contains);
+                        }
                         tables.put(cdcTable, contains ? ConnectorUtil.ignoreColumns() : ConnectorUtil.unIgnoreColumns());
                     }
                     filterConfig.setAllow(tables);

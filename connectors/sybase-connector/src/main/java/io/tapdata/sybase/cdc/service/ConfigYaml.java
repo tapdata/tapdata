@@ -1,22 +1,14 @@
 package io.tapdata.sybase.cdc.service;
 
-import cn.hutool.core.io.FileUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
-import io.tapdata.sybase.cdc.dto.start.CdcStartVariables;
-import io.tapdata.sybase.cdc.dto.start.SybaseDstLocalStorage;
-import io.tapdata.sybase.cdc.dto.start.SybaseExtConfig;
-import io.tapdata.sybase.cdc.dto.start.SybaseFilterConfig;
-import io.tapdata.sybase.cdc.dto.start.SybaseGeneralConfig;
-import io.tapdata.sybase.cdc.dto.start.SybaseReInitConfig;
-import io.tapdata.sybase.cdc.dto.start.SybaseSrcConfig;
+import io.tapdata.sybase.cdc.dto.start.*;
 import io.tapdata.sybase.util.ConfigPaths;
 import io.tapdata.sybase.util.ConnectorUtil;
 import io.tapdata.sybase.util.HostUtils;
 import io.tapdata.sybase.util.YamlUtil;
-import org.apache.commons.io.FileUtils;
 import org.yaml.snakeyaml.DumperOptions;
 
 import java.io.File;
@@ -26,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 
 import static io.tapdata.base.ConnectorBase.entry;
-import static io.tapdata.base.ConnectorBase.list;
 import static io.tapdata.base.ConnectorBase.map;
 
 /**
@@ -42,6 +33,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
     SybaseGeneralConfig sybaseGeneralConfig;
     SybaseExtConfig extConfig;
     String configPath;
+    //SybaseLocalStrange sybaseLocalStrange;
     CdcRoot root;
 
     protected ConfigYaml(CdcRoot root, CdcStartVariables variables) {
@@ -50,6 +42,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
         this.configPath = root.getSybasePocPath();
         this.sybaseDstLocalStorage = variables.getSybaseDstLocalStorage();
         this.sybaseGeneralConfig = variables.getSybaseGeneralConfig();
+        //this.sybaseLocalStrange = variables.getSybaseLocalStrange();
         this.extConfig = variables.getExtConfig();
         this.root = root;
     }
@@ -62,6 +55,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
         configGeneral();
         configExt();
         //configEtcHost();
+        //configSybaseLocalStrange();
         return root;
     }
 
@@ -81,11 +75,11 @@ class ConfigYaml implements CdcStep<CdcRoot> {
 //                collection.addAll(filterConfig);
 //                yamlUtil.update();
 //            } else {
-            Map<String, Object> map = map();
+            List<Map<String, Object>> list = new ArrayList<>();
             for (SybaseFilterConfig config : filterConfig) {
-                map.putAll((Map<String, Object>) config.toYaml());
+                list.add((Map<String, Object>) config.toYaml());
             }
-            yamlUtil.update(map(entry("allow", list(map))));
+            yamlUtil.update(map(entry("allow", list)));
 //            }
         }
         return this.root;
@@ -177,6 +171,27 @@ class ConfigYaml implements CdcStep<CdcRoot> {
         }
         yamlUtil.update(allow);
     }
+
+//    private void configSybaseLocalStrange() {
+//        ConnectorUtil.createFile( configPath + "/config/sybase2csv","localstorage.yaml", root.getContext().getLog());
+//        YamlUtil yamlUtil = new YamlUtil(configPath + ConfigPaths.LOCAL_STRANGE_PATH, DumperOptions.ScalarStyle.SINGLE_QUOTED);
+//        Map<String, Object> allow = yamlUtil.get();
+//        Map<String, Object> map;
+//        try {
+//            map = (Map<String, Object>) sybaseLocalStrange.toYaml();
+//        } catch (Exception e) {
+//            throw new RuntimeException("Can not get config from local strange config set into localstrange.yaml");
+//        }
+//        if (!map.isEmpty()) {
+//            if (allow == null) {
+//                allow = new LinkedHashMap<>();
+//            } else {
+//                allow.clear();
+//            }
+//            allow.putAll(map);
+//        }
+//        yamlUtil.update(allow);
+//    }
 
 
     public List<Map<String, Object>> configSybaseFilter(List<Map<String, Object>> filterConfig) {

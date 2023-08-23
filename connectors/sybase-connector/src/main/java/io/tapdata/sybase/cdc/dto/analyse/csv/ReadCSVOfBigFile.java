@@ -28,7 +28,7 @@ public class ReadCSVOfBigFile implements ReadCSV {
 
     @Override
     public void read(String csvPath, int offset, CdcAccepter consumer) {
-        List<List<String>> lines = new ArrayList<>();
+        List<String[]> lines = new ArrayList<>();
         String[] strArr = null;
         offset = Math.max(offset, 0);
         int index = offset - 1;
@@ -41,7 +41,7 @@ public class ReadCSVOfBigFile implements ReadCSV {
         ) {
             int lineIndex = 0;
             while (null != (strArr = reader.readNext()) && lineIndex++ >= lastOffset) {
-                lines.add(new ArrayList<>(Arrays.asList(strArr)));
+                lines.add(strArr);
                 index++;
                 int size = lines.size();
                 if (size >= CDC_BATCH_SIZE) {
@@ -67,7 +67,7 @@ public class ReadCSVOfBigFile implements ReadCSV {
             read(csvPath, offset, consumer);
             return;
         }
-        List<List<String>> lines = new ArrayList<>();
+        List<String[]> lines = new ArrayList<>();
         String[] strArr = null;
         offset = Math.max(offset, 0);
         int index = offset - 1;
@@ -84,7 +84,7 @@ public class ReadCSVOfBigFile implements ReadCSV {
         ) {
             reader.setLog(log);
             while (null != (strArr = reader.readNext())) {
-                lines.add(new ArrayList<>(Arrays.asList(strArr)));
+                lines.add(strArr);
                 index++;
                 int size = lines.size();
                 if (size >= CDC_BATCH_SIZE) {

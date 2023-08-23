@@ -14,6 +14,7 @@ public class CdcStartVariables {
     private SybaseGeneralConfig sybaseGeneralConfig;
     private SybaseExtConfig extConfig;
     private List<SybaseReInitConfig> reInitConfigs;
+    private SybaseLocalStrange sybaseLocalStrange;
 
     public static CdcStartVariables create() {
         return new CdcStartVariables();
@@ -95,5 +96,18 @@ public class CdcStartVariables {
     public CdcStartVariables reInitConfigs(List<SybaseReInitConfig> reInitConfigs) {
         this.reInitConfigs = reInitConfigs;
         return this;
+    }
+
+    public CdcStartVariables sybaseLocalStrange(SybaseLocalStrange sybaseLocalStrange) {
+        this.sybaseLocalStrange = sybaseLocalStrange;
+        return this;
+    }
+
+    public SybaseLocalStrange getSybaseLocalStrange() {
+        return sybaseLocalStrange;
+    }
+
+    public void setSybaseLocalStrange(SybaseLocalStrange sybaseLocalStrange) {
+        this.sybaseLocalStrange = sybaseLocalStrange;
     }
 }

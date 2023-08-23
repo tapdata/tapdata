@@ -101,6 +101,10 @@ public class CdcPosition implements Serializable {
             this.line++;
             return this.line;
         }
+        public int addAndGet(int nums) {
+            this.line += nums;
+            return this.line;
+        }
 
         public void setLine(int line) {
             this.line = line;

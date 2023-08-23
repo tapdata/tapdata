@@ -371,30 +371,29 @@ public class ConnectorUtil {
     }
 
     private static void selectTimestampMap(final ConnectionConfig config, Map<String, Map<String, List<String>>> info, SybaseContext sybaseContext, Collection<String> tableIds) {
-        final Set<String> containsTimestampFieldTables = new HashSet<>();
+        Map<String, List<String>> item = info.computeIfAbsent(config.getDatabase(), k -> new HashMap<>());
+        List<String> tables = item.computeIfAbsent(config.getSchema(), k -> new ArrayList<>());
         try {
             List<DataMap> tableList = sybaseContext.queryAllTables(new ArrayList<>(tableIds));
             Map<String, List<DataMap>> tableName = tableList.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(t -> t.getString("tableName")));
             if (null != tableName && !tableName.isEmpty()) {
-                tableName.forEach((tab, con) -> {
-                    if (null != con) {
-                        List<DataMap> collect = con.stream().filter(col -> null != col
-                                && null != col.getString("dataType")
-                                && col.getString("dataType").toUpperCase(Locale.ROOT).contains("TIMESTAMP"))
-                                .collect(Collectors.toList());
-                        if (!collect.isEmpty()) {
-                            containsTimestampFieldTables.add(tab);
+                for (Map.Entry<String, List<DataMap>> entry : tableName.entrySet()) {
+                    String tab = entry.getKey();
+                    List<DataMap> con = entry.getValue();
+                    Optional.ofNullable(con).ifPresent(cols -> {
+                        for (DataMap dataMap : cols) {
+                            String dataType = dataMap.getString("dataType");
+                            if (null != dataType && dataType.toUpperCase(Locale.ROOT).contains("TIMESTAMP") && !tables.contains(dataType)) {
+                                tables.add(tab);
+                                break;
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
-
         } catch (Exception e) {
             throw new CoreException("Can not get any tables from sybase, filter by: {}, msg: {}", tableIds, e.getMessage());
         }
-        Map<String, List<String>> item = new HashMap<>();
-        item.put(config.getSchema(), new ArrayList<>(containsTimestampFieldTables));
-        info.put(config.getDatabase(), item);
     }
 
     /**
@@ -560,7 +559,9 @@ public class ConnectorUtil {
         try {
             if (HostUtils.isLinuxCore()) {
                 Process p = Runtime.getRuntime().exec(cmd);
-                p.waitFor();
+                try {
+                    p.waitFor();
+                } catch (Exception ig) {}
                 br = new BufferedReader(new InputStreamReader(p.getInputStream()));
                 String line;
                 StringJoiner joiner = new StringJoiner("\n");

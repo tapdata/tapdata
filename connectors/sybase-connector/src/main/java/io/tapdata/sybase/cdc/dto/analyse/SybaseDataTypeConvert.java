@@ -30,7 +30,7 @@ public interface SybaseDataTypeConvert {
     public static final String UPDATE = "U";
     public static final String DELETE = "D";
 
-    public Object convert(Object fromValue, String sybaseType, ConnectionConfig config, NodeConfig nodeConfig);
+    public Object convert(Object fromValue, String sybaseType, final int typeNum, ConnectionConfig config, NodeConfig nodeConfig);
 
     public default String objToString(Object obj, ConnectionConfig config, NodeConfig nodeConfig) {
         if (null == obj) return null;

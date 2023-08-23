@@ -8,8 +8,8 @@ import io.tapdata.sybase.extend.NodeConfig;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.base.ConnectorBase.fromJson;
 import static io.tapdata.sybase.cdc.dto.analyse.SybaseDataTypeConvert.DELETE;
@@ -20,7 +20,7 @@ import static io.tapdata.sybase.cdc.dto.analyse.SybaseDataTypeConvert.INSERT;
  * @description AnalyseTapEventFromCsvString create by Gavin
  * @create 2023/7/14 10:00
  **/
-public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>, TapRecordEvent> {
+public class AnalyseTapEventFromCsvString implements AnalyseRecord<String[], TapRecordEvent> {
     public static final DefaultConvert DEFAULT_CONVERT = new DefaultConvert();
 
     /**
@@ -30,7 +30,7 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
      *                 }
      */
     @Override
-    public TapRecordEvent analyse(List<String> record, LinkedHashMap<String, TableTypeEntity> tapTable, String tableId, ConnectionConfig config, NodeConfig nodeConfig, CsvAnalyseFilter filter) {
+    public TapRecordEvent analyse(String[] record, LinkedHashMap<String, TableTypeEntity> tapTable, String tableId, ConnectionConfig config, NodeConfig nodeConfig) {
         // 6,NULL,1,
         // 2023-07-13 20:43:05.0,NULL,1,
         // "sfas"",""dsafas",NULL,1,
@@ -47,14 +47,15 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
 
         // NULL,B,2,NULL,2023-07-24 00:00:00.0,2,NULL,2.3600000000,2,NULL,2.36,2,NULL,5,2,NULL,3.3300,2,NULL,4.3300000000,2,NULL,B│o¡Ë¼Oñ@¼qÑ┐┼ÚªrñÕªríAº┌¡nºÔÑª▒qcp850┬Óª¿utf-8,2,NULL,2023-07-24 00:00:00.0,2,NULL,3,2,NULL,BFdsd,2,NULL,"cZ{""",2,NULL,3,2,NULL,V│o¡Ë¼Oñ@¼qÑ┐┼ÚªrñÕªríAº┌¡nºÔÑª▒qcp850┬Óª¿utf-8,2,
         // D,"{""extractorId"":0,""transactionLogPageNumber"":221605,""transactionLogRowNumber"":68,""operationLogPageNumber"":221605,""operationLogRowNumber"":70,""catalogName"":""testdb"",""timestamp"":1690164722442,""extractionTimestamp"":1690164722444,""v"":0}","{""insertCount"":1,""updateCount"":0,""deleteCount"":1,""replaceCount"":0}"
-        final int recordKeyCount = record.size();
+        final int recordKeyCount = record.length;
         final int group = recordKeyCount / 3;
         //LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 
         final int fieldsCount = tapTable.size();
 
-        final String cdcType = fieldsCount < group ? record.get((group - 1) * 3) : INSERT;
-        String cdcInfoStr = fieldsCount < group ? record.get((group - 1) * 3 + 1) : null;
+        final int cdcTypeIndex = (group - 1) * 3;
+        final String cdcType = fieldsCount < group ? record[cdcTypeIndex] : INSERT;
+        String cdcInfoStr = fieldsCount < group ? record[cdcTypeIndex + 1] : null;
         Map<String, Object> cdcInfo = null;
         try {
             cdcInfo = (Map<String, Object>) fromJson(cdcInfoStr);
@@ -62,10 +63,6 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
             cdcInfo = new HashMap<>();
         }
         if (null == cdcInfo) cdcInfo = new HashMap<>();
-
-        if (null != filter && filter.filter(cdcInfo)) {
-            return null;
-        }
 
         int index = 0;
         Map<String, Object> after = new HashMap<>();
@@ -85,16 +82,17 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
 
             int fieldValueIndex = index * 3;
             if (!isDel) {
-                final Object value = recordKeyCount <= fieldValueIndex ? null : record.get(fieldValueIndex);
-                after.put(fieldName, DEFAULT_CONVERT.convert(value, sybaseType, config, nodeConfig));
+                final Object value = recordKeyCount <= fieldValueIndex ? null : record[fieldValueIndex];
+                after.put(fieldName, DEFAULT_CONVERT.convert(value, sybaseType, typeEntity.getTypeNum(), config, nodeConfig));
             }
             if (!isIns) {
                 int fieldBeforeValueIndex = fieldValueIndex + 1;
-                final Object beforeValue = recordKeyCount <= fieldBeforeValueIndex ? null : record.get(fieldBeforeValueIndex);
-                before.put(fieldName, DEFAULT_CONVERT.convert(beforeValue, sybaseType, config, nodeConfig));
+                final Object beforeValue = recordKeyCount <= fieldBeforeValueIndex ? null : record[fieldBeforeValueIndex];
+                before.put(fieldName, DEFAULT_CONVERT.convert(beforeValue, sybaseType, typeEntity.getTypeNum(), config, nodeConfig));
             }
             index++;
         }
+
         Object timestamp = cdcInfo.get("timestamp");
         long cdcReference = System.currentTimeMillis();
         try {
