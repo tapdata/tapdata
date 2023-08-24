@@ -8,6 +8,7 @@ import io.tapdata.connector.redis.writer.HashRedisRecordWriter;
 import io.tapdata.connector.redis.writer.ListRedisRecordWriter;
 import io.tapdata.connector.redis.writer.StringRedisRecordWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -29,6 +30,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -36,6 +38,7 @@ import java.util.stream.Collectors;
 public class RedisConnector extends ConnectorBase {
 
     private final static String INIT_TABLE_NAME = "tapdata";
+    private final static String INIT_FIELD_NAME = "redis_cmd";
     private RedisConfig redisConfig;
     private RedisContext redisContext;
     private RedisExceptionCollector redisExceptionCollector;
@@ -52,7 +55,9 @@ public class RedisConnector extends ConnectorBase {
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) {
-        consumer.accept(Collections.singletonList(table(INIT_TABLE_NAME)));
+        TapTable dbTable = table(INIT_TABLE_NAME);
+        dbTable.add(field(INIT_FIELD_NAME, "string"));
+        consumer.accept(Collections.singletonList(dbTable));
     }
 
     @Override
@@ -82,6 +87,7 @@ public class RedisConnector extends ConnectorBase {
 //        connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateTable(this::createTable);
+        connectorFunctions.supportBatchRead(this::batchRead);
 
         // TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
@@ -184,5 +190,9 @@ public class RedisConnector extends ConnectorBase {
             return "\"" + str.replaceAll("\"", "\"\"") + "\"";
         }
         return str;
+    }
+
+    private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+
     }
 }

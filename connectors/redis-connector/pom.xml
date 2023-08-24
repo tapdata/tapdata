@@ -51,6 +51,11 @@
             <groupId>io.tapdata</groupId>
             <artifactId>pdk-error-code</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.moilioncircle</groupId>
+            <artifactId>redis-replicator</artifactId>
+            <version>3.8.0</version>
+        </dependency>
     </dependencies>
 
     <properties>
