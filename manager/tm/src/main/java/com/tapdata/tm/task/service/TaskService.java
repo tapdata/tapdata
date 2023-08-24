@@ -1059,6 +1059,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setStopTime(null);
         taskDto.setErrorTime(null);
         taskDto.setCrontabScheduleMsg(null);
+        taskDto.getAttrs().remove("SNAPSHOT_ORDER_LIST");
         Map<String, Object> attrs = taskDto.getAttrs();
         if (null != attrs) {
             attrs.remove("edgeMilestones");
