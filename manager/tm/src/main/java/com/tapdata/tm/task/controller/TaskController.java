@@ -623,8 +623,13 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "复制同步任务")
     @PutMapping("copy/{id}")
-    public ResponseMessage<TaskDto> copy(@PathVariable("id") String id) {
-        return success(taskService.copy(MongoUtils.toObjectId(id), getLoginUser()));
+    public ResponseMessage<TaskDto> copy(HttpServletRequest request, @PathVariable("id") String id) {
+			UserDetail userDetail = getLoginUser();
+			ObjectId objectId = MongoUtils.toObjectId(id);
+			TaskDto taskDto = dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.View, () -> {
+				return taskService.copy(objectId, userDetail);
+			});
+			return success(taskDto);
     }
 
 
