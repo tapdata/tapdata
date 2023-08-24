@@ -1,6 +1,8 @@
 package com.tapdata.tm.config.component;
 
 import com.tapdata.tm.Settings.service.SettingsService;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -9,6 +11,7 @@ import java.util.Objects;
 
 @Component
 public class ProductComponent {
+	private final static Logger logger = LogManager.getLogger(ProductComponent.class);
 
   @Autowired
   private SettingsService settingsService;
@@ -24,6 +27,8 @@ public class ProductComponent {
       buildProfile = "DAAS";
     }
     this.isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+
+		logger.info("Current product type settings is {}.", buildProfile);
   }
 
   public boolean isCloud() {
