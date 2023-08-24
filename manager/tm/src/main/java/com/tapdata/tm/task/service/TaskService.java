@@ -11,7 +11,6 @@ import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
@@ -111,7 +110,6 @@ import org.quartz.CronScheduleBuilder;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -130,10 +128,10 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
@@ -206,6 +204,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
     }
+
+	public Supplier<TaskDto> dataPermissionFindById(ObjectId taskId, Field fields) {
+		return () -> {
+			if (null != fields) {
+				fields.put("user_id", true);
+				fields.put("syncType", true);
+				fields.put(DataPermissionHelper.FIELD_NAME, true);
+				fields.put(ConnHeartbeatUtils.TASK_RELATION_FIELD, true);
+			}
+			return findById(taskId, fields);
+		};
+	}
 
     /**
      * 添加任务， 这里需要拆分子任务，入库需要保证原子性
@@ -436,7 +446,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         if (taskDto.getId() != null) {
-            oldTaskDto = findById(taskDto.getId(), user);
+            oldTaskDto = findById(taskDto.getId());
             if (oldTaskDto != null) {
                 taskDto.setSyncType(oldTaskDto.getSyncType());
                 taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
@@ -1589,7 +1599,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         criteria.andOperator(orToCriteria);
         query.addCriteria(criteria);
-			if (!userDetail.isRoot() && !DataPermissionHelper.setFilterConditions(query, userDetail)) {
+			if (!userDetail.isRoot() && !DataPermissionHelper.setFilterConditions(true, query, userDetail)) {
 					criteria.and("user_id").is(userDetail.getUserId());
 			}
 
@@ -1608,7 +1618,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         long total = repository.getMongoOperations().count(query, TaskEntity.class);
         List<TaskEntity> taskEntityList = repository.getMongoOperations().find(query.with(tmPageable), TaskEntity.class);
-        List<TaskDto> taskDtoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(taskEntityList, TaskDto.class);
+        List<TaskDto> taskDtoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(taskEntityList, TaskDto.class, DataPermissionHelper::convert);
 
         // Supplementary data verification status
         if (CollectionUtils.isNotEmpty(taskDtoList)) {
@@ -1647,7 +1657,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         query.skip(filter.getSkip());
         query.limit(filter.getLimit());
         List<TaskEntity> taskEntityList = repository.findAll(query, userDetail);
-        List<TaskDto> taskDtoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(taskEntityList, TaskDto.class);
+        List<TaskDto> taskDtoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(taskEntityList, TaskDto.class, DataPermissionHelper::convert);
         Page<TaskDto> taskDtoPage = new Page<>();
         taskDtoPage.setTotal(count);
         taskDtoPage.setItems(taskDtoList);

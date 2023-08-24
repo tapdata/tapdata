@@ -24,7 +24,8 @@ import com.tapdata.tm.ds.vo.AllDataSourceConnectionVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
-import com.tapdata.tm.permissions.constants.DataPermissionMenu;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.BeanUtil;
@@ -158,7 +159,7 @@ public class DataSourceController extends BaseController {
 
 			final NoSchemaFilter finalFilter = filter;
 			final Boolean finalNoSchema = noSchema;
-			return success(DataPermissionMenu.Connections.openInController(userDetail, true, () -> {
+			return success(DataPermissionMenuEnums.Connections.checkAndSetFilter(userDetail, DataPermissionActionEnums.View, () -> {
 				return dataSourceService.list(finalFilter, finalNoSchema, userDetail);
 			}));
     }

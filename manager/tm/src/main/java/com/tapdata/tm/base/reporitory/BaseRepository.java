@@ -11,6 +11,7 @@ import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.annotation.SetOnInsert;
 import com.tapdata.manager.common.utils.ReflectionUtils;
+import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
@@ -174,7 +175,7 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
 
 			removeFilter("customId", query);
 			query.addCriteria(Criteria.where("customId").is(userDetail.getCustomerId()));
-				if (DataPermissionHelper.setFilterConditions(query, userDetail)) {
+				if (DataPermissionHelper.setFilterConditions(IDataPermissionEntity.class.isAssignableFrom(entityClass), query, userDetail)) {
 					return query;
 				}
 

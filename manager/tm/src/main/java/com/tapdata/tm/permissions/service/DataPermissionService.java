@@ -3,24 +3,31 @@ package com.tapdata.tm.permissions.service;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.base.DataPermissionAction;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionTypeEnums;
+import com.tapdata.tm.permissions.vo.DataPermissionAuthInfoVo;
+import com.tapdata.tm.permissions.vo.DataPermissionTypeVo;
 import com.tapdata.tm.roleMapping.dto.PrincipleType;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
+import com.tapdata.tm.utils.MongoUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -64,7 +71,7 @@ public class DataPermissionService {
 		return roleIds;
 	}
 
-	public boolean menuAuth(String menuName, Set<ObjectId> roleIds) {
+	public boolean isMenuAuth(String menuName, Set<ObjectId> roleIds) {
 		Query query = Query.query(Criteria.where("principalId").is(menuName)
 			.and("principalType").is(PrincipleType.PERMISSION)
 			.and("roleId").in(roleIds));
@@ -80,15 +87,20 @@ public class DataPermissionService {
 
 	public Set<String> findDataActions(UserDetail userDetail, DataPermissionDataTypeEnums dataType, ObjectId dataId) {
 		if (!userDetail.isRoot()) {
-			Query query = Query.query(Criteria.where("_id").is(dataId));
-			query.fields().include("user_id", DataPermissionHelper.FIELD_NAME);
-			BaseEntity record = mongoOperations.findOne(query, BaseEntity.class, dataType.getCollection());
-			if (null == record) return null;
+			return findDataActions(userDetail.getUserId(), dataType, dataId, () -> getRoleIds(userDetail.getUserId()));
+		}
+		return dataType.allActions();
+	}
 
-			if (!userDetail.getUserId().equals(record.getUserId())) {
-				Set<String> roleIds = getRoleIds(userDetail.getUserId());
-				return DataPermissionHelper.mergeActions(new HashSet<>(), roleIds, record.getPermissions());
-			}
+	public Set<String> findDataActions(String userId, DataPermissionDataTypeEnums dataType, ObjectId dataId, Supplier<Set<String>> roleSetSupplier) {
+		Query query = Query.query(Criteria.where("_id").is(dataId));
+		query.fields().include("user_id", DataPermissionHelper.FIELD_NAME);
+		BaseEntity record = mongoOperations.findOne(query, BaseEntity.class, dataType.getCollection());
+		if (null == record) return null;
+
+		if (!userId.equals(record.getUserId())) {
+			Set<String> roleIds = roleSetSupplier.get();
+			return DataPermissionHelper.mergeActions(new HashSet<>(), roleIds, record.getPermissions());
 		}
 
 		return dataType.allActions();
@@ -101,6 +113,43 @@ public class DataPermissionService {
 		if (null == record) return null;
 
 		return record.getPermissions();
+	}
+
+	public DataPermissionAuthInfoVo setDataActions(DataPermissionAuthInfoVo authInfoVo, DataPermissionTypeVo... inTypes) {
+		Criteria whereCriteria = Criteria.where(DataPermissionHelper.AUTH_ACTIONS).is(authInfoVo.getActionEnums().name());
+
+		List<Criteria> orList = new ArrayList<>();
+		orList.add(Criteria.where("user_id").is(authInfoVo.getUserId()));
+		if (null != inTypes) {
+			for (DataPermissionTypeVo typeVo : inTypes) {
+				orList.add(Criteria
+					.where(DataPermissionHelper.AUTH_TYPE).is(typeVo.getType().name())
+					.and(DataPermissionHelper.AUTH_TYPE_ID).in(typeVo.getIds())
+				);
+			}
+		}
+		whereCriteria.orOperator(orList);
+
+		AggregationResults<BaseDto> results = mongoOperations.aggregate(Aggregation.newAggregation(
+			Aggregation.match(Criteria.where("_id").is(MongoUtils.toObjectId(authInfoVo.getId())))
+			, Aggregation.project(DataPermissionHelper.FIELD_NAME, "user_id")
+			, Aggregation.unwind(DataPermissionHelper.FIELD_NAME)
+			, Aggregation.match(whereCriteria)
+			, Aggregation.unwind(DataPermissionHelper.AUTH_ACTIONS, "user_id")
+			, Aggregation.group()
+				.addToSet(DataPermissionHelper.AUTH_ACTIONS).as("permissionActions")
+				.first("user_id").as("user_id")
+		), authInfoVo.getDataTypeEnums().getCollection(), BaseDto.class);
+
+		BaseDto dto = results.getUniqueMappedResult();
+		if (null != dto) {
+			if (authInfoVo.getUserId().equals(dto.getUserId())) {
+				return authInfoVo.authWithUserData().actionSet(authInfoVo.getDataTypeEnums().allActions());
+			} else if (null != dto.getPermissionActions() && !dto.getPermissionActions().isEmpty()) {
+				return authInfoVo.authWithRole().actionSet(dto.getPermissionActions());
+			}
+		}
+		return authInfoVo;
 	}
 
 	public long saveDataPermissions(UserDetail userDetail, DataPermissionDataTypeEnums dataType, ObjectId dataId, List<DataPermissionAction> actions) {
