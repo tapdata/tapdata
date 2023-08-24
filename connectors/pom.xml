@@ -9,7 +9,7 @@
     <packaging>pom</packaging>
     <modules>
         <module>dummy-connector</module>
-        <module>tdd-connector</module>
+<!--        <module>tdd-connector</module>-->
         <module>mongodb-connector</module>
 		<module>mongodb-atlas-connector</module>
 		<module>mysql-connector</module>
