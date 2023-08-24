@@ -157,112 +157,117 @@
           "x-component": "Input",
           "x-index": 70
         },
-        "schemaLimit": {
-          "title": "${schemaLimit}",
-          "type": "string",
-          "default": 1024,
-          "x-decorator": "FormItem",
-          "x-component": "InputNumber"
-        },
-        "ssl": {
-          "type": "boolean",
-          "title": "${dataForm_form_ssl}",
-          "x-decorator": "FormItem",
-          "x-component": "Radio.Group",
-          "x-component-props": {
-            "optionType": "button"
-          },
-          "default": false,
-          "x-index": 80,
-          "enum": [
-            {
-              "label": "${dataForm_form_options_sslTSL}",
-              "value": true
+        "OPTIONAL_FIELDS": {
+          "type": "void",
+          "properties": {
+            "schemaLimit": {
+              "title": "${schemaLimit}",
+              "type": "string",
+              "default": 1024,
+              "x-decorator": "FormItem",
+              "x-component": "InputNumber"
             },
-            {
-              "label": "${dataForm_form_options_sslTop}",
-              "value": false
-            }
-          ],
-          "x-reactions": [
-            {
-              "target": "*(sslKey,sslPass,sslValidate)",
-              "fulfill": {
-                "state": {
-                  "visible": "{{$self.value===true}}"
+            "ssl": {
+              "type": "boolean",
+              "title": "${dataForm_form_ssl}",
+              "x-decorator": "FormItem",
+              "x-component": "Radio.Group",
+              "x-component-props": {
+                "optionType": "button"
+              },
+              "default": false,
+              "x-index": 80,
+              "enum": [
+                {
+                  "label": "${dataForm_form_options_sslTSL}",
+                  "value": true
+                },
+                {
+                  "label": "${dataForm_form_options_sslTop}",
+                  "value": false
                 }
-              }
-            }
-          ]
-        },
-        "ssl_tips1": {
-          "type": "void",
-          "title": " ",
-          "x-decorator": "FormItem",
-          "x-decorator-props": { "colon": false },
-          "x-component": "Text",
-          "x-component-props": { "content": "${ssl_tips1}" },
-          "x-reactions": {
-            "dependencies": ["ssl"],
-            "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]===true ? null:\"none\"}}" } }
-          },
-          "x-index": 81
-        },
-        "ssl_tips2": {
-          "type": "void",
-          "title": " ",
-          "x-decorator": "FormItem",
-          "x-decorator-props": { "colon": false },
-          "x-component": "Text",
-          "x-component-props": { "content": "${ssl_tips2}" },
-          "x-reactions": {
-            "dependencies": ["ssl"],
-            "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]===false ? null:\"none\"}}" } }
-          },
-          "x-index": 82
-        },
-        "sslKey": {
-          "type": "string",
-          "title": "${dataForm_form_sslKey}",
-          "x-decorator": "FormItem",
-          "x-component": "TextFileReader",
-          "fileNameField": "sslKeyFile",
-          "required": true,
-          "x-index": 90
-        },
-        "sslPass": {
-          "type": "string",
-          "title": "${dataForm_form_sslPass}",
-          "x-decorator": "FormItem",
-          "x-component": "Password",
-          "x-index": 100
-        },
-        "sslValidate": {
-          "type": "boolean",
-          "title": "${dataForm_form_sslValidate}",
-          "x-decorator": "FormItem",
-          "x-component": "Switch",
-          "show": false,
-          "x-reactions": [
-            {
-              "target": "sslCA",
-              "fulfill": {
-                "state": {
-                  "visible": "{{$self.value===true}}"
+              ],
+              "x-reactions": [
+                {
+                  "target": "*(sslKey,sslPass,sslValidate)",
+                  "fulfill": {
+                    "state": {
+                      "visible": "{{$self.value===true}}"
+                    }
+                  }
                 }
-              }
+              ]
+            },
+            "ssl_tips1": {
+              "type": "void",
+              "title": " ",
+              "x-decorator": "FormItem",
+              "x-decorator-props": { "colon": false },
+              "x-component": "Text",
+              "x-component-props": { "content": "${ssl_tips1}" },
+              "x-reactions": {
+                "dependencies": ["ssl"],
+                "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]===true ? null:\"none\"}}" } }
+              },
+              "x-index": 81
+            },
+            "ssl_tips2": {
+              "type": "void",
+              "title": " ",
+              "x-decorator": "FormItem",
+              "x-decorator-props": { "colon": false },
+              "x-component": "Text",
+              "x-component-props": { "content": "${ssl_tips2}" },
+              "x-reactions": {
+                "dependencies": ["ssl"],
+                "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]===false ? null:\"none\"}}" } }
+              },
+              "x-index": 82
+            },
+            "sslKey": {
+              "type": "string",
+              "title": "${dataForm_form_sslKey}",
+              "x-decorator": "FormItem",
+              "x-component": "TextFileReader",
+              "fileNameField": "sslKeyFile",
+              "required": true,
+              "x-index": 90
+            },
+            "sslPass": {
+              "type": "string",
+              "title": "${dataForm_form_sslPass}",
+              "x-decorator": "FormItem",
+              "x-component": "Password",
+              "x-index": 100
+            },
+            "sslValidate": {
+              "type": "boolean",
+              "title": "${dataForm_form_sslValidate}",
+              "x-decorator": "FormItem",
+              "x-component": "Switch",
+              "show": false,
+              "x-reactions": [
+                {
+                  "target": "sslCA",
+                  "fulfill": {
+                    "state": {
+                      "visible": "{{$self.value===true}}"
+                    }
+                  }
+                }
+              ],
+              "x-index": 110
+            },
+            "sslCA": {
+              "type": "string",
+              "title": "${dataForm_form_sslCA}",
+              "x-decorator": "FormItem",
+              "x-component": "TextFileReader",
+              "fileNameField": "sslCAFile",
+              "required": true,
+              "x-index": 120
             }
-          ],
-          "x-index": 110
-        },
-        "sslCA": {
-          "type": "string",
-          "title": "${dataForm_form_sslCA}",
-          "x-decorator": "FormItem",
-          "x-component": "TextFileReader",
-          "fileNameField": "sslCAFile",
-          "required": true,
-          "x-index": 120
+          }
         }
       }
     },

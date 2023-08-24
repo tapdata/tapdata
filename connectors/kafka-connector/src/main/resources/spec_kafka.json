@@ -21,81 +21,10 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "mq_nameSrvAddr",
+          "x-decorator-props": {
+            "tooltip": "${nameSrvAddrTip}"
+          },
           "x-index": 1
-        },
-        "schemaRegister": {
-          "type": "boolean",
-          "title": "${schemaRegister}",
-          "default": false,
-          "x-decorator": "FormItem",
-          "x-component": "Switch",
-          "apiServerKey": "schemaRegister",
-          "x-reactions": [
-            {
-              "target": "*(schemaRegisterUrl)",
-              "fulfill": {
-                "state": {
-                  "visible": "{{$self.value===true}}"
-                }
-              }
-            }
-          ],
-          "x-index": 2
-        },
-        "basicAuth": {
-          "type": "boolean",
-          "title": "${basicAuth}",
-          "default": false,
-          "x-decorator": "FormItem",
-          "x-component": "Switch",
-          "apiServerKey": "basicAuth",
-          "x-reactions": [
-            {
-              "target": "*(authCredentialsSource,authUserName,authPassword)",
-              "fulfill": {
-                "state": {
-                  "visible": "{{$self.value===true}}"
-                }
-              }
-            }
-          ],
-          "x-index": 4
-        },
-        "schemaRegisterUrl": {
-          "required": true,
-          "type": "string",
-          "title": "${schemaRegisterUrl}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "schemaRegisterUrl",
-          "x-index": 3
-        },
-        "authCredentialsSource": {
-          "required": true,
-          "type": "string",
-          "title": "${authCredentialsSource}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "authCredentialsSource",
-          "x-index": 5
-        },
-        "authUserName": {
-          "required": true,
-          "type": "string",
-          "title": "${authUserName}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "database_username",
-          "x-index": 6
-        },
-        "authPassword": {
-          "required": true,
-          "type": "string",
-          "title": "${authPassword}",
-          "x-decorator": "FormItem",
-          "x-component": "Password",
-          "apiServerKey": "database_password",
-          "x-index": 7
         },
         "mqTopicString": {
           "type": "string",
@@ -143,6 +72,9 @@
           "x-component-props": {
             "base64": true
           },
+          "x-decorator-props": {
+            "tooltip": "${krb5KeytabTip}"
+          },
           "apiServerKey": "krb5Keytab",
           "fileNameField": "krb5KeytabFile",
           "required": true,
@@ -156,6 +88,9 @@
           "x-component-props": {
             "base64": true
           },
+          "x-decorator-props": {
+            "tooltip": "${krb5ConfTip}"
+          },
           "apiServerKey": "krb5Conf",
           "fileNameField": "krb5ConfFile",
           "required": true,
@@ -167,6 +102,9 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "krb5Principal",
+          "x-decorator-props": {
+            "tooltip": "${krb5PrincipalTip}"
+          },
           "required": true,
           "x-index": 40
         },
@@ -176,6 +114,9 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "krb5ServiceName",
+          "x-decorator-props": {
+            "tooltip": "${krb5ServiceNameTip}"
+          },
           "required": true,
           "x-index": 50
         },
@@ -195,100 +136,182 @@
           "apiServerKey": "mq_password",
           "x-index": 70
         },
-        "kafkaSaslMechanism": {
-          "type": "string",
-          "title": "${kafkaSaslMechanism}",
-          "default": "PLAIN",
-          "x-decorator": "FormItem",
-          "x-component": "Select",
-          "apiServerKey": "kafkaSaslMechanism",
-          "x-index": 80,
-          "enum": [
-            {
-              "label": "PLAIN",
-              "value": "PLAIN"
+        "OPTIONAL_FIELDS": {
+          "type": "void",
+          "properties": {
+            "schemaRegister": {
+              "type": "boolean",
+              "title": "${schemaRegister}",
+              "default": false,
+              "x-decorator": "FormItem",
+              "x-decorator-props": {
+                "tooltip": "${schemaRegisterTip}"
+              },
+              "x-component": "Switch",
+              "apiServerKey": "schemaRegister",
+              "x-reactions": [
+                {
+                  "target": "*(schemaRegisterUrl,basicAuth)",
+                  "fulfill": {
+                    "state": {
+                      "visible": "{{$self.value===true}}"
+                    }
+                  }
+                }
+              ],
+              "x-index": 2
             },
-            {
-              "label": "SHA256",
-              "value": "SHA256"
+            "basicAuth": {
+              "type": "boolean",
+              "title": "${basicAuth}",
+              "default": false,
+              "x-decorator": "FormItem",
+              "x-component": "Switch",
+              "apiServerKey": "basicAuth",
+              "x-reactions": [
+                {
+                  "target": "*(authCredentialsSource,authUserName,authPassword)",
+                  "fulfill": {
+                    "state": {
+                      "visible": "{{$self.value===true}}"
+                    }
+                  }
+                }
+              ],
+              "x-index": 4
             },
-            {
-              "label": "SHA512",
-              "value": "SHA512"
+            "schemaRegisterUrl": {
+              "required": true,
+              "type": "string",
+              "title": "${schemaRegisterUrl}",
+              "x-decorator": "FormItem",
+              "x-component": "Input",
+              "apiServerKey": "schemaRegisterUrl",
+              "x-index": 3
+            },
+            "authCredentialsSource": {
+              "required": true,
+              "type": "string",
+              "title": "${authCredentialsSource}",
+              "x-decorator": "FormItem",
+              "x-component": "Input",
+              "apiServerKey": "authCredentialsSource",
+              "x-index": 5
+            },
+            "authUserName": {
+              "required": true,
+              "type": "string",
+              "title": "${authUserName}",
+              "x-decorator": "FormItem",
+              "x-component": "Input",
+              "apiServerKey": "database_username",
+              "x-index": 6
+            },
+            "authPassword": {
+              "required": true,
+              "type": "string",
+              "title": "${authPassword}",
+              "x-decorator": "FormItem",
+              "x-component": "Password",
+              "apiServerKey": "database_password",
+              "x-index": 7
+            },
+            "kafkaSaslMechanism": {
+              "type": "string",
+              "title": "${kafkaSaslMechanism}",
+              "default": "PLAIN",
+              "x-decorator": "FormItem",
+              "x-component": "Select",
+              "apiServerKey": "kafkaSaslMechanism",
+              "x-index": 80,
+              "enum": [
+                {
+                  "label": "PLAIN",
+                  "value": "PLAIN"
+                },
+                {
+                  "label": "SHA256",
+                  "value": "SHA256"
+                },
+                {
+                  "label": "SHA512",
+                  "value": "SHA512"
+                }
+              ]
+            },
+            "kafkaIgnoreInvalidRecord": {
+              "type": "boolean",
+              "title": "${kafkaIgnoreInvalidRecord}",
+              "default": false,
+              "x-decorator": "FormItem",
+              "x-component": "Switch",
+              "apiServerKey": "kafkaIgnoreInvalidRecord",
+              "x-index": 90
+            },
+            "kafkaAcks": {
+              "type": "string",
+              "title": "${kafkaAcks}",
+              "default": "-1",
+              "x-decorator": "FormItem",
+              "x-component": "Select",
+              "apiServerKey": "kafkaAcks",
+              "x-index": 100,
+              "enum": [
+                {
+                  "label": "${not_sure}",
+                  "value": "0"
+                },
+                {
+                  "label": "${just_write_master}",
+                  "value": "1"
+                },
+                {
+                  "label": "${write_most_isr}",
+                  "value": "-1"
+                },
+                {
+                  "label": "${write_all_isr}",
+                  "value": "all"
+                }
+              ]
+            },
+            "kafkaCompressionType": {
+              "type": "string",
+              "title": "${kafkaCompressionType}",
+              "default": "gzip",
+              "x-decorator": "FormItem",
+              "x-component": "Select",
+              "apiServerKey": "kafkaCompressionType",
+              "x-index": 110,
+              "enum": [
+                {
+                  "label": "gzip",
+                  "value": "gzip"
+                },
+                {
+                  "label": "snappy",
+                  "value": "snappy"
+                },
+                {
+                  "label": "lz4",
+                  "value": "lz4"
+                },
+                {
+                  "label": "zstd",
+                  "value": "zstd"
+                }
+              ]
+            },
+            "kafkaIgnorePushError": {
+              "type": "boolean",
+              "title": "${kafkaIgnorePushError}",
+              "default": false,
+              "x-decorator": "FormItem",
+              "x-component": "Switch",
+              "apiServerKey": "kafkaIgnorePushError",
+              "x-index": 120
             }
-          ]
-        },
-        "kafkaIgnoreInvalidRecord": {
-          "type": "boolean",
-          "title": "${kafkaIgnoreInvalidRecord}",
-          "default": false,
-          "x-decorator": "FormItem",
-          "x-component": "Switch",
-          "apiServerKey": "kafkaIgnoreInvalidRecord",
-          "x-index": 90
-        },
-        "kafkaAcks": {
-          "type": "string",
-          "title": "${kafkaAcks}",
-          "default": "-1",
-          "x-decorator": "FormItem",
-          "x-component": "Select",
-          "apiServerKey": "kafkaAcks",
-          "x-index": 100,
-          "enum": [
-            {
-              "label": "${not_sure}",
-              "value": "0"
-            },
-            {
-              "label": "${just_write_master}",
-              "value": "1"
-            },
-            {
-              "label": "${write_most_isr}",
-              "value": "-1"
-            },
-            {
-              "label": "${write_all_isr}",
-              "value": "all"
-            }
-          ]
-        },
-        "kafkaCompressionType": {
-          "type": "string",
-          "title": "${kafkaCompressionType}",
-          "default": "gzip",
-          "x-decorator": "FormItem",
-          "x-component": "Select",
-          "apiServerKey": "kafkaCompressionType",
-          "x-index": 110,
-          "enum": [
-            {
-              "label": "gzip",
-              "value": "gzip"
-            },
-            {
-              "label": "snappy",
-              "value": "snappy"
-            },
-            {
-              "label": "lz4",
-              "value": "lz4"
-            },
-            {
-              "label": "zstd",
-              "value": "zstd"
-            }
-          ]
-        },
-        "kafkaIgnorePushError": {
-          "type": "boolean",
-          "title": "${kafkaIgnorePushError}",
-          "default": false,
-          "x-decorator": "FormItem",
-          "x-component": "Switch",
-          "apiServerKey": "kafkaIgnorePushError",
-          "x-index": 120
+          }
         }
       }
     },
@@ -335,14 +358,19 @@
     "default": "en_US",
     "en_US": {
       "doc": "docs/kafka_en_US.md",
-      "nameSrvAddr": "DB Host",
+      "nameSrvAddr": "Kafka Host",
+      "nameSrvAddrTip": "Kafka host address, multiple addresses are separated by commas, such as 192.168.1.200:9092,192.168.1.201:9092",
       "mqTopicString": "topic expression",
       "mqTopicStringTooltip": "Multiple topics are separated by commas, support *? wildcard expression (non regular)",
       "krb5": "kerberos authentication",
       "krb5Keytab": "Key representation file",
+      "krb5KeytabTip": "Keytab file, which can achieve SSH login free",
       "krb5Conf": "Configuration file",
+      "krb5ConfTip": "Kerberos configuration file",
       "krb5Principal": "Body Configuration",
+      "krb5PrincipalTip": "for example: kafka/hostname@REALM",
       "krb5ServiceName": "Service name",
+      "krb5ServiceNameTip": "Service name, usually kafka",
       "mqUsername": "User Name",
       "mqPassword": "Password",
       "kafkaSaslMechanism": "Encryption",
@@ -355,6 +383,7 @@
       "kafkaCompressionType": "Message compression type",
       "kafkaIgnorePushError": "Ignore push message exception",
       "schemaRegister": "schemaRegister",
+      "schemaRegisterTip": "To register a center using third-party mode, an additional address is required. If basic authentication is enabled, authentication information is also required",
       "schemaRegisterUrl": "schemaRegisterUrl",
       "authCredentialsSource": "authCredentialsSource",
       "authUserName": "authUserName",
@@ -366,14 +395,19 @@
     },
     "zh_CN": {
       "doc": "docs/kafka_zh_CN.md",
-      "nameSrvAddr": "数据库地址",
+      "nameSrvAddr": "Kafka地址",
+      "nameSrvAddrTip": "Kafka地址，多个地址用逗号分隔，如：192.168.1.200:9092,192.168.1.201:9092",
       "mqTopicString": "主题表达式",
       "mqTopicStringTooltip": "多个主题用逗号分隔，支持*?通配表达式（非正则）",
       "krb5": "kerberos 认证",
       "krb5Keytab": "密钥表示文件",
+      "krb5KeytabTip": "keytab文件，可以实现ssh免登录",
       "krb5Conf": "配置文件",
+      "krb5ConfTip": "krb5的conf配置文件",
       "krb5Principal": "主体配置",
+      "krb5PrincipalTip": "例如：kafka/hostname@REALM",
       "krb5ServiceName": "服务名",
+      "krb5ServiceNameTip": "服务名，一般均为kafka",
       "mqUsername": "账号",
       "mqPassword": "密码",
       "kafkaSaslMechanism": "加密方式",
@@ -386,6 +420,7 @@
       "kafkaCompressionType": "消息压缩类型",
       "kafkaIgnorePushError": "忽略推送消息异常",
       "schemaRegister": "模式注册",
+      "schemaRegisterTip": "使用第三方模式注册中心，需要额外提供地址，若打开基本认证还需要提供认证信息等",
       "schemaRegisterUrl": "模式注册地址",
       "authCredentialsSource": "认证凭据来源",
       "authUserName": "认证用户名",
@@ -397,14 +432,19 @@
     },
     "zh_TW": {
       "doc": "docs/kafka_zh_TW.md",
-      "nameSrvAddr": "數據庫地址",
+      "nameSrvAddr": "Kafka地址",
+      "nameSrvAddrTip": "Kafka地址，多個地址用逗號分隔，如：192.168.1.200:9092,192.168.1.201:9092",
       "mqTopicString": "主題表達式",
       "mqTopicStringTooltip": "多個主題用逗號分隔，支持*?通配運算式（非正則）",
       "krb5": "kerberos 認證",
       "krb5Keytab": "密鑰表示文件",
+      "krb5KeytabTip": "keytab文件，可以實現ssh免登錄",
       "krb5Conf": "配置文件",
+      "krb5ConfTip": "krb5的conf配置文件",
       "krb5Principal": "主体配置",
+      "krb5PrincipalTip": "例如：kafka/hostname@REALM",
       "krb5ServiceName": "服務名",
+      "krb5ServiceNameTip": "服務名，一般均為kafka",
       "mqUsername": "賬號",
       "mqPassword": "密碼",
       "kafkaSaslMechanism": "加密方式",
@@ -417,6 +457,7 @@
       "kafkaCompressionType": "消息壓縮類型",
       "kafkaIgnorePushError": "忽略推理消息異常",
       "schemaRegister": "模式註冊",
+      "schemaRegisterTip": "使用第三方模式註冊中心，需要額外提供地址，若打開基本認證還需要提供認證信息等",
       "schemaRegisterUrl": "模式註冊地址",
       "authCredentialsSource": "認證憑據來源",
       "authUserName": "認證用戶名",

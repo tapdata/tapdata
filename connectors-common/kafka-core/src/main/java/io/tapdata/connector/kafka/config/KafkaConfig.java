@@ -18,7 +18,7 @@ public class KafkaConfig extends MqConfig {
     private String krb5ServiceName;
     private Boolean schemaRegister = false;
     private String schemaRegisterUrl;
-    private Boolean basicAuth;
+    private Boolean basicAuth = false;
 
     public String getAuthCredentialsSource() {
         return authCredentialsSource;

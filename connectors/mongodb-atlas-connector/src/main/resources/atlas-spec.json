@@ -21,7 +21,7 @@
       },
       {
         "id": "dml_update_policy",
-        "alternatives": ["ignore_on_nonexists", "insert_on_nonexists"]
+        "alternatives": ["ignore_on_nonexists", "insert_on_nonexists", "log_on_nonexists"]
       },
       {
         "id": "api_server_supported"
@@ -157,110 +157,142 @@
           "x-component": "Input",
           "x-index": 70
         },
-        "ssl": {
-          "type": "boolean",
-          "title": "${dataForm_form_ssl}",
-          "x-decorator": "FormItem",
-          "x-component": "Radio.Group",
-          "x-component-props": {
-            "optionType": "button"
-          },
-          "default": false,
-          "x-index": 80,
-          "enum": [
-            {
-              "label": "${dataForm_form_options_sslTSL}",
-              "value": true
+        "OPTIONAL_FIELDS": {
+          "type": "void",
+          "properties": {
+            "schemaLimit": {
+              "title": "${schemaLimit}",
+              "type": "string",
+              "default": 1024,
+              "x-decorator": "FormItem",
+              "x-component": "InputNumber"
             },
-            {
-              "label": "${dataForm_form_options_sslTop}",
-              "value": false
-            }
-          ],
-          "x-reactions": [
-            {
-              "target": "*(sslKey,sslPass,sslValidate)",
-              "fulfill": {
-                "state": {
-                  "visible": "{{$self.value===true}}"
+            "ssl": {
+              "type": "boolean",
+              "title": "${dataForm_form_ssl}",
+              "x-decorator": "FormItem",
+              "x-component": "Radio.Group",
+              "x-component-props": {
+                "optionType": "button"
+              },
+              "default": false,
+              "x-index": 80,
+              "enum": [
+                {
+                  "label": "${dataForm_form_options_sslTSL}",
+                  "value": true
+                },
+                {
+                  "label": "${dataForm_form_options_sslTop}",
+                  "value": false
                 }
-              }
-            }
-          ]
-        },
-        "ssl_tips1": {
-          "type": "void",
-          "title": " ",
-          "x-decorator": "FormItem",
-          "x-decorator-props": { "colon": false },
-          "x-component": "Text",
-          "x-component-props": { "content": "${ssl_tips1}" },
-          "x-reactions": {
-            "dependencies": ["ssl"],
-            "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]===true ? null:\"none\"}}" } }
-          },
-          "x-index": 81
-        },
-        "ssl_tips2": {
-          "type": "void",
-          "title": " ",
-          "x-decorator": "FormItem",
-          "x-decorator-props": { "colon": false },
-          "x-component": "Text",
-          "x-component-props": { "content": "${ssl_tips2}" },
-          "x-reactions": {
-            "dependencies": ["ssl"],
-            "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]===false ? null:\"none\"}}" } }
-          },
-          "x-index": 82
-        },
-        "sslKey": {
-          "type": "string",
-          "title": "${dataForm_form_sslKey}",
-          "x-decorator": "FormItem",
-          "x-component": "TextFileReader",
-          "fileNameField": "sslKeyFile",
-          "required": true,
-          "x-index": 90
-        },
-        "sslPass": {
-          "type": "string",
-          "title": "${dataForm_form_sslPass}",
-          "x-decorator": "FormItem",
-          "x-component": "Password",
-          "x-index": 100
-        },
-        "sslValidate": {
-          "type": "boolean",
-          "title": "${dataForm_form_sslValidate}",
-          "x-decorator": "FormItem",
-          "x-component": "Switch",
-          "show": false,
-          "x-reactions": [
-            {
-              "target": "sslCA",
-              "fulfill": {
-                "state": {
-                  "visible": "{{$self.value===true}}"
+              ],
+              "x-reactions": [
+                {
+                  "target": "*(sslKey,sslPass,sslValidate)",
+                  "fulfill": {
+                    "state": {
+                      "visible": "{{$self.value===true}}"
+                    }
+                  }
                 }
-              }
+              ]
+            },
+            "ssl_tips1": {
+              "type": "void",
+              "title": " ",
+              "x-decorator": "FormItem",
+              "x-decorator-props": { "colon": false },
+              "x-component": "Text",
+              "x-component-props": { "content": "${ssl_tips1}" },
+              "x-reactions": {
+                "dependencies": ["ssl"],
+                "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]===true ? null:\"none\"}}" } }
+              },
+              "x-index": 81
+            },
+            "ssl_tips2": {
+              "type": "void",
+              "title": " ",
+              "x-decorator": "FormItem",
+              "x-decorator-props": { "colon": false },
+              "x-component": "Text",
+              "x-component-props": { "content": "${ssl_tips2}" },
+              "x-reactions": {
+                "dependencies": ["ssl"],
+                "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]===false ? null:\"none\"}}" } }
+              },
+              "x-index": 82
+            },
+            "sslKey": {
+              "type": "string",
+              "title": "${dataForm_form_sslKey}",
+              "x-decorator": "FormItem",
+              "x-component": "TextFileReader",
+              "fileNameField": "sslKeyFile",
+              "required": true,
+              "x-index": 90
+            },
+            "sslPass": {
+              "type": "string",
+              "title": "${dataForm_form_sslPass}",
+              "x-decorator": "FormItem",
+              "x-component": "Password",
+              "x-index": 100
+            },
+            "sslValidate": {
+              "type": "boolean",
+              "title": "${dataForm_form_sslValidate}",
+              "x-decorator": "FormItem",
+              "x-component": "Switch",
+              "show": false,
+              "x-reactions": [
+                {
+                  "target": "sslCA",
+                  "fulfill": {
+                    "state": {
+                      "visible": "{{$self.value===true}}"
+                    }
+                  }
+                }
+              ],
+              "x-index": 110
+            },
+            "sslCA": {
+              "type": "string",
+              "title": "${dataForm_form_sslCA}",
+              "x-decorator": "FormItem",
+              "x-component": "TextFileReader",
+              "fileNameField": "sslCAFile",
+              "required": true,
+              "x-index": 120
             }
-          ],
-          "x-index": 110
-        },
-        "sslCA": {
-          "type": "string",
-          "title": "${dataForm_form_sslCA}",
-          "x-decorator": "FormItem",
-          "x-component": "TextFileReader",
-          "fileNameField": "sslCAFile",
-          "required": true,
-          "x-index": 120
+          }
         }
       }
     },
     "node":{
       "properties": {
+        "syncIndex": {
+          "title": "${syncIndex}",
+          "type": "boolean",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-decorator-props": {
+            "layout": "horizontal"
+          },
+          "default": false,
+          "x-reactions": {
+            "dependencies": [
+              "$inputs"
+            ],
+            "fulfill": {
+              "state": {
+                "visible": "{{$deps[0].length>0}}"
+              }
+            }
+          }
+        },
         "enableSaveDeleteData": {
           "title": "${saveData}",
           "type": "boolean",
@@ -273,6 +305,46 @@
           "x-reactions": {
             "dependencies": [
               "$inputs"
+            ],
+            "fulfill": {
+              "state": {
+                "visible": "{{$deps[0].length>0}}"
+              }
+            }
+          }
+        },
+        "enableFillingModifiedData": {
+          "title": "${FillingModifiedData}",
+          "type": "boolean",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-decorator-props": {
+            "layout": "horizontal"
+          },
+          "default": true,
+          "x-reactions": {
+            "dependencies": [
+              "$inputs"
+            ],
+            "fulfill": {
+              "state": {
+                "visible": "{{!$deps[0].length}}"
+              }
+            }
+          }
+        },
+        "noCursorTimeout": {
+          "title": "${noCursorTimeout}",
+          "type": "boolean",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-decorator-props": {
+            "layout": "horizontal"
+          },
+          "default": false,
+          "x-reactions": {
+            "dependencies": [
+              "$outputs"
             ],
             "fulfill": {
               "state": {
@@ -310,7 +382,11 @@
       "dataForm_form_sslPass": "Private key password",
       "dataForm_form_sslValidate": "Validate server certificate",
       "dataForm_form_sslCA": "Certificate Authority",
-      "saveData": "Save Delete Data"
+      "saveData": "Save Delete Data",
+      "FillingModifiedData": "Filling Modified Data",
+      "noCursorTimeout": "No Cursor Timeout",
+      "syncIndex": "Sync Index",
+      "schemaLimit": "Fields Load Limit For Each Collection"
     },
     "zh_CN": {
       "doc": "docs/mongodb_atlas_zh_CN.md",
@@ -336,7 +412,11 @@
       "dataForm_form_sslPass": "私钥密码",
       "dataForm_form_sslValidate": "验证服务端证书",
       "dataForm_form_sslCA": "证书颁发机构",
-      "saveData": "保存删除数据"
+      "saveData": "保存删除数据",
+      "FillingModifiedData": "补充更新数据的完整字段",
+      "noCursorTimeout": "禁用游标超时",
+      "syncIndex": "同步索引",
+      "schemaLimit": "每张表加载的字段数限制"
     },
     "zh_TW": {
       "doc": "docs/mongodb_atlas_zh_TW.md",
@@ -362,7 +442,11 @@
       "dataForm_form_sslPass": "私鑰密碼",
       "dataForm_form_sslValidate": "驗證服務端證書",
       "dataForm_form_sslCA": "證書頒發機構",
-      "saveData": "保存刪除數據"
+      "saveData": "保存刪除數據",
+      "FillingModifiedData": "補充更新數據的完整字段",
+      "noCursorTimeout": "禁用游標超時",
+      "syncIndex": "同步索引",
+      "schemaLimit": "每张表加載的字段數限制"
 
     }
   },
@@ -467,7 +551,7 @@
       "queryOnly": true
     },
     "NULL": {
-      "to": "TapRaw"
+      "to": "TapString"
     }
   }
 }
