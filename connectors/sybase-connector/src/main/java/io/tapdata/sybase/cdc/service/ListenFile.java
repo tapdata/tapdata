@@ -122,7 +122,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
         if (null == context) {
             throw new CoreException("Can not get tap connection context.");
         }
-        //final KVReadOnlyMap<TapTable> tableMap = context.getTableMap();
         try {
             tableMap.putAll(getTableFromConfig(root.getCdcTables()));
         } catch (Exception e) {
@@ -131,7 +130,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
         AtomicBoolean hasHandelInit = new AtomicBoolean(false);
 
         final Integer cdcCacheTime = Optional.ofNullable(nodeConfig.getCdcCacheTime()).orElse(10) * 60000;
-        //root.getContext().getLog().warn("monitor file: {}", monitorPath);
         FileListenerImpl listener = new FileListenerImpl(monitorFilePath, context, hasHandelInit, cdcCacheTime) ;
         fileMonitor.monitor(monitorPath, listener);
 
@@ -144,11 +142,9 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 }
             }
             this.future = this.scheduledExecutorService.scheduleWithFixedDelay(() -> listener.readFile(), 0, 1, TimeUnit.SECONDS);
-            //listener.perpar();
             fileMonitor.start();
         } catch (Throwable e) {
             Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
-            //Optional.ofNullable(timer).ifPresent(Timer::cancel);
             Optional.ofNullable(future).ifPresent(f -> f.cancel(true));
             if (e instanceof CoreException && SybaseConnector.CDC_PROCESS_FAIL_EXCEPTION_CODE == ((CoreException)e).getCode()) {
                 throw (CoreException)e;
@@ -268,9 +264,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
             try {
                 if (isCSV(file0)) {
                     monitorFile.add(file0.getAbsolutePath());
-                    //synchronized (readFileLock) {
-                       // monitor(file0, tableMap);
-                    //}
                 }
             } catch (Exception e) {
                 context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
@@ -282,9 +275,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
             try {
                 if (isCSV(file0)) {
                     monitorFile.add(file0.getAbsolutePath());
-                    //synchronized (readFileLock) {
-                        //monitor(file0, tableMap);
-                    //}
                 }
             } catch (Exception e) {
                 context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
@@ -432,10 +422,10 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 options.add(database);
                 options.add(schema);
                 options.add(tableName);
-                long costStart = System.currentTimeMillis();
-                AtomicReference<Long> cost = new AtomicReference<>(0L);
-                AtomicReference<Long> costAccept = new AtomicReference<>(0L);
-                AtomicReference<Long> costAcceptMin = new AtomicReference<>(0L);
+                //long costStart = System.currentTimeMillis();
+                //AtomicReference<Long> cost = new AtomicReference<>(0L);
+                //AtomicReference<Long> costAccept = new AtomicReference<>(0L);
+                //AtomicReference<Long> costAcceptMin = new AtomicReference<>(0L);
                 try {
                     analyseCsvFile.analyse(file.getAbsolutePath(), tapTable, (compile, firstIndex, lastIndex) -> {
                         LinkedHashMap<String, TableTypeEntity> tableItem = tapTableAto.get();
@@ -444,9 +434,9 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         for (String[] list : compile) {
                                 TapEvent recordEvent;
                                 try {
-                                    long s = System.currentTimeMillis();
+                                    //long s = System.currentTimeMillis();
                                     recordEvent = analyseRecord.analyse(list, tableItem, tableName, config, nodeConfig);
-                                    cost.set(Math.max(cost.get(), System.currentTimeMillis() - s));
+                                    //cost.set(Math.max(cost.get(), System.currentTimeMillis() - s));
                                 } catch (Exception e) {
                                     root.getContext().getLog().warn("An cdc event failed to accept in {} of {}, error csv format, csv line: {}, msg: {}", tableName, absolutePath, list, e.getMessage());
                                     continue;
@@ -461,19 +451,19 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                     lineItem = offset.addAndGet();
                                     if (events[0].size() == batchSize) {
                                         offset.setOver(false);
-                                        long l = System.currentTimeMillis();
+                                        //long l = System.currentTimeMillis();
                                         cdcConsumer.accept(events[0], position);
-                                        l = System.currentTimeMillis() - l;
-                                        if(costAccept.get() <= 0) {
-                                            costAccept.set(l);
-                                        } else {
-                                            costAccept.set(Math.max(l, costAccept.get()));
-                                        }
-                                        if(costAcceptMin.get() <= 0) {
-                                            costAcceptMin.set(l);
-                                        } else {
-                                            costAcceptMin.set(Math.min(l, costAcceptMin.get()));
-                                        }
+                                        //l = System.currentTimeMillis() - l;
+                                        //if(costAccept.get() <= 0) {
+                                        //    costAccept.set(l);
+                                        //} else {
+                                        //    costAccept.set(Math.max(l, costAccept.get()));
+                                        //}
+                                        //if(costAcceptMin.get() <= 0) {
+                                        //    costAcceptMin.set(l);
+                                        //} else {
+                                        //    costAcceptMin.set(Math.min(l, costAcceptMin.get()));
+                                        //}
                                         events[0] = new ArrayList<>();
                                     }
                                 }
@@ -528,23 +518,23 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 } finally {
                     if (!events[0].isEmpty()) {
                         csvOffset.setOver(true);
-                        long l = System.currentTimeMillis();
+                        //long l = System.currentTimeMillis();
                         cdcConsumer.accept(events[0], position);
-                        l = System.currentTimeMillis() - l;
-                        if(costAccept.get() <= 0) {
-                            costAccept.set(l);
-                        } else {
-                            costAccept.set(Math.max(l, costAccept.get()));
-                        }
-                        if(costAcceptMin.get() <= 0) {
-                            costAcceptMin.set(l);
-                        } else {
-                            costAcceptMin.set(Math.min(l, costAcceptMin.get()));
-                        }
+                        //l = System.currentTimeMillis() - l;
+                        //if(costAccept.get() <= 0) {
+                        //    costAccept.set(l);
+                        //} else {
+                        //    costAccept.set(Math.max(l, costAccept.get()));
+                        //}
+                        //if(costAcceptMin.get() <= 0) {
+                        //    costAcceptMin.set(l);
+                        //} else {
+                        //    costAcceptMin.set(Math.min(l, costAcceptMin.get()));
+                        //}
                         events[0] = new ArrayList<>();
                     }
                 }
-                log.info("Cost {} ms to analyse csv file, cost one line need max {}ms, accept once need max/min {}/{} ms, {}", System.currentTimeMillis() - costStart, cost.get(), costAccept.get(), costAcceptMin.get(), absolutePath);
+                //log.info("Cost {} ms to analyse csv file, cost one line need max {}ms, accept once need max/min {}/{} ms, {}", System.currentTimeMillis() - costStart, cost.get(), costAccept.get(), costAcceptMin.get(), absolutePath);
             }
             return isThisFile;
         }
@@ -584,28 +574,10 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 while (!monitorFile.isEmpty()) {
                     File file = new File(monitorFile.poll());
                     synchronized (readFileLock) {
-                        long s = System.currentTimeMillis();
                         monitor(file, tableMap);
-                        log.warn("file: {} read time; {}", file.getAbsolutePath(), System.currentTimeMillis() - s);
                     }
-                    //                    for (int index = 1 ; index < 4 ; index++) {
-//                        if (!monitorFile.isEmpty()) {
-//                            new Thread(() -> {
-//                                synchronized (readFileLock) {
-//                                    File file = new File(monitorFile.poll());
-//                                    if (isCSV(file)) {
-//                                        long s = System.currentTimeMillis();
-//                                        monitor(file, tableMap);
-//                                        log.warn("file: {} read time; {}", file.getAbsolutePath(), System.currentTimeMillis() - s);
-//                                    }
-//                                }
-//                            }, "Sub-read-csv-thread-" + index).start();
-//                        }
-//                    }
-//                    try {
-//                        Thread.sleep(100);
-//                    } catch (Exception ignore) {
                 }
+                foreachTable(false);
             }
         }
         /**
@@ -619,11 +591,15 @@ public class ListenFile implements CdcStep<CdcRoot> {
             final long streamStartAndCacheTime = (position.getCdcStartTime() > 0 ?  position.getCdcStartTime() : System.currentTimeMillis()) - cdcCacheTime;
             if (null == databaseOffset || databaseOffset.isEmpty()) return;
             Set<Map.Entry<String, Map<String, Map<String, CdcPosition.PositionOffset>>>> entries = databaseOffset.entrySet();
+            StringJoiner failStr = new StringJoiner(", ");
+            StringJoiner unExistStr = new StringJoiner(", ");
             for (Map.Entry<String, Map<String, Map<String, CdcPosition.PositionOffset>>> entry : entries) {
+                String database = entry.getKey();
                 Map<String, Map<String, CdcPosition.PositionOffset>> schemaOffset = entry.getValue();
                 if (null == schemaOffset || schemaOffset.isEmpty()) continue;
                 Set<Map.Entry<String, Map<String, CdcPosition.PositionOffset>>> entrySet = schemaOffset.entrySet();
                 for (Map.Entry<String, Map<String, CdcPosition.PositionOffset>> offsetOfCSV : entrySet) {
+                    String schema = offsetOfCSV.getKey();
                     Map<String, CdcPosition.PositionOffset> tableOffset = offsetOfCSV.getValue();
                     Set<String> tables = tableOffset.keySet();
                     if (tables.isEmpty()) continue;
@@ -642,15 +618,17 @@ public class ListenFile implements CdcStep<CdcRoot> {
                             try {
                                 if (file.exists() && file.isFile() && file.lastModified() < streamStartAndCacheTime && file.delete()) {
                                     csvFile.remove(name);
-                                    context.getLog().debug("File {} has 1000 lines which all has accepted in stream read, will delete offset of this file and remove this file forever", name);
+                                    unExistStr.add(name);
                                     //(new File(name)).createNewFile();
                                 }
                             } catch (Exception e){
-                                context.getLog().debug("File {} has 1000 lines which all has accepted in stream read, will delete offset of this file and remove this file forever, but operate fail, msg: {}", name, e.getMessage());
+                                failStr.add(name + ", mag: " + e.getMessage());
                             }
                         });
                     }
                 }
+                context.getLog().debug("Files has 1000 lines which all has accepted in stream read, has delete offset of this file and remove this file forever, file list is: {}", unExistStr.toString());
+                context.getLog().debug("Files has 1000 lines which all has accepted in stream read, fail to delete offset of this file and remove this file forever, file list with msg are: {}", failStr.toString());
             }
         }
     }

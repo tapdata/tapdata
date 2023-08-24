@@ -185,22 +185,7 @@ public class CdcHandle {
         Object cdcPath = stateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_KEY);
         try {
             if (context != null) {
-                if (null == cdcPath || "/*".equals(cdcPath) || "".equals(cdcPath.toString().trim())) {
-                    return;
-                }
-                File file = new File(String.valueOf(cdcPath));
-                if (file.exists() && file.isDirectory() && !file.delete()) {
-                    if (HostUtils.isLinuxCore()) {
-                        final String shell = "rm -rf " + cdcPath;
-                        root.getContext().getLog().info("clean cdc path: {}", shell);
-                        root.getContext().getLog().info(Utils.run(shell));
-                        if (file.exists()) {
-                            FileUtils.delete(file);
-                        }
-                    } else {
-                        FileUtils.delete(file);
-                    }
-                }
+                ConnectorUtil.deleteFile(String.valueOf(cdcPath), context.getLog());
             }
         } catch (Exception e) {
             context.getLog().warn("Can not release cdc path, please go to path: {}, and clean the file", cdcPath);
@@ -215,20 +200,7 @@ public class CdcHandle {
         Object cdcPath = stateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_KEY);
         try {
             if (context != null) {
-                if (null == cdcPath || "/*".equals(cdcPath) || "".equals(cdcPath.toString().trim())) {
-                    return;
-                }
-                File file = new File(String.valueOf(cdcPath));
-                if (HostUtils.isLinuxCore()) {
-                    final String shell = "rm -rf " + cdcPath;
-                    root.getContext().getLog().info("clean cdc path: {}", shell);
-                    root.getContext().getLog().info(Utils.run(shell));
-                    if (file.exists()) {
-                        FileUtils.delete(file);
-                    }
-                } else {
-                    FileUtils.delete(file);
-                }
+                ConnectorUtil.deleteFile(String.valueOf(cdcPath), context.getLog());
             }
         } catch (Exception e) {
             context.getLog().warn("Can not release cdc path, please go to path: {}, and clean and remove the file", cdcPath);
@@ -315,6 +287,7 @@ public class CdcHandle {
     }
     public List<SybaseFilterConfig> compileFilterTableYamlConfig0(Map<String, Map<String, List<String>>> appendTables) {
         List<SybaseFilterConfig> filterConfigs = new ArrayList<>();
+        StringJoiner timestampExists = new StringJoiner(", ");
         appendTables.forEach((database, mapInfo) -> mapInfo.forEach((schema, initTables) -> {
                 if (null != initTables && !initTables.isEmpty()) {
                     if (null == database || null == schema) {
@@ -328,7 +301,7 @@ public class CdcHandle {
                     for (String cdcTable : initTables) {
                         final boolean contains = root.hasContainsTimestampFieldTables(database, schema, cdcTable);
                         if (contains) {
-                            root.getContext().getLog().debug("table: {}, contains timestamp: {}", cdcTable, contains);
+                            timestampExists.add(database + "." + schema + "." + cdcTable);
                         }
                         tables.put(cdcTable, contains ? ConnectorUtil.ignoreColumns() : ConnectorUtil.unIgnoreColumns());
                     }
@@ -337,6 +310,7 @@ public class CdcHandle {
                 }
             })
         );
+        root.getContext().getLog().debug("The timestamp type field is included in the following table list: {}", timestampExists.toString());
         return filterConfigs;
     }
 

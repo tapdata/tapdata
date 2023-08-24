@@ -23,6 +23,7 @@ import io.tapdata.sybase.cdc.dto.start.SybaseReInitConfig;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.SybaseConfig;
 import io.tapdata.sybase.extend.SybaseContext;
+import org.apache.commons.io.FileUtils;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -167,7 +168,8 @@ public class ConnectorUtil {
         ConnectionConfig config = new ConnectionConfig(context);
         final String host = config.getHost();
         int port = config.getPort();
-        return host + ":" + port;
+        String database = config.getDatabase();
+        return host + ":" + port + ":" + database;
     }
 
     /**
@@ -278,7 +280,7 @@ public class ConnectorUtil {
         final String schema = config.getSchema();
         final String host = config.getHost();
         int port = config.getPort();
-        final String instanceHostPort = host + ":" + port;
+        final String instanceHostPort = host + ":" + port + ":" + database;
         if (cdcMonitorTableSet instanceof Map) {
 
             Map<String, List<Map<String, Object>>> hostPortInfo = (Map<String, List<Map<String, Object>>>) cdcMonitorTableSet;
@@ -543,7 +545,7 @@ public class ConnectorUtil {
             for (Integer portNum : port) {
                 joiner.add("" + portNum);
             }
-            log.debug(port.toString());
+            //log.debug(port.toString());
             execCmd("kill " + (null != killType && "".equals(killType.trim()) ? killType + " " : "") + joiner.toString(), String.format("Can not auto stop cdc tool, please go to server and kill process by shell %s and after find process PID by shell %s, {}",
                     "kill pid1 pid2 pid3 ",
                     "ps -ef|grep sybase-poc/replicant-cli"), log);
@@ -587,7 +589,7 @@ public class ConnectorUtil {
                         }
                     }
                 }
-                log.debug(joiner.toString());
+                //log.debug(joiner.toString());
                 br.close();
                 br = new BufferedReader(new InputStreamReader(p.getErrorStream()));
                 while ((line = br.readLine()) != null) {
@@ -735,6 +737,34 @@ public class ConnectorUtil {
         } catch (Exception e) {
             if (null != log)
                 log.warn("Can create file {} in {}, msg: {}", fileName, path, e.getMessage());
+        }
+    }
+
+    public static void deleteFile(String filePath, Log log) {
+        if (null == filePath || "/*".equals(filePath) || "".equals(filePath.trim())) {
+            return;
+        }
+        try {
+            File file = new File(filePath);
+            if (HostUtils.isLinuxCore()) {
+                final String shell = "rm -rf " + filePath;
+                log.info("clean cdc path: {}", shell);
+                if (file.exists()) {
+                    if (file.isDirectory()) {
+                        FileUtils.deleteDirectory(file);
+                    } else {
+                        FileUtils.delete(file);
+                    }
+                }
+            } else {
+                if (file.isDirectory()) {
+                    FileUtils.deleteDirectory(file);
+                } else {
+                    FileUtils.delete(file);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Can not delete file: {}, msg; {}", filePath, e.getMessage());
         }
     }
 }

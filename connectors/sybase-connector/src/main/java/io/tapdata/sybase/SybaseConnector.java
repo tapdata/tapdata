@@ -204,7 +204,8 @@ public class SybaseConnector extends CommonDbConnector {
     private void release(TapConnectorContext context) {
         KVMap<Object> stateMap = context.getStateMap();
         Object isMutilStreamTask = stateMap.get("is_multi_stream_task");
-        if (null != isMutilStreamTask && isMutilStreamTask instanceof Boolean && (Boolean) isMutilStreamTask) {
+        final boolean shareTask = null != isMutilStreamTask && isMutilStreamTask instanceof Boolean && (Boolean) isMutilStreamTask;
+        if (shareTask) {
             if (null == cdcHandle)
                 cdcHandle = new CdcHandle(new CdcRoot(unused -> isAlive()), context, new StopLock(isAlive()));
             if (null == cdcHandle.getRoot()) cdcHandle.setRoot(new CdcRoot(unused -> isAlive()));
@@ -212,26 +213,44 @@ public class SybaseConnector extends CommonDbConnector {
             if (null == root.getContext()) root.setContext(context);
             Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::releaseCdc);
             stateMap.put("tableOverType", OverwriteType.OVERWRITE.getType());
-            final String closeCdcPositionSql = "dbcc settrunc('ltm','ignore')";
-            if (null == sybaseConfig) {
-                sybaseConfig = new SybaseConfig().load(context.getConnectionConfig());
-            }
-            sybaseContext = new SybaseContext(sybaseConfig);
-            try {
-                sybaseContext.execute(closeCdcPositionSql);
-            } catch (Exception e) {
-                context.getLog().error("Fail to close cdc log, please execute sql in client: {}", closeCdcPositionSql);
-            }
+            //final String closeCdcPositionSql = "dbcc settrunc('ltm','ignore')";
+//            if (null == sybaseConfig) {
+//                sybaseConfig = new SybaseConfig().load(context.getConnectionConfig());
+//            }
+            //sybaseContext = new SybaseContext(sybaseConfig);
+//            try {
+//                sybaseContext.execute(closeCdcPositionSql);
+//            } catch (Exception e) {
+//                context.getLog().error("Fail to close cdc log, please execute sql in client: {}", closeCdcPositionSql);
+//            }
         }
         try {
-            Object configPath = stateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR);
-            Object taskId = stateMap.get("taskId");
-            if (null != configPath && !"".equals(configPath) && !"null".equals(configPath)) {
-                String path = String.format(ConfigPaths.RE_INIT_TABLE_CONFIG_PATH, configPath, taskId);
-                File taskFile = new File(path);
-                if (taskFile.exists() && taskFile.isDirectory() && taskFile.delete()) {
-                    context.getLog().info("Task directory has be cleaned, path: {}", configPath);
+            String configPath = String.valueOf(stateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR));
+            if (!"/*".equals(configPath) && !"".equals(configPath) && !"null".equals(configPath)) {
+                if (shareTask) {
+                    File taskFile = new File(String.valueOf(configPath));
+                    if (taskFile.exists() && taskFile.isDirectory()) {
+                        ConnectorUtil.deleteFile(configPath, context.getLog());
+                    }
+                } else {
+                    Object taskId = stateMap.get("taskId");
+                    String path = String.format(ConfigPaths.RE_INIT_TABLE_CONFIG_PATH, configPath, taskId);
+                    File taskFile = new File(path);
+                    if (taskFile.exists() && taskFile.isDirectory() && taskFile.delete()) {
+                        context.getLog().info("Task directory has be cleaned, path: {}", configPath);
+                    }
                 }
+            }
+            String[] killShellCmd = ConnectorUtil.getKillShellCmd(context);
+            String hostPortFromConfig = ConnectorUtil.getCurrentInstanceHostPortFromConfig(context);
+            List<Integer> port = ConnectorUtil.port(
+                    killShellCmd,
+                    ConnectorUtil.ignoreShells,
+                    root.getContext().getLog(),
+                    hostPortFromConfig
+            );
+            if (!port.isEmpty()) {
+                ConnectorUtil.safeStopShell(context, port);
             }
         } catch (Exception ignore) {}
     }
@@ -473,6 +492,9 @@ public class SybaseConnector extends CommonDbConnector {
     }
 
     private void batchReadV2(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+       try {
+         Thread.sleep(30000);
+       } catch (Exception ignore) {}
         if (null == tapTable) {
             throw new CoreException("Start batch read with an empty tap table, batch read is failed");
         }
@@ -710,11 +732,12 @@ public class SybaseConnector extends CommonDbConnector {
 
 
         if (sybaseConfig.getPort() <= 0) return connectionOptions;
-        if (StringUtils.isAnyBlank(sybaseConfig.getHost(), sybaseConfig.getSchema())) return connectionOptions;
+        if (StringUtils.isAnyBlank(sybaseConfig.getHost(), sybaseConfig.getDatabase(), sybaseConfig.getSchema())) return connectionOptions;
 
         connectionOptions.setInstanceUniqueId(StringKit.md5(String.join("|"
                 , sybaseConfig.getHost()
                 , String.valueOf(sybaseConfig.getPort())
+                , sybaseConfig.getDatabase()
         )));
         List<String> options = new ArrayList<>();
         options.add(sybaseConfig.getDatabase());
@@ -815,12 +838,10 @@ public class SybaseConnector extends CommonDbConnector {
     }
 
     private void cdcStart(TapConnectorContext tapConnectorContext, List<ConnectionConfigWithTables> connectionConfigWithTables) {
-        //KVMap<Object> globalStateMap = tapConnectorContext.getGlobalStateMap();
         KVMap<Object> stateMap = tapConnectorContext.getStateMap();
         String hostPortFromConfig = ConnectorUtil.getCurrentInstanceHostPortFromConfig(tapConnectorContext);
         //维护正在进行增量的任务
         //ConnectorUtil.maintenanceTaskIdInGlobalStateMap(taskId, tapConnectorContext);
-
 
         if (root == null) {
             root = new CdcRoot(unused -> isAlive());
@@ -865,25 +886,15 @@ public class SybaseConnector extends CommonDbConnector {
         String[] killShellCmd = ConnectorUtil.getKillShellCmd(tapConnectorContext);
         synchronized (filterConfigLock) {
             File filterConfigFile = new File(String.format(CdcRoot.POC_TEMP_TRACE_LOG_PATH, hostPortFromConfig, taskId));
-            Object targetPath = stateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR);
-
-            //log.warn("TargetPath: {}", targetPath);
-            //String database = config.getDatabase();
-            //String schema = config.getSchema();
-            //Set<String> tableSet = ConnectorUtil.getTableFroMaintenanceCdcMonitorTableMap(tapConnectorContext, config);
-
-            if (filterConfigFile.exists() && filterConfigFile.isFile() && null != targetPath && !"null".equals(targetPath)) {
-                //log.warn("shell cmds: {} {} {}", killShellCmd[0], killShellCmd[1], killShellCmd[2]);
+            String path = String.valueOf(stateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR));
+            if (filterConfigFile.exists() && filterConfigFile.isFile() && !"null".equals(path)) {
                 List<Integer> port = ConnectorUtil.port(
                         killShellCmd,
                         ConnectorUtil.ignoreShells,
                         root.getContext().getLog(),
                         hostPortFromConfig
                 );
-                String path = (String) targetPath;
                 this.root.setSybasePocPath(path);
-                //log.warn("cdc ports: {}", port);
-
                 stateMap.put(ConfigPaths.SYBASE_USE_TASK_CONFIG_KEY, (path.endsWith("/") ? path : path + "/") + ConfigPaths.SYBASE_USE_TASK_CONFIG_DIR + String.valueOf(stateMap.get("taskId")));
 
                 int portSize = port.size();
@@ -924,15 +935,17 @@ public class SybaseConnector extends CommonDbConnector {
                             root.getContext().getLog(),
                             hostPortFromConfig
                     );
-                    if(port.isEmpty()) {
+                    if (port.size() > 2 && !"null".equals(path)) {
+                        this.root.setSybasePocPath(path);
+                    } else {
+                        if (!port.isEmpty()) {
+                            ConnectorUtil.safeStopShell(tapConnectorContext);
+                        }
                         log.info("Cdc process not init, will init now, {}", hostPortFromConfig);
                         cdcHandle.initCdc(overwriteType);
                     }
                 }
-                //List<SybaseFilterConfig> filterConfig = root.getVariables().getFilterConfig();
-                //List<Map<String, Object>> linkedHashMaps = ConnectorUtil.fixYaml(filterConfig);
-                //ConnectorUtil.maintenanceCdcMonitorTableMap(linkedHashMaps, tapConnectorContext);
-                //globalStateMap.put("CdcMonitorTableMap", linkedHashMaps);
+
             }
 
             stateMap.put("monitorTables", root.getCdcTables());
