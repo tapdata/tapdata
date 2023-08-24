@@ -1606,6 +1606,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
     public Page<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto, String tableFilter, String filterType, int page, int pageSize) {
+			  user.setFreeAuth();
         if (taskDto == null || taskDto.getDag() == null) {
             Criteria criteria = Criteria.where("dag.nodes.id").is(nodeId);
             Query query = new Query(criteria);
