@@ -18,15 +18,22 @@
           "x-component": "Input",
           "apiServerKey": "database_host",
           "required": true,
+          "x-decorator-props": {
+            "tooltip": "${hostTip}"
+          },
           "x-index": 10
         },
         "port": {
           "type": "string",
           "title": "${port}",
+          "default": 9030,
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "apiServerKey": "database_port",
           "required": true,
+          "x-decorator-props": {
+            "tooltip": "${portTip}"
+          },
           "x-index": 20
         },
         "dorisHttp": {
@@ -35,15 +42,10 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "required": true,
+          "x-decorator-props": {
+            "tooltip": "${dorisHttpTip}"
+          },
           "x-index": 30
-        },
-        "catalog": {
-          "type": "string",
-          "title": "${catalog}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "catalog_name",
-          "x-index": 35
         },
         "database": {
           "type": "string",
@@ -52,6 +54,9 @@
           "x-component": "Input",
           "apiServerKey": "database_name",
           "required": true,
+          "x-decorator-props": {
+            "tooltip": "${databaseTip}"
+          },
           "x-index": 40
         },
         "user": {
@@ -70,148 +75,167 @@
           "apiServerKey": "database_password",
           "x-index": 60
         },
-        "extParams": {
-          "type": "string",
-          "title": "${extParams}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "extParams",
-          "x-index": 70
-        },
-        "timezone": {
-          "type": "string",
-          "title": "${timezone}",
-          "default": "",
-          "x-decorator": "FormItem",
-          "x-decorator-props": {
-            "feedbackLayout": "none"
-          },
-          "x-component": "Select",
-          "enum": [
-            {
-              "label": "Database Timezone",
-              "value": ""
-            },
-            {
-              "label": "UTC -11",
-              "value": "-11:00"
-            },
-            {
-              "label": "UTC -10",
-              "value": "-10:00"
-            },
-            {
-              "label": "UTC -09",
-              "value": "-09:00"
-            },
-            {
-              "label": "UTC -08",
-              "value": "-08:00"
-            },
-            {
-              "label": "UTC -07",
-              "value": "-07:00"
-            },
-            {
-              "label": "UTC -06",
-              "value": "-06:00"
-            },
-            {
-              "label": "UTC -05",
-              "value": "-05:00"
-            },
-            {
-              "label": "UTC -04",
-              "value": "-04:00"
-            },
-            {
-              "label": "UTC -03",
-              "value": "-03:00"
-            },
-            {
-              "label": "UTC -02",
-              "value": "-02:00"
-            },
-            {
-              "label": "UTC -01",
-              "value": "-01:00"
-            },
-            {
-              "label": "UTC",
-              "value": "+00:00"
-            },
-            {
-              "label": "UTC +01",
-              "value": "+01:00"
-            },
-            {
-              "label": "UTC +02",
-              "value": "+02:00"
-            },
-            {
-              "label": "UTC +03",
-              "value": "+03:00"
-            },
-            {
-              "label": "UTC +04",
-              "value": "+04:00"
-            },
-            {
-              "label": "UTC +05",
-              "value": "+05:00"
-            },
-            {
-              "label": "UTC +06",
-              "value": "+06:00"
-            },
-            {
-              "label": "UTC +07",
-              "value": "+07:00"
-            },
-            {
-              "label": "UTC +08",
-              "value": "+08:00"
-            },
-            {
-              "label": "UTC +09",
-              "value": "+09:00"
-            },
-            {
-              "label": "UTC +10",
-              "value": "+10:00"
-            },
-            {
-              "label": "UTC +11",
-              "value": "+11:00"
-            },
-            {
-              "label": "UTC +12",
-              "value": "+12:00"
-            },
-            {
-              "label": "UTC +13",
-              "value": "+13:00"
-            },
-            {
-              "label": "UTC +14",
-              "value": "+14:00"
-            }
-          ],
-          "x-index": 80
-        },
-        "timezoneTips": {
+        "OPTIONAL_FIELDS": {
           "type": "void",
-          "title": " ",
-          "x-decorator": "FormItem",
-          "x-decorator-props": {
-            "colon": false
-          },
-          "x-component": "Text",
-          "x-component-props": {
-            "icon": "info",
-            "content": "${timezoneTips}"
-          },
-          "x-index": 81
+          "properties": {
+            "catalog": {
+              "type": "string",
+              "title": "${catalog}",
+              "x-decorator": "FormItem",
+              "x-component": "Input",
+              "apiServerKey": "catalog_name",
+              "x-decorator-props": {
+                "tooltip": "${catalogTip}"
+              },
+              "x-index": 35
+            },
+            "extParams": {
+              "type": "string",
+              "title": "${extParams}",
+              "x-decorator": "FormItem",
+              "x-component": "Input",
+              "apiServerKey": "extParams",
+              "x-decorator-props": {
+                "tooltip": "${extParamsTip}"
+              },
+              "x-index": 70
+            },
+            "timezone": {
+              "type": "string",
+              "title": "${timezone}",
+              "default": "",
+              "x-decorator": "FormItem",
+              "x-decorator-props": {
+                "feedbackLayout": "none"
+              },
+              "x-component": "Select",
+              "enum": [
+                {
+                  "label": "Database Timezone",
+                  "value": ""
+                },
+                {
+                  "label": "UTC -11",
+                  "value": "-11:00"
+                },
+                {
+                  "label": "UTC -10",
+                  "value": "-10:00"
+                },
+                {
+                  "label": "UTC -09",
+                  "value": "-09:00"
+                },
+                {
+                  "label": "UTC -08",
+                  "value": "-08:00"
+                },
+                {
+                  "label": "UTC -07",
+                  "value": "-07:00"
+                },
+                {
+                  "label": "UTC -06",
+                  "value": "-06:00"
+                },
+                {
+                  "label": "UTC -05",
+                  "value": "-05:00"
+                },
+                {
+                  "label": "UTC -04",
+                  "value": "-04:00"
+                },
+                {
+                  "label": "UTC -03",
+                  "value": "-03:00"
+                },
+                {
+                  "label": "UTC -02",
+                  "value": "-02:00"
+                },
+                {
+                  "label": "UTC -01",
+                  "value": "-01:00"
+                },
+                {
+                  "label": "UTC",
+                  "value": "+00:00"
+                },
+                {
+                  "label": "UTC +01",
+                  "value": "+01:00"
+                },
+                {
+                  "label": "UTC +02",
+                  "value": "+02:00"
+                },
+                {
+                  "label": "UTC +03",
+                  "value": "+03:00"
+                },
+                {
+                  "label": "UTC +04",
+                  "value": "+04:00"
+                },
+                {
+                  "label": "UTC +05",
+                  "value": "+05:00"
+                },
+                {
+                  "label": "UTC +06",
+                  "value": "+06:00"
+                },
+                {
+                  "label": "UTC +07",
+                  "value": "+07:00"
+                },
+                {
+                  "label": "UTC +08",
+                  "value": "+08:00"
+                },
+                {
+                  "label": "UTC +09",
+                  "value": "+09:00"
+                },
+                {
+                  "label": "UTC +10",
+                  "value": "+10:00"
+                },
+                {
+                  "label": "UTC +11",
+                  "value": "+11:00"
+                },
+                {
+                  "label": "UTC +12",
+                  "value": "+12:00"
+                },
+                {
+                  "label": "UTC +13",
+                  "value": "+13:00"
+                },
+                {
+                  "label": "UTC +14",
+                  "value": "+14:00"
+                }
+              ],
+              "x-index": 80
+            },
+            "timezoneTips": {
+              "type": "void",
+              "title": " ",
+              "x-decorator": "FormItem",
+              "x-decorator-props": {
+                "colon": false
+              },
+              "x-component": "Text",
+              "x-component-props": {
+                "icon": "info",
+                "content": "${timezoneTips}"
+              },
+              "x-index": 81
+            }
+          }
         }
       }
     },
@@ -315,14 +339,20 @@
     "default": "en_US",
     "en_US": {
       "host": "DB Address",
+      "hostTip": "The address of the database, it can be an IP address or a domain name, for example: 192.168.1.200",
       "port": "Port",
+      "portTip": "The port number of the database, the default port of Doris is 9030",
       "dorisHttp": "Http Address",
+      "dorisHttpTip": "The address of the Doris http interface, for example: 192.168.1.200:8030",
       "catalog": "Doris Catalog",
+      "catalogTip": "The directory of Doris can be left blank for non clustered Doris or those that do not require narrowing down the data range, such as doris_cluster",
       "database": "DB Name",
+      "databaseTip": "The name of the database, you can list all Doris databases with the \\\\\"show databases\\\\\" command, case sensitive",
       "user": "User",
       "password": "Password",
       "extParams": "Other connection string parameters",
-      "timeZone": "Timezone for Datetime",
+      "extParamsTip": "Additional connection parameters in URI, you can write according to personalized scenarios",
+      "timezone": "Timezone for Datetime",
       "timezoneTips": "Affect Type: DATE",
       "writeByteBufferCapacity": "Write buffer capacity(KB)",
       "writeFormat": "Write format",
@@ -333,13 +363,19 @@
     },
     "zh_CN": {
       "host": "数据库地址",
+      "hostTip": "数据库的地址，它可以是IP地址或者域名，例如：192.168.1.200",
       "port": "端口",
+      "portTip": "数据库的端口号，Doris默认端口9030",
       "dorisHttp": "http接口地址",
+      "dorisHttpTip": "Doris的http接口地址，例如：192.168.1.200:8030",
       "catalog": "Doris目录",
+      "catalogTip": "Doris的目录，非集群Doris或不需要缩小数据范围的可以不填写，例如：doris_cluster",
       "database": "数据库名称",
+      "databaseTip": "数据库名称，可以通过 show databases 命令列出Doris所有数据库，区分大小写",
       "user": "账号",
       "password": "密码",
       "extParams": "其他连接串参数",
+      "extParamsTip": "URI额外的连接参数，可以根据个性化场景书写",
       "timezone": "时间类型的时区",
       "timezoneTips": "影响类型: DATE",
       "writeByteBufferCapacity": "写入缓冲区容量(KB)",
@@ -350,14 +386,20 @@
       "replicationNum": "副本数"
     },
     "zh_TW": {
-      "host": "数据库地址",
+      "host": "數據庫地址",
+      "hostTip": "數據庫的地址，它可以是IP地址或者域名，例如：192.168.1.200",
       "port": "端口",
+      "portTip": "數據庫的端口號，Doris默認端口9030",
       "dorisHttp": "http接口地址",
+      "dorisHttpTip": "Doris的http接口地址，例如：192.168.1.200:8030",
       "catalog": "Doris目錄",
+      "catalogTip": "Doris的目錄，非集群Doris或不需要縮小數據範圍的可以不填寫，例如：doris_cluster",
       "database": "数据库名称",
+      "databaseTip": "数据库名称，可以通过 show databases 命令列出Doris所有数据库，区分大小写",
       "user": "账号",
       "password": "密码",
       "extParams": "其他连接串参数",
+      "extParamsTip": "URI額外的連接參數，可以根據個性化場景書寫",
       "timezone": "时间类型的时区",
       "timezoneTips": "影響類型: DATE",
       "writeByteBufferCapacity": "寫入緩沖區容量(KB)",

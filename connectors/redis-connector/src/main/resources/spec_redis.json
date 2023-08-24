@@ -58,6 +58,9 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_host",
+          "x-decorator-props": {
+            "tooltip": "${hostTip}"
+          },
           "x-index": 2
         },
         "port": {
@@ -66,66 +69,33 @@
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "apiServerKey": "database_port",
+          "default": 6379,
           "x-index": 3,
+          "x-decorator-props": {
+            "tooltip": "${portTip}"
+          },
           "required": true
-        },
-        "database": {
-          "type": "string",
-          "title": "${database}",
-          "x-decorator": "FormItem",
-          "x-component": "InputNumber",
-          "apiServerKey": "database_name",
-          "x-index": 4,
-          "description": "${databaseProp}",
-          "required": true
-        },
-        "schemaKey": {
-          "type": "string",
-          "title": "${schemaKey}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "schemaKey",
-          "default": "-schema-key-",
-          "x-index": 5,
-          "required": true
-        },
-        "passwordDisplay": {
-          "type": "boolean",
-          "title": "${passwordDisplay}",
-          "x-decorator": "FormItem",
-          "x-component": "Switch",
-          "x-index": 6,
-          "x-reactions": {
-            "target": "password",
-            "fulfill": {
-              "state": {
-                "visible": "{{!!$self.value}}"
-              }
-            }
-          }
-        },
-        "password": {
-          "type": "string",
-          "title": "${password}",
-          "x-decorator": "FormItem",
-          "x-component": "Password",
-          "apiServerKey": "database_password",
-          "x-index": 7
         },
         "sentinelName": {
           "type": "string",
           "title": "${sentinelName}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "x-index": 8,
+          "x-index": 4,
+          "x-decorator-props": {
+            "tooltip": "${sentinelNameTip}"
+          },
           "required": true
         },
         "sentinelAddress": {
           "type": "array",
           "title": "${sentinelAddress}",
           "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "tooltip": "${sentinelAddressTip}"
+          },
           "x-component": "ArrayItems",
-          "x-index": 9,
+          "x-index": 5,
           "items": {
             "type": "object",
             "properties": {
@@ -165,6 +135,58 @@
               "type": "void",
               "title": "${prompt}",
               "x-component": "ArrayItems.Addition"
+            }
+          }
+        },
+        "database": {
+          "type": "string",
+          "title": "Redis DB",
+          "default": 0,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "database_name",
+          "x-index": 6,
+          "description": "${databaseProp}",
+          "required": true
+        },
+        "passwordDisplay": {
+          "type": "boolean",
+          "title": "${passwordDisplay}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-index": 7,
+          "x-reactions": {
+            "target": "password",
+            "fulfill": {
+              "state": {
+                "visible": "{{!!$self.value}}"
+              }
+            }
+          }
+        },
+        "password": {
+          "type": "string",
+          "title": "${password}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "database_password",
+          "x-index": 8
+        },
+        "OPTIONAL_FIELDS": {
+          "type": "void",
+          "properties": {
+            "schemaKey": {
+              "type": "string",
+              "title": "${schemaKey}",
+              "x-decorator": "FormItem",
+              "x-component": "Input",
+              "apiServerKey": "schemaKey",
+              "default": "-schema-key-",
+              "x-decorator-props": {
+                "tooltip": "${schemaKeyTip}"
+              },
+              "x-index": 9,
+              "required": true
             }
           }
         }
@@ -402,17 +424,21 @@
     "en_US": {
       "doc": "docs/redis_en_US.md",
       "host": "DB Host",
-      "database": "Database Name",
+      "hostTip": "Redis Address, such as 192.168.1.200",
       "schemaKey": "Schema Key",
+      "schemaKeyTip": "Redis stores additional key values for data structures for data synchronization",
       "port": "Port",
+      "portTip": "Redis port, default 6379",
       "password": "Password",
       "deploymentMode": "Deployment mode",
       "passwordDisplay":"Whether to use a password",
       "sentinelName": "Sentinel name/Cluster name",
+      "sentinelNameTip": "The client name recognized by the server does not affect synchronization and is only used for monitoring",
       "standalone": "Single machine deployment",
       "sentinel": "Sentinel deployment",
       "cluster": "Cluster deployment",
       "sentinelAddress" : "Server address",
+      "sentinelAddressTip" : "The address port group that the sentry or cluster needs to fill in, for example: 192.168.1.200:6379, 192.168.1.201:6379",
       "Address" : "Please enter the server address",
       "sentinelPort": "Server port",
       "valueType": "Storage format",
@@ -442,18 +468,22 @@
     },
     "zh_CN": {
       "doc": "docs/redis_zh_CN.md",
-      "host": "数据库地址",
-      "database": "数据库名称",
+      "host": "Redis地址",
+      "hostTip": "Redis地址，如：192.168.1.200",
       "schemaKey": "Schema键",
+      "schemaKeyTip": "Redis为数据同步额外存放数据结构的键值",
       "port": "端口",
+      "portTip": "Redis端口，默认6379",
       "password": "密码",
       "deploymentMode": "部署模式",
       "passwordDisplay":"是否使用密码",
       "sentinelName": "哨兵/集群名称",
+      "sentinelNameTip": "服务端可识别的客户端名称，不影响同步，仅用于监控",
       "standalone": "单机部署",
       "sentinel": "哨兵部署",
       "cluster": "集群",
       "sentinelAddress" : "服务器地址",
+      "sentinelAddressTip" : "哨兵或集群需要填写的地址端口组，例如：192.168.1.200:6379, 192.168.1.201:6379",
       "Address" : "服务器地址",
       "sentinelPort": "端口",
       "valueType": "存储格式",
@@ -484,18 +514,22 @@
     },
     "zh_TW": {
       "doc": "docs/redis_zh_TW.md",
-      "host": "數據庫地址",
-      "database": "數據庫名稱",
+      "host": "Redis地址",
+      "hostTip": "Redis地址，如：192.168.1.200",
       "schemaKey": "Schema鍵",
+      "schemaKeyTip": "Redis為數據同步額外存放數據結構的鍵值",
       "port": "端口",
+      "portTip": "Redis端口，默認6379",
       "password": "密碼",
       "deploymentMode": "部署模式",
       "passwordDisplay":"是否使用密碼",
       "sentinelName": "哨兵/集群名稱",
+      "sentinelNameTip": "服務端可識別的客戶端名稱，不影響同步，僅用於監控",
       "standalone": "單機部署",
       "sentinel": "哨兵部署",
       "cluster": "集群",
       "sentinelAddress" : "服務器地址",
+      "sentinelAddressTip" : "哨兵或集群需要填寫的地址端口組，例如：192.168.1.200:6379, 192.168.1.201:6379",
       "Address" : "服務器地址",
       "sentinelPort": "服務器端口",
       "valueType": "存储格式",
