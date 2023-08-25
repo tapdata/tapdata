@@ -171,7 +171,8 @@ public class MeasureAOP {
         if (Objects.nonNull(snapshotDoneAt) && !snapshotDoneAt.equals(taskDto.getSnapshotDoneAt())) {
             update.set("snapshotDoneAt", snapshotDoneAt);
         }
-        if (Objects.nonNull(currentEventTimestamp) && !currentEventTimestamp.equals(taskDto.getCurrentEventTimestamp())) {
+        if (Objects.nonNull(currentEventTimestamp) && !currentEventTimestamp.equals(taskDto.getCurrentEventTimestamp())
+                && !currentEventTimestamp.equals(0)) {
             update.set("currentEventTimestamp", currentEventTimestamp);
         }
 
