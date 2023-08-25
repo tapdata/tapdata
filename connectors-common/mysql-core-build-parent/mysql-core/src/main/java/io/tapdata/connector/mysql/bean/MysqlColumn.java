@@ -3,6 +3,7 @@ package io.tapdata.connector.mysql.bean;
 import io.tapdata.common.CommonColumn;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.EmptyKit;
 
 
 /**
@@ -33,7 +34,7 @@ public class MysqlColumn extends CommonColumn {
 
     @Override
     protected Boolean isNullable() {
-        if ("5.6".compareTo(version) > 0) {
+        if (EmptyKit.isNull(version) || "5.6".compareTo(version) > 0) {
             return true;
         }
         return "YES".equals(this.nullable);
