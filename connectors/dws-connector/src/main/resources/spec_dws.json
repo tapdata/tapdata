@@ -319,18 +319,45 @@
       "fixed": false,
       "to": "TapNumber"
     },
+    "CHAR[($byte)]": {
+      "byte": 10485761,
+      "priority": 1,
+      "defaultByte": 1,
+      "fixed": true,
+      "to": "TapString"
+    },
+    "NCHAR[($byte)]": {
+      "byte": 10485761,
+      "priority": 2,
+      "defaultByte": 1,
+      "byteRatio": 3,
+      "queryOnly": true,
+      "fixed": true,
+      "to": "TapString"
+    },
     "character[($byte)]": {
-      "byte": 10485760,
+      "byte": 10485761,
       "priority": 2,
       "preferByte": 255,
       "fixed": true,
       "to": "TapString"
     },
     "character varying[($byte)]": {
-      "byte": 10485760,
+      "byte": 10485761,
       "priority": 1,
       "defaultByte": 10485760,
       "preferByte": 2000,
+      "to": "TapString"
+    },
+    "VARCHAR2[($byte)]": {
+      "byte": 10485761,
+      "priority": 2,
+      "preferByte": 2000,
+      "to": "TapString"
+    },
+    "NVARCHAR2[($byte)]": {
+      "byte": 10485761,
+      "priority": 2,
       "to": "TapString"
     },
     "text": {
