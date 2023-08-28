@@ -19,6 +19,7 @@ import com.tapdata.tm.ds.dto.DataSourceDefinitionUpdateDto;
 import com.tapdata.tm.ds.dto.DataSourceTypeDto;
 import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
 import com.tapdata.tm.ds.repository.DataSourceDefinitionRepository;
+import com.tapdata.tm.ds.vo.DsGroupTypeTagsVo;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
@@ -32,6 +33,8 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -331,6 +334,35 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         Query query = Query.query(criteria);
         return query;
     }
+
+	public boolean isAllTypeSchemaFree(List<String> dataSourceType, UserDetail user) {
+		Set<String> types = new HashSet<>(dataSourceType);
+		Aggregation aggregation = Aggregation.newAggregation(
+			Aggregation.match(Criteria
+				.where("type").in(types)
+				.and("pdkHash").exists(true)
+				.orOperator(
+					Criteria.where("customId").is(user.getCustomerId()),
+					Criteria.where("user_id").is(user.getUserId()),
+					Criteria.where("pdkType").ne(DataSourceDefinitionDto.PDK_TYPE)
+				)
+			),
+			Aggregation.project("_id", "tags", "type"),
+			Aggregation.sort(Sort.by("_id")),
+			Aggregation.group("type").first("tags").as("tags")
+		);
+		AggregationResults<DsGroupTypeTagsVo> aggregationResults = repository.aggregate(aggregation, DsGroupTypeTagsVo.class);
+		List<DsGroupTypeTagsVo> mappedResults = aggregationResults.getMappedResults();
+		if (types.size() == mappedResults.size()) {
+			for (DsGroupTypeTagsVo vo : mappedResults) {
+				if (null == vo.getTags() || !vo.getTags().contains("schema-free")) {
+					return false;
+				}
+			}
+			return true;
+		}
+		return false;
+	}
 
 
     protected void beforeSave(DataSourceDefinitionDto dto, UserDetail userDetail) {
