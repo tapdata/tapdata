@@ -350,14 +350,22 @@ public class SelectDbConnector extends CommonDbConnector {
                 WriteListResult<TapRecordEvent> writeListResult = selectDbStreamLoader.writeRecord(connectorContext, events, table,this.copyIntoKey);
                 writeListResultConsumer.accept(writeListResult);
                 break;
-            } catch (Throwable e) {
+            }catch (CoreException e) {
                 catchCount++;
-                if (catchCount <= selectDbConfig.getRetryCount()) {
-                    connectorContext.getLog().warn("Data source upload retry: {}", catchCount);
-                } else {
+                if(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_NETWORK==e.getCode() || SelectDbErrorCodes.ERROR_SDB_COPY_INTO_STATE_NULL==e.getCode()){
+                    if (catchCount <= selectDbConfig.getRetryCount()) {
+                        connectorContext.getLog().warn("Data source upload retry: {}", catchCount);
+                    } else {
+                        TapLogger.error(TAG, "Data write failure" + e.getMessage());
+                        throw new RuntimeException(e);
+                    }
+                }else{
                     TapLogger.error(TAG, "Data write failure" + e.getMessage());
                     throw new RuntimeException(e);
                 }
+
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
             }
         }
     }
