@@ -239,7 +239,7 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 						}
 
 						String msg = null;
-						if (compare == 0 || null != diffDetailCursor.getData()) {
+						if (compare == 0) {
 							moveSource = true;
 							moveTarget = true;
 							both++;

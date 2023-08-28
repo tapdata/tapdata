@@ -105,9 +105,9 @@ public class SelectDbStreamLoader extends Throwable {
         dataOutputStream.write(s.getBytes(StandardCharsets.UTF_8));
         dataOutputStream.write(Constants.LINE_DELIMITER_DEFAULT.getBytes(StandardCharsets.UTF_8));
         final byte[] finalBytes = byteArrayOutputStream.toByteArray();
-        String uuid = UUID.randomUUID().toString() + "_" + System.currentTimeMillis();
-        CopyIntoUtils.upload(uuid, finalBytes);
-        Response response = CopyIntoUtils.copyInto(table);
+        String uuid = UUID.randomUUID() + "_" + System.currentTimeMillis() + "_" +  Thread.currentThread().getId();
+        CopyIntoUtils.upload(uuid, finalBytes,table);
+        Response response = CopyIntoUtils.copyInto();
         HashMap<String, String> selectDBCopyIntoLog;
         selectDBCopyIntoLog = this.selectDbJdbcContext.getSelectDBCopyIntoLog(uuid);
         if (!"FINISHED".equals(selectDBCopyIntoLog.get("State"))
@@ -119,7 +119,7 @@ public class SelectDbStreamLoader extends Throwable {
         }
         int statusCode = response.code();
         if (!(statusCode >= 200 && statusCode < 300) || null == selectDBCopyIntoLog.get("State") || null == selectDBCopyIntoLog.get("JobId")) {
-            throw new CoreException(connectorContext.getId(), new Throwable("HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId")));
+            throw new CoreException(connectorContext.getId()+"_ErrorMessage:{}", new Throwable("HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId")));
         }
         return listResult;
     }

@@ -328,7 +328,7 @@ public class TapdataTaskScheduler {
 			TaskClient<TaskDto> taskClient = taskClientMap.get(taskId);
 			if (null != taskClient) {
 				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
-				if (TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
+				if (!TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
 					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
 				}
 			} else {
@@ -418,6 +418,11 @@ public class TapdataTaskScheduler {
 								stopTaskResource = StopTaskResource.STOPPED;
 							} else if (TerminalMode.COMPLETE == terminalMode) {
 								stopTaskResource = StopTaskResource.COMPLETE;
+							} else if(TerminalMode.INTERNAL_STOP == terminalMode){
+								if(taskClient.stop()){
+									clearTaskCacheAfterStopped(taskClient);
+									clearTaskRetryCache(taskId);
+								}
 							} else {
 								logger.warn("Task status to error: {}", terminalMode);
 								TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskId).orElse(null);

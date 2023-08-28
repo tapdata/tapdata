@@ -9,8 +9,12 @@ import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 
+import java.sql.SQLException;
+import java.text.DecimalFormat;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class PostgresJdbcContext extends JdbcContext {
@@ -36,6 +40,17 @@ public class PostgresJdbcContext extends JdbcContext {
             throw new RuntimeException(e);
         }
         return version.get();
+    }
+
+    public TimeZone queryTimeZone() throws SQLException {
+        AtomicReference<Long> timeOffset = new AtomicReference<>();
+        queryWithNext(POSTGRES_TIMEZONE, resultSet -> timeOffset.set(resultSet.getLong(1)));
+        DecimalFormat decimalFormat = new DecimalFormat("00");
+        if (timeOffset.get() >= 0) {
+            return TimeZone.getTimeZone(ZoneId.of("+" + decimalFormat.format(timeOffset.get()) + ":00"));
+        } else {
+            return TimeZone.getTimeZone(ZoneId.of(decimalFormat.format(timeOffset.get()) + ":00"));
+        }
     }
 
     @Override
@@ -136,5 +151,7 @@ public class PostgresJdbcContext extends JdbcContext {
             " pg_total_relation_size('\"' || table_schema || '\".\"' || table_name || '\"') AS size,\n" +
             " (select reltuples from pg_class  pc where pc.relname = t1.table_name ) as rowcount \n" +
             " FROM information_schema.tables t1 where t1.table_name ='%s' and t1.table_catalog='%s' and t1.table_schema='%s' ";
+
+    private final static String POSTGRES_TIMEZONE = "select date_part('hour', now() - now() at time zone 'UTC')";
 
 }

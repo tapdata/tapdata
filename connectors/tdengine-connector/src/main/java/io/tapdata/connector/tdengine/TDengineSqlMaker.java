@@ -28,7 +28,7 @@ public class TDengineSqlMaker {
                     if (tapField.getDataType() == null) {
                         return "";
                     }
-                    builder.append(tapField.getName()).append(' ').append(tapField.getDataType()).append(' ');
+                    builder.append('`').append(tapField.getName()).append("` ").append(tapField.getDataType()).append(' ');
                     return builder.toString();
                 }).collect(Collectors.joining(", "));
     }
