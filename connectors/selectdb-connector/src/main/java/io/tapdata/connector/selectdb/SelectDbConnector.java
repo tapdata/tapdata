@@ -57,7 +57,7 @@ public class SelectDbConnector extends CommonDbConnector {
     private String selectDbVersion;
     private SelectDbTest selectDbTest;
     private CopyIntoUtils copyIntoUtils;
-    private CopyIntoUtils copyIntoKey;
+    private boolean copyIntoKey;
     private DDLSqlMaker ddlSqlMaker;
     private SelectDbStreamLoader selectDbStreamLoader;
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
@@ -67,12 +67,12 @@ public class SelectDbConnector extends CommonDbConnector {
 
     @Override
     public void onStart(TapConnectionContext connectorContext) throws SQLException {
-        this.copyIntoUtils = new CopyIntoUtils(connectorContext);
+        this.copyIntoUtils = new CopyIntoUtils(connectorContext,false);
         this.selectDbContext = new SelectDbContext(connectorContext);
         this.selectDbConfig = new SelectDbConfig().load(connectorContext.getConnectionConfig());
         this.commonDbConfig = this.selectDbConfig;
         this.selectDbTest = new SelectDbTest(selectDbConfig, testItem -> {
-        }).initContext();
+        },copyIntoUtils).initContext();
         selectDbJdbcContext = new SelectDbJdbcContext(selectDbConfig);
         this.jdbcContext = this.selectDbJdbcContext;
         this.selectDbVersion = selectDbJdbcContext.queryVersion();
@@ -347,7 +347,7 @@ public class SelectDbConnector extends CommonDbConnector {
         int catchCount = 0;
         while (catchCount <= selectDbConfig.getRetryCount()) {
             try {
-                WriteListResult<TapRecordEvent> writeListResult = selectDbStreamLoader.writeRecord(connectorContext, events, table);
+                WriteListResult<TapRecordEvent> writeListResult = selectDbStreamLoader.writeRecord(connectorContext, events, table,this.copyIntoKey);
                 writeListResultConsumer.accept(writeListResult);
                 break;
             } catch (Throwable e) {
@@ -418,9 +418,9 @@ public class SelectDbConnector extends CommonDbConnector {
         selectDbConfig = new SelectDbConfig().load(connectionConfig);
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(selectDbConfig.getConnectionString());
-        CopyIntoUtils.setConfig(databaseContext);
+        CopyIntoUtils copyIntoUtils = new CopyIntoUtils(databaseContext,false);
 
-        try (SelectDbTest selectDbTest = new SelectDbTest(selectDbConfig, consumer).initContext()) {
+        try (SelectDbTest selectDbTest = new SelectDbTest(selectDbConfig, consumer,copyIntoUtils).initContext()) {
             selectDbTest.testOneByOne();
             return connectionOptions;
         }
@@ -450,7 +450,7 @@ public class SelectDbConnector extends CommonDbConnector {
             return createTableOptions;
         }
         Collection<String> primaryKeys = tapTable.primaryKeys(true);
-        this.copyIntoKey = new CopyIntoUtils(EmptyKit.isEmpty(primaryKeys));
+        this.copyIntoKey = EmptyKit.isEmpty(primaryKeys);
         String firstColumn = tapTable.getNameFieldMap().values().stream().findFirst().orElseGet(TapField::new).getName();
         String sql = "CREATE TABLE IF NOT EXISTS `" + database + "`.`" + tapTable.getId() + "`(" +
                 DDLInstance.buildColumnDefinition(tapTable) + ")";
