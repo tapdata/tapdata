@@ -21,6 +21,8 @@ public class NodeConfig {
     private String hbDatabase;
     private String hbSchema;
     private boolean openCdcDetailLog;
+    private boolean openScript;
+    private String script;
 
     public NodeConfig(TapConnectorContext context) {
         this(null == context || null == context.getNodeConfig() ? new DataMap() : context.getNodeConfig());
@@ -41,10 +43,17 @@ public class NodeConfig {
         hbDatabase = Optional.ofNullable(nodeConfig.getString("hbDatabase")).orElse("");
         hbSchema = Optional.ofNullable(nodeConfig.getString("hbSchema")).orElse("");
         try {
+            openScript = Optional.ofNullable((Boolean)nodeConfig.get("openScript")).orElse(false);
+        } catch (Exception e) {
+            openScript = false;
+        }
+        script = openScript ? Optional.ofNullable(nodeConfig.getString("script")).orElse("return record") : "return record";
+        try {
             openCdcDetailLog = Optional.ofNullable((Boolean)nodeConfig.get("openCdcDetailLog")).orElse(false);
         } catch (Exception e) {
             openCdcDetailLog = false;
         }
+
         if (cdcCacheTime < 1) {
             cdcCacheTime = 2;
         }
@@ -131,5 +140,21 @@ public class NodeConfig {
 
     public void setOpenCdcDetailLog(boolean openCdcDetailLog) {
         this.openCdcDetailLog = openCdcDetailLog;
+    }
+
+    public boolean isOpenScript() {
+        return openScript;
+    }
+
+    public void setOpenScript(boolean openScript) {
+        this.openScript = openScript;
+    }
+
+    public String getScript() {
+        return script;
+    }
+
+    public void setScript(String script) {
+        this.script = script;
     }
 }

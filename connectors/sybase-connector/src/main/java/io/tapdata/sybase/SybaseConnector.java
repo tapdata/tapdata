@@ -69,6 +69,7 @@ import io.tapdata.sybase.extend.SybaseReader;
 import io.tapdata.sybase.extend.SybaseSqlBatchWriter;
 import io.tapdata.sybase.extend.SybaseSqlMaker;
 import io.tapdata.sybase.extend.SybaseSqlMarker;
+import io.tapdata.sybase.js.SybaseScript;
 import io.tapdata.sybase.util.Code;
 import io.tapdata.sybase.util.Utils;
 import org.apache.commons.io.FilenameUtils;
@@ -77,21 +78,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.TimeZone;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -107,7 +94,7 @@ import java.util.stream.Collectors;
 @TapConnectorClass("spec.json")
 public class SybaseConnector extends CommonDbConnector {
     private static final String TAG = SybaseConnector.class.getSimpleName();
-
+    public static final int CDC_PROCESS_FAIL_EXCEPTION_CODE = 555005;
     private SybaseContext sybaseContext;
     protected SybaseConfig sybaseConfig;
     private SybaseReader sybaseReader;
@@ -122,6 +109,7 @@ public class SybaseConnector extends CommonDbConnector {
     private ConnectionConfig connectionConfig;
     private NodeConfig nodeConfig;
     private CdcPosition position;
+    private SybaseScript sybaseScript;
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private Log log;
@@ -187,6 +175,9 @@ public class SybaseConnector extends CommonDbConnector {
                 cdcHandle = null;
                 cdcStart(context);
             }
+
+            sybaseScript = !nodeConfig.isOpenScript() ? null : new SybaseScript(nodeConfig.getScript(), tapConnectionContext.getLog());
+
         }
         started.set(true);
     }
@@ -231,8 +222,11 @@ public class SybaseConnector extends CommonDbConnector {
         }
         Optional.ofNullable(lock).ifPresent(StopLock::stop);
         if (root != null) {
-            root.notifyAll();
+            try {
+                root.notifyAll();
+            } catch (Exception ignore){}
         }
+        Optional.ofNullable(sybaseScript).ifPresent(SybaseScript::close);
     }
 
     private void release(TapConnectorContext context) {
@@ -294,6 +288,7 @@ public class SybaseConnector extends CommonDbConnector {
         });
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
         connectorFunctions
+                .supportErrorHandleFunction(this::errorHandle)
                 //.supportCreateTableV2(this::createTableV2)
                 .supportQueryByAdvanceFilter(this::queryByAdvanceFilterWithOffset)
                 .supportBatchCount(this::batchCount)
@@ -309,19 +304,13 @@ public class SybaseConnector extends CommonDbConnector {
 
     protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
         RetryOptions retryOptions = RetryOptions.create();
-        retryOptions.setNeedRetry(true);
+        retryOptions.setNeedRetry(throwable instanceof CoreException && ((CoreException)throwable).getCode() == CDC_PROCESS_FAIL_EXCEPTION_CODE);
         retryOptions.beforeRetryMethod(() -> {
             try {
                 synchronized (this) {
-                    //mysqlJdbcContext是否有效
-                    if (sybaseContext == null || !checkValid() || !started.get()) {
-                        //如果无效执行onStop,有效就return
+                    if (throwable instanceof CoreException && ((CoreException)throwable).getCode() == CDC_PROCESS_FAIL_EXCEPTION_CODE) {
                         this.onStop(tapConnectionContext);
-                        if (isAlive()) {
-                            this.onStart(tapConnectionContext);
-                        }
-                    } else {
-                        mysqlWriter.selfCheck();
+                        this.onStart(tapConnectionContext);
                     }
                 }
             } catch (Throwable ignore) {
@@ -329,6 +318,28 @@ public class SybaseConnector extends CommonDbConnector {
         });
         return retryOptions;
     }
+//    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+//        RetryOptions retryOptions = RetryOptions.create();
+//        retryOptions.setNeedRetry(true);
+//        retryOptions.beforeRetryMethod(() -> {
+//            try {
+//                synchronized (this) {
+//                    //mysqlJdbcContext是否有效
+//                    if (sybaseContext == null || !checkValid() || !started.get()) {
+//                        //如果无效执行onStop,有效就return
+//                        this.onStop(tapConnectionContext);
+//                        if (isAlive()) {
+//                            this.onStart(tapConnectionContext);
+//                        }
+//                    } else {
+//                        mysqlWriter.selfCheck();
+//                    }
+//                }
+//            } catch (Throwable ignore) {
+//            }
+//        });
+//        return retryOptions;
+//    }
     protected void runRawCommand(TapConnectorContext connectorContext, String command, TapTable tapTable, int eventBatchSize, Consumer<List<TapEvent>> eventsOffsetConsumer) throws Throwable {
         final List<TapEvent>[] tapEvents = new List[]{list()};
         try {
@@ -586,10 +597,16 @@ public class SybaseConnector extends CommonDbConnector {
     private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) throws Throwable {
         cdcStart(tapConnectorContext);
         tapConnectorContext.getStateMap().put("tableOverType", OverwriteType.RESUME.getType());
+        try {
+            Thread.sleep(30000);
+        } catch (Exception e) {}
         return new CdcPosition();
     }
 
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
+        if (sybaseScript == null) {
+            sybaseScript = !nodeConfig.isOpenScript() ? null : new SybaseScript(nodeConfig.getScript(), tapConnectorContext.getLog());
+        }
         if (null == root.getCdcTables() || root.getCdcTables().isEmpty()) {
             root.setCdcTables(tables);
         }
@@ -632,10 +649,19 @@ public class SybaseConnector extends CommonDbConnector {
                     position = offset instanceof CdcPosition ? (CdcPosition) offset : ( position != null ? position : new CdcPosition() ),
                     batchSize,
                     nodeConfig.getFetchInterval() * 1000,
+                    sybaseScript,
                     consumer
             );
             while (isAlive()) {
-                sleep(500);
+                try {
+                    root.wait(4000);
+                } catch (Exception ignore){}
+                String hostPortFromConfig = CdcHandle.getCurrentInstanceHostPortFromConfig(tapConnectorContext);
+                List<Integer> port = cdcPort(tapConnectorContext, hostPortFromConfig);
+                if (port.size() < 2) {
+                    //CDC_PROCESS_FAIL_EXCEPTION_CODE
+                    throw new CoreException(SybaseConnector.CDC_PROCESS_FAIL_EXCEPTION_CODE, "Cdc task is normal, but not any cdc process is active, will retry to start cdc process");
+                }
             }
         } catch (Exception e) {
             throw new CoreException(90909, "Sybase cdc is stopped now, error: {}", e.getMessage(), e);

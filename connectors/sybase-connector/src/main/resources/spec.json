@@ -382,6 +382,61 @@
           "x-display": "hidden",
           "required": true
         },
+        "openScript": {
+          "type": "boolean",
+          "title": "${open_script}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "required": false,
+          "default": false,
+          "show": false,
+          "x-decorator-props": {
+            "colon": false
+          },
+          "x-reactions": [
+            {
+              "target": "eventScript",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===true}}"
+                }
+              }
+            }
+          ],
+          "x-index": 100
+        },
+        "script": {
+          "title": "${node_script_title}",
+          "type": "string",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "gridSpan": 2,
+            "colon": false
+          },
+          "default": "return record;",
+          "x-component": "JsEditor",
+          "x-component-props": {
+            "height": 300,
+            "before": "function process(record, tableName) {",
+            "after": "}",
+            "beforeRegexp": "^[^]*function\\s+process\\s*\\(record, tableName\\)\\s+\\{",
+            "afterRegexp": "}[^}]*$"
+          },
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.openScript"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] ? true : false}}"
+              }
+            }
+          },
+          "x-index": 110
+        },
         "openCdcDetailLog": {
           "type": "boolean",
           "title": "${openCdcDetailLog}",
@@ -419,7 +474,11 @@
       "heartbeat_tip": "After enabling CDC heartbeat monitoring, a heartbeat table will be need created on the source side by yourself(replicate_io_cdc_heartbeat)",
       "heart_database": " The database where the heartbeat table is located ",
       "heart_schema": " The schema where the heartbeat table is located ",
-      "openCdcDetailLog": ""
+      "openCdcDetailLog": "",
+
+      "open_script": "Enable data processing scripts",
+      "node_tip_script": "You can preprocess the data received by the receiver from third-party platforms through this script, and return the type (eventType) and final data body of this data according to the specified structure (data).",
+      "node_script_title": "Data processing script"
     },
     "zh_CN": {
       "host": "地址",
@@ -444,7 +503,12 @@
       "heartbeat_tip": "开启CDC心跳监听后需要您在源端创建心跳表（replicate_io_cdc_heartbeat）",
       "heart_database": "心跳表所在DataBase",
       "heart_schema": "心跳表所在Schema",
-      "openCdcDetailLog": ""
+      "openCdcDetailLog": "",
+
+      "open_script": "开启数据处理脚本",
+      "node_script_title": "数据处理脚本",
+      "node_tip_script": "您可以通过此脚本预处理接收器收到的第三方平台推送过来的数据，并按指定结构返回这个数据的类型（eventType）以及最终数据体（data）。"
+
     },
     "zh_TW": {
       "host": "地址",
@@ -469,7 +533,12 @@
       "heartbeat_tip": " 開啟CDC心跳監聽後需要您在源端創建心跳錶（replicate_io_cdc_heartbeat）",
       "heart_database": "心跳錶所在Database",
       "heart_schema": "心跳錶所在Schema",
-      "openCdcDetailLog": ""
+      "openCdcDetailLog": "",
+
+      "open_script": "開啟數據處理腳本",
+      "node_script_title": "數據處理腳本",
+      "node_tip_script": "您可以通過此腳本預處理接收器收到的協力廠商平臺推送過來的數據，並按指定結構返回這個數據的類型（eventType）以及最終數據體（data）。"
+
     }
   },
   "dataTypes": {

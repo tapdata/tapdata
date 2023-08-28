@@ -22,6 +22,7 @@ import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
+import io.tapdata.sybase.js.SybaseScript;
 import io.tapdata.sybase.util.Code;
 import io.tapdata.sybase.util.HostUtils;
 import io.tapdata.sybase.util.Utils;
@@ -99,11 +100,12 @@ public class CdcHandle {
         srcConfig.setPort(connectionConfig.getPort());
         srcConfig.setPassword(connectionConfig.getPassword());
         srcConfig.setUsername(connectionConfig.getUsername());
-        srcConfig.setMax_connections(2);
+        srcConfig.setMax_connections(10);
         srcConfig.setMax_retries(10);
         srcConfig.setRetry_wait_duration_ms(1000);
         srcConfig.setTransaction_store_location("" + sybasePocPath + "/config/sybase2csv/data");
         srcConfig.setTransaction_store_cache_limit(100000);
+        srcConfig.setClient_charset("iso_1");
 
 
         SybaseDstLocalStorage dstLocalStorage = new SybaseDstLocalStorage();
@@ -196,6 +198,7 @@ public class CdcHandle {
             CdcPosition position,
             int batchSize,
             long interval,
+            SybaseScript sybaseScript,
             StreamReadConsumer consumer) {
         if (null == position) position = new CdcPosition();
         streamReadConsumer(consumer, context.getLog(), monitorPath, interval);
@@ -205,6 +208,7 @@ public class CdcHandle {
                 monitorFileName,
                 new AnalyseCsvFile(this.root, position, null),
                 lock,
+                sybaseScript,
                 batchSize
         ).monitor(fileMonitor);
         listenFile.compile();

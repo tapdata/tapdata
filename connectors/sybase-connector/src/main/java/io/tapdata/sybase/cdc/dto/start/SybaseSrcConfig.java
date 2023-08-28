@@ -15,6 +15,8 @@ public class SybaseSrcConfig implements ConfigEntity {
     private String database;
     private String username;
     private String password;
+    private String client_charset;
+
 
     private int max_connections;
     private int max_retries;
@@ -36,6 +38,8 @@ public class SybaseSrcConfig implements ConfigEntity {
         map.put("retry-wait-duration-ms", retry_wait_duration_ms);
         map.put("transaction-store-location", transaction_store_location);
         map.put("transaction-store-cache-limit", transaction_store_cache_limit);
+        map.put("client-charset", client_charset);//client-charset: iso_1
+
         return map;
     }
 
@@ -125,5 +129,13 @@ public class SybaseSrcConfig implements ConfigEntity {
 
     public void setTransaction_store_cache_limit(int transaction_store_cache_limit) {
         this.transaction_store_cache_limit = transaction_store_cache_limit;
+    }
+
+    public String getClient_charset() {
+        return client_charset;
+    }
+
+    public void setClient_charset(String client_charset) {
+        this.client_charset = client_charset;
     }
 }

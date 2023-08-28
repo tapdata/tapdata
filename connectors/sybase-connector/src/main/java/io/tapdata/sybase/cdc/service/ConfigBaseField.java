@@ -53,13 +53,13 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
         File sybasePocPath = new File(targetPath);
         if (sybasePocPath.exists() && sybasePocPath.isDirectory()) sybasePocPath.delete();
         if (!sybasePocPath.exists() || !sybasePocPath.isDirectory()) {
-            sybasePocPath.mkdir();
+            sybasePocPath.mkdirs();
         }
         String pocPathFromLocal = getPocPathFromLocal();
         File fromLocal = new File(pocPathFromLocal);
         File targetFile = new File(FilenameUtils.concat(sybasePocPath.getAbsolutePath(), "sybase-poc"));
         targetPath = targetFile.getAbsolutePath();
-        if (!targetFile.exists() || !targetFile.isDirectory()) targetFile.mkdir();
+        if (!targetFile.exists() || !targetFile.isDirectory()) targetFile.mkdirs();
         final String configPath = FilenameUtils.concat(targetPath, "config");
         if (fromLocal.exists() && fromLocal.isDirectory()) {
             try {
@@ -70,9 +70,14 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
                             + (targetPath.endsWith("/") ? targetPath.substring(0, targetPath.length() - 1) : targetPath);
                     root.getContext().getLog().info("MOVE FIEL: {}", shell);
                     root.getContext().getLog().info(Utils.run(shell));
-                    if (!new File(configPath).exists()) {
-                        FileUtils.copyToDirectory(fromLocal, targetFile);
+                    File file = new File(configPath);
+                    if (!file.exists() || !file.isDirectory()) {
+                        file.mkdirs();
                     }
+                    root.getContext().getLog().info(Utils.run(shell));
+                    //if (!new File(configPath).exists()) {
+                    FileUtils.copyToDirectory(fromLocal, targetFile);
+                    //}
                 } else {
                     FileUtils.copyToDirectory(fromLocal, targetFile);
                 }

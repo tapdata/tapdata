@@ -13,7 +13,6 @@ import java.math.BigDecimal;
  * @create 2023/7/15 18:36
  **/
 public class DefaultConvert implements SybaseDataTypeConvert {
-    public static final String TAG = SybaseDataTypeConvert.class.getSimpleName();
     public static final int CONVERT_ERROR_CODE = 362430;
 
     @Override
@@ -51,7 +50,7 @@ public class DefaultConvert implements SybaseDataTypeConvert {
                     return null == bigDecimal ? null : bigDecimal.floatValue();
                 case "IMAGE":
                     TapLogger.warn(TAG, "An BINARY data type not support in cdc now");
-                    return null;//objToBinary(fromValue);
+                    //return objToBinary(fromValue);
                 default:
                     if (type.contains("DATETIME")
                             //|| "SMALLDATETIME".equals(type)
@@ -66,24 +65,19 @@ public class DefaultConvert implements SybaseDataTypeConvert {
                         return objToNumber(fromValue);
                     } else if (type.startsWith("NUMERIC")) {
                         return objToNumber(fromValue);
-                    } else if ("TEXT".equals(type)) {
-                        TapLogger.warn(TAG, "An TEXT data type not support in cdc now");
-                        return "";
                     } else if (type.contains("CHAR")
                             || type.contains("TEXT")
                             || type.contains("SYSNAME")) {
                         return objToString(fromValue, config, nodeConfig);
                     } else if (type.startsWith("VARBINARY")) {
                         TapLogger.warn(TAG, "An VARBINARY data type not support in cdc now");
-                        return null;
-                        //return objToBinary(fromValue);
+                        return null;//objToBinary(fromValue);
                     } else if (type.contains("BINARY")) {
                         TapLogger.warn(TAG, "An BINARY data type not support in cdc now");
-                        return null;
-                        //return objToBinary(fromValue);
+                        return null ;//objToBinary(fromValue);
                     } else if (type.contains("IMAGE")) {
                         TapLogger.warn(TAG, "An IMAGE data type not support in cdc now");
-                        return null;
+                        return null;//objToBinary(fromValue);
                     } else {
                         throw new CoreException(CONVERT_ERROR_CODE, "Found a type that cannot be processed when cdc: {}", type);
                     }
@@ -96,17 +90,17 @@ public class DefaultConvert implements SybaseDataTypeConvert {
         }
     }
 
-    private String dateTimeFormat(String datetimeType, final int defaultCount){
+    private String dateTimeFormat(String datetimeType, final int defaultCount) {
         String formatStart = "yyyy-MM-dd HH:mm:ss";
         if (null == datetimeType || "".equals(datetimeType)) return formatStart;
         int sCount = defaultCount;
-        if (datetimeType.matches(".*\\(\\d*\\).*")){
+        if (datetimeType.matches(".*\\(\\d*\\).*")) {
             int index = datetimeType.lastIndexOf('(');
             int lIndex = datetimeType.lastIndexOf(')');
-            if (index > 0 && lIndex > index){
+            if (index > 0 && lIndex > index) {
                 try {
                     sCount = Integer.parseInt(datetimeType.substring(index, lIndex));
-                }catch (Exception e){
+                } catch (Exception e) {
 
                 }
             }

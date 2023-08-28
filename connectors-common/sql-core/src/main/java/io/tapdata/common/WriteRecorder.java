@@ -135,9 +135,6 @@ public abstract class WriteRecorder {
             int times = 3;
             while (times > 0) {
                 try {
-                    if (times == 3) {
-                        throw new SQLException("Test error");
-                    }
                     preparedStatement.executeBatch();
                 } catch (SQLException e) {
                     if (times <= 1) {

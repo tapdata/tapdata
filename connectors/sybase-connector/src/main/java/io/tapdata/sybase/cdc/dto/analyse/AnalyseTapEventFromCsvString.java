@@ -5,6 +5,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.sybase.cdc.dto.read.TableTypeEntity;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
+import io.tapdata.sybase.js.SybaseScript;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
