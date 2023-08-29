@@ -3,12 +3,6 @@ package io.tapdata.pdk.apis.functions.connector.source;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.TapConnectorFunction;
-import io.tapdata.pdk.apis.functions.connector.TapFunction;
-import io.tapdata.pdk.apis.partition.ReadPartition;
-import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
-
-import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * @author aplomb
@@ -23,5 +17,5 @@ public interface GetReadPartitionsFunction extends TapConnectorFunction {
 	 *
 	 * maxRecordInPartition是一个ReadPartition的数据阈值
 	 */
-	void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options);
+	void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) throws Throwable;
 }

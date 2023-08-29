@@ -2,10 +2,6 @@ package io.tapdata.pdk.apis.functions.connector.source;
 
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.TapConnectorFunction;
-import io.tapdata.pdk.apis.functions.connector.TapFunction;
-
-import java.util.List;
-import java.util.function.BiConsumer;
 
 public interface TimestampToStreamOffsetFunction extends TapConnectorFunction {
     /**

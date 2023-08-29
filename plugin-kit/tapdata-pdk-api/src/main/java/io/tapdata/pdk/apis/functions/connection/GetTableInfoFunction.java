@@ -2,7 +2,6 @@ package io.tapdata.pdk.apis.functions.connection;
 
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.connector.TapConnectionFunction;
-import io.tapdata.pdk.apis.functions.connector.TapFunction;
 
 /**
  * Get table information, like number of rows, storage size, etc.
