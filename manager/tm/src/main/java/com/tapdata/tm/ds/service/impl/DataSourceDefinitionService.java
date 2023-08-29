@@ -341,27 +341,18 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
 			Aggregation.match(Criteria
 				.where("type").in(types)
 				.and("pdkHash").exists(true)
+				.and("tags").in("schema-free")
 				.orOperator(
 					Criteria.where("customId").is(user.getCustomerId()),
 					Criteria.where("user_id").is(user.getUserId()),
 					Criteria.where("pdkType").ne(DataSourceDefinitionDto.PDK_TYPE)
 				)
 			),
-			Aggregation.project("_id", "tags", "type"),
-			Aggregation.sort(Sort.by("_id")),
 			Aggregation.group("type").first("tags").as("tags")
 		);
 		AggregationResults<DsGroupTypeTagsVo> aggregationResults = repository.aggregate(aggregation, DsGroupTypeTagsVo.class);
 		List<DsGroupTypeTagsVo> mappedResults = aggregationResults.getMappedResults();
-		if (types.size() == mappedResults.size()) {
-			for (DsGroupTypeTagsVo vo : mappedResults) {
-				if (null == vo.getTags() || !vo.getTags().contains("schema-free")) {
-					return false;
-				}
-			}
-			return true;
-		}
-		return false;
+		return types.size() == mappedResults.size();
 	}
 
 
