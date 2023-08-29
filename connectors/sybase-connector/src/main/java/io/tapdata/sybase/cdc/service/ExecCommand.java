@@ -69,7 +69,6 @@ class ExecCommand implements CdcStep<CdcRoot> {
         //        .replace("$overwriteType$", "--" + OverwriteType.type(overwriteType));
         root.getContext().getLog().info("shell is {}", cmd);
         try {
-            Thread.sleep(500);
             String[] cmds = new String[]{"/bin/sh", "-c", EXPORT_JAVA_HOME + "; " + cmd};
             Process exec = run(cmds);
             if (null == exec) {

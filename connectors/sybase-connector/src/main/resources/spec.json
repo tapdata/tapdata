@@ -464,13 +464,27 @@
     "char[($byte)]": {
       "to": "TapString",
       "byte": 255,
+      "default": 1,
       "byteRatio": 1,
       "fixed": true
     },
     "varchar($byte)": {
       "name": "varchar",
       "to": "TapString",
-      "byte": 16358,
+      "byte": 255,
+      "default": 1,
+      "byteRatio": 1
+    },
+    "nchar($byte)": {
+      "name": "varchar",
+      "to": "TapString",
+      "default": 1,
+      "byteRatio": 1
+    },
+    "nvarchar($byte)": {
+      "name": "varchar",
+      "to": "TapString",
+      "default": 1,
       "byteRatio": 1
     },
     "tinytext": {
@@ -506,7 +520,8 @@
     },
     "varbinary[($byte)]": {
       "to": "TapBinary",
-      "byte": 65532,
+      "byte": 255,
+      "default": 1,
       "defaultByte": 1
     },
     "tinyblob": {
@@ -532,16 +547,16 @@
     },
     "tinyint[($zerofill)]": {
       "to": "TapNumber",
-      "bit": 8,
+      "bit": 1,
       "precision": 3,
       "value": [
-        -128,
-        127
+        0,
+        255
       ]
     },
     "tinyint[($zerofill)] unsigned": {
       "to": "TapNumber",
-      "bit": 8,
+      "bit": 1,
       "precision": 3,
       "value": [
         0,
@@ -551,7 +566,7 @@
     },
     "tinyint($zerofill) [unsigned] [zerofill]": {
       "to": "TapNumber",
-      "bit": 8,
+      "bit": 1,
       "precision": 3,
       "value": [
         0,
@@ -561,19 +576,19 @@
     },
     "smallint[($zerofill)]": {
       "to": "TapNumber",
-      "bit": 16,
+      "bit": 2,
       "value": [
-        -32768,
-        32767
+        -65536,
+        65535
       ],
       "precision": 5
     },
     "smallint[($zerofill)] unsigned": {
       "to": "TapNumber",
-      "bit": 16,
+      "bit": 2,
       "precision": 5,
       "value": [
-        0,
+        -65536,
         65535
       ],
       "unsigned": "unsigned"
@@ -611,8 +626,8 @@
       "bit": 32,
       "precision": 10,
       "value": [
-        0,
-        4294967295
+        -2147483647,
+        2147483647
       ]
     },
     "bigint[($zerofill)]": {
@@ -733,10 +748,10 @@
     "datetime[($fraction)]": {
       "to": "TapDateTime",
       "range": [
-        "1000-01-01 00:00:00",
-        "9999-12-31 23:59:59"
+        "1000-01-01 00:00:00.000000",
+        "9999-12-31 23:59:59.999999"
       ],
-      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
       "fraction": [
         0,
         6
@@ -750,10 +765,7 @@
         "9999-12-31 23:59:59"
       ],
       "pattern": "yyyy-MM-dd HH:mm:ss",
-      "fraction": [
-        0,
-        6
-      ],
+      "fraction": 0,
       "defaultFraction": 0
     },
     "timestamp[($fraction)]": {

@@ -75,8 +75,8 @@ public class SybaseContext extends MysqlJdbcContextV2 {
     public Connection getConnection() throws SQLException {
         CommonDbConfig config = getConfig();
         try {
-            Class.forName("net.sourceforge.jtds.jdbc.Driver");
-            return DriverManager.getConnection(config.getDatabaseUrl(), config.getUser(), config.getPassword());
+            Class.forName(SybaseConfig.JDBC_SYBASE_DRIVER);
+                return DriverManager.getConnection(config.getDatabaseUrl(), config.getUser(), config.getPassword());
             //Connection conn = DriverManager.getConnection(config.getDatabaseUrl(), config.getProperties());
             //return conn;
         } catch (SQLException e) {

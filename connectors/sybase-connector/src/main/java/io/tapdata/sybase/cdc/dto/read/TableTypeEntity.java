@@ -60,6 +60,8 @@ public class TableTypeEntity {
                         || type.contains("TEXT")
                         || type.contains("SYSNAME")) {
                     this.typeNum = Type.CHAR;
+                } else if (type.contains("SMALLDATETIME")) {
+                    this.typeNum = Type.DATETIME;
                 } else if (type.contains("DATETIME")
                         //|| "SMALLDATETIME".equals(type)
                         //|| "DATETIME".equals(type)
@@ -119,6 +121,7 @@ public class TableTypeEntity {
         public static final int TIME = 3;
         public static final int BIG_TIME = 4;
         public static final int DATETIME = 5;
+        public static final int SMALL_DATETIME = 51;
         public static final int INT = 6;
         public static final int SMALLINT = 7;
         public static final int BIGINT = 8;

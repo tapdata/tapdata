@@ -28,106 +28,44 @@ public class DefaultConvert implements SybaseDataTypeConvert {
             switch (typeNum) {
                 case TableTypeEntity.Type.CHAR:
                 case TableTypeEntity.Type.TEXT:
-                    return objToString(fromValue, config, nodeConfig);
+                    return SybaseDataTypeConvert.objToString(fromValue, config, nodeConfig);
                 case TableTypeEntity.Type.DATE:
-                    return objToDateTime(fromValue, "yyyy-MM-dd", "DATE");
+                    return SybaseDataTypeConvert.objToDateTime(fromValue, "yyyy-MM-dd", "DATE");
                 case TableTypeEntity.Type.TIME:
-                    return objToDateTime(fromValue, "HH:mm:ss", "TIME");
+                    return SybaseDataTypeConvert.objToDateTime(fromValue, "HH:mm:ss", "TIME");
                 case TableTypeEntity.Type.BIG_TIME:
-                    return objToDateTime(fromValue, "HH:mm:ss.SSS", "BIGTIME");
+                    return SybaseDataTypeConvert.objToDateTime(fromValue, "HH:mm:ss.SSS", "BIGTIME");
                 case TableTypeEntity.Type.DATETIME:
-                    return objToDateTime(fromValue, dateTimeFormat(type, 3), type);
+                case TableTypeEntity.Type.SMALL_DATETIME:
+                    return SybaseDataTypeConvert.objToTimestamp(fromValue, type);
                 case TableTypeEntity.Type.INT:
-                    bigDecimal = objToNumber(fromValue);
+                    bigDecimal = SybaseDataTypeConvert.objToNumber(fromValue);
                     return null == bigDecimal ? null : bigDecimal.intValue();
                 case TableTypeEntity.Type.SMALLINT:
-                    bigDecimal = objToNumber(fromValue);
+                    bigDecimal = SybaseDataTypeConvert.objToNumber(fromValue);
                     return null == bigDecimal ? null : bigDecimal.byteValue();
                 case TableTypeEntity.Type.BIGINT:
-                    bigDecimal = objToNumber(fromValue);
+                    bigDecimal = SybaseDataTypeConvert.objToNumber(fromValue);
                     return null == bigDecimal ? null : bigDecimal.longValue();
                 case TableTypeEntity.Type.DOUBLE:
-                    bigDecimal = objToNumber(fromValue);
+                    bigDecimal = SybaseDataTypeConvert.objToNumber(fromValue);
                     return null == bigDecimal ? null : bigDecimal.doubleValue();
                 case TableTypeEntity.Type.BIT:
                 case TableTypeEntity.Type.FLOAT:
-                    bigDecimal = objToNumber(fromValue);
+                    bigDecimal = SybaseDataTypeConvert.objToNumber(fromValue);
                     return null == bigDecimal ? null : bigDecimal.floatValue();
                 case TableTypeEntity.Type.IMAGE:
                 case TableTypeEntity.Type.BINARY:
                     TapLogger.warn(TAG, "An {} data type not support in cdc now", sybaseType);
                     return null;//objToBinary(fromValue);
                 case TableTypeEntity.Type.DECIMAL:
-                    return objToNumber(fromValue);
+                    return SybaseDataTypeConvert.objToNumber(fromValue);
                 case TableTypeEntity.Type.NUMERIC:
-                    return objToNumber(fromValue);
+                    return SybaseDataTypeConvert.objToNumber(fromValue);
                 default:
                     throw new CoreException(CONVERT_ERROR_CODE, "Found a type that cannot be processed when cdc: {}", sybaseType);
 
             }
-
-//            switch (type) {
-//                case "DATE":
-//                    return objToDateTime(fromValue, "yyyy-MM-dd", "DATE");
-//                case "TIME":
-//                    return objToDateTime(fromValue, "HH:mm:ss", "TIME");
-//                case "BIGTIME":
-//                    return objToDateTime(fromValue, "HH:mm:ss.SSS", "BIGTIME");
-//                case "INT":
-//                case "TINYINT":
-//                    bigDecimal = objToNumber(fromValue);
-//                    return null == bigDecimal ? null : bigDecimal.intValue();
-//                case "SMALLINT":
-//                    bigDecimal = objToNumber(fromValue);
-//                    return null == bigDecimal ? null : bigDecimal.byteValue();
-//                case "BIGINT":
-//                    bigDecimal = objToNumber(fromValue);
-//                    return null == bigDecimal ? null : bigDecimal.longValue();
-//                case "DOUBLE":
-//                    bigDecimal = objToNumber(fromValue);
-//                    return null == bigDecimal ? null : bigDecimal.doubleValue();
-//                case "SMALLMONEY":
-//                case "MONEY":
-//                case "REAL":
-//                case "BIT":
-//                    bigDecimal = objToNumber(fromValue);
-//                    return null == bigDecimal ? null : bigDecimal.floatValue();
-//                case "IMAGE":
-//                    TapLogger.warn(TAG, "An BINARY data type not support in cdc now");
-//                    return null;//objToBinary(fromValue);
-//                default:
-//                    if (type.contains("CHAR")
-//                            || type.contains("TEXT")
-//                            || type.contains("SYSNAME")) {
-//                        return objToString(fromValue, config, nodeConfig);
-//                    } else if (type.contains("DATETIME")
-//                            //|| "SMALLDATETIME".equals(type)
-//                            //|| "DATETIME".equals(type)
-//                            //|| "BIGDATETIME".equals(type)
-//                            || "TIMESTAMP".equals(type)) {
-//                        return objToDateTime(fromValue, dateTimeFormat(type, 3), type);
-//                    } else if (type.startsWith("FLOAT")) {
-//                        bigDecimal = objToNumber(fromValue);
-//                        return null == bigDecimal ? null : bigDecimal.floatValue();
-//                    } else if (type.startsWith("DECIMAL")) {
-//                        return objToNumber(fromValue);
-//                    } else if (type.startsWith("NUMERIC")) {
-//                        return objToNumber(fromValue);
-//                    } else if (type.startsWith("VARBINARY")) {
-//                        TapLogger.warn(TAG, "An VARBINARY data type not support in cdc now");
-//                        return null;
-//                        //return objToBinary(fromValue);
-//                    } else if (type.contains("BINARY")) {
-//                        TapLogger.warn(TAG, "An BINARY data type not support in cdc now");
-//                        return null;
-//                        //return objToBinary(fromValue);
-//                    } else if (type.contains("IMAGE")) {
-//                        TapLogger.warn(TAG, "An IMAGE data type not support in cdc now");
-//                        return null;
-//                    } else {
-//                        throw new CoreException(CONVERT_ERROR_CODE, "Found a type that cannot be processed when cdc: {}", type);
-//                    }
-//            }
         } catch (Exception e) {
             if (e instanceof CoreException && ((CoreException) e).getCode() == CONVERT_ERROR_CODE) {
                 throw (CoreException) e;

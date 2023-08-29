@@ -11,6 +11,8 @@ import java.util.List;
  **/
 public interface ReadCSV {
     public static final int CDC_BATCH_SIZE = 500;
+    public static final int MAX_LINE_EVERY_CSV_FILE = 1000;
+    public static final int DEFAULT_CACHE_TIME_OF_CSV_FILE = 10;//min
 
     public default void read(String csvPath, CdcAccepter accepter) {
         read(csvPath, 0, accepter);

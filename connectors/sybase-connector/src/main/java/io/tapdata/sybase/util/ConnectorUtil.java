@@ -744,27 +744,33 @@ public class ConnectorUtil {
         if (null == filePath || "/*".equals(filePath) || "".equals(filePath.trim())) {
             return;
         }
+        deleteFile(new File(filePath), log);
+    }
+
+    public static void deleteFile(File file, Log log) {
+        if (!file.exists()) {
+            return;
+        }
         try {
-            File file = new File(filePath);
-            if (HostUtils.isLinuxCore()) {
-                final String shell = "rm -rf " + filePath;
-                log.info("clean cdc path: {}", shell);
-                if (file.exists()) {
-                    if (file.isDirectory()) {
-                        FileUtils.deleteDirectory(file);
-                    } else {
-                        FileUtils.delete(file);
-                    }
-                }
-            } else {
+            //if (HostUtils.isLinuxCore()) {
+                //final String shell = "rm -rf " + filePath;
+            log.info("Clean file: {}", file.getAbsolutePath());
+            if (file.exists()) {
                 if (file.isDirectory()) {
                     FileUtils.deleteDirectory(file);
                 } else {
                     FileUtils.delete(file);
                 }
             }
+            //} else {
+            //    if (file.isDirectory()) {
+            //        FileUtils.deleteDirectory(file);
+            //    } else {
+            //        FileUtils.delete(file);
+            //    }
+            //}
         } catch (Exception e) {
-            log.warn("Can not delete file: {}, msg; {}", filePath, e.getMessage());
+            log.warn("Can not delete file: {}, msg; {}", file.getAbsolutePath(), e.getMessage());
         }
     }
 }
