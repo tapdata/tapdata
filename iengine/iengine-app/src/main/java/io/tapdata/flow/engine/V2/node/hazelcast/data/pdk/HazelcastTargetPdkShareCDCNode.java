@@ -94,7 +94,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
-		this.targetBatch = 10000;
+		this.targetBatch = 100;
 		this.targetBatchIntervalMs = 1000;
 		this.constructReferenceId.set(String.format("%s-%s-%s", getClass().getSimpleName(), getNode().getTaskId(), getNode().getId()));
 		Integer shareCdcTtlDay = getShareCdcTtlDay();
