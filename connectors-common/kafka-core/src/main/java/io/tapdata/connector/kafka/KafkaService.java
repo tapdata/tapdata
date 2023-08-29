@@ -391,7 +391,7 @@ public class KafkaService extends AbstractMqService {
                                 map.remove("after");
                             }
                             res.put("data",map);
-                            body = jsonParser.toJsonBytes(res.get("data"));
+                            body = jsonParser.toJsonBytes(res.get("data"), JsonParser.ToJsonFeature.WriteMapNullValue);
                         }else {
                             body = obj.toString().getBytes();
                         }
