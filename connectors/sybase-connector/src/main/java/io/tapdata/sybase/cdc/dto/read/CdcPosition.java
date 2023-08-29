@@ -66,8 +66,14 @@ public class CdcPosition implements Serializable {
         public static final long serialVersionUID = 2L;
         //private String fileName;
         Map<String, CSVOffset> csvFile;
+        String pathSuf;
 
-        public PositionOffset() {
+        public String getPathSuf() {
+            return this.pathSuf.endsWith("/") ? this.pathSuf : this.pathSuf + "/";
+        }
+
+        public PositionOffset(String pathSuf) {
+            this.pathSuf = pathSuf;
             csvFile = new LinkedHashMap<>();
         }
 
@@ -83,8 +89,21 @@ public class CdcPosition implements Serializable {
             return null == csvFile ? null : csvFile.get(fileName);
         }
 
+        public CSVOffset csvOffsetByFullPath(String fullPath) {
+            String fileName = fixFileNameByFilePath(fullPath);
+            return null == csvFile || null == fileName ? null : csvFile.get(fileName);
+        }
+
         public void csvOffset(String fileName, CSVOffset offset) {
             csvFile.put(fileName, offset);
+        }
+
+        public void csvOffsetByFullPath(String fullPath, CSVOffset offset) {
+            csvFile.put(fixFileNameByFilePath(fullPath), offset);
+        }
+
+        public String fixFileNameByFilePath(String path) {
+            return null == path || "".equals(path.trim()) ? null : path.replace(pathSuf, "");
         }
     }
 

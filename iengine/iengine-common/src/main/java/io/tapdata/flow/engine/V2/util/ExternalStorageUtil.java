@@ -43,7 +43,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class ExternalStorageUtil {
 	private final static String LOG_PREFIX = "[Hazelcast IMDG Persistence] - ";
 	private static final Logger logger = LogManager.getLogger(ExternalStorageUtil.class);
-	public static final int DEFAULT_IN_MEM_SIZE = 1000;
+	public static final int DEFAULT_IN_MEM_SIZE = 1;
 	public static final String DEFAULT_MAX_SIZE_POLICY = "USED_HEAP_SIZE";
 	public static final int DEFAULT_WRITE_DELAY_SECONDS = 0;
 

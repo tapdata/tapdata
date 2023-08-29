@@ -120,7 +120,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         fileMonitor.monitor(monitorPath, listener);
 
         try {
-            if (Objects.isNull(this.future)) {
+            if (Objects.nonNull(this.future)) {
                 try {
                     this.future.cancel(true);
                 } catch (Exception e1){ } finally {
@@ -405,15 +405,15 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 final List<TapEvent>[] events = new List[]{new ArrayList<>()};
                 CdcPosition.PositionOffset positionOffset = position.get(database, schema, tableName);
                 if (null == positionOffset) {
-                    positionOffset = new CdcPosition.PositionOffset();
+                    positionOffset = new CdcPosition.PositionOffset(absolutePath.replace(csvFileName, ""));
                     position.add(database, schema, tableName, positionOffset);
                 }
-                CdcPosition.CSVOffset csvOffset = positionOffset.csvOffset(absolutePath);
+                CdcPosition.CSVOffset csvOffset = positionOffset.csvOffset(csvFileName);
                 if (null == csvOffset) {
                     csvOffset = new CdcPosition.CSVOffset();
                     csvOffset.setOver(false);
                     csvOffset.setLine(0);
-                    positionOffset.csvOffset(absolutePath, csvOffset);
+                    positionOffset.csvOffset(csvFileName, csvOffset);
                 }
                 AtomicReference<LinkedHashMap<String, TableTypeEntity>> tapTableAto = new AtomicReference<>(tapTable);
                 AtomicReference<CdcPosition.CSVOffset> csvOffsetAto = new AtomicReference<>(csvOffset);
@@ -582,6 +582,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     for (String table : tables) {
                         CdcPosition.PositionOffset csvOffsetMap = tableOffset.get(table);
                         if (null == csvOffsetMap) continue;
+                        final String fileSuf = csvOffsetMap.getPathSuf();
                         Map<String, CdcPosition.CSVOffset> csvFile = csvOffsetMap.getCsvFile();
                         if (null == csvFile || csvFile.isEmpty()) continue;
                         List<String> fileNameList = new ArrayList<>(csvFile.keySet());
@@ -590,7 +591,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                             CdcPosition.CSVOffset csvOffset = csvFile.get(name);
                             return null != csvOffset && csvOffset.getLine() >= ReadCSVQuickly.MAX_LINE_EVERY_CSV_FILE ;
                         }).forEach(name -> {
-                            File file = new File(name);
+                            File file = new File(fileSuf + name);
                             try {
                                 if (file.exists() && file.isFile() && file.lastModified() < streamStartAndCacheTime) {
                                     ConnectorUtil.deleteFile(file, log);
