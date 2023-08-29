@@ -345,7 +345,8 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
 				.orOperator(
 					Criteria.where("customId").is(user.getCustomerId()),
 					Criteria.where("user_id").is(user.getUserId()),
-					Criteria.where("pdkType").ne(DataSourceDefinitionDto.PDK_TYPE)
+					Criteria.where("pdkType").ne(DataSourceDefinitionDto.PDK_TYPE),
+					Criteria.where("scope").is("public")
 				)
 			),
 			Aggregation.group("type").first("tags").as("tags")
