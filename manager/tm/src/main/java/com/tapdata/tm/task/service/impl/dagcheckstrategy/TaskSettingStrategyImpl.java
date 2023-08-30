@@ -33,14 +33,14 @@ import java.util.stream.Collectors;
 @Component("taskSettingStrategy")
 @Setter(onMethod_ = {@Autowired})
 public class TaskSettingStrategyImpl implements DagLogStrategy {
-    
+
     private TaskService taskService;
     private DataSourceService dataSourceService;
     private WorkerService workerService;
     private TaskDagCheckLogService taskDagCheckLogService;
 
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.TASK_SETTING_CHECK;
-    
+
     @Override
     public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
         ObjectId taskId = taskDto.getId();
@@ -61,7 +61,7 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
         }
 
         String content = MessageFormat.format(template, current);
-        
+
         TaskDagCheckLog log = new TaskDagCheckLog();
         log.setTaskId(taskId.toHexString());
         log.setCheckType(templateEnum.name());
@@ -104,7 +104,7 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
         // check plan task and cron task
         if (taskDto.isPlanStartDateFlag() || taskDto.getCrontabExpressionFlag()) {
             CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, userDetail, "task", taskDto.getName());
-            if (StringUtils.isNotBlank(taskDto.getAgentId()) && calculationEngineVo.getRunningNum() >= calculationEngineVo.getTaskLimit()) {
+            if (StringUtils.isNotBlank(taskDto.getAgentId()) && calculationEngineVo.getRunningNum() > calculationEngineVo.getTaskLimit()) {
                 // 调度失败
                 taskDto.setCrontabScheduleMsg("Task.ScheduleLimit");
                 taskService.save(taskDto, userDetail);
