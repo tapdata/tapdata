@@ -69,7 +69,7 @@ public class CdcPosition implements Serializable {
         String pathSuf;
 
         public String getPathSuf() {
-            return this.pathSuf.endsWith("/") ? this.pathSuf : this.pathSuf + "/";
+            return this.pathSuf;
         }
 
         public PositionOffset(String pathSuf) {

@@ -1,6 +1,7 @@
 package io.tapdata.sybase.extend;
 
 import io.tapdata.common.CommonDbConfig;
+import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.connector.mysql.MysqlJdbcContextV2;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
@@ -10,13 +11,8 @@ import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.sql.*;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -59,7 +55,7 @@ public class SybaseContext extends MysqlJdbcContextV2 {
             "from sysindexes ind,sysobjects obj\n" +
             "where keycnt>0 and ind.id=obj.id and obj.type='U' %s";
 
-    private final static String SHOW_TABLE_CONFIG = "sp_helpindex '%s'";
+    private final static String SHOW_TABLE_CONFIG = "sp_helpindex N'%s'";
 
     public SybaseContext(CommonDbConfig config) {
         super(config);
@@ -76,7 +72,31 @@ public class SybaseContext extends MysqlJdbcContextV2 {
         CommonDbConfig config = getConfig();
         try {
             Class.forName(SybaseConfig.JDBC_SYBASE_DRIVER);
-                return DriverManager.getConnection(config.getDatabaseUrl(), config.getUser(), config.getPassword());
+            Properties properties = config.getProperties();
+            properties.put("dbProductName", properties.getProperty("schema"));
+            properties.put("_dbProductName", properties.getProperty("schema"));
+            //return DriverManager.getConnection(config.getDatabaseUrl(), config.getUser(), config.getPassword());
+            return DriverManager.getConnection(config.getDatabaseUrl(), properties);
+            //Connection conn = DriverManager.getConnection(config.getDatabaseUrl(), config.getProperties());
+            //return conn;
+        } catch (SQLException e) {
+            exceptionCollector.collectUserPwdInvalid(getConfig().getUser(), e);
+            throw e;
+        } catch (ClassNotFoundException foundException) {
+            foundException.printStackTrace();
+            throw new CoreException(foundException.getMessage());
+        }
+    }
+
+    private Connection getConnectionByJDBCDriver(String driver, String urlFormat) throws SQLException {
+        CommonDbConfig config = getConfig();
+        try {
+            Class.forName(driver);
+            Properties properties = new Properties();
+            properties.putAll(config.getProperties());
+            properties.put("jdbcDriver", driver);
+            //return DriverManager.getConnection(config.getDatabaseUrl(), config.getUser(), config.getPassword());
+            return DriverManager.getConnection(String.format(urlFormat, config.getHost(), config.getPort(), config.getDatabase(), config.getExtParams()), properties);
             //Connection conn = DriverManager.getConnection(config.getDatabaseUrl(), config.getProperties());
             //return conn;
         } catch (SQLException e) {
@@ -166,7 +186,7 @@ public class SybaseContext extends MysqlJdbcContextV2 {
         tableNames.stream().filter(Objects::nonNull).forEach(tab -> {
             try {
                 addInRow.put("tableName", tab);
-                query(queryAllIndexesSql(tab), resultSet -> {
+                query0(queryAllIndexesSql(tab), resultSet -> {
                     columnList.addAll(getDataFromResultSet(resultSet, addInRow));
 
                 });
@@ -175,6 +195,38 @@ public class SybaseContext extends MysqlJdbcContextV2 {
             }
         });
         return columnList;
+    }
+    //connection.createStatement().execute("SET SCHEMA schemaName");
+//    public void query(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
+//        try (
+//                Connection connection = getConnection();
+//                Statement statement = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
+//        ) {
+//            statement.setFetchSize(2000); //protected from OM
+//            try (
+//                    ResultSet resultSet = statement.executeQuery(sql)
+//            ) {
+//                if (EmptyKit.isNotNull(resultSet)) {
+//                    resultSetConsumer.accept(resultSet);
+//                }
+//            }
+//        }
+//    }
+    //getConnectionByJDBCDriver
+    public void query0(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
+        try (
+                Connection connection = getConnectionByJDBCDriver("net.sourceforge.jtds.jdbc.Driver", "jdbc:jtds:sybase://%s:%s/%s%s");
+                Statement statement = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
+        ) {
+            statement.setFetchSize(2000); //protected from OM
+            try (
+                    ResultSet resultSet = statement.executeQuery(sql)
+            ) {
+                if (EmptyKit.isNotNull(resultSet)) {
+                    resultSetConsumer.accept(resultSet);
+                }
+            }
+        }
     }
 
     public static List<DataMap> getDataFromResultSet(ResultSet resultSet, DataMap addInRow) throws SQLException {

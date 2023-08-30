@@ -25,9 +25,21 @@ public class SybaseConfig extends CommonDbConfig {
     }
 
     public String getDatabaseUrlPattern() {
-        // last %s reserved for extend params
-        return "jdbc:sybase:Tds:%s:%d/%s%s";
+        // last %s reserved for extend params  jdbc:sybase:Tds:?:?/database
+        return "jdbc:sybase:Tds:%s:%s/%s%s";
         //return url.replace("jdbc:sybase:", "jdbc:sybase:Tds:");
+    }
+
+
+    //deal with extend params no matter there is ?
+    public String getDatabaseUrl() {
+        if (EmptyKit.isNull(this.getExtParams())) {
+            this.setExtParams("");
+        }
+        if (EmptyKit.isNotEmpty(this.getExtParams()) && !this.getExtParams().startsWith("?") && !this.getExtParams().startsWith(":")) {
+            this.setExtParams("?" + this.getExtParams());
+        }
+        return String.format(this.getDatabaseUrlPattern(), this.getHost(), this.getPort(), this.getDatabase(), this.getExtParams());
     }
 
     @Override
