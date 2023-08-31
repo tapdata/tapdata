@@ -49,7 +49,7 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
                 if (insertPolicy.equals("ignore_on_exists")) {
                     notExistsInsert(after);
                 } else {
-                    withUpdateInsert(after);
+                    conflictUpdateInsert(after);
                 }
             }
         }else {
