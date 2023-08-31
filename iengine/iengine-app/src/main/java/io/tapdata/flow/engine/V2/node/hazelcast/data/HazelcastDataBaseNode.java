@@ -22,6 +22,7 @@ import java.util.Map;
  * @date 2022/2/22 5:04 PM
  **/
 public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
+	protected static final String STREAM_OFFSET_COMPRESS_PREFIX = "_tap_zip_";
 
 	protected SyncTypeEnum syncType;
 	protected DataProcessorContext dataProcessorContext;
