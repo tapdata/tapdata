@@ -2332,7 +2332,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         match(Criteria.where("user_id").is(userDetail.getUserId())
                                 .and("customId").is(userDetail.getCustomerId())
                                 .and("is_deleted").ne(true)
-                                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)),
+                                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
+                                .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE,TaskDto.SYNC_TYPE_SYNC)),
                         group("type").count().as("count")
                 );
 
