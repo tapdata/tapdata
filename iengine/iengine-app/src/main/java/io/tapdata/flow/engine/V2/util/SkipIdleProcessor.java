@@ -77,7 +77,7 @@ public class SkipIdleProcessor<T> implements AutoCloseable {
 		Item item;
 		while (null == (item = queue.poll())) {
 			if (isRunning.get()) {
-				Thread.sleep(LOOP_INTERVAL);
+				Thread.sleep(10);//Thread.sleep(LOOP_INTERVAL);
 			} else {
 				return null;
 			}

@@ -308,7 +308,7 @@
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "apiServerKey": "database_port",
-          "default": 4,
+          "default": 3,
           "x-index": 10,
           "required": true
         },

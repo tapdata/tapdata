@@ -16,9 +16,11 @@ public class CdcPosition implements Serializable {
 
     Map<String, Map<String, Map<String, PositionOffset>>> tableOffset;
     long cdcStartTime;
+    boolean isMultiTask;
 
     public CdcPosition() {
         tableOffset = new LinkedHashMap<>();
+        isMultiTask = true;
     }
 
     public CdcPosition cdcStartTime(long cdcStartTime) {
@@ -65,7 +67,7 @@ public class CdcPosition implements Serializable {
     public static class PositionOffset implements Serializable {
         public static final long serialVersionUID = 2L;
         //private String fileName;
-        Map<String, CSVOffset> csvFile;
+        Map<Integer, CSVOffset> csvFile;
         String pathSuf;
 
         public String getPathSuf() {
@@ -77,33 +79,65 @@ public class CdcPosition implements Serializable {
             csvFile = new LinkedHashMap<>();
         }
 
-        public Map<String, CSVOffset> getCsvFile() {
+        public Map<Integer, CSVOffset> getCsvFile() {
             return csvFile;
         }
 
-        public void setCsvFile(Map<String, CSVOffset> csvFile) {
+        public void setCsvFile(Map<Integer, CSVOffset> csvFile) {
             this.csvFile = csvFile;
         }
 
         public CSVOffset csvOffset(String fileName) {
-            return null == csvFile ? null : csvFile.get(fileName);
+            return null == csvFile ? null : csvFile.get(fixFileNameByFilePath(fileName));
         }
 
         public CSVOffset csvOffsetByFullPath(String fullPath) {
-            String fileName = fixFileNameByFilePath(fullPath);
-            return null == csvFile || null == fileName ? null : csvFile.get(fileName);
+            Integer fileNameIndex = fixFileNameByFilePath(fullPath);
+            return null == csvFile || null == fileNameIndex || fileNameIndex < 0 ? null : csvFile.get(fileNameIndex);
+        }
+
+        public void csvOffset(Integer fileIndex, CSVOffset offset) {
+            csvFile.put(fileIndex, offset);
         }
 
         public void csvOffset(String fileName, CSVOffset offset) {
-            csvFile.put(fileName, offset);
+            csvFile.put(fixFileNameByFilePath(fileName), offset);
         }
 
         public void csvOffsetByFullPath(String fullPath, CSVOffset offset) {
             csvFile.put(fixFileNameByFilePath(fullPath), offset);
         }
 
-        public String fixFileNameByFilePath(String path) {
-            return null == path || "".equals(path.trim()) ? null : path.replace(pathSuf, "");
+        /**
+         * @deprecated
+         * */
+//        public String fixFileNameByFilePath(String path) {
+//            return null == path || "".equals(path.trim()) ? null : path.replace(pathSuf, "");
+//        }
+
+        public Integer fixFileNameByFilePath(String path) {
+            String fileName = null == path || "".equals(path.trim()) ? null : path.replace(pathSuf, "");;
+            if (null == fileName) {
+                return -1;
+            }
+            String[] split = fileName.split("\\.");
+            if( split.length != 5) {
+                return  -1;
+            }
+            String indexFormat = split[3];
+            if (null == indexFormat || !indexFormat.startsWith("part_")){
+                return -1;
+            }
+            String partIndexStr = indexFormat.replace("part_", "");
+            try {
+                return Integer.parseInt(partIndexStr);
+            } catch (Exception e) {
+                return -1;
+            }
+        }
+
+        public String parseFileName(String database, String schema, String table, Integer index) {
+            return pathSuf + database + "." + schema + "." + table + ".part_" +  index + ".csv";
         }
     }
 
@@ -144,5 +178,18 @@ public class CdcPosition implements Serializable {
 
     public void setTableOffset(Map<String, Map<String, Map<String, PositionOffset>>> tableOffset) {
         this.tableOffset = tableOffset;
+    }
+
+    public boolean isMultiTask() {
+        return isMultiTask;
+    }
+
+    public void setMultiTask(boolean multiTask) {
+        isMultiTask = multiTask;
+    }
+
+    public CdcPosition notMultiTask() {
+        this.isMultiTask = false;
+        return this;
     }
 }

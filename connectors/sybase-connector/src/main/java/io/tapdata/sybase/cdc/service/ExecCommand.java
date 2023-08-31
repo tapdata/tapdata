@@ -8,15 +8,7 @@ import io.tapdata.sybase.cdc.dto.start.CommandType;
 import io.tapdata.sybase.cdc.dto.start.OverwriteType;
 import io.tapdata.sybase.util.ConnectorUtil;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.StringJoiner;
-
-import static io.tapdata.base.ConnectorBase.list;
 
 /**
  * @author GavinXiao
@@ -61,12 +53,6 @@ class ExecCommand implements CdcStep<CdcRoot> {
                 processId,
                 "--" + OverwriteType.type(overwriteType)
         );
-        //String cmd = START_CDC
-        //        .replace("$taskId$", root.getCdcId())
-        //        .replaceAll("\\$pocCliPath\\$", root.getCliPath())
-        //        .replaceAll("\\$pocPath\\$", sybasePocPath)
-        //        .replace("$commandType$", CommandType.type(commandType))
-        //        .replace("$overwriteType$", "--" + OverwriteType.type(overwriteType));
         root.getContext().getLog().info("shell is {}", cmd);
         try {
             String[] cmds = new String[]{"/bin/sh", "-c", EXPORT_JAVA_HOME + "; " + cmd};
@@ -74,31 +60,8 @@ class ExecCommand implements CdcStep<CdcRoot> {
             if (null == exec) {
                 throw new CoreException("Cdc tool can not running, fail to get stream data");
             }
-            String name = exec.getClass().getName();
-            long cdcPid = -1;
-            Class<? extends Process> aClass = exec.getClass();
             KVMap<Object> stateMap = root.getContext().getStateMap();
             stateMap.put("tableOverType", OverwriteType.RESUME.getType());
-            try {
-                if ("java.lang.UNIXProcess".equals(name)) {
-                    Field pid = aClass.getDeclaredField("pid");
-                    pid.setAccessible(true);
-                    cdcPid = pid.getLong(pid);
-                    stateMap.put("cdcPid", cdcPid);
-                } else if ("java.lang.ProcessImpl".equals(name)) {
-                    Field pid = aClass.getDeclaredField("handle");
-                    pid.setAccessible(true);
-                    cdcPid = (Integer) pid.get(pid);
-                    stateMap.put("cdcPid", cdcPid);
-                } else {
-                    root.getContext().getLog().info("Cdc tool is running, but can not get it's pid, {}, {}", aClass.getName());
-                }
-            } catch (Exception ignore) { }
-            if (cdcPid > 0) {
-                root.getContext().getLog().info("Cdc tool is running which pid is {}", cdcPid);
-            } else {
-                root.getContext().getLog().info("Cdc tool is running, but can not get it's pid, {}, {}", aClass.getName());
-            }
         } catch (Exception e) {
             throw new CoreException("Command exec failed, unable to start cdc command: {}, msg: {}", cmd, e.getMessage());
         } finally {

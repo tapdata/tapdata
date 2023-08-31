@@ -186,9 +186,9 @@ public class SybaseContext extends MysqlJdbcContextV2 {
         tableNames.stream().filter(Objects::nonNull).forEach(tab -> {
             try {
                 addInRow.put("tableName", tab);
-                query0(queryAllIndexesSql(tab), resultSet -> {
+                //queryAllIndexesSql(tab)
+                queryIndex(tab, resultSet -> {
                     columnList.addAll(getDataFromResultSet(resultSet, addInRow));
-
                 });
             } catch (Exception e) {
                 TapLogger.warn(TAG, e.getMessage());
@@ -196,23 +196,53 @@ public class SybaseContext extends MysqlJdbcContextV2 {
         });
         return columnList;
     }
-    //connection.createStatement().execute("SET SCHEMA schemaName");
-//    public void query(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
-//        try (
-//                Connection connection = getConnection();
-//                Statement statement = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
-//        ) {
-//            statement.setFetchSize(2000); //protected from OM
-//            try (
-//                    ResultSet resultSet = statement.executeQuery(sql)
-//            ) {
-//                if (EmptyKit.isNotNull(resultSet)) {
-//                    resultSetConsumer.accept(resultSet);
-//                }
-//            }
-//        }
-//    }
-    //getConnectionByJDBCDriver
+
+    private void queryIndex(String table, ResultSetConsumer resultSetConsumer) {
+        Connection connection = null;
+        CallableStatement statement = null;
+        ResultSet resultSet = null;
+        try {
+            // 加载驱动
+            Class.forName("com.sybase.jdbc4.jdbc.SybDriver");
+            // 建立连接
+            CommonDbConfig config = getConfig();
+            connection = DriverManager.getConnection(config.getDatabaseUrl(), config.getUser(), config.getPassword());
+            // 创建CallableStatement对象
+            statement = connection.prepareCall("{call sp_helpindex(?)}");
+            // 设置参数
+            statement.setString(1, config.getSchema() + "." + table);
+            // 执行存储过程
+            resultSet = statement.executeQuery();
+            if (null != resultSet) {
+                resultSetConsumer.accept(resultSet);
+            }
+        } catch (ClassNotFoundException | SQLException e) {
+            e.printStackTrace();
+        } finally {
+            // 关闭资源
+            if (resultSet != null) {
+                try {
+                    resultSet.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (statement != null) {
+                try {
+                    statement.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (connection != null) {
+                try {
+                    connection.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
     public void query0(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
         try (
                 Connection connection = getConnectionByJDBCDriver("net.sourceforge.jtds.jdbc.Driver", "jdbc:jtds:sybase://%s:%s/%s%s");

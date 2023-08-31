@@ -2,10 +2,7 @@ package io.tapdata.sybase.cdc.service;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -19,8 +16,6 @@ import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVOfBigFile;
 import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVQuickly;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
 import io.tapdata.sybase.cdc.dto.read.TableTypeEntity;
-import io.tapdata.sybase.cdc.dto.start.CommandType;
-import io.tapdata.sybase.cdc.dto.start.OverwriteType;
 import io.tapdata.sybase.cdc.dto.watch.FileListener;
 import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
@@ -34,11 +29,9 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.monitor.FileAlterationObserver;
 
 import java.io.File;
-import java.io.PrintStream;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.base.ConnectorBase.list;
@@ -70,6 +63,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
     private ScheduledFuture<?> future;
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     private final Object readFileLock = new Object();
+    private long lastModifyTime;
 
     protected ListenFile(CdcRoot root,
                          String monitorPath,
@@ -77,6 +71,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                          String monitorFileName,
                          AnalyseCsvFile analyseCsvFile,
                          StopLock lock,
+                         long lastModifyTime,
                          int batchSize) {
         this.root = root;
         if (null == monitorPath || "".equals(monitorPath.trim())) {
@@ -90,13 +85,14 @@ public class ListenFile implements CdcStep<CdcRoot> {
         }
         this.monitorFileName = monitorFileName;
         this.tables = tables;
-        root.getContext().getLog().warn("init with monitor table: {}", tables);
+        root.getContext().getLog().info("init with monitor table: {}", tables);
         analyseRecord = new AnalyseTapEventFromCsvString();
         this.batchSize = batchSize;
         this.schemaConfigPath = root.getSybasePocPath() + ConfigPaths.SCHEMA_CONFIG_PATH;
         this.config = new ConnectionConfig(root.getContext());
         this.nodeConfig = new NodeConfig(root.getContext());
         readCSVOfBigFile.setLog(root.getContext().getLog());
+        this.lastModifyTime = lastModifyTime;
     }
 
     @Override
@@ -211,7 +207,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
             } catch (Exception e){
                 root.getContext().getLog().info("Can not get Table from config, msg: {}", e.getMessage());
             }
-            root.getContext().getLog().warn("change monitor table to: {}", tables);
+            root.getContext().getLog().info("Change monitor table to: {}", tables);
         }
     }
 
@@ -250,7 +246,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
             super.onStop(observer);
             try {
                 synchronized (readFileLock) {
-                    //foreachTable(false);
                     releaseOffset();
                 }
             } catch (Exception e) {
@@ -262,6 +257,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         public void onFileChange(File file0) {
             try {
                 if (isCSV(file0)) {
+                    lastModifyTime = file0.lastModified();
                     monitorFile.add(file0.getAbsolutePath());
                 }
             } catch (Exception e) {
@@ -273,6 +269,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         public void onFileCreate(File file0) {
             try {
                 if (isCSV(file0)) {
+                    lastModifyTime = file0.lastModified();
                     monitorFile.add(file0.getAbsolutePath());
                 }
             } catch (Exception e) {
@@ -282,18 +279,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
 
         public void perpar() {
             if (null == cdcConsumer) return;
-            //Log log = context.getLog();
-            //String hostPortFromConfig = ConnectorUtil.getCurrentInstanceHostPortFromConfig(context);
-            //if (System.currentTimeMillis() - lastHeartbeatTime > 150000) {
-            //    List<Integer> port = ConnectorUtil.port(ConnectorUtil.getKillShellCmd(context), ConnectorUtil.ignoreShells, log, hostPortFromConfig);
-            //    if (port.size() < 3) {
-            //        log.info("The CDC process will be restarted: no incremental files were detected to have been created or modified for a long time (2.5 minutes). Please check if incremental data has occurred on the source side");
-            //        //超过2.5分钟未检测到CSV文件变更，重启cdc工具
-            //        ConnectorUtil.safeStopShell(context, port);
-            //        new ExecCommand(root, CommandType.CDC, OverwriteType.RESUME).compile();
-            //    }
-            //    lastHeartbeatTime = System.currentTimeMillis();
-            //}
             try {
                 synchronized (readFileLock) {
                     if (!hasHandelInit.get() && !tables.isEmpty()) {
@@ -326,9 +311,8 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         final String tempPath = tempDir + table;
                         File tableSpaceFile = new File(tempPath);
                         if (!tableSpaceFile.exists()) continue;
-                        //root.getContext().getLog().warn("Csv files path: {}", tempPath);
                         Arrays.stream(Objects.requireNonNull(tableSpaceFile.listFiles()))
-                                .filter(file -> Objects.nonNull(file) && file.exists() && file.isFile() && isCSV(file))
+                                .filter(file -> Objects.nonNull(file) && file.exists() && file.isFile() && isCSV(file) && lastModifyTime <= file.lastModified())
                                 .sorted(Comparator.comparing(File::getName))
                                 .forEach(file -> monitorCSVFileIfPresentDeleteWithConfigTime(file, cdcCacheTime, needDeleteCsvFile));
                     }
@@ -348,13 +332,8 @@ public class ListenFile implements CdcStep<CdcRoot> {
         }
 
         public boolean monitor(File file, Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap) {
-            //lastHeartbeatTime = System.currentTimeMillis();
             boolean isThisFile = false;
             String absolutePath = file.getAbsolutePath();
-
-            //root.getContext().getLog().warn("monitor file once, {}", absolutePath);
-
-
             String csvFileName = file.getName();
             String[] split = csvFileName.split("\\.");
             if (split.length < 3) {
@@ -363,7 +342,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
             final String database = split[0];
             final String schema = split[1];
             final String tableName = split[2];
-            //切换csv文件时删除之前的csv文件
             CdcPosition position = analyseCsvFile.getPosition();
             long cdcStartTime = position.getCdcStartTime();
             if (file.lastModified() < cdcStartTime) {
@@ -379,7 +357,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
             }
             if (null != tableName && currentTables.contains(tableName)) {
                 isThisFile = true;
-                //final TapTable tapTable = tableMap.get(tableName);
                 if (tableMap.isEmpty()) {
                     try {
                         tableMap.putAll(getTableFromConfig(tables));
@@ -401,7 +378,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     root.getContext().getLog().warn("Can not get table info from schemas.yaml of table {}", tableName);
                     return false;
                 }
-
                 final List<TapEvent>[] events = new List[]{new ArrayList<>()};
                 CdcPosition.PositionOffset positionOffset = position.get(database, schema, tableName);
                 if (null == positionOffset) {
@@ -421,95 +397,42 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 options.add(database);
                 options.add(schema);
                 options.add(tableName);
-                //long costStart = System.currentTimeMillis();
-                //AtomicReference<Long> cost = new AtomicReference<>(0L);
-                //AtomicReference<Long> costAccept = new AtomicReference<>(0L);
-                //AtomicReference<Long> costAcceptMin = new AtomicReference<>(0L);
                 try {
                     analyseCsvFile.analyse(file.getAbsolutePath(), tapTable, (compile, firstIndex, lastIndex) -> {
                         LinkedHashMap<String, TableTypeEntity> tableItem = tapTableAto.get();
                         CdcPosition.CSVOffset offset = csvOffsetAto.get();
                         int lineItem = offset.getLine();
                         for (String[] list : compile) {
-                                TapEvent recordEvent;
-                                try {
-                                    //long s = System.currentTimeMillis();
-                                    recordEvent = analyseRecord.analyse(list, tableItem, tableName, config, nodeConfig);
-                                    //cost.set(Math.max(cost.get(), System.currentTimeMillis() - s));
-                                } catch (Exception e) {
-                                    root.getContext().getLog().warn("An cdc event failed to accept in {} of {}, error csv format, csv line: {}, msg: {}", tableName, absolutePath, list, e.getMessage());
+                            TapEvent recordEvent;
+                            try {
+                                recordEvent = analyseRecord.analyse(list, tableItem, tableName, config, nodeConfig);
+                            } catch (Exception e) {
+                                root.getContext().getLog().warn("An cdc event failed to accept in {} of {}, error csv format, csv line: {}, msg: {}", tableName, absolutePath, list, e.getMessage());
+                                continue;
+                            }
+                            if (null != recordEvent) {
+                                //共享挖掘不做忽略，引擎自动处理，事件发生的时间早于任务启动时间，当前事件需要被忽略
+                                if (!position.isMultiTask() && lineItem <= 0 && ((TapRecordEvent) recordEvent).getReferenceTime() < position.getCdcStartTime()) {
                                     continue;
                                 }
-                                if (null != recordEvent) {
-                                    //事件发生的时间早于任务启动时间，当前事件需要被忽略
-                                    //if (lineItem <= 0 && ((TapRecordEvent) recordEvent).getReferenceTime() < position.getCdcStartTime()) {
-                                    //    continue;
-                                    //}
-                                    ((TapRecordEvent) recordEvent).setNamespaces(options);
-                                    events[0].add(recordEvent);
-                                    lineItem = offset.addAndGet();
-                                    if (events[0].size() == batchSize) {
-                                        offset.setOver(false);
-                                        cdcConsumer.accept(events[0], position);
-                                        events[0] = new ArrayList<>();
-                                    }
+                                ((TapRecordEvent) recordEvent).setNamespaces(options);
+                                events[0].add(recordEvent);
+                                lineItem = offset.addAndGet();
+                                if (events[0].size() == batchSize) {
+                                    offset.setOver(false);
+                                    cdcConsumer.accept(events[0], lastModifyTime);
+                                    events[0] = new ArrayList<>();
                                 }
                             }
-                        /**
-                         if (lineItem <= lastIndex) {
-                         for (int index = 0; index < csvFileLines; index++) {
-                         if ((firstIndex + index) < lineItem) {
-                         continue;
-                         }
-                         TapEvent recordEvent;
-                         try {
-                         //recordEvent = analyseRecord.analyse(compile.get(index), tableItem, tableName, config, nodeConfig, cdcInfo -> {
-                         //    //cdcInfo: 每条csv携带的增量事件信息 not null
-                         //    //过滤增量时间点小于当前任务的启动时间的数据
-                         //    Object timestamp = cdcInfo.get("timestamp");
-                         //    if (null == timestamp) return true;
-                         //    long cdcReference = -1;
-                         //    try {
-                         //        cdcReference = Long.parseLong((String) timestamp);
-                         //    } catch (Exception ignore) {
-                         //    }
-                         //    return position.getCdcStartTime() > -1 && cdcReference >= position.getCdcStartTime();
-                         //});
-                         recordEvent = analyseRecord.analyse(compile.get(index), tableItem, tableName, config, nodeConfig, null);
-                         } catch (Exception e) {
-                         root.getContext().getLog().warn("An cdc event failed to accept in {} of {}, error csv format, csv line: {}, msg: {}", tableName, absolutePath, compile.get(index), e.getMessage());
-                         continue;
-                         }
-                         if (null != recordEvent) {
-                         //事件发生的时间早于任务启动时间，当前事件需要被忽略
-                         //if (lineItem <= 0 && ((TapRecordEvent) recordEvent).getReferenceTime() < position.getCdcStartTime()) {
-                         //    continue;
-                         //}
-                         List<String> options = new ArrayList<>();
-                         options.add(database);
-                         options.add(schema);
-                         options.add(tableName);
-                         ((TapRecordEvent) recordEvent).setNamespaces(options);
-                         events[0].add(recordEvent);
-                         lineItem = offset.addAndGet();
-                         if (events[0].size() == batchSize) {
-                         offset.setOver(false);
-                         cdcConsumer.accept(events[0], position);
-                         events[0] = new ArrayList<>();
-                         }
-                         }
-                         }
-                         }
-                         **/
+                        }
                     }).compile(readCSVOfBigFile, csvOffset.getLine());
                 } finally {
                     if (!events[0].isEmpty()) {
                         csvOffset.setOver(true);
-                        cdcConsumer.accept(events[0], position);
+                        cdcConsumer.accept(events[0], lastModifyTime);
                         events[0] = new ArrayList<>();
                     }
                 }
-                //log.info("Cost {} ms to analyse csv file, cost one line need max {}ms, accept once need max/min {}/{} ms, {}", System.currentTimeMillis() - costStart, cost.get(), costAccept.get(), costAcceptMin.get(), absolutePath);
             }
             return isThisFile;
         }
@@ -552,7 +475,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         monitor(file, tableMap);
                     }
                 }
-                //foreachTable(false);
             }
         }
         /**
@@ -583,26 +505,27 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         CdcPosition.PositionOffset csvOffsetMap = tableOffset.get(table);
                         if (null == csvOffsetMap) continue;
                         final String fileSuf = csvOffsetMap.getPathSuf();
-                        Map<String, CdcPosition.CSVOffset> csvFile = csvOffsetMap.getCsvFile();
+                        Map<Integer, CdcPosition.CSVOffset> csvFile = csvOffsetMap.getCsvFile();
                         if (null == csvFile || csvFile.isEmpty()) continue;
-                        List<String> fileNameList = new ArrayList<>(csvFile.keySet());
+                        List<Integer> fileNameList = new ArrayList<>(csvFile.keySet());
                         fileNameList.stream().filter(name -> {
                             if (null == name) return false;
                             CdcPosition.CSVOffset csvOffset = csvFile.get(name);
                             return null != csvOffset && csvOffset.getLine() >= ReadCSVQuickly.MAX_LINE_EVERY_CSV_FILE ;
-                        }).forEach(name -> {
-                            File file = new File(fileSuf + name);
+                        }).forEach(fileIndex -> {
+                            final String filePath = csvOffsetMap.parseFileName(database, schema, table, fileIndex);
+                            File file = new File(filePath);
                             try {
                                 if (file.exists() && file.isFile() && file.lastModified() < streamStartAndCacheTime) {
                                     ConnectorUtil.deleteFile(file, log);
                                     if (!file.exists()) {
-                                        csvFile.remove(name);
-                                        unExistStr.add(name);
+                                        csvFile.remove(fileIndex);
+                                        unExistStr.add(filePath);
                                     }
                                     //(new File(name)).createNewFile();
                                 }
                             } catch (Exception e){
-                                failStr.add(name + ", mag: " + e.getMessage());
+                                failStr.add(filePath + ", mag: " + e.getMessage());
                             }
                         });
                     }

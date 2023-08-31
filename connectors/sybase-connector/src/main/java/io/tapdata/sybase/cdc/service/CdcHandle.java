@@ -98,7 +98,7 @@ public class CdcHandle {
 
         SybaseGeneralConfig generalConfig = new SybaseGeneralConfig();
         LivenessMonitor monitor = new LivenessMonitor();
-        monitor.setEnable(true);
+        monitor.setEnable(false);
         monitor.setInactive_timeout_ms(900_000);
         monitor.setMin_free_memory_threshold_percent(5);
         monitor.setLiveness_check_interval_ms(60_000);
@@ -157,6 +157,7 @@ public class CdcHandle {
             CdcPosition position,
             int batchSize,
             long delay,
+            long lastModifyTime,
             StreamReadConsumer consumer) {
         if (null == position) position = new CdcPosition();
         streamReadConsumer(consumer, context.getLog(), monitorPath, delay);
@@ -166,6 +167,7 @@ public class CdcHandle {
                 monitorFileName,
                 new AnalyseCsvFile(this.root, position, null),
                 lock,
+                lastModifyTime,
                 batchSize
         ).monitor(fileMonitor);
         listenFile.compile();

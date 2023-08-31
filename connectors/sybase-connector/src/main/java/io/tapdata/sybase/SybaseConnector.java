@@ -191,7 +191,7 @@ public class SybaseConnector extends CommonDbConnector {
     private void release(TapConnectorContext context) {
         KVMap<Object> stateMap = context.getStateMap();
         Object isMutilStreamTask = stateMap.get("is_multi_stream_task");
-        final boolean shareTask = null != isMutilStreamTask && isMutilStreamTask instanceof Boolean && (Boolean) isMutilStreamTask;
+        final boolean shareTask = isMutilStreamTask instanceof Boolean && (Boolean) isMutilStreamTask;
         if (shareTask) {
             if (null == cdcHandle)
                 cdcHandle = new CdcHandle(new CdcRoot(unused -> isAlive()), context, new StopLock(isAlive()));
@@ -375,8 +375,10 @@ public class SybaseConnector extends CommonDbConnector {
 
     @Override
     protected void queryByAdvanceFilterWithOffset(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
-        ConnectionConfig config = new ConnectionConfig(connectorContext);
-        String sql = commonSqlMaker.buildSelectClause(table, filter) + getSchemaAndTable(config.getDatabase() + "." + config.getSchema() + "." + table.getId()) + commonSqlMaker.buildSqlByAdvanceFilter(filter);
+        if (null == connectionConfig) {
+            connectionConfig = new ConnectionConfig(connectorContext);
+        }
+        String sql = commonSqlMaker.buildSelectClause(table, filter) + getSchemaAndTable(table.getId()) + commonSqlMaker.buildSqlByAdvanceFilter(filter);
         int batchSize = null != filter.getBatchSize() && filter.getBatchSize().compareTo(0) > 0 ? filter.getBatchSize() : BATCH_ADVANCE_READ_LIMIT;
         jdbcContext.query(sql, resultSet -> {
             FilterResults filterResults = new FilterResults();
@@ -402,14 +404,18 @@ public class SybaseConnector extends CommonDbConnector {
         if (null == nodeConfig) {
             nodeConfig = new NodeConfig(connectorContext);
         }
+        if (null == connectionConfig) {
+            connectionConfig = new ConnectionConfig(connectorContext);
+        }
         final boolean needEncode = nodeConfig.isAutoEncode();
         final String encode = needEncode ? Optional.ofNullable(nodeConfig.getEncode()).orElse("cp850") : null;
         final String decode = needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
         final String outCode = needEncode ? Optional.ofNullable(nodeConfig.getOutDecode()).orElse("utf-8") : null;
-        ConnectionConfig config = new ConnectionConfig(connectorContext);
         List<FilterResult> filterResults = new LinkedList<>();
         for (TapFilter filter : filters) {
-            String sql = "select * from " + getSchemaAndTable(config.getDatabase() + "." + config.getSchema() + "." + tapTable.getId()) + " where " + commonSqlMaker.buildKeyAndValue(filter.getMatch(), "and", "=");
+            String sql = String.format("select * from %s where %s",
+                    getSchemaAndTable(tapTable.getId()),
+                    commonSqlMaker.buildKeyAndValue(filter.getMatch(), "and", "="));
             FilterResult filterResult = new FilterResult();
             try {
                 jdbcContext.query(sql, resultSet -> {
@@ -430,9 +436,11 @@ public class SybaseConnector extends CommonDbConnector {
 
     protected long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
         try {
-            ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
+            if (null == connectionConfig) {
+                connectionConfig = new ConnectionConfig(tapConnectorContext);
+            }
             AtomicLong count = new AtomicLong(0);
-            String sql = "select count(*) from " + config.getDatabase() + "." + config.getSchema() + "." + tapTable.getId();
+            String sql = String.format("select count(*) from %s", getSchemaAndTable(tapTable.getId()));
             try {
                 jdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
             } catch (Exception e) {
@@ -586,7 +594,101 @@ public class SybaseConnector extends CommonDbConnector {
      * @deprecated
      * */
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> currentTables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
-        throw new CoreException("Not support stream read by node, please open Shared-Mining ");
+        long lastModifyTime = offset instanceof Long ? (Long)offset : ( offset instanceof CdcPosition ? ((CdcPosition)offset).getCdcStartTime() : System.currentTimeMillis() );
+        tapConnectorContext.getStateMap().put("is_multi_stream_task", true);
+        //throw new CoreException("Not support stream read by node, please open Shared-Mining ");
+        Object position = root.getContext().getStateMap().get("cdc_position");
+        CdcPosition cdcPosition = (position instanceof CdcPosition ? (CdcPosition) position : new CdcPosition()).notMultiTask();
+
+        tapConnectorContext.getLog().info("Running with normal task on cdc, offset: {}", cdcPosition);
+        if (null == currentTables || currentTables.isEmpty()) return;
+
+        if (null == root.getTaskCdcId()) {
+            root.setTaskCdcId(taskId = null == taskId ? ConnectorUtil.maintenanceTaskId(tapConnectorContext) : taskId);
+        }
+        //if (null == root.getCdcTables() || root.getCdcTables().isEmpty()) {
+        //    root.setCdcTables(tables);
+        //}
+        //KVReadOnlyMap<TapTable> tableMap = tapConnectorContext.getTableMap();
+        //Iterator<Entry<TapTable>> iterator = tableMap.iterator();
+        Map<String, Map<String, List<String>>> tables = new HashMap<>();
+        Map<String, List<String>> database = new HashMap<>();
+        database.put(connectionConfig.getSchema(), currentTables);
+        tables.put(connectionConfig.getDatabase(), database);
+
+        List<ConnectionConfigWithTables> connectionConfigWithTables = new ArrayList<>();
+        ConnectionConfigWithTables connectionConfigWithTablesItem = new ConnectionConfigWithTables();
+        connectionConfigWithTablesItem.connectionConfig(tapConnectorContext.getConnectionConfig());
+        connectionConfigWithTablesItem.setTables(currentTables);
+        connectionConfigWithTables.add(connectionConfigWithTablesItem);
+        try {
+            //Object target = tapConnectorContext.getStateMap().get("timestampToStreamOffsetTarget");
+            //if (!(null != target && target instanceof Boolean && (Boolean)target)) {
+            cdcStart(tapConnectorContext, connectionConfigWithTables);
+            //} else {
+            //   tapConnectorContext.getStateMap().put("timestampToStreamOffsetTarget", true);
+            //}
+
+            root.setContext(tapConnectorContext);
+
+            if (null == cdcHandle) {
+                try {
+                    root.setSybasePocPath(getSybasePocPath(tapConnectorContext));
+                    cdcHandle = new CdcHandle(root, tapConnectorContext, lock);
+                } catch (CoreException e) {
+                    if (e.getCode() == Code.STREAM_READ_WARN) {
+                        tapConnectorContext.getLog().info(e.getMessage());
+                    }
+                    throw e;
+                }
+            }
+            String sybasePocPath = cdcHandle.getRoot().getSybasePocPath();
+            if (null == sybasePocPath || "".equals(sybasePocPath.trim())) {
+                Object path = tapConnectorContext.getStateMap().get(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR);
+                if (null == path) {
+                    path = new File("sybase-poc-temp/"+ ConnectorUtil.getCurrentInstanceHostPortFromConfig(root.getContext()) + "/").getAbsolutePath();
+                    tapConnectorContext.getStateMap().put(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR, path);
+                    //throw new CoreException("Can not get sybase poc cdc base path from global state map");
+                }
+                sybasePocPath = String.valueOf(path);
+            }
+            if(!(hasMonitor && cdcHandle.reflshCdcTable(tables))) {
+                hasMonitor = true;
+                cdcHandle.startListen(
+                        sybasePocPath + ConfigPaths.SYBASE_USE_CSV_DIR,
+                        ConfigPaths.YAML_METADATA_NAME,
+                        tables,
+                        cdcPosition,
+                        batchSize,
+                        lastModifyTime,
+                        nodeConfig.getCloseDelayMill(),
+                        consumer
+                );
+            }
+
+            while (isAlive()) {
+                try {
+                    sleep(5000);
+                } catch (Exception ignore){}
+                List<Integer> port = ConnectorUtil.port(
+                        ConnectorUtil.getKillShellCmd(tapConnectorContext),
+                        ConnectorUtil.ignoreShells,
+                        tapConnectorContext.getLog(),
+                        ConnectorUtil.getCurrentInstanceHostPortFromConfig(tapConnectorContext)
+                );
+                if (port.size() < 2) {
+                    //tapConnectorContext.getLog().info("Cdc task is normal, but not any cdc process is active, this task is normal task can not retry to start cdc process.");
+                    //CDC_PROCESS_FAIL_EXCEPTION_CODE
+                    throw new CoreException(SybaseConnector.CDC_PROCESS_FAIL_EXCEPTION_CODE, "Cdc task is normal, but not any cdc process is active, will retry to start cdc process");
+                }
+            }
+        } catch (Throwable e) {
+//            if ( e instanceof CoreException && ((CoreException)e).getCode() == SybaseConnector.CDC_PROCESS_FAIL_EXCEPTION_CODE) {
+//                throw
+//            }
+            throw e;
+            //tapConnectorContext.getLog().error("Sybase cdc is stopped now, error: {}", e.getMessage());
+        }
     }
 
     /**
@@ -594,6 +696,9 @@ public class SybaseConnector extends CommonDbConnector {
      * */
     boolean hasMonitor = false;
     private void multiStreamStart(TapConnectorContext tapConnectorContext, List<ConnectionConfigWithTables> connectionConfigWithTables, Object offset, int batchSize, StreamReadConsumer consumer) {
+        long lastModifyTime = offset instanceof Long ? (Long)offset : ( offset instanceof CdcPosition ? ((CdcPosition)offset).getCdcStartTime() : System.currentTimeMillis() );
+        Object position = tapConnectorContext.getStateMap().get("cdc_position");
+
         if(batchSize < 200 || batchSize > 500) batchSize = 200;
         if (null == connectionConfigWithTables || connectionConfigWithTables.isEmpty()) return;
 
@@ -634,14 +739,16 @@ public class SybaseConnector extends CommonDbConnector {
                 }
                 sybasePocPath = String.valueOf(path);
             }
+            //log.info("cdc monitor path: {}", sybasePocPath + ConfigPaths.SYBASE_USE_CSV_DIR);
             if(!(hasMonitor && cdcHandle.reflshCdcTable(tables))) {
                 hasMonitor = true;
                 cdcHandle.startListen(
                         sybasePocPath + ConfigPaths.SYBASE_USE_CSV_DIR,
                         ConfigPaths.YAML_METADATA_NAME,
                         tables,
-                        offset instanceof CdcPosition ? (CdcPosition) offset : new CdcPosition(),
+                        position instanceof CdcPosition ? (CdcPosition) position : new CdcPosition(),
                         batchSize,
+                        lastModifyTime,
                         nodeConfig.getCloseDelayMill(),
                         consumer
                 );
@@ -649,7 +756,7 @@ public class SybaseConnector extends CommonDbConnector {
 
             while (isAlive()) {
                 try {
-                    root.wait(4000);
+                    root.wait(3000);
                 } catch (Exception ignore){}
                 List<Integer> port = ConnectorUtil.port(
                         ConnectorUtil.getKillShellCmd(tapConnectorContext),
@@ -797,7 +904,7 @@ public class SybaseConnector extends CommonDbConnector {
 
     @Override
     protected String getSchemaAndTable(String tableId) {
-        return tableId;
+        return String.format("%s.%s.%s", connectionConfig.getDatabase(), connectionConfig.getSchema(), tableId);
     }
 
     private void cdcStart(TapConnectorContext tapConnectorContext, List<ConnectionConfigWithTables> connectionConfigWithTables) {
