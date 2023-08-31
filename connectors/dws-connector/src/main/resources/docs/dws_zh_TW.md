@@ -114,3 +114,4 @@ PARTITION BY RANGE ("WR_RETURNED_DATE_SK")
 *   如果需要使用分區表，在選擇目標表存在處理策略時，建議保留表結構，否則會由tapdata自動創建普通表
 
 具體可參考GaussDB(DWS)官方文檔<https://support.huaweicloud.com/dws/index.html>
+

@@ -110,3 +110,4 @@ CREATE TABLE web_returns_p1
 *   If you need to use a partition table and select a processing strategy for the target table, it is recommended to retain the table structure. Otherwise, tapdata will automatically create a regular table.
 
 For more details, please refer to the official GaussDB(DWS) documentation:<https://support.huaweicloud.com/dws/index.html>
+
