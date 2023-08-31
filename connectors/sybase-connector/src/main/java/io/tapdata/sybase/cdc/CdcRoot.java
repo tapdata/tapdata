@@ -1,7 +1,9 @@
 package io.tapdata.sybase.cdc;
 
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.sybase.cdc.dto.read.CdcPosition;
 import io.tapdata.sybase.cdc.dto.start.CdcStartVariables;
+import io.tapdata.sybase.cdc.service.ListenFile;
 import io.tapdata.sybase.util.ConnectorUtil;
 
 import java.io.File;
@@ -29,9 +31,51 @@ public class CdcRoot {
     private String cliPath;
     private Predicate<Void> isAlive;
     private Map<String, Map<String, List<String>>> containsTimestampFieldTables;
+    Map<String, Integer> csvFileModifyIndexCache;
+
 
     public CdcRoot(Predicate<Void> isAlive) {
         this.isAlive = isAlive;
+    }
+
+    public Integer getCsvFileModifyIndexByCsvFileName(String csvFileName) {
+        if (null == csvFileModifyIndexCache || csvFileModifyIndexCache.isEmpty()) return 0;
+        return Optional.ofNullable(csvFileModifyIndexCache.get(ListenFile.databaseTable(csvFileName))).orElse(0);
+    }
+
+    /**
+     * @param fullTableName {databaseName}.{schemaName}.{tableName}
+     * */
+    public Integer getCsvFileModifyIndexByFullTableName(String fullTableName) {
+        if (null == csvFileModifyIndexCache || csvFileModifyIndexCache.isEmpty()) return 0;
+        return (Integer) Optional.ofNullable(csvFileModifyIndexCache.get(fullTableName)).orElse(0);
+    }
+
+    public Map<String, Integer> setCsvFileModifyIndexByCsvFileName(String csvFileName, Integer index) {
+        return setCsvFileModifyIndexByFullTableName(ListenFile.databaseTable(csvFileName), index);
+    }
+
+    /**
+     * @param fullTableName {databaseName}.{schemaName}.{tableName}
+     * */
+    public Map<String, Integer> setCsvFileModifyIndexByFullTableName(String fullTableName, Integer index) {
+        if (null == csvFileModifyIndexCache) {
+            csvFileModifyIndexCache = new HashMap<>();
+        }
+        csvFileModifyIndexCache.put(fullTableName, index);
+        return csvFileModifyIndexCache;
+    }
+
+    public Map<String, Integer> getCsvFileModifyIndexCache() {
+        return csvFileModifyIndexCache;
+    }
+
+    public void setCsvFileModifyIndexCache(Map<String, Integer> csvFileModifyIndexCache) {
+        this.csvFileModifyIndexCache = csvFileModifyIndexCache;
+    }
+    public CdcRoot csvFileModifyIndexCache(Map<String, Integer> csvFileModifyIndexCache) {
+        this.csvFileModifyIndexCache = csvFileModifyIndexCache;
+        return this;
     }
 
     public File getCdcFile() {

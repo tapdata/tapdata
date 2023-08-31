@@ -117,6 +117,10 @@ public class CdcPosition implements Serializable {
 
         public Integer fixFileNameByFilePath(String path) {
             String fileName = null == path || "".equals(path.trim()) ? null : path.replace(pathSuf, "");;
+            return fixFileNameByFilePathWithoutSuf(fileName);
+        }
+
+        public static Integer fixFileNameByFilePathWithoutSuf(String fileName) {
             if (null == fileName) {
                 return -1;
             }

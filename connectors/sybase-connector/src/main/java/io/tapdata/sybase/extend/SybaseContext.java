@@ -10,9 +10,14 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
+import io.tapdata.sybase.util.ConnectorUtil;
 
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -43,18 +48,9 @@ public class SybaseContext extends MysqlJdbcContextV2 {
     //select all table and table'name
     private final static String SELECT_ALL_TABLE_NAME = "select obj.name from sysobjects as obj where obj.type = 'U' %s";
 
-    //select table index
-    private final static String SELECT_ALL_INDEX = "SELECT\n" +
-            "    obj.name tableName,\n" +
-            "    ind.name indexName,\n" +
-            "    obj.id indexId,\n" +
-            "    ind.keys1 keys1,\n" +
-            "    ind.keys2 keys2,\n" +
-            "    ind.keycnt keycnt,\n" +
-            "    ind.status status\n" +
-            "from sysindexes ind,sysobjects obj\n" +
-            "where keycnt>0 and ind.id=obj.id and obj.type='U' %s";
-
+    /**
+     * @deprecated
+     * */
     private final static String SHOW_TABLE_CONFIG = "sp_helpindex N'%s'";
 
     public SybaseContext(CommonDbConfig config) {
@@ -73,32 +69,9 @@ public class SybaseContext extends MysqlJdbcContextV2 {
         try {
             Class.forName(SybaseConfig.JDBC_SYBASE_DRIVER);
             Properties properties = config.getProperties();
-            properties.put("dbProductName", properties.getProperty("schema"));
-            properties.put("_dbProductName", properties.getProperty("schema"));
-            //return DriverManager.getConnection(config.getDatabaseUrl(), config.getUser(), config.getPassword());
+//            properties.put("dbProductName", properties.getProperty("schema"));
+//            properties.put("_dbProductName", properties.getProperty("schema"));
             return DriverManager.getConnection(config.getDatabaseUrl(), properties);
-            //Connection conn = DriverManager.getConnection(config.getDatabaseUrl(), config.getProperties());
-            //return conn;
-        } catch (SQLException e) {
-            exceptionCollector.collectUserPwdInvalid(getConfig().getUser(), e);
-            throw e;
-        } catch (ClassNotFoundException foundException) {
-            foundException.printStackTrace();
-            throw new CoreException(foundException.getMessage());
-        }
-    }
-
-    private Connection getConnectionByJDBCDriver(String driver, String urlFormat) throws SQLException {
-        CommonDbConfig config = getConfig();
-        try {
-            Class.forName(driver);
-            Properties properties = new Properties();
-            properties.putAll(config.getProperties());
-            properties.put("jdbcDriver", driver);
-            //return DriverManager.getConnection(config.getDatabaseUrl(), config.getUser(), config.getPassword());
-            return DriverManager.getConnection(String.format(urlFormat, config.getHost(), config.getPort(), config.getDatabase(), config.getExtParams()), properties);
-            //Connection conn = DriverManager.getConnection(config.getDatabaseUrl(), config.getProperties());
-            //return conn;
         } catch (SQLException e) {
             exceptionCollector.collectUserPwdInvalid(getConfig().getUser(), e);
             throw e;
@@ -170,10 +143,6 @@ public class SybaseContext extends MysqlJdbcContextV2 {
         return queryAllTables(tableNames);
     }
 
-//    protected String queryAllColumnsSql(String schema, List<String> tableNames) {
-//        throw new UnsupportedOperationException();
-//    }
-
     /**
      * query all index info from some tables
      *
@@ -182,12 +151,14 @@ public class SybaseContext extends MysqlJdbcContextV2 {
      */
     public List<DataMap> queryAllIndexes(List<String> tableNames) throws SQLException {
         List<DataMap> columnList = list();
-        DataMap addInRow = new DataMap();
-        tableNames.stream().filter(Objects::nonNull).forEach(tab -> {
+        CommonDbConfig config = getConfig();
+        tableNames.stream().filter(Objects::nonNull).forEach(table -> {
+            DataMap addInRow = new DataMap();
             try {
-                addInRow.put("tableName", tab);
-                //queryAllIndexesSql(tab)
-                queryIndex(tab, resultSet -> {
+                addInRow.put("tableName", table);
+                call("{call sp_helpindex(?)}", statement -> {
+                    statement.setString(1, config.getSchema() + "." + table);
+                }, resultSet -> {
                     columnList.addAll(getDataFromResultSet(resultSet, addInRow));
                 });
             } catch (Exception e) {
@@ -197,63 +168,92 @@ public class SybaseContext extends MysqlJdbcContextV2 {
         return columnList;
     }
 
-    private void queryIndex(String table, ResultSetConsumer resultSetConsumer) {
-        Connection connection = null;
+    public List<DataMap> queryAllIndexes0(List<String> tableNames) throws SQLException {
+        List<DataMap> columnList = list();
+        CommonDbConfig config = getConfig();
+        AtomicReference<Throwable> throwable = new AtomicReference<>();
+        CountDownLatch countDownLatch = new CountDownLatch(2);
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        CopyOnWriteArraySet<List<String>> tableLists = new CopyOnWriteArraySet<>(DbKit.splitToPieces(new ArrayList<>(tableNames.stream().filter(Objects::nonNull).collect(Collectors.toList())), 2));
+
+        try {
+            for (int index = 0; index < 2; index++) {
+                executorService.submit(() -> {
+                    try {
+                        List<String> subTableNames;
+                        while ((subTableNames = ConnectorUtil.getOutTableList(tableLists)) != null) {
+                            subTableNames.forEach(table -> {
+                                DataMap addInRow = new DataMap();
+                                try {
+                                    addInRow.put("tableName", table);
+                                    //query(queryAllIndexesSql(table), resultSet -> {
+                                    //    columnList.addAll(getDataFromResultSet(resultSet, addInRow));
+                                    //});
+                                    call("{call sp_helpindex(?)}", statement -> {
+                                        statement.setString(1, config.getSchema() + "." + table);
+                                    }, resultSet -> {
+                                        columnList.addAll(getDataFromResultSet(resultSet, addInRow));
+                                    });
+                                } catch (Exception e) {
+                                    TapLogger.warn(TAG, e.getMessage());
+                                }
+                            });
+                        }
+                    } catch (Exception e) {
+                        throwable.set(e);
+                    } finally {
+                        countDownLatch.countDown();
+                    }
+                });
+            }
+
+            try {
+                countDownLatch.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            if (EmptyKit.isNotNull(throwable.get())) {
+                throw new RuntimeException(throwable.get());
+            }
+        } finally {
+            executorService.shutdown();
+        }
+        return columnList;
+    }
+
+    interface CallableSetConsumer {
+        void set(CallableStatement statement) throws SQLException;
+    }
+
+    private void call(String callableSql, CallableSetConsumer setConsumer, ResultSetConsumer resultSetConsumer) throws SQLException {
         CallableStatement statement = null;
         ResultSet resultSet = null;
-        try {
-            // 加载驱动
-            Class.forName("com.sybase.jdbc4.jdbc.SybDriver");
-            // 建立连接
+        try(Connection connection = getConnection()) {
+//            Class.forName("com.sybase.jdbc4.jdbc.SybDriver");
             CommonDbConfig config = getConfig();
-            connection = DriverManager.getConnection(config.getDatabaseUrl(), config.getUser(), config.getPassword());
-            // 创建CallableStatement对象
-            statement = connection.prepareCall("{call sp_helpindex(?)}");
-            // 设置参数
-            statement.setString(1, config.getSchema() + "." + table);
-            // 执行存储过程
+//            connection = DriverManager.getConnection(config.getDatabaseUrl(), config.getUser(), config.getPassword());
+            statement = connection.prepareCall(callableSql);
+            setConsumer.set(statement);
             resultSet = statement.executeQuery();
             if (null != resultSet) {
                 resultSetConsumer.accept(resultSet);
             }
-        } catch (ClassNotFoundException | SQLException e) {
-            e.printStackTrace();
+        } catch (SQLException e) {
+            if (!"JZ0R2".equals(e.getSQLState())) {
+                throw e;
+            }
         } finally {
             // 关闭资源
             if (resultSet != null) {
                 try {
                     resultSet.close();
-                } catch (SQLException e) {
-                    e.printStackTrace();
+                } catch (SQLException ignore) {
                 }
             }
             if (statement != null) {
                 try {
                     statement.close();
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
-            }
-            if (connection != null) {
-                try {
-                    connection.close();
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-    public void query0(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
-        try (
-                Connection connection = getConnectionByJDBCDriver("net.sourceforge.jtds.jdbc.Driver", "jdbc:jtds:sybase://%s:%s/%s%s");
-                Statement statement = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
-        ) {
-            statement.setFetchSize(2000); //protected from OM
-            try (
-                    ResultSet resultSet = statement.executeQuery(sql)
-            ) {
-                if (EmptyKit.isNotNull(resultSet)) {
-                    resultSetConsumer.accept(resultSet);
+                } catch (SQLException ignore) {
                 }
             }
         }

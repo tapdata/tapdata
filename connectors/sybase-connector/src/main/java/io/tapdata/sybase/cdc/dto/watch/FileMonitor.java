@@ -7,6 +7,7 @@ import org.apache.commons.io.monitor.FileAlterationMonitor;
 import org.apache.commons.io.monitor.FileAlterationObserver;
 
 import java.io.File;
+import java.io.FileFilter;
 
 public class FileMonitor {
 
@@ -39,7 +40,9 @@ public class FileMonitor {
      * @param listener 文件监听器
      */
     public void monitor(String path, FileAlterationListener listener) {
-        FileAlterationObserver observer = new FileAlterationObserver(new File(path));
+        FileAlterationObserver observer = new FileAlterationObserver(new File(path), fileName ->
+            "object_metadata.yaml".equals(fileName.getName())
+        );
         observer.addListener(listener);
         monitor.addObserver(observer);
     }

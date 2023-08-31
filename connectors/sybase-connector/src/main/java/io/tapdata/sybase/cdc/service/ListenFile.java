@@ -26,12 +26,14 @@ import io.tapdata.sybase.util.ConnectorUtil;
 import io.tapdata.sybase.util.Utils;
 import io.tapdata.sybase.util.YamlUtil;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.monitor.FileAlterationObserver;
 
 import java.io.File;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.base.ConnectorBase.list;
@@ -60,10 +62,11 @@ public class ListenFile implements CdcStep<CdcRoot> {
     private final Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap = new HashMap<>(); //all cdc table from schema.yaml to anlyse csv line to tap event
 
     private Queue<String> monitorFilePath = new ConcurrentLinkedQueue<>();// all change or cerate file path in this queue when cdc is processing
-    private ScheduledFuture<?> future;
+    private ScheduledFuture<?> futureCheckFile;
+    private ScheduledFuture<?> futureReadFile;
+    private final ScheduledExecutorService scheduledExecutorServiceCheckFile = Executors.newSingleThreadScheduledExecutor();
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     private final Object readFileLock = new Object();
-    private long lastModifyTime;
 
     protected ListenFile(CdcRoot root,
                          String monitorPath,
@@ -71,7 +74,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
                          String monitorFileName,
                          AnalyseCsvFile analyseCsvFile,
                          StopLock lock,
-                         long lastModifyTime,
                          int batchSize) {
         this.root = root;
         if (null == monitorPath || "".equals(monitorPath.trim())) {
@@ -92,7 +94,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
         this.config = new ConnectionConfig(root.getContext());
         this.nodeConfig = new NodeConfig(root.getContext());
         readCSVOfBigFile.setLog(root.getContext().getLog());
-        this.lastModifyTime = lastModifyTime;
     }
 
     @Override
@@ -113,39 +114,52 @@ public class ListenFile implements CdcStep<CdcRoot> {
 
         final Integer cdcCacheTime = Optional.ofNullable(nodeConfig.getCdcCacheTime()).orElse(ReadCSV.DEFAULT_CACHE_TIME_OF_CSV_FILE) * 60000;
         FileListenerImpl listener = new FileListenerImpl(monitorFilePath, context, hasHandelInit, cdcCacheTime) ;
-        fileMonitor.monitor(monitorPath, listener);
-
+        //fileMonitor.monitor(monitorPath, listener);
         try {
-            if (Objects.nonNull(this.future)) {
+            if (Objects.nonNull(this.futureCheckFile)) {
                 try {
-                    this.future.cancel(true);
+                    this.futureCheckFile.cancel(true);
                 } catch (Exception e1){ } finally {
-                    this.future = null;
+                    this.futureCheckFile = null;
                 }
             }
-            this.future = this.scheduledExecutorService.scheduleWithFixedDelay(() -> listener.readFile(), 0, 1, TimeUnit.SECONDS);
-            fileMonitor.start();
+            if (Objects.nonNull(this.futureReadFile)) {
+                try {
+                    this.futureReadFile.cancel(true);
+                } catch (Exception e1){ } finally {
+                    this.futureReadFile = null;
+                }
+            }
+            this.futureCheckFile = this.scheduledExecutorServiceCheckFile.scheduleWithFixedDelay(() -> listener.foreachYaml(false), 0, 1, TimeUnit.SECONDS);
+            this.futureReadFile = this.scheduledExecutorService.scheduleWithFixedDelay(() -> listener.readFile(), 2, 1, TimeUnit.SECONDS);
+            //fileMonitor.start();
         } catch (Throwable e) {
             Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
-            Optional.ofNullable(future).ifPresent(f -> f.cancel(true));
+            Optional.ofNullable(futureCheckFile).ifPresent(f -> f.cancel(true));
+            Optional.ofNullable(futureReadFile).ifPresent(f -> f.cancel(true));
+            futureCheckFile = null;
+            futureReadFile = null;
             if (e instanceof CoreException && SybaseConnector.CDC_PROCESS_FAIL_EXCEPTION_CODE == ((CoreException)e).getCode()) {
                 throw (CoreException)e;
             }
             throw new CoreException("Can not monitor cdc for sybase, msg: {}", e.getMessage());
         } finally {
-            future = null;
+            //futureCheckFile = null;
         }
 
         return this.root;
     }
+
     public void onStop() {
         try {
             Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
-            Optional.ofNullable(future).ifPresent(f -> f.cancel(true));
+            Optional.ofNullable(futureCheckFile).ifPresent(f -> f.cancel(true));
+            Optional.ofNullable(futureReadFile).ifPresent(f -> f.cancel(true));
         } catch (Exception e) {
             root.getContext().getLog().debug("Cdc monitor stop fail, msg: {}", e.getMessage());
         } finally {
-            future = null;
+            futureCheckFile = null;
+            futureReadFile = null;
         }
     }
 
@@ -244,22 +258,34 @@ public class ListenFile implements CdcStep<CdcRoot> {
         @Override
         public void onStop(FileAlterationObserver observer) {
             super.onStop(observer);
-            try {
-                synchronized (readFileLock) {
-                    releaseOffset();
+//            try {
+//                synchronized (readFileLock) {
+//                    releaseOffset();
+//                }
+//            } catch (Exception e) {
+//                context.getLog().warn("Failed exec stop once, msg: {}", e.getMessage());
+//            }
+        }
+
+        void monitorMetadataYaml(File metadataYamlFile) {
+            if (metadataYamlFile.exists() && metadataYamlFile.isFile() && isObjectMetadataYaml(metadataYamlFile)) {
+                Long metadataYamlLastModify = metadataYamlFileModifyTimeCache.get(metadataYamlFile.getAbsolutePath());
+                long lastModified = metadataYamlFile.lastModified();
+                if (null == metadataYamlLastModify || metadataYamlLastModify < lastModified || (!hasHandelInit.get() && metadataYamlLastModify == lastModified )) {
+                    metadataYamlFileModifyTimeCache.put(metadataYamlFile.getAbsolutePath(), lastModified);
+                    readObjectMetadataYaml(metadataYamlFile);
                 }
-            } catch (Exception e) {
-                context.getLog().warn("Failed exec stop once, msg: {}", e.getMessage());
             }
         }
 
         @Override
         public void onFileChange(File file0) {
             try {
-                if (isCSV(file0)) {
-                    lastModifyTime = file0.lastModified();
-                    monitorFile.add(file0.getAbsolutePath());
-                }
+                monitorMetadataYaml(file0);
+//                if (isCSV(file0)) {
+//                    lastModifyTime = file0.lastModified();
+//                    monitorFile.add(file0.getAbsolutePath());
+//                }
             } catch (Exception e) {
                 context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
             }
@@ -268,10 +294,11 @@ public class ListenFile implements CdcStep<CdcRoot> {
         @Override
         public void onFileCreate(File file0) {
             try {
-                if (isCSV(file0)) {
-                    lastModifyTime = file0.lastModified();
-                    monitorFile.add(file0.getAbsolutePath());
-                }
+                monitorMetadataYaml(file0);
+//                if (isCSV(file0)) {
+//                    lastModifyTime = file0.lastModified();
+//                    monitorFile.add(file0.getAbsolutePath());
+//                }
             } catch (Exception e) {
                 context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
             }
@@ -311,8 +338,9 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         final String tempPath = tempDir + table;
                         File tableSpaceFile = new File(tempPath);
                         if (!tableSpaceFile.exists()) continue;
+                        Integer csvIndex = Optional.ofNullable(root.getCsvFileModifyIndexByCsvFileName(fullTableName(database, schema, table))).orElse(0);
                         Arrays.stream(Objects.requireNonNull(tableSpaceFile.listFiles()))
-                                .filter(file -> Objects.nonNull(file) && file.exists() && file.isFile() && isCSV(file) && lastModifyTime <= file.lastModified())
+                                .filter(file -> Objects.nonNull(file) && file.exists() && file.isFile() && isCSV(file) && csvIndex <= CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(file.getName()))
                                 .sorted(Comparator.comparing(File::getName))
                                 .forEach(file -> monitorCSVFileIfPresentDeleteWithConfigTime(file, cdcCacheTime, needDeleteCsvFile));
                     }
@@ -342,6 +370,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
             final String database = split[0];
             final String schema = split[1];
             final String tableName = split[2];
+
             CdcPosition position = analyseCsvFile.getPosition();
             long cdcStartTime = position.getCdcStartTime();
             if (file.lastModified() < cdcStartTime) {
@@ -397,6 +426,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 options.add(database);
                 options.add(schema);
                 options.add(tableName);
+                AtomicInteger count = new AtomicInteger(0);
                 try {
                     analyseCsvFile.analyse(file.getAbsolutePath(), tapTable, (compile, firstIndex, lastIndex) -> {
                         LinkedHashMap<String, TableTypeEntity> tableItem = tapTableAto.get();
@@ -418,9 +448,10 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                 ((TapRecordEvent) recordEvent).setNamespaces(options);
                                 events[0].add(recordEvent);
                                 lineItem = offset.addAndGet();
+                                count.addAndGet(1);
                                 if (events[0].size() == batchSize) {
                                     offset.setOver(false);
-                                    cdcConsumer.accept(events[0], lastModifyTime);
+                                    cdcConsumer.accept(events[0], root.setCsvFileModifyIndexByCsvFileName(csvFileName, CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName)));
                                     events[0] = new ArrayList<>();
                                 }
                             }
@@ -429,8 +460,11 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 } finally {
                     if (!events[0].isEmpty()) {
                         csvOffset.setOver(true);
-                        cdcConsumer.accept(events[0], lastModifyTime);
+                        cdcConsumer.accept(events[0], root.setCsvFileModifyIndexByCsvFileName(csvFileName, CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName)));
                         events[0] = new ArrayList<>();
+                    }
+                    if (count.get() > 0) {
+                        log.info("File read once, read line: {}, file name: {}, nanoTime: {}", count.get(), file.getName(), System.nanoTime());
                     }
                 }
             }
@@ -467,16 +501,44 @@ public class ListenFile implements CdcStep<CdcRoot> {
             return false;
         }
 
+//        public synchronized void readFile() {
+//            if (hasHandelInit.get()) {
+//                while (!monitorFile.isEmpty()) {
+//                    File file = new File(monitorFile.poll());
+//                    long modifyTime = file.lastModified();
+//                    synchronized (readFileLock) {
+//                        monitor(file, tableMap);
+//                    }
+//                    while (modifyTime < file.lastModified() && !monitorFile.contains(file.getAbsolutePath())) {
+//                        modifyTime = file.lastModified();
+//                        log.warn("File change after read, but monitor queue not contains this file, read again, {}", file.getName());
+//                        synchronized (readFileLock) {
+//                            monitor(file, tableMap);
+//                        }
+//                    }
+//                }
+//            }
+//        }
+
         public synchronized void readFile() {
             if (hasHandelInit.get()) {
                 while (!monitorFile.isEmpty()) {
                     File file = new File(monitorFile.poll());
+                    long modifyTime = file.lastModified();
                     synchronized (readFileLock) {
                         monitor(file, tableMap);
+                    }
+                    while (modifyTime < file.lastModified() && !monitorFile.contains(file.getAbsolutePath())) {
+                        modifyTime = file.lastModified();
+                        log.warn("File change after read, but monitor queue not contains this file, read again, {}", file.getName());
+                        synchronized (readFileLock) {
+                            monitor(file, tableMap);
+                        }
                     }
                 }
             }
         }
+
         /**
          * @deprecated
          * 释放断点信息，避免csv过多时内存不够，每个csv最多1000行，达到1000后不再需要保存它的信息, 文件同时清空
@@ -534,5 +596,94 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 context.getLog().debug("Files has 1000 lines which all has accepted in stream read, fail to delete offset of this file and remove this file forever, file list with msg are: {}", failStr.toString());
             }
         }
+
+        Map<String, Long> metadataYamlFileModifyTimeCache = new HashMap<>();
+        public void foreachYaml(boolean needDeleteCsvFile) {
+            if (tables.isEmpty()) return;
+            //遍历monitorPath 所有子目录下的
+            for (Map.Entry<String, Map<String, List<String>>> databaseEntry : tables.entrySet()) {
+                String database = databaseEntry.getKey();
+                Map<String, List<String>> schemaMap = databaseEntry.getValue();
+                if (null == database || null == schemaMap || schemaMap.isEmpty())  continue;
+                final String tableSpace = monitorPath + "/" + database + "/";
+                Set<Map.Entry<String, List<String>>> schemaEntry = schemaMap.entrySet();
+                for (Map.Entry<String, List<String>> schemaMaps : schemaEntry) {
+                    String schema = schemaMaps.getKey();
+                    List<String> tablesMaps = schemaMaps.getValue();
+                    if (null == schema || null == tablesMaps || tablesMaps.isEmpty()) continue;
+                    final String tempDir = tableSpace + schema + "/";
+                    for (String table : tablesMaps) {
+                        if (null == table || "".equals(table.trim())) continue;
+                        final String tempPath = tempDir + table + "/object_metadata.yaml";
+                        File metadataYamlFile = new File(tempPath);
+                        if (metadataYamlFile.exists() && metadataYamlFile.isFile() && isObjectMetadataYaml(metadataYamlFile)) {
+//                            Long metadataYamlLastModify = metadataYamlFileModifyTimeCache.get(metadataYamlFile.getAbsolutePath());
+//                            long lastModified = metadataYamlFile.lastModified();
+//                            if (null == metadataYamlLastModify || metadataYamlLastModify < lastModified || (!hasHandelInit.get() && metadataYamlLastModify == lastModified )) {
+//                            metadataYamlFileModifyTimeCache.put(metadataYamlFile.getAbsolutePath(), lastModified);
+                              readObjectMetadataYaml(metadataYamlFile);
+//                            }
+                        }
+                    }
+                }
+            }
+            if (!hasHandelInit.get()) {
+                hasHandelInit.set(true);
+            }
+        }
+
+        //Map<String, Long> tableModifyTimeCache = new HashMap<>();
+        public void readObjectMetadataYaml(File file) {
+            try {
+                YamlUtil objectMetadataYaml = new YamlUtil(file.getAbsolutePath());
+                List<Map<String, Object>> csvFileOffset = (List<Map<String, Object>>) objectMetadataYaml.get("file-row-count");
+                csvFileOffset.stream().filter(Objects::nonNull).forEach(offset -> {
+                    String csvFilePath = String.valueOf(offset.get("file-name"));
+                    String absolutePath = file.getParentFile().getAbsolutePath();
+                    File csvFile = new File(FilenameUtils.concat(absolutePath, csvFilePath));
+                    String databaseTable = databaseTable(csvFile);
+                    //Long lastModifyTime = Optional.ofNullable(tableModifyTimeCache.get(databaseTable)).orElse(0L);
+                    if (null != csvFile && csvFile.exists() && csvFile.isFile() && isCSV(csvFile)) {
+                        String csvFileName = csvFile.getName();
+                        Integer fileIndex = root.getCsvFileModifyIndexByCsvFileName(csvFileName);
+                        Integer fileIndexFromCsvName = CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName);
+                        //上次读到第fileIndex个csv文件，当前是第fileIndexFromCsvName个csv文件，
+                        if (null == fileIndex || fileIndex <= fileIndexFromCsvName){
+                                //|| ( (!hasHandelInit.get() || lastModifyTime <  csvFile.lastModified() ) && fileIndex == fileIndexFromCsvName) ) {
+                            monitorFile.add(csvFile.getAbsolutePath());
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                log.info("Unable read {}", file.getAbsolutePath());
+            }
+        }
+
+        public boolean isObjectMetadataYaml(File file) {
+            if (Objects.nonNull(file) && file.exists() && file.isFile()) {
+                return "object_metadata.yaml".equals(file.getName());
+            } else {
+                return false;
+            }
+        }
+    }
+
+
+    public String databaseTable(File csvFile) {
+        return databaseTable(csvFile.getName());
+    }
+    public static String databaseTable(String csvFileName) {
+        String[] split = csvFileName.split("\\.");
+        if (split.length < 3) {
+            throw new CoreException("Can not get table name from cav name, csv name is: {}", csvFileName);
+        }
+        final String database = split[0];
+        final String schema = split[1];
+        final String tableName = split[2];
+        return fullTableName(database, schema, tableName);
+    }
+
+    public static String fullTableName(String database, String schema, String tableName) {
+        return database + "." + schema + "." + tableName;
     }
 }

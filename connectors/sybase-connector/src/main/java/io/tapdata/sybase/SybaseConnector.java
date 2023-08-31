@@ -561,7 +561,7 @@ public class SybaseConnector extends CommonDbConnector {
         //        tapConnectorContext.getStateMap().put("timestampToStreamOffsetTarget", true);
         //    }
         //}
-        return new CdcPosition().cdcStartTime(null == startTime ? System.currentTimeMillis() : startTime);
+        return new HashMap<String, Integer>();
     }
 
     private Map<String, Map<String, List<String>>> getCurrentTable(TapConnectorContext context) {
@@ -594,7 +594,7 @@ public class SybaseConnector extends CommonDbConnector {
      * @deprecated
      * */
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> currentTables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
-        long lastModifyTime = offset instanceof Long ? (Long)offset : ( offset instanceof CdcPosition ? ((CdcPosition)offset).getCdcStartTime() : System.currentTimeMillis() );
+        root.csvFileModifyIndexCache(offset instanceof Map ? (Map<String, Integer>)offset : new HashMap<>());
         tapConnectorContext.getStateMap().put("is_multi_stream_task", true);
         //throw new CoreException("Not support stream read by node, please open Shared-Mining ");
         Object position = root.getContext().getStateMap().get("cdc_position");
@@ -660,7 +660,6 @@ public class SybaseConnector extends CommonDbConnector {
                         tables,
                         cdcPosition,
                         batchSize,
-                        lastModifyTime,
                         nodeConfig.getCloseDelayMill(),
                         consumer
                 );
@@ -696,9 +695,8 @@ public class SybaseConnector extends CommonDbConnector {
      * */
     boolean hasMonitor = false;
     private void multiStreamStart(TapConnectorContext tapConnectorContext, List<ConnectionConfigWithTables> connectionConfigWithTables, Object offset, int batchSize, StreamReadConsumer consumer) {
-        long lastModifyTime = offset instanceof Long ? (Long)offset : ( offset instanceof CdcPosition ? ((CdcPosition)offset).getCdcStartTime() : System.currentTimeMillis() );
         Object position = tapConnectorContext.getStateMap().get("cdc_position");
-
+        root.csvFileModifyIndexCache(offset instanceof Map ? (Map<String, Integer>)offset : new HashMap<>());
         if(batchSize < 200 || batchSize > 500) batchSize = 200;
         if (null == connectionConfigWithTables || connectionConfigWithTables.isEmpty()) return;
 
@@ -748,7 +746,6 @@ public class SybaseConnector extends CommonDbConnector {
                         tables,
                         position instanceof CdcPosition ? (CdcPosition) position : new CdcPosition(),
                         batchSize,
-                        lastModifyTime,
                         nodeConfig.getCloseDelayMill(),
                         consumer
                 );

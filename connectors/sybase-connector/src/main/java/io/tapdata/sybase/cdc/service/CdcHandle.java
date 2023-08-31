@@ -157,7 +157,6 @@ public class CdcHandle {
             CdcPosition position,
             int batchSize,
             long delay,
-            long lastModifyTime,
             StreamReadConsumer consumer) {
         if (null == position) position = new CdcPosition();
         streamReadConsumer(consumer, context.getLog(), monitorPath, delay);
@@ -167,7 +166,6 @@ public class CdcHandle {
                 monitorFileName,
                 new AnalyseCsvFile(this.root, position, null),
                 lock,
-                lastModifyTime,
                 batchSize
         ).monitor(fileMonitor);
         listenFile.compile();
