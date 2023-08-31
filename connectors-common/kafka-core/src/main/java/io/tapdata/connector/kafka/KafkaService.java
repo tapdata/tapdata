@@ -274,7 +274,7 @@ public class KafkaService extends AbstractMqService {
                 } else {
                     data = new HashMap<>();
                 }
-                byte[] body = jsonParser.toJsonBytes(data);
+                byte[] body = jsonParser.toJsonBytes(data, JsonParser.ToJsonFeature.WriteMapNullValue);
                 MqOp finalMqOp = mqOp;
                 Callback callback = (metadata, exception) -> {
                     try {
@@ -391,7 +391,7 @@ public class KafkaService extends AbstractMqService {
                                 map.remove("after");
                             }
                             res.put("data",map);
-                            body = jsonParser.toJsonBytes(res.get("data"));
+                            body = jsonParser.toJsonBytes(res.get("data"), JsonParser.ToJsonFeature.WriteMapNullValue);
                         }else {
                             body = obj.toString().getBytes();
                         }

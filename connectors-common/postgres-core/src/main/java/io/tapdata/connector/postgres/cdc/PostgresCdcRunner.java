@@ -24,8 +24,10 @@ import org.codehaus.plexus.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -43,9 +45,11 @@ public class PostgresCdcRunner extends DebeziumCdcRunner {
     private int recordSize;
     private StreamReadConsumer consumer;
     private final AtomicReference<Throwable> throwableAtomicReference = new AtomicReference<>();
+    private TimeZone timeZone;
 
-    public PostgresCdcRunner(PostgresJdbcContext postgresJdbcContext) {
+    public PostgresCdcRunner(PostgresJdbcContext postgresJdbcContext) throws SQLException {
         this.postgresConfig = (PostgresConfig) postgresJdbcContext.getConfig();
+        this.timeZone = postgresJdbcContext.queryTimeZone();
     }
 
     public PostgresCdcRunner useSlot(String slotName) {
@@ -56,6 +60,7 @@ public class PostgresCdcRunner extends DebeziumCdcRunner {
     public PostgresCdcRunner watch(List<String> observedTableList) {
         postgresDebeziumConfig = new PostgresDebeziumConfig()
                 .use(postgresConfig)
+                .use(timeZone)
                 .useSlot(runnerName)
                 .watch(observedTableList);
         return this;
