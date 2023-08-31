@@ -3,10 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Queues;
 import com.hazelcast.jet.core.Inbox;
-import com.tapdata.constant.ConnectionUtil;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.StringUtil;
+import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
@@ -104,6 +101,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	public static final long DEFAULT_TARGET_BATCH_INTERVAL_MS = 1000;
 	public static final int DEFAULT_TARGET_BATCH = 1000;
 	public static final int TARGET_QUEUE_FACTOR = 2;
+	public static final int COMPRESS_STREAM_OFFSET_STRING_LENGTH_THRESHOLD = 100;
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
 	private AtomicBoolean firstBatchEvent = new AtomicBoolean();
 	private AtomicBoolean firstStreamEvent = new AtomicBoolean();
@@ -899,6 +897,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				}
 				if (null != syncProgress.getStreamOffsetObj()) {
 					syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
+					if (syncProgress.getStreamOffset().length() > COMPRESS_STREAM_OFFSET_STRING_LENGTH_THRESHOLD) {
+						String compress = StringCompression.compress(syncProgress.getStreamOffset());
+						syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX + compress);
+					}
 				}
 				try {
 					syncProgressJsonMap.put(JSONUtil.obj2Json(list), JSONUtil.obj2Json(syncProgress));

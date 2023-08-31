@@ -80,8 +80,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -382,7 +384,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				case NORMAL:
 				case LOG_COLLECTOR:
 					if (StringUtils.isNotBlank(streamOffset)) {
-						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+						String streamOffsetStr = syncProgress.getStreamOffset();
+						streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
+						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode()));
 					} else {
 						initStreamOffsetFromTime(null);
 					}
@@ -404,7 +408,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					} else {
 						// switch share cdc to normal task
 						if (StringUtils.isNotBlank(streamOffset)) {
-							Object decodeOffset = PdkUtil.decodeOffset(streamOffset, getConnectorNode());
+							String streamOffsetStr = syncProgress.getStreamOffset();
+							streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
+							Object decodeOffset = PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode());
 							if (decodeOffset instanceof ShareCDCOffset) {
 								syncProgress.setStreamOffsetObj(((ShareCDCOffset) decodeOffset).getStreamOffset());
 							} else {
@@ -423,12 +429,26 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					break;
 				case POLLING_CDC:
 					if (StringUtils.isNotBlank(streamOffset)) {
-						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+						String streamOffsetStr = syncProgress.getStreamOffset();
+						streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
+						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode()));
 					} else {
 						syncProgress.setStreamOffsetObj(new HashMap<>());
 					}
 			}
 		}
+	}
+
+	@Nullable
+	private String uncompressStreamOffsetIfNeed(String streamOffsetStr) {
+		if (StringUtils.startsWith(syncProgress.getStreamOffset(), STREAM_OFFSET_COMPRESS_PREFIX)) {
+			try {
+				streamOffsetStr = StringCompression.uncompress(StringUtils.removeStart(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX));
+			} catch (IOException e) {
+				throw new RuntimeException("Uncompress stream offset failed: " + streamOffsetStr, e);
+			}
+		}
+		return streamOffsetStr;
 	}
 
 	protected void initStreamOffsetFromTime(Long offsetStartTimeMs) {
