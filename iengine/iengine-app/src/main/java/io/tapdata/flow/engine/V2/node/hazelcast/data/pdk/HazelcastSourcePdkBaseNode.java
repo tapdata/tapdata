@@ -3,19 +3,8 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.tapdata.constant.ConnectionUtil;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.ExecutorUtil;
-import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.MapUtil;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataShareLogEvent;
-import com.tapdata.entity.TapdataTaskErrorEvent;
+import com.tapdata.constant.*;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -84,25 +73,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -389,7 +365,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				case NORMAL:
 				case LOG_COLLECTOR:
 					if (StringUtils.isNotBlank(streamOffset)) {
-						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+						String streamOffsetStr = syncProgress.getStreamOffset();
+						streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
+						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode()));
 					} else {
 						initStreamOffsetFromTime(null);
 					}
@@ -411,7 +389,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					} else {
 						// switch share cdc to normal task
 						if (StringUtils.isNotBlank(streamOffset)) {
-							Object decodeOffset = PdkUtil.decodeOffset(streamOffset, getConnectorNode());
+							String streamOffsetStr = syncProgress.getStreamOffset();
+							streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
+							Object decodeOffset = PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode());
 							if (decodeOffset instanceof ShareCDCOffset) {
 								syncProgress.setStreamOffsetObj(((ShareCDCOffset) decodeOffset).getStreamOffset());
 							} else {
@@ -430,12 +410,26 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					break;
 				case POLLING_CDC:
 					if (StringUtils.isNotBlank(streamOffset)) {
-						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+						String streamOffsetStr = syncProgress.getStreamOffset();
+						streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
+						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode()));
 					} else {
 						syncProgress.setStreamOffsetObj(new HashMap<>());
 					}
 			}
 		}
+	}
+
+	@Nullable
+	private String uncompressStreamOffsetIfNeed(String streamOffsetStr) {
+		if (StringUtils.startsWith(syncProgress.getStreamOffset(), STREAM_OFFSET_COMPRESS_PREFIX)) {
+			try {
+				streamOffsetStr = StringCompression.uncompress(StringUtils.removeStart(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX));
+			} catch (IOException e) {
+				throw new RuntimeException("Uncompress stream offset failed: " + streamOffsetStr, e);
+			}
+		}
+		return streamOffsetStr;
 	}
 
 	protected void initStreamOffsetFromTime(Long offsetStartTimeMs) {
