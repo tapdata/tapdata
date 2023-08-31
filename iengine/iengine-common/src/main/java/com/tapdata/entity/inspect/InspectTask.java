@@ -1,11 +1,13 @@
 package com.tapdata.entity.inspect;
 
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -52,4 +54,10 @@ public class InspectTask implements Serializable {
 	 * 是否开启高级校验
 	 */
 	private boolean showAdvancedVerification;
+
+	/**
+	 * When verifying all fields, specify the data types that do not participate in the comparison
+	 */
+	private Boolean enableIgnoreType = CommonUtils.getPropertyBool("INSPECT_ENABLE_IGNORE_TYPE", true);
+	private List<String> ignoredType;
 }

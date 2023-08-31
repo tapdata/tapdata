@@ -6,28 +6,15 @@ import com.google.gson.GsonBuilder;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.Connections;
-import com.tapdata.entity.inspect.InspectDataSource;
-import com.tapdata.entity.inspect.InspectDetail;
-import com.tapdata.entity.inspect.InspectDifferenceMode;
-import com.tapdata.entity.inspect.InspectLimit;
-import com.tapdata.entity.inspect.InspectResultStats;
-import com.tapdata.entity.inspect.InspectStatus;
-import com.tapdata.entity.inspect.InspectTask;
+import com.tapdata.entity.inspect.*;
 import io.tapdata.inspect.InspectTaskContext;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -102,12 +89,7 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 		otherFieldLimit = uniqueFieldLimit;
 
 		if (fullMatch) {
-			if (null == inspectTask.getSource().getColumns() || inspectTask.getSource().getColumns().isEmpty()
-					|| null == inspectTask.getTarget().getColumns() || inspectTask.getTarget().getColumns().isEmpty()) {
-				compareFn = new DefaultCompare();
-			} else {
-				compareFn = new DefaultCompare(inspectTask.getSource().getColumns(), inspectTask.getTarget().getColumns());
-			}
+			compareFn = new DefaultCompare(inspectTask, source, target);
 		}
 
 		if (inspectTask.getBatchSize() > 0) {
@@ -318,12 +300,12 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 			compareProgress.update(stats, inspectDetails);
 			logger.info("compare " + current);
 		} catch (Throwable e) {
+			logger.error(e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
 			stats.setEnd(new Date());
 			stats.setResult("failed");
 			stats.setStatus(InspectStatus.ERROR.getCode());
 			stats.setErrorMsg(e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			compareProgress.update(stats, null);
-			e.printStackTrace();
 		}
 	}
 
