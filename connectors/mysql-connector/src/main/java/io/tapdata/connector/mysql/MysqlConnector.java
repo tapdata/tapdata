@@ -262,7 +262,7 @@ public class MysqlConnector extends CommonDbConnector {
         return new MysqlColumn(dataMap).getTapField();
     }
 
-    private List<TapIndex> discoverIndex(String tableName) {
+    protected List<TapIndex> discoverIndex(String tableName) {
         List<TapIndex> tapIndexList = TapSimplify.list();
         List<DataMap> indexList;
         try {

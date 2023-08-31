@@ -10,6 +10,9 @@ import io.tapdata.connector.selectdb.streamload.Constants;
 import io.tapdata.connector.selectdb.streamload.MessageSerializer;
 import io.tapdata.connector.selectdb.streamload.RecordStream;
 import io.tapdata.connector.selectdb.streamload.rest.models.RespContent;
+import io.tapdata.connector.selectdb.util.BaseResponse;
+import io.tapdata.connector.selectdb.util.CopyIntoResp;
+import io.tapdata.connector.selectdb.util.CopyIntoResult;
 import io.tapdata.connector.selectdb.util.CopyIntoUtils;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -82,9 +85,8 @@ public class SelectDbStreamLoader extends Throwable {
         this.loadBatchFirstRecord = true;
     }
 
-    public synchronized WriteListResult<TapRecordEvent> writeRecord(TapConnectorContext connectorContext, final List<TapRecordEvent> tapRecordEvents, final TapTable table) throws IOException {
+    public  WriteListResult<TapRecordEvent> writeRecord(TapConnectorContext connectorContext, final List<TapRecordEvent> tapRecordEvents, final TapTable table,boolean copyIntoKey) throws IOException {
         TapLogger.info(TAG, "batch events length is: {}", tapRecordEvents.size());
-//        WriteListResult<TapRecordEvent> listResult = writeListResult();
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
         List<Map<String, Object>> records = new ArrayList<>();
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -106,20 +108,24 @@ public class SelectDbStreamLoader extends Throwable {
         dataOutputStream.write(Constants.LINE_DELIMITER_DEFAULT.getBytes(StandardCharsets.UTF_8));
         final byte[] finalBytes = byteArrayOutputStream.toByteArray();
         String uuid = UUID.randomUUID() + "_" + System.currentTimeMillis() + "_" +  Thread.currentThread().getId();
-        CopyIntoUtils.upload(uuid, finalBytes,table);
-        Response response = CopyIntoUtils.copyInto();
-        HashMap<String, String> selectDBCopyIntoLog;
-        selectDBCopyIntoLog = this.selectDbJdbcContext.getSelectDBCopyIntoLog(uuid);
-        if (!"FINISHED".equals(selectDBCopyIntoLog.get("State"))
-                && !"ETL:100%; LOAD:100%".equals(selectDBCopyIntoLog.get("Progress"))
-                && "CANCELLED".equals(selectDBCopyIntoLog.get("State"))) {
-            throw new CoreException(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_CANCELLED, "ErrorMsg: " + selectDBCopyIntoLog.get("ErrorMsg")
-                    + ";   Log URL: [" + selectDBCopyIntoLog.get("URL")
-                    + "]   CreateTime:" + selectDBCopyIntoLog.get("CreateTime"));
-        }
-        int statusCode = response.code();
-        if (!(statusCode >= 200 && statusCode < 300) || null == selectDBCopyIntoLog.get("State") || null == selectDBCopyIntoLog.get("JobId")) {
-            throw new CoreException(connectorContext.getId()+"_ErrorMessage:{}", new Throwable("HttpCode: " + statusCode + " Response.body: " + response.body() + " Response: " + response + " State: " + selectDBCopyIntoLog.get("State") + " JobId: " + selectDBCopyIntoLog.get("JobId")));
+        CopyIntoUtils copyIntoUtils = new CopyIntoUtils(connectorContext,copyIntoKey);
+        copyIntoUtils.upload(uuid, finalBytes,table);
+        BaseResponse baseResponse = copyIntoUtils.copyInto();
+        if (baseResponse.getCode() == 0) {
+            if (baseResponse.getData() instanceof Map) {
+                CopyIntoResp dataResp = (CopyIntoResp)OBJECT_MAPPER.convertValue(baseResponse.getData(), CopyIntoResp.class);
+                CopyIntoResult result = dataResp.getResult();
+                if ("CANCELLED".equals(result.getState()) && !CopyIntoUtils.isCommitted(result.getMsg()))
+                    throw new CoreException(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_CANCELLED, "ErrorMsg: " + result.getMsg()
+                            + ";   Log URL: [" + result.getUrl()
+                            + "]");
+                if (null == result.getState() && !CopyIntoUtils.isCommitted(result.getMsg()))
+                    throw new CoreException(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_STATE_NULL, "ErrorMsg: " + result.getMsg()
+                            + ";   Log URL: [" + result.getUrl()
+                            + "]");
+            }
+        }else{
+            throw new CoreException(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_NETWORK,"ErrorMsg: "+ baseResponse.getMsg()+",Code: "+baseResponse.getCode());
         }
         return listResult;
     }

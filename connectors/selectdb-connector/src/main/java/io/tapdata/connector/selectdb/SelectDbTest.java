@@ -21,8 +21,11 @@ import static io.tapdata.base.ConnectorBase.testItem;
 public class SelectDbTest extends CommonDbTest {
     protected static final String TAG = SelectDbTest.class.getSimpleName();
 
-    public SelectDbTest(SelectDbConfig selectDbConfig, Consumer<TestItem> consumer) {
+    protected CopyIntoUtils copyIntoUtils;
+
+    public SelectDbTest(SelectDbConfig selectDbConfig, Consumer<TestItem> consumer,CopyIntoUtils copyIntoUtils) {
         super(selectDbConfig, consumer);
+        this.copyIntoUtils = copyIntoUtils;
     }
 
     public SelectDbTest initContext() {
@@ -57,8 +60,8 @@ public class SelectDbTest extends CommonDbTest {
             sqls.add(String.format(TEST_DELETE_RECORD, TEST_WRITE_TABLE));
 
             //httpTest
-            CopyIntoUtils.uploadTest(finalBytes);
-            CopyIntoUtils.copyIntoTest(TEST_WRITE_TABLE);
+            copyIntoUtils.uploadTest(finalBytes);
+            copyIntoUtils.copyIntoTest(TEST_WRITE_TABLE);
 
             jdbcContext.batchExecute(sqls);
             consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY, TEST_WRITE_SUCCESS));

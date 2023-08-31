@@ -212,4 +212,18 @@ public abstract class WriteRecorder {
             }
         }
     }
+
+    protected int dealNullBeforeWithReturn(Map<String, Object> before, int pos) throws SQLException {
+        if (hasPk) {
+            for (String key : before.keySet()) {
+                preparedStatement.setObject(pos++, before.get(key));
+            }
+        } else {
+            for (String key : before.keySet()) {
+                preparedStatement.setObject(pos++, before.get(key));
+                preparedStatement.setObject(pos++, before.get(key));
+            }
+        }
+        return pos;
+    }
 }

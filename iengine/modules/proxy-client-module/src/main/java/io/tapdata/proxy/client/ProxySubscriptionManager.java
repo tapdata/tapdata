@@ -93,7 +93,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 					for(String baseUrl : baseURLs) {
 						if(!baseUrl.endsWith("/"))
 							baseUrl = baseUrl + "/";
-						newBaseUrls.add(baseUrl + "proxy?access_token=" + accessToken);
+						newBaseUrls.add(baseUrl + "proxy");//?access_token=" + accessToken);
 					}
 					imClient = new IMClientBuilder()
 							.withBaseUrl(newBaseUrls)
