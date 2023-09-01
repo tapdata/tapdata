@@ -61,11 +61,13 @@ public class ListenFile implements CdcStep<CdcRoot> {
     private final String schemaConfigPath; //a yaml file path name is schema.yaml which can get the cdc tables
     private final Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap = new HashMap<>(); //all cdc table from schema.yaml to anlyse csv line to tap event
 
-    private Queue<String> monitorFilePath = new ConcurrentLinkedQueue<>();// all change or cerate file path in this queue when cdc is processing
+    private final int SCHEDULED_SIZE = 3;
+    private ConcurrentHashMap<Integer, ConcurrentHashMap<String, Integer>> statusMap = new ConcurrentHashMap<Integer, ConcurrentHashMap<String, Integer>>();
+    private List<Queue<String>> monitorFilePathQueues = new ArrayList<>();
     private ScheduledFuture<?> futureCheckFile;
-    private ScheduledFuture<?> futureReadFile;
+    private List<ScheduledFuture<?>> futureCheckFileList = new ArrayList<>();
     private final ScheduledExecutorService scheduledExecutorServiceCheckFile = Executors.newSingleThreadScheduledExecutor();
-    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+    private final List<ScheduledExecutorService> scheduledExecutorServiceList = new ArrayList<>();
     private final Object readFileLock = new Object();
 
     protected ListenFile(CdcRoot root,
@@ -94,6 +96,12 @@ public class ListenFile implements CdcStep<CdcRoot> {
         this.config = new ConnectionConfig(root.getContext());
         this.nodeConfig = new NodeConfig(root.getContext());
         readCSVOfBigFile.setLog(root.getContext().getLog());
+
+        for (int index = 0; index < SCHEDULED_SIZE; index++) {
+            monitorFilePathQueues.add(new ConcurrentLinkedQueue<>());
+            scheduledExecutorServiceList.add(Executors.newSingleThreadScheduledExecutor());
+            statusMap.put(index, new ConcurrentHashMap<>());
+        }
     }
 
     @Override
@@ -113,7 +121,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         AtomicBoolean hasHandelInit = new AtomicBoolean(false);
 
         final Integer cdcCacheTime = Optional.ofNullable(nodeConfig.getCdcCacheTime()).orElse(ReadCSV.DEFAULT_CACHE_TIME_OF_CSV_FILE) * 60000;
-        FileListenerImpl listener = new FileListenerImpl(monitorFilePath, context, hasHandelInit, cdcCacheTime) ;
+        FileListenerImpl listener = new FileListenerImpl(context, hasHandelInit, cdcCacheTime) ;
         //fileMonitor.monitor(monitorPath, listener);
         try {
             if (Objects.nonNull(this.futureCheckFile)) {
@@ -123,28 +131,29 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     this.futureCheckFile = null;
                 }
             }
-            if (Objects.nonNull(this.futureReadFile)) {
-                try {
-                    this.futureReadFile.cancel(true);
-                } catch (Exception e1){ } finally {
-                    this.futureReadFile = null;
+            for (int index = futureCheckFileList.size() - 1; index >= 0 ; index--) {
+                ScheduledFuture<?> scheduledFuture = futureCheckFileList.get(0);
+                if (Objects.nonNull(scheduledFuture)) {
+                    try {
+                        scheduledFuture.cancel(true);
+                    } catch (Exception e1){ } finally {
+                        futureCheckFileList.remove(index);
+                        scheduledFuture = null;
+                    }
                 }
             }
-            this.futureCheckFile = this.scheduledExecutorServiceCheckFile.scheduleWithFixedDelay(() -> listener.foreachYaml(false), 0, 1, TimeUnit.SECONDS);
-            this.futureReadFile = this.scheduledExecutorService.scheduleWithFixedDelay(() -> listener.readFile(), 2, 1, TimeUnit.SECONDS);
+            this.futureCheckFile = this.scheduledExecutorServiceCheckFile.scheduleWithFixedDelay(() -> listener.foreachYaml(false), 0, 2, TimeUnit.SECONDS);
+            for (int index = 0; index < scheduledExecutorServiceList.size(); index++) {
+                final int finalIndex = index;
+                this.futureCheckFileList.add(this.scheduledExecutorServiceList.get(index).scheduleWithFixedDelay(() -> listener.readFile(finalIndex), 2, 1, TimeUnit.SECONDS));
+            }
             //fileMonitor.start();
         } catch (Throwable e) {
-            Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
-            Optional.ofNullable(futureCheckFile).ifPresent(f -> f.cancel(true));
-            Optional.ofNullable(futureReadFile).ifPresent(f -> f.cancel(true));
-            futureCheckFile = null;
-            futureReadFile = null;
+            onStop();
             if (e instanceof CoreException && SybaseConnector.CDC_PROCESS_FAIL_EXCEPTION_CODE == ((CoreException)e).getCode()) {
                 throw (CoreException)e;
             }
             throw new CoreException("Can not monitor cdc for sybase, msg: {}", e.getMessage());
-        } finally {
-            //futureCheckFile = null;
         }
 
         return this.root;
@@ -153,14 +162,28 @@ public class ListenFile implements CdcStep<CdcRoot> {
     public void onStop() {
         try {
             Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
+        } catch (Exception e) {
+            root.getContext().getLog().debug("Cdc monitor stop fail, msg: {}", e.getMessage());
+        }
+        try {
             Optional.ofNullable(futureCheckFile).ifPresent(f -> f.cancel(true));
-            Optional.ofNullable(futureReadFile).ifPresent(f -> f.cancel(true));
         } catch (Exception e) {
             root.getContext().getLog().debug("Cdc monitor stop fail, msg: {}", e.getMessage());
         } finally {
             futureCheckFile = null;
-            futureReadFile = null;
         }
+        for (int index = futureCheckFileList.size() - 1; index >= 0 ; index--) {
+            ScheduledFuture<?> scheduledFuture = futureCheckFileList.get(0);
+            try {
+                Optional.ofNullable(scheduledFuture).ifPresent(f -> f.cancel(true));
+            } catch (Exception e) {
+                root.getContext().getLog().debug("Cdc monitor stop fail, msg: {}", e.getMessage());
+            } finally {
+                futureCheckFileList.remove(index);
+                scheduledFuture = null;
+            }
+        }
+
     }
 
     public ListenFile monitor(FileMonitor monitor) {
@@ -225,14 +248,13 @@ public class ListenFile implements CdcStep<CdcRoot> {
         }
     }
 
-    class FileListenerImpl extends FileListener {
+    class FileListenerImpl {
         final int cdcCacheTime;
         final AtomicBoolean hasHandelInit;
         final TapConnectorContext context;
         final Log log;
-        final Queue<String> monitorFile;
 
-        FileListenerImpl(Queue monitorFile,TapConnectorContext context, AtomicBoolean hasHandelInit, int cdcCacheTime) {
+        FileListenerImpl(TapConnectorContext context, AtomicBoolean hasHandelInit, int cdcCacheTime) {
             super();
             if (null == context) {
                 throw new CoreException("TapConnectorContext can not be empty");
@@ -243,79 +265,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
             this.log = context.getLog();
             if (null == this.log) {
                 throw new CoreException("TapConnectorContext'log can not be empty");
-            }
-            this.monitorFile = monitorFile;
-        }
-
-        @Override
-        public void onStart(FileAlterationObserver observer) {
-            super.onStart(observer);
-            if(!hasHandelInit.get()) {
-                perpar();
-            }
-        }
-
-        @Override
-        public void onStop(FileAlterationObserver observer) {
-            super.onStop(observer);
-//            try {
-//                synchronized (readFileLock) {
-//                    releaseOffset();
-//                }
-//            } catch (Exception e) {
-//                context.getLog().warn("Failed exec stop once, msg: {}", e.getMessage());
-//            }
-        }
-
-        void monitorMetadataYaml(File metadataYamlFile) {
-            if (metadataYamlFile.exists() && metadataYamlFile.isFile() && isObjectMetadataYaml(metadataYamlFile)) {
-                Long metadataYamlLastModify = metadataYamlFileModifyTimeCache.get(metadataYamlFile.getAbsolutePath());
-                long lastModified = metadataYamlFile.lastModified();
-                if (null == metadataYamlLastModify || metadataYamlLastModify < lastModified || (!hasHandelInit.get() && metadataYamlLastModify == lastModified )) {
-                    metadataYamlFileModifyTimeCache.put(metadataYamlFile.getAbsolutePath(), lastModified);
-                    readObjectMetadataYaml(metadataYamlFile);
-                }
-            }
-        }
-
-        @Override
-        public void onFileChange(File file0) {
-            try {
-                monitorMetadataYaml(file0);
-//                if (isCSV(file0)) {
-//                    lastModifyTime = file0.lastModified();
-//                    monitorFile.add(file0.getAbsolutePath());
-//                }
-            } catch (Exception e) {
-                context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
-            }
-        }
-
-        @Override
-        public void onFileCreate(File file0) {
-            try {
-                monitorMetadataYaml(file0);
-//                if (isCSV(file0)) {
-//                    lastModifyTime = file0.lastModified();
-//                    monitorFile.add(file0.getAbsolutePath());
-//                }
-            } catch (Exception e) {
-                context.getLog().error("Monitor file change failed, msg: {}", e.getMessage());
-            }
-        }
-
-        public void perpar() {
-            if (null == cdcConsumer) return;
-            try {
-                synchronized (readFileLock) {
-                    if (!hasHandelInit.get() && !tables.isEmpty()) {
-                        foreachTable(false);
-                        hasHandelInit.set(true);
-                    }
-                }
-            } catch (Exception e) {
-                cdcConsumer.streamReadEnded();
-                throw new CoreException("Start monitor file failed, msg: {}", e.getMessage());
             }
         }
 
@@ -417,8 +366,11 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 if (null == csvOffset) {
                     csvOffset = new CdcPosition.CSVOffset();
                     csvOffset.setOver(false);
-                    csvOffset.setLine(0);
+                    csvOffset.setLine(root.getCsvFileModifyLineByCsvFileName(csvFileName));
                     positionOffset.csvOffset(csvFileName, csvOffset);
+                }
+                if (csvOffset.getLine() >= ReadCSVQuickly.MAX_LINE_EVERY_CSV_FILE) {
+                    return false;
                 }
                 AtomicReference<LinkedHashMap<String, TableTypeEntity>> tapTableAto = new AtomicReference<>(tapTable);
                 AtomicReference<CdcPosition.CSVOffset> csvOffsetAto = new AtomicReference<>(csvOffset);
@@ -451,7 +403,10 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                 count.addAndGet(1);
                                 if (events[0].size() == batchSize) {
                                     offset.setOver(false);
-                                    cdcConsumer.accept(events[0], root.setCsvFileModifyIndexByCsvFileName(csvFileName, CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName)));
+                                    cdcConsumer.accept(events[0], root.setCsvFileModifyIndexByCsvFileName(
+                                            csvFileName,
+                                            CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName),
+                                            lineItem));
                                     events[0] = new ArrayList<>();
                                 }
                             }
@@ -460,12 +415,15 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 } finally {
                     if (!events[0].isEmpty()) {
                         csvOffset.setOver(true);
-                        cdcConsumer.accept(events[0], root.setCsvFileModifyIndexByCsvFileName(csvFileName, CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName)));
+                        cdcConsumer.accept(events[0], root.setCsvFileModifyIndexByCsvFileName(
+                                csvFileName,
+                                CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName),
+                                csvOffset.getLine()));
                         events[0] = new ArrayList<>();
                     }
-                    if (count.get() > 0) {
-                        log.info("File read once, read line: {}, file name: {}, nanoTime: {}", count.get(), file.getName(), System.nanoTime());
-                    }
+                    //if (count.get() > 0) {
+                    //    log.info("File read once, read line: {}, file name: {}, nanoTime: {}", count.get(), file.getName(), System.nanoTime());
+                    //}
                 }
             }
             return isThisFile;
@@ -481,7 +439,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     try {
                         FileUtils.delete(file);
                     } catch (Exception ignore) {
-                        root.getContext().getLog().warn("Can not to delete cdc cache file in {} of table name: {}", file.getAbsolutePath());
+                        root.getContext().getLog().info("Can not to delete cdc cache file in {} of table name: {}", file.getAbsolutePath());
                     }
                 }
             }
@@ -501,38 +459,22 @@ public class ListenFile implements CdcStep<CdcRoot> {
             return false;
         }
 
-//        public synchronized void readFile() {
-//            if (hasHandelInit.get()) {
-//                while (!monitorFile.isEmpty()) {
-//                    File file = new File(monitorFile.poll());
-//                    long modifyTime = file.lastModified();
-//                    synchronized (readFileLock) {
-//                        monitor(file, tableMap);
-//                    }
-//                    while (modifyTime < file.lastModified() && !monitorFile.contains(file.getAbsolutePath())) {
-//                        modifyTime = file.lastModified();
-//                        log.warn("File change after read, but monitor queue not contains this file, read again, {}", file.getName());
-//                        synchronized (readFileLock) {
-//                            monitor(file, tableMap);
-//                        }
-//                    }
-//                }
-//            }
-//        }
-
-        public synchronized void readFile() {
+        public synchronized void readFile(Integer queueIndex) {
             if (hasHandelInit.get()) {
+                Queue<String> monitorFile = monitorFilePathQueues.get(queueIndex);
                 while (!monitorFile.isEmpty()) {
                     File file = new File(monitorFile.poll());
-                    long modifyTime = file.lastModified();
                     synchronized (readFileLock) {
                         monitor(file, tableMap);
-                    }
-                    while (modifyTime < file.lastModified() && !monitorFile.contains(file.getAbsolutePath())) {
-                        modifyTime = file.lastModified();
-                        log.warn("File change after read, but monitor queue not contains this file, read again, {}", file.getName());
-                        synchronized (readFileLock) {
-                            monitor(file, tableMap);
+                        ConcurrentHashMap<String, Integer> hashMap = statusMap.get(queueIndex);
+                        String databaseTable = databaseTable(file.getName());
+                        if (hashMap.containsKey(databaseTable)) {
+                            Integer integer = hashMap.get(databaseTable);
+                            if (null == integer || integer <= 1) {
+                                hashMap.remove(databaseTable);
+                            } else {
+                                hashMap.put(databaseTable, integer - 1);
+                            }
                         }
                     }
                 }
@@ -621,7 +563,8 @@ public class ListenFile implements CdcStep<CdcRoot> {
 //                            long lastModified = metadataYamlFile.lastModified();
 //                            if (null == metadataYamlLastModify || metadataYamlLastModify < lastModified || (!hasHandelInit.get() && metadataYamlLastModify == lastModified )) {
 //                            metadataYamlFileModifyTimeCache.put(metadataYamlFile.getAbsolutePath(), lastModified);
-                              readObjectMetadataYaml(metadataYamlFile);
+                            //选举一个最空闲的队列来处理当前表的全部新修改会新增的csv
+                            readObjectMetadataYaml(metadataYamlFile, dispatchQueue(monitorFilePathQueues, database + "." + schema + "." + table));
 //                            }
                         }
                     }
@@ -633,7 +576,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         }
 
         //Map<String, Long> tableModifyTimeCache = new HashMap<>();
-        public void readObjectMetadataYaml(File file) {
+        public void readObjectMetadataYaml(File file, int queueIndex) {
             try {
                 YamlUtil objectMetadataYaml = new YamlUtil(file.getAbsolutePath());
                 List<Map<String, Object>> csvFileOffset = (List<Map<String, Object>>) objectMetadataYaml.get("file-row-count");
@@ -641,7 +584,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     String csvFilePath = String.valueOf(offset.get("file-name"));
                     String absolutePath = file.getParentFile().getAbsolutePath();
                     File csvFile = new File(FilenameUtils.concat(absolutePath, csvFilePath));
-                    String databaseTable = databaseTable(csvFile);
+                    //String databaseTable = databaseTable(csvFile);
                     //Long lastModifyTime = Optional.ofNullable(tableModifyTimeCache.get(databaseTable)).orElse(0L);
                     if (null != csvFile && csvFile.exists() && csvFile.isFile() && isCSV(csvFile)) {
                         String csvFileName = csvFile.getName();
@@ -649,13 +592,18 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         Integer fileIndexFromCsvName = CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName);
                         //上次读到第fileIndex个csv文件，当前是第fileIndexFromCsvName个csv文件，
                         if (null == fileIndex || fileIndex <= fileIndexFromCsvName){
+                            //log.warn("Yes, it's file: {}, file history index: {}, current index: {}", csvFileName, fileIndex, fileIndexFromCsvName);
                                 //|| ( (!hasHandelInit.get() || lastModifyTime <  csvFile.lastModified() ) && fileIndex == fileIndexFromCsvName) ) {
-                            monitorFile.add(csvFile.getAbsolutePath());
+                            ConcurrentHashMap<String, Integer> hashMap = statusMap.get(queueIndex);
+                            String databaseTable = databaseTable(csvFileName);
+                            Integer integer = hashMap.computeIfAbsent(databaseTable, key -> 0);
+                            hashMap.put(databaseTable, integer+1);
+                            monitorFilePathQueues.get(queueIndex).add(csvFile.getAbsolutePath());
                         }
                     }
                 });
             } catch (Exception e) {
-                log.info("Unable read {}", file.getAbsolutePath());
+                log.info("Unable read {}, msg: {}", file.getAbsolutePath(), e.getMessage());
             }
         }
 
@@ -685,5 +633,37 @@ public class ListenFile implements CdcStep<CdcRoot> {
 
     public static String fullTableName(String database, String schema, String tableName) {
         return database + "." + schema + "." + tableName;
+    }
+
+    public int dispatchQueue(List<Queue<String>> queues, String tableFullName){
+        if (queues.size() == 1) return 0;
+        for (int index = 0; index < queues.size(); index++) {
+            ConcurrentHashMap<String, Integer> map = statusMap.get(index);
+            if (null != map && Optional.ofNullable(map.get(tableFullName)).orElse(0) > 0) {
+                return index;
+            }
+        }
+        HashSet<Queue<String>> set = new HashSet<>(queues);
+        for (Queue<String> queue : set) {
+            if (queue.isEmpty()) return queues.indexOf(queue);
+        }
+        return whereIsLowerSizeQueue(queues);
+    }
+
+    public int whereIsLowerSizeQueue(List<Queue<String>> queues) {
+        int size = 0;
+        int indexQueue = 0;
+        for (int index = 0; index < queues.size(); index++) {
+            Queue<String> queue = queues.get(index);
+            int queueSize = queue.size();
+            if (queueSize <= size) {
+                if (size == 0) {
+                    return index;
+                }
+                indexQueue = index;
+                size = queueSize;
+            }
+        }
+        return indexQueue;
     }
 }

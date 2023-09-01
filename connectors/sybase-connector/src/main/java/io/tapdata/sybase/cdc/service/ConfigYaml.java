@@ -9,6 +9,7 @@ import io.tapdata.sybase.util.ConfigPaths;
 import io.tapdata.sybase.util.ConnectorUtil;
 import io.tapdata.sybase.util.HostUtils;
 import io.tapdata.sybase.util.YamlUtil;
+import org.apache.commons.io.FilenameUtils;
 import org.yaml.snakeyaml.DumperOptions;
 
 import java.io.File;
@@ -208,7 +209,8 @@ class ConfigYaml implements CdcStep<CdcRoot> {
 
         String path = String.format(ConfigPaths.RE_INIT_TABLE_CONFIG_PATH, configPath, taskId);
         ConnectorUtil.createFile( path,"sybasease_reinit.yaml", root.getContext().getLog());
-
+        String reInitFilePath = FilenameUtils.concat(path, "sybasease_reinit.yaml");
+        root.getContext().getLog().info("ReInit yaml path: {}", reInitFilePath);
 //        File reInitYaml = new File(path);
 //        if (!reInitYaml.exists() || !reInitYaml.isFile()) {
 //            try {
@@ -224,7 +226,7 @@ class ConfigYaml implements CdcStep<CdcRoot> {
 //                throw new CoreException("Unable create yaml which named is {}, please create by yourself, {}", path, e.getMessage());
 //            }
 //        }
-        YamlUtil yamlUtil = new YamlUtil(path + "/sybasease_reinit.yaml", DumperOptions.ScalarStyle.SINGLE_QUOTED);
+        YamlUtil yamlUtil = new YamlUtil(reInitFilePath, DumperOptions.ScalarStyle.SINGLE_QUOTED);
         List<LinkedHashMap<String, Object>> list = new ArrayList<>();
         if (filterConfig != null && !filterConfig.isEmpty()) {
             list.addAll(ConnectorUtil.fixYaml0(filterConfig));

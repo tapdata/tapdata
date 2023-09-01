@@ -32,7 +32,6 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 public class SybaseContext extends MysqlJdbcContextV2 {
     public static final String TAG = SybaseContext.class.getSimpleName();
     private final static String SYBASE_VERSION = "select @@version";
-
     //select table cloumns
     private final static String SELECT_TABLE_INFO = "select col.colid as id," +
             "obj.name as tableName," +
@@ -46,13 +45,11 @@ public class SybaseContext extends MysqlJdbcContextV2 {
             "where col.id=obj.id and col.usertype=typ.usertype %s";
 
     //select all table and table'name
-    private final static String SELECT_ALL_TABLE_NAME = "select obj.name from sysobjects as obj where obj.type = 'U' %s";
-
+    private final static String SELECT_ALL_TABLE_NAME = "select obj.name from sysobjects as obj, sysusers as ou  where obj.type = 'U' AND ou.uid = obj.uid and ou.name = '%s' %s";
     /**
      * @deprecated
      * */
     private final static String SHOW_TABLE_CONFIG = "sp_helpindex N'%s'";
-
     public SybaseContext(CommonDbConfig config) {
         super(config);
     }
@@ -121,7 +118,7 @@ public class SybaseContext extends MysqlJdbcContextV2 {
 
     protected String queryAllTablesSql(String schema, List<String> tableNames) {
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND obj.name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
-        return String.format(SELECT_ALL_TABLE_NAME, tableSql);// schema, tableSql);
+        return String.format(SELECT_ALL_TABLE_NAME, schema,  tableSql);// schema, tableSql);
     }
 
     protected String queryAllTablesInfoSql(String schema, List<String> tableNames) {

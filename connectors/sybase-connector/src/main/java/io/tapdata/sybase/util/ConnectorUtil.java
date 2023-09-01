@@ -463,7 +463,7 @@ public class ConnectorUtil {
                 for (SybaseReInitConfig sybaseReInitConfig : ri) {
                     tab.addAll(sybaseReInitConfig.getAdd_tables());
                 }
-                map.put("add-tables", tab);
+                map.put("add-tables", new ArrayList<>(tab));
                 list.add(map);
             });
         });

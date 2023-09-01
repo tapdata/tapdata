@@ -31,50 +31,88 @@ public class CdcRoot {
     private String cliPath;
     private Predicate<Void> isAlive;
     private Map<String, Map<String, List<String>>> containsTimestampFieldTables;
-    Map<String, Integer> csvFileModifyIndexCache;
+    Map<String, String> csvFileModifyIndexCache;
 
 
     public CdcRoot(Predicate<Void> isAlive) {
         this.isAlive = isAlive;
     }
 
-    public Integer getCsvFileModifyIndexByCsvFileName(String csvFileName) {
-        if (null == csvFileModifyIndexCache || csvFileModifyIndexCache.isEmpty()) return 0;
-        return Optional.ofNullable(csvFileModifyIndexCache.get(ListenFile.databaseTable(csvFileName))).orElse(0);
+    public synchronized Integer getCsvFileModifyIndexByCsvFileName(String csvFileName) {
+//        if (null == csvFileModifyIndexCache || csvFileModifyIndexCache.isEmpty()) return 0;
+//        String indexAndLine = csvFileModifyIndexCache.get(ListenFile.databaseTable(csvFileName));
+//        if (null == indexAndLine) return 0;
+//        return Optional.ofNullable(stringIntegerMap.get("index")).orElse(0);
+        Integer[] indexAndLine = indexAndLineFromCsvFileModifyIndexCache(csvFileName);
+        return indexAndLine[0];
+    }
+
+    private Integer[] indexAndLineFromCsvFileModifyIndexCache(String csvFileName) {
+        Integer[] indexAndLine = {0, 0};
+        if (null == csvFileModifyIndexCache || csvFileModifyIndexCache.isEmpty()) return indexAndLine;
+        String indexAndLineString = csvFileModifyIndexCache.get(ListenFile.databaseTable(csvFileName));
+        if (null == indexAndLineString) return indexAndLine;
+        String[] split = indexAndLineString.split(",");
+        try {
+            switch (split.length) {
+                case 0:
+                    return indexAndLine;
+                case 1:
+                    indexAndLine[0] = Integer.parseInt(split[0]);
+                default:
+                    indexAndLine[0] = Integer.parseInt(split[0]);
+                    indexAndLine[1] = Integer.parseInt(split[1]);
+            }
+        } catch (Exception ignore) {}
+        return indexAndLine;
+    }
+
+    public synchronized Integer getCsvFileModifyLineByCsvFileName(String csvFileName) {
+//        if (null == csvFileModifyIndexCache || csvFileModifyIndexCache.isEmpty()) return 0;
+//        String stringIntegerMap = csvFileModifyIndexCache.get(ListenFile.databaseTable(csvFileName));
+//        if (null == stringIntegerMap) return 0;
+//        Integer index = CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName);
+//        Integer lastIndex = stringIntegerMap.get("index");
+//        return null == lastIndex || !lastIndex.equals(index) ? 0 : Optional.ofNullable(stringIntegerMap.get("line")).orElse(0);
+        Integer[] indexAndLine = indexAndLineFromCsvFileModifyIndexCache(csvFileName);
+        return indexAndLine[1];
+    }
+
+    public synchronized Map<String, String> setCsvFileModifyIndexByCsvFileName(String csvFileName, int index, int acceptLine) {
+        return setCsvFileModifyIndexByFullTableName(ListenFile.databaseTable(csvFileName), index, acceptLine);
     }
 
     /**
      * @param fullTableName {databaseName}.{schemaName}.{tableName}
      * */
-    public Integer getCsvFileModifyIndexByFullTableName(String fullTableName) {
-        if (null == csvFileModifyIndexCache || csvFileModifyIndexCache.isEmpty()) return 0;
-        return (Integer) Optional.ofNullable(csvFileModifyIndexCache.get(fullTableName)).orElse(0);
-    }
-
-    public Map<String, Integer> setCsvFileModifyIndexByCsvFileName(String csvFileName, Integer index) {
-        return setCsvFileModifyIndexByFullTableName(ListenFile.databaseTable(csvFileName), index);
-    }
-
-    /**
-     * @param fullTableName {databaseName}.{schemaName}.{tableName}
-     * */
-    public Map<String, Integer> setCsvFileModifyIndexByFullTableName(String fullTableName, Integer index) {
+    public synchronized Map<String, String> setCsvFileModifyIndexByFullTableName(String fullTableName, int index, int acceptLine) {
         if (null == csvFileModifyIndexCache) {
             csvFileModifyIndexCache = new HashMap<>();
         }
-        csvFileModifyIndexCache.put(fullTableName, index);
+//        Map<String, Integer> offset =  csvFileModifyIndexCache.computeIfAbsent(fullTableName, key -> new HashMap<>());
+//        offset.put("index", index);
+//        offset.put("line", acceptLine);
+        csvFileModifyIndexCache.put(fullTableName, String.format("%s,%s", index, acceptLine));
         return csvFileModifyIndexCache;
     }
 
-    public Map<String, Integer> getCsvFileModifyIndexCache() {
-        return csvFileModifyIndexCache;
-    }
-
-    public void setCsvFileModifyIndexCache(Map<String, Integer> csvFileModifyIndexCache) {
-        this.csvFileModifyIndexCache = csvFileModifyIndexCache;
-    }
-    public CdcRoot csvFileModifyIndexCache(Map<String, Integer> csvFileModifyIndexCache) {
-        this.csvFileModifyIndexCache = csvFileModifyIndexCache;
+    public CdcRoot csvFileModifyIndexCache(Object csvFileModifyIndexCache) {
+        try {
+            this.csvFileModifyIndexCache = (Map<String, String>)csvFileModifyIndexCache;
+        } catch (Exception e){
+            this.csvFileModifyIndexCache = new HashMap<>();
+            if (csvFileModifyIndexCache instanceof Map) {
+                Map<String, Object> cache = (Map<String, Object>) csvFileModifyIndexCache;
+                cache.forEach((k,v) -> {
+                    if(v instanceof Map) {
+                        Map<String, Object> map = (Map<String, Object>) v;
+                        this.csvFileModifyIndexCache.put(k, String.format("%s,%s",
+                                Integer.parseInt(String.valueOf(Optional.ofNullable(map.get("index")).orElse(0))),
+                                Integer.parseInt(String.valueOf(Optional.ofNullable(map.get("line")).orElse(0)))));
+                    }
+                });
+            }
+        }
         return this;
     }
 
@@ -150,11 +188,12 @@ public class CdcRoot {
     }
 
     public String getCliPath() {
-        return cliPath;
+        return Optional.ofNullable(cliPath).orElse(new File(CdcRoot.CLI_PATH).getAbsolutePath());
     }
 
+    public static String CLI_PATH = "sybase-poc/replicant-cli";
     public void setCliPath(String cliPath) {
-        if (null == cliPath) return;
+        if (null == cliPath) cliPath = new File(CdcRoot.CLI_PATH).getAbsolutePath();
         this.cliPath = cliPath.endsWith("/") ? cliPath.substring(0, cliPath.length() - 1) : cliPath;
     }
 

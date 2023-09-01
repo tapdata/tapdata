@@ -94,8 +94,7 @@ public class ConfigBaseField implements CdcStep<CdcRoot> {
         root.getContext().getStateMap().put(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR, targetPath);
         stateMap.put(ConfigPaths.SYBASE_USE_TASK_CONFIG_KEY, (targetPath.endsWith("/") ? targetPath : targetPath + "/") + ConfigPaths.SYBASE_USE_TASK_CONFIG_DIR + cdcId);
 
-        final String cliPath = "sybase-poc/replicant-cli";
-        File cliFile = new File(cliPath);
+        File cliFile = new File(CdcRoot.CLI_PATH);
         if (!cliFile.exists()) {
             throw new CoreException("Unable fund replicant-cli in path sybase-poc/, make sure your sources exists in you linux file system or retry task.");
         }

@@ -153,6 +153,7 @@ public class SybaseConnector extends CommonDbConnector {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
+        Optional.ofNullable(root).ifPresent(CdcRoot::notifyAll);
         started.set(false);
         ErrorKit.ignoreAnyError(() -> Optional.ofNullable(this.sybaseReader).ifPresent(MysqlReader::close));
         ErrorKit.ignoreAnyError(() -> Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy));
@@ -184,7 +185,6 @@ public class SybaseConnector extends CommonDbConnector {
             }
         }
         Optional.ofNullable(lock).ifPresent(StopLock::stop);
-        Optional.ofNullable(root).ifPresent(CdcRoot::notifyAll);
         Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::releaseTaskResources);
     }
 
@@ -594,10 +594,10 @@ public class SybaseConnector extends CommonDbConnector {
      * @deprecated
      * */
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> currentTables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
-        root.csvFileModifyIndexCache(offset instanceof Map ? (Map<String, Integer>)offset : new HashMap<>());
+        root.csvFileModifyIndexCache(offset instanceof Map ? offset : new HashMap<>());
         tapConnectorContext.getStateMap().put("is_multi_stream_task", true);
         //throw new CoreException("Not support stream read by node, please open Shared-Mining ");
-        Object position = root.getContext().getStateMap().get("cdc_position");
+        Object position = tapConnectorContext.getStateMap().get("cdc_position");
         CdcPosition cdcPosition = (position instanceof CdcPosition ? (CdcPosition) position : new CdcPosition()).notMultiTask();
 
         tapConnectorContext.getLog().info("Running with normal task on cdc, offset: {}", cdcPosition);
@@ -675,7 +675,7 @@ public class SybaseConnector extends CommonDbConnector {
                         tapConnectorContext.getLog(),
                         ConnectorUtil.getCurrentInstanceHostPortFromConfig(tapConnectorContext)
                 );
-                if (port.size() < 2) {
+                if (port.size() < 2 && isAlive()) {
                     //tapConnectorContext.getLog().info("Cdc task is normal, but not any cdc process is active, this task is normal task can not retry to start cdc process.");
                     //CDC_PROCESS_FAIL_EXCEPTION_CODE
                     throw new CoreException(SybaseConnector.CDC_PROCESS_FAIL_EXCEPTION_CODE, "Cdc task is normal, but not any cdc process is active, will retry to start cdc process");
@@ -696,7 +696,7 @@ public class SybaseConnector extends CommonDbConnector {
     boolean hasMonitor = false;
     private void multiStreamStart(TapConnectorContext tapConnectorContext, List<ConnectionConfigWithTables> connectionConfigWithTables, Object offset, int batchSize, StreamReadConsumer consumer) {
         Object position = tapConnectorContext.getStateMap().get("cdc_position");
-        root.csvFileModifyIndexCache(offset instanceof Map ? (Map<String, Integer>)offset : new HashMap<>());
+        root.csvFileModifyIndexCache(offset instanceof Map ? offset : new HashMap<>());
         if(batchSize < 200 || batchSize > 500) batchSize = 200;
         if (null == connectionConfigWithTables || connectionConfigWithTables.isEmpty()) return;
 
@@ -761,7 +761,7 @@ public class SybaseConnector extends CommonDbConnector {
                         tapConnectorContext.getLog(),
                         ConnectorUtil.getCurrentInstanceHostPortFromConfig(tapConnectorContext)
                 );
-                if (port.size() < 2) {
+                if (port.size() < 2 && isAlive()) {
                     //CDC_PROCESS_FAIL_EXCEPTION_CODE
                     throw new CoreException(SybaseConnector.CDC_PROCESS_FAIL_EXCEPTION_CODE, "Cdc task is normal, but not any cdc process is active, will retry to start cdc process");
                 }
@@ -905,6 +905,7 @@ public class SybaseConnector extends CommonDbConnector {
     }
 
     private void cdcStart(TapConnectorContext tapConnectorContext, List<ConnectionConfigWithTables> connectionConfigWithTables) {
+        if (!isAlive()) return;
         KVMap<Object> stateMap = tapConnectorContext.getStateMap();
         String hostPortFromConfig = ConnectorUtil.getCurrentInstanceHostPortFromConfig(tapConnectorContext);
         if (root == null) {
@@ -915,6 +916,7 @@ public class SybaseConnector extends CommonDbConnector {
 
         ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
 
+        Map<String, Map<String, List<String>>> groupTableFromConnectionConfigWithTables = ConnectorUtil.groupTableFromConnectionConfigWithTables(connectionConfigWithTables);
         //get all tables which contains field typed timestamp
         final Map<String, Map<String, List<String>>> containsTimestampFieldTables = new HashMap<>();
         if(null == connectionConfigWithTables) {
@@ -933,7 +935,7 @@ public class SybaseConnector extends CommonDbConnector {
             root.setCdcTables(cdcTables);
         } else {
             ConnectorUtil.containsTimestampFieldTablesV2(containsTimestampFieldTables, tapConnectorContext, connectionConfigWithTables);
-            root.setCdcTables(ConnectorUtil.groupTableFromConnectionConfigWithTables(connectionConfigWithTables));
+            root.setCdcTables(groupTableFromConnectionConfigWithTables);
         }
         root.setContainsTimestampFieldTables(containsTimestampFieldTables);
 
@@ -949,7 +951,7 @@ public class SybaseConnector extends CommonDbConnector {
         }
         String[] killShellCmd = ConnectorUtil.getKillShellCmd(tapConnectorContext);
         synchronized (filterConfigLock) {
-            File filterConfigFile = new File(String.format(CdcRoot.POC_TEMP_TRACE_LOG_PATH, hostPortFromConfig, taskId));
+            File filterConfigFile = new File(String.format(CdcRoot.POC_TEMP_TRACE_LOG_PATH, hostPortFromConfig, ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext())));
             String path = String.valueOf(stateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR));
             if (filterConfigFile.exists() && filterConfigFile.isFile() && !"null".equals(path)) {
                 List<Integer> port = ConnectorUtil.port(
@@ -962,33 +964,38 @@ public class SybaseConnector extends CommonDbConnector {
                 stateMap.put(ConfigPaths.SYBASE_USE_TASK_CONFIG_KEY, (path.endsWith("/") ? path : path + "/") + ConfigPaths.SYBASE_USE_TASK_CONFIG_DIR + String.valueOf(stateMap.get("taskId")));
 
                 int portSize = port.size();
-                if (portSize < 2) {
-                    tapConnectorContext.getLog().info("Cdc process not alive, will start cdc process now");
-                    List<Map<String, Object>> mapList = cdcHandle.compileFilterTableYamlConfig(root.getCdcTables());
-                    CdcStartVariables variables = root.getVariables();
-                    if (null == variables) {
-                        variables = new CdcStartVariables();
-                        root.setVariables(variables);
-                    }
-                    variables.setFilterConfig(ConnectorUtil.fromYaml(mapList));
-                    if (portSize > 0) {
+                Map<String, Map<String, List<String>>> monitorTables = (Map<String, Map<String, List<String>>>) stateMap.get("monitorTables");
+                root.setCdcTables(monitorTables);
+                //filter the tables which is new table
+                Map<String, Map<String, List<String>>> appendTables = ConnectorUtil.filterAppendTable(monitorTables, groupTableFromConnectionConfigWithTables);
+                //当前任务出先新表需要加入到CDC的监听列表时
+                if (null != appendTables && !appendTables.isEmpty()) {
+                    if (!port.isEmpty()) {
                         ConnectorUtil.safeStopShell( tapConnectorContext);
                     }
-
-                    log.info("Cdc process has init, but status not normal, will be resume start, {}", hostPortFromConfig);
-                    //start cdc process in stream at first
-                    cdcHandle.initCdc(OverwriteType.RESUME);
+                    log.info("Cdc process is alive and add new tables, will reinit cdc process now, new tables are: {}", appendTables);
+                    cdcHandle.addTableAndRestartProcess(config, groupTableFromConnectionConfigWithTables, appendTables, tapConnectorContext.getLog());
+                    //ConnectorUtil.maintenanceCdcMonitorTableMap(sybaseFilters, tapConnectorContext);
+                    root.setCdcTables(groupTableFromConnectionConfigWithTables);
                 } else {
-                    //filter the tables which is new table
-                    Map<String, Map<String, List<String>>> appendTables = ConnectorUtil.filterAppendTable((Map<String, Map<String, List<String>>>) stateMap.get("monitorTables"), root.getCdcTables());
-                    //当前任务出先新表需要加入到CDC的监听列表时
-                    if (null != appendTables && !appendTables.isEmpty()) {
-                        log.info("Cdc process is alive and add new tables, will reinit cdc process now, new tables are: {}", appendTables);
-                        cdcHandle.addTableAndRestartProcess(config, root.getCdcTables(), appendTables, tapConnectorContext.getLog());
-                        //ConnectorUtil.maintenanceCdcMonitorTableMap(sybaseFilters, tapConnectorContext);
-                    } else {
-                        log.info("Not fund any table change in monitor table config, reInit cdc process will be canceled");
+                    if (port.isEmpty()) {
+                        tapConnectorContext.getLog().info("Cdc process not alive, will start cdc process now");
+                        List<Map<String, Object>> mapList = cdcHandle.compileFilterTableYamlConfig(monitorTables);
+                        CdcStartVariables variables = root.getVariables();
+                        if (null == variables) {
+                            variables = new CdcStartVariables();
+                            root.setVariables(variables);
+                        }
+                        variables.setFilterConfig(ConnectorUtil.fromYaml(mapList));
+                        if (portSize > 0) {
+                            ConnectorUtil.safeStopShell( tapConnectorContext);
+                        }
+
+                        log.info("Cdc process has init, but status not normal, will be resume start, {}", hostPortFromConfig);
+                        //start cdc process in stream at first
+                        cdcHandle.initCdc(OverwriteType.RESUME);
                     }
+                    log.info("Not fund any table change in monitor table config, reInit cdc process will be canceled");
                 }
             } else {
                 //start cdc process in stream at first

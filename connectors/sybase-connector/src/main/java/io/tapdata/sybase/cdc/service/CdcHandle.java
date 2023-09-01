@@ -244,7 +244,7 @@ public class CdcHandle {
         ConfigYaml configYaml = new ConfigYaml(root, root.getVariables());
         //配置filter.yaml
         List<Map<String, Object>> filterTableYamlConfig = compileFilterTableYamlConfig(allTables);
-
+        List<Map<String, Object>> sybaseFilter = configYaml.configSybaseFilter(filterTableYamlConfig);
         if (null != appendTables && !appendTables.isEmpty()) {
             //配置 reInit.yaml
             List<SybaseReInitConfig> initTables = compileReInitTableYamlConfig(appendTables, log);
@@ -255,19 +255,21 @@ public class CdcHandle {
             String sybasePocPath = root.getSybasePocPath();
             String reInitResult = "";
             try {
-                reInitResult = ConnectorUtil.execCmd(String.format(ExecCommand.RE_INIT_AND_ADD_TABLE,
+                String command = String.format(ExecCommand.RE_INIT_AND_ADD_TABLE,
                         root.getCliPath(),
-                        CommandType.CDC,
+                        CommandType.CDC.getType(),
                         sybasePocPath,
                         sybasePocPath,
                         sybasePocPath,
                         root.getFilterTableConfigPath(),
                         sybasePocPath,
                         ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext()),
-                        "--" + OverwriteType.RESUME.getType(),
                         sybasePocPath,
-                        root.getTaskCdcId()
-                        ),
+                        root.getTaskCdcId(),
+                        "--" + OverwriteType.RESUME.getType()
+                );
+                root.getContext().getLog().info("shell reinit is {}", command);
+                reInitResult = ConnectorUtil.execCmd(command,
                         "Fail to reInit when an new task start with new tables, msg: {}",
                         root.getContext().getLog());
             } finally {
@@ -275,8 +277,9 @@ public class CdcHandle {
             }
         }
         //命令结束后，写入filter.yaml
-        List<Map<String, Object>> sybaseFilter = configYaml.configSybaseFilter(filterTableYamlConfig);
-
+        try {
+            Thread.sleep(500);
+        }catch (Exception ignore) {}
         //重启任务
         new ExecCommand(root, CommandType.CDC, OverwriteType.RESUME).compile();
         return sybaseFilter;
