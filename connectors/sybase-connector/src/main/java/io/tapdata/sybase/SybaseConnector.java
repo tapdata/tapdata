@@ -67,11 +67,9 @@ import io.tapdata.sybase.extend.SybaseContext;
 import io.tapdata.sybase.extend.SybaseReader;
 import io.tapdata.sybase.extend.SybaseSqlBatchWriter;
 import io.tapdata.sybase.extend.SybaseSqlMarker;
-import io.tapdata.sybase.util.Code;
-import io.tapdata.sybase.util.ConfigPaths;
-import io.tapdata.sybase.util.ConnectorUtil;
-import io.tapdata.sybase.util.Utils;
+import io.tapdata.sybase.util.*;
 import org.apache.commons.lang3.StringUtils;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
 import java.sql.ResultSet;
@@ -695,8 +693,10 @@ public class SybaseConnector extends CommonDbConnector {
      * */
     boolean hasMonitor = false;
     private void multiStreamStart(TapConnectorContext tapConnectorContext, List<ConnectionConfigWithTables> connectionConfigWithTables, Object offset, int batchSize, StreamReadConsumer consumer) {
+        tapConnectorContext.getLog().info("Multi stream start with tables: {}", toJson(connectionConfigWithTables));
         Object position = tapConnectorContext.getStateMap().get("cdc_position");
         root.csvFileModifyIndexCache(offset instanceof Map ? (Map<String, Map<String, Integer>>) offset : new HashMap<>());
+        root.setContext(tapConnectorContext);
         if(batchSize < 200 || batchSize > 500) batchSize = 200;
         if (null == connectionConfigWithTables || connectionConfigWithTables.isEmpty()) return;
 
@@ -704,10 +704,10 @@ public class SybaseConnector extends CommonDbConnector {
             root.setTaskCdcId(taskId = null == taskId ? ConnectorUtil.maintenanceTaskId(tapConnectorContext) : taskId);
         }
         tapConnectorContext.getStateMap().put("is_multi_stream_task", true);
-        //if (null == root.getCdcTables() || root.getCdcTables().isEmpty()) {
-        //    root.setCdcTables(tables);
-        //}
         Map<String, Map<String, List<String>>> tables = ConnectorUtil.groupTableFromConnectionConfigWithTables(connectionConfigWithTables);
+        if (null == root.getCdcTables() || root.getCdcTables().isEmpty()) {
+            root.setCdcTables(tables);
+        }
         try {
             //Object target = tapConnectorContext.getStateMap().get("timestampToStreamOffsetTarget");
             //if (!(null != target && target instanceof Boolean && (Boolean)target)) {
@@ -951,7 +951,7 @@ public class SybaseConnector extends CommonDbConnector {
         }
         String[] killShellCmd = ConnectorUtil.getKillShellCmd(tapConnectorContext);
         synchronized (filterConfigLock) {
-            File filterConfigFile = new File(String.format(CdcRoot.POC_TEMP_TRACE_LOG_PATH, hostPortFromConfig, ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext())));
+            File filterConfigFile = new File(String.format(CdcRoot.POC_TEMP_TRACE_LOG_PATH, hostPortFromConfig, ConnectorUtil.maintenanceGlobalCdcProcessId(tapConnectorContext)));
             String path = String.valueOf(stateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR));
             if (filterConfigFile.exists() && filterConfigFile.isFile() && !"null".equals(path)) {
                 List<Integer> port = ConnectorUtil.port(
@@ -967,7 +967,9 @@ public class SybaseConnector extends CommonDbConnector {
                 Map<String, Map<String, List<String>>> monitorTables = (Map<String, Map<String, List<String>>>) stateMap.get("monitorTables");
                 root.setCdcTables(monitorTables);
                 //filter the tables which is new table
-                Map<String, Map<String, List<String>>> appendTables = ConnectorUtil.filterAppendTable(monitorTables, groupTableFromConnectionConfigWithTables);
+
+                Map<String, Map<String, List<String>>> currentTable = Optional.ofNullable(tableFromFilterYaml(path, tapConnectorContext)).orElse(monitorTables);
+                Map<String, Map<String, List<String>>> appendTables = ConnectorUtil.filterAppendTable(currentTable, groupTableFromConnectionConfigWithTables);
                 //当前任务出先新表需要加入到CDC的监听列表时
                 if (null != appendTables && !appendTables.isEmpty()) {
                     if (!port.isEmpty()) {
@@ -978,7 +980,7 @@ public class SybaseConnector extends CommonDbConnector {
                     //ConnectorUtil.maintenanceCdcMonitorTableMap(sybaseFilters, tapConnectorContext);
                     root.setCdcTables(groupTableFromConnectionConfigWithTables);
                 } else {
-                    if (port.isEmpty()) {
+                    if (portSize < 2) {
                         tapConnectorContext.getLog().info("Cdc process not alive, will start cdc process now");
                         List<Map<String, Object>> mapList = cdcHandle.compileFilterTableYamlConfig(monitorTables);
                         CdcStartVariables variables = root.getVariables();
@@ -1018,6 +1020,17 @@ public class SybaseConnector extends CommonDbConnector {
                 }
             }
             stateMap.put("monitorTables", root.getCdcTables());
+        }
+    }
+
+    public static Map<String, Map<String, List<String>>> tableFromFilterYaml(String pocPath, TapConnectorContext context) {
+        // data/tapdata/tapdata/sybase-poc-temp/101.33.247.59:15001:testdb/sybase-poc/config/sybase2csv/filter_sybasease.yaml
+        String path = String.format("%s%s/sybase-poc/config/sybase2csv/filter_sybasease.yaml", (pocPath.endsWith("/") ? pocPath : pocPath + "/"), ConnectorUtil.getCurrentInstanceHostPortFromConfig(context));
+        try {
+            YamlUtil filterYaml = new YamlUtil(path);
+            return (Map<String, Map<String, List<String>>>) filterYaml.get("allow");
+        } catch (Exception e) {
+            return null;
         }
     }
 }

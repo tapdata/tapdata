@@ -705,6 +705,7 @@ public class ConnectorUtil {
                 List<String> tabAgo = agoSchemaInfo.get(schema);
                 if (null == tabAgo || tabAgo.isEmpty()) {
                     appendSchema.put(schema, tabNow);
+                    appendCount += tabNow.size();
                     continue;
                 }
                 Set<String> appendTableSet = new HashSet<>();
@@ -715,7 +716,9 @@ public class ConnectorUtil {
                         appendCount++;
                     }
                 }
-                appendSchema.put(schema, new ArrayList<>(appendTableSet));
+                if (!appendTableSet.isEmpty()) {
+                    appendSchema.put(schema, new ArrayList<>(appendTableSet));
+                }
             }
         }
         return appendCount > 0 ? appendTab : null;
