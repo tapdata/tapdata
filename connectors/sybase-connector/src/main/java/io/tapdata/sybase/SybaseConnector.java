@@ -153,7 +153,7 @@ public class SybaseConnector extends CommonDbConnector {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        Optional.ofNullable(root).ifPresent(CdcRoot::notifyAll);
+        ErrorKit.ignoreAnyError(() -> Optional.ofNullable(root).ifPresent(CdcRoot::notifyAll));
         started.set(false);
         ErrorKit.ignoreAnyError(() -> Optional.ofNullable(this.sybaseReader).ifPresent(MysqlReader::close));
         ErrorKit.ignoreAnyError(() -> Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy));
@@ -233,7 +233,7 @@ public class SybaseConnector extends CommonDbConnector {
             List<Integer> port = ConnectorUtil.port(
                     killShellCmd,
                     ConnectorUtil.ignoreShells,
-                    root.getContext().getLog(),
+                    context.getLog(),
                     hostPortFromConfig
             );
             if (!port.isEmpty()) {
@@ -594,7 +594,7 @@ public class SybaseConnector extends CommonDbConnector {
      * @deprecated
      * */
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> currentTables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
-        root.csvFileModifyIndexCache(offset instanceof Map ? offset : new HashMap<>());
+        root.csvFileModifyIndexCache(offset instanceof Map ? (Map<String, Map<String, Integer>>) offset : new HashMap<>());
         tapConnectorContext.getStateMap().put("is_multi_stream_task", true);
         //throw new CoreException("Not support stream read by node, please open Shared-Mining ");
         Object position = tapConnectorContext.getStateMap().get("cdc_position");
@@ -696,7 +696,7 @@ public class SybaseConnector extends CommonDbConnector {
     boolean hasMonitor = false;
     private void multiStreamStart(TapConnectorContext tapConnectorContext, List<ConnectionConfigWithTables> connectionConfigWithTables, Object offset, int batchSize, StreamReadConsumer consumer) {
         Object position = tapConnectorContext.getStateMap().get("cdc_position");
-        root.csvFileModifyIndexCache(offset instanceof Map ? offset : new HashMap<>());
+        root.csvFileModifyIndexCache(offset instanceof Map ? (Map<String, Map<String, Integer>>) offset : new HashMap<>());
         if(batchSize < 200 || batchSize > 500) batchSize = 200;
         if (null == connectionConfigWithTables || connectionConfigWithTables.isEmpty()) return;
 
@@ -753,7 +753,7 @@ public class SybaseConnector extends CommonDbConnector {
 
             while (isAlive()) {
                 try {
-                    root.wait(3000);
+                    sleep(3000);
                 } catch (Exception ignore){}
                 List<Integer> port = ConnectorUtil.port(
                         ConnectorUtil.getKillShellCmd(tapConnectorContext),

@@ -61,13 +61,11 @@ public class ListenFile implements CdcStep<CdcRoot> {
     private final String schemaConfigPath; //a yaml file path name is schema.yaml which can get the cdc tables
     private final Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap = new HashMap<>(); //all cdc table from schema.yaml to anlyse csv line to tap event
 
-    private final int SCHEDULED_SIZE = 3;
-    private ConcurrentHashMap<Integer, ConcurrentHashMap<String, Integer>> statusMap = new ConcurrentHashMap<Integer, ConcurrentHashMap<String, Integer>>();
-    private List<Queue<String>> monitorFilePathQueues = new ArrayList<>();
+    private Queue<String> monitorFilePathQueues;
     private ScheduledFuture<?> futureCheckFile;
-    private List<ScheduledFuture<?>> futureCheckFileList = new ArrayList<>();
+    private ScheduledFuture<?> futureReadFile;
     private final ScheduledExecutorService scheduledExecutorServiceCheckFile = Executors.newSingleThreadScheduledExecutor();
-    private final List<ScheduledExecutorService> scheduledExecutorServiceList = new ArrayList<>();
+    private final ScheduledExecutorService scheduledExecutorService;
     private final Object readFileLock = new Object();
 
     protected ListenFile(CdcRoot root,
@@ -97,11 +95,8 @@ public class ListenFile implements CdcStep<CdcRoot> {
         this.nodeConfig = new NodeConfig(root.getContext());
         readCSVOfBigFile.setLog(root.getContext().getLog());
 
-        for (int index = 0; index < SCHEDULED_SIZE; index++) {
-            monitorFilePathQueues.add(new ConcurrentLinkedQueue<>());
-            scheduledExecutorServiceList.add(Executors.newSingleThreadScheduledExecutor());
-            statusMap.put(index, new ConcurrentHashMap<>());
-        }
+        monitorFilePathQueues = new ConcurrentLinkedQueue<>();
+        scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     }
 
     @Override
@@ -131,22 +126,16 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     this.futureCheckFile = null;
                 }
             }
-            for (int index = futureCheckFileList.size() - 1; index >= 0 ; index--) {
-                ScheduledFuture<?> scheduledFuture = futureCheckFileList.get(0);
-                if (Objects.nonNull(scheduledFuture)) {
-                    try {
-                        scheduledFuture.cancel(true);
-                    } catch (Exception e1){ } finally {
-                        futureCheckFileList.remove(index);
-                        scheduledFuture = null;
-                    }
+            if (Objects.nonNull(futureReadFile)) {
+                try {
+                    futureReadFile.cancel(true);
+                } catch (Exception e1){ } finally {
+                    futureReadFile = null;
                 }
             }
+
             this.futureCheckFile = this.scheduledExecutorServiceCheckFile.scheduleWithFixedDelay(() -> listener.foreachYaml(false), 0, 2, TimeUnit.SECONDS);
-            for (int index = 0; index < scheduledExecutorServiceList.size(); index++) {
-                final int finalIndex = index;
-                this.futureCheckFileList.add(this.scheduledExecutorServiceList.get(index).scheduleWithFixedDelay(() -> listener.readFile(finalIndex), 2, 1, TimeUnit.SECONDS));
-            }
+            this.futureReadFile = this.scheduledExecutorService.scheduleWithFixedDelay(() -> listener.readFile(), 2, 1, TimeUnit.SECONDS);
             //fileMonitor.start();
         } catch (Throwable e) {
             onStop();
@@ -172,16 +161,12 @@ public class ListenFile implements CdcStep<CdcRoot> {
         } finally {
             futureCheckFile = null;
         }
-        for (int index = futureCheckFileList.size() - 1; index >= 0 ; index--) {
-            ScheduledFuture<?> scheduledFuture = futureCheckFileList.get(0);
-            try {
-                Optional.ofNullable(scheduledFuture).ifPresent(f -> f.cancel(true));
-            } catch (Exception e) {
-                root.getContext().getLog().debug("Cdc monitor stop fail, msg: {}", e.getMessage());
-            } finally {
-                futureCheckFileList.remove(index);
-                scheduledFuture = null;
-            }
+        try {
+            Optional.ofNullable(futureReadFile).ifPresent(f -> f.cancel(true));
+        } catch (Exception e) {
+            root.getContext().getLog().debug("Cdc monitor stop fail, msg: {}", e.getMessage());
+        } finally {
+            futureReadFile = null;
         }
 
     }
@@ -421,9 +406,9 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                 csvOffset.getLine()));
                         events[0] = new ArrayList<>();
                     }
-                    //if (count.get() > 0) {
-                    //    log.info("File read once, read line: {}, file name: {}, nanoTime: {}", count.get(), file.getName(), System.nanoTime());
-                    //}
+                    if (count.get() > 0) {
+                        log.debug("File read once, read line: {}, file name: {}, nanoTime: {}", count.get(), file.getName(), System.nanoTime());
+                    }
                 }
             }
             return isThisFile;
@@ -459,23 +444,12 @@ public class ListenFile implements CdcStep<CdcRoot> {
             return false;
         }
 
-        public synchronized void readFile(Integer queueIndex) {
+        public synchronized void readFile() {
             if (hasHandelInit.get()) {
-                Queue<String> monitorFile = monitorFilePathQueues.get(queueIndex);
-                while (!monitorFile.isEmpty()) {
-                    File file = new File(monitorFile.poll());
+                while (!monitorFilePathQueues.isEmpty()) {
+                    File file = new File(monitorFilePathQueues.poll());
                     synchronized (readFileLock) {
                         monitor(file, tableMap);
-                        ConcurrentHashMap<String, Integer> hashMap = statusMap.get(queueIndex);
-                        String databaseTable = databaseTable(file.getName());
-                        if (hashMap.containsKey(databaseTable)) {
-                            Integer integer = hashMap.get(databaseTable);
-                            if (null == integer || integer <= 1) {
-                                hashMap.remove(databaseTable);
-                            } else {
-                                hashMap.put(databaseTable, integer - 1);
-                            }
-                        }
                     }
                 }
             }
@@ -564,7 +538,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
 //                            if (null == metadataYamlLastModify || metadataYamlLastModify < lastModified || (!hasHandelInit.get() && metadataYamlLastModify == lastModified )) {
 //                            metadataYamlFileModifyTimeCache.put(metadataYamlFile.getAbsolutePath(), lastModified);
                             //选举一个最空闲的队列来处理当前表的全部新修改会新增的csv
-                            readObjectMetadataYaml(metadataYamlFile, dispatchQueue(monitorFilePathQueues, database + "." + schema + "." + table));
+                            readObjectMetadataYaml(metadataYamlFile);
 //                            }
                         }
                     }
@@ -576,7 +550,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         }
 
         //Map<String, Long> tableModifyTimeCache = new HashMap<>();
-        public void readObjectMetadataYaml(File file, int queueIndex) {
+        public void readObjectMetadataYaml(File file) {
             try {
                 YamlUtil objectMetadataYaml = new YamlUtil(file.getAbsolutePath());
                 List<Map<String, Object>> csvFileOffset = (List<Map<String, Object>>) objectMetadataYaml.get("file-row-count");
@@ -592,13 +566,9 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         Integer fileIndexFromCsvName = CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName);
                         //上次读到第fileIndex个csv文件，当前是第fileIndexFromCsvName个csv文件，
                         if (null == fileIndex || fileIndex <= fileIndexFromCsvName){
-                            //log.warn("Yes, it's file: {}, file history index: {}, current index: {}", csvFileName, fileIndex, fileIndexFromCsvName);
+                            log.debug("Yes, it's file: {}, file history index: {}, current index: {}", csvFileName, fileIndex, fileIndexFromCsvName);
                                 //|| ( (!hasHandelInit.get() || lastModifyTime <  csvFile.lastModified() ) && fileIndex == fileIndexFromCsvName) ) {
-                            ConcurrentHashMap<String, Integer> hashMap = statusMap.get(queueIndex);
-                            String databaseTable = databaseTable(csvFileName);
-                            Integer integer = hashMap.computeIfAbsent(databaseTable, key -> 0);
-                            hashMap.put(databaseTable, integer+1);
-                            monitorFilePathQueues.get(queueIndex).add(csvFile.getAbsolutePath());
+                            monitorFilePathQueues.add(csvFile.getAbsolutePath());
                         }
                     }
                 });
@@ -633,37 +603,5 @@ public class ListenFile implements CdcStep<CdcRoot> {
 
     public static String fullTableName(String database, String schema, String tableName) {
         return database + "." + schema + "." + tableName;
-    }
-
-    public int dispatchQueue(List<Queue<String>> queues, String tableFullName){
-        if (queues.size() == 1) return 0;
-        for (int index = 0; index < queues.size(); index++) {
-            ConcurrentHashMap<String, Integer> map = statusMap.get(index);
-            if (null != map && Optional.ofNullable(map.get(tableFullName)).orElse(0) > 0) {
-                return index;
-            }
-        }
-        HashSet<Queue<String>> set = new HashSet<>(queues);
-        for (Queue<String> queue : set) {
-            if (queue.isEmpty()) return queues.indexOf(queue);
-        }
-        return whereIsLowerSizeQueue(queues);
-    }
-
-    public int whereIsLowerSizeQueue(List<Queue<String>> queues) {
-        int size = 0;
-        int indexQueue = 0;
-        for (int index = 0; index < queues.size(); index++) {
-            Queue<String> queue = queues.get(index);
-            int queueSize = queue.size();
-            if (queueSize <= size) {
-                if (size == 0) {
-                    return index;
-                }
-                indexQueue = index;
-                size = queueSize;
-            }
-        }
-        return indexQueue;
     }
 }
