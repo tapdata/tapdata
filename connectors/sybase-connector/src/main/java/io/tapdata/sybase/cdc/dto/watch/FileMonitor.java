@@ -54,7 +54,7 @@ public class FileMonitor {
                 log.info("Cdc is end and will not monitor about file: {}", monitorPath);
             }
         } catch (Exception e) {
-            log.info("File monitor can not be stop, msg: {}", e.getMessage());
+            //log.info("File monitor can not be stop, msg: {}", e.getMessage());
         } finally {
             if (null != cdcConsumer) {
                 cdcConsumer.streamReadEnded();

@@ -180,7 +180,6 @@ public class CdcHandle {
     public synchronized void releaseCdc() {
         if (null != listenFile) listenFile.onStop();
         Optional.ofNullable(root.getProcess()).ifPresent(Process::destroy);
-        Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
         KVMap<Object> stateMap = context.getStateMap();
         Object cdcPath = stateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_KEY);
         try {
@@ -195,7 +194,6 @@ public class CdcHandle {
 
     public synchronized void releaseTaskResources() {
         if (null != listenFile) listenFile.onStop();
-        Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
         KVMap<Object> stateMap = context.getStateMap();
         Object cdcPath = stateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_KEY);
         try {
@@ -216,11 +214,6 @@ public class CdcHandle {
         ConnectorUtil.safeStopShell(context);
         //@todo
         root.setProcess(null);
-        try {
-            Optional.ofNullable(fileMonitor).ifPresent(FileMonitor::stop);
-        } catch (Exception e) {
-            root.getContext().getLog().info(e.getMessage());
-        }
 
         NodeConfig nodeConfig = new NodeConfig(context);
         try {
