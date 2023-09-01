@@ -121,9 +121,9 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			this.running = new AtomicBoolean(true);
 			this.hazelcastInstance = HazelcastUtil.getInstance(this.shareCdcContext.getConfigurationCenter());
 			this.connNamespaceStr = Optional.ofNullable(shareCdcTaskContext.getConnections())
-				.map(Connections::getNamespace)
-				.map(ShareCdcUtil::joinNamespaces)
-				.orElse(null);
+					.map(Connections::getNamespace)
+					.map(ShareCdcUtil::joinNamespaces)
+					.orElse(null);
 			this.tableNames = shareCdcTaskContext.getTables();
 			step = canShareCdc(step);
 			this.readRunners = new ArrayList<>();
@@ -205,6 +205,15 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 					syncType = taskDto.getSyncType();
 				}
 				if (null != this.shareCdcContext.getCdcStartTs() && this.shareCdcContext.getCdcStartTs().compareTo(0L) > 0) {
+					// Dynamic add table to share task, maybe RingBuffer is uninitialized. check and wait to initialized
+					while (true) {
+						if (!running.get())
+							throw new RuntimeException("Check table start point failed, because is stopping");
+						if (constructRingBuffer.getRingbuffer().tailSequence() >= 0) break;
+
+						Thread.sleep(1000L);
+					}
+
 					ConstructIterator<Document> iterator = constructRingBuffer.find();
 					Document firstLogDocument = iterator.peek(15L, TimeUnit.SECONDS);
 					if (null != firstLogDocument) {
@@ -248,20 +257,22 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 	@NotNull
 	private ConstructRingBuffer<Document> getConstruct(String tableName) {
+		String constructName;
 		if (null != connNamespaceStr) {
-			return new ConstructRingBuffer<>(
-				hazelcastInstance,
-				constructReferenceId,
-				ShareCdcUtil.getConstructName(this.logCollectorTaskDto, ShareCdcUtil.joinNamespaces(Arrays.asList(connNamespaceStr, tableName))),
-				logCollectorExternalStorage
-			);
+			constructName = ShareCdcUtil.getConstructName(this.logCollectorTaskDto, ShareCdcUtil.joinNamespaces(Arrays.asList(connNamespaceStr, tableName)));
+		} else {
+			constructName = ShareCdcUtil.getConstructName(this.logCollectorTaskDto, tableName);
 		}
+		// Use different construct, but same collection name
+		tableName = ExternalStorageUtil.EXTERNAL_STORAGE_TABLE_NAME_PREFIX + constructName;
+		logCollectorExternalStorage.setTable(tableName);
+		constructName = constructName + "_" + ((ShareCdcTaskPdkContext) shareCdcContext).getTaskDto().getName();
 
 		return new ConstructRingBuffer<>(
-			hazelcastInstance,
-			constructReferenceId,
-			ShareCdcUtil.getConstructName(this.logCollectorTaskDto, tableName),
-			logCollectorExternalStorage
+				hazelcastInstance,
+				constructReferenceId,
+				constructName,
+				logCollectorExternalStorage
 		);
 	}
 
