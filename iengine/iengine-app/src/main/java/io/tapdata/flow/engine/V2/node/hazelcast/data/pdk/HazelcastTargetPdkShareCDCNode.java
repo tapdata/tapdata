@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import com.hazelcast.persistence.PersistenceStorage;
 import com.hazelcast.ringbuffer.Ringbuffer;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
@@ -444,10 +445,11 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		if (null == construct) {
 			synchronized (constructMap) {
 				construct = constructMap.computeIfAbsent(tableName, k -> new ConstructRingBuffer<>(
-					jetContext.hazelcastInstance(),
-					constructReferenceId.get(),
-					ShareCdcUtil.getConstructName(processorBaseContext.getTaskDto(), tableName),
-					externalStorageDto
+						jetContext.hazelcastInstance(),
+						constructReferenceId.get(),
+						ShareCdcUtil.getConstructName(processorBaseContext.getTaskDto(), tableName),
+						externalStorageDto,
+						PersistenceStorage.SequenceMode.HAZELCAST
 				));
 			}
 		}
