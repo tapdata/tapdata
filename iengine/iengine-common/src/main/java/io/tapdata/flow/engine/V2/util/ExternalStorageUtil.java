@@ -70,6 +70,16 @@ public class ExternalStorageUtil {
 		}
 	}
 
+	public synchronized static void initHZRingBufferStorage(ExternalStorageDto externalStorageDto, String referenceId, String name, Config config, PersistenceStorage.SequenceMode sequenceMode) {
+		addConfig(externalStorageDto, ConstructType.RINGBUFFER, name);
+		try {
+			PersistenceStorage.getInstance().initRingBufferConfig(referenceId, config, name, sequenceMode);
+			logger.info("Init RingBuffer store config succeed, name: " + name);
+		} catch (Exception e) {
+			throw new RuntimeException(LOG_PREFIX + "Init hazelcast RingBuffer persistence failed. " + e.getMessage(), e);
+		}
+	}
+
 	private static void addConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
 		if (null == externalStorageDto) throw new IllegalArgumentException("External storage dto cannot be null");
 		PersistenceStorageAbstractConfig persistenceConfig = getPersistenceConfig(externalStorageDto, constructType, constructName);
