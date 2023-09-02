@@ -114,7 +114,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			int step = 0;
 			shareCdcContext.getObsLogger().info(logWrapper("Initializing share cdc reader..."));
 			this.constructReferenceId = String.format("%s-%s-%s", getClass().getSimpleName(), shareCdcTaskContext.getNode().getTaskId(), shareCdcTaskContext.getNode().getId());
-			this.running = new AtomicBoolean(true);
 			this.hazelcastInstance = HazelcastUtil.getInstance(this.shareCdcContext.getConfigurationCenter());
 			this.connNamespaceStr = Optional.ofNullable(shareCdcTaskContext.getConnections())
 					.map(Connections::getNamespace)
@@ -260,6 +259,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		tableName = ExternalStorageUtil.EXTERNAL_STORAGE_TABLE_NAME_PREFIX + constructName;
 		logCollectorExternalStorage.setTable(tableName);
 		constructName = constructName + "_" + ((ShareCdcTaskPdkContext) shareCdcContext).getTaskDto().getName();
+		logCollectorExternalStorage.setTtlDay(null);
 
 		return new ConstructRingBuffer<>(
 				hazelcastInstance,
@@ -290,7 +290,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		threadNum = partitionTableNames.size();
 		this.readThreadPool = new ThreadPoolExecutor(threadNum + 1, threadNum + 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
 		int index = 1;
-		future = this.readThreadPool.submit(this::readPreVersionData);
+//		future = this.readThreadPool.submit(this::readPreVersionData);
 		this.readCountDown = new CountDownLatch(partitionTableNames.size());
 		for (List<String> partitionTableName : partitionTableNames) {
 			ReadRunner readRunner = new ReadRunner(

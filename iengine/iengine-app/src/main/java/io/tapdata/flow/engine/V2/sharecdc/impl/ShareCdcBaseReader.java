@@ -47,6 +47,7 @@ public class ShareCdcBaseReader implements ShareCdcReader {
 	protected Throwable throwable;
 
 	protected ShareCdcBaseReader() {
+		this.running = new AtomicBoolean(true);
 	}
 
 	@Override
@@ -69,7 +70,7 @@ public class ShareCdcBaseReader implements ShareCdcReader {
 
 	@Override
 	public void close() throws IOException {
-		this.running.compareAndSet(true, false);
+		this.running.set(false);
 	}
 
 	protected void handleFailed(String err) {

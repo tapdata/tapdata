@@ -10,6 +10,9 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
  **/
 public class ShareCdcHZReader extends ShareCdcBaseReader {
 
+	public ShareCdcHZReader() {
+	}
+
 	@Override
 	public void init(ShareCdcContext shareCdcContext) throws ShareCdcUnsupportedException {
 		super.init(shareCdcContext);
