@@ -294,6 +294,9 @@ public class MongodbWriter {
 		Document filter = new Document();
 		for (String pk : pks) {
 			if (!record.containsKey(pk)) {
+				if (pks.contains("_id") && record.containsKey("_id")) {
+					continue;
+				}
 				throw new RuntimeException("Set filter clause failed, unique key \"" + pk + "\" not exists in data: " + record);
 			}
 			filter.append(pk, record.get(pk));
