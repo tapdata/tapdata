@@ -1,0 +1,901 @@
+{
+  "properties": {
+    "name": "Sybase",
+    "icon": "icons/sybase.png",
+    "id": "sybase",
+    "doc": "${doc}",
+    "authentication": "Beta",
+    "tags": ["Database"]
+  },
+  "configOptions": {
+    "capabilities": [
+      {
+        "id": "dml_insert_policy",
+        "alternatives": [
+          "update_on_exists",
+          "ignore_on_exists"
+        ]
+      },
+      {
+        "id": "dml_update_policy",
+        "alternatives": [
+          "ignore_on_nonexists",
+          "insert_on_nonexists"
+        ]
+      },
+      {
+        "id": "api_server_supported"
+      }
+    ],
+    "connection": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "title": "${host}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 10,
+          "required": true
+        },
+        "port": {
+          "type": "string",
+          "title": "${port}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "database_port",
+          "x-index": 20,
+          "required": true
+        },
+        "database": {
+          "type": "string",
+          "title": "${database}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_name",
+          "x-index": 30,
+          "required": true
+        },
+        "schema": {
+          "type": "string",
+          "title": "${schema}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_name",
+          "x-index": 35,
+          "required": true
+        },
+        "username": {
+          "type": "string",
+          "title": "${username}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_username",
+          "x-index": 40,
+          "required": true
+        },
+        "password": {
+          "type": "string",
+          "title": "${password}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "database_password",
+          "x-index": 50
+        },
+        "addtionalString": {
+          "type": "string",
+          "title": "${addtionalString}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "",
+          "apiServerKey": "addtionalString",
+          "x-index": 60
+        },
+        "timezone": {
+          "type": "string",
+          "title": "${timezone}",
+          "default": "",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 7,
+          "enum": [
+            {
+              "label": "Database Timezone",
+              "value": ""
+            },
+            {
+              "label": "UTC -11",
+              "value": "-11:00"
+            },
+            {
+              "label": "UTC -10",
+              "value": "-10:00"
+            },
+            {
+              "label": "UTC -09",
+              "value": "-09:00"
+            },
+            {
+              "label": "UTC -08",
+              "value": "-08:00"
+            },
+            {
+              "label": "UTC -07",
+              "value": "-07:00"
+            },
+            {
+              "label": "UTC -06",
+              "value": "-06:00"
+            },
+            {
+              "label": "UTC -05",
+              "value": "-05:00"
+            },
+            {
+              "label": "UTC -04",
+              "value": "-04:00"
+            },
+            {
+              "label": "UTC -03",
+              "value": "-03:00"
+            },
+            {
+              "label": "UTC -02",
+              "value": "-02:00"
+            },
+            {
+              "label": "UTC -01",
+              "value": "-01:00"
+            },
+            {
+              "label": "UTC",
+              "value": "+00:00"
+            },
+            {
+              "label": "UTC +01",
+              "value": "+01:00"
+            },
+            {
+              "label": "UTC +02",
+              "value": "+02:00"
+            },
+            {
+              "label": "UTC +03",
+              "value": "+03:00"
+            },
+            {
+              "label": "UTC +04",
+              "value": "+04:00"
+            },
+            {
+              "label": "UTC +05",
+              "value": "+05:00"
+            },
+            {
+              "label": "UTC +06",
+              "value": "+06:00"
+            },
+            {
+              "label": "UTC +07",
+              "value": "+07:00"
+            },
+            {
+              "label": "UTC +08",
+              "value": "+08:00"
+            },
+            {
+              "label": "UTC +09",
+              "value": "+09:00"
+            },
+            {
+              "label": "UTC +10",
+              "value": "+10:00"
+            },
+            {
+              "label": "UTC +11",
+              "value": "+11:00"
+            },
+            {
+              "label": "UTC +12",
+              "value": "+12:00"
+            },
+            {
+              "label": "UTC +13",
+              "value": "+13:00"
+            },
+            {
+              "label": "UTC +14",
+              "value": "+14:00"
+            }
+          ]
+        },
+        "checkTableInConnectionTest": {
+          "type": "boolean",
+          "title": "${checkTableInConnectionTest}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "default": false,
+          "x-display" : "hidden",
+          "x-index": 70
+        },
+        "logCdcQuery": {
+          "type": "string",
+          "title": "${log_cdc_query}",
+          "default": 0,
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-decorator-props": {
+            "tooltip": "${log_cdc_query_tip}"
+          },
+          "x-index": 55,
+          "enum": [
+            {
+              "label": "Read Log",
+              "value": 0
+            },
+            {
+              "label": "Query Source",
+              "value": 1
+            }
+          ]
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "heartbeat": {
+          "type": "boolean",
+          "title": "${heartbeat}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "default": true,
+          "x-index": 1,
+          "x-decorator-props": {
+            "tooltip": "${heartbeat_tip}"
+          }
+        },
+        "tableSQL": {
+          "type": "string",
+          "title": "${table_sql}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-component-props": {
+            "readOnly": true
+          },
+          "default": "CREATE TABLE \"${DataBase}\".\"${Schema}\".\"replicate_io_cdc_heartbeat\"(\"timestamp\" BIGINT NOT NULL, PRIMARY KEY(\"timestamp\"));",
+          "x-index": 2,
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.heartbeat"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] ? true : false}}"
+              }
+            }
+          }
+        },
+        "hbDatabase": {
+          "type": "string",
+          "title": "${heart_database}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "",
+          "x-index": 3,
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.heartbeat"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] ? true : false}}"
+              }
+            }
+          }
+        },
+        "hbSchema": {
+          "type": "string",
+          "title": "${heart_schema}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "",
+          "x-index": 4,
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.heartbeat"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] ? true : false}}"
+              }
+            }
+          }
+        },
+        "logCdcQuery": {
+          "type": "string",
+          "title": "${log_cdc_query}",
+          "default": 1,
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-display": "hidden",
+          "x-decorator-props": {
+            "tooltip": "${log_cdc_query_tip}"
+          },
+          "x-index": 9,
+          "enum": [
+            {
+              "label": "Read Log",
+              "value": 0
+            },
+            {
+              "label": "Query Source",
+              "value": 1
+            }
+          ]
+        },
+        "fetchInterval": {
+          "type": "string",
+          "title": "${fetch_interval}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "database_port",
+          "default": 3,
+          "x-index": 10,
+          "required": true
+        },
+        "autoEncode": {
+          "type": "boolean",
+          "title": "${auto_encode}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "default": true,
+          "x-index": 11
+        },
+        "encode": {
+          "type": "string",
+          "title": "${encode_name}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "cp850",
+          "x-index": 20,
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.autoEncode"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] ? true : false}}"
+              }
+            }
+          }
+        },
+        "decode": {
+          "type": "string",
+          "title": "${decode_name}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "big5-ha",
+          "x-display": "hidden",
+          "x-index": 30,
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.autoEncode"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] ? true : false}}"
+              }
+            }
+          }
+        },
+        "outDecode": {
+          "type": "string",
+          "title": "${out_decode_name}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "utf-8",
+          "x-display": "hidden",
+          "x-index": 40
+        },
+        "cdcCacheTime": {
+          "type": "string",
+          "title": "${cdcCacheTime}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "default": 10,
+          "x-index": 90,
+          "x-display": "hidden",
+          "required": true
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "host": "Host",
+      "port": "Port",
+      "database": "database",
+      "username": "username",
+      "password": "password",
+      "addtionalString": "Connection Parameter String",
+      "timezone": "timezone",
+      "doc": "docs/sybase_en_US.md",
+      "close_delay_time": "Default delay shutdown time (in seconds)",
+      "encode_name": "Encode Character Set ",
+      "decode_name": "Decode Character Set ",
+      "out_decode_name": "Output Text Character Set",
+      "schema": "Schema",
+      "fetch_interval": "CDC delay time in seconds",
+      "auto_encode": "Automatic encoding and decoding ",
+      "cdcCacheTime": "CDC incremental file cache time (in minutes)",
+      "checkTableInConnectionTest": "Open table check",
+      "heartbeat": "Open CDC Heartbeat Monitor",
+      "table_sql": "Heartbeat Table Creation SQL",
+      "heartbeat_tip": "After enabling CDC heartbeat monitoring, a heartbeat table will be need created on the source side by yourself(replicate_io_cdc_heartbeat)",
+      "heart_database": " The database where the heartbeat table is located ",
+      "heart_schema": " The schema where the heartbeat table is located ",
+      "log_cdc_query": "Log CDC Query",
+      "log_cdc_query_tip": "Query log by read log or query source"
+    },
+    "zh_CN": {
+      "host": "地址",
+      "port": "端口",
+      "database": "数据库",
+      "username": "账号",
+      "password": "密码",
+      "addtionalString": "连接参数",
+      "timezone": "时区",
+      "doc": "docs/sybase_zh_CN.md",
+      "close_delay_time": "默认延迟关闭时间（单位：秒）",
+      "encode_name": "编码格式",
+      "decode_name": "解码格式",
+      "out_decode_name": "文本输出字符集",
+      "schema": "Schema",
+      "fetch_interval": "CDC延时（单位秒）",
+      "auto_encode": "自动编解码",
+      "cdcCacheTime": "CDC 增量文件缓存时间（单位：分钟）",
+      "checkTableInConnectionTest": "开启表数据检查",
+      "heartbeat": "开启CDC心跳监听",
+      "table_sql": "心跳表建表语句",
+      "heartbeat_tip": "开启CDC心跳监听后需要您在源端创建心跳表（replicate_io_cdc_heartbeat）",
+      "heart_database": "心跳表所在DataBase",
+      "heart_schema": "心跳表所在Schema",
+      "log_cdc_query": "Log CDC Query",
+      "log_cdc_query_tip": "对象类型数据同步方式有，日志解析或者反查源库"
+    },
+    "zh_TW": {
+      "host": "地址",
+      "port": "端口",
+      "database": "數據庫",
+      "username": "賬號",
+      "password": "密碼",
+      "addtionalString": "連接參數",
+      "timezone": "時區",
+      "doc": "docs/sybase_zh_TW.md",
+      "close_delay_time": "默認延遲關閉時間（組織：秒）",
+      "encode_name": "編碼格式",
+      "decode_name": "解碼格式",
+      "out_decode_name": "輸出文字字元集",
+      "schema": "Schema",
+      "fetch_interval": "CDC延時（組織秒）",
+      "auto_encode": "自動編解碼",
+      "cdcCacheTime": "CDC增量檔案緩存時間（組織：分鐘）",
+      "checkTableInConnectionTest": "開啟錶數據檢查",
+      "heartbeat": "开启CDC心跳监听",
+      "table_sql": "心跳錶建錶語句",
+      "heartbeat_tip": " 開啟CDC心跳監聽後需要您在源端創建心跳錶（replicate_io_cdc_heartbeat）",
+      "heart_database": "心跳錶所在Database",
+      "heart_schema": "心跳錶所在Schema",
+      "log_cdc_query": "Log CDC Query",
+      "log_cdc_query_tip": "对象类型数据同步方式有，日志解析或者反查源库"
+    }
+  },
+  "dataTypes": {
+    "char[($byte)]": {
+      "to": "TapString",
+      "byte": 255,
+      "default": 1,
+      "byteRatio": 1,
+      "fixed": true
+    },
+    "varchar($byte)": {
+      "name": "varchar",
+      "to": "TapString",
+      "byte": 255,
+      "default": 1,
+      "byteRatio": 1
+    },
+    "nchar($byte)": {
+      "name": "varchar",
+      "to": "TapString",
+      "default": 1,
+      "byteRatio": 1
+    },
+    "nvarchar($byte)": {
+      "name": "varchar",
+      "to": "TapString",
+      "default": 1,
+      "byteRatio": 1
+    },
+    "tinytext[($byte)]": {
+      "to": "TapString",
+      "byte": 255,
+      "pkEnablement": false
+    },
+    "image[($byte)]": {
+      "to": "TapBinary",
+      "byte": 255,
+      "pkEnablement": false
+    },
+    "unitext[($byte)]": {
+      "to": "TapString",
+      "byte": 255,
+      "pkEnablement": false
+    },
+    "text[($byte)]": {
+      "to": "TapString",
+      "byte": "64k",
+      "pkEnablement": false
+    },
+    "mediumtext[($byte)]": {
+      "to": "TapString",
+      "byte": "16m",
+      "pkEnablement": false
+    },
+    "longtext[($byte)]": {
+      "to": "TapString",
+      "byte": "4g",
+      "pkEnablement": false
+    },
+    "json": {
+      "to": "TapMap",
+      "byte": "4g",
+      "pkEnablement": false
+    },
+    "binary[($byte)]": {
+      "to": "TapBinary",
+      "byte": 255,
+      "defaultByte": 1,
+      "fixed": true
+    },
+    "varbinary[($byte)]": {
+      "to": "TapBinary",
+      "byte": 255,
+      "default": 1,
+      "defaultByte": 1
+    },
+    "tinyblob": {
+      "to": "TapBinary",
+      "byte": 255
+    },
+    "blob": {
+      "to": "TapBinary",
+      "byte": "64k"
+    },
+    "mediumblob": {
+      "to": "TapBinary",
+      "byte": "16m"
+    },
+    "longblob": {
+      "to": "TapBinary",
+      "byte": "4g"
+    },
+    "bit[($bit)]": {
+      "to": "TapNumber",
+      "bit": 64,
+      "queryOnly": true
+    },
+    "tinyint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 1,
+      "precision": 3,
+      "value": [
+        0,
+        255
+      ]
+    },
+    "tinyint[($zerofill)] unsigned": {
+      "to": "TapNumber",
+      "bit": 1,
+      "precision": 3,
+      "value": [
+        0,
+        255
+      ],
+      "unsigned": "unsigned"
+    },
+    "tinyint($zerofill) [unsigned] [zerofill]": {
+      "to": "TapNumber",
+      "bit": 1,
+      "precision": 3,
+      "value": [
+        0,
+        255
+      ],
+      "unsigned": "unsigned"
+    },
+    "smallint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 2,
+      "value": [
+        -65536,
+        65535
+      ],
+      "precision": 5
+    },
+    "smallint[($zerofill)] unsigned": {
+      "to": "TapNumber",
+      "bit": 2,
+      "precision": 5,
+      "value": [
+        -65536,
+        65535
+      ],
+      "unsigned": "unsigned"
+    },
+    "mediumint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 24,
+      "precision": 7,
+      "value": [
+        -8388608,
+        8388607
+      ]
+    },
+    "mediumint[($zerofill)] unsigned": {
+      "to": "TapNumber",
+      "bit": 24,
+      "precision": 8,
+      "value": [
+        0,
+        16777215
+      ],
+      "unsigned": "unsigned"
+    },
+    "int[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 32,
+      "precision": 10,
+      "value": [
+        -2147483648,
+        2147483647
+      ]
+    },
+    "int[($zerofill)] unsigned": {
+      "to": "TapNumber",
+      "bit": 32,
+      "precision": 10,
+      "value": [
+        -2147483647,
+        2147483647
+      ]
+    },
+    "bigint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 64,
+      "precision": 19,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ]
+    },
+    "bigint[($zerofill)] unsigned": {
+      "to": "TapNumber",
+      "bit": 64,
+      "precision": 20,
+      "value": [
+        0,
+        18446744073709551615
+      ]
+    },
+    "decimal[($precision,$scale)][unsigned]": {
+      "to": "TapNumber",
+      "precision": [
+        1,
+        65
+      ],
+      "scale": [
+        0,
+        30
+      ],
+      "defaultPrecision": 10,
+      "defaultScale": 0,
+      "unsigned": "unsigned",
+      "fixed": true
+    },
+    "float($precision,$scale)[unsigned]": {
+      "to": "TapNumber",
+      "name": "float",
+      "precision": [
+        1,
+        30
+      ],
+      "scale": [
+        0,
+        30
+      ],
+      "value": [
+        "-3.402823466E+38",
+        "3.402823466E+38"
+      ],
+      "unsigned": "unsigned",
+      "fixed": false
+    },
+    "float": {
+      "to": "TapNumber",
+      "precision": [
+        1,
+        6
+      ],
+      "scale": [
+        0,
+        6
+      ],
+      "fixed": false
+    },
+    "double": {
+      "to": "TapNumber",
+      "precision": [
+        1,
+        17
+      ],
+      "preferPrecision": 11,
+      "preferScale": 4,
+      "scale": [
+        0,
+        17
+      ],
+      "fixed": false
+    },
+    "double[($precision,$scale)][unsigned]": {
+      "to": "TapNumber",
+      "precision": [
+        1,
+        255
+      ],
+      "scale": [
+        0,
+        30
+      ],
+      "value": [
+        "-1.7976931348623157E+308",
+        "1.7976931348623157E+308"
+      ],
+      "unsigned": "unsigned",
+      "fixed": false
+    },
+    "date": {
+      "to": "TapDate",
+      "range": [
+        "1000-01-01",
+        "9999-12-31"
+      ],
+      "pattern": "yyyy-MM-dd"
+    },
+    "time[($fraction)]": {
+      "to": "TapTime",
+      "fraction": [
+        0,
+        6
+      ],
+      "defaultFraction": 0,
+      "range": [
+        "-838:59:59",
+        "838:59:59"
+      ],
+      "pattern": "HH:mm:ss"
+    },
+    "datetime[($fraction)]": {
+      "to": "TapDateTime",
+      "range": [
+        "1000-01-01 00:00:00.000000",
+        "9999-12-31 23:59:59.999999"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
+      "fraction": [
+        0,
+        6
+      ],
+      "defaultFraction": 0
+    },
+    "smalldatetime[($fraction)]": {
+      "to": "TapDateTime",
+      "range": [
+        "1970-01-01 00:00:00",
+        "9999-12-31 23:59:59"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "fraction": 0,
+      "defaultFraction": 0
+    },
+    "timestamp[($fraction)]": {
+      "to": "TapString",
+      "range": [
+        "1970-01-01 00:00:01",
+        "2038-01-19 03:14:07"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "fraction": [
+        0,
+        6
+      ],
+      "defaultFraction": 0,
+      "withTimeZone": false
+    },
+    "year[($fraction)]": {
+      "to": "TapYear",
+      "range": [
+        "1901",
+        "2155"
+      ],
+      "fraction": [
+        0,
+        4
+      ],
+      "defaultFraction": 4,
+      "pattern": "yyyy"
+    },
+    "enum($enums)": {
+      "name": "enum",
+      "to": "TapString",
+      "queryOnly": true,
+      "byte": 16383
+    },
+    "set($sets)": {
+      "name": "set",
+      "to": "TapString",
+      "queryOnly": true,
+      "byte": 16383
+    },
+    "point": {
+      "to": "TapBinary",
+      "queryOnly": true
+    },
+    "linestring": {
+      "to": "TapBinary",
+      "queryOnly": true
+    },
+    "polygon": {
+      "to": "TapBinary",
+      "queryOnly": true
+    },
+    "geometry": {
+      "to": "TapBinary",
+      "queryOnly": true
+    },
+    "multipoint": {
+      "to": "TapBinary",
+      "queryOnly": true
+    },
+    "multilinestring": {
+      "to": "TapBinary",
+      "queryOnly": true
+    },
+    "multipolygon": {
+      "to": "TapBinary",
+      "queryOnly": true
+    },
+    "geomcollection": {
+      "to": "TapBinary",
+      "queryOnly": true
+    }
+  }
+}
