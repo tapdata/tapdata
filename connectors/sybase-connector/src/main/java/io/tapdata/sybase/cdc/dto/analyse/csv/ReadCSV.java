@@ -12,7 +12,7 @@ import java.util.List;
  * @create 2023/7/13 11:43
  **/
 public interface ReadCSV {
-    public static final int CDC_BATCH_SIZE = 500;
+    public static final int CDC_BATCH_SIZE = 1000;
 
     public default void read(String csvPath, CdcAccepter accepter){
         read(csvPath, 0, accepter);

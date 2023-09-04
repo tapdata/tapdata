@@ -164,7 +164,7 @@ public class CdcHandle {
         }
         Map<String, Object> tables = map();
         for (String cdcTable : cdcTables) {
-            root.getContext().getLog().info("table: {}, contains timestamp: {}", cdcTable, root.getContainsTimestampFieldTables().contains(cdcTable));
+            //root.getContext().getLog().info("table: {}, contains timestamp: {}", cdcTable, root.getContainsTimestampFieldTables().contains(cdcTable));
             tables.put(cdcTable, null != root.getContainsTimestampFieldTables() && root.getContainsTimestampFieldTables().contains(cdcTable) ? SybaseFilterConfig.ignoreColumns() : SybaseFilterConfig.unIgnoreColumns());
         }
         filterConfig.setAllow(tables);

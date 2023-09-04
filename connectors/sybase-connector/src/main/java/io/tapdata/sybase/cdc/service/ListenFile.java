@@ -159,6 +159,9 @@ public class ListenFile implements CdcStep<CdcRoot> {
 
         } catch (Exception e) {
             fileMonitor.stop();
+            if (e instanceof CoreException && SybaseConnector.CDC_PROCESS_FAIL_EXCEPTION_CODE == ((CoreException)e).getCode()) {
+                throw (CoreException)e;
+            }
             throw new CoreException("Can not monitor cdc for sybase, msg: {}", e.getMessage());
         }
         return this.root;
@@ -429,14 +432,14 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         for (List<String> list : compile) {
                             TapRecordEvent recordEvent;
                             try {
-                                long s = System.currentTimeMillis();
+                                //long s = System.currentTimeMillis();
                                 recordEvent = analyseRecord.analyse(list, tableItem, tableName, config, nodeConfig);
-                                s = System.currentTimeMillis() - s;
-                                if(s > 1000) {
-                                    log.warn("Analyse record cost {} ms time, about file: {}", s, absolutePath );
-                                } else {
-                                    log.info("Analyse record cost {} ms time, about file: {}", s, absolutePath );
-                                }
+//                                s = System.currentTimeMillis() - s;
+//                                if(s > 1000) {
+//                                    log.warn("Analyse record cost {} ms time, about file: {}", s, absolutePath );
+//                                } else {
+//                                    log.info("Analyse record cost {} ms time, about file: {}", s, absolutePath );
+//                                }
                             } catch (Exception e) {
                                 root.getContext().getLog().warn("An cdc event failed to accept in {} of {}, error csv format, csv line: {}, msg: {}", tableName, absolutePath, list, e.getMessage());
                                 continue;

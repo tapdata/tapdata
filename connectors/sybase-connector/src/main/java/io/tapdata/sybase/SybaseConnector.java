@@ -1,5 +1,7 @@
 package io.tapdata.sybase;
 
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.SqlExecuteCommandFunction;
@@ -55,6 +57,7 @@ import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.sybase.cdc.CdcRoot;
+import io.tapdata.sybase.cdc.dto.analyse.SybaseDataTypeConvert;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
 import io.tapdata.sybase.cdc.dto.start.OverwriteType;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
@@ -94,7 +97,9 @@ import java.util.stream.Collectors;
 @TapConnectorClass("spec.json")
 public class SybaseConnector extends CommonDbConnector {
     private static final String TAG = SybaseConnector.class.getSimpleName();
+    public static final Object filterConfigLock = new Object();
     public static final int CDC_PROCESS_FAIL_EXCEPTION_CODE = 555005;
+
     private SybaseContext sybaseContext;
     protected SybaseConfig sybaseConfig;
     private SybaseReader sybaseReader;
@@ -219,6 +224,7 @@ public class SybaseConnector extends CommonDbConnector {
                     cdcHandle.stopCdc();
                 }
             }
+            stateMap.put("has_sleep_after_process_start", false);
         }
         Optional.ofNullable(lock).ifPresent(StopLock::stop);
         if (root != null) {
@@ -505,11 +511,11 @@ public class SybaseConnector extends CommonDbConnector {
         try {
             ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
             AtomicLong count = new AtomicLong(0);
-            String sql = "select count(1) from " + config.getDatabase() + "." + config.getSchema() + "." + tapTable.getId();
+            String sql = "select count(0) from " + config.getDatabase() + "." + config.getSchema() + "." + tapTable.getId();
             try {
                 jdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
             } catch (Exception e) {
-                sql = "select count(1) from " + tapTable.getId();
+                sql = "select count(0) from " + tapTable.getId();
                 jdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
             }
             return count.get();
@@ -530,12 +536,17 @@ public class SybaseConnector extends CommonDbConnector {
                     case "DATE":
                         data.put(metaName, resultSet.getString(metaName));
                         break;
+                    case "DATETIME":
+                        data.put(metaName, SybaseDataTypeConvert.objToTimestamp(resultSet.getString(metaName),"DATETIME"));
+                        break;
                     default:
                         if ( needEncode && (metaType.contains("CHAR")
                                 || metaType.contains("TEXT")
                                 || metaType.contains("SYSNAME"))) {
                             String string = resultSet.getString(metaName);
                             data.put(metaName, Utils.convertString(string, encode, decode));
+                        } else if(metaType.contains("DATETIME")) {
+                            data.put(metaName, SybaseDataTypeConvert.objToTimestamp(resultSet.getString(metaName),""));
                         } else {
                             Object value = resultSet.getObject(metaName);
                             if (null == value && dateTypeSet.contains(metaName)) {
@@ -553,6 +564,17 @@ public class SybaseConnector extends CommonDbConnector {
 
 
     private void batchReadV2(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+        KVMap<Object> stateMap = tapConnectorContext.getStateMap();
+        Object hasSleep = stateMap.get("has_sleep_after_process_start");
+        if (!(hasSleep instanceof Boolean && (Boolean) hasSleep)) {
+            log.info("Batch read execution requires waiting for the cdc process to fully start, with an estimated waiting time of [30] seconds. Please wait later");
+            try {
+                Thread.sleep(30000);
+            } catch (Exception ignore) {
+            } finally {
+                stateMap.put("has_sleep_after_process_start", true);
+            }
+        }
         if (null == tapTable) {
             throw new CoreException("Start batch read with an empty tap table, batch read is failed");
         }
@@ -664,6 +686,9 @@ public class SybaseConnector extends CommonDbConnector {
                 }
             }
         } catch (Exception e) {
+            if (e instanceof CoreException && ((CoreException)e).getCode() == SybaseConnector.CDC_PROCESS_FAIL_EXCEPTION_CODE) {
+                throw e;
+            }
             throw new CoreException(90909, "Sybase cdc is stopped now, error: {}", e.getMessage(), e);
         } finally {
             if (null == cdcHandle) {

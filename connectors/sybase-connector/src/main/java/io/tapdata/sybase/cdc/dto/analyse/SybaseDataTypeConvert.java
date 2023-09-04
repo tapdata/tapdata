@@ -13,6 +13,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
+import java.sql.Timestamp;
+
 
 import static io.tapdata.base.ConnectorBase.fromJson;
 import static io.tapdata.base.ConnectorBase.toJson;
@@ -30,9 +32,9 @@ public interface SybaseDataTypeConvert {
     public static final String UPDATE = "U";
     public static final String DELETE = "D";
 
-    public Object convert(Object fromValue, String sybaseType, ConnectionConfig config, NodeConfig nodeConfig);
+    public Object convert(Object fromValue, String sybaseType, final int typeNum, ConnectionConfig config, NodeConfig nodeConfig);
 
-    public default String objToString(Object obj, ConnectionConfig config, NodeConfig nodeConfig) {
+    public static String objToString(Object obj, ConnectionConfig config, NodeConfig nodeConfig) {
         if (null == obj) return null;
         if (obj instanceof String) {
             String fromStr = (String) obj;
@@ -50,26 +52,37 @@ public interface SybaseDataTypeConvert {
         }
     }
 
-    public default Date objToDateTime(Object obj, String format, String type) throws Exception {
+    public static Object objToTimestamp(Object obj, String type) throws Exception {
         if (null == obj) return null;
         if (obj instanceof String) {
-            return Utils.dateFormat((String) obj, format);
+            return Timestamp.valueOf((String)obj);
         } else if (obj instanceof Number) {
             try {
-                return Utils.dateFormat(((Number) obj).intValue() + "", format);
+                return new Timestamp(((Number) obj).longValue());
             } catch (Exception e) {
-                try {
-                    return new Date(((Number) obj).longValue());
-                } catch (Exception e1) {
-                    throw new IllegalArgumentException("Error convert to " + type);
-                }
+                throw new IllegalArgumentException("Error convert to " + type);
             }
         } else {
             throw new IllegalArgumentException("Error convert to " + type);
         }
     }
 
-    public default Boolean objToBoolean(Object obj) {
+    public static Object objToDateTime(Object obj, String format, String type) throws Exception {
+        if (null == obj) return null;
+        if (obj instanceof String) {
+            return Utils.dateFormat((String) obj, format);
+        } else if (obj instanceof Number) {
+            try {
+                return new Timestamp(((Number) obj).longValue());
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Error convert to " + type);
+            }
+        } else {
+            throw new IllegalArgumentException("Error convert to " + type);
+        }
+    }
+
+    public static Boolean objToBoolean(Object obj) {
         if (null == obj) return false;
         if (obj instanceof Boolean) return (Boolean) obj;
         if (obj instanceof String) {
@@ -83,7 +96,7 @@ public interface SybaseDataTypeConvert {
         }
     }
 
-    public default BigDecimal objToNumber(Object obj) {
+    public static BigDecimal objToNumber(Object obj) {
         if (null == obj) return null;
         if (obj instanceof String) {
             try {
@@ -98,7 +111,7 @@ public interface SybaseDataTypeConvert {
         }
     }
 
-    public default Map<String, Object> objToMap(Object obj) {
+    public static Map<String, Object> objToMap(Object obj) {
         if (null == obj) return null;
         if (obj instanceof Map) {
             return (Map<String, Object>) obj;
@@ -118,7 +131,7 @@ public interface SybaseDataTypeConvert {
         }
     }
 
-    public default Collection<Object> objToCollection(Object obj) {
+    public static Collection<Object> objToCollection(Object obj) {
         if (null == obj) return null;
         if (obj instanceof Collection) {
             return (Collection<Object>) obj;
@@ -140,7 +153,7 @@ public interface SybaseDataTypeConvert {
         }
     }
 
-    public default Object objToBinary(Object obj) {
+    public static Object objToBinary(Object obj) {
         TapLogger.warn(TAG, "An BINARY data type not support in cdc now");
         return null;
         //if (null == obj) return null;

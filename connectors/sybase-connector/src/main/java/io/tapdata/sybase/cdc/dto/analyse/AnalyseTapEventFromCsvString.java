@@ -84,12 +84,12 @@ public class AnalyseTapEventFromCsvString implements AnalyseRecord<List<String>,
             int fieldValueIndex = index * 3;
             if (!isDel) {
                 final Object value = recordKeyCount <= fieldValueIndex ? null : record.get(fieldValueIndex);
-                after.put(fieldName, DEFAULT_CONVERT.convert(value, sybaseType, config, nodeConfig));
+                after.put(fieldName, DEFAULT_CONVERT.convert(value, sybaseType, typeEntity.getTypeNum(), config, nodeConfig));
             }
             if (!isIns) {
                 int fieldBeforeValueIndex = fieldValueIndex + 1;
                 final Object beforeValue = recordKeyCount <= fieldBeforeValueIndex ? null : record.get(fieldBeforeValueIndex);
-                before.put(fieldName, DEFAULT_CONVERT.convert(beforeValue, sybaseType, config, nodeConfig));
+                before.put(fieldName, DEFAULT_CONVERT.convert(beforeValue, sybaseType, typeEntity.getTypeNum(), config, nodeConfig));
             }
             index++;
         }

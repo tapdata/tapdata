@@ -14,18 +14,18 @@ import java.util.Properties;
 public class SybaseConfig extends CommonDbConfig {
     protected String username;
     private Boolean checkTableInConnectionTest;
-
+    public static final String JDBC_SYBASE_DRIVER = "com.sybase.jdbc4.jdbc.SybDriver";
     public SybaseConfig() {
         setDbType("sybase");
         setEscapeChar(' ');
-        setJdbcDriver("net.sourceforge.jtds.jdbc.Driver");
+        setJdbcDriver(JDBC_SYBASE_DRIVER);
         setUsername(username);
     }
 
     public String getDatabaseUrlPattern() {
         // last %s reserved for extend params
-        String url = super.getDatabaseUrlPattern();
-        return url.replace("jdbc:sybase:", "jdbc:jtds:sybase:");
+        return "jdbc:sybase:Tds:%s:%d/%s%s";
+        //return url.replace("jdbc:sybase:", "jdbc:sybase:Tds:");
     }
 
     @Override
