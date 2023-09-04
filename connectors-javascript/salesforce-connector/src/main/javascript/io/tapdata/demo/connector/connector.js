@@ -867,6 +867,11 @@ function connectionTest(connectionConfig) {
                 "code": 1,
                 "result": "Pass"
             });
+            items.push({
+                "test": "Read",
+                "code": 1,
+                "result": "Pass"
+            });
         }
 
         return items;
