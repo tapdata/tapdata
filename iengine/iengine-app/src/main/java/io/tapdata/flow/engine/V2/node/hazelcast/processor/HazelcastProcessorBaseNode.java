@@ -10,11 +10,14 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.util.DelayHandler;
+import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.CollectionUtils;
@@ -162,6 +165,12 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			}
 		});
 		return result;
+	}
+
+	@Override
+	protected TapCodecsFilterManager initFilterCodec() {
+		TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
+		return TapCodecUtil.getCodecsFilterManager(tapCodecsRegistry);
 	}
 
 	@Override
