@@ -174,11 +174,8 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			if (val1 == null && val2 == null) return false;
 			if (val1 == null || val2 == null) return true;
 
-			for (Class<?> ignoredClazz : ignoredTypeClazz) {
-				if ((ignoredClazz.isAssignableFrom(val1.getClass()) || ignoredClazz.equals(val1.getClass()))
-						&& (ignoredClazz.isAssignableFrom(val2.getClass()) || ignoredClazz.equals(val2.getClass()))) {
-					return false;
-				}
+			if(ifIgnoreType(val1, val2)) {
+				return false;
 			}
 
 			if (val1 instanceof MysqlJson) return compare((MysqlJson) val1, val2);
@@ -358,5 +355,20 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			return ((BigDecimal) val).doubleValue();
 		}
 		return val;
+	}
+
+	private boolean ifIgnoreType(Object val1, Object val2) {
+		if (null == val1 || null == val2) {
+			return false;
+		}
+		if (CollectionUtils.isEmpty(ignoredTypeClazz)) {
+			return false;
+		}
+		for (Class<?> typeClazz : ignoredTypeClazz) {
+			if(typeClazz.isAssignableFrom(val1.getClass()) || typeClazz.isAssignableFrom(val2.getClass())) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
