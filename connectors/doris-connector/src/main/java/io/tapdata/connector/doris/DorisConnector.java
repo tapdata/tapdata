@@ -60,6 +60,7 @@ public class DorisConnector extends CommonDbConnector {
         commonDbConfig = dorisConfig;
         jdbcContext = dorisJdbcContext;
         commonSqlMaker = new DorisSqlMaker();
+        exceptionCollector = new DorisExceptionCollector();
     }
 
 
@@ -155,10 +156,15 @@ public class DorisConnector extends CommonDbConnector {
     }
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-        if (checkStreamLoad()) {
-            getDorisStreamLoader().writeRecord(tapRecordEvents, tapTable, writeListResultConsumer);
-        } else {
-            // TODO: 2023/4/28 jdbc writeRecord
+        try {
+            if (checkStreamLoad()) {
+                getDorisStreamLoader().writeRecord(tapRecordEvents, tapTable, writeListResultConsumer);
+            } else {
+                // TODO: 2023/4/28 jdbc writeRecord
+            }
+        }catch (Throwable t){
+            exceptionCollector.collectWritePrivileges("writeRecord", Collections.emptyList(), t);
+            throw t;
         }
     }
 
@@ -206,6 +212,7 @@ public class DorisConnector extends CommonDbConnector {
             dorisJdbcContext.execute(sql);
             return createTableOptions;
         } catch (Exception e) {
+            exceptionCollector.collectWritePrivileges("createTable", Collections.emptyList(), e);
             throw new RuntimeException("Create Table " + tapTable.getId() + " Failed | Error: " + e.getMessage() + " | Sql: " + sql, e);
         }
     }

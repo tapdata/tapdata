@@ -1,11 +1,13 @@
 package io.tapdata.connector.doris.streamload.rest.models;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.Setter;
+
 
 /**
  * @Author dayun
@@ -14,7 +16,7 @@ import lombok.Setter;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Setter
 @Getter
-public class RespContent {
+public class RespContent{
 
     @JsonProperty(value = "TxnId")
     private long TxnId;
@@ -23,6 +25,7 @@ public class RespContent {
     private String Label;
 
     @JsonProperty(value = "Status")
+    @JsonAlias(value = "status")
     private String Status;
 
     @JsonProperty(value = "TwoPhaseCommit")
@@ -32,6 +35,7 @@ public class RespContent {
     private String ExistingJobStatus;
 
     @JsonProperty(value = "Message")
+    @JsonAlias(value = "msg")
     private String Message;
 
     @JsonProperty(value = "NumberTotalRows")

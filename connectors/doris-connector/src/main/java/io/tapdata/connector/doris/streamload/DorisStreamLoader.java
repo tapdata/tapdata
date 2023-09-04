@@ -183,7 +183,9 @@ public class DorisStreamLoader {
             if (respContent.getMessage().toLowerCase().contains("too many filtered rows")) {
                 throw new StreamLoadException("Stream load failed | Error: " + loadResult);
             }
-            throw new DorisRetryableException(loadResult);
+            if (respContent.getMessage().toLowerCase().contains("access denied")) {
+                throw new StreamLoadException("Stream load failed | Error: " + loadResult);
+            }
         }
         return respContent;
     }

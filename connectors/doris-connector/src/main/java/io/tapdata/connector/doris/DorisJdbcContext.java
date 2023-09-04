@@ -21,6 +21,7 @@ public class DorisJdbcContext extends MysqlJdbcContextV2 {
 
     public DorisJdbcContext(DorisConfig dorisConfig) {
         super(dorisConfig);
+        exceptionCollector = new DorisExceptionCollector();
     }
 
     public String queryVersion() throws SQLException {
