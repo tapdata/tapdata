@@ -176,7 +176,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         //user表  admin@admin.com  的username 没有这个字段?
         modulesDto.setCreateUser(userDetail.getUsername());
         modulesDto.setLastUpdBy(userDetail.getUsername());
-        modulesDto.setStatus(ModuleStatusEnum.GENERATING.getValue());
+        if (StringUtils.isBlank(modulesDto.getStatus())) {
+            modulesDto.setStatus(ModuleStatusEnum.GENERATING.getValue());
+        }
         return super.save(modulesDto, userDetail);
 
     }
@@ -196,6 +198,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         ModulesDto dto = findOne(query, userDetail);
         if (dto == null)
             throw new BizException("current module not exist");
+        if(StringUtils.isNotBlank(modulesDto.getDataSource())){
+            modulesDto.setConnection(MongoUtils.toObjectId(modulesDto.getDataSource()));
+        }
         if (ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.GENERATING.getValue().equals(dto.getStatus()))
             throw new BizException("generating status can't release");
         //点击生成按钮 才校验(撤销发布等不校验)
