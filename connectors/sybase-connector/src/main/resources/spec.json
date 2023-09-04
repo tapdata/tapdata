@@ -492,9 +492,9 @@
       "byte": 255,
       "pkEnablement": false
     },
-    "text": {
+    "text[($byte)]": {
       "to": "TapString",
-      "byte": "64k",
+      "byte": "2g",
       "pkEnablement": false
     },
     "mediumtext": {
