@@ -139,6 +139,23 @@ public abstract class NormalWriteRecorder {
         if (EmptyKit.isEmpty(uniqueCondition)) {
             justInsert(after);
         } else {
+            if (hasPk && uniqueCondition.stream().anyMatch(v -> EmptyKit.isNull(after.get(v)))) {
+                tapLogger.warn("primary key has null value, record ignored or string => '': {}", after);
+                boolean canWrite = true;
+                for (Map.Entry<String, Object> entry : after.entrySet()) {
+                    if (uniqueCondition.contains(entry.getKey()) && EmptyKit.isNull(entry.getValue())) {
+                        if (EmptyKit.isNotNull(columnTypeMap.get(entry.getKey())) && columnTypeMap.get(entry.getKey()).toLowerCase().contains("char")) {
+                            after.put(entry.getKey(), "");
+                        } else {
+                            canWrite = false;
+                            break;
+                        }
+                    }
+                }
+                if (!canWrite) {
+                    return;
+                }
+            }
             switch (insertPolicy) {
                 case "update_on_exists":
                     upsert(after, listResult);
