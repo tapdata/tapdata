@@ -13,6 +13,7 @@ import io.tapdata.sybase.util.ConnectorUtil;
 
 import java.io.File;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 /**
@@ -36,11 +37,14 @@ public class CdcRoot {
     private ConnectionConfig connectionConfig;
     private Map<String, Set<String>> existsBlockFieldsMap;
     private List<ConnectionConfigWithTables> connectionConfigWithTables;
+    private AtomicReference<Throwable> throwableCatch;
 
 
-    public CdcRoot(Predicate<Void> isAlive) {
+    public CdcRoot(Predicate<Void> isAlive, AtomicReference<Throwable> throwableCatch) {
+        this.throwableCatch = throwableCatch;
         this.isAlive = isAlive;
     }
+
     public synchronized Integer getCsvFileModifyIndexByCsvFileName(String csvFileName) {
         try {
             if (null != this.csvFileModifyIndexCache && !this.csvFileModifyIndexCache.isEmpty()) {
@@ -264,5 +268,13 @@ public class CdcRoot {
 
     public void setConnectionConfigWithTables(List<ConnectionConfigWithTables> connectionConfigWithTables) {
         this.connectionConfigWithTables = connectionConfigWithTables;
+    }
+
+    public AtomicReference<Throwable> getThrowableCatch() {
+        return throwableCatch;
+    }
+
+    public void setThrowableCatch(AtomicReference<Throwable> throwableCatch) {
+        this.throwableCatch = throwableCatch;
     }
 }

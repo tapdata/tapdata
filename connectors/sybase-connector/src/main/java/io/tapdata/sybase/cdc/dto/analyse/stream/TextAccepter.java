@@ -29,14 +29,18 @@ class TextAccepter implements Accepter {
         monitorFilePathQueues = new ConcurrentHashMap<>();
         this.futureCheckFile = this.scheduledExecutorServiceCheckFile.scheduleWithFixedDelay(() -> {
             synchronized (acceptLock) {
-                ConcurrentHashMap.KeySetView<String, EventEntity> tables = monitorFilePathQueues.keySet();
-                if (!tables.isEmpty()) {
-                    for (String fullTableName : tables) {
-                        final Set<String> blockFields = Optional.ofNullable(blockFieldsMap.get(fullTableName)).orElse(new HashSet<>());
-                        EventEntity eventEntity = monitorFilePathQueues.get(fullTableName);
-                        accept(eventEntity.events, fullTableName, eventEntity.offset, blockFields);
-                        eventEntity.events = new ArrayList<>();
+                try {
+                    ConcurrentHashMap.KeySetView<String, EventEntity> tables = monitorFilePathQueues.keySet();
+                    if (!tables.isEmpty()) {
+                        for (String fullTableName : tables) {
+                            final Set<String> blockFields = Optional.ofNullable(blockFieldsMap.get(fullTableName)).orElse(new HashSet<>());
+                            EventEntity eventEntity = monitorFilePathQueues.get(fullTableName);
+                            accept(eventEntity.events, fullTableName, eventEntity.offset, blockFields);
+                            eventEntity.events = new ArrayList<>();
+                        }
                     }
+                } catch (Throwable t) {
+                    root.getThrowableCatch().set(t);
                 }
             }
         }, 5, 5, TimeUnit.SECONDS);

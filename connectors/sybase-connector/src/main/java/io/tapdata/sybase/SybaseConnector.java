@@ -123,7 +123,7 @@ public class SybaseConnector extends CommonDbConnector {
             this.version = sybaseContext.queryVersion();
 
             ddlSqlGenerator = new MysqlDDLSqlGenerator(version, ((TapConnectorContext) tapConnectionContext).getTableMap());
-            root = new CdcRoot(unused -> isAlive());
+            root = new CdcRoot(unused -> isAlive(), throwableCatch);
             lock = new StopLock(true);
 
             //@todo
@@ -206,8 +206,8 @@ public class SybaseConnector extends CommonDbConnector {
         }
         if (shareTask) {
             if (null == cdcHandle)
-                cdcHandle = new CdcHandle(new CdcRoot(unused -> isAlive()), context, new StopLock(isAlive()));
-            if (null == cdcHandle.getRoot()) cdcHandle.setRoot(new CdcRoot(unused -> isAlive()));
+                cdcHandle = new CdcHandle(new CdcRoot(unused -> isAlive(), throwableCatch), context, new StopLock(isAlive()));
+            if (null == cdcHandle.getRoot()) cdcHandle.setRoot(new CdcRoot(unused -> isAlive(), throwableCatch));
             CdcRoot root = cdcHandle.getRoot();
             if (null == root.getContext()) root.setContext(context);
             Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::releaseCdc);
@@ -697,6 +697,7 @@ public class SybaseConnector extends CommonDbConnector {
      * support multi task
      * */
     boolean hasMonitor = false;
+    AtomicReference<Throwable> throwableCatch = new AtomicReference<>();
     private void multiStreamStart(TapConnectorContext tapConnectorContext, List<ConnectionConfigWithTables> connectionConfigWithTables, Object offset, int batchSize, StreamReadConsumer consumer) {
         //@todo
         DataMap node = tapConnectorContext.getNodeConfig();
@@ -768,6 +769,9 @@ public class SybaseConnector extends CommonDbConnector {
             }
 
             while (isAlive()) {
+                if (null != throwableCatch.get()) {
+                    throw new RuntimeException(throwableCatch.get());
+                }
                 try {
                     sleep(5000);
                 } catch (Exception ignore){}
@@ -929,7 +933,7 @@ public class SybaseConnector extends CommonDbConnector {
         KVMap<Object> stateMap = tapConnectorContext.getStateMap();
         String hostPortFromConfig = ConnectorUtil.getCurrentInstanceHostPortFromConfig(tapConnectorContext);
         if (root == null) {
-            root = new CdcRoot(unused -> isAlive());
+            root = new CdcRoot(unused -> isAlive(), throwableCatch);
             root.setCdcTables(getCurrentTable(tapConnectorContext));
         }
         Map<String, Map<String, List<String>>> cdcTables = root.getCdcTables();

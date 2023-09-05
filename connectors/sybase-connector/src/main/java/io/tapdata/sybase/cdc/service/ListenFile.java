@@ -188,9 +188,20 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     futureReadFile = null;
                 }
             }
-
-            this.futureCheckFile = this.scheduledExecutorServiceCheckFile.scheduleWithFixedDelay(() -> listener.foreachYaml(false), 0, readcsvDelay, TimeUnit.SECONDS);
-            this.futureReadFile = this.scheduledExecutorService.scheduleWithFixedDelay(() -> listener.readFile(), 2, readcsvDelay, TimeUnit.SECONDS);
+            this.futureCheckFile = this.scheduledExecutorServiceCheckFile.scheduleWithFixedDelay(() -> {
+                try {
+                    listener.foreachYaml(false);
+                } catch (Throwable t) {
+                    root.getThrowableCatch().set(t);
+                }
+            }, 0, readcsvDelay, TimeUnit.SECONDS);
+            this.futureReadFile = this.scheduledExecutorService.scheduleWithFixedDelay(() -> {
+                    try {
+                        listener.readFile();
+                    } catch (Throwable t) {
+                        root.getThrowableCatch().set(t);
+                    }
+                }   , 2, readcsvDelay, TimeUnit.SECONDS);
             //fileMonitor.start();
         } catch (Throwable e) {
             onStop();
@@ -199,7 +210,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
             }
             throw new CoreException("Can not monitor cdc for sybase, msg: {}", e.getMessage());
         }
-
         return this.root;
     }
 
