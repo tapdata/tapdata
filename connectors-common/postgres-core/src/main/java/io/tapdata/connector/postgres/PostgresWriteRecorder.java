@@ -212,13 +212,13 @@ public class PostgresWriteRecorder extends WriteRecorder {
             String updateSql;
             if (hasPk) {
                 updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + updatedColumn.stream().map(k -> "\"" + k + "\"=?")
-                        .collect(Collectors.joining(", ")) + " WHERE " + before.keySet().stream().map(k -> "\"" + k + "\"=?")
+                        .collect(Collectors.joining(", ")) + " WHERE " + uniqueCondition.stream().map(k -> "\"" + k + "\"=?")
                         .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
                         + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
                         + StringKit.copyString("?", allColumn.size(), ",") + " WHERE NOT EXISTS (SELECT * FROM upsert)";
             } else {
                 updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + updatedColumn.stream().map(k -> "\"" + k + "\"=?")
-                        .collect(Collectors.joining(", ")) + " WHERE " + before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
+                        .collect(Collectors.joining(", ")) + " WHERE " + uniqueCondition.stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
                         .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
                         + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
                         + StringKit.copyString("?", allColumn.size(), ",") + " WHERE NOT EXISTS (SELECT * FROM upsert)";
@@ -229,6 +229,16 @@ public class PostgresWriteRecorder extends WriteRecorder {
         int pos = 1;
         for (String key : updatedColumn) {
             preparedStatement.setObject(pos++, filterInvalid(after.get(key)));
+        }
+        if (hasPk) {
+            for (String key : uniqueCondition) {
+                preparedStatement.setObject(pos++, before.get(key));
+            }
+        } else {
+            for (String key : uniqueCondition) {
+                preparedStatement.setObject(pos++, before.get(key));
+                preparedStatement.setObject(pos++, before.get(key));
+            }
         }
         dealNullBefore(before, pos);
         for (String key : allColumn) {

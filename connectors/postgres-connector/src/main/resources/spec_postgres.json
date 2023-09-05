@@ -242,6 +242,19 @@
           ]
         }
       }
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "ignoreNull": {
+          "type": "boolean",
+          "title": "${ignoreNull}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "default": false,
+          "x-index": 10
+        }
+      }
     }
   },
   "messages": {
@@ -256,7 +269,8 @@
       "user" : "user",
       "password" : "password",
       "logPluginName" : "logPluginName",
-      "timezone": "timezone"
+      "timezone": "timezone",
+      "ignoreNull": "Allow field attributes to be null when creating a table"
     },
     "zh_CN": {
       "doc": "docs/postgres_zh_CN.md",
@@ -268,7 +282,8 @@
       "user" : "账号",
       "password" : "密码",
       "logPluginName" : "日志插件",
-      "timezone": "时区"
+      "timezone": "时区",
+      "ignoreNull": "建表时允许字段非空"
     },
     "zh_TW": {
       "doc": "docs/postgres_zh_TW.md",
@@ -280,7 +295,8 @@
       "user" : "賬號",
       "password" : "密碼",
       "logPluginName" : "日誌插件",
-      "timezone": "時區"
+      "timezone": "時區",
+      "ignoreNull": "建錶時允許欄位非空"
     }
   },
   "dataTypes": {
@@ -425,7 +441,7 @@
       ],
       "withTimeZone": false,
       "defaultFraction": 6,
-      "priority": 1,
+      "priority": 2,
       "to": "TapDateTime"
     },
     "timestamp[($fraction)] with time zone": {
@@ -440,7 +456,7 @@
       ],
       "withTimeZone": true,
       "defaultFraction": 6,
-      "priority": 2,
+      "priority": 1,
       "to": "TapDateTime"
     },
     "time[($fraction)] without time zone": {
