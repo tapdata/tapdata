@@ -642,7 +642,7 @@ public class ConnectorUtil {
         BufferedReader br = null;
         try {
             Process p = Runtime.getRuntime().exec(cmd);
-            p.waitFor();
+            //p.waitFor();
             br = new BufferedReader(new InputStreamReader(p.getInputStream()));
             String line;
             while ((line = br.readLine()) != null) {
@@ -667,6 +667,14 @@ public class ConnectorUtil {
         }
         log.debug(sb.toString());
         return sb.toString();
+    }
+
+    public static void execCmd(String cmd, String errorMsg, Log log, boolean wait) {
+        try {
+            Process p = Runtime.getRuntime().exec(cmd);
+        } catch (Exception e) {
+            log.warn(errorMsg, e.getMessage());
+        }
     }
 
     public static Map<String, Map<String, List<String>>> groupTableFromConnectionConfigWithTables(List<ConnectionConfigWithTables> connectionConfigWithTables) {

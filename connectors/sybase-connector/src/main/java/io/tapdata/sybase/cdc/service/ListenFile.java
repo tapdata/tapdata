@@ -185,7 +185,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
             }
 
             this.futureCheckFile = this.scheduledExecutorServiceCheckFile.scheduleWithFixedDelay(() -> listener.foreachYaml(false), 0, readcsvDelay, TimeUnit.SECONDS);
-            this.futureReadFile = this.scheduledExecutorService.scheduleWithFixedDelay(() -> listener.readFile(), 2, readcsvDelay, TimeUnit.SECONDS);
+            this.futureReadFile = this.scheduledExecutorService.scheduleWithFixedDelay(listener::readFile, 2, readcsvDelay, TimeUnit.SECONDS);
             //fileMonitor.start();
         } catch (Throwable e) {
             onStop();

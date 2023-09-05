@@ -49,7 +49,7 @@ class ReadSourceFilter extends ReadFilter {
         List<Map<String, Object>> primaryKeyValues = new ArrayList<>();
         List<String> primaryKeys = new ArrayList<>(tapTable.primaryKeys(true));
         if (primaryKeys.isEmpty()) {
-            log.info("Not fund any primary key in table {}, it's mean can not read from source of this table, auto read from log of this table now", tapTable.getId());
+            //log.debug("Not fund any primary key in table {}, it's mean can not read from source of this table, auto read from log of this table now", tapTable.getId());
             return events;
         }
 
@@ -129,11 +129,12 @@ class ReadSourceFilter extends ReadFilter {
                 });
             } catch (Exception e) {
                 log.error("Query blockFields's value by jdbc connection failed, full table name: {}, error msg: {}", fullTableName, e.getMessage());
+                return events;
             }
 
 
             //step 3: assemble blockFields's value into tap event
-            MultiThreadFactory<TapEvent> multiThreadFactory = new MultiThreadFactory<>(Math.max(Math.min(collect.size() / 50, 5), 1), 50);
+            MultiThreadFactory<TapEvent> multiThreadFactory = new MultiThreadFactory<>(Math.max(Math.min(collect.size() / 50 + (collect.size() % 50 > 0 ? 1 : 0), 5), 1), 50);
             multiThreadFactory.handel(collect, e -> {
                 synchronized (this) {
                     for (TapEvent tapEvent : e) {

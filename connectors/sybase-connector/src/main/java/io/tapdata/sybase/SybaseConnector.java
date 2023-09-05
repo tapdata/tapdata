@@ -772,7 +772,7 @@ public class SybaseConnector extends CommonDbConnector {
 
             while (isAlive()) {
                 try {
-                    sleep(3000);
+                    sleep(5000);
                 } catch (Exception ignore){}
                 List<Integer> port = ConnectorUtil.port(
                         ConnectorUtil.getKillShellCmd(tapConnectorContext),
@@ -786,10 +786,10 @@ public class SybaseConnector extends CommonDbConnector {
                 }
             }
         } catch (Throwable e) {
-            if (!isAlive()) {
+            if (isAlive()) {
                 throw e;
             } else {
-                tapConnectorContext.getLog().error("Sybase cdc is stopped now, error: {}", e.getMessage());
+                tapConnectorContext.getLog().warn("Sybase cdc is stopped now, error: {}", e.getMessage());
             }
             //tapConnectorContext.getLog().error("Sybase cdc is stopped now, error: {}", e.getMessage());
         }

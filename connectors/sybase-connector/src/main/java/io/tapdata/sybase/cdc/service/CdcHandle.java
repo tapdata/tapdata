@@ -248,7 +248,6 @@ public class CdcHandle {
 
             //执行命令
             String sybasePocPath = root.getSybasePocPath();
-            String reInitResult = "";
             try {
                 String command = String.format(ExecCommand.RE_INIT_AND_ADD_TABLE,
                         root.getCliPath(),
@@ -264,28 +263,18 @@ public class CdcHandle {
                         "--" + OverwriteType.RESUME.getType()
                 );
                 root.getContext().getLog().info("shell reinit is {}", command);
-                reInitResult = ConnectorUtil.execCmd(command,
+                ConnectorUtil.execCmd(command,
                         "Fail to reInit when an new task start with new tables, msg: {}",
-                        root.getContext().getLog());
+                        root.getContext().getLog(), false);
             } finally {
-                root.getContext().getLog().info("Cdc process has restart, msg: {}", reInitResult);
+                root.getContext().getLog().info("Cdc process has restart...");
             }
         }
         //命令结束后，写入filter.yaml
         try {
             Thread.sleep(30000);
-        }catch (Exception ignore) {} finally {
-            String hostPortFromConfig = ConnectorUtil.getCurrentInstanceHostPortFromConfig(context);
-            String[] killShellCmd = ConnectorUtil.getKillShellCmd(context);
-            List<Integer> port = ConnectorUtil.port(
-                    killShellCmd,
-                    ConnectorUtil.ignoreShells,
-                    root.getContext().getLog(),
-                    hostPortFromConfig
-            );
-            if (!port.isEmpty()) {
-                ConnectorUtil.quickStopShell(context);
-            }
+        } catch (Exception ignore) {} finally {
+            ConnectorUtil.quickStopShell(context);
         }
         //重启任务
         new ExecCommand(root, CommandType.CDC, OverwriteType.RESUME).compile();
