@@ -172,7 +172,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
         connectionDto = save(connectionDto, userDetail);
 
         desensitizeMongoConnection(connectionDto);
-        sendTestConnection(connectionDto, false, submit, userDetail);
+        boolean updateSchema = connectionDto.getUpdateSchema() != null && connectionDto.getUpdateSchema();
+        sendTestConnection(connectionDto, updateSchema, submit, userDetail);
         defaultDataDirectoryService.addConnection(connectionDto, userDetail);
         return connectionDto;
     }
