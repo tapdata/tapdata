@@ -21,16 +21,19 @@ import java.util.stream.Collectors;
 
 public class DwsWriteRecorder extends PostgresWriteRecorder {
     private DwsTapTable dwsTapTable;
+    private Set<String> conflictKeys;
 
     public DwsWriteRecorder(Connection connection, DwsTapTable dwsTapTable, String schema) {
         super(connection, dwsTapTable.getTapTable(), schema);
         this.dwsTapTable = dwsTapTable;
+        this.conflictKeys = dwsTapTable.buildConflictKeys();
     }
 
     public DwsWriteRecorder(Connection connection, DwsTapTable dwsTapTable, String schema, boolean hasUnique) {
         super(connection, dwsTapTable.getTapTable(), schema);
         uniqueConditionIsIndex = uniqueConditionIsIndex && hasUnique;
         this.dwsTapTable = dwsTapTable;
+        this.conflictKeys = dwsTapTable.buildConflictKeys();
     }
 
     @Override
@@ -59,7 +62,7 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
     }
 
 
-    private Collection<String> buildConflictKeys() {
+    private void buildConflictKeysForPartition() {
         Collection<String> conflictKeys = tapTable.primaryKeys(false);
         if (null == conflictKeys || conflictKeys.isEmpty()) {
             if (null!=tapTable.getIndexList()){
@@ -77,13 +80,16 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
             throw new RuntimeException(String.format("The partitioned table \"%s\" lacks a primary key or unique index, ", tapTable.getId()) +
                     "and does not support conflict update operations. Please switch to the append mode.");
         }
-        return conflictKeys;
+//        return conflictKeys;
     }
 
     //on conflict
     private void conflictUpdateInsert(Map<String, Object> after) throws SQLException {
         //INSERT INTO "web_returns_p6" VALUES(20230201,7,7,7) ON CONFLICT("WR_RETURNED_DATE_SK","WR_ITEM_SK") DO UPDATE SET "WR_RETURNED_TIME_SK" = 7, "WR_REFUNDED_CUSTOMER_SK" = 8;
-        Collection<String> conflictKeys = buildConflictKeys();
+        boolean isPartition = dwsTapTable.isPartition();
+        if (isPartition){
+            buildConflictKeysForPartition();
+        }
         Set<String> setKeys = buildSetKeys();
         if (EmptyKit.isNull(preparedStatement)) {
             String insertSql = "INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
@@ -109,7 +115,10 @@ public class DwsWriteRecorder extends PostgresWriteRecorder {
 
 
     private void conflictIgnoreInsert(Map<String, Object> after) throws SQLException {
-        Collection<String> conflictKeys = buildConflictKeys();
+        boolean isPartition = dwsTapTable.isPartition();
+        if (isPartition){
+            buildConflictKeysForPartition();
+        }
         if (EmptyKit.isNull(preparedStatement)) {
             String insertSql = "INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
                     + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") " +
