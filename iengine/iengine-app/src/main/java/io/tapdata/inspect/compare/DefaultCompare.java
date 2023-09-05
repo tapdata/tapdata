@@ -3,25 +3,23 @@ package io.tapdata.inspect.compare;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.tapdata.constant.JSONUtil;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.MysqlJson;
+import com.tapdata.entity.inspect.InspectTask;
 import io.tapdata.entity.schema.value.DateTime;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -31,21 +29,63 @@ import java.util.stream.Collectors;
  */
 public class DefaultCompare implements CompareFunction<Map<String, Object>, String> {
 
+	public static final String DIFFERENT_FIELDS_PREFIX = "Different fields:";
+	public static final String DIFFERENT_INDEX_PREFIX = "Different index:";
+	private static final List<Class<?>> DEFAULT_IGNORED_TYPE_CLAZZ = new ArrayList<Class<?>>(){{
+		add(DateTime.class);
+		add(List.class);
+	}};
 	private final Logger logger = LogManager.getLogger(DefaultCompare.class);
 
-	private List<String> sourceColumns;
-	private List<String> targetColumns;
+	protected List<String> sourceColumns;
+	protected List<String> targetColumns;
+	protected List<String> srcSortColumns;
+	protected List<String> tgtSortColumns;
+	protected boolean isSetColumns;
+	protected InspectTask inspectTask;
+	protected Connections sourceConn;
+	protected Connections targetConn;
+
+	protected List<String> ignoredFields = new ArrayList<>();
+	protected List<Class<?>> ignoredTypeClazz = new ArrayList<>();
 
 	public DefaultCompare() {
 	}
 
-	public DefaultCompare(List<String> sourceColumns, List<String> targetColumns) {
-		this.sourceColumns = sourceColumns;
-		this.targetColumns = targetColumns;
-		if (null != sourceColumns && null != targetColumns) {
+	public DefaultCompare(InspectTask inspectTask, Connections sourceConn, Connections targetConn) {
+		this.inspectTask = inspectTask;
+		this.sourceConn = sourceConn;
+		this.targetConn = targetConn;
+		this.sourceColumns = inspectTask.getSource().getColumns();
+		this.targetColumns = inspectTask.getTarget().getColumns();
+		this.srcSortColumns = StringUtils.isNotBlank(inspectTask.getSource().getSortColumn()) ? Arrays.asList(inspectTask.getSource().getSortColumn().split(",")) : new ArrayList<>();
+		this.tgtSortColumns = StringUtils.isNotBlank(inspectTask.getTarget().getSortColumn()) ? Arrays.asList(inspectTask.getTarget().getSortColumn().split(",")) : new ArrayList<>();
+		if (CollectionUtils.isNotEmpty(sourceColumns) && CollectionUtils.isNotEmpty(targetColumns)) {
 			if (sourceColumns.size() != targetColumns.size()) {
 				throw new RuntimeException("The number of fields from the source and target is inconsistent: " + sourceColumns.size() + ", " + targetColumns.size());
 			}
+		}
+
+		// Temporary solution, if the sort field is not _id, the _id of mongodb will not be compared
+		if (DatabaseTypeEnum.MONGODB.getName().equals(targetConn.getDatabase_type())) {
+			if (!srcSortColumns.contains("_id") && !tgtSortColumns.contains("_id")) {
+				ignoredFields.add("_id");
+			}
+		}
+
+		if (inspectTask.getEnableIgnoreType()) {
+			if (CollectionUtils.isNotEmpty(inspectTask.getIgnoredType())) {
+				ignoredTypeClazz.addAll(inspectTask.getIgnoredType().stream().map(type -> {
+					try {
+						return Class.forName(type);
+					} catch (ClassNotFoundException ignored) {
+					}
+					return null;
+				}).filter(Objects::nonNull).collect(Collectors.toList()));
+			} else {
+				ignoredTypeClazz.addAll(DEFAULT_IGNORED_TYPE_CLAZZ);
+			}
+			logger.info("Enable ignore compare type: " + ignoredTypeClazz);
 		}
 	}
 
@@ -60,7 +100,7 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			return "Target record is null";
 		}
 
-		boolean isSetColumns = null != sourceColumns && null != targetColumns;
+		isSetColumns = CollectionUtils.isNotEmpty(sourceColumns) && CollectionUtils.isNotEmpty(targetColumns);
 		Set<String> differentFields;
 		if (isSetColumns) {
 			differentFields = new LinkedHashSet<>();
@@ -78,13 +118,16 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			sets.addAll(t2.keySet());
 			List<String> columns = sets.stream().sorted().collect(Collectors.toList());
 			differentFields = columns.parallelStream().map(key -> {
+				if (ignoredFields.contains(key)) {
+					return null;
+				}
 				Object val1 = t1.get(key);
 				Object val2 = t2.get(key);
 				return compare(val1, val2) ? key : null;
 			}).filter(Objects::nonNull).collect(Collectors.toSet());
 		}
 
-		if (differentFields.size() != 0) {
+		if (!differentFields.isEmpty()) {
 			if (logger.isDebugEnabled()) {
 				int maxLength = differentFields.stream().map(String::length).max(Comparator.comparingInt(r -> r)).orElse(20);
 				String msg = differentFields.stream().map(field -> {
@@ -103,11 +146,16 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 		if (differentFields.isEmpty()) {
 			return null;
 		} else {
-			if (isSetColumns) {
-				return "Different index:" + String.join(",", differentFields);
-			} else {
-				return "Different fields:" + String.join(",", differentFields);
-			}
+			return wrapDiffFields(differentFields);
+		}
+	}
+
+	@NotNull
+	protected final String wrapDiffFields(Set<String> differentFields) {
+		if (isSetColumns) {
+			return DIFFERENT_INDEX_PREFIX + String.join(",", differentFields);
+		} else {
+			return DIFFERENT_FIELDS_PREFIX + String.join(",", differentFields);
 		}
 	}
 
@@ -126,12 +174,16 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			if (val1 == null && val2 == null) return false;
 			if (val1 == null || val2 == null) return true;
 
+			if(ifIgnoreType(val1, val2)) {
+				return false;
+			}
+
 			if (val1 instanceof MysqlJson) return compare((MysqlJson) val1, val2);
-			if (val2 instanceof MysqlJson) return compare((MysqlJson) val2, val1);
+//			if (val2 instanceof MysqlJson) return compare((MysqlJson) val2, val1);
 			if (val1 instanceof Map) return compare((Map) val1, val2);
-			if (val2 instanceof Map) return compare((Map) val2, val1);
+//			if (val2 instanceof Map) return compare((Map) val2, val1);
 			if (val1 instanceof Collection) return compare((Collection) val1, val2);
-			if (val2 instanceof Collection) return compare((Collection) val2, val1);
+//			if (val2 instanceof Collection) return compare((Collection) val2, val1);
 
 			val1 = try2String(val1);
 			val2 = try2String(val2);
@@ -148,15 +200,15 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			} else if (val1 instanceof Float || val2 instanceof Float
 					|| val1 instanceof Double || val2 instanceof Double
 					|| val1 instanceof BigDecimal || val2 instanceof BigDecimal) {
-				val1 = new BigDecimal(val1.toString()).doubleValue();
-				val2 = new BigDecimal(val2.toString()).doubleValue();
+				val1 = handleDecimal(val1);
+				val2 = handleDecimal(val2);
 			}
 
 			return !val1.equals(val2);
 		} catch (Throwable e) {
-			e.printStackTrace();
+			throw new RuntimeException("Compare value error\n - value1: " + val1 + ", type: " + val1.getClass().getName()
+					+ "\n - value2: " + val2 + ", type: " + val2.getClass().getName(), e);
 		}
-		return true;
 	}
 
 	private boolean compare(Map val, Object obj) {
@@ -165,9 +217,14 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			Map objVal = (Map) obj;
 			Object v1, v2;
 			for (Object k : val.keySet()) {
+				if (ignoredFields.contains(k)) {
+					continue;
+				}
 				v1 = val.get(k);
 				v2 = objVal.get(k);
-				if (compare(v1, v2)) return true;
+				if (compare(v1, v2)){
+					return true;
+				}
 			}
 			return false;
 		} else if (obj instanceof String) {
@@ -183,8 +240,18 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			Iterator i1 = val.iterator(), i2 = ((Collection) obj).iterator();
 			for (int i = 0, len = val.size(); i < len; i++) {
 				v1 = i1.next();
-				v2 = i2.next();
-				if (compare(v1, v2)) return true;
+				Iterator<?> objIter = ((Collection<?>) obj).iterator();
+				boolean result = true;
+				while (objIter.hasNext()) {
+					v2 = objIter.next();
+					if (!compare(v1, v2)) {
+						result = false;
+						break;
+					}
+				}
+				if (result) {
+					return true;
+				}
 			}
 			return false;
 		} else if (obj instanceof Array) {
@@ -193,7 +260,9 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			for (int i = 0, len = val.size(); i < len; i++) {
 				v1 = i1.next();
 				v2 = Array.get(obj, i);
-				if (compare(v1, v2)) return true;
+				if (compare(v1, v2)){
+					return true;
+				}
 			}
 			return false;
 		} else if (obj instanceof String) {
@@ -267,5 +336,39 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			return ((DateTime) val).toInstant().toString();
 		}
 		return val;
+	}
+
+	private Object handleDecimal(Object val) {
+		if (val instanceof Float) {
+			if (((Float) val).isNaN() || ((Float) val).isInfinite()) {
+				return val;
+			}
+			return BigDecimal.valueOf((Float) val).doubleValue();
+		}
+		if (val instanceof Double) {
+			if (((Double) val).isNaN() || ((Double) val).isInfinite()) {
+				return val;
+			}
+			return BigDecimal.valueOf((Double) val).doubleValue();
+		}
+		if (val instanceof BigDecimal) {
+			return ((BigDecimal) val).doubleValue();
+		}
+		return val;
+	}
+
+	private boolean ifIgnoreType(Object val1, Object val2) {
+		if (null == val1 || null == val2) {
+			return false;
+		}
+		if (CollectionUtils.isEmpty(ignoredTypeClazz)) {
+			return false;
+		}
+		for (Class<?> typeClazz : ignoredTypeClazz) {
+			if(typeClazz.isAssignableFrom(val1.getClass()) || typeClazz.isAssignableFrom(val2.getClass())) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

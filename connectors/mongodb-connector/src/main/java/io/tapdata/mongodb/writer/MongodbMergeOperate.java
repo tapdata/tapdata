@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class MongodbMergeOperate {
 
 	public static List<WriteModel<Document>> merge(AtomicLong inserted, AtomicLong updated, AtomicLong deleted, TapRecordEvent tapRecordEvent, TapTable table) {
-		List<WriteModel<Document>> writeModels = null;
+		List<WriteModel<Document>> writeModels;
 		try {
 			writeModels = new ArrayList<>();
 			final MergeBundle mergeBundle = mergeBundle(tapRecordEvent);
@@ -43,19 +43,25 @@ public class MongodbMergeOperate {
 
 				List<MergeResult> mergeResults = new ArrayList<>();
 				final MergeInfo mergeInfo = (MergeInfo) info.get(MergeInfo.EVENT_INFO_KEY);
+				Integer level = mergeInfo.getLevel();
 				final MergeTableProperties currentProperty = mergeInfo.getCurrentProperty();
 				final List<MergeLookupResult> mergeLookupResults = mergeInfo.getMergeLookupResults();
 				recursiveMerge(mergeBundle, currentProperty, mergeResults, mergeLookupResults, new MergeResult());
 
 				if (CollectionUtils.isNotEmpty(mergeResults)) {
-					for (MergeResult mergeResult : mergeResults) {
+					for (int i = 0; i < mergeResults.size(); i++) {
+						MergeResult mergeResult = mergeResults.get(i);
 						final MergeResult.Operation operation = mergeResult.getOperation();
 						switch (operation) {
 							case INSERT:
 								writeModels.add(new InsertOneModel<>(mergeResult.getInsert()));
 								break;
 							case UPDATE:
-								writeModels.add(new UpdateManyModel<>(mergeResult.getFilter(), mergeResult.getUpdate(), mergeResult.getUpdateOptions()));
+								Document filter = mergeResult.getFilter();
+								if (i > 0 && null != level && level.equals(1) && null != mergeResults.get(0).getFilter()) {
+									filter = mergeResults.get(0).getFilter();
+								}
+								writeModels.add(new UpdateManyModel<>(filter, mergeResult.getUpdate(), mergeResult.getUpdateOptions()));
 								break;
 							case DELETE:
 								writeModels.add(new DeleteOneModel<>(mergeResult.getFilter()));
@@ -107,6 +113,7 @@ public class MongodbMergeOperate {
 				mergeBundle = new MergeBundle(MergeBundle.EventOperation.INSERT, null, data);
 				recursiveMerge(mergeBundle, mergeLookupResult.getProperty(), mergeResults, mergeLookupResult.getMergeLookupResults(), mergeResult);
 			}
+			return;
 		}
 
 		if (mergeResult != null) {
@@ -185,6 +192,9 @@ public class MongodbMergeOperate {
 				MapUtils.isNotEmpty(mergeBundle.getBefore()) ? mergeBundle.getBefore() : mergeBundle.getAfter(),
 				currentProperty.getJoinKeys()
 		);
+		if (null != mergeResult && null != mergeResult.getFilter()) {
+			filter.putAll(mergeResult.getFilter());
+		}
 		mergeResult.getFilter().putAll(filter);
 		if (array) {
 			final List<Document> arrayFilter = arrayFilter(

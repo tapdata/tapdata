@@ -16,7 +16,6 @@ import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.*;
-import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
@@ -46,6 +45,7 @@ import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.*;
 import org.bson.conversions.Bson;
@@ -53,6 +53,8 @@ import org.bson.types.*;
 
 import java.io.Closeable;
 import java.math.BigDecimal;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -60,7 +62,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -95,6 +96,12 @@ public class MongodbConnector extends ConnectorBase {
 	private Map<String, Integer> stringTypeValueMap;
 
 	private final MongodbExecuteCommandFunction mongodbExecuteCommandFunction = new MongodbExecuteCommandFunction();
+	/**
+	 * Reference：<a href="https://github.com/mongodb/mongo/blob/master/src/mongo/base/error_codes.yml">error_codes.yml</a>
+	 * connectors/mongodb-connector/src/main/resources/mongo-error-codes.yml
+	 */
+	private final static int[] SERVER_ERROR_CODES = new int[]{6, 7, 70, 71, 74, 76, 83, 89, 90, 91, 92, 93, 94, 95, 133, 149, 189, 190, 202, 279, 317, 384, 402, 9001, 10058, 10107, 11600, 11602, 13435, 13436};
+	private final static int[] RETRYABLE_ERROR_CODES = new int[]{43, 50, 134, 175, 222, 234, 237, 262, 358, 363, 50915};
 
 	private Bson queryCondition(String firstPrimaryKey, Object value) {
 		return gte(firstPrimaryKey, value);
@@ -167,7 +174,8 @@ public class MongodbConnector extends ConnectorBase {
 									MongodbUtil.maskUriPassword(mongoConfig.getUri()), name, e.getMessage(), e);
 						}
 
-						collection.listIndexes().forEach((index) -> {;
+						collection.listIndexes().forEach((index) -> {
+							;
 							TapIndex tapIndex = new TapIndex();
 							// TODO: TapIndex struct not enough to represent index, so we encode index info in name
 							tapIndex.setName("__t__" + ((Document) index).toJson());
@@ -175,7 +183,7 @@ public class MongodbConnector extends ConnectorBase {
 							// add a empty tapIndexField
 							TapIndexField tapIndexField = new TapIndexField();
 							tapIndex.indexField(tapIndexField);
-							TapLogger.info(TAG, "MongodbConnector discoverSchema table: {} index {}",name, ((Document) index).toJson());
+							TapLogger.info(TAG, "MongodbConnector discoverSchema table: {} index {}", name, ((Document) index).toJson());
 							table.add(tapIndex);
 						});
 
@@ -418,15 +426,6 @@ public class MongodbConnector extends ConnectorBase {
 			return new TapNumberValue(decimal128.doubleValue());
 		});
 
-		codecRegistry.registerToTapValue(Document.class, (value, tapType) -> {
-			Document document = (Document) value;
-			for (Map.Entry<String, Object> entry : document.entrySet()) {
-				if (entry.getValue() instanceof Double && entry.getValue().toString().contains("E")) {
-					entry.setValue(new BigDecimal(entry.getValue().toString()).toString());
-				}
-			}
-			return new TapMapValue(document);
-		});
 		codecRegistry.registerToTapValue(Symbol.class, (value, tapType) -> {
 			Symbol symbol = (Symbol) value;
 			return new TapStringValue(symbol.getSymbol());
@@ -719,6 +718,92 @@ public class MongodbConnector extends ConnectorBase {
 		return query;
 	}
 
+	private Object parseObject(TapTable tapTable, String key, Object value) {
+		if (null == value) {
+			return null;
+		}
+		if (null == tapTable) {
+			return value;
+		}
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+		if (MapUtils.isEmpty(nameFieldMap)) {
+			return value;
+		}
+		TapField tapField = nameFieldMap.get(key);
+		if (null == tapField) {
+			return value;
+		}
+		String dataType = tapField.getDataType();
+		if (StringUtils.isBlank(dataType)) {
+			return value;
+		}
+		if (dataType.contains("(")) {
+			dataType = StringUtils.substring(dataType, 0, dataType.indexOf("("));
+		}
+		BsonType bsonType;
+		try {
+			bsonType = BsonType.valueOf(dataType);
+		} catch (IllegalArgumentException e) {
+			return value;
+		}
+		switch (bsonType) {
+			case DATE_TIME:
+				if (value instanceof String) {
+					// Only support this date pattern
+					String datePattern = "yyyy-MM-dd HH:mm:ss";
+					SimpleDateFormat simpleDateFormat = new SimpleDateFormat(datePattern);
+					simpleDateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+					try {
+						value = simpleDateFormat.parse((String) value);
+					} catch (ParseException e) {
+						throw new RuntimeException("Parse date string failed, value: " + value + ", format: " + datePattern, e);
+					}
+				} else if (value instanceof Long) {
+					// Only support milliseconds timestamp
+					value = new Date((Long) value);
+				}
+				break;
+			case INT32:
+				if (value instanceof String) {
+					try {
+						value = Integer.parseInt((String) value);
+					} catch (NumberFormatException ignored) {
+					}
+				}
+				break;
+			case INT64:
+				if (value instanceof String) {
+					try {
+						value = Long.parseLong((String) value);
+					} catch (NumberFormatException ignored) {
+					}
+				}
+				break;
+			case DOUBLE:
+				if (value instanceof String) {
+					try {
+						value = Double.parseDouble((String) value);
+					} catch (NumberFormatException ignored) {
+					}
+				}
+				break;
+			case DECIMAL128:
+				if (value instanceof String) {
+					try {
+						value = new BigDecimal((String) value);
+					} catch (Exception ignored) {
+					}
+				}
+				break;
+			default:
+				break;
+		}
+		if (value instanceof DateTime) {
+			value = ((DateTime) value).toInstant();
+		}
+		return value;
+	}
+
 	private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
 		options.getTypeSplitterMap().registerCustomSplitter(ObjectId.class, new ObjectIdSplitter());
 
@@ -884,29 +969,7 @@ public class MongodbConnector extends ConnectorBase {
 
 			mongodbWriter.writeRecord(tapRecordEvents, table, writeListResultConsumer);
 		} catch (Throwable e) {
-			if (e instanceof MongoTimeoutException) {
-				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
-			} else if (e instanceof MongoBulkWriteException) {
-				MongoBulkWriteException mongoBulkWriteException = (MongoBulkWriteException) e;
-				List<BulkWriteError> writeErrors = mongoBulkWriteException.getWriteErrors();
-				AtomicReference<Throwable> throwableAtomicReference = new AtomicReference<>();
-				BulkWriteError bulkWriteError = writeErrors.stream().filter(writeError -> {
-					int code = writeError.getCode();
-					String message = writeError.getMessage();
-					if (code == 133
-							&& Pattern.compile("Write results unavailable from failing to.*a host in the shard.*:: caused by :: Could not find host matching read preference \\{ mode: \"primary\" } for set.*").matcher(message).matches()) {
-						throwableAtomicReference.set(new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), e));
-					} else if (code == 10107
-							&& Pattern.compile(".*not master.*").matcher(message).matches()) {
-						throwableAtomicReference.set(new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), e));
-					}
-					return throwableAtomicReference.get() != null;
-				}).findFirst().orElse(null);
-				if (null != bulkWriteError) {
-					throw throwableAtomicReference.get();
-				}
-			}
-			throw e;
+			errorHandle(e, connectorContext);
 		}
 	}
 
@@ -921,7 +984,7 @@ public class MongodbConnector extends ConnectorBase {
 				if (null == tapField) {
 					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set match", table.getName(), entry.getKey()));
 				}
-				entry.setValue(formatValue(tapField, entry.getKey(), entry.getValue()));
+				entry.setValue(parseObject(table, entry.getKey(), entry.getValue()));
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
 		}
@@ -933,7 +996,7 @@ public class MongodbConnector extends ConnectorBase {
 				if (null == tapField) {
 					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set query operator", table.getName(), op.getKey()));
 				}
-				op.setValue(formatValue(tapField, op.getKey(), op.getValue()));
+				op.setValue(parseObject(table, op.getKey(), op.getValue()));
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
 						bsonList.add(gt(op.getKey(), op.getValue()));
@@ -1024,20 +1087,6 @@ public class MongodbConnector extends ConnectorBase {
 			consumer.accept(filterResults);
 	}
 
-	private Object formatValue(TapField tapField, String key, Object value) {
-		if (tapField.getTapType() instanceof TapNumber && value instanceof String) {
-			if (value.toString().contains(".")) {
-				value = Double.valueOf(value.toString());
-			} else {
-				value = Long.valueOf(value.toString());
-			}
-		}
-		if (value instanceof DateTime) {
-			value = ((DateTime) value).toInstant();
-		}
-		return value;
-	}
-
 	/**
 	 * The method invocation life circle is below,
 	 * initiated ->
@@ -1115,7 +1164,7 @@ public class MongodbConnector extends ConnectorBase {
 				Object offsetValue = mongoOffset.value();
 				if (offsetValue != null) {
 					findIterable = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
-									.batchSize(batchSize);
+							.batchSize(batchSize);
 				} else {
 					findIterable = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize);
 					TapLogger.warn(TAG, "Offset format is illegal {}, no offset value has been found. Final offset will be null to do the batchRead", offset);
@@ -1151,24 +1200,7 @@ public class MongodbConnector extends ConnectorBase {
 				}
 			}
 		} catch (Exception e) {
-			if (e instanceof MongoTimeoutException) {
-				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
-			}else if (e instanceof MongoQueryException) {
-				String message = e.getMessage();
-				int code = ((MongoQueryException) e).getCode();
-				Throwable throwable = null;
-				if (code == 6
-						&& Pattern.compile("Query failed with error code 6 and error message 'Error on remote shard.*:: caused by :: interrupted at shutdown' on server.*").matcher(message).matches()) {
-					throwable = new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), e);
-				} else if (code == 133
-						&& Pattern.compile("Query failed with error code 133 and error message 'Encountered non-retryable error during query :: caused by :: Could not find host matching read preference \\{ mode: \"primary\" } for set.*").matcher(message).matches()) {
-					throwable = new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), e);
-				}
-				if (null != throwable) {
-					throw throwable;
-				}
-			}
-			throw e;
+			errorHandle(e, connectorContext);
 		}
 	}
 
@@ -1207,10 +1239,7 @@ public class MongodbConnector extends ConnectorBase {
 			} catch (Exception ignored) {
 			}
 			mongodbStreamReader = null;
-			if (e instanceof MongoTimeoutException) {
-				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
-			}
-			throw new RuntimeException(e);
+			errorHandle(e, connectorContext);
 		}
 
 	}
@@ -1291,5 +1320,31 @@ public class MongodbConnector extends ConnectorBase {
 		tableInfo.setNumOfRows(Long.valueOf(collStats.getInteger("count")));
 		tableInfo.setStorageSize(Long.valueOf(collStats.getInteger("size")));
 		return tableInfo;
+	}
+
+	private void errorHandle(Throwable throwable, TapConnectorContext connectorContext) {
+		if (null == throwable) {
+			return;
+		}
+		if (throwable instanceof MongoException) {
+			if (throwable instanceof MongoBulkWriteException) {
+				List<BulkWriteError> writeErrors = ((MongoBulkWriteException) throwable).getWriteErrors();
+				if (CollectionUtils.isNotEmpty(writeErrors)) {
+					for (BulkWriteError writeError : writeErrors) {
+						int code = writeError.getCode();
+						if (ArrayUtils.contains(SERVER_ERROR_CODES, code)
+								|| ArrayUtils.contains(RETRYABLE_ERROR_CODES, code)) {
+							throw new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), throwable);
+						}
+					}
+				}
+			}
+			int code = ((MongoException) throwable).getCode();
+			if (ArrayUtils.contains(SERVER_ERROR_CODES, code)
+					|| ArrayUtils.contains(RETRYABLE_ERROR_CODES, code)) {
+				throw new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), throwable);
+			}
+		}
+		throw throwable instanceof RuntimeException ? (RuntimeException) throwable : new RuntimeException(throwable);
 	}
 }

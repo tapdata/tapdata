@@ -113,7 +113,7 @@ public abstract class InspectJob implements Runnable {
 					result.put(entry.getKey(), JSONUtil.obj2Json(value));
 					JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 				} catch (JsonProcessingException e) {
-					e.printStackTrace();
+					throw new RuntimeException(String.format("Compare json type failed, cause: convert key[%s]'s value type %s to json string failed", entry.getKey(), value.getClass().getSimpleName()), e);
 				}
 			} else if (value instanceof ObjectId) {
 				result.put(entry.getKey(), ((ObjectId) value).toHexString());

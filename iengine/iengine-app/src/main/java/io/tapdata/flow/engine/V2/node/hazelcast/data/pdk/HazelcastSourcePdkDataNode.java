@@ -15,6 +15,7 @@ import com.tapdata.entity.TapdataStartingCdcEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.cdcdelay.CdcDelay;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -600,6 +601,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		}
 
+		if (cdcDelayCalculation instanceof CdcDelay && TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(dataProcessorContext.getTaskDto().getSyncType())) {
+			((CdcDelay) cdcDelayCalculation).filter(false);
+		}
+
 		if (null != anyError) {
 			obsLogger.info("Starting stream read, table list: " + tables + ", offset: " + JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
 
@@ -711,14 +716,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (!isRunning()) {
 			return;
 		}
-		Optional.of(cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet())))
-				.map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
-		ShareCdcTaskContext shareCdcTaskContext = new ShareCdcTaskPdkContext(getCdcStartTs(), processorBaseContext.getConfigurationCenter(),
-				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
-		shareCdcTaskContext.setObsLogger(obsLogger);
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		List<String> tables = new ArrayList<>(tapTableMap.keySet());
+		Optional.of(cdcDelayCalculation.addHeartbeatTable(tables))
+				.map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 		// Init share cdc reader, if unavailable, will throw ShareCdcUnsupportedException
+		ShareCdcTaskContext shareCdcTaskContext = new ShareCdcTaskPdkContext(getCdcStartTs(), processorBaseContext.getConfigurationCenter(),
+				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode(), tables);
+		shareCdcTaskContext.setObsLogger(obsLogger);
 		this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext, syncProgress.getStreamOffsetObj());
 		obsLogger.info("Starting incremental sync, read from share log storage...");
 		this.syncProgressType = SyncProgress.Type.SHARE_CDC;

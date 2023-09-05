@@ -3,6 +3,8 @@ package io.tapdata.schema;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.process.UnionProcessorNode;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -93,6 +95,26 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		TapTableMap<String, TapTable> tapTableMap = create(prefix, nodeId, tableNameAndQualifiedNameMap, time);
 		for (TapTable tapTable : tapTableList) {
 			tapTableMap.put(tapTable.getId(), tapTable);
+		}
+		return tapTableMap;
+	}
+
+	public static TapTableMap<String, TapTable> create(String prefix, Node node, List<TapTable> tapTableList, Long time) {
+		HashMap<String, String> tableNameAndQualifiedNameMap = new HashMap<>();
+		for (TapTable tapTable : tapTableList) {
+			if (!node.isDataNode()) {
+				tableNameAndQualifiedNameMap.put(node.getId(), "PN_" + node.getId());
+			} else {
+				tableNameAndQualifiedNameMap.put(tapTable.getName(), tapTable.getId());
+			}
+		}
+		TapTableMap<String, TapTable> tapTableMap = create(prefix, node.getId(), tableNameAndQualifiedNameMap, time);
+		for (TapTable tapTable : tapTableList) {
+			if (!node.isDataNode()) {
+				tapTableMap.put(node.getId(), tapTable);
+			} else {
+				tapTableMap.put(tapTable.getId(), tapTable);
+			}
 		}
 		return tapTableMap;
 	}

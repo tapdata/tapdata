@@ -12,6 +12,7 @@ public class MergeInfo {
 	public static final String EVENT_INFO_KEY = "MERGE_INFO";
 	private MergeTableProperties currentProperty;
 	private List<MergeLookupResult> mergeLookupResults;
+	private Integer level;
 
 	public MergeTableProperties getCurrentProperty() {
 		return currentProperty;
@@ -33,5 +34,13 @@ public class MergeInfo {
 		if (null == mergeLookupResults) mergeLookupResults = new ArrayList<>();
 		this.mergeLookupResults.add(mergeLookupResult);
 		return this;
+	}
+
+	public Integer getLevel() {
+		return level;
+	}
+
+	public void setLevel(Integer level) {
+		this.level = level;
 	}
 }

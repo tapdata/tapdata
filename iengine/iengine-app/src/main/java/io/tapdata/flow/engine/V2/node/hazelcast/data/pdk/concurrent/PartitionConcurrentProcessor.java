@@ -215,6 +215,9 @@ public class PartitionConcurrentProcessor {
 				}
 			}
 		}
+		if (null == partitionValue) {
+			return true;
+		}
 		return false;
 	}
 

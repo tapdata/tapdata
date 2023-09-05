@@ -46,4 +46,14 @@ public interface SnapshotOrderControllerExCode_21 {
 					describeCN = "初始化顺序控制器格式错误"
 	)
 	String SNAPSHOT_ORDER_LIST_FORMAT_ERROR = "21008";
+	@TapExCode(
+			describe = "After modifying the merge mode, you need to reset the task before run",
+			describeCN = "修改主从合并模式后，需要重置任务再运行"
+	)
+	String CANNOT_CHANGE_MERGE_MODE_WITH_OUT_RESET = "21009";
+	@TapExCode(
+			describe = "Merge node not found",
+			describeCN = "主从合并节点未找到"
+	)
+	String TABLE_MERGE_NODE_NOT_FOUND = "21010";
 }

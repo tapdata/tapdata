@@ -3893,7 +3893,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public TaskDto findByCacheName(String cacheName, UserDetail user) {
-        Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where("catalog").is("memCache").and("cacheName").is(cacheName));
+        Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where("catalog").is("memCache")).and("name").is(cacheName);
         Query query = new Query(taskCriteria);
 
         return findOne(query, user);
