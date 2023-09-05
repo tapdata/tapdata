@@ -16,7 +16,6 @@ import java.util.Collections;
 import java.util.List;
 
 public class DwsRecordWriter extends RecordWriter {
-    DwsConfig dwsConfig;
     public DwsRecordWriter(JdbcContext jdbcContext, DwsTapTable dwsTapTable) throws SQLException {
         super(jdbcContext, dwsTapTable.getTapTable());
         exceptionCollector = new DwsExceptionCollector();

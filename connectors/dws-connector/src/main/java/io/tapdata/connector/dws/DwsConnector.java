@@ -17,13 +17,11 @@ import io.tapdata.connector.postgres.ddl.PostgresDDLSqlGenerator;
 import io.tapdata.connector.postgres.exception.PostgresExceptionCollector;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
+import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -41,6 +39,7 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.postgresql.geometric.*;
 import org.postgresql.jdbc.PgArray;
 import org.postgresql.jdbc.PgSQLXML;
@@ -56,6 +55,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -177,6 +177,35 @@ public class DwsConnector extends PostgresConnector {
         connectorFunctions.supportTransactionBeginFunction(this::beginTransaction);
         connectorFunctions.supportTransactionCommitFunction(this::commitTransaction);
         connectorFunctions.supportTransactionRollbackFunction(this::rollbackTransaction);
+    }
+
+    @Override
+    protected CreateTableOptions createTableV2(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) throws SQLException {
+        TapTable table = createTableEvent.getTable();
+        Collection<String> primaryKeys = table.primaryKeys();
+        TapField distributeKey=null;
+        if(primaryKeys.isEmpty()){
+            distributeKey = table.getNameFieldMap().values().iterator().next();
+        }else{
+            String firstPk = primaryKeys.iterator().next();
+            distributeKey = table.getNameFieldMap().get(firstPk);
+        }
+        Pattern pattern = Pattern.compile("nvarchar2\\(\\d+\\)",Pattern.CASE_INSENSITIVE);
+        if(pattern.matcher(distributeKey.getDataType()).matches()){
+            distributeKey.setDataType("nvarchar2");
+        }
+        LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
+        for (Map.Entry<String, TapField> tapFieldEntry : nameFieldMap.entrySet()) {
+            if (tapFieldEntry.equals(distributeKey.getName())){
+                tapFieldEntry.setValue(distributeKey);
+                break;
+            }
+        }
+        table.setNameFieldMap(nameFieldMap);
+        createTableEvent.setTable(table);
+        CreateTableOptions createTableOptions = super.createTableV2(connectorContext, createTableEvent);
+        createUniqueIndexForLogicPkIfNeed(connectorContext, table);
+        return createTableOptions;
     }
 
     @Override
@@ -317,6 +346,22 @@ public class DwsConnector extends PostgresConnector {
         }else{
             super.createIndex(connectorContext, tapTable, createIndexEvent);
         }
+    }
+
+    protected void createUniqueIndexForLogicPkIfNeed(TapConnectorContext connectorContext, TapTable tapTable) throws SQLException {
+        Collection<String> primaryKeys = tapTable.primaryKeys(false);
+        if (null != primaryKeys && !primaryKeys.isEmpty()){
+            return;
+        }
+        TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent();
+        List<String> distributedKeys = queryForDistributedKeys(tapTable);
+        boolean partition = discoverPartition(tapTable.getId());
+        DwsTapTable dwsTapTable = new DwsTapTable(tapTable, partition, distributedKeys);
+        Set<String> conflictKeys = dwsTapTable.buildConflictKeys();
+        TapIndex tapIndex = new TapIndex().unique(true);
+        tapIndex.setIndexFields(conflictKeys.stream().map(key -> new TapIndexField().name(key).fieldAsc(true)).collect(Collectors.toList()));
+        tapCreateIndexEvent.setIndexList(Arrays.asList(tapIndex));
+        createIndex(connectorContext, dwsTapTable.getTapTable(), tapCreateIndexEvent);
     }
 
     protected List<String> queryForDistributedKeys(TapTable tapTable){
