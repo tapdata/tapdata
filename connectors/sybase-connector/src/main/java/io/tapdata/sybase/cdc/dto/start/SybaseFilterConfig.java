@@ -71,7 +71,7 @@ public class SybaseFilterConfig implements ConfigEntity {
         return blockFieldName(timestamp);
     }
 
-    public boolean isBolField (String dataTypeName) {
+    public static boolean isBolField (String dataTypeName) {
         switch (TableTypeEntity.Type.type(dataTypeName)) {
             case TableTypeEntity.Type.BINARY:
             case TableTypeEntity.Type.TEXT:

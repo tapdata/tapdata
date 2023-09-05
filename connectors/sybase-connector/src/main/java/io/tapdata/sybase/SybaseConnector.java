@@ -596,7 +596,6 @@ public class SybaseConnector extends CommonDbConnector {
         }
         node.put("logCdcQuery", tapConnectorContext.getConnectionConfig().get("logCdcQuery"));
 
-
         root.csvFileModifyIndexCache(offset instanceof Map ? (Map<String, Map<String, Integer>>) offset : new HashMap<>());
         tapConnectorContext.getStateMap().put("is_normal_stream_task", true);
         //throw new CoreException("Not support stream read by node, please open Shared-Mining ");
@@ -624,6 +623,7 @@ public class SybaseConnector extends CommonDbConnector {
         connectionConfigWithTablesItem.connectionConfig(tapConnectorContext.getConnectionConfig());
         connectionConfigWithTablesItem.setTables(currentTables);
         connectionConfigWithTables.add(connectionConfigWithTablesItem);
+        root.setConnectionConfigWithTables(connectionConfigWithTables);
         try {
             //Object target = tapConnectorContext.getStateMap().get("timestampToStreamOffsetTarget");
             //if (!(null != target && target instanceof Boolean && (Boolean)target)) {
@@ -657,9 +657,6 @@ public class SybaseConnector extends CommonDbConnector {
             }
             if(!(hasMonitor && cdcHandle.reflshCdcTable(tables))) {
                 hasMonitor = true;
-                if (ReadFilter.LOG_CDC_QUERY_READ_SOURCE == nodeConfig.getLogCdcQuery()) {
-                    root.setConnectionConfigWithTables(connectionConfigWithTables);
-                }
                 cdcHandle.startListen(
                         sybasePocPath + ConfigPaths.SYBASE_USE_CSV_DIR,
                         ConfigPaths.YAML_METADATA_NAME,
@@ -724,6 +721,7 @@ public class SybaseConnector extends CommonDbConnector {
             root.setCdcTables(tables);
         }
         tapConnectorContext.getLog().info("Multi stream start with tables: {}", toJson(tables));
+        root.setConnectionConfigWithTables(connectionConfigWithTables);
         try {
             //Object target = tapConnectorContext.getStateMap().get("timestampToStreamOffsetTarget");
             //if (!(null != target && target instanceof Boolean && (Boolean)target)) {
@@ -756,9 +754,8 @@ public class SybaseConnector extends CommonDbConnector {
             //log.info("cdc monitor path: {}", sybasePocPath + ConfigPaths.SYBASE_USE_CSV_DIR);
             if(!(hasMonitor && cdcHandle.reflshCdcTable(tables))) {
                 hasMonitor = true;
-                if (ReadFilter.LOG_CDC_QUERY_READ_SOURCE == nodeConfig.getLogCdcQuery()) {
-                    root.setConnectionConfigWithTables(connectionConfigWithTables);
-                }
+                //if (ReadFilter.LOG_CDC_QUERY_READ_SOURCE == nodeConfig.getLogCdcQuery()) {
+                //}
                 cdcHandle.startListen(
                         sybasePocPath + ConfigPaths.SYBASE_USE_CSV_DIR,
                         ConfigPaths.YAML_METADATA_NAME,
@@ -1071,7 +1068,6 @@ public class SybaseConnector extends CommonDbConnector {
                         break;
                     default:
                         if (needEncode && (metaType.contains("CHAR")
-                                || metaType.contains("TEXT")
                                 || metaType.contains("SYSNAME"))) {
                             String string = resultSet.getString(metaName);
                             data.put(metaName, Utils.convertString(string, encode, decode));

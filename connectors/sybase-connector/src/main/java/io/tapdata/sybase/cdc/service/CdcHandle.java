@@ -4,12 +4,14 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.Entry;
 import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.functions.connector.source.ConnectionConfigWithTables;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.dto.analyse.filter.ReadFilter;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
@@ -299,6 +301,8 @@ public class CdcHandle {
         } catch (Exception e) {
 
         }
+
+        Map<String, List<ConnectionConfigWithTables>> connectionConfigOfTable = ReadFilter.groupConnectionConfigWithTables(root);
         appendTables.forEach((database, mapInfo) -> mapInfo.forEach((schema, initTables) -> {
                 if (null != initTables && !initTables.isEmpty()) {
                     if (null == database || null == schema) {
@@ -309,36 +313,43 @@ public class CdcHandle {
                     filterConfig.setSchema(schema);
                     filterConfig.setTypes(list("TABLE", "VIEW"));
                     Map<String, Object> tables = map();
+                    String databaseSchema = String.format("%s.%s", database, schema);
                     for (String cdcTable : initTables) {
+                        DataMap connectionConfig = ReadFilter.dispatchConnectionConfig(connectionConfigOfTable, databaseSchema, cdcTable);
                         List<String> blockFields = new ArrayList<>();
                         if (root.hasContainsTimestampFieldTables(database, schema, cdcTable)) {
                             timestampExists.add(database + "." + schema + "." + cdcTable);
                             blockFields.add("timestamp");
                         }
-                        if (ReadFilter.LOG_CDC_QUERY_READ_SOURCE == root.getNodeConfig().getLogCdcQuery()) {
-                            final String tableFullName = String.format("%s.%s.%s", database, schema, cdcTable);
-                            Optional.ofNullable(tapTableMap.get(tableFullName)).ifPresent(tapTable -> {
-                                Collection<String> primaryKeys = tapTable.primaryKeys(true);
-                                if (null != primaryKeys && !primaryKeys.isEmpty()) {
-                                    LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-                                    if (null != nameFieldMap && !nameFieldMap.isEmpty()) {
-                                        Set<String> blockFieldsSet = new HashSet<>();
-                                        nameFieldMap.entrySet().stream()
-                                                .filter(Objects::nonNull)
-                                                .filter(f -> {
-                                                    TapField tapField = f.getValue();
-                                                    return !primaryKeys.contains(tapField.getName()) && filterConfig.isBolField(tapField.getDataType());
-                                                }).forEach(f -> {
-                                            String fieldName = f.getKey();
-                                            blockFields.add(fieldName);
-                                            blockFieldsSet.add(fieldName);
-                                        });
-                                        root.addExistsBlockFields(tableFullName, blockFieldsSet);
+                        if (null != connectionConfig && !connectionConfig.isEmpty()) {
+                            //&& ReadFilter.LOG_CDC_QUERY_READ_SOURCE == root.getNodeConfig().getLogCdcQuery()) {
+                            //@todo
+                            Integer logCdcQuery = connectionConfig.getInteger("logCdcQuery");
+                            if (null != logCdcQuery && ReadFilter.LOG_CDC_QUERY_READ_SOURCE == logCdcQuery) {
+                                final String tableFullName = String.format("%s.%s", databaseSchema, cdcTable);
+                                Optional.ofNullable(tapTableMap.get(tableFullName)).ifPresent(tapTable -> {
+                                    Collection<String> primaryKeys = tapTable.primaryKeys(true);
+                                    if (null != primaryKeys && !primaryKeys.isEmpty()) {
+                                        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+                                        if (null != nameFieldMap && !nameFieldMap.isEmpty()) {
+                                            Set<String> blockFieldsSet = new HashSet<>();
+                                            nameFieldMap.entrySet().stream()
+                                                    .filter(Objects::nonNull)
+                                                    .filter(f -> {
+                                                        TapField tapField = f.getValue();
+                                                        return !primaryKeys.contains(tapField.getName()) && SybaseFilterConfig.isBolField(tapField.getDataType());
+                                                    }).forEach(f -> {
+                                                String fieldName = f.getKey();
+                                                blockFields.add(fieldName);
+                                                blockFieldsSet.add(fieldName);
+                                            });
+                                            root.addExistsBlockFields(tableFullName, blockFieldsSet);
+                                        }
+                                    } else {
+                                        root.getContext().getLog().info("Not fund any primary key in table {} when config sybase filter yaml and has open read bol value from source, it's mean can not read from source of this table, auto read from log of this table now", cdcTable);
                                     }
-                                } else {
-                                    root.getContext().getLog().info("Not fund any primary key in table {} when config sybase filter yaml and has open read bol value from source, it's mean can not read from source of this table, auto read from log of this table now", cdcTable);
-                                }
-                            });
+                                });
+                            }
                         }
                         tables.put(cdcTable, filterConfig.blockFieldName(blockFields));
                     }
@@ -380,4 +391,5 @@ public class CdcHandle {
         listenFile.reflshCdcTable(tables);
         return true;
     }
+
 }

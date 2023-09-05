@@ -5,11 +5,17 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.cache.Entry;
+import io.tapdata.entity.utils.cache.Iterator;
+import io.tapdata.entity.utils.cache.KVReadOnlyMap;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.source.ConnectionConfigWithTables;
 import io.tapdata.sybase.SybaseConnector;
 import io.tapdata.sybase.cdc.CdcRoot;
+import io.tapdata.sybase.cdc.dto.start.SybaseFilterConfig;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
 import io.tapdata.sybase.extend.SybaseConfig;
@@ -26,29 +32,63 @@ import static io.tapdata.base.ConnectorBase.toJson;
 class ReadSourceFilter extends ReadFilter {
     Log log;
     Map<String, List<ConnectionConfigWithTables>> connectionConfigOfTable = new HashMap<>();
+    Map<String, Boolean> tableNeedReadSource = new HashMap<>();
 
     @Override
     public ReadFilter init(CdcRoot root) {
         super.init(root);
         this.log = root.getContext().getLog();
-        List<ConnectionConfigWithTables> connectionConfigWithTables = root.getConnectionConfigWithTables();
-        connectionConfigOfTable = connectionConfigWithTables.stream().collect(Collectors.groupingBy(f -> {
-            ConnectionConfig c = new ConnectionConfig(f.getConnectionConfig());
-            return String.format("%s.%s", c.getDatabase(), c.getSchema());
-        }));
+        connectionConfigOfTable = groupConnectionConfigWithTables(root);
         return this;
     }
 
+    private DataMap getConnectionConfig(String fullTableName) {
+        if (null == fullTableName || "".equals(fullTableName.trim())) return null;
+        String[] split = fullTableName.split("\\.");
+        if (split.length != 3) return null;
+        String databaseSchema = String.format("%s.%s", split[0], split[1]);
+        String tableName = split[2];
+        return dispatchConnectionConfig(connectionConfigOfTable, databaseSchema, tableName);
+    }
+
     public List<TapEvent> readFilter(List<TapEvent> events, TapTable tapTable, Set<String> blockFields, String fullTableName) {
-        DataMap dataMap = dispatchConnectionConfig(fullTableName);
+        if (null == tapTable || null == blockFields) return events;
+        Boolean needReadSource = null;
+        if (!tableNeedReadSource.containsKey(fullTableName) ||  null == (needReadSource = tableNeedReadSource.get(fullTableName))) {
+            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+            if (null != nameFieldMap && !nameFieldMap.isEmpty()) {
+                try {
+                    Map.Entry<String, TapField> entry = nameFieldMap.entrySet().stream()
+                            .filter(Objects::nonNull)
+                            .filter(f -> {
+                                TapField tapField = f.getValue();
+                                return SybaseFilterConfig.isBolField(tapField.getDataType());
+                            }).findFirst().orElseGet(null);
+                    needReadSource = null != entry;
+                } catch (Exception e) {
+                    needReadSource = false;
+                }
+            } else {
+                needReadSource = false;
+            }
+            tableNeedReadSource.put(fullTableName, needReadSource);
+        }
+
+        if (!needReadSource) {
+            return events;
+        }
+
+        DataMap dataMap = getConnectionConfig(fullTableName);
         if (null == dataMap || dataMap.isEmpty()) {
-            log.info("Can not get connection config to create jdbc connection, fail to get bol from source, full table name: {}", fullTableName);
+            tableNeedReadSource.put(fullTableName, false);
+            log.debug("Can not get connection config to create jdbc connection, fail to get bol from source, full table name: {}", fullTableName);
             return events;
         }
         if (null == events || events.isEmpty()) return events;
         List<Map<String, Object>> primaryKeyValues = new ArrayList<>();
         List<String> primaryKeys = new ArrayList<>(tapTable.primaryKeys(true));
         if (primaryKeys.isEmpty()) {
+            tableNeedReadSource.put(fullTableName, false);
             //log.debug("Not fund any primary key in table {}, it's mean can not read from source of this table, auto read from log of this table now", tapTable.getId());
             return events;
         }
@@ -128,7 +168,7 @@ class ReadSourceFilter extends ReadFilter {
                     }
                 });
             } catch (Exception e) {
-                log.error("Query blockFields's value by jdbc connection failed, full table name: {}, error msg: {}", fullTableName, e.getMessage());
+                log.error("Query blockFields's value by jdbc connection failed, full table name: {}, error msg: {}, sql: {}, prepare value: {}", fullTableName, e.getMessage(), sql, prepareParams);
                 return events;
             }
 
@@ -136,28 +176,26 @@ class ReadSourceFilter extends ReadFilter {
             //step 3: assemble blockFields's value into tap event
             MultiThreadFactory<TapEvent> multiThreadFactory = new MultiThreadFactory<>(Math.max(Math.min(collect.size() / 50 + (collect.size() % 50 > 0 ? 1 : 0), 5), 1), 50);
             multiThreadFactory.handel(collect, e -> {
-                synchronized (this) {
-                    for (TapEvent tapEvent : e) {
-                        Map<String, Object> after = null;
-                        if (tapEvent instanceof TapInsertRecordEvent) {
-                            after = ((TapInsertRecordEvent) tapEvent).getAfter();
-                        } else if (tapEvent instanceof TapUpdateRecordEvent) {
-                            after = ((TapUpdateRecordEvent) tapEvent).getAfter();
-                        }
-                        if (null != after) {
-                            for (Map<String, Object> result : queryResult) {
-                                boolean isThisRecord = false;
-                                for (String key : primaryKeys) {
-                                    Object afterValue = after.get(key);
-                                    Object resultValue = result.get(key);
-                                    if (!(isThisRecord =
-                                            (null == afterValue && resultValue == null)
-                                                    || (null != afterValue && afterValue.equals(resultValue)))) break;
-                                }
-                                if (isThisRecord) {
-                                    after.putAll(result);
-                                    break;
-                                }
+                for (TapEvent tapEvent : e) {
+                    Map<String, Object> after = null;
+                    if (tapEvent instanceof TapInsertRecordEvent) {
+                        after = ((TapInsertRecordEvent) tapEvent).getAfter();
+                    } else if (tapEvent instanceof TapUpdateRecordEvent) {
+                        after = ((TapUpdateRecordEvent) tapEvent).getAfter();
+                    }
+                    if (null != after) {
+                        for (Map<String, Object> result : queryResult) {
+                            boolean isThisRecord = false;
+                            for (String key : primaryKeys) {
+                                Object afterValue = after.get(key);
+                                Object resultValue = result.get(key);
+                                if (!(isThisRecord =
+                                        (null == afterValue && resultValue == null)
+                                                || (null != afterValue && afterValue.equals(resultValue)))) break;
+                            }
+                            if (isThisRecord) {
+                                after.putAll(result);
+                                break;
                             }
                         }
                     }
@@ -174,23 +212,5 @@ class ReadSourceFilter extends ReadFilter {
             }
         }
         return events;
-    }
-
-    private DataMap dispatchConnectionConfig(String fullTableName){
-        if (null == fullTableName || "".equals(fullTableName.trim())) return null;
-        String[] split = fullTableName.split("\\.");
-        if (split.length != 3) return null;
-        String databaseSchema = String.format("%s.%s", split[0], split[1]);
-        String tableName = split[2];
-        if (null == connectionConfigOfTable || connectionConfigOfTable.isEmpty()) return null;
-        List<ConnectionConfigWithTables> withTables = connectionConfigOfTable.get(databaseSchema);
-        for (ConnectionConfigWithTables withTable : withTables) {
-            if (null == withTable) continue;
-            List<String> tables = withTable.getTables();
-            if (null != tableName && !tableName.isEmpty() && tables.contains(tableName)) {
-                return withTable.getConnectionConfig();
-            }
-        }
-        return null;
     }
 }

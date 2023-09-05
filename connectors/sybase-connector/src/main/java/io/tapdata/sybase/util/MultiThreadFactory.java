@@ -20,11 +20,11 @@ public class MultiThreadFactory<T> {
 
     public MultiThreadFactory(int threadCount, int eachPieceSize) {
         this.eachPieceSize = eachPieceSize;
-        this.threadCount = threadCount;
+        this.threadCount = Math.max(threadCount, 1);
     }
 
     public MultiThreadFactory(int threadCount) {
-        this.threadCount = threadCount;
+        this.threadCount = Math.max(threadCount, 1);
         this.eachPieceSize = DEFAULT_EACH_PIECE_SIZE;
     }
 
@@ -47,7 +47,7 @@ public class MultiThreadFactory<T> {
                 executorService.submit(() -> {
                     try {
                         List<T> eventSpilt;
-                        while ((eventSpilt = getOutEventList(dataList)) != null) {
+                        while ((eventSpilt = getOutEventList(dataList)) != null && !eventSpilt.isEmpty()) {
                             consumer.accept(eventSpilt);
                         }
                     } catch (Exception e) {
