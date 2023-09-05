@@ -261,16 +261,16 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         String title = "";
         switch (msgTypeEnum) {
             case STOPPED_BY_ERROR:
-                title = "任务出错";
+                title = "Task error";
                 break;
             case CONNECTED:
-                title = "任务运行";
+                title = "Task running";
                 break;
             case PAUSED:
-                title = "任务暂停";
+                title = "Task pause";
                 break;
             case DELETED:
-                title = "任务删除";
+                title = "Task delete";
                 break;
         }
         return title;
@@ -701,13 +701,13 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 
         if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
             if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
-                emailTip = "实例上线";
+                emailTip = "Instance online";
                 smsContent = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
                 title = "实例 " + metadataName + "已上线运行";
                 content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
                 weChatContent = "实例:" + metadataName + " 已上线运行";
             } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
-                emailTip = "实例离线";
+                emailTip = "Instance offline";
                 smsContent = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
                 title = "实例 " + metadataName + "已离线";
                 content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
@@ -715,13 +715,13 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             }
         } else {
             if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
-                emailTip = "状态变为运行中";
+                emailTip = "The state changes to running";
                 smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
                 title = "任务:" + metadataName + " 正在运行";
                 content = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
                 weChatContent = "任务:" + metadataName + " 正在运行";
             } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
-                emailTip = "状态已由运行中变为离线，可能会影响您的任务正常运行，请及时处理。";
+                emailTip = "State has changed from running to offline, could affect the normal operation of your task, please handle in time.";
                 smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
                 title = "任务:" + metadataName + " 出错";
                 content = "您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
