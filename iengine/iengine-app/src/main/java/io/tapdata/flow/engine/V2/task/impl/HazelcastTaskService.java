@@ -254,7 +254,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		TaskConfig taskConfig = getTaskConfig(taskDtoAtomicReference.get());
 		if (taskDto.isNormalTask()) {
 			initSourceInitialCounter(taskDtoAtomicReference.get());
-			// init snapshot order (only for normal task
+			// init snapshot order (only for normal task)
 			initSnapshotOrder(taskDtoAtomicReference);
 		}
 

@@ -90,7 +90,7 @@ public class MailUtils {
             sendStatus.setErrorMessage("agentName 为空");
             return sendStatus;
         }
-        doc.getElementById("sysName").html("您的Agent：");
+        doc.getElementById("sysName").html("Your Agent：");
         doc.getElementById("agentName").html(agentName);
         doc.getElementById("mailContent").html(maiContent);
         doc.getElementById("clickHref").attr("href", emailHref);
@@ -162,9 +162,9 @@ public class MailUtils {
         doc.getElementById("agentName").html(agentName);
 
         if (SystemEnum.AGENT.equals(systemEnum)) {
-            doc.getElementById("sysName").html("您的Agent：");
+            doc.getElementById("sysName").html("Your Agent：");
         } else if (SystemEnum.DATAFLOW.equals(systemEnum) || SystemEnum.SYNC.equals(systemEnum) || SystemEnum.MIGRATION.equals(systemEnum)) {
-            doc.getElementById("sysName").html("您的任务：");
+            doc.getElementById("sysName").html("Your Task：");
         }
 
         String mailContent = getMailContent(systemEnum, msgTypeEnum);
@@ -244,9 +244,9 @@ public class MailUtils {
         doc.getElementById("agentName").html(agentName);
 
         if (SystemEnum.AGENT.equals(systemEnum)) {
-            doc.getElementById("sysName").html("您的Agent：");
+            doc.getElementById("sysName").html("Your Agent：");
         } else if (SystemEnum.DATAFLOW.equals(systemEnum) || SystemEnum.SYNC.equals(systemEnum) || SystemEnum.MIGRATION.equals(systemEnum)) {
-            doc.getElementById("sysName").html("您的任务：");
+            doc.getElementById("sysName").html("Your Task：");
         }
 
         String mailContent = getMailContent(systemEnum, msgTypeEnum);

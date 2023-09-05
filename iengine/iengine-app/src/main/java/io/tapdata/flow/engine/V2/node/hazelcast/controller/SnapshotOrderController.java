@@ -15,6 +15,8 @@ import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -22,10 +24,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -39,26 +38,33 @@ public class SnapshotOrderController implements Serializable {
 	private final ClientMongoOperator clientMongoOperator;
 	private final TaskDto taskDto;
 	private final ObsLogger obsLogger;
+	@Getter
 	private List<NodeControlLayer> snapshotOrderList;
+	@Setter
+	@Getter
+	private MergeTableNode mergeTableNode;
 
 	public static SnapshotOrderController create(TaskDto taskDto, List<NodeControlLayer> snapshotOrderList) {
 		if (null == taskDto) {
 			throw new TapCodeException(SnapshotOrderControllerExCode_21.CREATE_CONTROLLER_TASK_NULL);
 		}
+		List<Node> nodes = taskDto.getDag().getNodes();
+		Node foundNode = nodes.stream().filter(node -> node instanceof MergeTableNode).findFirst().orElse(null);
+		MergeTableNode mergeTableNode = null;
 		if (null == snapshotOrderList) {
 			snapshotOrderList = new ArrayList<>();
-			List<Node> nodes = taskDto.getDag().getNodes();
-			Node foundNode = nodes.stream().filter(node -> node instanceof MergeTableNode).findFirst().orElse(null);
 			if (null != foundNode) {
-				MergeTableNode mergeTableNode = (MergeTableNode) foundNode;
+				mergeTableNode = (MergeTableNode) foundNode;
 				List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
 				recursiveBuildSnapshotOrderListByMergeNode(mergeProperties, snapshotOrderList, mergeTableNode, 1);
 			}
 		}
+		SnapshotOrderController snapshotOrderController = new SnapshotOrderController(taskDto, snapshotOrderList);
+		snapshotOrderController.setMergeTableNode(mergeTableNode);
 		return new SnapshotOrderController(taskDto, snapshotOrderList);
 	}
 
-	private static void recursiveBuildSnapshotOrderListByMergeNode(List<MergeTableProperties> mergeTableProperties, List<NodeControlLayer> snapshotOrderList, Node<?> mergeNode, int level) {
+	private static void recursiveBuildSnapshotOrderListByMergeNode(List<MergeTableProperties> mergeTableProperties, List<NodeControlLayer> snapshotOrderList, MergeTableNode mergeNode, int level) {
 		if (CollectionUtils.isEmpty(mergeTableProperties)) {
 			return;
 		}
@@ -70,15 +76,8 @@ public class SnapshotOrderController implements Serializable {
 			predecessors = predecessors.stream().filter(n -> n.getId().equals(preId)).collect(Collectors.toList());
 			List<Node<?>> sourceTableNodes = GraphUtil.predecessors(mergeNode, Node::isDataNode, (List<Node<?>>) predecessors);
 			for (Node<?> sourceTableNode : sourceTableNodes) {
-				NodeController nodeController = new NodeController(sourceTableNode);
-				if (level <= 1) {
-					nodeController.running();
-				} else {
-					nodeController.waitRun();
-				}
-				nodeControllers.add(nodeController);
+				nodeControllers.add(new NodeController(sourceTableNode));
 			}
-
 			if (CollectionUtils.isNotEmpty(mergeTableProperty.getChildren())) {
 				nextLevelMergeProperties.addAll(mergeTableProperty.getChildren());
 			}
@@ -191,7 +190,10 @@ public class SnapshotOrderController implements Serializable {
 	public void flush() {
 		if (null != clientMongoOperator && CollectionUtils.isNotEmpty(snapshotOrderList)) {
 			removeUnnecessaryProperties(snapshotOrderList);
-			byte[] bytes = InstanceFactory.instance(ObjectSerializable.class).fromObject(snapshotOrderList);
+			Map<String, Object> map = new HashMap<>();
+			map.put(SnapshotOrderService.MERGE_MODE_KEY, null == mergeTableNode ? MergeTableNode.MAIN_TABLE_FIRST_MERGE_MODE : mergeTableNode.getMergeMode());
+			map.put(SnapshotOrderService.SNAPSHOT_ORDER_LIST_KEY, snapshotOrderList);
+			byte[] bytes = InstanceFactory.instance(ObjectSerializable.class).fromObject(map);
 			Update update = Update.update("attrs." + SnapshotOrderService.SNAPSHOT_ORDER_LIST_KEY, bytes);
 			clientMongoOperator.update(Query.query(Criteria.where("_id").is(taskDto.getId())), update, ConnectorConstant.TASK_COLLECTION);
 		}

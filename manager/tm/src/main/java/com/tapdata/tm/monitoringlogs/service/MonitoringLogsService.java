@@ -320,6 +320,9 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         String msg;
         if (e instanceof BizException) {
             msg = MessageUtil.getMessage(((BizException) e).getErrorCode());
+            if(((BizException) e).getErrorCode()!=null){
+                builder.fullErrorCode(((BizException) e).getErrorCode());
+            }
         } else if (e instanceof Exception) {
             msg = ((Exception) e).getMessage();
         } else if (e instanceof String) {
