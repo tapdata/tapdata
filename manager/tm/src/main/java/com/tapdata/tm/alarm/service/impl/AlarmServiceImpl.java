@@ -471,19 +471,19 @@ public class AlarmServiceImpl implements AlarmService {
                 String metadataName = messageMetadata.getName();
                 if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
                     if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
-                        title = "实例上线";
-                        content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
+                        title = "Instance online";
+                        content = "Dear Users，Hi，The instance you created on Tapdata Cloud V3.0:" + metadataName + "up and running";
                     } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
-                        title = "实例离线";
-                        content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
+                        title = "Instance offline";
+                        content = "Dear Users，Hi，The instance you created on Tapdata Cloud V3.0:" + metadataName + " has been offline, please deal with it in time";
                     }
                 } else {
                     if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
-                        title = "状态变为运行中";
-                        content = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
+                        title = "The state changes to running";
+                        content = "Dear Users，Hi，The instance you created on Tapdata Cloud:" + metadataName + "up and running";
                     } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
-                        title = "状态已由运行中变为离线，可能会影响您的任务正常运行，请及时处理。";
-                        content = "您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
+                        title = "The status has changed from running to offline, which may affect the normal operation of your task, please deal with it in time。";
+                        content = "The task you created on Tapdata Cloud Tapdata Cloud:" + metadataName + " failed, please deal with it in time";
                     } else if (MsgTypeEnum.STOPPED_BY_ERROR.getValue().equals(msgType)) {
 
                     }
