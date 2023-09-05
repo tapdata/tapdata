@@ -482,8 +482,8 @@ public class AlarmServiceImpl implements AlarmService {
                         title = "The state changes to running";
                         content = "Dear Users，Hi，The instance you created on Tapdata Cloud:" + metadataName + "up and running";
                     } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
-                        title = "The status has changed from running to offline, which may affect the normal operation of your task, please deal with it in time。";
-                        content = "The task you created on Tapdata Cloud Tapdata Cloud:" + metadataName + " failed, please deal with it in time";
+                        title = "The status has changed from running to offline, which may affect the normal operation of your task, please deal with it in time";
+                        content = "The task you created on Tapdata Cloud:" + metadataName + " failed, please deal with it in time";
                     } else if (MsgTypeEnum.STOPPED_BY_ERROR.getValue().equals(msgType)) {
 
                     }
