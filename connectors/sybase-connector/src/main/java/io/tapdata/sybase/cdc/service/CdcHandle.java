@@ -92,9 +92,9 @@ public class CdcHandle {
         srcConfig.setTransaction_store_location(sybasePocPath + ConfigPaths.SYBASE_USE_DATA_DIR);
         srcConfig.setTransaction_store_cache_limit(100000);
 
-        if (nodeConfig.getLogCdcQuery() == ReadFilter.LOG_CDC_QUERY_READ_LOG) {
-            srcConfig.setClient_charset("iso_1");
-        }
+        //if (nodeConfig.getLogCdcQuery() == ReadFilter.LOG_CDC_QUERY_READ_LOG) {
+        srcConfig.setClient_charset("iso_1");
+        //}
 
         SybaseDstLocalStorage dstLocalStorage = new SybaseDstLocalStorage();
         dstLocalStorage.setStorage_location(sybasePocPath + ConfigPaths.SYBASE_USE_CSV_DIR);
