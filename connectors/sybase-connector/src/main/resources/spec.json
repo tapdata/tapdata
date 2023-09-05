@@ -250,7 +250,7 @@
           "title": "${heartbeat}",
           "x-decorator": "FormItem",
           "x-component": "Switch",
-          "default": true,
+          "default": false,
           "x-index": 1,
           "x-decorator-props": {
             "tooltip": "${heartbeat_tip}"
@@ -535,9 +535,9 @@
       "default": 1,
       "byteRatio": 1
     },
-    "tinytext[($byte)]": {
+    "tinytext[($param)]": {
       "to": "TapString",
-      "byte": 255,
+      "byte": "2g",
       "pkEnablement": false
     },
     "image[($byte)]": {
@@ -545,24 +545,24 @@
       "byte": 255,
       "pkEnablement": false
     },
-    "unitext[($byte)]": {
+    "unitext[($param)]": {
       "to": "TapString",
-      "byte": 255,
+      "byte": "2g",
       "pkEnablement": false
     },
-    "text[($byte)]": {
+    "text[($param)]": {
       "to": "TapString",
-      "byte": "64k",
+      "byte": "2g",
       "pkEnablement": false
     },
-    "mediumtext[($byte)]": {
+    "mediumtext[($param)]": {
       "to": "TapString",
-      "byte": "16m",
+      "byte": "2g",
       "pkEnablement": false
     },
-    "longtext[($byte)]": {
+    "longtext[($param)]": {
       "to": "TapString",
-      "byte": "4g",
+      "byte": "2g",
       "pkEnablement": false
     },
     "json": {

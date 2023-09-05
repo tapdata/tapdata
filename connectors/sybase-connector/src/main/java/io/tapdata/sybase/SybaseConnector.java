@@ -166,8 +166,15 @@ public class SybaseConnector extends CommonDbConnector {
             }
         });
         if (connectionContext instanceof TapConnectorContext) {
-            Object isMutilStreamTask = ((TapConnectorContext) connectionContext).getStateMap().get("is_multi_stream_task");
-            if (isMutilStreamTask instanceof Boolean && (Boolean) isMutilStreamTask) {
+            KVMap<Object> stateMap = ((TapConnectorContext) connectionContext).getStateMap();
+            Object isMutilStreamTask = stateMap.get("is_multi_stream_task");
+            Object isNormalStreamTask = stateMap.get("is_normal_stream_task");
+            final boolean isNormalTask = ( null != isNormalStreamTask && isNormalStreamTask instanceof Boolean && (Boolean) isNormalStreamTask) ;
+            final boolean shareTask = ( null != isMutilStreamTask && isMutilStreamTask instanceof Boolean && (Boolean) isMutilStreamTask) || isNormalTask;
+            if (isNormalTask) {
+                connectionContext.getLog().warn("Will stop cdc process by normal stream read task, this will affect your running shared mining tasks: {}" , ConnectorUtil.getCurrentInstanceHostPortFromConfig((TapConnectorContext) connectionContext));
+            }
+            if (shareTask) {
                 if (null == cdcHandle) {
                     ConnectorUtil.safeStopShell((TapConnectorContext) connectionContext);
                 } else {
@@ -191,7 +198,12 @@ public class SybaseConnector extends CommonDbConnector {
     private void release(TapConnectorContext context) {
         KVMap<Object> stateMap = context.getStateMap();
         Object isMutilStreamTask = stateMap.get("is_multi_stream_task");
-        final boolean shareTask = null != isMutilStreamTask && isMutilStreamTask instanceof Boolean && (Boolean) isMutilStreamTask;
+        Object isNormalStreamTask = stateMap.get("is_normal_stream_task");
+        final boolean isNormalTask = ( null != isNormalStreamTask && isNormalStreamTask instanceof Boolean && (Boolean) isNormalStreamTask) ;
+        final boolean shareTask = ( null != isMutilStreamTask && isMutilStreamTask instanceof Boolean && (Boolean) isMutilStreamTask) || isNormalTask;
+        if (isNormalTask) {
+            context.getLog().warn("Will release cdc process resources by normal stream read task, this will affect your running shared mining tasks: {}" , ConnectorUtil.getCurrentInstanceHostPortFromConfig(context));
+        }
         if (shareTask) {
             if (null == cdcHandle)
                 cdcHandle = new CdcHandle(new CdcRoot(unused -> isAlive()), context, new StopLock(isAlive()));
@@ -200,16 +212,6 @@ public class SybaseConnector extends CommonDbConnector {
             if (null == root.getContext()) root.setContext(context);
             Optional.ofNullable(cdcHandle).ifPresent(CdcHandle::releaseCdc);
             stateMap.put("tableOverType", OverwriteType.OVERWRITE.getType());
-            //final String closeCdcPositionSql = "dbcc settrunc('ltm','ignore')";
-            //if (null == sybaseConfig) {
-            //    sybaseConfig = new SybaseConfig().load(context.getConnectionConfig());
-            //}
-            //sybaseContext = new SybaseContext(sybaseConfig);
-            //try {
-            //    sybaseContext.execute(closeCdcPositionSql);
-            //} catch (Exception e) {
-            //    context.getLog().error("Fail to close cdc log, please execute sql in client: {}", closeCdcPositionSql);
-            //}
         }
         try {
             String configPath = String.valueOf(stateMap.get(ConfigPaths.SYBASE_USE_TASK_CONFIG_BASE_DIR));
@@ -457,6 +459,28 @@ public class SybaseConnector extends CommonDbConnector {
     }
 
     private void batchReadV2(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+//        Map<String, Object> acceptAllTable = null;
+//        try {
+//            acceptAllTable = offsetState instanceof Map ? (Map<String, Object>) offsetState : new HashMap<>();
+//        } catch (Exception e) {
+//            acceptAllTable = new HashMap<>();
+//        }
+//        final Map<String, Object> acceptTableNames = acceptAllTable;
+
+        if (null == tapTable) {
+            throw new CoreException("Start batch read with an empty tap table, batch read is failed");
+        }
+        final String tableId = tapTable.getId();
+        if (null == tableId || "".equals(tableId.trim())) {
+            throw new CoreException("Start batch read with tap table which table id is empty, batch read is failed");
+        }
+//        Object isOver = acceptTableNames.get("isOver");
+//        if (isOver instanceof Boolean && (Boolean)isOver) {
+//            Object overTime = acceptTableNames.get("overTime");
+//            log.info("Table {} has batch read over at {}, skip this table and start next table if is exists", tableId, overTime);
+//            return;
+//        }
+
         KVMap<Object> stateMap = tapConnectorContext.getStateMap();
         Object hasSleep = stateMap.get("has_sleep_after_process_start");
         if (!(hasSleep instanceof Boolean && (Boolean) hasSleep)) {
@@ -467,14 +491,6 @@ public class SybaseConnector extends CommonDbConnector {
             } finally {
                 stateMap.put("has_sleep_after_process_start", true);
             }
-        }
-
-        if (null == tapTable) {
-            throw new CoreException("Start batch read with an empty tap table, batch read is failed");
-        }
-        final String tableId = tapTable.getId();
-        if (null == tableId || "".equals(tableId.trim())) {
-            throw new CoreException("Start batch read with tap table which table id is empty, batch read is failed");
         }
 
         ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
@@ -497,6 +513,12 @@ public class SybaseConnector extends CommonDbConnector {
                             filterTimeForMysql0(resultSet, typeAndNameFromMetaData, dateTypeSet, needEncode, encode, decode),
                             tableId).referenceTime(System.currentTimeMillis()));
                     if (tapEvents[0].size() == eventBatchSize) {
+//                        try {
+//                            if (resultSet.isLast()) {
+//                                acceptTableNames.put("isOver", true);
+//                                acceptTableNames.put("overTime", System.currentTimeMillis());
+//                            }
+//                        } catch (Exception e) {}
                         eventsOffsetConsumer.accept(tapEvents[0], offsetState);
                         tapEvents[0] = new ArrayList<>();
                     }
@@ -506,6 +528,11 @@ public class SybaseConnector extends CommonDbConnector {
             tapConnectorContext.getLog().error("Batch read failed, table name: {}, error msg: {}", tableId, e.getMessage());
         } finally {
             if (!tapEvents[0].isEmpty()) {
+//                isOver = acceptTableNames.get("isOver");
+//                if (!(isOver instanceof Boolean && (Boolean)isOver)) {
+//                    acceptTableNames.put("isOver", true);
+//                    acceptTableNames.put("overTime", System.currentTimeMillis());
+//                }
                 eventsOffsetConsumer.accept(tapEvents[0], offsetState);
             }
         }
@@ -571,7 +598,7 @@ public class SybaseConnector extends CommonDbConnector {
 
 
         root.csvFileModifyIndexCache(offset instanceof Map ? (Map<String, Map<String, Integer>>) offset : new HashMap<>());
-        tapConnectorContext.getStateMap().put("is_multi_stream_task", true);
+        tapConnectorContext.getStateMap().put("is_normal_stream_task", true);
         //throw new CoreException("Not support stream read by node, please open Shared-Mining ");
         Object position = tapConnectorContext.getStateMap().get("cdc_position");
         CdcPosition cdcPosition = (position instanceof CdcPosition ? (CdcPosition) position : new CdcPosition()).notMultiTask();
@@ -761,6 +788,8 @@ public class SybaseConnector extends CommonDbConnector {
         } catch (Throwable e) {
             if (!isAlive()) {
                 throw e;
+            } else {
+                tapConnectorContext.getLog().error("Sybase cdc is stopped now, error: {}", e.getMessage());
             }
             //tapConnectorContext.getLog().error("Sybase cdc is stopped now, error: {}", e.getMessage());
         }
