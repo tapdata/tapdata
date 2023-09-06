@@ -8,15 +8,10 @@ import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.cache.Entry;
-import io.tapdata.entity.utils.cache.Iterator;
-import io.tapdata.entity.utils.cache.KVReadOnlyMap;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.source.ConnectionConfigWithTables;
 import io.tapdata.sybase.SybaseConnector;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.dto.start.SybaseFilterConfig;
-import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
 import io.tapdata.sybase.extend.SybaseConfig;
 import io.tapdata.sybase.extend.SybaseContext;
@@ -152,8 +147,7 @@ class ReadSourceFilter extends ReadFilter {
             String encode = needEncode ? Optional.ofNullable(nodeConfig.getEncode()).orElse("cp850") : null;
             String decode = needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
             //String outCode = needEncode ? Optional.ofNullable(nodeConfig.getOutDecode()).orElse("utf-8") : null;
-            try {
-                SybaseContext sybaseContext = new SybaseContext(new SybaseConfig().load(dataMap));
+            try (SybaseContext sybaseContext = new SybaseContext(new SybaseConfig().load(dataMap))) {
                 sybaseContext.prepareQuery(sql, prepareParams, resultSet -> {
                     ResultSetMetaData metaData = resultSet.getMetaData();
                     Map<String, String> typeAndNameFromMetaData = new HashMap<>();

@@ -9,7 +9,6 @@ import io.tapdata.sybase.extend.NodeConfig;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.base.ConnectorBase.fromJson;
 import static io.tapdata.sybase.cdc.dto.analyse.SybaseDataTypeConvert.DELETE;

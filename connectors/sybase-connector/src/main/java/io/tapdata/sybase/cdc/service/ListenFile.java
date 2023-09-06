@@ -1,6 +1,5 @@
 package io.tapdata.sybase.cdc.service;
 
-import cn.hutool.core.text.csv.CsvReader;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -17,7 +16,6 @@ import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
 import io.tapdata.sybase.cdc.dto.analyse.AnalyseRecord;
 import io.tapdata.sybase.cdc.dto.analyse.AnalyseTapEventFromCsvString;
-import io.tapdata.sybase.cdc.dto.analyse.CsvAnalyseFilter;
 import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSV;
 import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVOfBigFile;
 import io.tapdata.sybase.cdc.dto.analyse.csv.ReadCSVQuickly;
@@ -25,8 +23,6 @@ import io.tapdata.sybase.cdc.dto.analyse.filter.ReadFilter;
 import io.tapdata.sybase.cdc.dto.analyse.stream.Accepter;
 import io.tapdata.sybase.cdc.dto.read.CdcPosition;
 import io.tapdata.sybase.cdc.dto.read.TableTypeEntity;
-import io.tapdata.sybase.cdc.dto.start.SybaseFilterConfig;
-import io.tapdata.sybase.cdc.dto.watch.FileListener;
 import io.tapdata.sybase.cdc.dto.watch.FileMonitor;
 import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.extend.ConnectionConfig;
@@ -37,16 +33,28 @@ import io.tapdata.sybase.util.Utils;
 import io.tapdata.sybase.util.YamlUtil;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.monitor.FileAlterationObserver;
 
 import java.io.File;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.StringJoiner;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static io.tapdata.base.ConnectorBase.list;
 
 /**
  * @author GavinXiao
@@ -71,7 +79,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
     private final String schemaConfigPath; //a yaml file path name is schema.yaml which can get the cdc tables
     private final Map<String, LinkedHashMap<String, TableTypeEntity>> tableMap = new HashMap<>(); //all cdc table from schema.yaml to anlyse csv line to tap event
 
-    private ConcurrentLinkedQueue<String> monitorFilePathQueues;
+    private ArrayBlockingQueue<String> monitorFilePathQueues;
     private ScheduledFuture<?> futureCheckFile;
     private ScheduledFuture<?> futureReadFile;
     private final ScheduledExecutorService scheduledExecutorServiceCheckFile = Executors.newSingleThreadScheduledExecutor();
@@ -112,7 +120,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
         this.nodeConfig = root.getNodeConfig();
         readCSVOfBigFile.setLog(root.getContext().getLog());
 
-        monitorFilePathQueues = new ConcurrentLinkedQueue<>();
+        monitorFilePathQueues = new ArrayBlockingQueue<>(2000);
         scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
         if (ReadFilter.LOG_CDC_QUERY_READ_SOURCE == nodeConfig.getLogCdcQuery()) {
             this.batchSize = batchSize < 200 || batchSize > 1000 ? 1000 : batchSize;

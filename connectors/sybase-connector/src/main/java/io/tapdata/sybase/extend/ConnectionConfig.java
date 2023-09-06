@@ -24,6 +24,7 @@ public class ConnectionConfig {
     private String addtionalString;
     private String timezone;
     private int logCdcQuery;
+    private boolean normalTask;
 
     public ConnectionConfig(TapConnectionContext context) {
         if (null == context || null == context.getConnectionConfig()) {
@@ -50,6 +51,7 @@ public class ConnectionConfig {
         if (logCdcQuery != ReadFilter.LOG_CDC_QUERY_READ_LOG && logCdcQuery != ReadFilter.LOG_CDC_QUERY_READ_SOURCE) {
             logCdcQuery = ReadFilter.LOG_CDC_QUERY_READ_LOG;
         }
+        normalTask = (Boolean)Optional.ofNullable(config.getObject("normalTask")).orElse(false);
     }
 
 
@@ -127,5 +129,9 @@ public class ConnectionConfig {
 
     public void setLogCdcQuery(int logCdcQuery) {
         this.logCdcQuery = logCdcQuery;
+    }
+
+    public boolean normalTask() {
+        return this.normalTask;
     }
 }

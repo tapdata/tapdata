@@ -1,7 +1,6 @@
 package io.tapdata.sybase.cdc.dto.analyse;
 
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.sybase.cdc.dto.read.TableTypeEntity;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;

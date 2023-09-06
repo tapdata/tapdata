@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * @author GavinXiao
  * @description LinstenFile create by Gavin
  * @create 2023/7/13 11:32
+ * @deprecated
  **/
 public class ListenFileByMutilReadProcess implements CdcStep<CdcRoot> {
     public static final String TAG = ListenFile.class.getSimpleName();

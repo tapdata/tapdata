@@ -17,6 +17,8 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.source.ConnectionConfigWithTables;
 import io.tapdata.sybase.SybaseConnector;
+import io.tapdata.sybase.cdc.CdcRoot;
+import io.tapdata.sybase.cdc.dto.analyse.csv.NormalFileReader;
 import io.tapdata.sybase.cdc.dto.start.OverwriteType;
 import io.tapdata.sybase.cdc.dto.start.SybaseFilterConfig;
 import io.tapdata.sybase.cdc.dto.start.SybaseReInitConfig;
@@ -169,7 +171,16 @@ public class ConnectorUtil {
         final String host = config.getHost();
         int port = config.getPort();
         String database = config.getDatabase();
-        return host + ":" + port + ":" + database;
+        boolean isNormalTask = config.normalTask();
+        return host + ":" + port + ":" + database + (isNormalTask ? (":" + maintenanceGlobalCdcProcessId(context)) : "");
+    }
+
+    public static String getNormalInstanceHostPortFromConfig(TapConnectorContext context) {
+        ConnectionConfig config = new ConnectionConfig(context);
+        final String host = config.getHost();
+        int port = config.getPort();
+        String database = config.getDatabase();
+        return host + ":" + port + ":" + database + ":" + maintenanceGlobalCdcProcessId(context);
     }
 
     /**
@@ -430,6 +441,11 @@ public class ConnectorUtil {
         stateMap.remove("globalSybaseCdcProcessId");
     }
 
+    public static String getGlobalCdcProcessId(TapConnectorContext tapConnectionContext) {
+        KVMap<Object> stateMap = tapConnectionContext.getStateMap();
+        return (String) stateMap.get("globalSybaseCdcProcessId");
+    }
+
     public static List<Map<String, Object>> fixYaml(List<SybaseFilterConfig> configs) {
         List<Map<String, Object>> list = new ArrayList<>();
         if (null == configs || configs.isEmpty()) return list;
@@ -510,6 +526,10 @@ public class ConnectorUtil {
     public static String[] getKillShellCmd (TapConnectorContext tapConnectionContext){
         String [] temp = new String[]{killShellCmd[0], killShellCmd[1], killShellCmd[2]};
         temp[2] = String.format(temp[2], getCurrentInstanceHostPortFromConfig(tapConnectionContext));
+        String cdcProcessId = getGlobalCdcProcessId(tapConnectionContext);
+        if (null != cdcProcessId && !"".equals(cdcProcessId.trim())) {
+            temp[2] = temp[2] + "|grep \"id " + cdcProcessId +"\"";
+        }
         return temp;
     }
     public static final List<String> ignoreShells = list("grep sybase-poc/replicant-cli");
@@ -789,9 +809,6 @@ public class ConnectorUtil {
             return;
         }
         try {
-            //if (HostUtils.isLinuxCore()) {
-                //final String shell = "rm -rf " + filePath;
-            log.info("Clean file: {}", file.getAbsolutePath());
             if (file.exists()) {
                 if (file.isDirectory()) {
                     FileUtils.deleteDirectory(file);
@@ -799,13 +816,10 @@ public class ConnectorUtil {
                     FileUtils.delete(file);
                 }
             }
-            //} else {
-            //    if (file.isDirectory()) {
-            //        FileUtils.deleteDirectory(file);
-            //    } else {
-            //        FileUtils.delete(file);
-            //    }
-            //}
+            if (file.exists()) {
+                file.deleteOnExit();
+                log.debug("Clean file: {}", file.getAbsolutePath());
+            }
         } catch (Exception e) {
             log.warn("Can not delete file: {}, msg; {}", file.getAbsolutePath(), e.getMessage());
         }
@@ -872,5 +886,15 @@ public class ConnectorUtil {
             });
         });
         return tables;
+    }
+
+
+    public static void showErrorTrance(Log log, String sybasePocPath, String processId) {
+        String errorTraceLog = String.format("%s/config/sybase2csv/trace/%s/error_trace.log", sybasePocPath, processId);
+        File traceTraceFile = new File(errorTraceLog);
+        if (traceTraceFile.exists()) {
+            NormalFileReader normalFileReader = new NormalFileReader();
+            log.info("Failed exec shell, msg: {}", normalFileReader.readString(errorTraceLog, true));
+        }
     }
 }

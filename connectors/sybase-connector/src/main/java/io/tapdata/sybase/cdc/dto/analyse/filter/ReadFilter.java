@@ -5,7 +5,6 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.functions.connector.source.ConnectionConfigWithTables;
 import io.tapdata.sybase.cdc.CdcRoot;
-import io.tapdata.sybase.extend.ConnectionConfig;
 
 import java.util.HashMap;
 import java.util.List;

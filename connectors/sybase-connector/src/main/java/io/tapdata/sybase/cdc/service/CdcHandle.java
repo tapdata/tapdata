@@ -21,18 +21,10 @@ import io.tapdata.sybase.cdc.dto.watch.StopLock;
 import io.tapdata.sybase.extend.ConnectionConfig;
 import io.tapdata.sybase.extend.NodeConfig;
 import io.tapdata.sybase.util.*;
-import org.apache.commons.io.FileUtils;
-
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static io.tapdata.base.ConnectorBase.list;
 import static io.tapdata.base.ConnectorBase.map;
-import static io.tapdata.entity.simplify.TapSimplify.entry;
 
 /**
  * @author GavinXiao
@@ -177,7 +169,6 @@ public class CdcHandle {
     }
 
     //Step #end 1
-
     /**
      * @deprecated
      */
@@ -346,7 +337,7 @@ public class CdcHandle {
                                             root.addExistsBlockFields(tableFullName, blockFieldsSet);
                                         }
                                     } else {
-                                        root.getContext().getLog().info("Not fund any primary key in table {} when config sybase filter yaml and has open read bol value from source, it's mean can not read from source of this table, auto read from log of this table now", cdcTable);
+                                        root.getContext().getLog().debug("Not fund any primary key in table {} when config sybase filter yaml and has open read bol value from source, it's mean can not read from source of this table, auto read from log of this table now", cdcTable);
                                     }
                                 });
                             }

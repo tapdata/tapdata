@@ -1,14 +1,18 @@
 package io.tapdata.sybase.cdc.service;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.CdcStep;
+import io.tapdata.sybase.cdc.dto.analyse.csv.NormalFileReader;
 import io.tapdata.sybase.cdc.dto.start.CommandType;
 import io.tapdata.sybase.cdc.dto.start.OverwriteType;
 import io.tapdata.sybase.util.ConnectorUtil;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * @author GavinXiao
@@ -39,6 +43,7 @@ class ExecCommand implements CdcStep<CdcRoot> {
 
     @Override
     public synchronized CdcRoot compile() {
+        Log log = root.getContext().getLog();
         String sybasePocPath = root.getSybasePocPath();
         String processId = ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext());
         String cmd = String.format(START_CDC_0,
@@ -53,19 +58,33 @@ class ExecCommand implements CdcStep<CdcRoot> {
                 processId,
                 "--" + OverwriteType.type(overwriteType)
         );
-        root.getContext().getLog().info("shell is {}", cmd);
+        log.info("shell is {}", cmd);
         try {
             String[] cmds = new String[]{"/bin/sh", "-c", EXPORT_JAVA_HOME + "; " + cmd};
             Process exec = run(cmds);
             if (null == exec) {
                 throw new CoreException("Cdc tool can not running, fail to get stream data");
             }
+
+            try {
+                Thread.sleep(10000);
+            } catch (Exception ignore){}
+            List<Integer> port = ConnectorUtil.port(
+                    ConnectorUtil.getKillShellCmd(root.getContext()),
+                    ConnectorUtil.ignoreShells,
+                    log,
+                    ConnectorUtil.getCurrentInstanceHostPortFromConfig(root.getContext())
+            );
             KVMap<Object> stateMap = root.getContext().getStateMap();
-            stateMap.put("tableOverType", OverwriteType.RESUME.getType());
+            if (port.size() > 1) {
+                stateMap.put("tableOverType", OverwriteType.RESUME.getType());
+            } else {
+                ConnectorUtil.showErrorTrance(log, sybasePocPath, processId);
+            }
         } catch (Exception e) {
             throw new CoreException("Command exec failed, unable to start cdc command: {}, msg: {}", cmd, e.getMessage());
         } finally {
-            root.getContext().getLog().info("You can cat {}/config/sybase2csv/trace/{}/trace.log to view the log information generated during the corresponding cdc execution",
+            log.info("You can cat {}/config/sybase2csv/trace/{}/trace.log to view the log information generated during the corresponding cdc execution",
                     sybasePocPath, processId);
         }
         return this.root;
