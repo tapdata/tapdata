@@ -3,8 +3,7 @@ package io.tapdata.inspect.compare;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.*;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.inspect.InspectDataSource;
 import com.tapdata.entity.inspect.InspectDetail;
@@ -211,12 +210,9 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 
 						String sourceVal = sourceCursor.getSortValue(sourceRecord);
 						String targetVal = targetCursor.getSortValue(targetRecord);
-						int compare;
-						if (null == sourceVal) {
-							compare = (null == targetVal) ? 0 : 1;
-						} else {
-							compare = (null == targetVal) ? -1 : sourceVal.compareTo(targetVal);
-						}
+						Object[] sourceKeyArr = getKeyArray(sourceRecord, sourceKeys);
+						Object[] targetKeyArr = getKeyArray(targetRecord, targetKeys);
+						int compare = CommonUtil.compareObjects(sourceKeyArr, targetKeyArr);
 
 						if (fullMatch && compare == 0) {
 							String res = compareRecord(current, sourceVal, targetVal, sourceRecord, targetRecord, compareFn);
@@ -376,5 +372,14 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 
 		void update(InspectResultStats stats, List<InspectDetail> inspectDetails);
 
+	}
+
+	private Object[] getKeyArray(Map<String, Object> record, List<String> keys) {
+		Object[] objects = new Object[keys.size()];
+		for (int i = 0; i < keys.size(); i++) {
+			String key = keys.get(i);
+			objects[i] = MapUtil.getValueByKey(record, key);
+		}
+		return objects;
 	}
 }
