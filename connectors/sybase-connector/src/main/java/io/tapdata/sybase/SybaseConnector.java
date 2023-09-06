@@ -269,17 +269,19 @@ public class SybaseConnector extends CommonDbConnector {
 
     protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
         RetryOptions retryOptions = RetryOptions.create();
-        retryOptions.setNeedRetry(throwable instanceof CoreException && ((CoreException)throwable).getCode() == CDC_PROCESS_FAIL_EXCEPTION_CODE);
+        retryOptions.setNeedRetry(
+                (throwable instanceof CoreException && ((CoreException)throwable).getCode() == CDC_PROCESS_FAIL_EXCEPTION_CODE)
+                || (null != matchThrowable(throwable, com.sybase.jdbc4.jdbc.SybConnectionDeadException.class))
+        );
         retryOptions.beforeRetryMethod(() -> {
             try {
                 synchronized (this) {
-                    if (throwable instanceof CoreException && ((CoreException)throwable).getCode() == CDC_PROCESS_FAIL_EXCEPTION_CODE) {
+                    if (retryOptions.isNeedRetry()) {
                         this.onStop(tapConnectionContext);
                         this.onStart(tapConnectionContext);
                     }
                 }
-            } catch (Throwable ignore) {
-            }
+            } catch (Throwable ignore) { }
         });
         return retryOptions;
     }
