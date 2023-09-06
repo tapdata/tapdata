@@ -39,7 +39,7 @@ public class NodeConfig {
         decode = Optional.ofNullable(nodeConfig.getString("decode")).orElse("big5-ha");
         autoEncode = (boolean)Optional.ofNullable(nodeConfig.get("autoEncode")).orElse(true);
         cdcCacheTime = Optional.ofNullable(nodeConfig.getInteger("cdcCacheTime")).orElse(3);
-        heartbeat = (Boolean) Optional.ofNullable(nodeConfig.get("heartbeat")).orElse(false);
+        heartbeat = (Boolean) Optional.ofNullable(nodeConfig.get("heartbeat")).orElse(true);
         hbDatabase = Optional.ofNullable(nodeConfig.getString("hbDatabase")).orElse("");
         hbSchema = Optional.ofNullable(nodeConfig.getString("hbSchema")).orElse("");
         if (cdcCacheTime < 1) {

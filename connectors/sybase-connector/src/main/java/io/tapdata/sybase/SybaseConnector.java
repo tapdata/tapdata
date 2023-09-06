@@ -128,9 +128,14 @@ public class SybaseConnector extends CommonDbConnector {
                 nodeConfig = new DataMap();
                 tapConnectionContext.setNodeConfig(nodeConfig);
             }
-            nodeConfig.put("logCdcQuery", tapConnectionContext.getConnectionConfig().get("logCdcQuery"));
+            DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
+            nodeConfig.put("logCdcQuery", connectionConfig.get("logCdcQuery"));
+            //@todo
+            nodeConfig.put("heartbeat", true);
+            nodeConfig.put("hbDatabase", connectionConfig.get("database"));
+            nodeConfig.put("hbSchema", connectionConfig.get("schema"));
 
-            connectionConfig = new ConnectionConfig(tapConnectionContext);
+            this.connectionConfig = new ConnectionConfig(tapConnectionContext);
             this.nodeConfig = new NodeConfig((TapConnectorContext) tapConnectionContext);
 
             //维护taskId

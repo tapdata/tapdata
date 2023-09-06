@@ -250,7 +250,7 @@
           "title": "${heartbeat}",
           "x-decorator": "FormItem",
           "x-component": "Switch",
-          "default": false,
+          "default": true,
           "x-index": 1,
           "x-decorator-props": {
             "tooltip": "${heartbeat_tip}"
@@ -264,7 +264,7 @@
           "x-component-props": {
             "readOnly": true
           },
-          "default": "CREATE TABLE \"${DataBase}\".\"${Schema}\".\"replicate_io_cdc_heartbeat\"(\"timestamp\" BIGINT NOT NULL, PRIMARY KEY(\"timestamp\"));",
+          "default": "CREATE TABLE \"@database@\".\"@schema@\".\"replicate_io_cdc_heartbeat\"(\"timestamp\" BIGINT NOT NULL, PRIMARY KEY(\"timestamp\"));",
           "x-index": 2,
           "x-reactions": {
             "dependencies": [
@@ -285,7 +285,7 @@
           "title": "${heart_database}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "default": "",
+          "default": "@database@",
           "x-index": 3,
           "x-reactions": {
             "dependencies": [
@@ -306,7 +306,7 @@
           "title": "${heart_schema}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "default": "",
+          "default": "@schema@",
           "x-index": 4,
           "x-reactions": {
             "dependencies": [
