@@ -1,6 +1,7 @@
 package io.tapdata.connector.mysql;
 
 import com.github.shyiko.mysql.binlog.network.ServerException;
+import io.debezium.connector.mysql.utils.GTIDException;
 import io.tapdata.common.exception.AbstractExceptionCollector;
 import io.tapdata.common.exception.ExceptionCollector;
 import io.tapdata.exception.*;
@@ -32,6 +33,9 @@ public class MysqlExceptionCollector extends AbstractExceptionCollector implemen
     @Override
     public void collectOffsetInvalid(Object offset, Throwable cause) {
         if (cause instanceof ServerException && "HY000".equals(((ServerException) cause).getSqlState())) {
+            throw new TapPdkOffsetOutOfLogEx(pdkId, offset, ErrorKit.getLastCause(cause));
+        }
+        if (cause instanceof GTIDException) {
             throw new TapPdkOffsetOutOfLogEx(pdkId, offset, ErrorKit.getLastCause(cause));
         }
     }

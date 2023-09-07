@@ -299,7 +299,6 @@
           "x-index": 190
         },
         "filePathString": {
-          "required": true,
           "type": "string",
           "title": "${filePathString}",
           "x-decorator": "FormItem",

@@ -27,7 +27,7 @@ public abstract class WriteRecorder {
     protected final String schema;
     protected List<String> uniqueCondition;
     protected boolean hasPk = false;
-    protected boolean uniqueConditionIsIndex = false; //Target table may not have a unique index, used in Postgres
+    protected boolean uniqueConditionIsIndex = true; //Target table may not have a unique index, used in Postgres
     protected String version;
     protected String insertPolicy;
     protected String updatePolicy;
@@ -125,7 +125,7 @@ public abstract class WriteRecorder {
     }
 
     //many types of insert data
-    public abstract void addInsertBatch(Map<String, Object> after) throws SQLException;
+    public abstract void addInsertBatch(Map<String, Object> after, WriteListResult<TapRecordEvent> listResult) throws SQLException;
 
     //(most often) update data
     public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {

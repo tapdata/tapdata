@@ -1,8 +1,10 @@
 package io.tapdata.script.factory.py;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import org.python.core.PyException;
 import org.python.jsr223.PyScriptEngineFactory;
 
 import javax.script.Bindings;
@@ -40,37 +42,28 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         this.scriptEngine = initScriptEngine(scriptOptions.getEngineName());
         this.invocable = (Invocable) this.scriptEngine;
     }
-    private ScriptEngine initScriptEngine(String jsEngineName) {
-        TapPythonEngine.EngineType jsEngineEnum = TapPythonEngine.EngineType.getByEngineName(jsEngineName);
+    private ScriptEngine initScriptEngine(String engineName) {
+        TapPythonEngine.EngineType jsEngineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
         ScriptEngine scriptEngine;
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         try {
             Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
-            if (jsEngineEnum == EngineType.Python) {
+            if (EngineType.Python.engineName().equals(engineName)) {
                 //new org.python.jsr223.PyScriptEngine();
-                scriptEngine = new PyScriptEngineFactory().getScriptEngine();
-
-//                        org.python.jsr223.PyScriptEngine
-//                        .create(Engine.newBuilder()
-//                                        .allowExperimentalOptions(true)
-//                                        .option("engine.WarnInterpreterOnly", "false")
-//                                        .build(),
-//                                Context.newBuilder("js")
-//                                        .allowAllAccess(true)
-//                                        .allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
-//                                                .targetTypeMapping(Value.class, Object.class
-//                                                        , v -> v.hasArrayElements() && v.hasMembers()
-//                                                        , v -> v.as(List.class)
-//                                                ).build()
-//                                        )
-//                        );
+                try {
+                    scriptEngine = new PyScriptEngineFactory().getScriptEngine();
+                }catch (PyException e){
+                    scriptEngine = new PyScriptEngineFactory().getScriptEngine();
+                }
                 SimpleScriptContext scriptContext = new SimpleScriptContext();
                 scriptEngine.setContext(scriptContext);
             } else {
                 scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());
             }
         } catch (Exception e) {
-            scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());
+            //TapLogger.debug("Python Eninge", "Can not init python engine, goto init default.");
+            //scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());
+            throw new CoreException("Can not init python engine, error msg: " + e.getMessage());
         } finally {
             Thread.currentThread().setContextClassLoader(classLoader);
         }

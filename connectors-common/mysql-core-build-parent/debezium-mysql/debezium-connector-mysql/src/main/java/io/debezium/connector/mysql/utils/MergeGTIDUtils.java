@@ -90,7 +90,7 @@ public class MergeGTIDUtils {
                 if (null == this.next) {
                     switch (mode) {
                         case OverMaxError:
-                            throw new RuntimeException("Over max: " + this.end);
+                            throw new GTIDException("Over max: " + this.end);
                         case OverMaxIgnore:
                             this.start = begin;
                             break;
@@ -142,7 +142,7 @@ public class MergeGTIDUtils {
                 if (null == this.next) {
                     switch (mode) {
                         case OverMaxError:
-                            throw new RuntimeException("Over max: " + this.end);
+                            throw new GTIDException("Over max: " + this.end);
                         case OverMaxIgnore:
                             break;
                         case OverMaxMerge:

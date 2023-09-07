@@ -132,6 +132,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected Map<String, Long> snapshotRowSizeMap;
 	private ExecutorService snapshotRowSizeThreadPool;
 	private ConnectorOnTaskThreadGroup connectorOnTaskThreadGroup;
+	private ConcurrentHashMap<String, Connections> connectionMap = new ConcurrentHashMap<>();
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -750,8 +751,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					List<Connections> connectionList = ShareCdcUtil.getConnectionIds(getNode(), ids -> {
 						Query connectionQuery = new Query(where("_id").in(ids));
 						connectionQuery.fields().include("config").include("pdkHash");
-						return clientMongoOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-					});
+						List<Connections> connectionsList = clientMongoOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+						for (Connections conn : connectionsList) {
+							connectionMap.put(conn.getId(), conn);
+						}
+						return connectionsList;
+					}, connectionMap);
   					if(CollectionUtils.isNotEmpty(connectionList) && tapEvent instanceof TapBaseEvent){
 						TapdataEvent finalTapdataEvent = tapdataEvent;
 							TapBaseEvent baseEvent = (TapBaseEvent) tapEvent;

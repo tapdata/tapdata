@@ -1,5 +1,6 @@
 package io.tapdata.mongodb.writer;
 
+import com.alibaba.fastjson.JSON;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoBulkWriteException;
 import com.mongodb.bulk.BulkWriteError;
@@ -96,7 +97,9 @@ public class MongodbWriter {
 		BulkWriteModel bulkWriteModel = buildBulkWriteModel(tapRecordEvents, table, inserted, updated, deleted, collection, pks);
 
 		if (bulkWriteModel.isEmpty()) {
-			throw new RuntimeException("Bulk write data failed, write model list is empty, received record size: " + tapRecordEvents.size());
+			throw new RuntimeException("Bulk write data failed, write model list is empty, received record size: " + tapRecordEvents.size()
+					+ " tapRecordEvents:" + JSON.toJSONString(tapRecordEvents) + " TapTable:" + JSON.toJSONString(table)
+					+ " pks: " + JSON.toJSONString(pks));
 		}
 
 		BulkWriteOptions bulkWriteOptions;
@@ -291,6 +294,11 @@ public class MongodbWriter {
 		Document filter = new Document();
 		for (String pk : pks) {
 			if (!record.containsKey(pk)) {
+				// 这个判断是因为存在业务上分片键，mongodb在删除的时候数据只有_id。导致在删除的时候其他键就是空，就会报异常抛出。为了解决这个问题
+				// 所以增加兼容
+				if (pks.contains("_id") && record.containsKey("_id")) {
+					continue;
+				}
 				throw new RuntimeException("Set filter clause failed, unique key \"" + pk + "\" not exists in data: " + record);
 			}
 			filter.append(pk, record.get(pk));

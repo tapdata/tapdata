@@ -36,6 +36,7 @@ import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyObject;
+import org.python.jsr223.PyScriptEngine;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.core.io.ClassPathResource;
 
@@ -578,14 +579,14 @@ public class ScriptUtil {
 		 }
 		 """
 	 * */
-	public static final String DEFAULT_PY_SCRIPT_START = "import json, random, time, datetime, uuid, types;\n" + //", yaml"
-			"import urllib, urllib2;\n" + //", requests"
-			"import math, hashlib, base64;\n" +
+	public static final String DEFAULT_PY_SCRIPT_START = "import json, random, time, datetime, uuid, types\n" + //", yaml"
+			"import urllib, urllib2\n" + //", requests"
+			"import math, hashlib, base64\n" + //# , yaml, requests\n" +
 			"def process(record, context):\n";
 	public static final String DEFAULT_PY_SCRIPT = DEFAULT_PY_SCRIPT_START + "\treturn record;\n";
 
-	public static Invocable getPyEngine(String script, ICacheGetter memoryCacheGetter, Log logger) throws ScriptException {
-		return getPyEngine("python", script, null, null, null, null, memoryCacheGetter, logger);
+	public static Invocable getPyEngine(String script, ICacheGetter memoryCacheGetter, Log logger, ClassLoader loader) throws ScriptException {
+		return getPyEngine("python", script, null, null, null, null, memoryCacheGetter, logger, loader);
 	}
 	public static Invocable getPyEngine(
 			String engineName,
@@ -595,25 +596,26 @@ public class ScriptUtil {
 			ScriptConnection source,
 			ScriptConnection target,
 			ICacheGetter memoryCacheGetter,
-			Log logger) {
+			Log logger,
+			ClassLoader loader) {
 		if (StringUtils.isBlank(script)) {
 			script = DEFAULT_PY_SCRIPT;
 		}
+		//script = script.replace(", yaml, requests", "");
 		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
 		final ClassLoader[] externalClassLoader = new ClassLoader[1];
 		String buildInMethod = "";
 		String globalScript = initPythonBuildInMethod(
 				functions,
 				clientMongoOperator,
+				loader,
 				urlClassLoader -> externalClassLoader[0] = urlClassLoader
 		);
 		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(engineName).classLoader(externalClassLoader[0]));
-
 		String scripts = buildInMethod + System.lineSeparator() + handlePyScript(script);
-
-		e.put("tapUtil", new JsUtil());
-		e.put("tapLog", logger);
 		try {
+			e.put("tapUtil", new JsUtil());
+			e.put("tapLog", logger);
 			e.eval(globalScript);
 			e.eval("tapLog.info('Init python engine...');");
 		}catch (Exception es){
@@ -633,7 +635,11 @@ public class ScriptUtil {
 		return (Invocable) e;
 	}
 
-	public static String initPythonBuildInMethod(List<JavaScriptFunctions> javaScriptFunctions, ClientMongoOperator clientMongoOperator, Consumer<URLClassLoader> consumer) {
+	public static String initPythonBuildInMethod(
+			List<JavaScriptFunctions> javaScriptFunctions,
+			ClientMongoOperator clientMongoOperator,
+			ClassLoader loader,
+			Consumer<URLClassLoader> consumer) {
 		//Expired, will be ignored in the near future
 		//buildInMethod.append("global DateUtil = Java.type(\"com.tapdata.constant.DateUtil\")\n");
 		//buildInMethod.append("global UUIDGenerator = Java.type(\"com.tapdata.constant.UUIDGenerator\")\n");
@@ -706,6 +712,18 @@ public class ScriptUtil {
 		//		}
 		//	}
 		//}
+		URL[] urls = new URL[1];
+		if (null != loader && loader.getResource("").getProtocol().equals("jar")) {
+			//ClassLoader defaultClassLoader = PyScriptEngine.class.getClassLoader();
+			urls[0] = loader.getResource("BOOT-INF/lib/jython-standalone-2.7.2.jar");
+			if (null == urls[0]) {
+				//throw new CoreException("Can not load jython-standalone-2.7.2.jar, fail to init python engine");
+			}
+		}
+		final URLClassLoader urlClassLoader = new URLClassLoader(urls, loader);
+		if (consumer != null) {
+			consumer.accept(urlClassLoader);
+		}
 		return  "import com.tapdata.constant.DateUtil as DateUtil\n" +
 				"import com.tapdata.constant.UUIDGenerator as UUIDGenerator\n" +
 				"import com.tapdata.constant.UUIDGenerator as idGen\n" +

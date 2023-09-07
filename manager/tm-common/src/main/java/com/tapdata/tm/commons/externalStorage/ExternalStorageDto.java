@@ -2,6 +2,7 @@ package com.tapdata.tm.commons.externalStorage;
 
 import com.mongodb.ConnectionString;
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.schema.bean.ResponseBody;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.lang3.StringUtils;
@@ -40,20 +41,26 @@ public class ExternalStorageDto extends BaseDto {
 	private Integer inMemSize;
 	private String maxSizePolicy;
 	private Integer writeDelaySeconds;
+	private String status;
+	/** 测试响应消息 */
+	private ResponseBody response_body;
 
 	public String maskUriPassword() {
 		if (ExternalStorageType.mongodb.name().equals(type) && StringUtils.isNotBlank(uri)) {
-			ConnectionString connectionString = new ConnectionString(uri);
-			char[] passwordChars = connectionString.getPassword();
-			if (null != passwordChars && passwordChars.length > 0) {
-				StringBuilder password = new StringBuilder();
-				for (char passwordChar : passwordChars) {
-					password.append(passwordChar);
+			try {
+				ConnectionString connectionString = new ConnectionString(uri);
+				char[] passwordChars = connectionString.getPassword();
+				if (null != passwordChars && passwordChars.length > 0) {
+					StringBuilder password = new StringBuilder();
+					for (char passwordChar : passwordChars) {
+						password.append(passwordChar);
+					}
+					String username = connectionString.getUsername();
+					if (StringUtils.isNotBlank(username) && StringUtils.isNotBlank(password)) {
+						return uri.replace(username + ":" + password, username + ":" + MASK_PWD);
+					}
 				}
-				String username = connectionString.getUsername();
-				if (StringUtils.isNotBlank(username) && StringUtils.isNotBlank(password)) {
-					return uri.replace(username + ":" + password, username + ":" + MASK_PWD);
-				}
+			} catch (Exception ignored) {
 			}
 		}
 		return uri;

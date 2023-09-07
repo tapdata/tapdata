@@ -49,6 +49,7 @@ import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -60,6 +61,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.MatchOperation;
@@ -84,34 +86,21 @@ import java.util.stream.Stream;
  */
 @Service
 @Slf4j
+@Setter(onMethod_ = {@Autowired})
 public class LogCollectorService {
-    private final TaskService taskService;
-    private final DataSourceService dataSourceService;
-    private final WorkerService workerService;
-    private final SettingsService settingsService;
-    @Autowired
+    private TaskService taskService;
+    private DataSourceService dataSourceService;
+    private WorkerService workerService;
+    private SettingsService settingsService;
     private DataSourceDefinitionService dataSourceDefinitionService;
-    @Autowired
     private MetadataInstancesService metadataInstancesService;
-    @Autowired
     private MonitoringLogsService monitoringLogsService;
-    @Autowired
     private ExternalStorageService externalStorageService;
-    @Autowired
     private ShareCdcTableMetricsService shareCdcTableMetricsService;
-    @Autowired
     private UserService userService;
+    private TaskSaveService taskSaveService;
 
-    public LogCollectorService(TaskService taskService, DataSourceService dataSourceService,
-                               WorkerService workerService, SettingsService settingsService) {
-        this.taskService = taskService;
-        this.dataSourceService = dataSourceService;
-        this.workerService = workerService;
-        this.settingsService = settingsService;
-    }
-
-
-    private List<String> syncTimePoints = Lists.newArrayList("current", "localTZ", "connTZ");;
+    private final List<String> syncTimePoints = Lists.newArrayList("current", "localTZ", "connTZ");;
 
     public Page<LogCollectorVo> find(Filter filter, UserDetail user) {
 
@@ -735,7 +724,7 @@ public class LogCollectorService {
     }
 
     @Nullable
-    private Date getAttrsValues(String sourceId, String targetId, String type, Map<String, Object> attrs) {
+    public static Date getAttrsValues(String sourceId, String targetId, String type, Map<String, Object> attrs) {
         try {
             if (attrs == null) {
                 return null;
@@ -1035,6 +1024,7 @@ public class LogCollectorService {
             taskDto.setDag(build);
             taskDto.setType("cdc");
             taskDto.setSyncType("logCollector");
+            taskSaveService.supplementAlarm(taskDto, user);
             taskDto = taskService.create(taskDto, user);
             taskDto = taskService.confirmById(taskDto, user, true);
 

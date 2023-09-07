@@ -3,6 +3,7 @@ package com.tapdata.tm.inspect.bean;
 
 
 import com.tapdata.tm.commons.schema.Field;
+import io.tapdata.pdk.apis.entity.QueryOperator;
 import lombok.Data;
 
 import java.util.List;
@@ -26,4 +27,6 @@ public class Source {
     private String nodeId;
     private String nodeName;
     private String databaseType;
+    private Boolean isFilter;
+    List<QueryOperator> conditions;
 }

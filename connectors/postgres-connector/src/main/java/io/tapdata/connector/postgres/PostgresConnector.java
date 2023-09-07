@@ -1,7 +1,6 @@
 package io.tapdata.connector.postgres;
 
 import io.tapdata.common.CommonDbConnector;
-import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.postgres.bean.PostgresColumn;
 import io.tapdata.connector.postgres.cdc.PostgresCdcRunner;
@@ -243,8 +242,11 @@ public class PostgresConnector extends CommonDbConnector {
         postgresJdbcContext = new PostgresJdbcContext(postgresConfig);
         commonDbConfig = postgresConfig;
         jdbcContext = postgresJdbcContext;
-        isConnectorStarted(connectionContext, tapConnectorContext -> slotName = tapConnectorContext.getStateMap().get("tapdata_pg_slot"));
-        commonSqlMaker = new CommonSqlMaker();
+        isConnectorStarted(connectionContext, tapConnectorContext -> {
+            slotName = tapConnectorContext.getStateMap().get("tapdata_pg_slot");
+            postgresConfig.load(tapConnectorContext.getNodeConfig());
+        });
+        commonSqlMaker = new PostgresSqlMaker().closeNotNull(postgresConfig.getCloseNotNull());
         postgresVersion = postgresJdbcContext.queryVersion();
         ddlSqlGenerator = new PostgresDDLSqlGenerator();
         tapLogger = connectionContext.getLog();

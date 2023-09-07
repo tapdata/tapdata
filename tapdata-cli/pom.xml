@@ -43,6 +43,16 @@
             <groupId>io.tapdata</groupId>
             <artifactId>script-engine-module</artifactId>
             <version>1.0-SNAPSHOT</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.tapdata</groupId>
+                    <artifactId>jython-standalone</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.tapdata</groupId>
+                    <artifactId>jython</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.apache.maven.shared/maven-invoker -->
         <dependency>
@@ -271,14 +281,39 @@
 <!--                        <argument>-jar</argument>-->
 <!--                        <argument>${basedir}/target/pdk.jar</argument>-->
 <!--                        <argument>py-install</argument>-->
-<!--                        &lt;!&ndash;                            <argument>-s</argument>&ndash;&gt;-->
-<!--                        &lt;!&ndash;                            <argument>${project.basedir}/target/${artifactId}-${version}.jar</argument>&ndash;&gt;-->
 <!--                        <argument>-j</argument>-->
-<!--                        <argument>${graalvm.py.artifactId}-${graalvm.py.version}.jar</argument>-->
+<!--                        <argument>jython-standalone-2.7.2.jar</argument>-->
 <!--                        <argument>-p</argument>-->
-<!--                        <argument>${settings.localRepository}\${graalvm.py.group0}\${graalvm.py.group1}\${graalvm.py.artifactId}\${graalvm.py.version}\</argument>-->
-<!--                        <argument>-g</argument>-->
-<!--                        <argument>${basedir}\\src\\main\\resources\\pip-install\\</argument>-->
+<!--                        <argument>${settings.localRepository}/io/tapdata/jython-standalone/2.7.2/</argument>-->
+<!--                    </arguments>-->
+<!--                    <environmentVariables>-->
+<!--                        <LANG>en_US</LANG>-->
+<!--                    </environmentVariables>-->
+<!--                </configuration>-->
+<!--            </plugin>-->
+<!--            <plugin>-->
+<!--                <groupId>org.codehaus.mojo</groupId>-->
+<!--                <artifactId>exec-maven-plugin</artifactId>-->
+<!--                <version>3.0.0</version>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <phase>install</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>exec</goal>-->
+<!--                        </goals>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--                <configuration>-->
+<!--                    <executable>java</executable>-->
+<!--                    <arguments>-->
+<!--                        &lt;!&ndash; java -jar /usr/local/lib/jython-standalone-2.7.2.jar setup.py install&ndash;&gt;-->
+<!--                        <argument>-jar</argument>-->
+<!--                        <argument>${basedir}/target/pdk.jar</argument>-->
+<!--                        <argument>py-install</argument>-->
+<!--                        <argument>-j</argument>-->
+<!--                        <argument>jython-2.7.2.jar</argument>-->
+<!--                        <argument>-p</argument>-->
+<!--                        <argument>${settings.localRepository}/io/tapdata/jython/2.7.2/</argument>-->
 <!--                    </arguments>-->
 <!--                    <environmentVariables>-->
 <!--                        <LANG>en_US</LANG>-->

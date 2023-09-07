@@ -16,6 +16,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.Application;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -82,7 +83,6 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
         //@todo initPythonBuildInMethod and add python function from mongo db
         //List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
         //        ConnectorConstant.PYTHON_FUNCTION_COLLECTION, JavaScriptFunctions.class);
-
         ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
         this.engine = ScriptUtil.getPyEngine(
                 ScriptFactory.TYPE_PYTHON,
@@ -92,7 +92,8 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                 null,
                 null,
                 scriptCacheService,
-                new ObsScriptLogger(obsLogger, logger));
+                new ObsScriptLogger(obsLogger, logger),
+                Application.class.getClassLoader());
         this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
         this.globalMap = new HashMap<>();
     }

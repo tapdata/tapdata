@@ -5,15 +5,21 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -234,6 +240,28 @@ public class ExternalStorageController extends BaseController {
 		HashMap<String, Long> countValue = new HashMap<>();
 		countValue.put("count", count);
 		return success(countValue);
+	}
+
+	@Operation(summary = "Update instances of the model matched by {{where}} from the data source")
+	@PostMapping("set/update")
+	public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+		Where where = parseWhere(whereJson);
+		UserDetail user = getLoginUser();
+		long count;
+		if (reqBody.indexOf("\"$set\"") > 0) {
+			Document document = JsonUtil.parseJson(reqBody, Document.class);
+			if (document.containsKey("$set")) {
+				Object o = document.get("$set");
+				if (o instanceof Map) {
+					document.put("$set", JsonUtil.map2PojoUseJackson((Map<String, Object>) o, Document.class));
+				}
+				count = externalStorageService.updateByWhere(where, document, user);
+				HashMap<String, Long> countValue = new HashMap<>();
+				countValue.put("count", count);
+				return success(countValue);
+			}
+		}
+		return failed(new BizException(BizException.SYSTEM_ERROR, new IllegalArgumentException("Wrong update body, must start with $set: " + reqBody)));
 	}
 
 	/**

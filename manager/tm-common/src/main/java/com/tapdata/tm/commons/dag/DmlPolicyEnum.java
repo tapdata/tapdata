@@ -10,4 +10,5 @@ public enum DmlPolicyEnum {
 	ignore_on_exists,
 	ignore_on_nonexists,
 	insert_on_nonexists,
+	log_on_nonexists
 }

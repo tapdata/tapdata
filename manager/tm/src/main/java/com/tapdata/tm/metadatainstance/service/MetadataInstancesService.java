@@ -1635,7 +1635,12 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 //                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
 //                    criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
 //                            .and("is_deleted").ne(true);
-                    Query nodeQuery = new Query(Criteria.where("nodeId").is(nodeId).and("is_deleted").ne(true));
+
+                    Criteria criteria = Criteria.where("nodeId").is(nodeId).and("is_deleted").ne(true);
+                    if (StringUtils.isNotBlank(tableFilter)) {
+                        criteria.and("original_name").regex(tableFilter, "i");
+                    }
+                    Query nodeQuery = new Query(criteria);
                     List<MetadataInstancesDto> all = findAll(nodeQuery);
                     Map<String, MetadataInstancesDto> currentMap = all.stream()
                             .collect(Collectors.toMap(MetadataInstancesDto::getOriginalName

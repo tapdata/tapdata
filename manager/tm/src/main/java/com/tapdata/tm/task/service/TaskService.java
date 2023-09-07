@@ -1423,7 +1423,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             where.put("is_deleted", document);
         }
 
-
         Page<TaskDto> taskDtoPage = new Page<>();
         List<TaskDto> items = new ArrayList<>();
         if (where.get("syncType") != null && (where.get("syncType") instanceof String)) {
@@ -1491,6 +1490,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 }
             }
 
+            // Internationalized Shared Mining Warning Messages
+            for (TaskDto item : items) {
+                if (StringUtils.isNotBlank(item.getShareCdcStopMessage())) {
+                    item.setShareCdcStopMessage(MessageUtil.getMessage(item.getShareCdcStopMessage()));
+                }
+            }
 
         }
 
@@ -1713,6 +1718,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                         HttpServletRequest request,
                                         HttpServletResponse response) {
         TaskDto taskDto = new TaskDto();
+        taskDto.setSyncType(TaskDto.SYNC_TYPE_MEM_CACHE);
 
         parseCacheToTaskDto(saveShareCacheParam, taskDto);
         taskDto = confirmById(taskDto, user, true);
@@ -2555,6 +2561,129 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     }
 
+    public List<SampleTaskVo> findByConId(String sourceConnectionId, String targetConnectionId, String syncType, String status, Where where, UserDetail user) {
+
+        Criteria criteria = repository.whereToCriteria(where);
+        criteria.and("is_deleted").ne(true);
+        List<String> conIds = new ArrayList<>();
+        if (StringUtils.isNotBlank(sourceConnectionId)) {
+            conIds.add(sourceConnectionId);
+        }
+
+        if (StringUtils.isNotBlank(targetConnectionId)) {
+            conIds.add(targetConnectionId);
+        }
+
+        if (CollectionUtils.isNotEmpty(conIds)) {
+            criteria.and("dag.nodes.connectionId").in(conIds);
+        }
+
+        if (StringUtils.isNotBlank(syncType)) {
+            criteria.and("syncType").is(syncType);
+        } else {
+            criteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
+        }
+
+        if (StringUtils.isNotBlank(status)) {
+            criteria.and("status").is(status);
+        } else {
+            criteria.and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
+        }
+
+        Query query = new Query(criteria);
+        List<TaskDto> tasks = findAllDto(query, user);
+
+        List<SampleTaskVo> sampleTaskVos = tasks.stream().map(
+                t -> {
+                    List<String> sourceIds = new ArrayList<>();
+                    List<Node> sources = t.getDag().getSources();
+                    if (CollectionUtils.isNotEmpty(sources)) {
+                        for (Node source : sources) {
+                            if (source instanceof DataParentNode ) {
+                                sourceIds.add(((DataParentNode<?>) source).getConnectionId());
+                            }
+                        }
+                    }
+
+                    List<String> tgtIds = new ArrayList<>();
+                    List<Node> targets = t.getDag().getTargets();
+                    if (CollectionUtils.isNotEmpty(targets)) {
+                        for (Node tgt : targets) {
+                            if (tgt instanceof DataParentNode ) {
+                                tgtIds.add(((DataParentNode<?>) tgt).getConnectionId());
+                            }
+                        }
+                    }
+
+                    SampleTaskVo sampleTaskVo = null;
+                    if (StringUtils.isNotBlank(sourceConnectionId)) {
+                        if (sourceIds.contains(sourceConnectionId)) {
+                            sampleTaskVo = new SampleTaskVo();
+                        }
+                    } else {
+                        sampleTaskVo = new SampleTaskVo();
+                    }
+
+                    if (StringUtils.isNotBlank(targetConnectionId)) {
+                        if (tgtIds.contains(targetConnectionId)) {
+                            sampleTaskVo = new SampleTaskVo();
+                        }
+                    } else {
+                        sampleTaskVo = new SampleTaskVo();
+                    }
+
+
+
+                    if (sampleTaskVo != null) {
+                        sampleTaskVo.setId(t.getId().toHexString());
+                        sampleTaskVo.setName(t.getName());
+                        sampleTaskVo.setCreateTime(t.getCreateAt());
+                        sampleTaskVo.setLastUpdated(t.getLastUpdAt());
+                        sampleTaskVo.setStatus(t.getStatus());
+                        sampleTaskVo.setSyncType(t.getSyncType());
+                        sampleTaskVo.setSourceConnectionIds(sourceIds);
+                        sampleTaskVo.setTargetConnectionId(tgtIds);
+                        sampleTaskVo.setCurrentEventTimestamp(t.getCurrentEventTimestamp());
+                        sampleTaskVo.setCreateUser(t.getCreateUser());
+                        sampleTaskVo.setStartTime(t.getStartTime());
+
+                        DAG dag = t.getDag();
+                        Date currentEventTimestamp = new Date();
+                        Long delay = 0L;
+                        if (dag != null) {
+                            LinkedList<Edge> edges = dag.getEdges();
+                            for (Edge edge : edges) {
+                                Date eventTime = LogCollectorService.getAttrsValues(edge.getSource(), edge.getTarget(), "eventTime", t.getAttrs());
+                                Date sourceTime = LogCollectorService.getAttrsValues(edge.getSource(), edge.getTarget(), "sourceTime", t.getAttrs());
+                                if (null != eventTime && null != sourceTime) {
+                                    long delayTime = sourceTime.getTime() - eventTime.getTime();
+                                    delayTime = delayTime > 0 ? delayTime : 0;
+                                    if (delayTime > delay) {
+                                        delay = delayTime;
+                                    }
+                                }
+
+                                if (eventTime != null) {
+                                    if (eventTime.getTime() < currentEventTimestamp.getTime()) {
+                                        currentEventTimestamp = eventTime;
+                                    }
+                                }
+
+                            }
+                        }
+
+                        sampleTaskVo.setDelayTime(delay);
+                        if (sampleTaskVo.getCurrentEventTimestamp() == null) {
+                            sampleTaskVo.setCurrentEventTimestamp(currentEventTimestamp.getTime());
+                        }
+                    }
+                    return sampleTaskVo;
+                }
+        ).filter(Objects::nonNull).collect(Collectors.toList());
+
+        return sampleTaskVos;
+    }
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -2777,6 +2906,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 TaskDto one1 = findOne(new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true)));
                 if (one1 != null) {
                     taskDto.setId(null);
+                    taskDto.getDag().getNodes().forEach(node -> {
+                        if(node instanceof DatabaseNode){
+                            DatabaseNode databaseNode = (DatabaseNode) node;
+                            if(conMap.containsKey(databaseNode.getConnectionId())){
+                                DataSourceConnectionDto dataSourceCon = conMap.get(databaseNode.getConnectionId());
+                                databaseNode.setConnectionId(dataSourceCon.getId().toString());
+                            }
+                        }
+                    });
                 }
             }
 
@@ -4197,11 +4335,28 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return null;
         try {
             TaskEntity entity = new TaskEntity();
-            BeanUtils.copyProperties(dto, entity, "agentId", "startTime", "lastStartDate");
+            BeanUtils.copyProperties(dto, entity, "agentId", "startTime", "lastStartDate", "shareCdcStop", "shareCdcStopMessage");
             return entity;
         } catch (Exception e) {
             log.error("Convert entity " + entityClass + " failed. {}", ThrowableUtils.getStackTraceByPn(e));
         }
         return null;
+    }
+
+    @Override
+    public <T extends BaseDto> T convertToDto(TaskEntity entity, Class<T> dtoClass, String... ignoreProperties) {
+        T dto = super.convertToDto(entity, dtoClass, "shareCdcStopMessage");
+        try {
+            if (dto instanceof TaskDto) {
+                TaskDto taskDto = (TaskDto) dto;
+                if (null != entity.getShareCdcStop() && entity.getShareCdcStop() && StringUtils.isNotBlank(entity.getShareCdcStopMessage())) {
+                    taskDto.setShareCdcStopMessage(MessageUtil.getMessage(entity.getShareCdcStopMessage()));
+                }
+            }
+        } catch (Exception e) {
+            log.error("Convert task entity to dto failed, try to use super method: {}", e.getMessage(), e);
+            return super.convertToDto(entity, dtoClass, ignoreProperties);
+        }
+        return dto;
     }
 }

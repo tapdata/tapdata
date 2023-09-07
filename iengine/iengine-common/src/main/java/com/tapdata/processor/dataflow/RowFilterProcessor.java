@@ -120,7 +120,7 @@ public class RowFilterProcessor implements DataFlowProcessor {
 				MessageEntity messageEntity = batch.get(i);
 				MessageEntity processResult = process(messageEntity);
 				if (processResult == null) {
-					messageEntity.setOp(OperationType.COMMIT_OFFSET.getType());
+					messageEntity.setOp(OperationType.COMMIT_OFFSET.getOp());
 					messageEntity.setAfter(null);
 					messageEntity.setBefore(null);
 				}

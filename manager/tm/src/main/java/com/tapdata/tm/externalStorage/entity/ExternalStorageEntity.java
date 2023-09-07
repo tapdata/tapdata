@@ -1,6 +1,7 @@
 package com.tapdata.tm.externalStorage.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.schema.bean.ResponseBody;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -30,4 +31,7 @@ public class ExternalStorageEntity extends BaseEntity {
 	private String sslPass;
 	private boolean sslValidate;
 	private boolean checkServerIdentity;
+	private String status;
+	/** 测试响应消息 */
+	private ResponseBody response_body;
 }

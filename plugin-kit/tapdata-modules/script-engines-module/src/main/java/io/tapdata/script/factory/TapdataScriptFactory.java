@@ -7,6 +7,7 @@ import io.tapdata.entity.error.TapAPIErrorCodes;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.script.factory.py.TapPythonEngine;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.script.factory.py.TapPythonEngine;
 import io.tapdata.script.factory.script.TapRunScriptEngine;
@@ -93,12 +94,12 @@ public class TapdataScriptFactory implements ScriptFactory {
 
 
 
-        fileToString();
-		try {
-			pythonEngine.eval("from jnius import autoclass");
-		}catch (Exception e){
-			e.printStackTrace();
-		}
+//        fileToString();
+//		try {
+//			pythonEngine.eval("from jnius import autoclass");
+//		}catch (Exception e){
+//			e.printStackTrace();
+//		}
 //		String pipPath = "D:\\GavinData\\deskTop\\Lib";
 //		try {
 //			PythonInterpreter interpreter = new PythonInterpreter();

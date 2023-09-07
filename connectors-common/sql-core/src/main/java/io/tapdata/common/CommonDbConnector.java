@@ -97,6 +97,9 @@ public abstract class CommonDbConnector extends ConnectorBase {
                         tapField.setPos(keyPos.incrementAndGet());
                         tapField.setPrimaryKey(primaryKey.contains(tapField.getName()));
                         tapField.setPrimaryKeyPos(primaryKey.indexOf(tapField.getName()) + 1);
+                        if (tapField.getPrimaryKey()) {
+                            tapField.setNullable(false);
+                        }
                         tapTable.add(tapField);
                     });
             tapTable.setIndexList(tapIndexList);
@@ -391,7 +394,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         return index;
     }
 
-    private List<TapIndex> discoverIndex(String tableName) {
+    protected List<TapIndex> discoverIndex(String tableName) {
         List<TapIndex> tapIndexList = TapSimplify.list();
         List<DataMap> indexList;
         try {
@@ -466,13 +469,13 @@ public abstract class CommonDbConnector extends ConnectorBase {
                     .append(escapeChar).append(')');
         }
         sb.append(')');
-        if (commentInField) {
+        if (commentInField && EmptyKit.isNotBlank(tapTable.getComment())) {
             sb.append(" comment='").append(tapTable.getComment()).append("'");
         }
         return sb.toString();
     }
 
-    private String getCreateIndexSql(TapTable tapTable, TapIndex tapIndex) {
+    protected String getCreateIndexSql(TapTable tapTable, TapIndex tapIndex) {
         StringBuilder sb = new StringBuilder("create ");
         char escapeChar = commonDbConfig.getEscapeChar();
         if (tapIndex.isUnique()) {
@@ -563,6 +566,26 @@ public abstract class CommonDbConnector extends ConnectorBase {
             FilterResults filterResults = new FilterResults();
             while (resultSet.next()) {
                 List<String> allColumn = DbKit.getColumnsFromResultSet(resultSet);
+                filterResults.add(DbKit.getRowFromResultSet(resultSet, allColumn));
+                if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
+                    consumer.accept(filterResults);
+                    filterResults = new FilterResults();
+                }
+            }
+            if (EmptyKit.isNotEmpty(filterResults.getResults())) {
+                consumer.accept(filterResults);
+            }
+        });
+    }
+
+    //for oracle db2 type (with row_number)
+    protected void queryByAdvanceFilterWithOffsetV2(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
+        String sql = commonSqlMaker.buildSelectClause(table, filter) + commonSqlMaker.buildRowNumberPreClause(filter) + getSchemaAndTable(table.getId()) + commonSqlMaker.buildSqlByAdvanceFilterV2(filter);
+        jdbcContext.query(sql, resultSet -> {
+            FilterResults filterResults = new FilterResults();
+            while (resultSet.next()) {
+                List<String> allColumn = DbKit.getColumnsFromResultSet(resultSet);
+                allColumn.remove("ROWNO_");
                 filterResults.add(DbKit.getRowFromResultSet(resultSet, allColumn));
                 if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
                     consumer.accept(filterResults);

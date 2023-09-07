@@ -1,0 +1,65 @@
+[
+  {
+    "update": "Task",
+    "updates": [
+      {
+        "q": {
+          syncType: 'logCollector',
+          $or: [{alarmSettings: null}, {alarmSettings: []}, {alarmSettings: {$exists: false}}]
+        },
+        "u": {
+          "$set": {
+            "alarmSettings": [
+                {
+                  "type": "TASK",
+                  "open": true,
+                  "key": "TASK_STATUS_ERROR",
+                  "sort": 1,
+                  "notify": [
+                    "SYSTEM"
+                  ],
+                  "interval": 300,
+                  "unit": "SECOND"
+                },
+                {
+                  "type": "TASK",
+                  "open": true,
+                  "key": "TASK_FULL_COMPLETE",
+                  "sort": 3,
+                  "notify": [
+                    "SYSTEM"
+                  ],
+                  "interval": 300,
+                  "unit": "SECOND"
+                },
+                {
+                  "type": "TASK",
+                  "open": true,
+                  "key": "TASK_INCREMENT_START",
+                  "sort": 4,
+                  "notify": [
+                    "SYSTEM"
+                  ],
+                  "interval": 300,
+                  "unit": "SECOND"
+                },
+                {
+                  "type": "TASK",
+                  "open": true,
+                  "key": "TASK_INCREMENT_DELAY",
+                  "sort": 6,
+                  "notify": [
+                    "SYSTEM"
+                  ],
+                  "interval": 300,
+                  "unit": "SECOND"
+                }
+              ]
+          }
+        },
+        "upsert": false,
+        "multi": true
+      }
+    ]
+  }
+]
