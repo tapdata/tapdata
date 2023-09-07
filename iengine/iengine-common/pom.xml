@@ -253,11 +253,13 @@
 <!--            <artifactId>jython</artifactId>-->
 <!--        </dependency>-->
         <dependency>
-            <groupId>org.python</groupId>
+            <groupId>io.tapdata</groupId>
+<!--            <groupId>org.python</groupId>-->
             <artifactId>jython-standalone</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.python</groupId>
+            <groupId>io.tapdata</groupId>
+<!--            <groupId>org.python</groupId>-->
             <artifactId>jython</artifactId>
             <version>${graalvm.py.version}</version>
         </dependency>
