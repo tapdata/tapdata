@@ -23,6 +23,8 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.zip.GZIPInputStream;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
@@ -140,7 +142,8 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 		}
 		//instanceof compare to Map#containsKey, for 10_000_000 is 3 milliseconds to 23 milliseconds, instanceof is a lot faster than Map#containsKey.
 		if(obj instanceof Map) {
-			Map<?, ?> map = (Map<?, ?>) obj;
+			Map<?, ?> map = new HashMap<>();
+			map.putAll((Map) obj);
 
 			dos.writeByte(TYPE_MAP);
 			if(fromObjectOptions.isUseActualMapAndList())
@@ -160,7 +163,7 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 			dos.writeByte(END);
 			return;
 		} else if(obj instanceof List) {
-			List<?> list = (List<?>) obj;
+			List<?> list = new ArrayList<>((List<?>) obj);
 			dos.writeByte(TYPE_LIST);
 			if(fromObjectOptions.isUseActualMapAndList())
 				dos.writeUTF(obj.getClass().getName());
