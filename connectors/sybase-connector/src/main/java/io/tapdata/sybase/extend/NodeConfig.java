@@ -3,6 +3,7 @@ package io.tapdata.sybase.extend;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.sybase.cdc.dto.analyse.filter.ReadFilter;
+import io.tapdata.sybase.cdc.dto.analyse.stream.Accepter;
 
 import java.util.Optional;
 
@@ -22,6 +23,8 @@ public class NodeConfig {
     private String hbDatabase;
     private String hbSchema;
 
+    int logCdcQueryBatchSize;
+    int logCdcQueryBatchDelay;//s
     private int logCdcQuery;
 
     public NodeConfig(TapConnectorContext context) {
@@ -48,6 +51,14 @@ public class NodeConfig {
         logCdcQuery = Optional.ofNullable(nodeConfig.getInteger("logCdcQuery")).orElse(ReadFilter.LOG_CDC_QUERY_READ_LOG);
         if (logCdcQuery != ReadFilter.LOG_CDC_QUERY_READ_LOG && logCdcQuery != ReadFilter.LOG_CDC_QUERY_READ_SOURCE) {
             logCdcQuery = ReadFilter.LOG_CDC_QUERY_READ_LOG;
+        }
+        logCdcQueryBatchSize = Optional.ofNullable(nodeConfig.getInteger("logCdcQueryBatchSize")).orElse(Accepter.DEFAULT_BATCH_SIZE);
+        logCdcQueryBatchDelay = Optional.ofNullable(nodeConfig.getInteger("logCdcQueryBatchDelay")).orElse(Accepter.DEFAULT_BATCH_DELAY);
+        if (logCdcQueryBatchSize < 1 || logCdcQueryBatchSize > 2000) {
+            logCdcQueryBatchSize = Accepter.DEFAULT_BATCH_SIZE;
+        }
+        if (logCdcQueryBatchDelay < 1 || logCdcQueryBatchDelay > 100) {
+            logCdcQueryBatchDelay = Accepter.DEFAULT_BATCH_DELAY;
         }
     }
 
@@ -132,5 +143,21 @@ public class NodeConfig {
 
     public void setLogCdcQuery(int logCdcQuery) {
         this.logCdcQuery = logCdcQuery;
+    }
+
+    public int getLogCdcQueryBatchSize() {
+        return logCdcQueryBatchSize;
+    }
+
+    public void setLogCdcQueryBatchSize(int logCdcQueryBatchSize) {
+        this.logCdcQueryBatchSize = logCdcQueryBatchSize;
+    }
+
+    public int getLogCdcQueryBatchDelay() {
+        return logCdcQueryBatchDelay;
+    }
+
+    public void setLogCdcQueryBatchDelay(int logCdcQueryBatchDelay) {
+        this.logCdcQueryBatchDelay = logCdcQueryBatchDelay;
     }
 }

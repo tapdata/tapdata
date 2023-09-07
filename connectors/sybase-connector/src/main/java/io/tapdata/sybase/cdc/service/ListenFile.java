@@ -48,6 +48,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -240,6 +241,16 @@ public class ListenFile implements CdcStep<CdcRoot> {
             root.getContext().getLog().debug("Csv collect process stop fail, msg: {}", e.getMessage());
         } finally {
             futureReadFile = null;
+        }
+        try {
+            Optional.ofNullable(scheduledExecutorServiceCheckFile).ifPresent(ExecutorService::shutdown);
+        } catch (Exception e) {
+            root.getContext().getLog().debug("Csv collect process stop fail, msg: {}", e.getMessage());
+        }
+        try {
+            Optional.ofNullable(scheduledExecutorService).ifPresent(ExecutorService::shutdown);
+        } catch (Exception e) {
+            root.getContext().getLog().debug("Csv collect process stop fail, msg: {}", e.getMessage());
         }
         ErrorKit.ignoreAnyError(() -> Optional.ofNullable(this.accepter).ifPresent(Accepter::close));
     }
@@ -439,8 +450,8 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 options.add(schema);
                 options.add(tableName);
                 AtomicInteger count = new AtomicInteger(0);
-//                final Set<String> blockFields = Optional.ofNullable(blockFieldsMap.get(fullTableName)).orElse(new HashSet<>());
-//                final TapTable tableInfo = tapTableMap.get(fullTableName);
+                //final Set<String> blockFields = Optional.ofNullable(blockFieldsMap.get(fullTableName)).orElse(new HashSet<>());
+                //final TapTable tableInfo = tapTableMap.get(fullTableName);
                 try {
                     analyseCsvFile.analyse(file.getAbsolutePath(), tapTable, (compile, firstIndex, lastIndex) -> {
                         LinkedHashMap<String, TableTypeEntity> tableItem = tapTableAto.get();
@@ -466,14 +477,14 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                 count.addAndGet(1);
                                 if (events[0].size() == batchSize) {
                                     offset.setOver(false);
-                                    accepter.accept(fullTableName, events[0], root.setCsvFileModifyIndexByCsvFileName(
+                                    accepter.accept(fullTableName, events[0], new HashMap<>(root.setCsvFileModifyIndexByCsvFileName(
                                             csvFileName,
                                             CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName),
-                                            lineItem));
-//                                    cdcConsumer.accept(readFilter.readFilter(events[0], tableInfo, blockFields, fullTableName), root.setCsvFileModifyIndexByCsvFileName(
-//                                            csvFileName,
-//                                            CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName),
-//                                            lineItem));
+                                            lineItem)));
+                                    //cdcConsumer.accept(readFilter.readFilter(events[0], tableInfo, blockFields, fullTableName), new HashMap<>(root.setCsvFileModifyIndexByCsvFileName(
+                                    //        csvFileName,
+                                    //        CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName),
+                                    //        lineItem)));
                                     events[0] = new ArrayList<>();
                                 }
                             }
@@ -482,14 +493,14 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 } finally {
                     if (!events[0].isEmpty()) {
                         csvOffset.setOver(true);
-                        accepter.accept(fullTableName, events[0], root.setCsvFileModifyIndexByCsvFileName(
+                        accepter.accept(fullTableName, events[0], new HashMap<>(root.setCsvFileModifyIndexByCsvFileName(
                                 csvFileName,
                                 CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName),
-                                csvOffset.getLine()));
-//                        cdcConsumer.accept(readFilter.readFilter(events[0], tableInfo, blockFields, fullTableName), root.setCsvFileModifyIndexByCsvFileName(
-//                                csvFileName,
-//                                CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName),
-//                                csvOffset.getLine()));
+                                csvOffset.getLine())));
+                        //cdcConsumer.accept(readFilter.readFilter(events[0], tableInfo, blockFields, fullTableName), new HashMap<>(root.setCsvFileModifyIndexByCsvFileName(
+                        //        csvFileName,
+                        //        CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName),
+                        //        csvOffset.getLine())));
                         events[0] = new ArrayList<>();
                     }
                     if (count.get() > 0) {

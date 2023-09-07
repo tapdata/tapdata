@@ -6,6 +6,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.sybase.cdc.CdcRoot;
 import io.tapdata.sybase.cdc.dto.analyse.filter.ReadFilter;
+import io.tapdata.sybase.extend.NodeConfig;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -14,6 +15,8 @@ class TextAccepter implements Accepter {
     ReadFilter readFilter;
     CdcRoot root;
     Log log;
+    int batchSize;
+    int batchDelay;//s
     private StreamReadConsumer cdcConsumer;
     private ConcurrentHashMap<String, EventEntity> monitorFilePathQueues;
     private ScheduledFuture<?> futureCheckFile;
@@ -23,10 +26,23 @@ class TextAccepter implements Accepter {
 
     final Object acceptLock = new Object();
 
-    TextAccepter(Map<String, Set<String>> blockFieldsMap, Map<String, TapTable> tapTableMap) {
+    TextAccepter(CdcRoot root, Map<String, Set<String>> blockFieldsMap, Map<String, TapTable> tapTableMap) {
+        this.root = root;
+        this.log = root.getContext().getLog();
         this.blockFieldsMap = blockFieldsMap;
         this.tapTableMap = tapTableMap;
         monitorFilePathQueues = new ConcurrentHashMap<>();
+        NodeConfig nodeConfig = root.getNodeConfig();
+        if (null != nodeConfig) {
+            batchSize = nodeConfig.getLogCdcQueryBatchSize();
+            batchDelay = nodeConfig.getLogCdcQueryBatchDelay();
+        }
+        if (batchSize < 1 || batchSize > 2000) {
+            batchSize = Accepter.DEFAULT_BATCH_SIZE;
+        }
+        if (batchDelay < 1 || batchDelay > 100) {
+            batchDelay = Accepter.DEFAULT_BATCH_DELAY;
+        }
         this.futureCheckFile = this.scheduledExecutorServiceCheckFile.scheduleWithFixedDelay(() -> {
             synchronized (acceptLock) {
                 try {
@@ -43,7 +59,7 @@ class TextAccepter implements Accepter {
                     root.getThrowableCatch().set(t);
                 }
             }
-        }, 5, 5, TimeUnit.SECONDS);
+        }, 5, this.batchDelay, TimeUnit.SECONDS);
     }
 
     @Override
@@ -53,7 +69,7 @@ class TextAccepter implements Accepter {
             cdcConsumer.accept(events, offset);
             return;
         }
-        if (events.size() == 1000) {
+        if (events.size() == this.batchSize) {
             accept(events, fullTableName, offset, blockFields);
             return;
         }
@@ -63,7 +79,7 @@ class TextAccepter implements Accepter {
                     : monitorFilePathQueues.computeIfAbsent(fullTableName, key -> new EventEntity());
             for (TapEvent event : events) {
                 eventEntity.add(event, offset);
-                if (eventEntity.events.size() == 1000) {
+                if (eventEntity.events.size() == this.batchSize) {
                     accept(eventEntity.events, fullTableName, offset, blockFields);
                     eventEntity.events = new ArrayList<>();
                 }
@@ -90,6 +106,11 @@ class TextAccepter implements Accepter {
         } finally {
             futureCheckFile = null;
         }
+        try {
+            Optional.ofNullable(scheduledExecutorServiceCheckFile).ifPresent(ExecutorService::shutdown);
+        } catch (Exception e) {
+            log.debug("Read Blob fields's values process stop fail, msg: {}", e.getMessage());
+        }
     }
 
     @Override
@@ -99,8 +120,7 @@ class TextAccepter implements Accepter {
 
     @Override
     public void setRoot(CdcRoot root){
-        this.root = root;
-        this.log = root.getContext().getLog();
+
     }
 
     class EventEntity {

@@ -11,9 +11,12 @@ import java.util.Map;
 import java.util.Set;
 
 public interface Accepter {
+    public static final int DEFAULT_BATCH_SIZE = 1000;
+    public static final int DEFAULT_BATCH_DELAY = 5;//s
+
     public static Accepter create(Integer type, StreamReadConsumer cdcConsumer, ReadFilter readFilter, CdcRoot root, Map<String, Set<String>> blockFieldsMap, Map<String, TapTable> tapTableMap) {
         Accepter accepter = null == type || type != ReadFilter.LOG_CDC_QUERY_READ_SOURCE ?
-                new NormalAccepter() : new TextAccepter(blockFieldsMap, tapTableMap);
+                new NormalAccepter() : new TextAccepter(root, blockFieldsMap, tapTableMap);
         accepter.setFilter(readFilter);
         accepter.setRoot(root);
         accepter.setStreamReader(cdcConsumer);

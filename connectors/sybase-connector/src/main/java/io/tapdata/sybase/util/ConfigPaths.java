@@ -6,6 +6,7 @@ package io.tapdata.sybase.util;
  * @create 2023/8/8 15:22
  **/
 public class ConfigPaths {
+    public static final String HEARTBEAT_TABLE_NAME = "replicate_io_cdc_heartbeat";
     public static final String SCHEMA_CONFIG_PATH = "/config/sybase2csv/csv/schemas.yaml";
 
     public static final String SYBASE_SRC_PATH = "/config/sybase2csv/src_sybasease.yaml";

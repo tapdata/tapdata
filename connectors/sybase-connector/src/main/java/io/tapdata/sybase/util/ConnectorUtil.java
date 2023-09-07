@@ -894,7 +894,7 @@ public class ConnectorUtil {
         File traceTraceFile = new File(errorTraceLog);
         if (traceTraceFile.exists()) {
             NormalFileReader normalFileReader = new NormalFileReader();
-            log.info("Failed exec shell, msg: {}", normalFileReader.readString(errorTraceLog, true));
+            log.info("Failed exec cdc shell, error_trace.log info:\n\t {}", normalFileReader.readString(errorTraceLog, true));
         }
     }
 }

@@ -328,11 +328,10 @@
           "default": 1,
           "x-decorator": "FormItem",
           "x-component": "Select",
-          "x-display": "hidden",
           "x-decorator-props": {
             "tooltip": "${log_cdc_query_tip}"
           },
-          "x-index": 9,
+          "x-index": 7,
           "enum": [
             {
               "label": "Read Log",
@@ -344,6 +343,59 @@
             }
           ]
         },
+        "logCdcQueryBatchSize": {
+          "type": "string",
+          "title": "${log_cdc_query_batch_size}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "default": 1000,
+          "x-index": 8,
+          "x-display": "hidden",
+          "required": true,
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.logCdcQuery"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === 1 ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] === 1 ? true : false}}"
+              }
+            }
+          },
+          "x-decorator-props": {
+            "tooltip": "${log_cdc_query_batch_size_tip}"
+          }
+        },
+        "logCdcQueryBatchDelay": {
+          "type": "string",
+          "title": "${log_cdc_query_batch_delay}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "default": 5,
+          "x-index": 9,
+          "x-display": "hidden",
+          "required": true,
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.logCdcQuery"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === 1 ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] === 1 ? true : false}}"
+              }
+            }
+          },
+          "x-decorator-props": {
+            "tooltip": "${log_cdc_query_batch_delay_tip}"
+          }
+        },
+
         "fetchInterval": {
           "type": "string",
           "title": "${fetch_interval}",
@@ -453,7 +505,11 @@
       "heart_database": " The database where the heartbeat table is located ",
       "heart_schema": " The schema where the heartbeat table is located ",
       "log_cdc_query": "Log CDC Query",
-      "log_cdc_query_tip": "Query log by read log or query source"
+      "log_cdc_query_tip": "Query log by read log or query source",
+      "log_cdc_query_batch_size": "Batch size of query source",
+      "log_cdc_query_batch_size_tip": "If the Text type data content in your table has a large memory, please reduce this value. Otherwise, increase this value to obtain better query performance (maximum value 2000, minimum value 1, default value 1000)",
+      "log_cdc_query_batch_delay_tip": "Maximum latency of source database query (seconds)",
+      "log_cdc_query_batch_delay": "Maximum latency of source database query (unit: second, value range 1s-100s, default value 5s)"
     },
     "zh_CN": {
       "host": "地址",
@@ -479,7 +535,11 @@
       "heart_database": "心跳表所在DataBase",
       "heart_schema": "心跳表所在Schema",
       "log_cdc_query": "Log CDC Query",
-      "log_cdc_query_tip": "对象类型数据同步方式有，日志解析或者反查源库"
+      "log_cdc_query_tip": "对象类型数据同步方式有，日志解析或者反查源库",
+      "log_cdc_query_batch_size": "源库查询的批量数",
+      "log_cdc_query_batch_size_tip": "如果您的表中Text类型数据内容内存较大，请调小此值，反之调大此值，以获取更好的查询性能（最大值2000，最小值1，默认值1000）",
+      "log_cdc_query_batch_delay": "源库查询的最大延迟（秒）",
+      "log_cdc_query_batch_delay_tip": "源库查询的最大延迟（单位：秒, 取值范围1s-100s，默认值5s）"
     },
     "zh_TW": {
       "host": "地址",
@@ -505,7 +565,11 @@
       "heart_database": "心跳錶所在Database",
       "heart_schema": "心跳錶所在Schema",
       "log_cdc_query": "Log CDC Query",
-      "log_cdc_query_tip": "对象类型数据同步方式有，日志解析或者反查源库"
+      "log_cdc_query_tip": "对象类型数据同步方式有，日志解析或者反查源库",
+      "log_cdc_query_batch_size": "源庫查詢的批量數",
+      "log_cdc_query_batch_size_tip": "如果您的表中Text類型數據內容內存較大，請調小此值，反之調大此值，以獲取更好的查詢性能（最大值2000，最小值1，默認值1000）",
+      "log_cdc_query_batch_delay": "源庫查詢的最大延遲（秒）",
+      "log_cdc_query_batch_delay_tip": "源庫查詢的最大延遲（單位：秒, 取值範圍1s-100s，默認值5s）"
     }
   },
   "dataTypes": {

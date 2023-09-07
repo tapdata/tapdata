@@ -10,6 +10,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
+import io.tapdata.sybase.util.ConfigPaths;
 import io.tapdata.sybase.util.ConnectorUtil;
 
 import java.sql.*;
@@ -107,6 +108,9 @@ public class SybaseContext extends MysqlJdbcContextV2 {
      * @return List<TableName and Comments>
      */
     public List<DataMap> queryAllTables(List<String> tableNames) throws SQLException {
+        if (null != tableNames && !tableNames.isEmpty() && tableNames.contains(ConfigPaths.HEARTBEAT_TABLE_NAME)) {
+            tableNames.remove(ConfigPaths.HEARTBEAT_TABLE_NAME);
+        }
         List<DataMap> tableList = list();
         CommonDbConfig config = getConfig();
         query(queryAllTablesInfoSql(config.getSchema(), tableNames),
@@ -122,8 +126,10 @@ public class SybaseContext extends MysqlJdbcContextV2 {
     }
 
     protected String queryAllTablesInfoSql(String schema, List<String> tableNames) {
-        String tableSql = EmptyKit.isNotEmpty(tableNames) ? tableNames.size() == 1 ? "AND obj.name = '" + tableNames.get(0) + "'" : "AND obj.name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
-        return String.format(SELECT_TABLE_INFO, tableSql);
+        String tableSql = EmptyKit.isNotEmpty(tableNames) ? tableNames.size() == 1 ?
+                "AND obj.name = '" + tableNames.get(0) + "'" :
+                "AND obj.name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
+        return String.format(SELECT_TABLE_INFO + "AND obj.name != '" + ConfigPaths.HEARTBEAT_TABLE_NAME + "'", tableSql);
     }
 
     /**

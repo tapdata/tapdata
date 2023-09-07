@@ -117,11 +117,11 @@ public class CdcHandle {
             heartbeat.setCatalog(hbDatabase);
             heartbeat.setSchema(hbSchema);
             realtime.setHeartbeat(heartbeat);
-            root.getContext().getLog().info("Heartbeat is open, please ensure heartbeat table exists in {}:{}/{}.{}, create SQL: CREATE TABLE \"{}\".\"{}\".\"replicate_io_cdc_heartbeat\"(\"timestamp\" BIGINT NOT NULL, PRIMARY KEY(\"timestamp\"));",
+            root.getContext().getLog().info("Heartbeat is open, please ensure heartbeat table exists in {}:{}/{}.{}, create SQL: CREATE TABLE \"{}\".\"{}\".\"{}\"(\"timestamp\" BIGINT NOT NULL, PRIMARY KEY(\"timestamp\"));",
                     connectionConfig.getHost(),
                     connectionConfig.getPort(),
                     hbDatabase, hbSchema,
-                    hbDatabase, hbSchema);
+                    hbDatabase, hbSchema, ConfigPaths.HEARTBEAT_TABLE_NAME);
         }
 
         //SybaseLocalStrange sybaseLocalStrange = new SybaseLocalStrange();

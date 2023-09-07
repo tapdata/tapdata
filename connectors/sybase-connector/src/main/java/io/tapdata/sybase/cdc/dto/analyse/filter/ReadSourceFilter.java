@@ -19,6 +19,7 @@ import io.tapdata.sybase.util.ConnectorUtil;
 import io.tapdata.sybase.util.MultiThreadFactory;
 
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -121,8 +122,16 @@ class ReadSourceFilter extends ReadFilter {
             Set<String> queryColumns = new HashSet<>(blockFields);
             queryColumns.addAll(primaryKeys);
             String columns = queryColumns.stream().map(c -> " " + c + " ").collect(Collectors.joining(","));
+
+
+            NodeConfig nodeConfig = root.getNodeConfig();
+            boolean needEncode = nodeConfig.isAutoEncode();
+            String encode = needEncode ? Optional.ofNullable(nodeConfig.getEncode()).orElse("cp850") : null;
+            String decode = needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
+
             List<Object> prepareParams = new ArrayList<>();
             final boolean onlyOnePrimaryKey = primaryKeys.size() == 1;
+
             String whereSql = onlyOnePrimaryKey ?
                     primaryKeyValues.stream().map(kv -> kv.keySet().stream()
                             .map(c -> {
@@ -142,25 +151,9 @@ class ReadSourceFilter extends ReadFilter {
 
             final Set<String> dateTypeSet = ConnectorUtil.dateFields(tapTable);
 
-            NodeConfig nodeConfig = root.getNodeConfig();
-            boolean needEncode = nodeConfig.isAutoEncode();
-            String encode = needEncode ? Optional.ofNullable(nodeConfig.getEncode()).orElse("cp850") : null;
-            String decode = needEncode ? Optional.ofNullable(nodeConfig.getDecode()).orElse("big5") : null;
             //String outCode = needEncode ? Optional.ofNullable(nodeConfig.getOutDecode()).orElse("utf-8") : null;
             try (SybaseContext sybaseContext = new SybaseContext(new SybaseConfig().load(dataMap))) {
-                sybaseContext.prepareQuery(sql, prepareParams, resultSet -> {
-                    ResultSetMetaData metaData = resultSet.getMetaData();
-                    Map<String, String> typeAndNameFromMetaData = new HashMap<>();
-                    int columnCount = metaData.getColumnCount();
-                    for (int index = 1; index < columnCount + 1; index++) {
-                        String type = metaData.getColumnTypeName(index);
-                        if (null == type) continue;
-                        typeAndNameFromMetaData.put(metaData.getColumnName(index), type.toUpperCase(Locale.ROOT));
-                    }
-                    while (root.getIsAlive().test(null) && resultSet.next()) {
-                        queryResult.add(SybaseConnector.filterTimeForMysql0(resultSet, typeAndNameFromMetaData, dateTypeSet, needEncode, encode, decode));
-                    }
-                });
+                queryOnce(sybaseContext, prepareParams, sql, queryResult, dateTypeSet, needEncode, encode, decode);
             } catch (Exception e) {
                 log.error("Query blockFields's value by jdbc connection failed, full table name: {}, error msg: {}, sql: {}, prepare value: {}", fullTableName, e.getMessage(), sql, prepareParams);
                 return events;
@@ -206,5 +199,29 @@ class ReadSourceFilter extends ReadFilter {
             }
         }
         return events;
+    }
+
+
+    private void queryOnce(SybaseContext sybaseContext,
+                           List<Object> prepareParams,
+                           String sql,
+                           List<Map<String, Object>> queryResult,
+                           Set<String> dateTypeSet,
+                           boolean needEncode,
+                           String encode,
+                           String decode) throws SQLException {
+        sybaseContext.prepareQuery(sql, prepareParams, resultSet -> {
+            ResultSetMetaData metaData = resultSet.getMetaData();
+            Map<String, String> typeAndNameFromMetaData = new HashMap<>();
+            int columnCount = metaData.getColumnCount();
+            for (int index = 1; index < columnCount + 1; index++) {
+                String type = metaData.getColumnTypeName(index);
+                if (null == type) continue;
+                typeAndNameFromMetaData.put(metaData.getColumnName(index), type.toUpperCase(Locale.ROOT));
+            }
+            while (root.getIsAlive().test(null) && resultSet.next()) {
+                queryResult.add(SybaseConnector.filterTimeForMysql0(resultSet, typeAndNameFromMetaData, dateTypeSet, needEncode, encode, decode));
+            }
+        });
     }
 }
