@@ -625,9 +625,14 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
         String tableName = metadata.getTable();
         TableId tableId = new TableId(databaseName, null, tableName);
         if (taskContext.getSchema().assignTableNumber(tableNumber, tableId)) {
-            LOGGER.debug("Received update table metadata event: {}", event);
+            if(LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Received update table metadata event: {}", event);
+            }
         }
         else {
+            if(LOGGER.isDebugEnabled()) {
+                LOGGER.debug("update table metadata  event: {},tableName:{}", event,tableName);
+            }
             informAboutUnknownTableIfRequired(event, tableId, "update table metadata");
         }
     }
