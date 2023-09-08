@@ -1,6 +1,8 @@
 package io.tapdata.script.factory.py;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -31,6 +33,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     private final Invocable invocable;
     private final String buildInScript;
     private final ClassLoader classLoader;
+    private final Log logger;
 
     public Invocable invocable() {
         return this.invocable;
@@ -41,6 +44,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         this.buildInScript = "";
         this.scriptEngine = initScriptEngine(scriptOptions.getEngineName());
         this.invocable = (Invocable) this.scriptEngine;
+        this.logger = Optional.ofNullable(scriptOptions.getLog()).orElse(new TapLog());
     }
     private ScriptEngine initScriptEngine(String engineName) {
         TapPythonEngine.EngineType jsEngineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
@@ -67,6 +71,13 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         } finally {
             Thread.currentThread().setContextClassLoader(classLoader);
         }
+        Optional.ofNullable(scriptEngine).ifPresent(s -> {
+            try{
+                s.eval(String.format("import sys\n sys.path.append('%s');", PythonUtils.PYTHON_THREAD_PACKAGE_PATH));
+            } catch (Exception error){
+                logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory: {}, msg: {}", PythonUtils.PYTHON_THREAD_PACKAGE_PATH, error.getMessage());
+            }
+        });
         return scriptEngine;
     }
 

@@ -451,7 +451,7 @@ public class ScriptUtil {
 		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
 		final ClassLoader[] externalClassLoader = new ClassLoader[1];
 		String buildInMethod = initStandardizationBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalClassLoader[0] = urlClassLoader, standard);
-		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(jsEngineName).classLoader(externalClassLoader[0]));
+		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(jsEngineName).classLoader(externalClassLoader[0]).log(logger));
 		String scripts = script + System.lineSeparator() + buildInMethod;
 
 		e.put("tapUtil", new JsUtil());
@@ -614,14 +614,8 @@ public class ScriptUtil {
 				loader,
 				urlClassLoader -> externalClassLoader[0] = urlClassLoader
 		);
-		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(engineName).classLoader(externalClassLoader[0]));
+		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(engineName).classLoader(externalClassLoader[0]).log(logger));
 		String scripts = buildInMethod + System.lineSeparator() + handlePyScript(script);
-
-		try{
-			e.eval(String.format("import sys\n sys.path.append('%s');", PYTHON_THREAD_PACKAGE_PATH));
-		} catch (Exception error){
-			logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory, path: {}, msg: {}", PYTHON_THREAD_PACKAGE_PATH, error.getMessage());
-		}
 		try {
 			e.put("tapUtil", new JsUtil());
 			e.put("tapLog", logger);
