@@ -48,10 +48,6 @@
                     <groupId>io.tapdata</groupId>
                     <artifactId>jython-standalone</artifactId>
                 </exclusion>
-                <exclusion>
-                    <groupId>io.tapdata</groupId>
-                    <artifactId>jython</artifactId>
-                </exclusion>
             </exclusions>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.apache.maven.shared/maven-invoker -->

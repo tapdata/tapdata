@@ -201,14 +201,6 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 			case PYTHON_PROCESS:
 				dataFlowProcessor = new ScriptDataFlowProcessor();
 				stage.setType(Stage.StageTypeEnum.SCRIPT_TYPE.getType());
-
-				PyProcessNode pyProcessorNode = (PyProcessNode) node;
-				stage.setScript(pyProcessorNode.getScript());
-				break;
-			case PYTHON_PROCESS:
-				dataFlowProcessor = new ScriptDataFlowProcessor();
-				stage.setType(Stage.StageTypeEnum.SCRIPT_TYPE.getType());
-
 				PyProcessNode pyProcessorNode = (PyProcessNode) node;
 				stage.setScript(pyProcessorNode.getScript());
 				break;

@@ -36,7 +36,9 @@ import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyObject;
+import org.python.core.PySystemState;
 import org.python.jsr223.PyScriptEngine;
+import org.python.util.PythonInterpreter;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.core.io.ClassPathResource;
 
@@ -579,10 +581,11 @@ public class ScriptUtil {
 		 }
 		 """
 	 * */
-	public static final String DEFAULT_PY_SCRIPT_START = "import json, random, time, datetime, uuid, types\n" + //", yaml"
-			"import urllib, urllib2\n" + //", requests"
+	public static final String DEFAULT_PY_SCRIPT_START = "import json, random, time, datetime, uuid, types, yaml\n" + //", yaml"
+			"import urllib, urllib2, requests\n" + //", requests"
 			"import math, hashlib, base64\n" + //# , yaml, requests\n" +
 			"def process(record, context):\n";
+	public static final String PYTHON_THREAD_PACKAGE_PATH = "py-lib/site-packages";
 	public static final String DEFAULT_PY_SCRIPT = DEFAULT_PY_SCRIPT_START + "\treturn record;\n";
 
 	public static Invocable getPyEngine(String script, ICacheGetter memoryCacheGetter, Log logger, ClassLoader loader) throws ScriptException {
@@ -613,6 +616,12 @@ public class ScriptUtil {
 		);
 		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(engineName).classLoader(externalClassLoader[0]));
 		String scripts = buildInMethod + System.lineSeparator() + handlePyScript(script);
+
+		try{
+			e.eval(String.format("import sys\n sys.path.append('%s');", PYTHON_THREAD_PACKAGE_PATH));
+		} catch (Exception error){
+			logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory, path: {}, msg: {}", PYTHON_THREAD_PACKAGE_PATH, error.getMessage());
+		}
 		try {
 			e.put("tapUtil", new JsUtil());
 			e.put("tapLog", logger);

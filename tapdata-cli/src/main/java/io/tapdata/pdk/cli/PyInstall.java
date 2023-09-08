@@ -17,7 +17,8 @@ public class PyInstall {
             "py-install"
 //            ,"-s","D:\\GavinData\\kitSpace\\tapdata\\plugin-kit\\tapdata-modules\\script-engines-module\\target\\script-engine-module-1.0-SNAPSHOT.jar"
             ,"-j","jython-standalone-2.7.2.jar"
-            ,"-p","C:\\Users\\Gavin'Xiao\\.m2\\repository\\io\\tapdata\\jython-standalone\\2.7.2\\"
+            ,"-p","/Users/xiao/kit/maven/tapdata-daas-py/repo/io/tapdata/jython-standalone/2.7.2/"
+            , "-uz", "/Users/xiao/kit/idea/tapdata-py/py-lib"
 //            ,"-g","D:\\GavinData\\kitSpace\\tapdata\\plugin-kit\\tapdata-modules\\script-engines-module\\src\\main\\resources\\pip-packages\\"
         );
 
