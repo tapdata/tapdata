@@ -2,8 +2,11 @@ package com.tapdata.tm.task.service.impl;
 
 import com.google.common.collect.Lists;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.base.dto.MutiResponseMessage;
+import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
@@ -22,6 +25,7 @@ import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -29,12 +33,14 @@ import com.tapdata.tm.livedataplatform.dto.LiveDataPlatformDto;
 import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
 import com.tapdata.tm.lock.annotation.Lock;
 import com.tapdata.tm.lock.constant.LockType;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
+import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
 import com.tapdata.tm.task.bean.MultiSearchDto;
 import com.tapdata.tm.task.constant.LdpDirEnum;
@@ -42,6 +48,7 @@ import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -60,6 +67,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -106,8 +115,13 @@ public class LdpServiceImpl implements LdpService {
     @Autowired
     private MessageQueueService messageQueueService;
 
+	@Autowired
+	private MonitoringLogsService monitoringLogsService;
 
-    @Autowired
+	@Autowired
+	private ExceptionHandler exceptionHandler;
+
+	@Autowired
     private MeasurementServiceV2 measurementServiceV2;
 
     @Override
@@ -1237,37 +1251,61 @@ public class LdpServiceImpl implements LdpService {
         }
     }
 
-    @Override
-    public void fdmBatchStart(String tagId, List<String> taskIds, UserDetail user) {
-        Map<String, List<TaskDto>> taskMap = queryFdmTaskByTags(Lists.newArrayList(tagId), user);
-        List<TaskDto> taskDtos = taskMap.get(tagId);
-        if (CollectionUtils.isEmpty(taskDtos)) {
-            return;
-        }
+	@Override
+	public List<MutiResponseMessage> fdmBatchStart(String tagId, List<String> taskIds, UserDetail user, HttpServletRequest request,
+												   HttpServletResponse response) {
+		Map<String, List<TaskDto>> taskMap = queryFdmTaskByTags(Lists.newArrayList(tagId), user);
+		List<TaskDto> taskDtos = taskMap.get(tagId);
+		List<MutiResponseMessage> responseMessages = new ArrayList<>();
+		if (CollectionUtils.isEmpty(taskDtos)) {
+			return responseMessages;
+		}
 
-        if (CollectionUtils.isNotEmpty(taskIds)) {
-            taskDtos = taskDtos.stream().filter(t -> taskIds.contains(t.getId().toHexString())).collect(Collectors.toList());
-        }
+		if (CollectionUtils.isNotEmpty(taskIds)) {
+			taskDtos = taskDtos.stream().filter(t -> taskIds.contains(t.getId().toHexString())).collect(Collectors.toList());
+		}
 
-        for (TaskDto taskDto : taskDtos) {
-            switch (taskDto.getStatus()) {
-                case TaskDto.STATUS_COMPLETE:
-                case TaskDto.STATUS_ERROR:
-                case TaskDto.STATUS_RENEW_FAILED:
-                case TaskDto.STATUS_SCHEDULE_FAILED:
-                case TaskDto.STATUS_STOP:
-                case TaskDto.STATUS_WAIT_START:
-                    taskService.start(taskDto, user, "11");
-                    break;
-                case TaskDto.STATUS_RUNNING:
-                    taskService.pause(taskDto, user, false, true);
-                default:
-                    log.info("fdm task status can't do anything, name = {}, status = {}", taskDto.getName(), taskDto.getStatus());
+		for (TaskDto taskDto : taskDtos) {
+			MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
+			mutiResponseMessage.setId(taskDto.getId().toHexString());
+			try {
+				switch (taskDto.getStatus()) {
+					case TaskDto.STATUS_COMPLETE:
+					case TaskDto.STATUS_ERROR:
+					case TaskDto.STATUS_RENEW_FAILED:
+					case TaskDto.STATUS_SCHEDULE_FAILED:
+					case TaskDto.STATUS_STOP:
+					case TaskDto.STATUS_WAIT_START:
+						taskService.start(taskDto, user, "11");
+						break;
+					case TaskDto.STATUS_RUNNING:
+						taskService.pause(taskDto, user, false, true);
+					default:
+						log.info("fdm task status can't do anything, name = {}, status = {}", taskDto.getName(), taskDto.getStatus());
+				}
+			} catch (Exception e) {
+				log.warn("start task exception, task id = {}, e = {}", taskDto.getId(), ThrowableUtils.getStackTraceByPn(e));
+				monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
+				if (e instanceof BizException) {
+					mutiResponseMessage.setCode(((BizException) e).getErrorCode());
+					mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode(), ((BizException) e).getArgs()));
+				} else {
+					try {
+						ResponseMessage<?> responseMessage = exceptionHandler.handlerException(e, request, response);
+						mutiResponseMessage.setCode(responseMessage.getCode());
+						mutiResponseMessage.setMessage(responseMessage.getMessage());
+					} catch (Throwable ex) {
+						log.warn("delete task, handle exception error, task id = {}", taskDto.getId().toHexString());
+					}
+				}
 
-            }
-        }
+			}
+			responseMessages.add(mutiResponseMessage);
+		}
+		return responseMessages;
+	}
 
-    }
+
 
     @Override
     public void deleteMdmTable(String id, UserDetail user) {

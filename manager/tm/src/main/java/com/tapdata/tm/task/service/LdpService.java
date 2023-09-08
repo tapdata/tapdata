@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service;
 
+import com.tapdata.tm.base.dto.MutiResponseMessage;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -7,6 +8,8 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
 import com.tapdata.tm.task.bean.MultiSearchDto;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,7 +40,8 @@ public interface LdpService {
 
     boolean checkFdmTaskStatus(String tagId, UserDetail loginUser);
 
-    void fdmBatchStart(String tagId, List<String> taskIds, UserDetail loginUser);
+    List<MutiResponseMessage> fdmBatchStart(String tagId, List<String> taskIds, UserDetail loginUser, HttpServletRequest request,
+                                            HttpServletResponse response);
 
     void deleteMdmTable(String id, UserDetail loginUser);
 
