@@ -334,7 +334,6 @@ public class MongodbUtil {
 			}
 
 			// if mongodbUri not contains replicaSet, then only connect to primary node
-			try {
 			mongodbUri = getPrimaryUri(mongodbUri);
 			ConnectionPoolSettings.Builder connectionPoolSettingsBuilder = ConnectionPoolSettings.builder()
 					.minSize(10)
@@ -384,9 +383,6 @@ public class MongodbUtil {
 						mongodbConfig.getSslKey(), mongodbConfig.getSslPass(), mongodbConfig.getCheckServerIdentity(), builder);
 			}
 		}
-			}catch (Exception e){
-
-			}
 
 		return MongoClients.create(builder.build());
 	}

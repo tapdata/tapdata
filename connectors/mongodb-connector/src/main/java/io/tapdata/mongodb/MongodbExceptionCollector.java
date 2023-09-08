@@ -24,7 +24,6 @@ public class MongodbExceptionCollector extends AbstractExceptionCollector {
     //write
     public void throwWriteExIfNeed(Object data, Throwable cause){
         this.collectTerminateByServer(cause);
-        this.collectUserPwdInvalid("username",cause);
         this.collectWritePrivileges(cause);
 //        this.collectWriteType(data, cause);
         this.collectWriteLength(data, cause);

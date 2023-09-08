@@ -354,7 +354,7 @@ public class MongodbConnector extends ConnectorBase {
 			}
 		} catch (Throwable throwable) {
 			exceptionCollector.collectTerminateByServer(throwable);
-			exceptionCollector.collectUserPwdInvalid("username",throwable);
+			exceptionCollector.collectUserPwdInvalid(mongoConfig.getUser(),throwable);
 			exceptionCollector.collectReadPrivileges(throwable);
 			exceptionCollector.collectWritePrivileges(throwable);
 			TapLogger.error(TAG, throwable.getMessage());
