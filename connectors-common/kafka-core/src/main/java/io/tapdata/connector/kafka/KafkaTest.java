@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 import static io.tapdata.base.ConnectorBase.testItem;
 
@@ -88,28 +89,41 @@ public class KafkaTest extends CommonDbTest {
             ResourcePatternFilter resourcePatternFilter = new ResourcePatternFilter(ResourceType.TOPIC, user, PatternType.ANY);
             AclBindingFilter ANY = new AclBindingFilter(resourcePatternFilter, AccessControlEntryFilter.ANY);
             DescribeAclsResult describeAclsResult = adminClient.describeAcls(ANY);
-            Collection<AclBinding> aclBindings = describeAclsResult.values().get();
-            if (aclBindings.isEmpty()) {
-                consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
-                return true;
-            }
-            for (AclBinding get : aclBindings) {
-                if ("DENY".equalsIgnoreCase(get.entry().permissionType().toString())) {
-                    if ("WRITE".equalsIgnoreCase(get.entry().operation().toString())) {
-                        WITHOUT_WRITE_PRIVILEGE.add(get.pattern().name());
-                    } else if ("READ".equalsIgnoreCase(get.entry().operation().toString())) {
-                        WITHOUT_READ_PRIVILEGE.add(get.pattern().name());
+            try {
+                Collection<AclBinding> aclBindings = describeAclsResult.values().get();
+                if (aclBindings.isEmpty()) {
+                    consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
+                    return true;
+                }
+                for (AclBinding get : aclBindings) {
+                    if ("DENY".equalsIgnoreCase(get.entry().permissionType().toString())) {
+                        if ("WRITE".equalsIgnoreCase(get.entry().operation().toString())) {
+                            WITHOUT_WRITE_PRIVILEGE.add(get.pattern().name());
+                        } else if ("READ".equalsIgnoreCase(get.entry().operation().toString())) {
+                            WITHOUT_READ_PRIVILEGE.add(get.pattern().name());
+                        }
                     }
                 }
+            } catch (Exception e) {
+                // org.apache.kafka.common.errors.ClusterAuthorizationException: Request Request(processor=2, connectionId=192.168.208.3:9092-192.168.208.1:55768-72, session=Session(User:cdc,/192.168.208.1), listenerName=ListenerName(SASL_PLAINTEXT), securityProtocol=SASL_PLAINTEXT, buffer=null) is not authorized.
+                // 允许用户 "your-username" 执行 DESCRIPT_ACLS 操作，配置如：
+                // acl.allow.describe.acls=user:your-username:DescribeAcls
+                if (null != e.getMessage() && Pattern.matches("^org.apache.kafka.common.errors.ClusterAuthorizationException: Request Request.*is not authorized\\.$", e.getMessage())) {
+                    consumer.accept(testItem("Describe ACLs", TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "Please add permission 'DescribeAcls' to user '" + user + "'"));
+                    return false;
+                }
+                throw e;
+            }
+            if (WITHOUT_WRITE_PRIVILEGE.size() > 0) {
+                consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, JSON.toJSONString(WITHOUT_WRITE_PRIVILEGE)));
+                return false;
             }
         } catch (Exception e) {
+            e.printStackTrace();
             consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, e.getMessage()));
-
-        }
-        if (WITHOUT_WRITE_PRIVILEGE.size() > 0) {
-            consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, JSON.toJSONString(WITHOUT_WRITE_PRIVILEGE)));
             return false;
         }
+
         consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
         return true;
     }
