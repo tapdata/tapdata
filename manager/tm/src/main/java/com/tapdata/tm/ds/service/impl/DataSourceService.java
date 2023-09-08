@@ -474,8 +474,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
         List<DataSourceDefinitionDto> definitionDtoList = dataSourceDefinitionService.getByDataSourceType(databaseTypes, user);
         Map<String, DataSourceDefinitionDto> definitionMap = new HashMap<>();
 		for (DataSourceDefinitionDto definitionDto : definitionDtoList) {
-			definitionMap.put(definitionDto.getPdkHash(), definitionDto);
-			definitionMap.put(definitionDto.getType(), definitionDto);
+			definitionMap.putIfAbsent(definitionDto.getPdkHash(), definitionDto);
+			definitionMap.putIfAbsent(definitionDto.getType(), definitionDto);
 		}
 
         for (DataSourceConnectionDto item : items) {
