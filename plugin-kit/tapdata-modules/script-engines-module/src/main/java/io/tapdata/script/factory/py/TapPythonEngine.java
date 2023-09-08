@@ -73,7 +73,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         }
         Optional.ofNullable(scriptEngine).ifPresent(s -> {
             try{
-                s.eval(String.format("import sys\n sys.path.append('%s');", PythonUtils.PYTHON_THREAD_PACKAGE_PATH));
+                s.eval(String.format("import sys\nsys.path.append('%s');", PythonUtils.PYTHON_THREAD_PACKAGE_PATH));
             } catch (Exception error){
                 logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory: {}, msg: {}", PythonUtils.PYTHON_THREAD_PACKAGE_PATH, error.getMessage());
             }
