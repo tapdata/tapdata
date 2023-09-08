@@ -41,10 +41,10 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     }
 
     public TapPythonEngine(ScriptOptions scriptOptions) {
-        if (!new File("py-lib").exists()) {
-            PythonUtils.execute("jython-standalone-2.7.2.jar", "py-lib");
-        }
         this.logger = Optional.ofNullable(scriptOptions.getLog()).orElse(new TapLog());
+        if (!new File(PythonUtils.getThreadPackagePath()).exists()) {
+            PythonUtils.execute(PythonUtils.PYTHON_THREAD_JAR, PythonUtils.PYTHON_THREAD_PACKAGE_PATH, logger);
+        }
         classLoader = scriptOptions.getClassLoader();
         this.buildInScript = "";
         this.scriptEngine = initScriptEngine(scriptOptions.getEngineName());
@@ -77,7 +77,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         }
         Optional.ofNullable(scriptEngine).ifPresent(s -> {
             try{
-                s.eval(String.format("import sys\nsys.path.append('%s');", PythonUtils.PYTHON_THREAD_PACKAGE_PATH));
+                s.eval(String.format("import sys\nsys.path.append('%s');", PythonUtils.getThreadPackagePath()));
             } catch (Exception error){
                 logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory: {}, msg: {}", PythonUtils.PYTHON_THREAD_PACKAGE_PATH, error.getMessage());
             }
@@ -124,7 +124,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
             try {
                 reader.close();
             } catch (IOException e) {
-                e.printStackTrace();
+                logger.warn(e.getMessage());
             }
         }
     }

@@ -1,6 +1,7 @@
 package io.tapdata.script.factory.py;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -27,11 +28,18 @@ public class PythonUtils {
             "import urllib, urllib2, requests\n" + //", requests"
             "import math, hashlib, base64\n" + //# , yaml, requests\n" +
             "def process(record, context):\n";
-    public static final String PYTHON_THREAD_PACKAGE_PATH = "py-lib/site-packages";
     public static final String DEFAULT_PY_SCRIPT = DEFAULT_PY_SCRIPT_START + "\treturn record;\n";
 
+    public static final String PYTHON_THREAD_PACKAGE_PATH = "py-lib";
+    public static final String PYTHON_THREAD_SITE_PACKAGES_PATH = "site-packages";
+    public static final String PYTHON_THREAD_JAR = "jython-standalone-2.7.2.jar";
+
+    public static String getThreadPackagePath(){
+        return concat(PYTHON_THREAD_PACKAGE_PATH, PYTHON_THREAD_SITE_PACKAGES_PATH);
+    }
+
     public static final String TAG = TapPythonEngine.class.getSimpleName();
-    public static Integer execute(String jarName, String unzipPath) {
+    public static Integer execute(String jarName, String unzipPath, Log log) {
         String pyJarPath = null;
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         if (classLoader instanceof URLClassLoader) {
@@ -45,7 +53,7 @@ public class PythonUtils {
             }
         }
         if (null == pyJarPath) {
-            TapLogger.warn(TAG, "Miss " + jarName + " path");
+            log.warn("Miss {} path", jarName);
             return -1;
         }
         System.out.println(jarName);
@@ -54,7 +62,7 @@ public class PythonUtils {
         final String jarPath = pyJarPath.endsWith(jarName) ? pyJarPath : (pyJarPath + jarName);
         File file = new File(jarPath);
         if (!file.exists() || !file.isFile()){
-            TapLogger.error(TAG, "Miss jython-standalone.jar path: " + jarPath);
+            log.warn("Miss jar path: {}", jarPath);
             return -2;
         }
         final String libPathName = "temp_engine";
@@ -69,7 +77,7 @@ public class PythonUtils {
                     System.out.println("[2]: Unzip " + jarPath + " fail.");
                     return -3;
                 }
-                File libFiles = new File(concat(libPathName, "Lib", "site-packages"));
+                File libFiles = new File(concat(libPathName, "Lib", PYTHON_THREAD_SITE_PACKAGES_PATH));
                 if (!libFiles.exists()) {
                     System.out.println("[3]: Can not fund Lib path: " + libPathName + ", create file now >>>");
                     libFiles.createNewFile();
