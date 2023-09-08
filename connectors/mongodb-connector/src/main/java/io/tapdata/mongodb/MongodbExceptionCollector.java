@@ -95,13 +95,11 @@ public class MongodbExceptionCollector extends AbstractExceptionCollector {
     public void collectWriteLength(Object data, Throwable cause) {
         //gt 16M
         if (cause instanceof MongoException && FromMongoBulkWriteExceptionGetWriteErrors(cause,13134)) {
-            Pattern pattern = Pattern.compile("Data too long for column '(.*)' at row ");//BSONObj size: <size> (0x<number>) is invalid. Size must be between 0 and 16793600(16MB)...
-            Matcher matcher = pattern.matcher(ErrorKit.getLastCause(cause).getMessage());
-            String fieldName = null;
-            if (matcher.find()) {
-                fieldName = matcher.group(1);
+            if (null!=data && data instanceof List){
+                int index = ((MongoBulkWriteException) cause).getWriteErrors().get(0).getIndex();
+                data = ((List<TapRecordEvent>) data).get(index);
             }
-            throw new TapPdkWriteLengthEx(getPdkId(), fieldName, null, data, ErrorKit.getLastCause(cause));
+            throw new TapPdkWriteLengthEx(getPdkId(), null, "BSON", data, ErrorKit.getLastCause(cause));
         }
     }
     public void collectViolateUnique(Object data,Throwable cause) {
@@ -125,19 +123,6 @@ public class MongodbExceptionCollector extends AbstractExceptionCollector {
             throw new TapPdkViolateUniqueEx(getPdkId(), targetFieldName, data, constraintStr, ErrorKit.getLastCause(cause));
         }
     }
-
-    /*public void collectViolateNull(Throwable cause) {
-        if (cause instanceof SQLException && ((SQLException) cause).getErrorCode() == 11000) { //12148
-            String targetFieldName;
-            Pattern pattern = Pattern.compile("Column '(.*)' cannot be null");
-            Matcher matcher = pattern.matcher(ErrorKit.getLastCause(cause).getMessage());
-            String fieldName = null;
-            if (matcher.find()) {
-                fieldName = matcher.group(1);
-            }
-            throw new TapPdkViolateNullableEx(getPdkId(), fieldName, ErrorKit.getLastCause(cause));
-        }
-    }*/
 
     @Override
     public void collectCdcConfigInvalid(Throwable cause) {
