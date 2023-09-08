@@ -115,36 +115,36 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.0.0</version>
-                <executions>
-                    <execution>
-                        <phase>install</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <executable>java</executable>
-                    <arguments>
-                        <argument>-jar</argument>
-                        <argument>../../../tapdata-cli/target/pdk.jar</argument>
-                        <argument>py-install</argument>
-                        <argument>-j</argument>
-                        <argument>jython-standalone-${graalvm.py.version}.jar</argument>
-                        <argument>-p</argument>
-                        <argument>${settings.localRepository}/io/tapdata/jython-standalone/${graalvm.py.version}/</argument>
-                        <argument>-uz</argument>
-                        <argument>../../../py-lib</argument>
-                    </arguments>
-                    <environmentVariables>
-                        <LANG>en_US</LANG>
-                    </environmentVariables>
-                </configuration>
-            </plugin>
+<!--            <plugin>-->
+<!--                <groupId>org.codehaus.mojo</groupId>-->
+<!--                <artifactId>exec-maven-plugin</artifactId>-->
+<!--                <version>3.0.0</version>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <phase>install</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>exec</goal>-->
+<!--                        </goals>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--                <configuration>-->
+<!--                    <executable>java</executable>-->
+<!--                    <arguments>-->
+<!--                        <argument>-jar</argument>-->
+<!--                        <argument>../../../tapdata-cli/target/pdk.jar</argument>-->
+<!--                        <argument>py-install</argument>-->
+<!--                        <argument>-j</argument>-->
+<!--                        <argument>jython-standalone-${graalvm.py.version}.jar</argument>-->
+<!--                        <argument>-p</argument>-->
+<!--                        <argument>${settings.localRepository}/io/tapdata/jython-standalone/${graalvm.py.version}/</argument>-->
+<!--                        <argument>-uz</argument>-->
+<!--                        <argument>../../../py-lib</argument>-->
+<!--                    </arguments>-->
+<!--                    <environmentVariables>-->
+<!--                        <LANG>en_US</LANG>-->
+<!--                    </environmentVariables>-->
+<!--                </configuration>-->
+<!--            </plugin>-->
         </plugins>
     </build>
     <distributionManagement>
