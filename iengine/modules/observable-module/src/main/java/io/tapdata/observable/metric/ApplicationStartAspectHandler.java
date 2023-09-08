@@ -72,7 +72,7 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
                     "for module_name in builtin_modules:\n" +
                     "    all_packages_arr.append(module_name)\n" +
                     "all_packages_str = ', '.join(all_packages_arr)\n" +
-                    "print ('[INFO ] Python engine has loaded, support packages: ' + all_packages_str) ");
+                    "print ('[INFO ] Python engine has loaded, support system packages: ' + all_packages_str) ");
         } catch (ScriptException e) {
             throw new RuntimeException(e);
         }
