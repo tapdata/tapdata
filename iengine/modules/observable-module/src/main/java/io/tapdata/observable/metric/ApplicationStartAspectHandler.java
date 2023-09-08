@@ -1,6 +1,5 @@
 package io.tapdata.observable.metric;
 
-import cn.hutool.core.date.DateUtil;
 import com.sun.management.OperatingSystemMXBean;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
@@ -18,9 +17,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
-import java.io.InputStream;
 import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryUsage;
 import java.util.HashMap;
 
 /**

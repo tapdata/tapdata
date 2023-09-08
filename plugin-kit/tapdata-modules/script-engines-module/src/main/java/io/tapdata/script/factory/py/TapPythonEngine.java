@@ -18,6 +18,7 @@ import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.script.SimpleScriptContext;
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.Optional;
@@ -40,6 +41,9 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     }
 
     public TapPythonEngine(ScriptOptions scriptOptions) {
+        if (!new File("py-lib").exists()) {
+            PythonUtils.execute("jython-standalone-2.7.2.jar", "py-lib");
+        }
         this.logger = Optional.ofNullable(scriptOptions.getLog()).orElse(new TapLog());
         classLoader = scriptOptions.getClassLoader();
         this.buildInScript = "";
