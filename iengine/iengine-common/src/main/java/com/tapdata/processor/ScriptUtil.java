@@ -627,6 +627,15 @@ public class ScriptUtil {
 		evalImportSources(e, "");
 
 		try {
+			e.eval("import sys\n" +
+					"builtin_modules = sys.builtin_module_names\n" +
+					"all_packages_arr = []\n" +
+					"for module_name in builtin_modules:\n" +
+					"    all_packages_arr.append(module_name)\n" +
+					"all_packages_str = ', '.join(all_packages_arr)\n" +
+					"log.info('Python engine has loaded, support packages: {}', all_packages_str) ");
+		}catch (Exception ignore){}
+		try {
 			e.eval(scripts);
 		} catch (Throwable ex) {
 			throw new CoreException(String.format("Incorrect python code, syntax error found: %s, please check your python code", ex.getMessage()));

@@ -59,22 +59,22 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
         final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
         ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
         try {
-            scriptEngine.eval("console.log('graal.js engine loaded');");
+            scriptEngine.eval("console.log('[INFO ] Graal.js engine has loaded');");
         } catch (ScriptException e) {
             throw new RuntimeException(e);
         }
 
         ScriptEngine scriptEnginePy = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(ScriptFactory.TYPE_PYTHON));
         try {
-            scriptEnginePy.eval("print 'python engine loaded'");
+            scriptEnginePy.eval("import sys\n" +
+                    "builtin_modules = sys.builtin_module_names\n" +
+                    "all_packages_arr = []\n" +
+                    "for module_name in builtin_modules:\n" +
+                    "    all_packages_arr.append(module_name)\n" +
+                    "all_packages_str = ', '.join(all_packages_arr)\n" +
+                    "print ('[INFO ] Python engine has loaded, support packages: ' + all_packages_str) ");
         } catch (ScriptException e) {
-            if (!ApplicationStartAspectHandler.class.getResource("").getProtocol().equals("jar")) {
-                // 以 idea 的方式运行
-                ClassLoader defaultClassLoader = ApplicationStartAspectHandler.class.getClassLoader();
-                if (null == defaultClassLoader.getResource("BOOT-INF/lib/jython-standalone-2.7.2.jar")) {
-                    throw new RuntimeException(e);
-                }
-            }
+            throw new RuntimeException(e);
         }
     }
 }
