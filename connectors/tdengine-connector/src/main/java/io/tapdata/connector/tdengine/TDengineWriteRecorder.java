@@ -40,8 +40,8 @@ public class TDengineWriteRecorder extends WriteRecorder {
     //just insert
     private void justInsert(Map<String, Object> after) throws SQLException {
         if (EmptyKit.isNull(preparedStatement)) {
-            String insertSql = "INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
-                    + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") " +
+            String insertSql = "INSERT INTO `" + schema + "`.`" + tapTable.getId() + "` ("
+                    + allColumn.stream().map(k -> "`" + k + "`").collect(Collectors.joining(", ")) + ") " +
                     "VALUES(" + StringKit.copyString("?", allColumn.size(), ",") + ") ";
             preparedStatement = connection.prepareStatement(insertSql);
         }
@@ -67,8 +67,7 @@ public class TDengineWriteRecorder extends WriteRecorder {
         }
         if (EmptyKit.isNull(preparedStatement)) {
             if (EmptyKit.isNotBlank(timestampField)) {
-
-                preparedStatement = connection.prepareStatement(String.format("DELETE FROM %s.%s WHERE %s='%s'",
+                preparedStatement = connection.prepareStatement(String.format("DELETE FROM `%s`.`%s` WHERE `%s`='%s'",
                         schema, tapTable.getId(), timestampField, before.get(timestampField)));
             }
         }

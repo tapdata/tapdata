@@ -275,7 +275,7 @@ public class MongodbUtil {
 
 	// 写一个方法, 接收 mongoUri, 如果参数里没有包含 replicaSet, 返回 mongoUri, 但是里面只有主节点的地址
 	private static String getPrimaryUri(String mongoUri) {
-		if (mongoUri.contains("replicaSet")) {
+		if (mongoUri.contains("replicaSet") || mongoUri.contains("mongodb+srv:")) {
 			return mongoUri;
 		}
 

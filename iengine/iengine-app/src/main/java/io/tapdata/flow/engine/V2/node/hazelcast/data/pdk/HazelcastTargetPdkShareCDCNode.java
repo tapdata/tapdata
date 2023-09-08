@@ -162,7 +162,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				if (null == lastTapEvent) {
 					lastTapEvent = tapEvent;
 				}
-				if (!(lastTapEvent.getClass().isInstance(tapEvent))) {
+				if (lastTapEvent instanceof TapDDLEvent && tapEvent instanceof TapRecordEvent ||
+						lastTapEvent instanceof TapRecordEvent && tapEvent instanceof TapDDLEvent) {
 					handleTapEvents(cacheTapdataEvents);
 				}
 				cacheTapdataEvents.add(tapdataShareLogEvent);
