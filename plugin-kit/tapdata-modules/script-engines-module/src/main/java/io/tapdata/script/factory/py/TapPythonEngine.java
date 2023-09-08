@@ -40,11 +40,11 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     }
 
     public TapPythonEngine(ScriptOptions scriptOptions) {
+        this.logger = Optional.ofNullable(scriptOptions.getLog()).orElse(new TapLog());
         classLoader = scriptOptions.getClassLoader();
         this.buildInScript = "";
         this.scriptEngine = initScriptEngine(scriptOptions.getEngineName());
         this.invocable = (Invocable) this.scriptEngine;
-        this.logger = Optional.ofNullable(scriptOptions.getLog()).orElse(new TapLog());
     }
     private ScriptEngine initScriptEngine(String engineName) {
         TapPythonEngine.EngineType jsEngineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
