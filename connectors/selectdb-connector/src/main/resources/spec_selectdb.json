@@ -82,6 +82,24 @@
           "x-index": 6
         }
       }
+    },
+    "node":{
+      "properties": {
+        "retryCount": {
+          "title": "${retryCount}",
+          "type": "string",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "x-decorator-props": {
+            "tooltip": "${retryCount}"
+          },
+          "x-component-props": {
+            "min": 1,
+            "max": 100000
+          },
+          "default": 30
+        }
+      }
     }
   },
   "messages": {
@@ -93,7 +111,8 @@
       "selectDbHttp": "HTTP Port",
       "database": "Database",
       "user": "Username",
-      "password": "Password"
+      "password": "Password",
+      "retryCount": "Retry Count"
     },
     "zh_CN": {
       "doc": "docs/selectdb_zh_CN.md",
@@ -102,7 +121,8 @@
       "selectDbHttp": "HTTP 协议端口",
       "database": "数据库",
       "user": "账号",
-      "password": "密码"
+      "password": "密码",
+      "retryCount": "重试次数"
     },
     "zh_TW": {
       "doc": "docs/selectdb_zh_TW.md",
@@ -111,7 +131,8 @@
       "selectDbHttp": "HTTP 协议端口",
       "database": "數據庫",
       "user": "賬號",
-      "password": "密碼"
+      "password": "密碼",
+      "retryCount": "重試次數"
     }
   },
   "dataTypes": {
