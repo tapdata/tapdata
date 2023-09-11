@@ -190,13 +190,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			throw e;
 		}
 		dropTable(existsDataProcessEnum, tableId);
-		boolean createUnique = tapTable.getIndexList().stream().anyMatch(idx -> !idx.isPrimary() && idx.isUnique() && (idx.getIndexFields().size() == updateConditionFields.size()) &&
-				(idx.getIndexFields().stream().allMatch(idxField -> updateConditionFields.contains(idxField.getName()))));
+//		boolean createUnique = tapTable.getIndexList() != null && tapTable.getIndexList().stream().anyMatch(idx -> !idx.isPrimary() && idx.isUnique() && (idx.getIndexFields().size() == updateConditionFields.size()) &&
+//				(idx.getIndexFields().stream().allMatch(idxField -> updateConditionFields.contains(idxField.getName()))));
 		AtomicBoolean succeed = new AtomicBoolean(false);
 		boolean createdTable = createTable(tapTable, succeed);
 		clearData(existsDataProcessEnum, tableId);
-		createUnique &= succeed.get();
-		createTargetIndex(updateConditionFields, createUnique, tableId, tapTable, createdTable);
+//		createUnique &= succeed.get();
+		createTargetIndex(updateConditionFields, succeed.get(), tableId, tapTable, createdTable);
 		if (null != funcAspect)
 			funcAspect.state(TableInitFuncAspect.STATE_PROCESS).completed(tableId, createdTable);
 	}
