@@ -1530,6 +1530,10 @@ function connectionTest(connectionConfig) {
         "test": "Read log",
         "code": 1,
         "result": "Pass"
+    },{
+        "test": "Read",
+        "code": 1,
+        "result": "Pass"
     }];
 }
 
