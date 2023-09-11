@@ -134,4 +134,8 @@ public class MessageUtil {
 		stringSub.setVariablePrefix('{');
 		return stringSub.replace(template);
 	}
+	public static String getTypeMsg(Locale locale, String resourceId, Object... params){
+		String msg = getStringOrNull(getResourceBundle(locale, "typeMessage"), resourceId);
+		return getString(locale,resourceId,msg,params);
+	}
 }

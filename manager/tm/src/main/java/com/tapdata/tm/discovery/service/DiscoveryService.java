@@ -4,8 +4,10 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.*;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
+import net.sf.cglib.core.Local;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public interface DiscoveryService {
@@ -28,7 +30,7 @@ public interface DiscoveryService {
      * @param id
      * @return
      */
-    DiscoveryStorageOverviewDto storageOverview(String id, UserDetail user);
+    DiscoveryStorageOverviewDto storageOverview(String id, UserDetail user, Locale locale);
     DiscoveryTaskOverviewDto taskOverview(String id, UserDetail user);
     DiscoveryApiOverviewDto apiOverview(String id, UserDetail user);
 
