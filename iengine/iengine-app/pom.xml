@@ -25,12 +25,12 @@
         <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
     </properties>
     <dependencies>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>tapdata-empty-module</artifactId>
-            <version>1.0-SNAPSHOT</version>
-            <scope>provided</scope>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>io.tapdata</groupId>-->
+<!--            <artifactId>tapdata-empty-module</artifactId>-->
+<!--            <version>1.0-SNAPSHOT</version>-->
+<!--            <scope>provided</scope>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-storage-module</artifactId>
