@@ -71,11 +71,12 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 SimpleScriptContext scriptContext = new SimpleScriptContext();
                 scriptEngine.setContext(scriptContext);
                 try{
-                    scriptEngine.eval(String.format("import sys\nsys.path.append('%s');", PythonUtils.getThreadPackagePath()));
+                    //scriptEngine.eval(String.format("\nimport sys\nsys.path.append('%s')\n", new File(PythonUtils.getThreadPackagePath()).getAbsolutePath()));
+                    scriptEngine.eval(String.format("\nimport sys\nsys.path.append('%s')\n", new File(PythonUtils.getThreadPackagePath()).getAbsolutePath()));
                 } catch (Exception error){
                     logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory: {}, msg: {}", PythonUtils.PYTHON_THREAD_PACKAGE_PATH, error.getMessage());
                 }
-            };
+            }
         } catch (Exception e) {
             //TapLogger.debug("Python Eninge", "Can not init python engine, goto init default.");
             //scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());

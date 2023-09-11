@@ -56,16 +56,6 @@ public class PythonUtils {
                 }
             }
         }
-//        if (null == pyJarPath) {
-//            //ClassPathResource classPathResource = new ClassPathResource();
-//            URL resourceUrl = classLoader.getResource("py-lib/lib.zip");
-//            if (null == resourceUrl) {
-//                log.warn("Miss {} path", jarName);
-//                return null;
-//            }
-//            ato.set(resourceUrl.getFile());
-//            pyJarPath = resourceUrl.openStream();
-//        }
         return pyJarPath;
     }
     /**
@@ -139,14 +129,9 @@ public class PythonUtils {
             System.out.println(unzipPath);
             File f = new File("py-lib");
             if (!f.exists()) f.mkdirs();
-            //final String jarPath = pyJarPath.endsWith(jarName) ? pyJarPath : (pyJarPath + jarName);
             final String zipFileTempPath = "py-lib/lib.zip";
             saveTempZipFile(inputStream, zipFileTempPath);
             File file = new File(zipFileTempPath);
-            //if (!file.exists() || !file.isFile()) {
-            //    log.warn("Miss jar path: {}", jarPath);
-            //    return -2;
-            //}
             final String libPathName = "temp_engine";
             try {
                 try {
@@ -181,12 +166,11 @@ public class PythonUtils {
                 }
             } catch (Throwable throwable) {
                 System.out.println("[x]: can not prepare Lib for site-packages, Please manually extract " + zipFileTempPath + " and place " + zipFileTempPath + "/Lib/ in the " + (pyJarPath.endsWith(jarName) ? pyJarPath.replace(jarName, "") : pyJarPath) + " folder.");
-                throwable.printStackTrace();
-                CommonUtils.logError(TAG, "Class modify failed", throwable);
+                log.warn("Init python resources failed: {}", throwable.getMessage());
                 return -1;
             }
         } catch (IOException e) {
-
+            log.warn(e.getMessage());
         }
         return 0;
     }

@@ -620,7 +620,7 @@ public class ScriptUtil {
 			e.put("tapUtil", new JsUtil());
 			e.put("tapLog", logger);
 			e.eval(globalScript);
-			e.eval("tapLog.info('Init python engine...');");
+			e.eval("tapLog.info('Init python engine...');\n");
 		}catch (Exception es){
 			throw new RuntimeException(String.format("Can not init python engine, %s", es.getMessage()), es);
 		}
@@ -633,7 +633,7 @@ public class ScriptUtil {
 					"for module_name in builtin_modules:\n" +
 					"    all_packages_arr.append(module_name)\n" +
 					"all_packages_str = ', '.join(all_packages_arr)\n" +
-					"tapLog.info('Python engine has loaded, support system packages: {}', all_packages_str) ");
+					"tapLog.info('Python engine has loaded, support system packages: {}', all_packages_str)\n");
 		}catch (Exception ignore){}
 		try {
 			e.eval(scripts);
