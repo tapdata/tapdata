@@ -11,7 +11,6 @@ import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.common.sample.process.GcSampler;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.aspect.annotations.AspectObserverClass;
-import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
@@ -21,10 +20,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
-import org.springframework.util.FileCopyUtils;
 
 import javax.script.ScriptEngine;
-import javax.script.ScriptException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -37,8 +34,6 @@ import java.util.HashMap;
 @AspectObserverClass(ApplicationStartAspect.class)
 public class ApplicationStartAspectHandler implements AspectObserver<ApplicationStartAspect> {
     public static final String TAG = ApplicationStartAspectHandler.class.getSimpleName();
-    @Autowired
-    private ResourceLoader resourceLoader;
 
     @Override
     public void observe(ApplicationStartAspect aspect) {
@@ -95,7 +90,7 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
      * @deprecated
      * */
     public int copyFile() {
-        if (null == resourceLoader) resourceLoader = new DefaultResourceLoader();
+        ResourceLoader resourceLoader = new DefaultResourceLoader();
         final String sourceFolder = "classpath:py-libs";
         final String destinationFolder = "py-lib";
         try {
