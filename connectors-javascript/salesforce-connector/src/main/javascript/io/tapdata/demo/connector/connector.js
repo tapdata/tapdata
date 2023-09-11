@@ -862,6 +862,7 @@ function connectionTest(connectionConfig) {
             }
         ];
         if (exceptionUtil.statusCode(httpCode) === 1) {
+            //if support stream, please push read log and read
             items.push({
                 "test": "Read log",
                 "code": 1,
@@ -873,7 +874,6 @@ function connectionTest(connectionConfig) {
                 "result": "Pass"
             });
         }
-
         return items;
     } catch (e) {
         return [

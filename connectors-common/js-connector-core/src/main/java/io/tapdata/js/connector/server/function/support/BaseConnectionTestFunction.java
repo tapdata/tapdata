@@ -57,7 +57,7 @@ public class BaseConnectionTestFunction extends FunctionBase {
                 invoker = super.javaScripter.invoker(JSFunctionNames.CONNECTION_TEST.jsName(), Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()));
             }
             try {
-                List<Map<String, Object>> testList = (List<Map<String, Object>>) invoker;
+                List<Map<String, Object>> testList = addNeedTestItem((List<Map<String, Object>>) invoker);
                 testList.stream().filter(map -> {
                     if (Objects.isNull(map)) return false;
                     Object titleObj = map.get(TEST_RESULT_TITLE_KEY);
@@ -107,5 +107,10 @@ public class BaseConnectionTestFunction extends FunctionBase {
         } catch (Exception ignore) {
         }
         return codeNum == ERROR_CODE ? TestItem.RESULT_FAILED : (codeNum == SUCCEED_CODE ? TestItem.RESULT_SUCCESSFULLY : TestItem.RESULT_SUCCESSFULLY_WITH_WARN);
+    }
+
+    public List<Map<String, Object>> addNeedTestItem(List<Map<String, Object>> testItems) {
+
+        return testItems;
     }
 }

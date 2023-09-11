@@ -104,6 +104,11 @@ function connectionTest(connectionConfig) {
                 "code": 1,
                 "result": "Pass"
             });
+            result.push({
+                "test": "Read",
+                "code": 1,
+                "result": "Pass"
+            });
         }
         return result;
     }catch (e){

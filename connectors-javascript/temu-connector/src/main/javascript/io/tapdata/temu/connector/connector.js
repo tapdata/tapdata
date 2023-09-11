@@ -15,6 +15,14 @@ function connectionTest(connectionConfig) {
         "test": "Example test item",
         "code": 1,
         "result": "Pass"
+    },{
+        "test": "Read log",
+        "code": 1,
+        "result": "Pass"
+    },{
+        "test": "Read",
+        "code": 1,
+        "result": "Pass"
     }];
 }
 
