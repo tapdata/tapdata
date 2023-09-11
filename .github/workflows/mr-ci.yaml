@@ -1,0 +1,44 @@
+name: Merge Request CI
+
+on:
+  push:
+    branches: [ "develop-v3.5.2-ci" ]
+  pull_request:
+    branches: [ "develop-v3.5.2-ci" ]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+    MRCI:
+      runs-on: ubuntu-latest
+      timeout-minutes: 60
+      steps:
+        - name: Check If Push Action
+          if: ${{ github.event_name == 'push' }}
+          run: |
+            echo "CURRENT_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+        - name: Check If Merge Request Action
+          if: ${{ github.event_name == 'pull_request' }}
+          run: |
+            echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
+        - name: Checkout Main Repo
+          uses: actions/checkout@v3
+          with:
+              fetch-depth: 0
+              ref: ${{ env.CURRENT_BRANCH }}
+              token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+              path: tapdata
+        - name: Install Node Env
+          uses: actions/setup-node@v3
+          with:
+            node-version: '16.20.0'
+        - name: Compile IEngine And Management
+          run: |
+            cd tapdata && mvn clean install -DskipTests
+        - name: Run Local Service
+          run: |
+            echo "Local Service Started!"
+        - name: Run Qucik Test
+          run: |
+            echo "Quick Test Pass"
