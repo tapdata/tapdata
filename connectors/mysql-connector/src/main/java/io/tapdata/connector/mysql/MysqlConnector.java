@@ -397,7 +397,7 @@ public class MysqlConnector extends CommonDbConnector {
                         value = resultSet.getString(i + 1);
                     }
                 }
-                if (value != null) {
+                if (value != null && dateTypeSet.contains(columnName)) {
                     String valueS = value.toString();
                     // 如果是0000开头的时间，或者包含 -00, 就认为是null
                     if (valueS.startsWith("0000") || valueS.contains("-00")) {

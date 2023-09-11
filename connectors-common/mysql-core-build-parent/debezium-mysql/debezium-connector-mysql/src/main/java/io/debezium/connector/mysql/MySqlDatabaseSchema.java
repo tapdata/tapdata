@@ -337,6 +337,9 @@ public class MySqlDatabaseSchema extends HistorizedRelationalDatabaseSchema {
      */
     public boolean assignTableNumber(long tableNumber, TableId id) {
         final TableSchema tableSchema = schemaFor(id);
+        if(LOGGER.isDebugEnabled()) {
+            LOGGER.debug("TableId:{},tableSchema:{}",id.table(),tableSchema);
+        }
         if (tableSchema == null) {
             return false;
         }
