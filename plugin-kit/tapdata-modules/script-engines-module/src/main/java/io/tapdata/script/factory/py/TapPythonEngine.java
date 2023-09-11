@@ -21,6 +21,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 
@@ -30,6 +31,7 @@ import java.util.concurrent.Callable;
  * @create 2023/6/13 15:58
  **/
 public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
+    public static final int ERROR_PY_NODE_CODE = 1000010;
     private final ScriptEngine scriptEngine;
     private final Invocable invocable;
     private final String buildInScript;
@@ -52,37 +54,36 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         this.invocable = (Invocable) this.scriptEngine;
     }
     private ScriptEngine initScriptEngine(String engineName) {
-        TapPythonEngine.EngineType jsEngineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
+        TapPythonEngine.EngineType engineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
         ScriptEngine scriptEngine;
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         try {
             Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
-            if (EngineType.Python.engineName().equals(engineName)) {
-                //new org.python.jsr223.PyScriptEngine();
-                try {
-                    scriptEngine = new PyScriptEngineFactory().getScriptEngine();
-                }catch (PyException e){
-                    scriptEngine = new PyScriptEngineFactory().getScriptEngine();
-                }
+            try {
+                scriptEngine = new PyScriptEngineFactory().getScriptEngine();
+            }catch (PyException e){
+                scriptEngine = new PyScriptEngineFactory().getScriptEngine();
+            }
+            if (null == scriptEngine) {
+                scriptEngine = new ScriptEngineManager().getEngineByName(engineEnum.name);
+            }
+            if (Objects.nonNull(scriptEngine)) {
                 SimpleScriptContext scriptContext = new SimpleScriptContext();
                 scriptEngine.setContext(scriptContext);
-            } else {
-                scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());
-            }
+                try{
+                    scriptEngine.eval(String.format("import sys\nsys.path.append('%s');", PythonUtils.getThreadPackagePath()));
+                } catch (Exception error){
+                    logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory: {}, msg: {}", PythonUtils.PYTHON_THREAD_PACKAGE_PATH, error.getMessage());
+                }
+            };
         } catch (Exception e) {
             //TapLogger.debug("Python Eninge", "Can not init python engine, goto init default.");
             //scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());
-            throw new CoreException("Can not init python engine, error msg: " + e.getMessage());
+            throw new CoreException(ERROR_PY_NODE_CODE, e, "Can not init python engine, error msg: {}", e.getMessage());
         } finally {
             Thread.currentThread().setContextClassLoader(classLoader);
         }
-        Optional.ofNullable(scriptEngine).ifPresent(s -> {
-            try{
-                s.eval(String.format("import sys\nsys.path.append('%s');", PythonUtils.getThreadPackagePath()));
-            } catch (Exception error){
-                logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory: {}, msg: {}", PythonUtils.PYTHON_THREAD_PACKAGE_PATH, error.getMessage());
-            }
-        });
+
         return scriptEngine;
     }
 
@@ -121,7 +122,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     public Object eval(Reader reader) throws ScriptException {
         try {
             return applyClassLoaderContext(() -> this.scriptEngine.eval(reader));
-        }finally {
+        } finally {
             try {
                 reader.close();
             } catch (IOException e) {
@@ -221,12 +222,12 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         }
 
         public static TapPythonEngine.EngineType getByEngineName(String name) {
-            if (null != name && !"".equals(name.trim())) {
-                TapPythonEngine.EngineType[] values = values();
-                for (TapPythonEngine.EngineType value : values) {
-                    if (value.name.equals(name)) return value;
-                }
-            }
+//            if (null != name && !"".equals(name.trim())) {
+//                TapPythonEngine.EngineType[] values = values();
+//                for (TapPythonEngine.EngineType value : values) {
+//                    if (value.name.equals(name)) return value;
+//                }
+//            }
             return Python;
         }
 
