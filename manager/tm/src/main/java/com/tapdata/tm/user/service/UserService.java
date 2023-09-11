@@ -301,7 +301,7 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
      *                                                                                                                                                               {\"guideData\":{\"noShow\":false,\"updateTime\":1632380823831,\"action\":false}}"
      * @return
      */
-    public UserDto updateUserSetting(String id, String settingJson, UserDetail userDetail) {
+    public UserDto updateUserSetting(String id, String settingJson, UserDetail userDetail,Locale locale) {
         JSONObject jsonObject = new JSONObject(settingJson);
         Iterator<String> iterator = jsonObject.keySet().iterator();
         while (iterator.hasNext()) {

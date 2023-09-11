@@ -112,12 +112,12 @@ public class MessageController extends BaseController {
      */
     @Operation(summary = "删除单条通知")
     @DeleteMapping
-    public ResponseMessage delete(@RequestParam("where") String whereJson) {
+    public ResponseMessage delete(@RequestParam("where") String whereJson,HttpServletRequest request) {
         JSONObject jsonObject = JSONUtil.parseObj(whereJson);
         JSONArray jsonArray = jsonObject.getJSONObject("id").getJSONArray("inq");
-
+        Locale locale = WebUtils.getLocale(request);
         List<String> idList = JSONUtil.toList(jsonArray, String.class);
-        Boolean result = messageService.delete(idList, getLoginUser());
+        Boolean result = messageService.delete(idList, getLoginUser(),locale);
         return success(result);
     }
 
@@ -129,8 +129,9 @@ public class MessageController extends BaseController {
      */
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("deleteAll")
-    public ResponseMessage deleteAll() {
-        Boolean result = messageService.deleteByUserId(getLoginUser());
+    public ResponseMessage deleteAll(HttpServletRequest request) {
+        Locale locale = WebUtils.getLocale(request);
+        Boolean result = messageService.deleteByUserId(getLoginUser(),locale);
         return success(result);
     }
 
@@ -141,12 +142,13 @@ public class MessageController extends BaseController {
      */
     @Operation(summary = "将消息置为已读")
     @PatchMapping
-    public ResponseMessage read(@RequestBody MessageDto messageDto) {
+    public ResponseMessage read(@RequestBody MessageDto messageDto,HttpServletRequest request) {
         List<String> ids=new ArrayList<>();
+        Locale locale = WebUtils.getLocale(request);
         if(messageDto.getId() !=null) {
             ids.add(messageDto.getId().toHexString());
         }
-        Boolean result = messageService.read(ids,getLoginUser());
+        Boolean result = messageService.read(ids,getLoginUser(),locale);
         return success(result);
     }
 
@@ -187,8 +189,9 @@ public class MessageController extends BaseController {
             }
 
             List<String> idList = jsonArray != null ? JSONUtil.toList(jsonArray, String.class) : null;
+            Locale locale = WebUtils.getLocale(request);
             if (idList != null && idList.size() > 0) {
-                Boolean result = messageService.read(idList, getLoginUser());
+                Boolean result = messageService.read(idList, getLoginUser(),locale);
             }
         }
         return success();
@@ -202,8 +205,9 @@ public class MessageController extends BaseController {
      */
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("readAll")
-    public ResponseMessage readAll() {
-        Boolean result = messageService.readAll(getLoginUser());
+    public ResponseMessage readAll(HttpServletRequest request) {
+        Locale locale = WebUtils.getLocale(request);
+        Boolean result = messageService.readAll(getLoginUser(),locale);
         return success(result);
     }
 

@@ -772,7 +772,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     }
 
 
-    public Boolean read(List<String> ids, UserDetail userDetail) {
+    public Boolean read(List<String> ids, UserDetail userDetail,Locale locale) {
         Boolean result = false;
         try {
             if (CollectionUtils.isNotEmpty(ids)) {
@@ -788,7 +788,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     }
 
 
-    public Boolean readAll(UserDetail userDetail) {
+    public Boolean readAll(UserDetail userDetail,Locale locale) {
         String userId = userDetail.getUserId();
         Criteria criteria = new Criteria().orOperator(Criteria.where("oldUserId").is(userId), Criteria.where("user_id").is(userId));
         Query query = Query.query(criteria);
@@ -805,7 +805,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
      * @param userDetail
      * @return
      */
-    public Boolean delete(List<String> idList, UserDetail userDetail) {
+    public Boolean delete(List<String> idList, UserDetail userDetail,Locale locale) {
         if (!CollectionUtils.isEmpty(idList)) {
             Query query = Query.query(Criteria.where("id").in(idList));
             Update update = Update.update("isDeleted", true);
@@ -820,7 +820,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
      *
      * @param userDetail
      */
-    public Boolean deleteByUserId(UserDetail userDetail) {
+    public Boolean deleteByUserId(UserDetail userDetail,Locale locale) {
         Update update = Update.update("isDeleted", true);
         Criteria criteria = new Criteria().orOperator(Criteria.where("oldUserId").is(userDetail.getUserId()), Criteria.where("user_id").is(userDetail.getUserId()));
         Query query = new Query(criteria);

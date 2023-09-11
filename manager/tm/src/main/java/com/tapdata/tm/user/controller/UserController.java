@@ -26,6 +26,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.RC4Util;
+import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -44,6 +45,9 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -109,7 +113,10 @@ public class UserController extends BaseController {
     @PatchMapping("{id}")
     public ResponseMessage<UserDto> updateUserInfo(@PathVariable("id") String id,
                                                    @RequestBody String settingJson) {
-        return success(userService.updateUserSetting(id, settingJson, getLoginUser()));
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+        HttpServletRequest request = attributes.getRequest();
+        Locale locale = WebUtils.getLocale(request);
+        return success(userService.updateUserSetting(id, settingJson, getLoginUser(),locale));
     }
 
     /**
