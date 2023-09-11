@@ -131,7 +131,7 @@ public class CommonSqlMaker {
                 builder.append(tapTable.getNameFieldMap().keySet().stream()
                         .filter(tapField -> !filter.getProjection().getExcludeFields().contains(tapField)).collect(Collectors.joining(escapeChar + "," + escapeChar)));
             }
-            builder.append(escapeChar);
+            builder.append(escapeChar).append(",").append(escapeChar).append("ROWNO_").append(escapeChar);
         }
         builder.append(" FROM ");
         return builder.toString();
@@ -196,7 +196,7 @@ public class CommonSqlMaker {
         } else {
             builder.append("ORDER BY 0");
         }
-        builder.append(") AS ROWNO_ FROM ");
+        builder.append(") AS ").append(escapeChar).append("ROWNO_").append(escapeChar).append(" FROM ");
         return builder.toString();
     }
 
@@ -206,7 +206,7 @@ public class CommonSqlMaker {
             builder.append("WHERE ");
         }
         if (EmptyKit.isNotNull(filter.getSkip())) {
-            builder.append("ROWNO_ > ").append(filter.getSkip()).append(' ');
+            builder.append(escapeChar).append("ROWNO_").append(escapeChar).append(" > ").append(filter.getSkip()).append(' ');
         }
         if (EmptyKit.isNotNull(filter.getLimit())) {
             Integer skip = 0;
@@ -214,7 +214,7 @@ public class CommonSqlMaker {
                 builder.append("AND ");
                 skip = filter.getSkip();
             }
-            builder.append("ROWNO_ <= ").append(filter.getLimit() + skip).append(' ');
+            builder.append(escapeChar).append("ROWNO_").append(escapeChar).append(" <= ").append(filter.getLimit() + skip).append(' ');
         }
     }
 
