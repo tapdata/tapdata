@@ -9,10 +9,10 @@
     <packaging>pom</packaging>
     <modules>
         <module>error-code-root</module>
+        <module>tapdata-cli</module>
 		<module>plugin-kit</module>
         <module>file-storages</module>
         <module>manager</module>
-        <module>tapdata-cli</module>
         <module>iengine</module>
         <module>connectors-common</module>
         <module>connectors</module>
