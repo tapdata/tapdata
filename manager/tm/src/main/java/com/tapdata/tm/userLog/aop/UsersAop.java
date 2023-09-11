@@ -4,8 +4,11 @@ import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.utils.MessageUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.aspectj.lang.JoinPoint;
+import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
@@ -15,6 +18,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.Locale;
 
 
 @Aspect
@@ -36,7 +40,7 @@ public class UsersAop {
 
     //设置update方法为后置通知
     @AfterReturning(value = "updateUserSettingPointcut()", returning = "result")
-    public void afterSave(Object result) {
+    public void afterSave(JoinPoint joinPoint,Object result) {
         if (!shouldRecord()) {
             log.info("不是来自用户操作");
             return;
@@ -44,8 +48,10 @@ public class UsersAop {
 
         log.info("执行了 修改通知设置 操作");
         UserDto userDto = (UserDto) result;
+        Object[] args = joinPoint.getArgs();
+        Locale locale=(Locale) args[3];
         if (null != userDto) {
-            userLogService.addUserLog(Modular.USER_NOTIFICATION, Operation.UPDATE, userDto.getId().toString(), userDto.getId().toString(), "通知设置");
+            userLogService.addUserLog(Modular.USER_NOTIFICATION, Operation.UPDATE, userDto.getId().toString(), userDto.getId().toString(), MessageUtil.getLogMsg(locale,"NotificationSettings"));
         }
     }
 

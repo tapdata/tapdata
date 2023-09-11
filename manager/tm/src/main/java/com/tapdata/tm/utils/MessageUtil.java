@@ -111,6 +111,10 @@ public class MessageUtil {
 		String msg = getStringOrNull(getResourceBundle(locale, "alarmTemplate"), resourceId);
 		return getString(locale, resourceId, msg, params);
 	}
+	public static String getLogMsg(Locale locale, String resourceId, Object... params){
+		String msg=getStringOrNull(getResourceBundle(locale,"logMessage"),resourceId);
+		return getString(locale, resourceId, msg, params);
+	}
 	protected static String getStringOrNull(ResourceBundle bundle, String key){
 		try{
 			return bundle.getString(key);

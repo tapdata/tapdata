@@ -5,6 +5,7 @@ import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.utils.MessageUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -17,6 +18,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 拦截任务方法，以便写入操作日志
@@ -66,14 +68,15 @@ public class MessageAop {
         Object ret = null;
         Object[] args = joinPoint.getArgs();
 
-        if (args != null && args.length == 2) {
+        if (args != null && args.length == 3) {
             List<String> ids = (List<String>) args[0];
             UserDetail userDetail = (UserDetail) args[1];
+            Locale local = (Locale) args[2];
 
             ret = joinPoint.proceed(args);
             if (CollectionUtils.isNotEmpty(ids)) {
                 ids.forEach(id -> {
-                    userLogService.addUserLog(Modular.MESSAGE, Operation.READ, userDetail, id, "已读通知");
+                    userLogService.addUserLog(Modular.MESSAGE, Operation.READ, userDetail, id, MessageUtil.getLogMsg(local,"ReadNotifications"));
                 });
             }
         } else {
@@ -94,9 +97,9 @@ public class MessageAop {
         Object[] args = joinPoint.getArgs();
 
         UserDetail userDetail = (UserDetail) args[0];
-
+        Locale locale = (Locale) args[1];
         ret = joinPoint.proceed(args);
-        userLogService.addUserLog(Modular.MESSAGE, Operation.READ_ALL, userDetail.getUserId(), null, "全部通知");
+        userLogService.addUserLog(Modular.MESSAGE, Operation.READ_ALL, userDetail.getUserId(), null, MessageUtil.getLogMsg(locale,"AllNotices"));
         return ret;
     }
 
@@ -114,10 +117,11 @@ public class MessageAop {
         Object[] args = joinPoint.getArgs();
         UserDetail userDetail = (UserDetail) args[1];
         List<String> ids = (List<String>) args[0];
+        Locale locale = (Locale) args[2];
         ret = joinPoint.proceed(args);
         if (CollectionUtils.isNotEmpty(ids)) {
             ids.forEach(id -> {
-                userLogService.addUserLog(Modular.MESSAGE, Operation.DELETE, userDetail, id, "删除通知");
+                userLogService.addUserLog(Modular.MESSAGE, Operation.DELETE, userDetail, id, MessageUtil.getLogMsg(locale,"DeleteNotifications"));
             });
         }
 
@@ -136,8 +140,9 @@ public class MessageAop {
         Object ret = null;
         Object[] args = joinPoint.getArgs();
         UserDetail userDetail = (UserDetail) args[0];
+        Locale locale=(Locale)args[1];
         ret = joinPoint.proceed(args);
-        userLogService.addUserLog(Modular.MESSAGE, Operation.DELETE_ALL, userDetail.getUserId(), null, "全部通知");
+        userLogService.addUserLog(Modular.MESSAGE, Operation.DELETE_ALL, userDetail.getUserId(), null, MessageUtil.getLogMsg(locale,"DeleteNotifications"));
 
         return ret;
     }
