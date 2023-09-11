@@ -4,13 +4,17 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.discovery.bean.*;
 import com.tapdata.tm.discovery.service.DiscoveryService;
+import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 
@@ -36,7 +40,9 @@ public class DisCoveryController extends BaseController {
     @Operation(summary = "find storage object overview")
     @GetMapping("storage/overview/{id}")
     public ResponseMessage<DiscoveryStorageOverviewDto> storageOverview(@PathVariable("id") String id) {
-        return success(discoveryService.storageOverview(id, getLoginUser()));
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+        Locale locale = WebUtils.getLocale(attributes.getRequest());
+        return success(discoveryService.storageOverview(id, getLoginUser(),locale));
     }
 
     @Operation(summary = "find task object overview")

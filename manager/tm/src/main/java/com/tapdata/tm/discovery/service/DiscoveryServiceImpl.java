@@ -35,6 +35,7 @@ import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.task.repository.TaskCollectionObjRepository;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskCollectionObjService;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -682,7 +683,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
      * @return
      */
     @Override
-    public DiscoveryStorageOverviewDto storageOverview(String id, UserDetail user) {
+    public DiscoveryStorageOverviewDto storageOverview(String id, UserDetail user,Locale locale) {
         MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(id));
         DiscoveryStorageOverviewDto dto = new DiscoveryStorageOverviewDto();
         dto.setCreateAt(metadataInstancesDto.getCreateAt());
@@ -742,7 +743,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 discoveryFieldDto.setDataType(field.getDataType());
                 discoveryFieldDto.setPrimaryKey(field.getPrimaryKey());
                 discoveryFieldDto.setForeignKey(field.getForeignKey() != null ? field.getForeignKey() : field.getForeignKeyTable() != null);
-                discoveryFieldDto.setBusinessType(tapTypeString(field.getTapType()));
+                discoveryFieldDto.setBusinessType(tapTypeString(field.getTapType(),locale));
 
                 discoveryFieldDto.setIndex(indexNames.contains(field.getFieldName()));
 
@@ -1757,32 +1758,32 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
     }
 
-    public String tapTypeString(String tapType) {
+    public String tapTypeString(String tapType,Locale locale) {
         Map map = JsonUtil.parseJson(tapType, Map.class);
         byte type = ((Double)map.get("type")).byteValue();
         switch (type) {
             case TapType.TYPE_ARRAY:
-                return "数组";
+                return MessageUtil.getTypeMsg(locale,"ARRAY");
             case TapType.TYPE_BINARY:
-                return "字节数组";
+                return MessageUtil.getTypeMsg(locale,"BINARY");
             case TapType.TYPE_BOOLEAN:
-                return "布尔值";
+                return MessageUtil.getTypeMsg(locale,"BOOLEAN");
             case TapType.TYPE_DATE:
-                return "日期";
+                return MessageUtil.getTypeMsg(locale,"DATE");
             case TapType.TYPE_DATETIME:
-                return "日期时间";
+                return MessageUtil.getTypeMsg(locale,"DATETIME");
             case TapType.TYPE_MAP:
-                return "映射";
+                return MessageUtil.getTypeMsg(locale,"MAP");
             case TapType.TYPE_NUMBER:
-                return "数值";
+                return MessageUtil.getTypeMsg(locale,"NUMBER");
             case TapType.TYPE_STRING:
-                return "字符串";
+                return MessageUtil.getTypeMsg(locale,"STRING");
             case TapType.TYPE_TIME:
-                return "时间";
+                return MessageUtil.getTypeMsg(locale,"TIME");
             case TapType.TYPE_YEAR:
-                return "日期（年）";
+                return MessageUtil.getTypeMsg(locale,"YEAR");
             default:
-                return "未知";
+                return MessageUtil.getTypeMsg(locale,"UNKNOW");
         }
     }
 
