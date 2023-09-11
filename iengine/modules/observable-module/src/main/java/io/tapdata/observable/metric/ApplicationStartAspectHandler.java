@@ -96,7 +96,7 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
      * */
     public int copyFile() {
         if (null == resourceLoader) resourceLoader = new DefaultResourceLoader();
-        final String sourceFolder = "classpath:py-lib";
+        final String sourceFolder = "classpath:py-libs";
         final String destinationFolder = "py-lib";
         try {
             Resource resource = resourceLoader.getResource(sourceFolder);

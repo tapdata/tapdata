@@ -307,36 +307,36 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.0.0</version>
-                <executions>
-                    <execution>
-                        <phase>install</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <executable>java</executable>
-                    <arguments>
-                        <argument>-jar</argument>
-                        <argument>../../tapdata-cli/target/pdk.jar</argument>
-                        <argument>py-install</argument>
-                        <argument>-j</argument>
-                        <argument>${graalvm.py.artifactId}-${graalvm.py.version}.jar</argument>
-                        <argument>-p</argument>
-                        <argument>${settings.localRepository}/io/tapdata/${graalvm.py.artifactId}/${graalvm.py.version}/</argument>
-                        <argument>-uz</argument>
-                        <argument>src/main/resources/py-lib</argument>
-                    </arguments>
-                    <environmentVariables>
-                        <LANG>en_US</LANG>
-                    </environmentVariables>
-                </configuration>
-            </plugin>
+<!--            <plugin>-->
+<!--                <groupId>org.codehaus.mojo</groupId>-->
+<!--                <artifactId>exec-maven-plugin</artifactId>-->
+<!--                <version>3.0.0</version>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <phase>install</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>exec</goal>-->
+<!--                        </goals>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--                <configuration>-->
+<!--                    <executable>java</executable>-->
+<!--                    <arguments>-->
+<!--                        <argument>-jar</argument>-->
+<!--                        <argument>../../tapdata-cli/target/pdk.jar</argument>-->
+<!--                        <argument>py-install</argument>-->
+<!--                        <argument>-j</argument>-->
+<!--                        <argument>${graalvm.py.artifactId}-${graalvm.py.version}.jar</argument>-->
+<!--                        <argument>-p</argument>-->
+<!--                        <argument>${settings.localRepository}/io/tapdata/${graalvm.py.artifactId}/${graalvm.py.version}/</argument>-->
+<!--                        <argument>-uz</argument>-->
+<!--                        <argument>src/main/resources/py-lib</argument>-->
+<!--                    </arguments>-->
+<!--                    <environmentVariables>-->
+<!--                        <LANG>en_US</LANG>-->
+<!--                    </environmentVariables>-->
+<!--                </configuration>-->
+<!--            </plugin>-->
 <!--            <plugin>-->
 <!--                <groupId>org.springframework.boot</groupId>-->
 <!--                <artifactId>spring-boot-maven-plugin</artifactId>-->
@@ -372,7 +372,7 @@
                 <targetPath>./${project.parent.artifactId}/${project.artifactId}/src/main/javascript/</targetPath>
             </resource>
             <resource>
-                <directory>src/main/resources/py-lib</directory>
+                <directory>src/main/resources/py-libs</directory>
                 <includes>
                     <include>**/*.class</include>
                 </includes>
