@@ -1,9 +1,8 @@
 name: Merge Request CI
 
 on:
-  push:
-    branches: [ "develop-v3.5.2-ci" ]
   pull_request:
+    types: ["opened", "reopened"]
     branches: [ "develop-v3.5.2-ci" ]
 
 env:
