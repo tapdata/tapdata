@@ -18,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
@@ -67,6 +68,12 @@ public class MailUtils {
 
     @Autowired
     BlacklistService blacklistService;
+
+    private static List<String> productList;
+    @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
+    private void setProductList(List<String> versionList){
+        productList = versionList;
+    }
 
     /**
      * 发送html形式的邮件
@@ -653,6 +660,12 @@ public class MailUtils {
     }
 
     protected static String assemblyMessageBody(String message) {
+        //is cloud env
+        boolean isCloud = productList != null && productList.contains("dfs");
+        String cloud = "";
+        if(isCloud){
+            cloud = "Cloud";
+        }
         return "<!DOCTYPE html>\n" +
                 "<html>\n" +
                 "<head>\n" +
@@ -665,7 +678,8 @@ public class MailUtils {
                 "</p>\n" +
                 "<br />" +
                 "<br />" +
-                "This mail was sent by Tapdata Cloud. " +
+                "This mail was sent by Tapdata "+
+                cloud+"."+
                 "</body>\n" +
                 "</html>";
     }
