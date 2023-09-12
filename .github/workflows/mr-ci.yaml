@@ -14,31 +14,31 @@ jobs:
       runs-on: gcp-docker
       timeout-minutes: 60
       steps:
-        - name: Check: If Push Action
+        - name: Check - If Push Action
           if: ${{ github.event_name == 'push' }}
           run: |
             echo "CURRENT_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
-        - name: Check: If Merge Request Action
+        - name: Check - If Merge Request Action
           if: ${{ github.event_name == 'pull_request' }}
           run: |
             echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
-        - name: Checkout: Main Repo
+        - name: Fetch Code - Main Repo
           uses: actions/checkout@v3
           with:
               fetch-depth: 0
               ref: ${{ env.CURRENT_BRANCH }}
               token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
               path: tapdata
-        - name: Compile: IEngine And Management
+        - name: Compile - IEngine And Management
           run: |
             cd tapdata && mvn clean install -DskipTests -P idaas -P not_encrypt -U -T1C
-        - name: Run: Local Service
+        - name: Run - Local Service
           run: |
             cp build/start_local_service.sh ./
             bash ./start_local_service.sh
-        - name: Run: Register Test Connector
+        - name: Test - Register Test Connector
           run: |
             echo "OK"
         - name: Test: E2E Qucik Test
           run: |
-            echo "ok"
+            echo "OK"
