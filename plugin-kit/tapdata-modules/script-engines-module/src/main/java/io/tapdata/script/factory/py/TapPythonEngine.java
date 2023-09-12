@@ -59,11 +59,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         try {
             Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
-            try {
-                scriptEngine = new PyScriptEngineFactory().getScriptEngine();
-            }catch (PyException e){
-                scriptEngine = new PyScriptEngineFactory().getScriptEngine();
-            }
+            scriptEngine = new PyScriptEngineFactory().getScriptEngine();
             if (null == scriptEngine) {
                 scriptEngine = new ScriptEngineManager().getEngineByName(engineEnum.name);
             }

@@ -620,9 +620,9 @@ public class ScriptUtil {
 			e.put("tapUtil", new JsUtil());
 			e.put("tapLog", logger);
 			e.eval(globalScript);
-			e.eval("tapLog.info('Init python engine...');\n");
-		}catch (Exception es){
-			throw new RuntimeException(String.format("Can not init python engine, %s", es.getMessage()), es);
+			e.eval("tapLog.info('Init python node...');\n");
+		} catch (Exception es){
+			throw new CoreException("Fail init python node, msg: {}", es.getMessage(), es);
 		}
 		evalImportSources(e, "");
 
