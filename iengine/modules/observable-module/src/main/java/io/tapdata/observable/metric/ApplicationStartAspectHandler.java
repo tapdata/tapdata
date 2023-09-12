@@ -72,7 +72,7 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
         }
 
         try {
-            //copyFile();
+            copyFile();
             ScriptEngine scriptEnginePy = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(ScriptFactory.TYPE_PYTHON));
             scriptEnginePy.eval("import sys\n" +
                     "builtin_modules = sys.builtin_module_names\n" +
@@ -91,9 +91,9 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
      * */
     public int copyFile() {
         ResourceLoader resourceLoader = new DefaultResourceLoader();
-        int count = copyTo(resourceLoader, "classpath:py-libs", "py-lib");
-        count = copyTo(resourceLoader, "classpath:site-packages", "py-lib/site-packages");
-        return count;
+        return copyTo(resourceLoader, "classpath:py-libs", "py-lib");
+        //count = copyTo(resourceLoader, "classpath:site-packages", "py-lib/site-packages");
+        //return count;
     }
     
     private int copyTo(ResourceLoader resourceLoader, String fromPath, String toPath) {
