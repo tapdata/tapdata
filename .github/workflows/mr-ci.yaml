@@ -39,6 +39,6 @@ jobs:
         - name: Test - Register Test Connector
           run: |
             echo "OK"
-        - name: Test: E2E Qucik Test
+        - name: Test - E2E Qucik Test
           run: |
             echo "OK"
