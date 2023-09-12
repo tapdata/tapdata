@@ -1,5 +1,6 @@
 package io.tapdata.script.factory.py;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.script.ScriptOptions;
@@ -81,8 +82,8 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 }
             }
         } catch (Exception e) {
-            logger.error("Can not init python engine, error msg: {}", e.getMessage());
-            //throw new CoreException(ERROR_PY_NODE_CODE, e, "Can not init python engine, error msg: {}", e.getMessage());
+            //logger.error("Can not init python engine, error msg: {}", e.getMessage());
+            throw new CoreException(ERROR_PY_NODE_CODE, e, "Can not init python engine, error msg: {}", e.getMessage());
         } finally {
             Thread.currentThread().setContextClassLoader(classLoader);
         }

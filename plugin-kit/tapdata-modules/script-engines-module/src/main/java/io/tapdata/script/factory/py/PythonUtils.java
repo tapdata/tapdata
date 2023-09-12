@@ -90,19 +90,12 @@ public class PythonUtils {
         return false;
     }
 
-    /**
-     * @deprecated
-     * */
-    private static void cpPythonStandalone(Log logger) {
-        final String pythonStandalone = "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar";
-    }
-
     private static void unzipPythonStandalone(Log logger) {
         final String pythonStandalone = "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar";
-        final String unzipPython = "py-lib/jython";
+//        final String unzipPythonStandalonepPython = "py-lib/jython";
 //        ZipUtils.unzip(pythonStandalone, unzipPython);
         try {
-            copyFile(new File(pythonStandalone), new File("py-lib"));
+            copyFile(new File(pythonStandalone), new File(PythonUtils.PYTHON_THREAD_PACKAGE_PATH));
         } catch (Exception e) {
             logger.warn("Can not copy py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar to py-lib, msg: {}", e.getMessage());
         }
