@@ -42,9 +42,9 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
 
     public TapPythonEngine(ScriptOptions scriptOptions) {
         this.logger = Optional.ofNullable(scriptOptions.getLog()).orElse(new TapLog());
-        File file = new File(PythonUtils.getThreadPackagePath());
-        if (!file.exists() || null == file.list() || file.list().length <= 0) {
-            PythonUtils.execute(PythonUtils.PYTHON_THREAD_JAR, PythonUtils.PYTHON_THREAD_PACKAGE_PATH, logger);
+        File file = PythonUtils.getThreadPackagePath();
+        if (null == file) {
+            PythonUtils.flow(logger);
         }
         classLoader = scriptOptions.getClassLoader();
         this.buildInScript = "";
@@ -69,9 +69,13 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 SimpleScriptContext scriptContext = new SimpleScriptContext();
                 scriptEngine.setContext(scriptContext);
                 try{
-                    String absolutePath = new File(PythonUtils.getThreadPackagePath()).getAbsolutePath();
-                    logger.info(String.format("\nimport sys\nsys.path.append('%s')\n", absolutePath));
-                    scriptEngine.eval(String.format("\nimport sys\nsys.path.append('%s')\n", PythonUtils.getThreadPackagePath()));
+                    File file = PythonUtils.getThreadPackagePath();
+                    if (null != file) {
+                        logger.info(String.format("\nimport sys\nsys.path.append('%s')\n", file.getAbsolutePath()));
+                        scriptEngine.eval(String.format("\nimport sys\nsys.path.append('%s')\n", file.getAbsolutePath()));
+                    } else {
+                        logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory");
+                    }
                 } catch (Exception error){
                     logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory: {}, msg: {}", PythonUtils.PYTHON_THREAD_PACKAGE_PATH, error.getMessage());
                 }

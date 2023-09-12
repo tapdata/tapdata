@@ -1,14 +1,10 @@
 package io.tapdata.script.factory.py;
 
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
-import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
-import org.python.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.python.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -20,6 +16,7 @@ import java.io.RandomAccessFile;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Enumeration;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -34,13 +31,133 @@ public class PythonUtils {
 
     public static final String PYTHON_THREAD_PACKAGE_PATH = "py-lib";
     public static final String PYTHON_THREAD_SITE_PACKAGES_PATH = "site-packages";
-    public static final String PYTHON_THREAD_JAR = "jython-standalone-2.7.2.jar";
+    public static final String PYTHON_THREAD_JAR = "jython-standalone-2.7.3.jar";
 
-    public static String getThreadPackagePath(){
-        return concat(PYTHON_THREAD_PACKAGE_PATH, PYTHON_THREAD_SITE_PACKAGES_PATH);
+    public static File getThreadPackagePath(){
+        File file = new File("py-lib/jython/Lib/site-packages/Lib/site-packages");
+        if (!file.exists() || null == file.list() || file.list().length <= 0) {
+            file = new File("py-lib/Lib/site-packages");
+            if (!file.exists() || null == file.list() || file.list().length <= 0) {
+                return null;
+            }
+        }
+        return file;
+        //return concat(PYTHON_THREAD_PACKAGE_PATH, PYTHON_THREAD_SITE_PACKAGES_PATH);
     }
 
     public static final String TAG = TapPythonEngine.class.getSimpleName();
+    ///usr/local/lib/jython-standalone-2.7.3.jar
+    public static final String cmd = "java -jar %s setup.py install";
+
+
+    public static void flow(Log logger) {
+        //if
+        //unzip tapdata-agent.jar to get jython-standalone-2.7.3.jar
+        //else
+        //unzip ie.jar to get jython-standalone-2.7.3.jar
+        if (!unzipIeJar(logger)){
+           execute(PythonUtils.PYTHON_THREAD_JAR, PythonUtils.PYTHON_THREAD_PACKAGE_PATH, logger);
+           return;
+        }
+
+        //cp jython-standalone-2.7.3.jar to py-lib/
+        cpPythonStandalone(logger);
+
+        //unzip py-lib/jython-standalone-2.7.3.jar
+        unzipPythonStandalone(logger);
+
+        //read packages.txt to get packages list
+        readPackagesTxt(logger);
+
+        //loop packages list and exec cmd java -jar jython-standalone-2.7.3.jar setup.py install
+        loopPackagesList(logger, "py-lib/jython/Lib/site-packages", "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar");
+    }
+
+    private static boolean unzipIeJar(Log logger) {
+        final String tapdataAgentPath = "components/tapdata-agent.jar";
+        final String unzipTapdataAgentPath = "py-lib/agent";
+        if (new File(tapdataAgentPath).exists()) {
+            ZipUtils.unzip(tapdataAgentPath, unzipTapdataAgentPath);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * @deprecated
+     * */
+    private static void cpPythonStandalone(Log logger) {
+        final String pythonStandalone = "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar";
+    }
+
+    private static void unzipPythonStandalone(Log logger) {
+        final String pythonStandalone = "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar";
+        final String unzipPython = "py-lib/jython";
+        ZipUtils.unzip(pythonStandalone, unzipPython);
+    }
+
+    /**
+     * @deprecated
+     * */
+    private static void readPackagesTxt(Log logger){
+        final String packagesTxt = "py-lib/jython/Lib/version.txt";
+    }
+
+    private static void loopPackagesList(Log logger, final String loopPath, final String pythonJarPath){
+//        final String loopPath = "py-lib/jython/Lib/site-packages";
+//        final String pythonJarPath = "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar";
+        File loopFile = new File(loopPath);
+
+        File[] files = loopFile.listFiles();
+        if (null == files || files.length <= 0) return;
+        for (File file : files) {
+            String name = file.getName();
+            File afterUnzipFile = null;
+            if (file.exists() && file.isDirectory()) {
+                afterUnzipFile = file;
+            } else if (name.endsWith(".zip")){
+                ZipUtils.unzip(file.getAbsolutePath(), file.getParentFile().getAbsolutePath());
+                String afterZipFileName = name.substring(0, name.lastIndexOf(".zip"));
+                afterUnzipFile = new File(file.getParentFile().getAbsolutePath() + File.separator + afterZipFileName);
+            } else if (name.endsWith(".tar.gz")){
+                ZipUtils.unzip(file.getAbsolutePath(), file.getParentFile().getAbsolutePath());
+                String afterZipFileName = name.substring(0, name.lastIndexOf(".tar.gz"));
+                afterUnzipFile = new File(file.getParentFile().getAbsolutePath() + File.separator + afterZipFileName);
+            } else if (name.endsWith(".gz")){
+                ZipUtils.unzip(file.getAbsolutePath(), file.getParentFile().getAbsolutePath());
+                String afterZipFileName = name.substring(0, name.lastIndexOf(".gz"));
+                afterUnzipFile = new File(file.getParentFile().getAbsolutePath() + File.separator + afterZipFileName);
+            } else if (name.endsWith(".jar")) {
+                ZipUtils.unzip(file.getAbsolutePath(), file.getParentFile().getAbsolutePath());
+                String afterZipFileName = name.substring(0, name.lastIndexOf(".jar"));
+                afterUnzipFile = new File(file.getParentFile().getAbsolutePath() + File.separator + afterZipFileName);
+            }
+            File[] fs = null == afterUnzipFile ? null : afterUnzipFile.listFiles();
+            if (null != fs && fs.length > 0) {
+                for (File f : fs) {
+                    if (f.exists() && f.isFile() && f.getName().contains("setup.py")) {
+                        try {
+                            logger.info("{}'s resource package is being generated, please wait.", afterUnzipFile.getName());
+                            ProcessBuilder command = new ProcessBuilder().command(
+                                    "/bin/sh",
+                                    "-c",
+                                    String.format("cd %s; ", f.getParentFile().getAbsolutePath()) +
+                                            String.format("java -jar %s %s install", new File(pythonJarPath).getAbsolutePath(), "setup.py"));
+                            Process start = command.start();
+                            start.waitFor();
+                            logger.info("{}'s resource package is being generated", afterUnzipFile.getName());
+                        } catch (Exception e){}
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+
+
+
+
 
     private static InputStream getLibPath(String jarName, Log log, AtomicReference<String> ato) throws IOException {
         InputStream pyJarPath = null;
@@ -80,7 +197,7 @@ public class PythonUtils {
             try {
                 try {
                     System.out.println("[1]: Start to unzip " + jarPath + ">>>");
-                    unzip(file.getAbsolutePath(), libPathName);
+                    ZipUtils.unzip(file.getAbsolutePath(), libPathName);
                     System.out.println("[2]: Unzip " + jarPath + " succeed >>>");
                 }catch (Exception e){
                     //TapLogger.error(TAG, "Can not zip from " + jarPath + " to " + libPathName);
@@ -129,7 +246,7 @@ public class PythonUtils {
             System.out.println(unzipPath);
             File f = new File("py-lib");
             if (!f.exists()) f.mkdirs();
-            final String zipFileTempPath = "py-lib/lib.zip";
+            final String zipFileTempPath = "py-lib/jython-standalone-2.7.3.jar";
             saveTempZipFile(inputStream, zipFileTempPath);
             File file = new File(zipFileTempPath);
             final String libPathName = "temp_engine";
@@ -137,7 +254,7 @@ public class PythonUtils {
                 try {
                     try {
                         System.out.println("[1]: Start to unzip " + zipFileTempPath + ">>>");
-                        unzip(file.getAbsolutePath(), libPathName);
+                        ZipUtils.unzip(file.getAbsolutePath(), libPathName);
                         System.out.println("[2]: Unzip " + zipFileTempPath + " succeed >>>");
                     } catch (Exception e) {
                         //TapLogger.error(TAG, "Can not zip from " + jarPath + " to " + libPathName);
@@ -164,6 +281,8 @@ public class PythonUtils {
                         System.out.println("[*]: Temp file cleaned successfully");
                     }
                 }
+
+                loopPackagesList(log, "py-lib/site-packages", zipFileTempPath);
             } catch (Throwable throwable) {
                 System.out.println("[x]: can not prepare Lib for site-packages, Please manually extract " + zipFileTempPath + " and place " + zipFileTempPath + "/Lib/ in the " + (pyJarPath.endsWith(jarName) ? pyJarPath.replace(jarName, "") : pyJarPath) + " folder.");
                 log.warn("Init python resources failed: {}", throwable.getMessage());
@@ -182,118 +301,118 @@ public class PythonUtils {
         return path;
     }
 
-    public static void unzip(String zipFile, String outputPath) {
-        if (zipFile == null || outputPath == null)
-            throw new CoreException(PDKRunnerErrorCodes.COMMON_ILLEGAL_PARAMETERS, "Unzip missing zipFile or outputPath");
-        File outputDir = new File(outputPath);
-        if (outputDir.isFile())
-            throw new CoreException(PDKRunnerErrorCodes.CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none");
-        if (zipFile.endsWith(".tar.gz") || zipFile.endsWith(".gz")){
-            unTarZip(zipFile, outputPath);
-        } else {
-            unzip(zipFile, outputDir);
-        }
-    }
-
-    public static void unTarZip(String tarFilePath, String targetDirectoryPath){
-        try (InputStream inputStream = new FileInputStream(tarFilePath)) {
-            unTarZip(inputStream, targetDirectoryPath);
-        } catch (Exception e){
-            throw new CoreException(PDKRunnerErrorCodes.CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none, " + e.getMessage());
-        }
-    }
-
-    public static void unTarZip(InputStream inputStream, String targetDirectoryPath) throws Exception {
-        TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(inputStream);
-        TarArchiveEntry entry;
-        while ((entry = tarArchiveInputStream.getNextTarEntry()) != null) {
-            File outputFile = new File(targetDirectoryPath, entry.getName());
-            if (entry.isDirectory()) {
-                if (!outputFile.exists()) {
-                    outputFile.mkdirs();
-                }
-                continue;
-            }
-            outputFile.getParentFile().mkdirs();
-            try (OutputStream outputStream = new FileOutputStream(outputFile)) {
-                byte[] buffer = new byte[4096];
-                int len;
-                while ((len = tarArchiveInputStream.read(buffer)) != -1) {
-                    outputStream.write(buffer, 0, len);
-                }
-            }
-        }
-        tarArchiveInputStream.close();
-    }
-
-    public static void unzip(String zipFile, File outputDir) {
-        if (zipFile == null || outputDir == null)
-            throw new CoreException(PDKRunnerErrorCodes.COMMON_ILLEGAL_PARAMETERS, "Unzip missing zipFile or outputPath");
-        if (outputDir.isFile())
-            throw new CoreException(PDKRunnerErrorCodes.CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none");
-        try (ZipFile zf = new ZipFile(zipFile)) {
-            if (!outputDir.exists())
-                FileUtils.forceMkdir(outputDir);
-            Enumeration<? extends ZipEntry> zipEntries = zf.entries();
-            while (zipEntries.hasMoreElements()) {
-                ZipEntry entry = zipEntries.nextElement();
-
-                try {
-                    if (entry.isDirectory()) {
-                        String entryPath = FilenameUtils.concat(outputDir.getAbsolutePath(), entry.getName());
-                        FileUtils.forceMkdir(new File(entryPath));
-                    } else {
-                        String entryPath = FilenameUtils.concat(outputDir.getAbsolutePath(), entry.getName());
-                        try(OutputStream fos = FileUtils.openOutputStream(new File(entryPath))) {
-                            IOUtils.copyLarge(zf.getInputStream(entry), fos);
-                        }
-                    }
-                } catch (IOException ei) {
-                    ei.printStackTrace();
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * @deprecated
-     * */
-    public static void unzip(InputStream zipFile, File outputDir) {
-        if (zipFile == null || outputDir == null)
-            throw new CoreException(PDKRunnerErrorCodes.COMMON_ILLEGAL_PARAMETERS, "Unzip missing zipFile or outputPath");
-        if (outputDir.isFile())
-            throw new CoreException(PDKRunnerErrorCodes.CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none");
-
-        try (ZipInputStream zf = new ZipInputStream(zipFile)) {
-
-            if (!outputDir.exists())
-                FileUtils.forceMkdir(outputDir);
-
-            byte[] buffer = new byte[1024];
-            ZipEntry zipEntry = null;
-            while (null != (zipEntry = zf.getNextEntry())) {
-                String fileName = zipEntry.getName();
-                File newFile = new File(outputDir.getAbsolutePath() + File.separator + fileName);
-                // 如果当前条目是文件夹，则创建相应的文件夹
-                if ("".equals(fileName) || zipEntry.isDirectory()) {
-                    new File(newFile.getAbsolutePath()).mkdirs();
-                } else {
-                    // 如果当前条目是文件，则创建一个FileOutputStream对象
-                    FileOutputStream fos = new FileOutputStream(newFile);
-                    int len;
-                    while ((len = zf.read(buffer)) > 0) {
-                        fos.write(buffer, 0, len);
-                    }
-                    fos.close();
-                }
-                zf.closeEntry();
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+//    public static void unzip(String zipFile, String outputPath) {
+//        if (zipFile == null || outputPath == null)
+//            throw new CoreException(PDKRunnerErrorCodes.COMMON_ILLEGAL_PARAMETERS, "Unzip missing zipFile or outputPath");
+//        File outputDir = new File(outputPath);
+//        if (outputDir.isFile())
+//            throw new CoreException(PDKRunnerErrorCodes.CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none");
+//        if (zipFile.endsWith(".tar.gz") || zipFile.endsWith(".gz")){
+//            unTarZip(zipFile, outputPath);
+//        } else {
+//            unzip(zipFile, outputDir);
+//        }
+//    }
+//
+//    public static void unTarZip(String tarFilePath, String targetDirectoryPath){
+//        try (InputStream inputStream = new FileInputStream(tarFilePath)) {
+//            unTarZip(inputStream, targetDirectoryPath);
+//        } catch (Exception e){
+//            throw new CoreException(PDKRunnerErrorCodes.CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none, " + e.getMessage());
+//        }
+//    }
+//
+//    public static void unTarZip(InputStream inputStream, String targetDirectoryPath) throws Exception {
+//        TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(inputStream);
+//        TarArchiveEntry entry;
+//        while ((entry = tarArchiveInputStream.getNextTarEntry()) != null) {
+//            File outputFile = new File(targetDirectoryPath, entry.getName());
+//            if (entry.isDirectory()) {
+//                if (!outputFile.exists()) {
+//                    outputFile.mkdirs();
+//                }
+//                continue;
+//            }
+//            outputFile.getParentFile().mkdirs();
+//            try (OutputStream outputStream = new FileOutputStream(outputFile)) {
+//                byte[] buffer = new byte[4096];
+//                int len;
+//                while ((len = tarArchiveInputStream.read(buffer)) != -1) {
+//                    outputStream.write(buffer, 0, len);
+//                }
+//            }
+//        }
+//        tarArchiveInputStream.close();
+//    }
+//
+//    public static void unzip(String zipFile, File outputDir) {
+//        if (zipFile == null || outputDir == null)
+//            throw new CoreException(PDKRunnerErrorCodes.COMMON_ILLEGAL_PARAMETERS, "Unzip missing zipFile or outputPath");
+//        if (outputDir.isFile())
+//            throw new CoreException(PDKRunnerErrorCodes.CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none");
+//        try (ZipFile zf = new ZipFile(zipFile)) {
+//            if (!outputDir.exists())
+//                FileUtils.forceMkdir(outputDir);
+//            Enumeration<? extends ZipEntry> zipEntries = zf.entries();
+//            while (zipEntries.hasMoreElements()) {
+//                ZipEntry entry = zipEntries.nextElement();
+//
+//                try {
+//                    if (entry.isDirectory()) {
+//                        String entryPath = FilenameUtils.concat(outputDir.getAbsolutePath(), entry.getName());
+//                        FileUtils.forceMkdir(new File(entryPath));
+//                    } else {
+//                        String entryPath = FilenameUtils.concat(outputDir.getAbsolutePath(), entry.getName());
+//                        try(OutputStream fos = FileUtils.openOutputStream(new File(entryPath))) {
+//                            IOUtils.copyLarge(zf.getInputStream(entry), fos);
+//                        }
+//                    }
+//                } catch (IOException ei) {
+//                    ei.printStackTrace();
+//                }
+//            }
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//    }
+//
+//    /**
+//     * @deprecated
+//     * */
+//    public static void unzip(InputStream zipFile, File outputDir) {
+//        if (zipFile == null || outputDir == null)
+//            throw new CoreException(PDKRunnerErrorCodes.COMMON_ILLEGAL_PARAMETERS, "Unzip missing zipFile or outputPath");
+//        if (outputDir.isFile())
+//            throw new CoreException(PDKRunnerErrorCodes.CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none");
+//
+//        try (ZipInputStream zf = new ZipInputStream(zipFile)) {
+//
+//            if (!outputDir.exists())
+//                FileUtils.forceMkdir(outputDir);
+//
+//            byte[] buffer = new byte[1024];
+//            ZipEntry zipEntry = null;
+//            while (null != (zipEntry = zf.getNextEntry())) {
+//                String fileName = zipEntry.getName();
+//                File newFile = new File(outputDir.getAbsolutePath() + File.separator + fileName);
+//                // 如果当前条目是文件夹，则创建相应的文件夹
+//                if ("".equals(fileName) || zipEntry.isDirectory()) {
+//                    new File(newFile.getAbsolutePath()).mkdirs();
+//                } else {
+//                    // 如果当前条目是文件，则创建一个FileOutputStream对象
+//                    FileOutputStream fos = new FileOutputStream(newFile);
+//                    int len;
+//                    while ((len = zf.read(buffer)) > 0) {
+//                        fos.write(buffer, 0, len);
+//                    }
+//                    fos.close();
+//                }
+//                zf.closeEntry();
+//            }
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//    }
 
     public static void saveTempZipFile(InputStream inputStream, String savePath){
         try {
@@ -312,4 +431,75 @@ public class PythonUtils {
             e.printStackTrace();
         }
     }
+
+
+    private static int copyTo(String fromPath, String toPath) {
+        try {
+            File to = new File(toPath);
+            File sourceDir = new File(fromPath);
+            File[] from = sourceDir.listFiles();
+            if (null == from) return -1;
+            if (!to.exists()) {
+                to.mkdirs();
+            }
+            for (File file : from) {
+                copyFile(file, new File(to, file.getName()));
+            }
+        } catch (Exception e) {
+            TapLogger.warn(TAG, "Can not get python packages resources when load python engine, msg: {}", e.getMessage());
+            return  -1;
+        }
+        return 1;
+    }
+
+    private static void copyFile(File file, File target) throws Exception {
+        if (null == file) return;
+        File[] files = file.listFiles();
+        if (!target.exists() || !target.isDirectory()) target.mkdirs();
+        if (null == files || files.length <= 0) return;
+        for (File f : files) {
+            if (f.isDirectory()) {
+                copyFile(f, new File(FilenameUtils.concat(target.getPath(), f.getName())));
+            } else if (f.isFile()) {
+                copy(f, new File(FilenameUtils.concat(target.getPath(), f.getName())));
+            }
+        }
+    }
+
+    private static void copy(File from, File to) throws Exception{
+        try (FileInputStream fis = new FileInputStream(from.getAbsolutePath());
+             FileOutputStream fos = new FileOutputStream(to.getAbsolutePath())) {
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = fis.read(buffer)) != -1) {
+                fos.write(buffer, 0, bytesRead);
+            }
+        }
+    }
+
+//    public static int copyFile() {
+//        ResourceLoader resourceLoader = new DefaultResourceLoader();
+//        return copyTo(resourceLoader, "classpath:py-libs", "py-lib");
+//        //count = copyTo(resourceLoader, "classpath:site-packages", "py-lib/site-packages");
+//        //return count;
+//    }
+//    private static int copyTo(ResourceLoader resourceLoader, String fromPath, String toPath) {
+//        try {
+//            File to = new File(toPath);
+//            Resource resource = resourceLoader.getResource(fromPath);
+//            File sourceDir = resource.getFile();
+//            File[] from = sourceDir.listFiles();
+//            if (null == from) return -1;
+//            if (!to.exists()) {
+//                to.mkdirs();
+//            }
+//            for (File file : from) {
+//                copyFile(file, new File(to, file.getName()));
+//            }
+//        } catch (Exception e) {
+//            TapLogger.warn(TAG, "Can not get python packages resources when load python engine, msg: {}", e.getMessage());
+//            return  -1;
+//        }
+//        return 1;
+//    }
 }

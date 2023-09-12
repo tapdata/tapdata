@@ -61,7 +61,7 @@ public class TapdataScriptFactory implements ScriptFactory {
 	//		if (!Application.class.getResource("").getProtocol().equals("jar")) {
 	//			// 以 idea 的方式运行
 	//			//ClassLoader defaultClassLoader = Application.class.getClassLoader();
-	//			//InputStream inputStreamPy = defaultClassLoader.getResourceAsStream("BOOT-INF/lib/jython-standalone-2.7.2.jar");
+	//			//InputStream inputStreamPy = defaultClassLoader.getResourceAsStream("BOOT-INF/lib/jython-standalone-2.7.3.jar");
 	//			//InputStream inputStreamEngine = defaultClassLoader.getResourceAsStream("BOOT-INF/lib/script-engine-module-1.0-SNAPSHOT.jar");
 	//		} else {
 	//			// 以 jar 的方式运行

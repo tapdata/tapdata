@@ -17,7 +17,7 @@
         <junit.jupiter.version>5.8.1</junit.jupiter.version>
         <junit.platform.version>1.8.1</junit.platform.version>
 
-        <graalvm.py.version>2.7.2</graalvm.py.version>
+        <graalvm.py.version>2.7.3</graalvm.py.version>
     </properties>
     <!--<dependencyManagement>-->
     <dependencies>

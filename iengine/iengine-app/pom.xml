@@ -335,7 +335,7 @@
 <!--                        <argument>-p</argument>-->
 <!--                        <argument>${settings.localRepository}/io/tapdata/${graalvm.py.artifactId}/${graalvm.py.version}/</argument>-->
 <!--                        <argument>-uz</argument>-->
-<!--                        <argument>src/main/resources/py-lib</argument>-->
+<!--                        <argument>src/main/resources/py-libs</argument>-->
 <!--                    </arguments>-->
 <!--                    <environmentVariables>-->
 <!--                        <LANG>en_US</LANG>-->
