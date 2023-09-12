@@ -342,22 +342,29 @@
 <!--                    </environmentVariables>-->
 <!--                </configuration>-->
 <!--            </plugin>-->
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>repackage</goal>
-                        </goals>
-                        <configuration>
-                            <include>py-libs/**/*.class</include>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+<!--            <plugin>-->
+<!--                <groupId>org.springframework.boot</groupId>-->
+<!--                <artifactId>spring-boot-maven-plugin</artifactId>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <goals>-->
+<!--                            <goal>repackage</goal>-->
+<!--                        </goals>-->
+<!--                        <configuration>-->
+<!--                            <include>py-libs/**/*.class</include>-->
+<!--                        </configuration>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
         </plugins>
         <resources>
+            <resource>
+                <directory>src/main/resources/py-libs</directory>
+                <includes>
+                    <include>**/*.class</include>
+                </includes>
+<!--                <targetPath>py-libs</targetPath>-->
+            </resource>
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
@@ -375,12 +382,6 @@
                     <include>**/*.js</include>
                 </includes>
                 <targetPath>./${project.parent.artifactId}/${project.artifactId}/src/main/javascript/</targetPath>
-            </resource>
-            <resource>
-                <directory>src/main/resources/py-libs</directory>
-                <includes>
-                    <include>**/*.class</include>
-                </includes>
             </resource>
         </resources>
     </build>
