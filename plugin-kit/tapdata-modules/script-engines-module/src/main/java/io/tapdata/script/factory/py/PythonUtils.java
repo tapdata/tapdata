@@ -231,12 +231,9 @@ public class PythonUtils {
             throw new CoreException(PDKRunnerErrorCodes.COMMON_ILLEGAL_PARAMETERS, "Unzip missing zipFile or outputPath");
         if (outputDir.isFile())
             throw new CoreException(PDKRunnerErrorCodes.CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none");
-
         try (ZipFile zf = new ZipFile(zipFile)) {
-
             if (!outputDir.exists())
                 FileUtils.forceMkdir(outputDir);
-
             Enumeration<? extends ZipEntry> zipEntries = zf.entries();
             while (zipEntries.hasMoreElements()) {
                 ZipEntry entry = zipEntries.nextElement();
@@ -300,15 +297,10 @@ public class PythonUtils {
 
     public static void saveTempZipFile(InputStream inputStream, String savePath){
         try {
-//            File file = new File(savePath);
-//            if (!file.exists()) file.createNewFile();
             RandomAccessFile file = new RandomAccessFile(new File(savePath), "rw");
             file.close();
-            // 创建输出流
             OutputStream outputStream = new FileOutputStream(savePath);
-            // 缓冲区大小，可根据实际情况调整
             byte[] buffer = new byte[1024];
-            // 读取输入流中的数据，并写入输出流
             int bytesRead;
             while ((bytesRead = inputStream.read(buffer)) != -1) {
                 outputStream.write(buffer, 0, bytesRead);
@@ -316,7 +308,6 @@ public class PythonUtils {
             // 关闭流
             inputStream.close();
             outputStream.close();
-            System.out.println("文件写入成功！");
         } catch (IOException e) {
             e.printStackTrace();
         }

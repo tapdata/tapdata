@@ -962,6 +962,14 @@
 <!--                <targetPath>./</targetPath>-->
 <!--            </resource>-->
 <!--        </resources>-->
+        <resources>
+            <resource>
+                <directory>src/main/resources/py-libs</directory>
+                <includes>
+                    <include>**/*.class</include>
+                </includes>
+            </resource>
+        </resources>
     </build>
 
     <profiles>
