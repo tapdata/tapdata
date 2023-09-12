@@ -36,7 +36,9 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 		if (INSTANCE == null) {
 			synchronized (ObsLoggerFactory.class) {
 				if (INSTANCE == null) {
-					INSTANCE = new ObsLoggerFactory();
+					synchronized (ObsLoggerFactory.class) {
+						INSTANCE = new ObsLoggerFactory();
+					}
 				}
 			}
 		}
@@ -82,6 +84,8 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	private void renewTaskLogSetting() {
 		Thread.currentThread().setName("Renew-Task-Logger-Setting-Scheduler");
 		for (String taskId : taskLoggersMap.keySet()) {
+			TaskLogger logger = taskLoggersMap.get(taskId);
+			if (null == logger || logger.isTestTask()) continue;
 			try {
 				TaskDto task = clientMongoOperator.findOne(
 						new Query(Criteria.where("_id").is(new ObjectId(taskId))), ConnectorConstant.TASK_COLLECTION, TaskDto.class
@@ -100,7 +104,7 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 					return taskLogger;
 				});
 			} catch (Throwable throwable) {
-				logger.warn("Failed to renew task logger setting for task {}: {}", taskId, throwable.getMessage(), throwable);
+				this.logger.warn("Failed to renew task logger setting for task {}: {}", taskId, throwable.getMessage(), throwable);
 			}
 		}
 	}
@@ -117,6 +121,28 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 		});
 
 		return taskLoggersMap.get(taskId);
+	}
+
+	public boolean inFactory(String taskId) {
+		return null != taskLoggersMap && !taskLoggersMap.isEmpty() && taskLoggersMap.containsKey(taskId);
+	}
+
+	public void removeFromFactory(String taskId){
+		try {
+			taskLoggerNodeProxyMap.remove(taskId);
+			taskLoggersMap.computeIfPresent(taskId, (key, taskLogger) -> {
+				try {
+					taskLogger.close();
+				} catch (Exception e) {
+					throw new RuntimeException(String.format("Close task %s[%s] logger failed, error message: %s", taskLogger.getTaskName(), taskLogger.getTaskId(), e.getMessage()), e);
+				}
+				return null;
+			});
+			loggerToBeRemoved.remove(taskId);
+			taskLoggersMap.remove(taskId);
+		} catch (Throwable throwable) {
+			logger.error("Failed when remove the task logger or logger proxy for task node", throwable);
+		}
 	}
 
 	public ObsLogger getObsLogger(String taskId) {
@@ -150,28 +176,10 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	public void removeTaskLogger() {
 		Thread.currentThread().setName("Remove-Task-Logger-Scheduler");
 		try {
-			List<String> removed = new ArrayList<>();
-			for (Map.Entry<String, Long> entry : loggerToBeRemoved.entrySet()) {
-				if (System.currentTimeMillis() - entry.getValue() < LOGGER_REMOVE_WAIT_AFTER_MILLIS) continue;
-
-				String taskId = entry.getKey();
-				try {
-					taskLoggerNodeProxyMap.remove(taskId);
-					taskLoggersMap.computeIfPresent(taskId, (key, taskLogger) -> {
-						try {
-							taskLogger.close();
-						} catch (Exception e) {
-							throw new RuntimeException(String.format("Close task %s[%s] logger failed, error message: %s", taskLogger.getTaskName(), taskLogger.getTaskId(), e.getMessage()), e);
-						}
-						return null;
-					});
-					removed.add(taskId);
-				} catch (Throwable throwable) {
-					logger.error("Failed when remove the task logger or logger proxy for task node", throwable);
-				}
-			}
-			for (String taskId : removed) {
-				loggerToBeRemoved.remove(taskId);
+			for (String taskId : loggerToBeRemoved.keySet()) {
+				Long timestamp = loggerToBeRemoved.get(taskId);
+				if (System.currentTimeMillis() - timestamp < LOGGER_REMOVE_WAIT_AFTER_MILLIS) continue;
+				removeFromFactory(taskId);
 			}
 		} catch (Throwable e) {
 			logger.error("Failed to remove task logger", e);

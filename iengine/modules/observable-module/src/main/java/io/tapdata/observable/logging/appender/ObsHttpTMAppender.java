@@ -55,7 +55,7 @@ public class ObsHttpTMAppender extends BaseTaskAppender<MonitoringLogsDto> {
 		if (null == log) {
 			return;
 		}
-		if (!obsHttpTMLog4jAppender.isStarted()) {
+		if (null == obsHttpTMLog4jAppender || !obsHttpTMLog4jAppender.isStarted()) {
 			return;
 		}
 		String logJson;

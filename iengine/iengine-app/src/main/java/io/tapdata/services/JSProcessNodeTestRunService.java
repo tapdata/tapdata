@@ -42,6 +42,15 @@ public class JSProcessNodeTestRunService {
         TaskService<TaskDto> taskService = BeanUtil.getBean(HazelcastTaskService.class);
         long startTs = System.currentTimeMillis();
         TaskDto taskDto = JSONUtil.map2POJO(events, TaskDto.class);
+        String taskId = taskDto.getId().toHexString();
+        ObsLoggerFactory obsLoggerFactory = ObsLoggerFactory.getInstance();
+
+        if (taskDtoMap.putIfAbsent(taskId, taskDto) != null) {
+            throw new CoreException(ERROR_REPEAT_EXECUTION, "The trial run is currently in progress, please do not repeat it.");
+        }
+        if (obsLoggerFactory.inFactory(taskId)) {
+            obsLoggerFactory.removeFromFactory(taskId);
+        }
         AtomicReference<Object> logCollector = new AtomicReference<>();
         int defaultLogLength = 100;
         if (logOutputCount > 0) {
@@ -49,18 +58,13 @@ public class JSProcessNodeTestRunService {
         }
         FixedSizeBlockingDeque<MonitoringLogsDto> logList = new FixedSizeBlockingDeque<>(defaultLogLength);
         logCollector.set(logList);
-
-        String taskId = taskDto.getId().toHexString();
         taskDto.taskInfo(ScriptNodeProcessNodeAppender.LOG_LIST_KEY  + taskId, logCollector);
         taskDto.taskInfo(ScriptNodeProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId, logOutputCount);
         taskDto.taskInfo(ScriptNodeProcessNodeAppender.SCRIPT_NODE_ID_KEY + taskId, nodeId);
-
-        ObsLogger logger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
         TaskClient<TaskDto> taskClient = null;
         taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
-        if (taskDtoMap.putIfAbsent(taskId, taskDto) != null) {
-            throw new CoreException(ERROR_REPEAT_EXECUTION, "The trial run is currently in progress, please do not repeat it.");
-        }
+        ObsLogger logger = obsLoggerFactory.getObsLogger(taskDto);
+
         AtomicReference<Object> clientResult = new AtomicReference<>();
         try {
             taskClient = taskService.startTestTask(taskDto, clientResult);
