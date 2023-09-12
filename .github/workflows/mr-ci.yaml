@@ -28,10 +28,10 @@ jobs:
               fetch-depth: 0
               ref: ${{ env.CURRENT_BRANCH }}
               token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-              path: tapdata
+              path: ./
         - name: Compile - IEngine And Management
           run: |
-            cd tapdata && mvn clean install -DskipTests -P idaas -P not_encrypt -U -T1C
+            mvn clean install -DskipTests -P idaas -P not_encrypt -U -T1C
         - name: Run - Local Service
           run: |
             cp build/start_local_service.sh ./
