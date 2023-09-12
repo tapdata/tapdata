@@ -1,12 +1,10 @@
 package io.tapdata.script.factory.py;
 
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import org.python.core.PyException;
 import org.python.jsr223.PyScriptEngineFactory;
 
 import javax.script.Bindings;
@@ -55,7 +53,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     }
     private ScriptEngine initScriptEngine(String engineName) {
         TapPythonEngine.EngineType engineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
-        ScriptEngine scriptEngine;
+        ScriptEngine scriptEngine = null;
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         try {
             Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
@@ -71,20 +69,19 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 SimpleScriptContext scriptContext = new SimpleScriptContext();
                 scriptEngine.setContext(scriptContext);
                 try{
-                    //scriptEngine.eval(String.format("\nimport sys\nsys.path.append('%s')\n", new File(PythonUtils.getThreadPackagePath()).getAbsolutePath()));
-                    scriptEngine.eval(String.format("\nimport sys\nsys.path.append('%s')\n", new File(PythonUtils.getThreadPackagePath()).getAbsolutePath()));
+                    String absolutePath = new File(PythonUtils.getThreadPackagePath()).getAbsolutePath();
+                    logger.info(String.format("\nimport sys\nsys.path.append('%s')\n", absolutePath));
+                    scriptEngine.eval(String.format("\nimport sys\nsys.path.append('%s')\n", absolutePath));
                 } catch (Exception error){
                     logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory: {}, msg: {}", PythonUtils.PYTHON_THREAD_PACKAGE_PATH, error.getMessage());
                 }
             }
         } catch (Exception e) {
-            //TapLogger.debug("Python Eninge", "Can not init python engine, goto init default.");
-            //scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());
-            throw new CoreException(ERROR_PY_NODE_CODE, e, "Can not init python engine, error msg: {}", e.getMessage());
+            logger.error("Can not init python engine, error msg: {}", e.getMessage());
+            //throw new CoreException(ERROR_PY_NODE_CODE, e, "Can not init python engine, error msg: {}", e.getMessage());
         } finally {
             Thread.currentThread().setContextClassLoader(classLoader);
         }
-
         return scriptEngine;
     }
 
