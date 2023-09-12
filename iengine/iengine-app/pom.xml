@@ -361,9 +361,9 @@
 <!--            <resource>-->
 <!--                <directory>src/main/resources/py-libs</directory>-->
 <!--                <includes>-->
-<!--                    <include>**/*.class</include>-->
+<!--                    <include>**</include>-->
 <!--                </includes>-->
-<!--                <targetPath>py-libs</targetPath>-->
+<!--                <targetPath>py-libs</targetPath>/-->
 <!--            </resource>-->
             <resource>
                 <directory>src/main/resources</directory>
