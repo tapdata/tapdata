@@ -248,4 +248,9 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	public int getRetryTime() {
 		return retryCounter.get();
 	}
+
+	public Job getJob() {
+		return job;
+	}
+
 }

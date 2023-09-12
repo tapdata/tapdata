@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.task.cleaner;
 
+import com.hazelcast.jet.core.JobStatus;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskResetEventDto;
@@ -20,7 +21,7 @@ import java.util.Map;
  **/
 public class TaskCleanerService {
 
-	public static void clean(TaskCleanerContext taskCleanerContext, String opTypeStr) throws TaskCleanerException {
+	public static void clean(TaskCleanerContext taskCleanerContext, String opTypeStr) throws TaskCleanerException,InterruptedException {
 		try {
 			checkConstructorParamInvalid(taskCleanerContext, opTypeStr);
 			checkCanClean(taskCleanerContext.getTaskId());
@@ -45,7 +46,7 @@ public class TaskCleanerService {
 			} else {
 				throw new TaskCleanerException(String.format("Task cleaner %s must extends %s", taskCleaner.getClass().getName(), TaskCleaner.class.getName()));
 			}
-		} catch (TaskCleanerException e) {
+		} catch (TaskCleanerException | InterruptedException e) {
 //			sendResetTaskLog(taskCleanerContext, e);
 			throw e;
 		}
@@ -67,18 +68,32 @@ public class TaskCleanerService {
 		}
 	}
 
-	private static void checkCanClean(String taskId) throws TaskCleanerException {
+	private static void checkCanClean(String taskId) throws TaskCleanerException, InterruptedException {
 		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
 		if (null == tapdataTaskScheduler) {
 			return;
 		}
 		Map<String, TaskClient<TaskDto>> taskClientMap = tapdataTaskScheduler.getTaskClientMap();
 		TaskClient<TaskDto> taskDtoTaskClient = taskClientMap.get(taskId);
-		if (null != taskDtoTaskClient) {
-			if (taskDtoTaskClient instanceof HazelcastTaskClient) {
-				throw new TaskCleanerException("Task state data cannot be clean, reason: task is running or stopping, current status: " + taskDtoTaskClient.getStatus() + ", jet job status: " + ((HazelcastTaskClient) taskDtoTaskClient).getJetStatus());
-			} else {
-				throw new TaskCleanerException("Task state data cannot be clean, reason: task is running or stopping, current status: " + taskDtoTaskClient.getStatus());
+		if (taskDtoTaskClient != null) {
+			int times = 1;
+			if (null != taskDtoTaskClient) {
+				while (times < 10) {
+					if (((HazelcastTaskClient) taskDtoTaskClient).getJetStatus() == JobStatus.COMPLETING) {
+						((HazelcastTaskClient) taskDtoTaskClient).getJob().cancel();
+					}
+					Thread.sleep(1000L);
+					taskDtoTaskClient = tapdataTaskScheduler.getTaskClientMap().get(taskId);
+					if (taskDtoTaskClient == null) {
+						return;
+					}
+					times = times + 1;
+				}
+				if (taskDtoTaskClient instanceof HazelcastTaskClient) {
+					throw new TaskCleanerException("Task state data cannot be clean, reason: task is running or stopping, current status: " + taskDtoTaskClient.getStatus() + ", jet job status: " + ((HazelcastTaskClient) taskDtoTaskClient).getJetStatus());
+				} else {
+					throw new TaskCleanerException("Task state data cannot be clean, reason: task is running or stopping, current status: " + taskDtoTaskClient.getStatus());
+				}
 			}
 		}
 	}
