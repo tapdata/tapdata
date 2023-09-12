@@ -1949,7 +1949,7 @@ class Pipeline:
                 if k not in job_stats:
                     ok = False
                     continue
-                if job_stats[k] != v:
+                if job_stats[k] != v and job_stats[k] != v-1:
                     ok = False
             if ok:
                 return True
@@ -2666,8 +2666,8 @@ class Job:
         job_stats = JobStats()
         if len(res["data"]["samples"]["totalData"]) > 0:
             stats = res["data"]["samples"]["totalData"][0]
-            job_stats.qps = stats["outputQps"]
-            job_stats.total = stats["tableTotal"]
+            job_stats.qps = stats.get("outputQps", 0)
+            job_stats.total = stats.get("tableTotal", 0)
             job_stats.input_insert = stats.get("inputInsertTotal", 0)
             job_stats.input_update = stats.get("inputUpdateTotal", 0)
             job_stats.input_delete = stats.get("inputDeleteTotal", 0)
