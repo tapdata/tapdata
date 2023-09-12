@@ -1,0 +1,8 @@
+spring:
+  profiles:
+    active: 'idaas'
+    include: 'idaas,default'
+
+  data:
+    mongodb:
+      cursorBatchSize: 1000
