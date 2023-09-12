@@ -358,13 +358,13 @@
 <!--            </plugin>-->
         </plugins>
         <resources>
-            <resource>
-                <directory>src/main/resources/py-libs</directory>
-                <includes>
-                    <include>**/*.class</include>
-                </includes>
+<!--            <resource>-->
+<!--                <directory>src/main/resources/py-libs</directory>-->
+<!--                <includes>-->
+<!--                    <include>**/*.class</include>-->
+<!--                </includes>-->
 <!--                <targetPath>py-libs</targetPath>-->
-            </resource>
+<!--            </resource>-->
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
