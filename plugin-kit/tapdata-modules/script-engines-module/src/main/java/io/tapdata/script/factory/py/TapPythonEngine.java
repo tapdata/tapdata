@@ -75,8 +75,6 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 System.setProperty("python.import.site", "false");
                 //logger.info("System Properties: {}", toJson(PrePy.getSystemProperties()));
 
-                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
-
                 Field field = PySystemState.class.getDeclaredField("initialized");
                 field.setAccessible(true);
 
@@ -86,10 +84,20 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 Field defaultPathF = PySystemState.class.getDeclaredField("defaultPath");
                 defaultPathF.setAccessible(true);
 
+
                 Boolean initialized = (Boolean) field.get(null);
+                field.set(null, false);
+
+                //PySystemState.registry = new Properties();
+                if (null != PySystemState.registry && PySystemState.registry.isEmpty()) {
+                    PySystemState.registry = null;
+                }
+                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
+
+
                 PyList defaultArgv = (PyList)(defaultArgvF.get(null)) ;
                 PyList defaultPath = (PyList)(defaultPathF.get(null)) ;
-                logger.info("initialized: {}, defaultArgv: {}, defaultPath: {}", initialized, defaultArgv, defaultPath);
+                logger.info("initialized: {}, defaultArgv: {}, defaultPath: {}, SystemProperties: {}", initialized, defaultArgv, defaultPath, PySystemState.registry);
                 if (null == defaultArgv ) {
                     defaultArgvF.set(null, new PyList());
                 }
@@ -97,7 +105,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                     defaultPathF.set(null, new PyList());
                 }
                 if (null != initialized && initialized && null == PySystemState.registry) {
-                    PySystemState.registry = Optional.ofNullable(PrePy.getSystemProperties()).orElse(new Properties());
+                    PySystemState.registry = PrePy.getSystemProperties();
                 }
 //                if (null != initialized && initialized) {
 //                    PySystemState.registry = new Properties();
