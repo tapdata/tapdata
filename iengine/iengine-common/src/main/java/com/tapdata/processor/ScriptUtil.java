@@ -725,13 +725,13 @@ public class ScriptUtil {
 		//	}
 		//}
 		URL[] urls = new URL[1];
-		if (null != loader && loader.getResource("").getProtocol().equals("jar")) {
+//		if (null != loader && loader.getResource("").getProtocol().equals("jar")) {
 			//ClassLoader defaultClassLoader = PyScriptEngine.class.getClassLoader();
-			urls[0] = loader.getResource("BOOT-INF/lib/jython-standalone-2.7.3.jar");
-			if (null == urls[0]) {
+			urls[0] = loader.getResource("jython-standalone-2.7.3.jar");
+//			if (null == urls[0]) {
 				//throw new CoreException("Can not load jython-standalone-2.7.3.jar, fail to init python engine");
-			}
-		}
+//			}
+//		}
 		final URLClassLoader urlClassLoader = new URLClassLoader(urls, loader);
 		if (consumer != null) {
 			consumer.accept(urlClassLoader);

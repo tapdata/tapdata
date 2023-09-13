@@ -72,7 +72,6 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
         }
 
         try {
-            //copyFile();
             ScriptEngine scriptEnginePy = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(ScriptFactory.TYPE_PYTHON));
             scriptEnginePy.eval("import sys\n" +
                     "builtin_modules = sys.builtin_module_names\n" +
