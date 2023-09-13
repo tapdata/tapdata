@@ -46,14 +46,16 @@ public class JSProcessNodeTestRunService {
         String taskId = taskDto.getId().toHexString();
         ObsLoggerFactory obsLoggerFactory = ObsLoggerFactory.getInstance();
 
-        if (taskDtoMap.containsKey(taskId)) {
-            TestRunEntity testRunEntity = taskDtoMap.get(taskId);
-            if (null != testRunEntity && testRunEntity.timestamp + cache_time > System.currentTimeMillis()) {
-                throw new CoreException(ERROR_REPEAT_EXECUTION, "The trial run is currently in progress, please do not repeat it.");
+        synchronized (taskDtoMap) {
+            if (taskDtoMap.containsKey(taskId)) {
+                TestRunEntity testRunEntity = taskDtoMap.get(taskId);
+                if (null != testRunEntity && testRunEntity.timestamp + cache_time > System.currentTimeMillis()) {
+                    throw new CoreException(ERROR_REPEAT_EXECUTION, "The trial run is currently in progress, please do not repeat it.");
+                }
+                taskDtoMap.remove(taskId);
             }
-            taskDtoMap.remove(taskId);
+            taskDtoMap.put(taskId, new TestRunEntity().add(taskDto));
         }
-        taskDtoMap.put(taskId, new TestRunEntity().add(taskDto));
 
         if (obsLoggerFactory.inFactory(taskId)) {
             obsLoggerFactory.removeFromFactory(taskId);
