@@ -30,7 +30,8 @@ import java.util.concurrent.atomic.AtomicReference;
 @RemoteService
 public class JSProcessNodeTestRunService {
 
-    private final Map<String, TaskDto> taskDtoMap = new ConcurrentHashMap<>();
+    private final Map<String, TestRunEntity> taskDtoMap = new ConcurrentHashMap<>();
+    public static final long cache_time = 3000L;
 
     public Object testRun(Map<String, Object> events, String nodeId){
         return testRun(events, nodeId, -1);
@@ -45,9 +46,15 @@ public class JSProcessNodeTestRunService {
         String taskId = taskDto.getId().toHexString();
         ObsLoggerFactory obsLoggerFactory = ObsLoggerFactory.getInstance();
 
-        if (taskDtoMap.putIfAbsent(taskId, taskDto) != null) {
-            throw new CoreException(ERROR_REPEAT_EXECUTION, "The trial run is currently in progress, please do not repeat it.");
+        if (taskDtoMap.containsKey(taskId)) {
+            TestRunEntity testRunEntity = taskDtoMap.get(taskId);
+            if (null != testRunEntity && testRunEntity.timestamp + cache_time > System.currentTimeMillis()) {
+                throw new CoreException(ERROR_REPEAT_EXECUTION, "The trial run is currently in progress, please do not repeat it.");
+            }
+            taskDtoMap.remove(taskId);
         }
+        taskDtoMap.put(taskId, new TestRunEntity().add(taskDto));
+
         if (obsLoggerFactory.inFactory(taskId)) {
             obsLoggerFactory.removeFromFactory(taskId);
         }
@@ -94,5 +101,16 @@ public class JSProcessNodeTestRunService {
         }
         resultMap.put("logs", Optional.ofNullable(logCollector.get()).orElse(new ArrayList<>()));
         return resultMap;
+    }
+
+    private static class TestRunEntity {
+        long timestamp;
+        TaskDto taskDto;
+
+        public TestRunEntity add(TaskDto dto) {
+            this.timestamp = System.currentTimeMillis();
+            this.taskDto = dto;
+            return this;
+        }
     }
 }
