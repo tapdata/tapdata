@@ -6,15 +6,10 @@ import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import org.python.core.Options;
 import org.python.core.PrePy;
-import org.python.core.PyFile;
 import org.python.core.PyList;
-import org.python.core.PyObject;
 import org.python.core.PySystemState;
-import org.python.jsr223.PyScriptEngine;
 import org.python.jsr223.PyScriptEngineFactory;
-import org.python.util.PythonInterpreter;
 
 import javax.script.Bindings;
 import javax.script.Invocable;
@@ -31,11 +26,7 @@ import java.io.Reader;
 import java.lang.reflect.Field;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.concurrent.Callable;
-import java.util.logging.Logger;
-
-import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 /**
  * @author GavinXiao
@@ -92,8 +83,9 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 if (null != PySystemState.registry && PySystemState.registry.isEmpty()) {
                     PySystemState.registry = null;
                 }
-                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
+                logger.info("SystemProperties: {}", PySystemState.registry);
 
+                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
 
                 PyList defaultArgv = (PyList)(defaultArgvF.get(null)) ;
                 PyList defaultPath = (PyList)(defaultPathF.get(null)) ;
