@@ -96,7 +96,9 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                             PythonUtils.copyFile(new File("py-lib/jython-standalone-2.7.3.jar"), file);
                         }
                     }
-                } catch (Exception e) {}
+                } catch (Exception e) {
+                    logger.info("Get JarFileName failed, msg: {}", e.getMessage());
+                }
 
                 logger.info("SystemProperties: {}", PrePy.getSystemProperties());
 
@@ -109,12 +111,11 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 if (null == defaultPath) {
                     defaultPathF.set(null, new PyList());
                 }
-
-                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
-                logger.info("after initialized: {}, defaultArgv: {}, defaultPath: {}, SystemProperties: {}", initialized, defaultArgv, defaultPath, PySystemState.registry);
-                if (null == PySystemState.registry){
+                if (null == PySystemState.registry || PySystemState.registry.isEmpty()){
                     PySystemState.registry = PrePy.getSystemProperties();
                 }
+                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
+                logger.info("after initialized: {}, defaultArgv: {}, defaultPath: {}, SystemProperties: {}", initialized, defaultArgv, defaultPath, PySystemState.registry);
 
 
                 scriptEngine = new ScriptEngineManager().getEngineByName(engineEnum.name);
