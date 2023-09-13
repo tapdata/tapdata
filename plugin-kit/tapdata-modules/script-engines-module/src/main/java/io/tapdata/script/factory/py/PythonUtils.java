@@ -39,7 +39,7 @@ public class PythonUtils {
     public static final String TAG = TapPythonEngine.class.getSimpleName();
     public static synchronized void flow(Log logger) {
         try {
-            execute(PythonUtils.PYTHON_THREAD_JAR, PythonUtils.PYTHON_THREAD_PACKAGE_PATH, logger);
+            //execute(PythonUtils.PYTHON_THREAD_JAR, PythonUtils.PYTHON_THREAD_PACKAGE_PATH, logger);
             if (!unzipIeJar(logger)){
                 execute(PythonUtils.PYTHON_THREAD_JAR, PythonUtils.PYTHON_THREAD_PACKAGE_PATH, logger);
                 return;
