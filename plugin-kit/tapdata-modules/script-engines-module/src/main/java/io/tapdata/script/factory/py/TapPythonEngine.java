@@ -7,6 +7,7 @@ import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.python.core.Options;
+import org.python.core.PrePy;
 import org.python.core.PyFile;
 import org.python.core.PyObject;
 import org.python.core.PySystemState;
@@ -26,11 +27,14 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
+import java.lang.reflect.Field;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.logging.Logger;
+
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 /**
  * @author GavinXiao
@@ -68,6 +72,13 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
             try {
                 Class.forName("org.python.jsr223.PyScriptEngine");
                 System.setProperty("python.import.site", "false");
+                logger.info("System Properties: {}", toJson(PrePy.getSystemProperties()));
+                Field field = PySystemState.class.getDeclaredField("initialized");
+                field.setAccessible(true);
+                Boolean initialized = (Boolean) field.get(null);
+                if (null != initialized && initialized && null == PySystemState.registry) {
+                    PySystemState.registry = Optional.ofNullable(PrePy.getSystemProperties()).orElse(new Properties());
+                }
                 scriptEngine = new ScriptEngineManager().getEngineByName(engineEnum.name);
                 if (null == scriptEngine) {
                     scriptEngine = new PyScriptEngineFactory().getScriptEngine();
