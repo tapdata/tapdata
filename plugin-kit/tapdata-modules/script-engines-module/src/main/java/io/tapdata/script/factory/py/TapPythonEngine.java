@@ -88,12 +88,14 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 try {
                     String jarFileName = Py.getJarFileName();
                     logger.info("JarFileName: {}", jarFileName);
-                    String replace = jarFileName.replace("jython-standalone-2.7.3.jar", "");
-                    File file = new File(replace);
-                    if (file.exists()) {
-                        file.mkdirs();
+                    if (!new File(jarFileName).exists()) {
+                        String replace = jarFileName.replace("jython-standalone-2.7.3.jar", "");
+                        File file = new File(replace);
+                        if (!file.exists()) {
+                            file.mkdirs();
+                            PythonUtils.copyFile(new File("py-lib/jython-standalone-2.7.3.jar"), file);
+                        }
                     }
-                    PythonUtils.copyFile(new File("py-lib/jython-standalone-2.7.3.jar"), file);
                 } catch (Exception e) {}
 
                 logger.info("SystemProperties: {}", PrePy.getSystemProperties());
