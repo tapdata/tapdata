@@ -74,15 +74,22 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 Class.forName("org.python.jsr223.PyScriptEngine");
                 System.setProperty("python.import.site", "false");
                 //logger.info("System Properties: {}", toJson(PrePy.getSystemProperties()));
+
+                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
+
                 Field field = PySystemState.class.getDeclaredField("initialized");
                 field.setAccessible(true);
+
                 Field defaultArgvF = PySystemState.class.getDeclaredField("defaultArgv");
                 defaultArgvF.setAccessible(true);
+
                 Field defaultPathF = PySystemState.class.getDeclaredField("defaultPath");
                 defaultPathF.setAccessible(true);
+
                 Boolean initialized = (Boolean) field.get(null);
                 PyList defaultArgv = (PyList)(defaultArgvF.get(null)) ;
                 PyList defaultPath = (PyList)(defaultPathF.get(null)) ;
+
                 if (null == defaultArgv ) {
                     defaultArgvF.set(null, new PyList());
                 }
@@ -92,6 +99,9 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 if (null != initialized && initialized && null == PySystemState.registry) {
                     PySystemState.registry = Optional.ofNullable(PrePy.getSystemProperties()).orElse(new Properties());
                 }
+//                if (null != initialized && initialized) {
+//                    PySystemState.registry = new Properties();
+//                }
                 scriptEngine = new ScriptEngineManager().getEngineByName(engineEnum.name);
                 if (null == scriptEngine) {
                     scriptEngine = new PyScriptEngineFactory().getScriptEngine();
