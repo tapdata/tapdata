@@ -258,7 +258,7 @@ public class PythonUtils {
         return 1;
     }
 
-    private static void copyFile(File file, File target) throws Exception {
+    public static void copyFile(File file, File target) throws Exception {
         if (null == file) return;
         File[] files = file.listFiles();
         if (!target.exists() || !target.isDirectory()) target.mkdirs();

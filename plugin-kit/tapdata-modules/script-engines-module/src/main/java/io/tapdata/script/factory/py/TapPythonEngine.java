@@ -7,6 +7,7 @@ import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.python.core.PrePy;
+import org.python.core.Py;
 import org.python.core.PyList;
 import org.python.core.PySystemState;
 import org.python.jsr223.PyScriptEngineFactory;
@@ -83,6 +84,18 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 if (null != PySystemState.registry && PySystemState.registry.isEmpty()) {
                     PySystemState.registry = null;
                 }
+
+                try {
+                    String jarFileName = Py.getJarFileName();
+                    logger.info("JarFileName: {}", jarFileName);
+                    String replace = jarFileName.replace("jython-standalone-2.7.3.jar", "");
+                    File file = new File(replace);
+                    if (file.exists()) {
+                        file.mkdirs();
+                    }
+                    PythonUtils.copyFile(new File("py-lib/jython-standalone-2.7.3.jar"), file);
+                } catch (Exception e) {}
+
                 logger.info("SystemProperties: {}", PrePy.getSystemProperties());
 
                 PyList defaultArgv = (PyList)(defaultArgvF.get(null)) ;
