@@ -53,7 +53,13 @@ public class PythonUtils {
         } finally {
             File file = new File("py-lib/agent");
             if (file.exists()) {
-                file.delete();
+                try {
+                    if (file.isDirectory()) {
+                        FileUtils.deleteDirectory(file);
+                    } else {
+                        FileUtils.delete(file);
+                    }
+                } catch (Exception e){}
             }
         }
     }

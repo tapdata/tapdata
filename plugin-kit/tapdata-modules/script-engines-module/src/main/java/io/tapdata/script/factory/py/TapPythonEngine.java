@@ -8,7 +8,11 @@ import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.python.core.Options;
 import org.python.core.PyFile;
+import org.python.core.PyObject;
+import org.python.core.PySystemState;
+import org.python.jsr223.PyScriptEngine;
 import org.python.jsr223.PyScriptEngineFactory;
+import org.python.util.PythonInterpreter;
 
 import javax.script.Bindings;
 import javax.script.Invocable;
@@ -24,7 +28,10 @@ import java.io.IOException;
 import java.io.Reader;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.concurrent.Callable;
+import java.util.logging.Logger;
+
 /**
  * @author GavinXiao
  * @description TapPythonEngine create by Gavin
@@ -60,12 +67,9 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
             //Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
             try {
                 Class.forName("org.python.jsr223.PyScriptEngine");
-                String mode = Options.unbuffered ? "b" : "";
-                int buffering = Options.unbuffered ? 0 : 1;
-                PyFile pyFile = new PyFile(System.out, "<stdout>", "w" + mode, buffering, false);
+                System.setProperty("python.import.site", "false");
                 scriptEngine = new ScriptEngineManager().getEngineByName(engineEnum.name);
                 if (null == scriptEngine) {
-                    PyScriptEngineFactory pyScriptEngineFactory = new PyScriptEngineFactory();
                     scriptEngine = new PyScriptEngineFactory().getScriptEngine();
                 }
             } catch (Exception e) {
