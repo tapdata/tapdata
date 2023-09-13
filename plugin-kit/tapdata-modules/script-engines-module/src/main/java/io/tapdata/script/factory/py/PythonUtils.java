@@ -26,9 +26,9 @@ public class PythonUtils {
 
     public static final String PYTHON_THREAD_PACKAGE_PATH = "py-lib";
     public static final String PYTHON_THREAD_SITE_PACKAGES_PATH = "site-packages";
-    public static final String PYTHON_THREAD_JAR = "jython-standalone-2.7.3.jar";
+    public static final String PYTHON_THREAD_JAR = "jython-standalone-2.7.4.jar";
 
-    public static File getThreadPackagePath(){
+    public static synchronized File getThreadPackagePath(){
         File file = new File("py-lib/Lib/site-packages");
         if (!file.exists() || null == file.list() || file.list().length <= 0) {
             return null;
@@ -37,7 +37,7 @@ public class PythonUtils {
     }
 
     public static final String TAG = TapPythonEngine.class.getSimpleName();
-    public static void flow(Log logger) {
+    public static synchronized void flow(Log logger) {
         try {
             execute(PythonUtils.PYTHON_THREAD_JAR, PythonUtils.PYTHON_THREAD_PACKAGE_PATH, logger);
             if (!unzipIeJar(logger)){
@@ -46,10 +46,10 @@ public class PythonUtils {
             }
             unzipPythonStandalone(logger);
             setPackagesResources(logger,
-                    "py-lib/jython-standalone-2.7.3.jar",
+                    "py-lib/jython-standalone-2.7.4.jar",
                     PythonUtils.PYTHON_THREAD_PACKAGE_PATH,
-                    "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar",
-                    "jython-standalone-2.7.3.jar");
+                    "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.4.jar",
+                    "jython-standalone-2.7.4.jar");
         } finally {
             File file = new File("py-lib/agent");
             if (file.exists()) {
@@ -75,11 +75,11 @@ public class PythonUtils {
     }
 
     private static void unzipPythonStandalone(Log logger) {
-        final String pythonStandalone = "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar";
+        final String pythonStandalone = "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.4.jar";
         try {
             copyFile(new File(pythonStandalone), new File(PythonUtils.PYTHON_THREAD_PACKAGE_PATH));
         } catch (Exception e) {
-            logger.warn("Can not copy py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar to py-lib, msg: {}", e.getMessage());
+            logger.warn("Can not copy py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.4.jar to py-lib, msg: {}", e.getMessage());
         }
     }
 
@@ -161,7 +161,7 @@ public class PythonUtils {
             System.out.println(unzipPath);
             File f = new File("py-lib");
             if (!f.exists()) f.mkdirs();
-            final String zipFileTempPath = "py-lib/jython-standalone-2.7.3.jar";
+            final String zipFileTempPath = "py-lib/jython-standalone-2.7.4.jar";
             saveTempZipFile(inputStream, zipFileTempPath);
             return setPackagesResources(log, zipFileTempPath, unzipPath, pyJarPath, jarName);
         } catch (IOException e) {
@@ -184,6 +184,7 @@ public class PythonUtils {
                     System.out.println("[2]: Unzip " + zipFileTempPath + " fail, " + e.getMessage());
                     return -3;
                 }
+                copyFile(new File("temp_engine/jython.jar"), new File(PythonUtils.PYTHON_THREAD_PACKAGE_PATH));
                 File libFiles = new File(concat(libPathName, "Lib", PYTHON_THREAD_SITE_PACKAGES_PATH));
                 if (!libFiles.exists()) {
                     System.out.println("[3]: Can not fund Lib path: " + libPathName + ", create file now >>>");
@@ -260,7 +261,12 @@ public class PythonUtils {
 
     public static void copyFile(File file, File target) throws Exception {
         if (null == file) return;
-        File[] files = file.listFiles();
+        File[] files = null;
+        if (file.isDirectory()) {
+            files = file.listFiles();
+        } else {
+            files = new File[] {file};
+        }
         if (!target.exists() || !target.isDirectory()) target.mkdirs();
         if (null == files || files.length <= 0) return;
         for (File f : files) {

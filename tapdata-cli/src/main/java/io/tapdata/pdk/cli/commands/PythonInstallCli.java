@@ -47,7 +47,7 @@ public class PythonInstallCli extends CommonCli {
      * */
     public Integer execute0() throws Exception {
         if (null == pyJarPath) {
-            TapLogger.error(TAG, "Miss jython-standalone-2.7.3.jar path");
+            TapLogger.error(TAG, "Miss jython-standalone-2.7.4.jar path");
             return -1;
         }
         System.out.println(jarName);

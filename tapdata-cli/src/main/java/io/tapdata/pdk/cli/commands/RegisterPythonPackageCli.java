@@ -26,7 +26,7 @@ public class RegisterPythonPackageCli extends CommonCli {
     @CommandLine.Option(names = {"-h", "--help"}, usageHelp = true, description = "Tapdata cli help")
     private boolean helpRequested = false;
 
-    ///usr/local/lib/jython-standalone-2.7.3.jar
+    ///usr/local/lib/jython-standalone-2.7.4.jar
     public static final String cmd = "java -jar %s setup.py install";
     public Integer execute() throws Exception {
 //        if (null == jarPath) {
