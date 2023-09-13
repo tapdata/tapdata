@@ -74,27 +74,14 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         try {
             //Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
             try {
-                Class.forName("org.python.jsr223.PyScriptEngine");
-                System.setProperty("python.import.site", "false");
-                //logger.info("System Properties: {}", toJson(PrePy.getSystemProperties()));
-
                 Field field = PySystemState.class.getDeclaredField("initialized");
                 field.setAccessible(true);
-
                 Field defaultArgvF = PySystemState.class.getDeclaredField("defaultArgv");
                 defaultArgvF.setAccessible(true);
-
                 Field defaultPathF = PySystemState.class.getDeclaredField("defaultPath");
                 defaultPathF.setAccessible(true);
-
-
                 Boolean initialized = (Boolean) field.get(null);
                 field.set(null, false);
-
-                //PySystemState.registry = new Properties();
-                if (null != PySystemState.registry && PySystemState.registry.isEmpty()) {
-                    PySystemState.registry = null;
-                }
 
                 try {
                     String jarFileName = Py.getJarFileName();
@@ -113,21 +100,21 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
 
                 PyList defaultArgv = (PyList)(defaultArgvF.get(null)) ;
                 PyList defaultPath = (PyList)(defaultPathF.get(null)) ;
-                logger.info("initialized: {}, defaultArgv: {}, defaultPath: {}, SystemProperties: {}", initialized, defaultArgv, defaultPath, PySystemState.registry);
+                logger.info("before initialized: {}, defaultArgv: {}, defaultPath: {}, SystemProperties: {}", initialized, defaultArgv, defaultPath, PySystemState.registry);
                 if (null == defaultArgv ) {
                     defaultArgvF.set(null, new PyList());
                 }
                 if (null == defaultPath) {
                     defaultPathF.set(null, new PyList());
                 }
-                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
 
-                if (null != initialized && initialized && null == PySystemState.registry) {
+                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
+                logger.info("after initialized: {}, defaultArgv: {}, defaultPath: {}, SystemProperties: {}", initialized, defaultArgv, defaultPath, PySystemState.registry);
+                if (null == PySystemState.registry){
                     PySystemState.registry = PrePy.getSystemProperties();
                 }
-//                if (null != initialized && initialized) {
-//                    PySystemState.registry = new Properties();
-//                }
+
+
                 scriptEngine = new ScriptEngineManager().getEngineByName(engineEnum.name);
                 if (null == scriptEngine) {
                     scriptEngine = new PyScriptEngineFactory().getScriptEngine();
