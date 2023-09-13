@@ -14,6 +14,7 @@ import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class PythonUtils {
@@ -142,7 +143,7 @@ public class PythonUtils {
         return pyJarPath;
     }
 
-    public static Integer execute(String jarName, String unzipPath, Log log) {
+    private static Integer execute(String jarName, String unzipPath, Log log) {
         AtomicReference<String> pyJarPathAto = new AtomicReference<>();
         try(InputStream inputStream = getLibPath(jarName, log, pyJarPathAto)) {
             String pyJarPath = pyJarPathAto.get();
@@ -214,7 +215,7 @@ public class PythonUtils {
         return path;
     }
 
-    public static void saveTempZipFile(InputStream inputStream, String savePath){
+    private static void saveTempZipFile(InputStream inputStream, String savePath){
         try {
             RandomAccessFile file = new RandomAccessFile(new File(savePath), "rw");
             file.close();
@@ -272,6 +273,25 @@ public class PythonUtils {
             int bytesRead;
             while ((bytesRead = fis.read(buffer)) != -1) {
                 fos.write(buffer, 0, bytesRead);
+            }
+        }
+    }
+
+
+    public static void supportThirdPartyPackageList(File file, Log logger) {
+        if (file.exists()) {
+            File[] files = file.listFiles();
+            if (files.length > 0) {
+                StringJoiner joiner = new StringJoiner(", ");
+                for (File f : files) {
+                    String name = f.getName();
+                    if (f.isFile() && name.endsWith("-py2.7.egg-info")) {
+                        joiner.add(name.substring(0, name.lastIndexOf("-py2.7.egg-info")));
+                    }
+                }
+                if (joiner.length() > 0) {
+                    logger.info("The sources of third-party packages supported by Python node are as follows: {}", joiner.toString());
+                }
             }
         }
     }

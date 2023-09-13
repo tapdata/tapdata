@@ -52,6 +52,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         this.scriptEngine = initScriptEngine(scriptOptions.getEngineName());
         this.invocable = (Invocable) this.scriptEngine;
     }
+
     private ScriptEngine initScriptEngine(String engineName) {
         TapPythonEngine.EngineType engineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
         ScriptEngine scriptEngine = null;
@@ -75,6 +76,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                     if (null != file) {
                         logger.info(String.format("\nimport sys\nsys.path.append('%s')\n", file.getAbsolutePath()));
                         scriptEngine.eval(String.format("\nimport sys\nsys.path.append('%s')\n", file.getAbsolutePath()));
+                        PythonUtils.supportThirdPartyPackageList(file, logger);
                     } else {
                         logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory");
                     }
