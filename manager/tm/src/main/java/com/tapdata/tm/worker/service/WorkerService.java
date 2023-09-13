@@ -352,8 +352,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         AtomicReference<String> scheduleAgentId = new AtomicReference<>("");
 
         Object jobHeartTimeout = settingsService.getByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT).getValue();
-        Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
-        boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+        boolean isCloud = settingsService.isCloud();
         if ((userDetail.getUserId() == null || userDetail.getUserId().equals("")) && isCloud) {
             throw new BizException("NotFoundUserId");
         }
@@ -763,6 +762,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     }
 
     public int getLimitTaskNum(WorkerDto workerDto, UserDetail user) {
+        // DAAS out of control
+        if (!settingsService.isCloud()) return Integer.MAX_VALUE;
+
         if (workerDto == null || workerDto.getProcessId() == null) {
             return -1;
         }
