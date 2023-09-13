@@ -54,7 +54,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         if (null == file) {
             PythonUtils.flow(logger);
             try {
-                String jarPath = "py-lib/jython-standalone-2.7.4.jar";
+                String jarPath = "py-lib/jython-standalone-2.7.3.jar";
                 ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
                 URL jarURL = new URL("file://" + jarPath);
                 Method addURLMethod = URLClassLoader.class.getDeclaredMethod("addURL", URL.class);
@@ -89,11 +89,11 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                     String jarFileName = Py.getJarFileName();
                     logger.info("JarFileName: {}", jarFileName);
                     if (!new File(jarFileName).exists()) {
-                        String replace = jarFileName.replace("jython-standalone-2.7.4.jar", "");
+                        String replace = jarFileName.replace("jython-standalone-2.7.3.jar", "");
                         File file = new File(replace);
                         if (!file.exists()) {
                             file.mkdirs();
-                            PythonUtils.copyFile(new File("py-lib/jython-standalone-2.7.4.jar"), file);
+                            PythonUtils.copyFile(new File("py-lib/jython-standalone-2.7.3.jar"), file);
                         }
                     }
                 } catch (Exception e) {}

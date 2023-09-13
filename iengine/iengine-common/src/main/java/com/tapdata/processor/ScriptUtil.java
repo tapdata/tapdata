@@ -721,9 +721,9 @@ public class ScriptUtil {
 		//	}
 		//}
 		URL[] urls = new URL[1];
-		urls[0] = loader.getResource("jython-standalone-2.7.4.jar");
+		urls[0] = loader.getResource("jython-standalone-2.7.3.jar");
 		if (null == urls[0]) {
-			TapLogger.warn("ScriptUtil", "Can not get jython-standalone-2.7.4.jar source from PyScriptEngine's classloader");
+			TapLogger.warn("ScriptUtil", "Can not get jython-standalone-2.7.3.jar source from PyScriptEngine's classloader");
 			final URLClassLoader urlClassLoader = new URLClassLoader(urls,Thread.currentThread().getContextClassLoader());
 			if (consumer != null) {
 				consumer.accept(urlClassLoader);

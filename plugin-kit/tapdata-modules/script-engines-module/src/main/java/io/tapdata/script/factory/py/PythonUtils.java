@@ -26,7 +26,7 @@ public class PythonUtils {
 
     public static final String PYTHON_THREAD_PACKAGE_PATH = "py-lib";
     public static final String PYTHON_THREAD_SITE_PACKAGES_PATH = "site-packages";
-    public static final String PYTHON_THREAD_JAR = "jython-standalone-2.7.4.jar";
+    public static final String PYTHON_THREAD_JAR = "jython-standalone-2.7.3.jar";
 
     public static synchronized File getThreadPackagePath(){
         File file = new File("py-lib/Lib/site-packages");
@@ -46,10 +46,10 @@ public class PythonUtils {
             }
             unzipPythonStandalone(logger);
             setPackagesResources(logger,
-                    "py-lib/jython-standalone-2.7.4.jar",
+                    "py-lib/jython-standalone-2.7.3.jar",
                     PythonUtils.PYTHON_THREAD_PACKAGE_PATH,
-                    "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.4.jar",
-                    "jython-standalone-2.7.4.jar");
+                    "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar",
+                    "jython-standalone-2.7.3.jar");
         } finally {
             File file = new File("py-lib/agent");
             if (file.exists()) {
@@ -75,11 +75,11 @@ public class PythonUtils {
     }
 
     private static void unzipPythonStandalone(Log logger) {
-        final String pythonStandalone = "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.4.jar";
+        final String pythonStandalone = "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar";
         try {
             copyFile(new File(pythonStandalone), new File(PythonUtils.PYTHON_THREAD_PACKAGE_PATH));
         } catch (Exception e) {
-            logger.warn("Can not copy py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.4.jar to py-lib, msg: {}", e.getMessage());
+            logger.warn("Can not copy py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar to py-lib, msg: {}", e.getMessage());
         }
     }
 
@@ -161,7 +161,7 @@ public class PythonUtils {
             System.out.println(unzipPath);
             File f = new File("py-lib");
             if (!f.exists()) f.mkdirs();
-            final String zipFileTempPath = "py-lib/jython-standalone-2.7.4.jar";
+            final String zipFileTempPath = "py-lib/jython-standalone-2.7.3.jar";
             saveTempZipFile(inputStream, zipFileTempPath);
             return setPackagesResources(log, zipFileTempPath, unzipPath, pyJarPath, jarName);
         } catch (IOException e) {
