@@ -270,14 +270,16 @@ public class DataSourceController extends BaseController {
     @GetMapping("{id}")
     public ResponseMessage<DataSourceConnectionDto> findById(@PathVariable("id") String id, @RequestParam(value = "fields", required = false) String fieldsJson,
                                                              @RequestParam(value = "noSchema", required = false) String noSchema) {
-        Field fields = parseField(fieldsJson);
-
-        boolean no = true;
-        if (noSchema != null) {
-            no = ("1".equals(noSchema) || "true".equals(noSchema));
-        }
-        return success(dataSourceService.getById(toObjectId(id), fields, no, getLoginUser()));
-    }
+			Field fields = parseField(fieldsJson);
+			UserDetail userDetail = getLoginUser();
+			boolean no = "1".equals(noSchema) || "true".equals(noSchema);
+			DataSourceConnectionDto connectionDto = DataPermissionMenuEnums.Connections.checkAndSetFilter(
+				userDetail,
+				DataPermissionActionEnums.View,
+				() -> dataSourceService.getById(toObjectId(id), fields, no, getLoginUser())
+			);
+			return success(connectionDto);
+		}
 
     /**
      * Replace attributes for a model instance and persist it into the data source.
