@@ -17,6 +17,7 @@ import io.tapdata.annotation.DatabaseTypeAnnotation;
 import io.tapdata.annotation.DatabaseTypeAnnotations;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -41,6 +42,7 @@ import org.python.jsr223.PyScriptEngine;
 import org.python.util.PythonInterpreter;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.DefaultResourceLoader;
 
 import javax.script.*;
 import java.io.File;
@@ -725,16 +727,18 @@ public class ScriptUtil {
 		//	}
 		//}
 		URL[] urls = new URL[1];
-//		if (null != loader && loader.getResource("").getProtocol().equals("jar")) {
-			//ClassLoader defaultClassLoader = PyScriptEngine.class.getClassLoader();
-			urls[0] = loader.getResource("jython-standalone-2.7.3.jar");
-//			if (null == urls[0]) {
-				//throw new CoreException("Can not load jython-standalone-2.7.3.jar, fail to init python engine");
-//			}
-//		}
-		final URLClassLoader urlClassLoader = new URLClassLoader(urls, loader);
-		if (consumer != null) {
-			consumer.accept(urlClassLoader);
+		urls[0] = loader.getResource("jython-standalone-2.7.3.jar");
+		if (null == urls[0]) {
+			TapLogger.warn("ScriptUtil", "Can not get jython-standalone-2.7.3.jar source from PyScriptEngine's classloader");
+			final URLClassLoader urlClassLoader = new URLClassLoader(urls,Thread.currentThread().getContextClassLoader());
+			if (consumer != null) {
+				consumer.accept(urlClassLoader);
+			}
+		} else {
+			final URLClassLoader urlClassLoader = new URLClassLoader(urls, loader);
+			if (consumer != null) {
+				consumer.accept(urlClassLoader);
+			}
 		}
 		return  "import com.tapdata.constant.DateUtil as DateUtil\n" +
 				"import com.tapdata.constant.UUIDGenerator as UUIDGenerator\n" +

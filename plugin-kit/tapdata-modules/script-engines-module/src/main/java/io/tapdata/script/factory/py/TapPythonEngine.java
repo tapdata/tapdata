@@ -55,10 +55,11 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     private ScriptEngine initScriptEngine(String engineName) {
         TapPythonEngine.EngineType engineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
         ScriptEngine scriptEngine = null;
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        //ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         try {
-            Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
+            //Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
             try {
+                Class.forName("org.python.jsr223.PyScriptEngine");
                 scriptEngine = new ScriptEngineManager().getEngineByName(engineEnum.name);
                 if (null == scriptEngine) {
                     scriptEngine = new PyScriptEngineFactory().getScriptEngine();
@@ -85,20 +86,20 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
             //logger.error("Can not init python engine, error msg: {}", e.getMessage());
             throw new CoreException(ERROR_PY_NODE_CODE, e, "Can not init python engine, error msg: {}", e.getMessage());
         } finally {
-            Thread.currentThread().setContextClassLoader(classLoader);
+            //Thread.currentThread().setContextClassLoader(classLoader);
         }
         return scriptEngine;
     }
 
     public Object applyClassLoaderContext(Callable<?> callable) {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
+        //Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
         try {
             return callable.call();
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
-            Thread.currentThread().setContextClassLoader(classLoader);
+           // Thread.currentThread().setContextClassLoader(classLoader);
         }
     }
 
