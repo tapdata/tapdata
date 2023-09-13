@@ -6,6 +6,8 @@ import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import org.python.core.Options;
+import org.python.core.PyFile;
 import org.python.jsr223.PyScriptEngineFactory;
 
 import javax.script.Bindings;
@@ -23,7 +25,6 @@ import java.io.Reader;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
-
 /**
  * @author GavinXiao
  * @description TapPythonEngine create by Gavin
@@ -36,7 +37,6 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     private final String buildInScript;
     private final ClassLoader classLoader;
     private final Log logger;
-
     public Invocable invocable() {
         return this.invocable;
     }
@@ -52,7 +52,6 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         this.scriptEngine = initScriptEngine(scriptOptions.getEngineName());
         this.invocable = (Invocable) this.scriptEngine;
     }
-
     private ScriptEngine initScriptEngine(String engineName) {
         TapPythonEngine.EngineType engineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
         ScriptEngine scriptEngine = null;
@@ -61,11 +60,15 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
             //Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
             try {
                 Class.forName("org.python.jsr223.PyScriptEngine");
+                String mode = Options.unbuffered ? "b" : "";
+                int buffering = Options.unbuffered ? 0 : 1;
+                PyFile pyFile = new PyFile(System.out, "<stdout>", "w" + mode, buffering, false);
                 scriptEngine = new ScriptEngineManager().getEngineByName(engineEnum.name);
                 if (null == scriptEngine) {
+                    PyScriptEngineFactory pyScriptEngineFactory = new PyScriptEngineFactory();
                     scriptEngine = new PyScriptEngineFactory().getScriptEngine();
                 }
-            } catch (NullPointerException nullPointerException) {
+            } catch (Exception e) {
                 scriptEngine = new PyScriptEngineFactory().getScriptEngine();
             }
             if (Objects.nonNull(scriptEngine)) {
@@ -218,7 +221,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     }
 
     public static enum EngineType {
-        Python("python")
+        Python("jython")
         ;
 
         String name;
