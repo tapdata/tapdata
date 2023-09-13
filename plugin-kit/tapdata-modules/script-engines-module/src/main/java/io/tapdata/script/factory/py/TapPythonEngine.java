@@ -83,9 +83,11 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 Boolean initialized = (Boolean) field.get(null);
                 PyList defaultArgv = (PyList)(defaultArgvF.get(null)) ;
                 PyList defaultPath = (PyList)(defaultPathF.get(null)) ;
-                if (null == defaultArgv || null == defaultPath) {
-                    field.set(null, false);
-                    PySystemState.registry = null;
+                if (null == defaultArgv ) {
+                    defaultArgvF.set(null, new PyList());
+                }
+                if (null == defaultPath) {
+                    defaultPathF.set(null, new PyList());
                 }
                 if (null != initialized && initialized && null == PySystemState.registry) {
                     PySystemState.registry = Optional.ofNullable(PrePy.getSystemProperties()).orElse(new Properties());
