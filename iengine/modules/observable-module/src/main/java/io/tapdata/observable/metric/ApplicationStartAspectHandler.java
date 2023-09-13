@@ -11,6 +11,7 @@ import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.common.sample.process.GcSampler;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.aspect.annotations.AspectObserverClass;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
@@ -63,17 +64,17 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
             TapLogger.warn(TAG, "Can not load Graal.js engine, msg: {}", e.getMessage());
         }
 
-//        try {
-//            ScriptEngine scriptEnginePy = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(ScriptFactory.TYPE_PYTHON));
-//            scriptEnginePy.eval("import sys\n" +
-//                    "builtin_modules = sys.builtin_module_names\n" +
-//                    "all_packages_arr = []\n" +
-//                    "for module_name in builtin_modules:\n" +
-//                    "    all_packages_arr.append(module_name)\n" +
-//                    "all_packages_str = ', '.join(all_packages_arr)\n" +
-//                    "print ('[INFO ] Python engine has loaded, support system packages: ' + all_packages_str) ");
-//        } catch (Exception e) {
-//            TapLogger.warn(TAG, "Can not load python engine, msg: {}", e.getMessage());
-//        }
+        try {
+            ScriptEngine scriptEnginePy = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(ScriptFactory.TYPE_PYTHON).log(new TapLog()));
+            scriptEnginePy.eval("import sys\n" +
+                    "builtin_modules = sys.builtin_module_names\n" +
+                    "all_packages_arr = []\n" +
+                    "for module_name in builtin_modules:\n" +
+                    "    all_packages_arr.append(module_name)\n" +
+                    "all_packages_str = ', '.join(all_packages_arr)\n" +
+                    "print ('[INFO ] Python engine has loaded, support system packages: ' + all_packages_str) ");
+        } catch (Exception e) {
+            TapLogger.warn(TAG, "Can not load python engine, msg: {}", e.getMessage());
+        }
     }
 }

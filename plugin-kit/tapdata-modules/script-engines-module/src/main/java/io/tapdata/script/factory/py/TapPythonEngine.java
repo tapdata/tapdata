@@ -70,54 +70,52 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     private ScriptEngine initScriptEngine(String engineName) {
         TapPythonEngine.EngineType engineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
         ScriptEngine scriptEngine = null;
-        String property = System.getProperty("java.class.path");
-        System.setProperty("java.class.path", property + ";" + new File("py-lib/jython.jar").getAbsolutePath());
-        //ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+//        String property = System.getProperty("java.class.path");
+//        System.setProperty("java.class.path", property + ";" + new File("py-lib/jython.jar").getAbsolutePath());
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         try {
-            //Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
+            Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
             try {
-                Field field = PySystemState.class.getDeclaredField("initialized");
-                field.setAccessible(true);
-                Field defaultArgvF = PySystemState.class.getDeclaredField("defaultArgv");
-                defaultArgvF.setAccessible(true);
-                Field defaultPathF = PySystemState.class.getDeclaredField("defaultPath");
-                defaultPathF.setAccessible(true);
-                Boolean initialized = (Boolean) field.get(null);
-                field.set(null, false);
-
-                try {
-                    String jarFileName = Py.getJarFileName();
-                    logger.info("JarFileName: {}", jarFileName);
-                    if (!new File(jarFileName).exists()) {
-                        String replace = jarFileName.replace("jython-standalone-2.7.3.jar", "");
-                        File file = new File(replace);
-                        if (!file.exists()) {
-                            file.mkdirs();
-                            PythonUtils.copyFile(new File("py-lib/jython-standalone-2.7.3.jar"), file);
-                        }
-                    }
-                } catch (Exception e) {
-                    logger.info("Get JarFileName failed, msg: {}", e.getMessage());
-                }
-
-                logger.info("SystemProperties: {}", PrePy.getSystemProperties());
-
-                PyList defaultArgv = (PyList)(defaultArgvF.get(null)) ;
-                PyList defaultPath = (PyList)(defaultPathF.get(null)) ;
-                logger.info("before initialized: {}, defaultArgv: {}, defaultPath: {}, SystemProperties: {}", initialized, defaultArgv, defaultPath, PySystemState.registry);
-                if (null == defaultArgv ) {
-                    defaultArgvF.set(null, new PyList());
-                }
-                if (null == defaultPath) {
-                    defaultPathF.set(null, new PyList());
-                }
-                if (null == PySystemState.registry || PySystemState.registry.isEmpty()){
-                    PySystemState.registry = PrePy.getSystemProperties();
-                }
-                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
-                logger.info("after initialized: {}, defaultArgv: {}, defaultPath: {}, SystemProperties: {}", initialized, defaultArgv, defaultPath, PySystemState.registry);
-
-
+                System.setProperty("python.import.site", "false");
+//                Field field = PySystemState.class.getDeclaredField("initialized");
+//                field.setAccessible(true);
+//                Field defaultArgvF = PySystemState.class.getDeclaredField("defaultArgv");
+//                defaultArgvF.setAccessible(true);
+//                Field defaultPathF = PySystemState.class.getDeclaredField("defaultPath");
+//                defaultPathF.setAccessible(true);
+//                Boolean initialized = (Boolean) field.get(null);
+//                field.set(null, false);
+//                try {
+//                    String jarFileName = Py.getJarFileName();
+//                    logger.info("JarFileName: {}", jarFileName);
+//                    if (!new File(jarFileName).exists()) {
+//                        String replace = jarFileName.replace("jython-standalone-2.7.3.jar", "");
+//                        File file = new File(replace);
+//                        if (!file.exists()) {
+//                            file.mkdirs();
+//                            PythonUtils.copyFile(new File("py-lib/jython-standalone-2.7.3.jar"), file);
+//                        }
+//                    }
+//                } catch (Exception e) {
+//                    logger.info("Get JarFileName failed, msg: {}", e.getMessage());
+//                }
+//
+//                logger.info("SystemProperties: {}", PrePy.getSystemProperties());
+//
+//                PyList defaultArgv = (PyList)(defaultArgvF.get(null)) ;
+//                PyList defaultPath = (PyList)(defaultPathF.get(null)) ;
+//                logger.info("before initialized: {}, defaultArgv: {}, defaultPath: {}, SystemProperties: {}", initialized, defaultArgv, defaultPath, PySystemState.registry);
+//                if (null == defaultArgv ) {
+//                    defaultArgvF.set(null, new PyList());
+//                }
+//                if (null == defaultPath) {
+//                    defaultPathF.set(null, new PyList());
+//                }
+//                if (null == PySystemState.registry || PySystemState.registry.isEmpty()){
+//                    PySystemState.registry = PrePy.getSystemProperties();
+//                }
+//                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
+//                logger.info("after initialized: {}, defaultArgv: {}, defaultPath: {}, SystemProperties: {}", initialized, defaultArgv, defaultPath, PySystemState.registry);
                 scriptEngine = new ScriptEngineManager().getEngineByName(engineEnum.name);
                 if (null == scriptEngine) {
                     scriptEngine = new PyScriptEngineFactory().getScriptEngine();
@@ -145,20 +143,20 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
             //logger.error("Can not init python engine, error msg: {}", e.getMessage());
             throw new CoreException(ERROR_PY_NODE_CODE, e, "Can not init python engine, error msg: {}", e.getMessage());
         } finally {
-            //Thread.currentThread().setContextClassLoader(classLoader);
+            Thread.currentThread().setContextClassLoader(classLoader);
         }
         return scriptEngine;
     }
 
     public Object applyClassLoaderContext(Callable<?> callable) {
-        //ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        //Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
         try {
             return callable.call();
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
-           // Thread.currentThread().setContextClassLoader(classLoader);
+            Thread.currentThread().setContextClassLoader(classLoader);
         }
     }
 

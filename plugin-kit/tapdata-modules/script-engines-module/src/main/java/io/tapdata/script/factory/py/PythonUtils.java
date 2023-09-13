@@ -176,39 +176,38 @@ public class PythonUtils {
         try {
             try {
                 try {
-                    System.out.println("[1]: Start to unzip " + zipFileTempPath + ">>>");
+                    log.info("[1]: Start to unzip {}>>>", zipFileTempPath);
                     ZipUtils.unzip(file.getAbsolutePath(), libPathName);
-                    System.out.println("[2]: Unzip " + zipFileTempPath + " succeed >>>");
+                    log.info("[2]: Unzip {} succeed >>>", zipFileTempPath);
                 } catch (Exception e) {
                     //TapLogger.error(TAG, "Can not zip from " + jarPath + " to " + libPathName);
-                    System.out.println("[2]: Unzip " + zipFileTempPath + " fail, " + e.getMessage());
+                    log.info("[2]: Unzip {} fail, {}", zipFileTempPath, e.getMessage());
                     return -3;
                 }
                 copyFile(new File("temp_engine/jython.jar"), new File(PythonUtils.PYTHON_THREAD_PACKAGE_PATH));
                 File libFiles = new File(concat(libPathName, "Lib", PYTHON_THREAD_SITE_PACKAGES_PATH));
                 if (!libFiles.exists()) {
-                    System.out.println("[3]: Can not fund Lib path: " + libPathName + ", create file now >>>");
+                    log.info("[3]: Can not fund Lib path: {}, create file now >>>", libPathName);
                     libFiles.mkdirs();
-                    System.out.println("[4]: create file " + zipFileTempPath + " succeed >>>");
+                    log.info("[4]: create file {} succeed >>>", zipFileTempPath);
                 } else {
-                    System.out.println("[3]: Lib path is exists: " + libPathName + " >>>");
-                    System.out.println("[4]: Copy after>>>");
+                    log.info("[3]: Lib path is exists: {} >>>[4]: Copy after>>>", libPathName);
                 }
-                System.out.println("[5]: Start to copy site-packages from Lib: " + libFiles + " to :" + unzipPath + " >>>");
+                log.info("[5]: Start to copy site-packages from Lib: " + libFiles + " to :" + unzipPath + " >>>");
                 FileUtils.copyToDirectory(libFiles, new File(unzipPath));
-                System.out.println("[6]: Copy site-packages to " + unzipPath + ", successfully");
+                log.info("[6]: Copy site-packages to " + unzipPath + ", successfully");
             } finally {
                 File temp1 = new File(libPathName);
                 if (temp1.exists()) {
-                    System.out.println("[*]: Start to clean temp files in" + libPathName);
+                    log.info("[*]: Start to clean temp files in" + libPathName);
                     FileUtils.deleteQuietly(temp1);
-                    System.out.println("[*]: Temp file cleaned successfully");
+                    log.info("[*]: Temp file cleaned successfully");
                 }
             }
 
             loopPackagesList(log, "py-lib/site-packages", zipFileTempPath);
         } catch (Throwable throwable) {
-            System.out.println("[x]: can not prepare Lib for site-packages, Please manually extract " + zipFileTempPath + " and place " + zipFileTempPath + "/Lib/ in the " + (pyJarPath.endsWith(jarName) ? pyJarPath.replace(jarName, "") : pyJarPath) + " folder.");
+            log.info("[x]: can not prepare Lib for site-packages, Please manually extract " + zipFileTempPath + " and place " + zipFileTempPath + "/Lib/ in the " + (pyJarPath.endsWith(jarName) ? pyJarPath.replace(jarName, "") : pyJarPath) + " folder.");
             log.warn("Init python resources failed: {}", throwable.getMessage());
             return -1;
         }

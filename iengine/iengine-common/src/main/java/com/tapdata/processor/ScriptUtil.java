@@ -721,19 +721,22 @@ public class ScriptUtil {
 		//	}
 		//}
 		URL[] urls = new URL[1];
-		urls[0] = loader.getResource("jython-standalone-2.7.3.jar");
+		urls[0] = loader.getResource("BOOT-INF/lib/jython-standalone-2.7.3.jar");
 		if (null == urls[0]) {
-			TapLogger.warn("ScriptUtil", "Can not get jython-standalone-2.7.3.jar source from PyScriptEngine's classloader");
-			final URLClassLoader urlClassLoader = new URLClassLoader(urls,Thread.currentThread().getContextClassLoader());
-			if (consumer != null) {
-				consumer.accept(urlClassLoader);
-			}
-		} else {
-			final URLClassLoader urlClassLoader = new URLClassLoader(urls, loader);
-			if (consumer != null) {
-				consumer.accept(urlClassLoader);
-			}
+			try {
+				urls[0] = (new File("py-lib/jython-standalone-2.7.3.jar")).toURI().toURL();
+			} catch (Exception e) {}
+//			TapLogger.warn("ScriptUtil", "Can not get jython-standalone-2.7.3.jar source from PyScriptEngine's classloader");
+//			final URLClassLoader urlClassLoader = new URLClassLoader(urls,loader);
+//			if (consumer != null) {
+//				consumer.accept(urlClassLoader);
+//			}
+		} //else {
+		final URLClassLoader urlClassLoader = new URLClassLoader(urls, loader);
+		if (consumer != null) {
+			consumer.accept(urlClassLoader);
 		}
+		//}
 		return  "import com.tapdata.constant.DateUtil as DateUtil\n" +
 				"import com.tapdata.constant.UUIDGenerator as UUIDGenerator\n" +
 				"import com.tapdata.constant.UUIDGenerator as idGen\n" +
