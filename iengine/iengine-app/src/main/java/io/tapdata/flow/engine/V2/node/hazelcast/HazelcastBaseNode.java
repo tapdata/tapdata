@@ -920,7 +920,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		private Map<String, TapValue<?, ?>> before;
 		private Map<String, TapValue<?, ?>> after;
 
-		private TapValueTransform() {
+		public TapValueTransform() {
 		}
 
 		public static TapValueTransform create() {
