@@ -277,11 +277,10 @@ public class PythonUtils {
         }
     }
 
-
     public static void supportThirdPartyPackageList(File file, Log logger) {
-        if (file.exists()) {
+        if (null != file && file.exists()) {
             File[] files = file.listFiles();
-            if (files.length > 0) {
+            if (null != files && files.length > 0) {
                 StringJoiner joiner = new StringJoiner(", ");
                 for (File f : files) {
                     String name = f.getName();
@@ -295,5 +294,4 @@ public class PythonUtils {
             }
         }
     }
-
 }

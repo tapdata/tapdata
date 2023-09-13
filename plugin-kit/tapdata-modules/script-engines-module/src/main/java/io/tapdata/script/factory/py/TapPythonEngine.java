@@ -74,7 +74,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 try{
                     File file = PythonUtils.getThreadPackagePath();
                     if (null != file) {
-                        logger.info(String.format("\nimport sys\nsys.path.append('%s')\n", file.getAbsolutePath()));
+                        logger.info(String.format("import sys\\nsys.path.append('%s')", file.getAbsolutePath()));
                         scriptEngine.eval(String.format("\nimport sys\nsys.path.append('%s')\n", file.getAbsolutePath()));
                         PythonUtils.supportThirdPartyPackageList(file, logger);
                     } else {
