@@ -92,7 +92,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     }
 
     public Object applyClassLoaderContext(Callable<?> callable) {
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        //ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         //Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
         try {
             return callable.call();

@@ -15,16 +15,8 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
-import org.apache.commons.io.FilenameUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.DefaultResourceLoader;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
 
 import javax.script.ScriptEngine;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.lang.management.ManagementFactory;
 import java.util.HashMap;
 
@@ -84,60 +76,4 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
             TapLogger.warn(TAG, "Can not load python engine, msg: {}", e.getMessage());
         }
     }
-
-    /**
-     * @deprecated
-     * */
-    public int copyFile() {
-        ResourceLoader resourceLoader = new DefaultResourceLoader();
-        return copyTo(resourceLoader, "classpath:py-libs", "py-lib");
-        //count = copyTo(resourceLoader, "classpath:site-packages", "py-lib/site-packages");
-        //return count;
-    }
-    
-    private int copyTo(ResourceLoader resourceLoader, String fromPath, String toPath) {
-        try {
-            File to = new File(toPath);
-            Resource resource = resourceLoader.getResource(fromPath);
-            File sourceDir = resource.getFile();
-            File[] from = sourceDir.listFiles();
-            if (null == from) return -1;
-            if (!to.exists()) {
-                to.mkdirs();
-            }
-            for (File file : from) {
-                copyFile(file, new File(to, file.getName()));
-            }
-        } catch (Exception e) {
-            TapLogger.warn(TAG, "Can not get python packages resources when load python engine, msg: {}", e.getMessage());
-            return  -1;
-        }
-        return 1;
-    }
-
-    private void copyFile(File file, File target) throws Exception {
-        if (null == file) return;
-        File[] files = file.listFiles();
-        if (!target.exists() || !target.isDirectory()) target.mkdirs();
-        if (null == files || files.length <= 0) return;
-        for (File f : files) {
-            if (f.isDirectory()) {
-                copyFile(f, new File(FilenameUtils.concat(target.getPath(), f.getName())));
-            } else if (f.isFile()) {
-                copy(f, new File(FilenameUtils.concat(target.getPath(), f.getName())));
-            }
-        }
-    }
-
-    private void copy(File from, File to) throws Exception{
-        try (FileInputStream fis = new FileInputStream(from.getAbsolutePath());
-             FileOutputStream fos = new FileOutputStream(to.getAbsolutePath())) {
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = fis.read(buffer)) != -1) {
-                fos.write(buffer, 0, bytesRead);
-            }
-        }
-    }
-
 }
