@@ -7,7 +7,10 @@ import com.hazelcast.ringbuffer.OverflowPolicy;
 import com.hazelcast.ringbuffer.Ringbuffer;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.construct.ConstructIterator;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,7 +30,7 @@ import java.util.function.Predicate;
  * @Description
  * @create 2022-02-07 11:11
  **/
-public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
+public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> implements MemoryFetcher {
 	private final static Logger logger = LogManager.getLogger(ConstructRingBuffer.class);
 	public final static String SEQUENCE_KEY = "sequence";
 	private final Ringbuffer<Document> ringbuffer;
@@ -40,6 +43,7 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
 		if (logger.isDebugEnabled()) {
 			logger.debug("Create construct ringbuffer succeed. Name: {}, head: {}, tail: {}", this.ringbuffer.getName(), headSequence, tailSequence);
 		}
+		PDKIntegration.registerMemoryFetcher(ConstructRingBuffer.class.getSimpleName() + "-" + name, this);
 	}
 
 	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto) {
@@ -51,6 +55,7 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
 			convertTtlDay2Second(ttlDay);
 			PersistenceStorage.getInstance().setRingBufferTTL(this.ringbuffer, this.ttlSecond);
 		}
+		PDKIntegration.registerMemoryFetcher(ConstructRingBuffer.class.getSimpleName() + "-" + name, this);
 	}
 
 	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto, PersistenceStorage.SequenceMode sequenceMode) {
@@ -62,6 +67,7 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
 			convertTtlDay2Second(ttlDay);
 			PersistenceStorage.getInstance().setRingBufferTTL(this.ringbuffer, this.ttlSecond);
 		}
+		PDKIntegration.registerMemoryFetcher(ConstructRingBuffer.class.getSimpleName() + "-" + name, this);
 	}
 
 	@Override
@@ -146,6 +152,14 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
 	@Override
 	public String getType() {
 		return "RingBuffer";
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		DataMap dataMap = new DataMap();
+		dataMap.put("Name", ringbuffer.getName());
+		dataMap.put("Tail sequence", ringbuffer.tailSequence());
+		return dataMap;
 	}
 
 	static class RingBufferIterator<E extends Document> implements ConstructIterator<E> {
