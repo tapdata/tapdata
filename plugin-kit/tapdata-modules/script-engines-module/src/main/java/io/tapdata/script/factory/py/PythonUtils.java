@@ -195,6 +195,24 @@ public class PythonUtils {
                 }
                 log.info("[5]: Start to copy site-packages from Lib: " + libFiles + " to :" + unzipPath + " >>>");
                 FileUtils.copyToDirectory(libFiles, new File(unzipPath));
+
+                File jarLib = new File(concat(libPathName, "Lib"));
+                File toPath = new File("py-lib/Lib/site-packages");
+                if (!toPath.exists()) toPath.mkdirs();
+                copyFile(jarLib, toPath);
+                File needDelete = new File("py-lib/Lib/site-packages/site-packages");
+                if (needDelete.exists()) {
+                    FileUtils.deleteDirectory(needDelete);
+                }
+
+//                File[] files = jarLib.listFiles();
+//                if (null != files && files.length > 0 ){
+//                    for (File f : files) {
+//                        if (!(f.isDirectory() && "site-packages".equals(f.getName()))) {
+//                            copyFile(f, toPath);
+//                        }
+//                    }
+//                }
                 log.info("[6]: Copy site-packages to " + unzipPath + ", successfully");
             } finally {
                 File temp1 = new File(libPathName);

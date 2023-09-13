@@ -76,7 +76,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         try {
             Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
             try {
-                //System.setProperty("python.import.site", "false");
+                System.setProperty("python.import.site", "false");
 //                Field field = PySystemState.class.getDeclaredField("initialized");
 //                field.setAccessible(true);
 //                Field defaultArgvF = PySystemState.class.getDeclaredField("defaultArgv");
