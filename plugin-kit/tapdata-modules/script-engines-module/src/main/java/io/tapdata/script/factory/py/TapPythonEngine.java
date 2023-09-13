@@ -85,8 +85,6 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 }
                 logger.info("SystemProperties: {}", PySystemState.registry);
 
-                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
-
                 PyList defaultArgv = (PyList)(defaultArgvF.get(null)) ;
                 PyList defaultPath = (PyList)(defaultPathF.get(null)) ;
                 logger.info("initialized: {}, defaultArgv: {}, defaultPath: {}, SystemProperties: {}", initialized, defaultArgv, defaultPath, PySystemState.registry);
@@ -96,6 +94,8 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 if (null == defaultPath) {
                     defaultPathF.set(null, new PyList());
                 }
+                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
+
                 if (null != initialized && initialized && null == PySystemState.registry) {
                     PySystemState.registry = PrePy.getSystemProperties();
                 }
