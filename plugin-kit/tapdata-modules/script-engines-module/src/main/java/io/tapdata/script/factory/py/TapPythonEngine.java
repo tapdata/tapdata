@@ -73,13 +73,13 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
             try {
                 Class.forName("org.python.jsr223.PyScriptEngine");
                 System.setProperty("python.import.site", "false");
-                logger.info("System Properties: {}", toJson(PrePy.getSystemProperties()));
+                //logger.info("System Properties: {}", toJson(PrePy.getSystemProperties()));
                 Field field = PySystemState.class.getDeclaredField("initialized");
                 field.setAccessible(true);
                 Field defaultArgvF = PySystemState.class.getDeclaredField("defaultArgv");
-                field.setAccessible(true);
+                defaultArgvF.setAccessible(true);
                 Field defaultPathF = PySystemState.class.getDeclaredField("defaultPath");
-                field.setAccessible(true);
+                defaultPathF.setAccessible(true);
                 Boolean initialized = (Boolean) field.get(null);
                 PyList defaultArgv = (PyList)(defaultArgvF.get(null)) ;
                 PyList defaultPath = (PyList)(defaultPathF.get(null)) ;
