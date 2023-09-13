@@ -9,6 +9,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import org.python.core.Options;
 import org.python.core.PrePy;
 import org.python.core.PyFile;
+import org.python.core.PyList;
 import org.python.core.PyObject;
 import org.python.core.PySystemState;
 import org.python.jsr223.PyScriptEngine;
@@ -75,7 +76,17 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
                 logger.info("System Properties: {}", toJson(PrePy.getSystemProperties()));
                 Field field = PySystemState.class.getDeclaredField("initialized");
                 field.setAccessible(true);
+                Field defaultArgvF = PySystemState.class.getDeclaredField("defaultArgv");
+                field.setAccessible(true);
+                Field defaultPathF = PySystemState.class.getDeclaredField("defaultPath");
+                field.setAccessible(true);
                 Boolean initialized = (Boolean) field.get(null);
+                PyList defaultArgv = (PyList)(defaultArgvF.get(null)) ;
+                PyList defaultPath = (PyList)(defaultPathF.get(null)) ;
+                if (null == defaultArgv || null == defaultPath) {
+                    field.set(null, false);
+                    PySystemState.registry = null;
+                }
                 if (null != initialized && initialized && null == PySystemState.registry) {
                     PySystemState.registry = Optional.ofNullable(PrePy.getSystemProperties()).orElse(new Properties());
                 }
