@@ -25,6 +25,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -50,6 +53,14 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         File file = PythonUtils.getThreadPackagePath();
         if (null == file) {
             PythonUtils.flow(logger);
+            try {
+                String jarPath = "py-lib/jython-standalone-2.7.3.jar";
+                ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+                URL jarURL = new URL("file://" + jarPath);
+                Method addURLMethod = URLClassLoader.class.getDeclaredMethod("addURL", URL.class);
+                addURLMethod.setAccessible(true);
+                addURLMethod.invoke(classLoader, jarURL);
+            } catch (Exception e) {}
         }
         classLoader = scriptOptions.getClassLoader();
         this.buildInScript = "";
