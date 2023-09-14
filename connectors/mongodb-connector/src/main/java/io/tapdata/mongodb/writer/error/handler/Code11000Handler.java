@@ -82,6 +82,14 @@ public class Code11000Handler implements BulkWriteErrorHandler {
 						return true;
 					}
 				}
+
+				if(errorWriteModel instanceof InsertOneModel){
+					String id = ((Document) ((InsertOneModel) errorWriteModel).getDocument()).get("_id").toString();
+					String idTemp = ((Document) ((InsertOneModel) writeModel).getDocument()).get("_id").toString();
+					if (id.equals(idTemp)) {
+						return true;
+					}
+				}
 			}
 		} catch (Exception e) {
 			TapLogger.error(TAG, "Code11000Handler handle containDocument error", e);
