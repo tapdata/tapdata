@@ -76,7 +76,7 @@ public class MessageAop {
             ret = joinPoint.proceed(args);
             if (CollectionUtils.isNotEmpty(ids)) {
                 ids.forEach(id -> {
-                    userLogService.addUserLog(Modular.MESSAGE, Operation.READ, userDetail, id, MessageUtil.getLogMsg(local,"ReadNotifications"));
+                    userLogService.addUserLog(Modular.MESSAGE, Operation.READ, userDetail, id, MessageUtil.getMessage(local,"ReadNotifications"));
                 });
             }
         } else {
@@ -99,7 +99,7 @@ public class MessageAop {
         UserDetail userDetail = (UserDetail) args[0];
         Locale locale = (Locale) args[1];
         ret = joinPoint.proceed(args);
-        userLogService.addUserLog(Modular.MESSAGE, Operation.READ_ALL, userDetail.getUserId(), null, MessageUtil.getLogMsg(locale,"AllNotices"));
+        userLogService.addUserLog(Modular.MESSAGE, Operation.READ_ALL, userDetail.getUserId(), null, MessageUtil.getMessage(locale,"AllNotices"));
         return ret;
     }
 
@@ -121,7 +121,7 @@ public class MessageAop {
         ret = joinPoint.proceed(args);
         if (CollectionUtils.isNotEmpty(ids)) {
             ids.forEach(id -> {
-                userLogService.addUserLog(Modular.MESSAGE, Operation.DELETE, userDetail, id, MessageUtil.getLogMsg(locale,"DeleteNotifications"));
+                userLogService.addUserLog(Modular.MESSAGE, Operation.DELETE, userDetail, id, MessageUtil.getMessage(locale,"DeleteNotifications"));
             });
         }
 
@@ -142,7 +142,7 @@ public class MessageAop {
         UserDetail userDetail = (UserDetail) args[0];
         Locale locale=(Locale)args[1];
         ret = joinPoint.proceed(args);
-        userLogService.addUserLog(Modular.MESSAGE, Operation.DELETE_ALL, userDetail.getUserId(), null, MessageUtil.getLogMsg(locale,"DeleteNotifications"));
+        userLogService.addUserLog(Modular.MESSAGE, Operation.DELETE_ALL, userDetail.getUserId(), null, MessageUtil.getMessage(locale,"DeleteNotifications"));
 
         return ret;
     }

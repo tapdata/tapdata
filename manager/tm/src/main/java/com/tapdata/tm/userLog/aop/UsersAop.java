@@ -51,7 +51,7 @@ public class UsersAop {
         Object[] args = joinPoint.getArgs();
         Locale locale=(Locale) args[3];
         if (null != userDto) {
-            userLogService.addUserLog(Modular.USER_NOTIFICATION, Operation.UPDATE, userDto.getId().toString(), userDto.getId().toString(), MessageUtil.getLogMsg(locale,"NotificationSettings"));
+            userLogService.addUserLog(Modular.USER_NOTIFICATION, Operation.UPDATE, userDto.getId().toString(), userDto.getId().toString(), MessageUtil.getMessage(locale,"NotificationSettings"));
         }
     }
 

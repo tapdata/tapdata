@@ -53,7 +53,7 @@ public class CustomerController extends BaseController {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
         HttpServletRequest request = attributes.getRequest();
         Locale locale = WebUtils.getLocale(request);
-        userLogService.addUserLog(Modular.CUSTOMER, com.tapdata.tm.userLog.constant.Operation.UPDATE, getLoginUser(), MessageUtil.getLogMsg(locale,"EnterpriseInformation"));
+        userLogService.addUserLog(Modular.CUSTOMER, com.tapdata.tm.userLog.constant.Operation.UPDATE, getLoginUser(), MessageUtil.getMessage(locale,"EnterpriseInformation"));
 
         //customer.setId(new ObjectId(getLoginUser().getCustomerId()));
         long result = customerService.upsert(
