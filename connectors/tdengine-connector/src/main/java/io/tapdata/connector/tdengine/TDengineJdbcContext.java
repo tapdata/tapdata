@@ -101,7 +101,7 @@ public class TDengineJdbcContext extends JdbcContext {
         List<DataMap> columnList = TapSimplify.list();
         try {
             for (String tableName : tableNames) {
-                String sql = String.format("DESCRIBE %s.%s", getConfig().getDatabase(), tableName);
+                String sql = String.format("DESCRIBE `%s`.`%s` ", getConfig().getDatabase(), tableName);
                 query(sql, resultSet -> {
                     List<DataMap> list = TDengineDbKit.getDataFromResultSet(resultSet);
                     list.forEach(dataMap -> dataMap.put("table_name", tableName));
