@@ -600,7 +600,6 @@ public class ScriptUtil {
 		if (StringUtils.isBlank(script)) {
 			script = DEFAULT_PY_SCRIPT;
 		}
-		//script = script.replace(", yaml, requests", "");
 		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
 		final ClassLoader[] externalClassLoader = new ClassLoader[1];
 		String buildInMethod = "";
@@ -616,7 +615,6 @@ public class ScriptUtil {
 			e.put("tapUtil", new JsUtil());
 			e.put("tapLog", logger);
 			e.eval(globalScript);
-			e.eval("tapLog.info('Init python node...');\n");
 		} catch (Exception es){
 			throw new CoreException("Fail init python node, msg: {}", es.getMessage(), es);
 		}
@@ -726,17 +724,11 @@ public class ScriptUtil {
 			try {
 				urls[0] = (new File("py-lib/jython-standalone-2.7.3.jar")).toURI().toURL();
 			} catch (Exception e) {}
-//			TapLogger.warn("ScriptUtil", "Can not get jython-standalone-2.7.3.jar source from PyScriptEngine's classloader");
-//			final URLClassLoader urlClassLoader = new URLClassLoader(urls,loader);
-//			if (consumer != null) {
-//				consumer.accept(urlClassLoader);
-//			}
-		} //else {
+		}
 		final URLClassLoader urlClassLoader = new URLClassLoader(urls, loader);
 		if (consumer != null) {
 			consumer.accept(urlClassLoader);
 		}
-		//}
 		return  "import com.tapdata.constant.DateUtil as DateUtil\n" +
 				"import com.tapdata.constant.UUIDGenerator as UUIDGenerator\n" +
 				"import com.tapdata.constant.UUIDGenerator as idGen\n" +
