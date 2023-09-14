@@ -39,7 +39,6 @@ public class PythonUtils {
     public static final String TAG = TapPythonEngine.class.getSimpleName();
     public static synchronized void flow(Log logger) {
         try {
-            //execute(PythonUtils.PYTHON_THREAD_JAR, PythonUtils.PYTHON_THREAD_PACKAGE_PATH, logger);
             if (!unzipIeJar(logger)){
                 execute(PythonUtils.PYTHON_THREAD_JAR, PythonUtils.PYTHON_THREAD_PACKAGE_PATH, logger);
                 return;
@@ -51,16 +50,20 @@ public class PythonUtils {
                     "py-lib/agent/BOOT-INF/lib/jython-standalone-2.7.3.jar",
                     "jython-standalone-2.7.3.jar");
         } finally {
-            File file = new File("py-lib/agent");
-            if (file.exists()) {
-                try {
-                    if (file.isDirectory()) {
-                        FileUtils.deleteDirectory(file);
-                    } else {
-                        FileUtils.delete(file);
-                    }
-                } catch (Exception e){}
-            }
+            deleteFile(new File("py-lib/agent"));
+            deleteFile(new File("py-lib/site-packages"));
+        }
+    }
+
+    private static void deleteFile(File file) {
+        if (file.exists()) {
+            try {
+                if (file.isDirectory()) {
+                    FileUtils.deleteDirectory(file);
+                } else {
+                    FileUtils.delete(file);
+                }
+            } catch (Exception e){}
         }
     }
 
@@ -204,15 +207,6 @@ public class PythonUtils {
                 if (needDelete.exists()) {
                     FileUtils.deleteDirectory(needDelete);
                 }
-
-//                File[] files = jarLib.listFiles();
-//                if (null != files && files.length > 0 ){
-//                    for (File f : files) {
-//                        if (!(f.isDirectory() && "site-packages".equals(f.getName()))) {
-//                            copyFile(f, toPath);
-//                        }
-//                    }
-//                }
                 log.info("[6]: Copy site-packages to " + unzipPath + ", successfully");
             } finally {
                 File temp1 = new File(libPathName);
