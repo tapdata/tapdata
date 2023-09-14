@@ -1,5 +1,6 @@
 package io.tapdata.mongodb.writer;
 
+import com.alibaba.fastjson.JSON;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoBulkWriteException;
 import com.mongodb.bulk.BulkWriteError;
@@ -14,6 +15,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.mongodb.MongodbUtil;
@@ -100,7 +102,9 @@ public class MongodbWriter {
 		BulkWriteModel bulkWriteModel = buildBulkWriteModel(tapRecordEvents, table, inserted, updated, deleted, collection, pks);
 
 		if (bulkWriteModel.isEmpty()) {
-			throw new RuntimeException("Bulk write data failed, write model list is empty, received record size: " + tapRecordEvents.size());
+			throw new RuntimeException("Bulk write data failed, write model list is empty, received record size: " + tapRecordEvents.size()
+					+ " tapRecordEvents:" + JSON.toJSONString(tapRecordEvents) + " TapTable:" + JSON.toJSONString(table)
+					+ " pks: " + JSON.toJSONString(pks));
 		}
 
 		BulkWriteOptions bulkWriteOptions;
@@ -202,6 +206,9 @@ public class MongodbWriter {
 	}
 
 	private BulkWriteModel buildBulkWriteModel(List<TapRecordEvent> tapRecordEvents, TapTable table, AtomicLong inserted, AtomicLong updated, AtomicLong deleted, MongoCollection<Document> collection, Collection<String> pks) {
+		if(CollectionUtils.isEmpty(pks)){
+			TapLogger.warn(TAG," PK is empty");
+		}
 		BulkWriteModel bulkWriteModel = new BulkWriteModel(pks.contains("_id"));
 		for (TapRecordEvent recordEvent : tapRecordEvents) {
 			if (!(recordEvent instanceof TapInsertRecordEvent)) {
