@@ -55,7 +55,6 @@ public class DefaultConvert implements SybaseDataTypeConvert {
                     return null == bigDecimal ? null : bigDecimal.floatValue();
                 case TableTypeEntity.Type.IMAGE:
                 case TableTypeEntity.Type.BINARY:
-                    //TapLogger.warn(TAG, "An {} data type not support in cdc now", sybaseType);
                     return SybaseDataTypeConvert.objToBinary(fromValue);
                 case TableTypeEntity.Type.DECIMAL:
                     return SybaseDataTypeConvert.objToNumber(fromValue);

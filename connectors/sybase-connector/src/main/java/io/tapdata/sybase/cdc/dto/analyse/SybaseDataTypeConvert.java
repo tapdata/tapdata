@@ -24,6 +24,7 @@ import static io.tapdata.base.ConnectorBase.toJson;
  **/
 public interface SybaseDataTypeConvert {
     public static final String TAG = SybaseDataTypeConvert.class.getSimpleName();
+    public static final BASE64Decoder decoder = new BASE64Decoder();
 
     public static final String INSERT = "I";
     public static final String UPDATE = "U";
@@ -150,15 +151,11 @@ public interface SybaseDataTypeConvert {
     }
 
     public static Object objToBinary(Object obj) {
-//        TapLogger.warn(TAG, "An BINARY data type not support in cdc now");
-//        return null;
         if (null == obj) return null;
         if (obj instanceof String) {
             try {
-                return ((String)obj).getBytes();
-//                String binaryObj = (String) obj;
-//                BASE64Decoder decoder = new BASE64Decoder();
-//                return decoder.decodeBuffer(binaryObj);
+                String binaryObj = (String) obj;
+                return decoder.decodeBuffer(binaryObj);
             } catch (Exception e) {
                 return null;
             }
