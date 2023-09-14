@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
@@ -330,22 +331,40 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	void processEvents(List<TapEvent> tapEvents) {
-		dispatchTapRecordEvents(tapEvents,
-				dispatchEntity -> {
-					if (dispatchEntity.getCurrentTapEvent() instanceof TapRecordEvent && dispatchEntity.getLastTapEvent() instanceof TapRecordEvent) {
-						return !((TapRecordEvent) dispatchEntity.getLastTapEvent()).getTableId().equals(((TapRecordEvent) dispatchEntity.getCurrentTapEvent()).getTableId());
-					} else {
-						return true;
-					}
-				},
-				events -> {
-					TapEvent firstEvent = events.get(0);
-					if (firstEvent instanceof TapRecordEvent) {
-						writeRecord(events);
-					} else if (firstEvent instanceof TapDDLEvent) {
-						writeDDL(events);
-					}
-				});
+		TapEvent foundDDLEvent = tapEvents.stream().filter(e -> e instanceof TapDDLEvent).findFirst().orElse(null);
+		if (null == foundDDLEvent) {
+			Map<String, List<TapEvent>> dmlEventsGroupByTableId = new HashMap<>();
+			for (TapEvent tapEvent : tapEvents) {
+				if (tapEvent instanceof TapRecordEvent) {
+					String tableId = ((TapRecordEvent) tapEvent).getTableId();
+					List<TapEvent> tapRecordEvents = dmlEventsGroupByTableId.computeIfAbsent(tableId, k -> new ArrayList<>());
+					tapRecordEvents.add(tapEvent);
+				}
+			}
+			dmlEventsGroupByTableId.forEach((tableId, tapRecordEvents)-> writeRecord(tapRecordEvents));
+			if (obsLogger.isDebugEnabled()) {
+				StringBuilder logStr = new StringBuilder("Target dispatch record events\n");
+				dmlEventsGroupByTableId.forEach((k, v) -> logStr.append(" - ").append(k).append(": ").append(v.size()).append("\n"));
+				obsLogger.debug(logStr.toString());
+			}
+		} else {
+			dispatchTapRecordEvents(tapEvents,
+					dispatchEntity -> {
+						if (dispatchEntity.getCurrentTapEvent() instanceof TapRecordEvent && dispatchEntity.getLastTapEvent() instanceof TapRecordEvent) {
+							return !((TapRecordEvent) dispatchEntity.getLastTapEvent()).getTableId().equals(((TapRecordEvent) dispatchEntity.getCurrentTapEvent()).getTableId());
+						} else {
+							return true;
+						}
+					},
+					events -> {
+						TapEvent firstEvent = events.get(0);
+						if (firstEvent instanceof TapRecordEvent) {
+							writeRecord(events);
+						} else if (firstEvent instanceof TapDDLEvent) {
+							writeDDL(events);
+						}
+					});
+		}
 	}
 
 	private void writeDDL(List<TapEvent> events) {
@@ -417,7 +436,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		).map(updateConditionFields -> {
 			ValueChange<String> nameChange = tapAlterFieldNameEvent.getNameChange();
 			if (null != nameChange) {
-				if(updateConditionFields.contains(nameChange.getBefore())){
+				if (updateConditionFields.contains(nameChange.getBefore())) {
 					updateConditionFields.removeIf(s -> nameChange.getBefore().equals(s));
 					updateConditionFields.add(nameChange.getAfter());
 				}
@@ -435,7 +454,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					}
 					return null;
 				}).map(fields -> {
-					if(fields.contains(nameChange.getBefore())){
+					if (fields.contains(nameChange.getBefore())) {
 						fields.removeIf(s -> nameChange.getBefore().equals(s));
 						fields.add(nameChange.getAfter());
 					}
@@ -809,11 +828,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	public void doClose() throws Exception {
 		super.doClose();
 	}
+
 	@Override
 	protected void updateNodeConfig(TapdataEvent tapdataEvent) {
 		super.updateNodeConfig(tapdataEvent);
 		final TapEvent tapEvent = tapdataEvent.getTapEvent();
-		if(tapEvent instanceof TapAlterFieldNameEvent){
+		if (tapEvent instanceof TapAlterFieldNameEvent) {
 			TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapEvent;
 			// 修改关联字段配置
 			Optional.ofNullable(updateConditionFieldsMap
@@ -821,7 +841,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			).map(updateConditionFields -> {
 				ValueChange<String> nameChange = tapAlterFieldNameEvent.getNameChange();
 				if (null != nameChange) {
-					if(updateConditionFields.contains(nameChange.getBefore())){
+					if (updateConditionFields.contains(nameChange.getBefore())) {
 						updateConditionFields.removeIf(s -> nameChange.getBefore().equals(s));
 						updateConditionFields.add(nameChange.getAfter());
 					}
@@ -839,7 +859,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						}
 						return null;
 					}).map(fields -> {
-						if(fields.contains(nameChange.getBefore())){
+						if (fields.contains(nameChange.getBefore())) {
 							fields.removeIf(s -> nameChange.getBefore().equals(s));
 							fields.add(nameChange.getAfter());
 						}

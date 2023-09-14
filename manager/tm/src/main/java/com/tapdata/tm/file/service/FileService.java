@@ -172,7 +172,6 @@ public class FileService {
                 }
             }
             if (flag) {
-                log.info("图片类型,进入预览");
                 response.setHeader("Content-disposition", "inline; filename=" + fileName);
                 FunctionUtils.isTureOrFalse(file.getFilename().contains(".svg")).trueOrFalseHandle(
                         () -> response.setContentType("image/svg+xml"),
@@ -182,7 +181,6 @@ public class FileService {
                 gridFSBucket.downloadToStream(fileId, out);
                 out.flush();
             } else {
-                log.info("非图片类型,进入下载");
                 //转成GridFsResource类取文件类型
                 response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
                 response.setHeader("Content-Disposition", "attachment; filename=" + fileName);
