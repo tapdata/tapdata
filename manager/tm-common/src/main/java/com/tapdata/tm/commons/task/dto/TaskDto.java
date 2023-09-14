@@ -2,6 +2,7 @@ package com.tapdata.tm.commons.task.dto;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.base.convert.DagDeserialize;
 import com.tapdata.tm.commons.base.convert.DagSerialize;
 import com.tapdata.tm.commons.dag.DAG;
@@ -22,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Task
  */
 @Data
-public class TaskDto extends ParentTaskDto {
+public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     /** migrate迁移  logColleshareCachector 挖掘任务*/
     public static final String SYNC_TYPE_SYNC = "sync";
     public static final String SYNC_TYPE_MIGRATE = "migrate";
@@ -47,6 +48,9 @@ public class TaskDto extends ParentTaskDto {
 
     public static final String ATTRS_USED_SHARE_CACHE = "usedShareCache";
     public static final String ATTRS_SKIP_ERROR_EVENT = "skipErrorEvent";
+
+    public static final String RETRY_STATUS_RUNNING = "Retrying";
+    public static final String RETRY_STATUS_NONE = "";
 
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
@@ -158,9 +162,28 @@ public class TaskDto extends ParentTaskDto {
     /** ldp需要新增的表名列表 */
     private List<String> ldpNewTables;
 
+    private String functionRetryStatus;
+    private Long functionRetryEx;
+    private String taskRetryStatus;
+
     /** 使用的共享挖掘任务停止 */
     private Boolean shareCdcStop;
     private String shareCdcStopMessage;
+
+    /**
+     * 开启动态调整队列内存使用
+     * true - 开启
+     * false - 关闭
+     */
+    private Boolean dynamicAdjustMemoryUsage;
+    /**
+     * 动态调整队列大小的阈值(单位：字节)
+     */
+    private Long dynamicAdjustMemoryThresholdByte;
+    /**
+     * 动态调整时，计算每行大小的采样比例
+     */
+    private Double dynamicAdjustMemorySampleRate;
 
     public DAG getDag() {
         if (dag != null) {

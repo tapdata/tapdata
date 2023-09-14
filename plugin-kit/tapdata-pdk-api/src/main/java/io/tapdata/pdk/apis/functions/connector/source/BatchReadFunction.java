@@ -3,13 +3,10 @@ package io.tapdata.pdk.apis.functions.connector.source;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.TapTableList;
 import io.tapdata.pdk.apis.functions.connector.TapConnectorFunction;
-import io.tapdata.pdk.apis.functions.connector.TapFunction;
 
 import java.util.List;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 public interface BatchReadFunction extends TapConnectorFunction {
     /**

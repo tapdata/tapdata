@@ -22,13 +22,16 @@ import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.TaskOperation;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
+import io.tapdata.flow.engine.V2.util.SingleLockWithKey;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.domain.Sort;
@@ -45,15 +48,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -94,18 +89,10 @@ public class TapdataTaskScheduler {
 
 	public final static String SCHEDULE_START_TASK_NAME = "scheduleStartTask";
 	public final static String SCHEDULE_STOP_TASK_NAME = "scheduleStopTask";
-	private static final Map<String, Object> taskLock = new ConcurrentHashMap<>();
+	private static final SingleLockWithKey taskLock = new SingleLockWithKey();
 	private static final Map<String, Long> taskRetryTimeMap = new ConcurrentHashMap<>();
 	private static final ScheduledExecutorService taskResetRetryServiceScheduledThreadPool = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Task-Reset-Retry-Service-Scheduled-Runner"));
 	//private ThreadPoolExecutorEx threadPoolExecutorEx;
-
-	private Object lockTask(String taskId) {
-		return taskLock.computeIfAbsent(taskId, s -> new int[0]);
-	}
-
-	private void unlockTask(String taskId) {
-		taskLock.remove(taskId);
-	}
 
 	@PostConstruct
 	public void init() {
@@ -123,7 +110,7 @@ public class TapdataTaskScheduler {
 					TaskClient<TaskDto> subTaskDtoTaskClient = entry.getValue();
 					final TaskDto taskDto = subTaskDtoTaskClient.getTask();
 					String taskId = taskDto.getId().toHexString();
-					Criteria rescheduleCriteria = where("_id").is(taskId).andOperator(where("agentId").ne(instanceNo));
+					Criteria rescheduleCriteria = where("_id").is(taskId).andOperator(where("agentId").ne(instanceNo), where("agentId").ne(null));
 
 					Query query = new Query(rescheduleCriteria);
 					query.fields().include("id").include("status");
@@ -205,27 +192,13 @@ public class TapdataTaskScheduler {
 					StartTaskOperation startTaskOperation = (StartTaskOperation) taskOperation;
 					Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
 					taskId = startTaskOperation.getTaskDto().getId().toHexString();
-					Object lock = lockTask(taskId);
-					synchronized (lock) {
-						TaskDto taskDto = startTaskOperation.getTaskDto();
-						try {
-							startTask(taskDto);
-						} finally {
-							unlockTask(taskId);
-						}
-					}
+					TaskDto taskDto = startTaskOperation.getTaskDto();
+					taskLock.run(taskId, ()-> startTask(taskDto));
 				} else if (taskOperation instanceof StopTaskOperation) {
 					StopTaskOperation stopTaskOperation = (StopTaskOperation) taskOperation;
 					Thread.currentThread().setName(String.format("Stop-Task-Operation-Handler-%s", stopTaskOperation.getTaskId()));
 					taskId = stopTaskOperation.getTaskId();
-					Object lock = lockTask(taskId);
-					synchronized (lock) {
-						try {
-							stopTask(stopTaskOperation.getTaskId());
-						} finally {
-							Optional.ofNullable(taskId).ifPresent(this::unlockTask);
-						}
-					}
+					taskLock.run(taskId, () -> stopTask(taskId));
 				}
 				logger.info("Handled task operation: {}", taskOperation);
 			} catch (Exception e) {
@@ -409,58 +382,71 @@ public class TapdataTaskScheduler {
 					continue;
 				}
 				if (!taskClient.isRunning()) {
-					Object lock = lockTask(taskId);
 					try {
-						synchronized (lock) {
-							StopTaskResource stopTaskResource = null;
-							TerminalMode terminalMode = taskClient.getTerminalMode();
-							if (TerminalMode.STOP_GRACEFUL == terminalMode) {
-								stopTaskResource = StopTaskResource.STOPPED;
-							} else if (TerminalMode.COMPLETE == terminalMode) {
-								stopTaskResource = StopTaskResource.COMPLETE;
-							} else if(TerminalMode.INTERNAL_STOP == terminalMode){
-								if(taskClient.stop()){
-									clearTaskCacheAfterStopped(taskClient);
-									clearTaskRetryCache(taskId);
-								}
-							} else {
-								logger.warn("Task status to error: {}", terminalMode);
-								TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskId).orElse(null);
-								if (null != taskRetryService) {
-									TaskRetryService.TaskRetryResult taskRetryResult = taskRetryService.canTaskRetry();
-									if (taskRetryResult.isCanRetry()) {
-										boolean stop = taskClient.stop();
-										if (stop) {
-											clearTaskCacheAfterStopped(taskClient);
-											TaskDto taskDto = clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
-											ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
-											sendStartTask(taskDto);
-											taskRetryTimeMap.put(taskId, System.currentTimeMillis());
-										}
-									} else {
-										stopTaskResource = StopTaskResource.RUN_ERROR;
-										if (StringUtils.isNotBlank(taskRetryResult.getCantRetryReason())) {
-											ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask())
-													.info("Task [{}] cannot retry, reason: {}", taskClient.getTask().getName(), taskRetryResult.getCantRetryReason());
-										}
+						taskLock.lock(taskId);
+
+						StopTaskResource stopTaskResource = null;
+						TerminalMode terminalMode = taskClient.getTerminalMode();
+						if (TerminalMode.STOP_GRACEFUL == terminalMode) {
+							stopTaskResource = StopTaskResource.STOPPED;
+						} else if (TerminalMode.COMPLETE == terminalMode) {
+							stopTaskResource = StopTaskResource.COMPLETE;
+						} else if(TerminalMode.INTERNAL_STOP == terminalMode){
+							if(taskClient.stop()){
+								clearTaskCacheAfterStopped(taskClient);
+								clearTaskRetryCache(taskId);
+								clearTaskRetry(taskId);
+							}
+						} else {
+							logger.warn("Task status to error: {}", terminalMode);
+							TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskId).orElse(null);
+							if (null != taskRetryService) {
+								TaskRetryService.TaskRetryResult taskRetryResult = taskRetryService.canTaskRetry();
+								if (taskRetryResult.isCanRetry()) {
+									boolean stop = taskClient.stop();
+									if (stop) {
+										clearTaskCacheAfterStopped(taskClient);
+										TaskDto taskDto = clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
+										sendStartTask(taskDto);
+										taskRetryTimeMap.put(taskId, System.currentTimeMillis());
+										signTaskRetry(taskId);
 									}
 								} else {
 									stopTaskResource = StopTaskResource.RUN_ERROR;
+									if (StringUtils.isNotBlank(taskRetryResult.getCantRetryReason())) {
+										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask())
+												.info("Task [{}] cannot retry, reason: {}", taskClient.getTask().getName(), taskRetryResult.getCantRetryReason());
+									}
 								}
-							}
-							if (null != stopTaskResource) {
-								taskClient.getTask().setSnapShotInterrupt(true);
-								stopTaskAndClear(taskClient, stopTaskResource, taskId);
+							} else {
+								stopTaskResource = StopTaskResource.RUN_ERROR;
 							}
 						}
+						if (null != stopTaskResource) {
+							taskClient.getTask().setSnapShotInterrupt(true);
+							stopTaskAndClear(taskClient, stopTaskResource, taskId);
+						}
 					} finally {
-						unlockTask(taskId);
+						taskLock.unlock(taskId);
 					}
 				}
 			}
 		} catch (Exception e) {
 			logger.error("Scan force stopping data flow failed {}", e.getMessage(), e);
 		}
+	}
+
+	private void signTaskRetry(String taskId) {
+		CommonUtils.ignoreAnyError(() ->
+				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_RUNNING),
+						ConnectorConstant.TASK_COLLECTION), "Failed to sign task retry status");
+	}
+
+	public void clearTaskRetry(String taskId) {
+		CommonUtils.ignoreAnyError(() ->
+				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_NONE),
+						ConnectorConstant.TASK_COLLECTION), "Failed to clear task retry status");
 	}
 
 	private void internalStopTask() {
@@ -515,6 +501,7 @@ public class TapdataTaskScheduler {
 							obsLogger.info(String.format("Reset task [%s] retry time", taskDtoTaskClient.getTask().getName()));
 						}
 					}
+					clearTaskRetry(taskId);
 				}
 			}
 		} catch (Throwable ignored) {
@@ -653,6 +640,7 @@ public class TapdataTaskScheduler {
 		if (stopTaskCallAssignApi(taskDtoTaskClient, stopped)) {
 			clearTaskCacheAfterStopped(taskDtoTaskClient);
 			clearTaskRetryCache(taskId);
+			clearTaskRetry(taskId);
 		}
 	}
 

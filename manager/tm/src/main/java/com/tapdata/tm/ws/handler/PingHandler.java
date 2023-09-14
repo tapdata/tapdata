@@ -1,10 +1,13 @@
 package com.tapdata.tm.ws.handler;
 
+import cn.hutool.core.lang.Assert;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.tm.base.controller.BaseController;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.ping.PingDto;
 import com.tapdata.tm.commons.ping.PingType;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.service.TaskService;
@@ -19,8 +22,13 @@ import com.tapdata.tm.ws.dto.WebSocketContext;
 import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Metrics;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
+import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.Map;
 
@@ -35,6 +43,8 @@ public class PingHandler implements WebSocketHandler {
 	private final WorkerService workerService;
 	private final UserService userService;
 	private final TaskService taskService;
+
+	private final Counter taskPing = Counter.builder("task_ping").register(Metrics.globalRegistry);
 
 	public PingHandler(WorkerService workerService, UserService userService, TaskService taskService) {
 		this.workerService = workerService;
@@ -94,8 +104,22 @@ public class PingHandler implements WebSocketHandler {
 						ping.put("pingTime", System.currentTimeMillis());
 					}
 				}
-				UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(context.getUserId()));
+
+				UserDetail userDetail;
+				// public agent need query userDetail by taskId
+				if (where.containsKey("_id")) {
+					String taskId = where.get("_id") instanceof Map ? ((Map<?, ?>) where.get("_id")).get("$oid").toString() : where.get("_id").toString();
+					Field field = new Field();
+					field.put("user_id", true);
+					TaskDto taskDto = taskService.findById(new ObjectId(taskId), field);
+					Assert.notNull(taskDto, String.format("Task not found by id: %s", taskId));
+					userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+				} else {
+					userDetail = userService.loadUserById(MongoUtils.toObjectId(context.getUserId()));
+				}
+
 				long count = taskService.updateByWhere(where, update, userDetail);
+				taskPing.increment(count);
 				if (count > 0) {
 					pingDto.ok();
 				} else {

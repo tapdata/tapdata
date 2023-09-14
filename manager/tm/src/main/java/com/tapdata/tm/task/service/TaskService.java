@@ -11,7 +11,6 @@ import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
@@ -71,6 +70,7 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.schedule.ChartSchedule;
 import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
@@ -110,7 +110,6 @@ import org.quartz.CronScheduleBuilder;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -128,9 +127,11 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
@@ -158,8 +159,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MetaDataHistoryService historyService;
     private WorkerService workerService;
     private FileService fileService1;
-    private MongoTemplate mongoTemplate;
-    private static ThreadPoolExecutor completableFutureThreadPool;
     private UserLogService userLogService;
     private MessageQueueService messageQueueService;
     private UserService userService;
@@ -167,12 +166,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MonitoringLogsService monitoringLogsService;
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
     private TaskSaveService taskSaveService;
-    private SettingsService settingsService;
     private MeasurementServiceV2 measurementServiceV2;
 
     private LogCollectorService logCollectorService;
-
-    private static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private TaskResetLogService taskResetLogService;
 
@@ -189,8 +185,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     private InspectResultService inspectResultService;
 
-    public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
-
     private CustomNodeService customNodeService;
 
     private ExternalStorageService externalStorageService;
@@ -204,9 +198,24 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private TaskUpdateDagService taskUpdateDagService;
 
     private DateNodeService dateNodeService;
+
+    private final Map<String, ReentrantLock> scheduleLockMap = new ConcurrentHashMap<>();
+
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
     }
+
+	public Supplier<TaskDto> dataPermissionFindById(ObjectId taskId, Field fields) {
+		return () -> {
+			if (null != fields) {
+				fields.put("user_id", true);
+				fields.put("syncType", true);
+				fields.put(DataPermissionHelper.FIELD_NAME, true);
+				fields.put(ConnHeartbeatUtils.TASK_RELATION_FIELD, true);
+			}
+			return findById(taskId, fields);
+		};
+	}
 
     /**
      * 添加任务， 这里需要拆分子任务，入库需要保证原子性
@@ -404,7 +413,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (CollectionUtils.isNotEmpty(sources)) {
                     Node node1 = sources.get(0);
                     TableNode tableNode = (TableNode) node1;
-                    syncPoint.setNodeName(tableNode.getId());
+                    syncPoint.setNodeId(tableNode.getId());
                     syncPoint.setNodeName(tableNode.getName());
                     syncPoint.setConnectionId(tableNode.getConnectionId());
                 }
@@ -437,7 +446,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         if (taskDto.getId() != null) {
-            oldTaskDto = findById(taskDto.getId(), user);
+            oldTaskDto = findById(taskDto.getId());
             if (oldTaskDto != null) {
                 taskDto.setSyncType(oldTaskDto.getSyncType());
                 taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
@@ -1059,6 +1068,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setStartTime(null);
         taskDto.setStopTime(null);
         taskDto.setErrorTime(null);
+        taskDto.setCrontabScheduleMsg(null);
+        if (taskDto.getAttrs() != null) {
+            taskDto.getAttrs().remove("SNAPSHOT_ORDER_LIST");
+        }
         Map<String, Object> attrs = taskDto.getAttrs();
         if (null != attrs) {
             attrs.remove("edgeMilestones");
@@ -1111,6 +1124,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param user 用户
      */
     public void renew(ObjectId id, UserDetail user) {
+        renew(id, user, false);
+    }
+
+    public void renew(ObjectId id, UserDetail user, boolean system) {
         TaskDto taskDto = checkExistById(id, user);
         boolean needCreateRecord = !Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_WAIT_START).contains(taskDto.getStatus());
         //boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
@@ -1154,7 +1171,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                 taskSnapshot.setTaskRecordId(lastTaskRecordId);
                 disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
-                        new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+                        new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, system ? "system" : user.getUserId(), new Date()));
             }
         } else {
             //如果状态机修改重置中失败，应该提醒用户重置操作重复了，或者任务当前状态被刷新了。
@@ -1482,11 +1499,19 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     }
                     //产品认为不把STATUS_SCHEDULE_FAILED  展现到页面上，STATUS_SCHEDULE_FAILED就直接转为error状态
                     item.setStatus(TaskStatusEnum.getMapStatus(item.getStatus()));
+
+                    if (StringUtils.isNotBlank(item.getCrontabScheduleMsg())) {
+                        item.setCrontabScheduleMsg(MessageUtil.getMessage(item.getCrontabScheduleMsg()));
+                    }
                 }
             } else {
                 for (TaskDto item : items) {
                     item.setTransformProcess(0);
                     item.setTransformStatus(MetadataTransformerDto.StatusEnum.running.name());
+
+                    if (StringUtils.isNotBlank(item.getCrontabScheduleMsg())) {
+                        item.setCrontabScheduleMsg(MessageUtil.getMessage(item.getCrontabScheduleMsg()));
+                    }
                 }
             }
 
@@ -1556,9 +1581,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Where where = filter.getWhere();
 
         Criteria criteria = new Criteria();
-        if (!userDetail.isRoot()) {
-            criteria.and("user_id").is(userDetail.getUserId());
-        }
         Criteria orToCriteria = parseOrToCriteria(where);
 
         // Supplementary data verification status
@@ -1579,6 +1601,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         criteria.andOperator(orToCriteria);
         query.addCriteria(criteria);
+			if (!userDetail.isRoot() && !DataPermissionHelper.setFilterConditions(true, query, userDetail)) {
+					criteria.and("user_id").is(userDetail.getUserId());
+			}
 
         TmPageable tmPageable = new TmPageable();
         Integer page = (filter.getSkip() / filter.getLimit()) + 1;
@@ -1595,7 +1620,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         long total = repository.getMongoOperations().count(query, TaskEntity.class);
         List<TaskEntity> taskEntityList = repository.getMongoOperations().find(query.with(tmPageable), TaskEntity.class);
-        List<TaskDto> taskDtoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(taskEntityList, TaskDto.class);
+        List<TaskDto> taskDtoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(taskEntityList, TaskDto.class, DataPermissionHelper::convert);
 
         // Supplementary data verification status
         if (CollectionUtils.isNotEmpty(taskDtoList)) {
@@ -1630,10 +1655,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         query.limit(100000);
         query.skip(0);
         long count = repository.count(query, userDetail);
+        query = repository.filterToQuery(filter);
         query.skip(filter.getSkip());
         query.limit(filter.getLimit());
         List<TaskEntity> taskEntityList = repository.findAll(query, userDetail);
-        List<TaskDto> taskDtoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(taskEntityList, TaskDto.class);
+        List<TaskDto> taskDtoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(taskEntityList, TaskDto.class, DataPermissionHelper::convert);
         Page<TaskDto> taskDtoPage = new Page<>();
         taskDtoPage.setTotal(count);
         taskDtoPage.setItems(taskDtoList);
@@ -2306,7 +2332,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         match(Criteria.where("user_id").is(userDetail.getUserId())
                                 .and("customId").is(userDetail.getCustomerId())
                                 .and("is_deleted").ne(true)
-                                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)),
+                                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
+                                .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE,TaskDto.SYNC_TYPE_SYNC)),
                         group("type").count().as("count")
                 );
 
@@ -2559,6 +2586,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return taskMap;
 
 
+    }
+
+    public long countTaskNumber(UserDetail user) {
+        return count(new Query(Criteria.where("is_deleted").is(false).and("status").nin(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING)), user);
     }
 
     public List<SampleTaskVo> findByConId(String sourceConnectionId, String targetConnectionId, String syncType, String status, Where where, UserDetail user) {
@@ -2965,12 +2996,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Criteria nameCriteria = new Criteria();
         if (null != where.get("or")) {
             List<Criteria> criteriaList = new ArrayList<>();
-            List<Map<String, Map<String, String>>> orList = (List) where.remove("or");
-            for (Map<String, Map<String, String>> orMap : orList) {
+            List<Map<String, Map<String, Object>>> orList = (List) where.remove("or");
+            for (Map<String, Map<String, Object>> orMap : orList) {
                 orMap.forEach((key, value) -> {
                     if (value.containsKey("$regex")) {
-                        String queryStr = value.get("$regex");
-                        Criteria orCriteria = Criteria.where(key).regex(queryStr);
+                        Object queryStr = value.get("$regex");
+                        Criteria orCriteria = Criteria.where(key).regex(queryStr.toString());
+                        criteriaList.add(orCriteria);
+                    } else if (value.containsKey("$eq")) {
+                        Object queryStr = value.get("$eq");
+                        Criteria orCriteria = Criteria.where(key).is(queryStr);
                         criteriaList.add(orCriteria);
                     }
                 });
@@ -3189,13 +3224,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private static Update resetUpdate() {
         Update update = new Update()
                 .unset("startTime")
-                .unset("lastStartDate")
                 .unset("stopTime")
                 .unset("stopRetryTimes")
                 .unset("currentEventTimestamp")
                 .unset("snapshotDoneAt")
                 .unset("scheduleDate")
-                .unset("stopedDate");
+                .unset("stopedDate")
+                .unset("functionRetryEx")
+                .unset("taskRetryStatus")
+                .unset("functionRetryStatus");
         return update;
     }
 
@@ -3313,6 +3350,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
+    public void start(ObjectId id, UserDetail user, boolean system) {
+        start(id, user);
+    }
+
+    public void start(TaskDto taskDto, UserDetail user, String startFlag, boolean system) {
+        start(taskDto, user, startFlag);
+    }
     /**
      * 状态机启动子任务之前执行
      *
@@ -3411,21 +3455,33 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param user
      */
     public void run(TaskDto taskDto, UserDetail user) {
-        StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.START, user);
-        if (stateMachineResult.isFail()) {
-            //如果更新失败，则表示可能为并发启动操作，本次不做处理
-            log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
-            return;
-        }
-        Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
-        //需要将重启标识清除
-        Update set = Update.update("isEdit", false)
-                .set("restartFlag", false)
-                .set("stopRetryTimes", 0);
-        update(query, set, user);
-        taskScheduleService.scheduling(taskDto, user);
-    }
+        ReentrantLock lock = scheduleLockMap.computeIfAbsent(user.getUserId(), k -> new ReentrantLock());
+        lock.lock();
 
+        try {
+            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.START, user);
+            if (stateMachineResult.isFail()) {
+                //如果更新失败，则表示可能为并发启动操作，本次不做处理
+                log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
+                return;
+            }
+            Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
+            //需要将重启标识清除
+            Update set = Update.update("isEdit", false)
+                    .set("restartFlag", false)
+                    .unset("functionRetryStatus")
+                    .unset("taskRetryStatus")
+                    .set("restartFlag", false)
+                    .set("stopRetryTimes", 0);
+            update(query, set, user);
+            taskScheduleService.scheduling(taskDto, user);
+        } finally {
+            lock.unlock();
+            if (!lock.isLocked()) {
+                scheduleLockMap.remove(user.getUserId());
+            }
+        }
+    }
 
     /**
      * @see DataFlowEvent#SCHEDULE_SUCCESS
@@ -3492,6 +3548,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void pause(ObjectId id, UserDetail user, boolean force, boolean restart) {
         TaskDto taskDto = checkExistById(id, user);
         pause(taskDto, user, force, restart);
+    }
+
+    public void pause(ObjectId id, UserDetail user, boolean force, boolean restart, boolean system) {
+        pause(id, user, force, restart);
     }
 
 
@@ -3664,7 +3724,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.INFO);
             });
 
-            Update update = Update.update("stopRetryTimes", 0).unset("stopedDate");
+            Update update = Update.update("stopRetryTimes", 0).unset("stopedDate")
+                    .unset("functionRetryStatus")
+                    .unset("functionRetryEx")
+                    .unset("taskRetryStatus");
             updateById(id, update, user);
 
             logCollectorService.endConnHeartbeat(user, taskDto); // 尝试停止心跳任务
@@ -3882,6 +3945,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void startPlanMigrateDagTask() {
         Criteria migrateCriteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_START)
                 .and("planStartDateFlag").is(true)
+                .and("crontabScheduleMsg").is(null)
                 .and("planStartDate").lte(DateUtil.current());
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
@@ -3920,11 +3984,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void startPlanCronTask() {
         Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
-                .and("type").is(TaskDto.TYPE_INITIAL_SYNC)
+                .and("type").in(TaskDto.TYPE_INITIAL_SYNC, TaskDto.TYPE_INITIAL_SYNC_CDC)
                 .and("crontabExpression").exists(true)
                 .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
-                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING,
+                        TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING,
                         TaskDto.STATUS_DELETE_FAILED));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
@@ -3939,7 +4003,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     scheduleService.executeTask(taskDto);
                     success = success + 1;
                 } catch (Exception e) {
-                    log.error("Cron task error name:{},id:{}", taskDto.getName(), taskDto.getId());
+                    log.error("Cron task error name:{},id:{}, msg:{}", taskDto.getName(), taskDto.getId(), e.getMessage());
                     error = error + 1;
                 }
             }
@@ -4322,10 +4386,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public int runningTaskNum(String processId, UserDetail user) {
+    public int runningTaskNum(String processId, UserDetail userDetail) {
         long workNum = count(Query.query(Criteria.where("agentId").is(processId)
-                .and("is_deleted").ne(true)
-                .and("status").is(TaskDto.STATUS_RUNNING)), user);
+                .and("is_deleted").ne(true).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                        .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
+                                Criteria.where("planStartDateFlag").is(true),
+                                Criteria.where("crontabExpressionFlag").is(true)
+                        )), userDetail);
         return (int) workNum;
     }
 

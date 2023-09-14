@@ -25,12 +25,6 @@
         <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
     </properties>
     <dependencies>
-<!--        <dependency>-->
-<!--            <groupId>io.tapdata</groupId>-->
-<!--            <artifactId>tapdata-empty-module</artifactId>-->
-<!--            <version>1.0-SNAPSHOT</version>-->
-<!--            <scope>provided</scope>-->
-<!--        </dependency>-->
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-storage-module</artifactId>
@@ -287,6 +281,10 @@
             <artifactId>jython-standalone</artifactId>
             <version>${graalvm.py.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-core</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
@@ -384,6 +382,27 @@
                 <targetPath>./${project.parent.artifactId}/${project.artifactId}/src/main/javascript/</targetPath>
             </resource>
         </resources>
+        <plugins>
+
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <outputDirectory>${basedir}/../</outputDirectory>
+                </configuration>
+
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>io.tapdata.Application</mainClass>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
     </build>
     <repositories>
         <repository>

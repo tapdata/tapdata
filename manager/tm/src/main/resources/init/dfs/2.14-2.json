@@ -1,0 +1,52 @@
+[
+  {
+	"createIndexes": "ExternalStorage",
+	"indexes": [
+	  {
+		"key": {
+		  "name": 1
+		},
+		"name": "_name_",
+		"unique": true,
+		"background": true
+	  }
+	]
+  },
+  {
+	"update": "ExternalStorage",
+	"updates": [
+	  {
+		"q": {
+		  "name": "InMemory"
+		},
+		"u": {
+		  "$set": {
+			"type": "memory",
+			"canEdit": false,
+			"canDelete": false,
+			"defaultStorage": false
+		  }
+		},
+		"upsert": true
+	  },
+	  {
+		"q": {
+		  "name": "Tapdata MongoDB External Storage"
+		},
+		"u": {
+		  "$set": {
+			"type": "mongodb",
+			"uri": "${TAPDATA.MONGODB.URI}",
+			"table": "TapExternalStorage",
+			"canEdit": false,
+			"canDelete": false
+		  },
+		  "$setOnInsert": {
+			"defaultStorage": true
+		  }
+		},
+		"upsert": true
+	  }
+	]
+  }
+]

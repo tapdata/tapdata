@@ -3,14 +3,18 @@ package com.tapdata.tm.livedataplatform.service;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.livedataplatform.constant.ModeEnum;
 import com.tapdata.tm.livedataplatform.dto.LiveDataPlatformDto;
 import com.tapdata.tm.livedataplatform.entity.LiveDataPlatformEntity;
 import com.tapdata.tm.livedataplatform.repository.LiveDataPlatformRepository;
+import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -28,6 +32,18 @@ public class LiveDataPlatformService extends BaseService<LiveDataPlatformDto, Li
 
     protected void beforeSave(LiveDataPlatformDto liveDataPlatformDto, UserDetail user) {
 
+    }
+
+
+    @Override
+    public LiveDataPlatformDto save(LiveDataPlatformDto dto, UserDetail user) {
+        Query query = new Query();
+        query.fields().include("_id");
+        LiveDataPlatformDto old = findOne(new Query(), user);
+        if (old != null) {
+            dto.setId(old.getId());
+        }
+        return super.save(dto, user);
     }
 
     public Page<LiveDataPlatformDto> findData(Filter filter, UserDetail userDetail) {

@@ -19,6 +19,7 @@ import com.tapdata.tm.ds.dto.DataSourceDefinitionUpdateDto;
 import com.tapdata.tm.ds.dto.DataSourceTypeDto;
 import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
 import com.tapdata.tm.ds.repository.DataSourceDefinitionRepository;
+import com.tapdata.tm.ds.vo.DsGroupTypeTagsVo;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
@@ -32,6 +33,8 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -332,6 +335,27 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         return query;
     }
 
+	public boolean isAllTypeSchemaFree(List<String> dataSourceType, UserDetail user) {
+		Set<String> types = new HashSet<>(dataSourceType);
+		Aggregation aggregation = Aggregation.newAggregation(
+			Aggregation.match(Criteria
+				.where("type").in(types)
+				.and("pdkHash").exists(true)
+				.and("tags").in("schema-free")
+				.orOperator(
+					Criteria.where("customId").is(user.getCustomerId()),
+					Criteria.where("user_id").is(user.getUserId()),
+					Criteria.where("pdkType").ne(DataSourceDefinitionDto.PDK_TYPE),
+					Criteria.where("scope").is("public")
+				)
+			),
+			Aggregation.group("type").first("tags").as("tags")
+		);
+		AggregationResults<DsGroupTypeTagsVo> aggregationResults = repository.aggregate(aggregation, DsGroupTypeTagsVo.class);
+		List<DsGroupTypeTagsVo> mappedResults = aggregationResults.getMappedResults();
+		return types.size() == mappedResults.size();
+	}
+
 
     protected void beforeSave(DataSourceDefinitionDto dto, UserDetail userDetail) {
         dto.setId(null);
@@ -500,4 +524,18 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         dataSourceTypeDtoPage.setItems(typeList);
         return dataSourceTypeDtoPage.getItems();
     }
+
+    public DataSourceDefinitionDto getMongoDbByDataSourceType(String dataSourceType, String... fields) {
+        Criteria scopeCriteria = Criteria.where("scope").is("public").and("is_deleted").is(false)
+                .and("type").is(dataSourceType).and("pdkHash").exists(true).and("latest").is(true);
+        Query query = Query.query(scopeCriteria);
+        if (fields != null && fields.length != 0) {
+            query.fields().include(fields);
+        }
+        query.with(Sort.by("createTime").descending());
+        return findAll(query).get(0);
+    }
+
+
+
 }

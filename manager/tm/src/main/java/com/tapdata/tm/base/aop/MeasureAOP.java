@@ -19,12 +19,10 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.common.sample.request.SampleRequest;
-import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Aspect;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -41,13 +39,19 @@ import java.util.stream.Collectors;
 
 @Aspect
 @Component
-@Setter(onMethod_ = {@Autowired})
 public class MeasureAOP {
 
-    private TaskService taskService;
-    private AlarmService alarmService;
-    private UserService userService;
+    private final TaskService taskService;
+    private final AlarmService alarmService;
+    private final UserService userService;
+//    private final InspectService inspectService;
     private final Map<String, Map<String, AtomicInteger>> obsMap = Maps.newConcurrentMap();
+
+    public MeasureAOP(TaskService taskService, AlarmService alarmService, UserService userService) {
+        this.taskService = taskService;
+        this.alarmService = alarmService;
+        this.userService = userService;
+    }
 
 
     @AfterReturning("execution(* com.tapdata.tm.monitor.service.MeasurementServiceV2.addAgentMeasurement(..))")
@@ -72,7 +76,7 @@ public class MeasureAOP {
                             Optional.ofNullable(ruleMap.get(taskId)).ifPresent(rules -> {
                                 Map<AlarmKeyEnum, AlarmRuleDto> collect = rules.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
                                 if (!collect.isEmpty()) {
-                                    taskIncrementDelayAlarm(taskDto, taskId, vs.get("replicateLag"), collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
+                                    taskIncrementDelayAlarm(taskDto, taskId, vs.get("replicateLag"), collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY), userDetail);
                                 }
                             });
                         }
@@ -134,6 +138,15 @@ public class MeasureAOP {
 
             alarmInfo.setUserId(taskDto.getUserId());
             alarmService.save(alarmInfo);
+
+            // excute inspect task
+//            CommonUtils.ignoreAnyError(() -> {
+//                InspectDto inspectDto = inspectService.createCheckByTask(taskDto, userDetail);
+//                if (inspectDto != null) {
+//                    inspectService.executeInspect(Where.where("id", inspectDto.getId().toHexString()), inspectDto, userDetail);
+//                }
+//            }, "excute inspect task");
+
         }
 
         Number currentEventTimestamp = vs.get("currentEventTimestamp");
@@ -158,7 +171,8 @@ public class MeasureAOP {
         if (Objects.nonNull(snapshotDoneAt) && !snapshotDoneAt.equals(taskDto.getSnapshotDoneAt())) {
             update.set("snapshotDoneAt", snapshotDoneAt);
         }
-        if (Objects.nonNull(currentEventTimestamp) && !currentEventTimestamp.equals(taskDto.getCurrentEventTimestamp())) {
+        if (Objects.nonNull(currentEventTimestamp) && !currentEventTimestamp.equals(taskDto.getCurrentEventTimestamp())
+                && !currentEventTimestamp.equals(0)) {
             update.set("currentEventTimestamp", currentEventTimestamp);
         }
 
@@ -167,7 +181,7 @@ public class MeasureAOP {
         }
     }
 
-    private void taskIncrementDelayAlarm(TaskDto task, String taskId, Number replicateLag, AlarmRuleDto alarmRuleDto) {
+    private void taskIncrementDelayAlarm(TaskDto task, String taskId, Number replicateLag, AlarmRuleDto alarmRuleDto, UserDetail userDetail) {
         // check task start cdc
         if (Objects.isNull(task.getCurrentEventTimestamp()) || Objects.isNull(replicateLag)) {
             return;
@@ -219,6 +233,8 @@ public class MeasureAOP {
             param.put("taskName", task.getName());
             param.put("threshold", alarmRuleDto.getMs());
             param.put("currentValue", replicateLag);
+
+            boolean needInspect = false;
             if (first.isPresent()) {
                 AlarmInfo data = first.get();
                 alarmInfo.setId(data.getId());
@@ -230,15 +246,30 @@ public class MeasureAOP {
                 } else {
                     summary = "TASK_INCREMENT_DELAY_START";
                 }
+
+                if (data.getTally() == 1 || data.getTally() == 2) {
+                    needInspect = true;
+                }
             } else {
                 summary = "TASK_INCREMENT_DELAY_START";
+                needInspect = true;
             }
+
             alarmInfo.setStatus(AlarmStatusEnum.ING);
             alarmInfo.setFirstOccurrenceTime(null);
             alarmInfo.setParam(param);
             alarmInfo.setLevel(Level.WARNING);
             alarmInfo.setSummary(summary);
             alarmService.save(alarmInfo);
+
+            if (needInspect) {
+                // excute inspect task
+//                CommonUtils.ignoreAnyError(() -> {
+//                    InspectDto inspectDto = inspectService.createCheckByTask(task, userDetail);
+//
+//                    inspectService.executeInspect(Where.where("id", inspectDto.getId().toHexString()), inspectDto, userDetail);
+//                }, "excute inspect task");
+            }
         } else {
             Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
             if (first.isPresent()) {

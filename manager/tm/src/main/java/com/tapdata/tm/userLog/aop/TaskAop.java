@@ -44,6 +44,10 @@ public class TaskAop {
         if (args[0] instanceof ObjectId) {
             ObjectId id = (ObjectId) args[0];
             boolean force = (boolean)args[2];
+            Object system = null;
+            if (args.length > 4) {
+                system = args[4];
+            }
 
             //查询任务是否存在
             TaskDto taskDto = taskService.checkExistById(id, userDetail);
@@ -51,7 +55,7 @@ public class TaskAop {
             Operation operation = force ? Operation.FORCE_STOP : Operation.STOP;
             if (null != taskDto) {
                 userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
-                        operation, userDetail, taskDto.getId().toString(), taskDto.getName());
+                        operation, userDetail, taskDto.getId().toString(), taskDto.getName(), system);
             }
         } else if (args[0] instanceof List<?>){
             List<?> list = (List<?>) args[0];
@@ -78,6 +82,10 @@ public class TaskAop {
 
         UserDetail userDetail = (UserDetail) args[1];
         Object arg = args[0];
+        Object systemStart = null;
+        if (args.length > 2) {
+            systemStart = args[2];
+        }
         if (arg instanceof ObjectId) {
             ObjectId id = (ObjectId) arg;
 
@@ -85,13 +93,13 @@ public class TaskAop {
             TaskDto taskDto = taskService.checkExistById(id, userDetail);
             if (null != taskDto) {
                 userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
-                        Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName());
+                        Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName(), systemStart);
             }
 
         } else if (arg instanceof TaskDto) {
             TaskDto taskDto = (TaskDto) arg;
             userLogService.addUserLog("sync".equals(taskDto.getSyncType()) ? Modular.SYNC : Modular.MIGRATION,
-                    Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName());
+                    Operation.START, userDetail, taskDto.getId().toString(), taskDto.getName(), systemStart);
 
         }else if (arg instanceof List<?>){
             List<ObjectId> list = (List<ObjectId>) arg;

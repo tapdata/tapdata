@@ -54,7 +54,7 @@ public class AlarmSettingServiceImpl  extends BaseService<AlarmSettingDto, Alarm
     public List<AlarmSettingDto> findAllAlarmSetting(UserDetail userDetail) {
        // Query query = Query.query(Criteria.where("userId").is(userDetail.getUserId()));
         List<AlarmSetting> alarmSettings = repository.findAll(userDetail);
-        if (CollectionUtils.isEmpty(alarmSettings)) {
+        if (CollectionUtils.isEmpty(alarmSettings) || alarmSettings.stream().noneMatch(t -> AlarmKeyEnum.INSPECT_TASK_ERROR.equals(t.getKey()))) {
             Query  query = Query.query(Criteria.where("userId").exists(false));
             alarmSettings = mongoTemplate.find(query, AlarmSetting.class);
             if (CollectionUtils.isNotEmpty(alarmSettings)) {

@@ -1,0 +1,37 @@
+[
+  {
+    "update": "Permission",
+    "updates": [
+			{"q": {"name": "v2_datasource_creation"}, "u": {"$set": {"parentId": "v2_datasource_menu", "description": "创建连接", "name": "v2_datasource_creation", "need_permission": true, "order": 1, "resources": [{"type": "page", "code": "v2_datasource_creation", "path": "/connections/create"}], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
+			{"q": {"name": "v2_datasource_copy"}, "u": {"$set": {"parentId": "v2_datasource_menu", "description": "复制连接", "name": "v2_datasource_copy", "need_permission": true, "order": 2, "resources": [{ "type": "button", "code": "v2_datasource_copy" }], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
+			{"q": {"name": "v2_datasource_all_data"}, "u": {"$set": {"parentId": "v2_datasource_menu", "description": "全部数据授权", "name": "v2_datasource_all_data", "need_permission": true, "order": 1, "resources": [], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
+			{"q": {"name": "v2_data_replication_creation"}, "u": {"$set": {"parentId": "v2_data_replication", "description": "创建任务", "name": "v2_data_replication_creation", "need_permission": true, "order": 1, "resources": [{ "type": "page", "code": "v2_data_replication_creation", "path": "/migrate/editor" }], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
+			{"q": {"name": "v2_data_replication_copy"}, "u": {"$set": {"parentId": "v2_data_replication", "description": "复制任务", "name": "v2_data_replication_copy", "need_permission": true, "order": 2, "resources": [{ "type": "button", "code": "v2_data_replication_copy" }], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
+			{"q": {"name": "v2_data_replication_import"}, "u": {"$set": {"parentId": "v2_data_replication", "description": "导入任务", "name": "v2_data_replication_import", "need_permission": true, "order": 3, "resources": [{ "type": "button", "code": "v2_data_replication_import" }], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
+			{"q": {"name": "v2_data_replication_export"}, "u": {"$set": {"parentId": "v2_data_replication", "description": "导出任务", "name": "v2_data_replication_export", "need_permission": true, "order": 4, "resources": [{ "type": "button", "code": "v2_data_replication_export" }], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
+			{"q": {"name": "v2_data_replication_all_data"}, "u": {"$set": {"parentId": "v2_data_replication", "description": "全部数据授权", "name": "v2_data_replication_all_data", "need_permission": true, "order": 1, "resources": [], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
+			{"q": {"name": "v2_data_flow_creation"}, "u": {"$set": {"parentId": "v2_data_flow", "description": "创建任务", "name": "v2_data_flow_creation", "need_permission": true, "order": 1, "resources": [{ "type": "page", "code": "v2_data_flow_creation", "path": "/dataflow/editor" }], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
+			{"q": {"name": "v2_data_flow_copy"}, "u": {"$set": {"parentId": "v2_data_flow", "description": "复制任务", "name": "v2_data_flow_copy", "need_permission": true, "order": 2, "resources": [{"type": "button", "code": "v2_data_flow_copy"}], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
+			{"q": {"name": "v2_data_flow_import"}, "u": {"$set": {"parentId": "v2_data_flow", "description": "导入任务", "name": "v2_data_flow_import", "need_permission": true, "order": 3, "resources": [{"type": "button", "code": "v2_data_flow_import"}], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
+			{"q": {"name": "v2_data_flow_export"}, "u": {"$set": {"parentId": "v2_data_flow", "description": "导出任务", "name": "v2_data_flow_export", "need_permission": true, "order": 4, "resources": [{ "type": "button", "code": "v2_data_flow_export" }], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true},
+			{"q": {"name": "v2_data_flow_all_data"}, "u": {"$set": {"parentId": "v2_data_flow", "description": "全部数据授权", "name": "v2_data_flow_all_data", "need_permission": true, "order": 1, "resources": [], "status": "enable", "type": "read", "version": "v2"}}, "upsert": true}
+    ]
+  },
+	{
+		"insert": "RoleMapping",
+		"documents": [
+			{"principalId": "v2_datasource_copy", "principalType": "PERMISSION", "roleId": {"$oid": "5b9a0a383fcba02649524bf1"}, "self_only": false},
+			{"principalId": "v2_datasource_all_data", "principalType": "PERMISSION", "roleId": {"$oid": "5b9a0a383fcba02649524bf1"}, "self_only": false},
+			{"principalId": "v2_data_replication_creation", "principalType": "PERMISSION", "roleId": {"$oid": "5b9a0a383fcba02649524bf1"}, "self_only": false},
+			{"principalId": "v2_data_replication_copy", "principalType": "PERMISSION", "roleId": {"$oid": "5b9a0a383fcba02649524bf1"}, "self_only": false},
+			{"principalId": "v2_data_replication_import", "principalType": "PERMISSION", "roleId": {"$oid": "5b9a0a383fcba02649524bf1"}, "self_only": false},
+			{"principalId": "v2_data_replication_export", "principalType": "PERMISSION", "roleId": {"$oid": "5b9a0a383fcba02649524bf1"}, "self_only": false},
+			{"principalId": "v2_data_replication_all_data", "principalType": "PERMISSION", "roleId": {"$oid": "5b9a0a383fcba02649524bf1"}, "self_only": false},
+			{"principalId": "v2_data_flow_creation", "principalType": "PERMISSION", "roleId": {"$oid": "5b9a0a383fcba02649524bf1"}, "self_only": false},
+			{"principalId": "v2_data_flow_copy", "principalType": "PERMISSION", "roleId": {"$oid": "5b9a0a383fcba02649524bf1"}, "self_only": false},
+			{"principalId": "v2_data_flow_import", "principalType": "PERMISSION", "roleId": {"$oid": "5b9a0a383fcba02649524bf1"}, "self_only": false},
+			{"principalId": "v2_data_flow_export", "principalType": "PERMISSION", "roleId": {"$oid": "5b9a0a383fcba02649524bf1"}, "self_only": false},
+			{"principalId": "v2_data_flow_all_data", "principalType": "PERMISSION", "roleId": {"$oid": "5b9a0a383fcba02649524bf1"}, "self_only": false}
+		]
+	}
+]

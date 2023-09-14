@@ -53,6 +53,9 @@ import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryContext;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryService;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.DynamicAdjustMemoryImpl;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -77,8 +80,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -88,6 +93,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 /**
@@ -100,12 +106,17 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	public static final long PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT = 10L;
 	public static final String TAPEVENT_INFO_EVENT_ID_KEY = "eventId";
 	private static final int ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD = 100;
+	public static final long DEFAULT_RAM_THRESHOLD_BYTE = 3 * 1024L;
+	public static final double DEFAULT_SAMPLE_RATE = 0.2D;
+	public static final int MIN_QUEUE_SIZE = 10;
+	public static final int SOURCE_QUEUE_FACTOR = 2;
 	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
 	protected SyncProgress syncProgress;
 	protected ThreadPoolExecutorEx sourceRunner;
 	protected ScheduledExecutorService tableMonitorResultHandler;
 	protected SnapshotProgressManager snapshotProgressManager;
 	protected int sourceQueueCapacity;
+	protected int originalSourceQueueCapacity;
 	/**
 	 * This is added as an async control center because pdk and jet have two different thread model. pdk thread is
 	 * blocked when reading data from data source while jet using async when passing the event to next node.
@@ -132,6 +143,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected Map<String, Long> snapshotRowSizeMap;
 	private ExecutorService snapshotRowSizeThreadPool;
 	private ConnectorOnTaskThreadGroup connectorOnTaskThreadGroup;
+	protected DynamicAdjustMemoryService dynamicAdjustMemoryService;
 	private ConcurrentHashMap<String, Connections> connectionMap = new ConcurrentHashMap<>();
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
@@ -184,6 +196,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initSyncProgress();
 			initDDLFilter();
 			initTableMonitor();
+			initDynamicAdjustMemory();
 			initAndStartSourceRunner();
 		});
 	}
@@ -228,7 +241,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void initSourceEventQueue() {
-		this.sourceQueueCapacity = readBatchSize * 2;
+		this.sourceQueueCapacity = readBatchSize * SOURCE_QUEUE_FACTOR;
+		this.originalSourceQueueCapacity = sourceQueueCapacity;
 		this.eventQueue = new LinkedBlockingQueue<>(sourceQueueCapacity);
 		obsLogger.info("Source node \"{}\" event queue capacity: {}", getNode().getName(), sourceQueueCapacity);
 	}
@@ -370,7 +384,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				case NORMAL:
 				case LOG_COLLECTOR:
 					if (StringUtils.isNotBlank(streamOffset)) {
-						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+						String streamOffsetStr = syncProgress.getStreamOffset();
+						streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
+						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode()));
 					} else {
 						initStreamOffsetFromTime(null);
 					}
@@ -392,7 +408,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					} else {
 						// switch share cdc to normal task
 						if (StringUtils.isNotBlank(streamOffset)) {
-							Object decodeOffset = PdkUtil.decodeOffset(streamOffset, getConnectorNode());
+							String streamOffsetStr = syncProgress.getStreamOffset();
+							streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
+							Object decodeOffset = PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode());
 							if (decodeOffset instanceof ShareCDCOffset) {
 								syncProgress.setStreamOffsetObj(((ShareCDCOffset) decodeOffset).getStreamOffset());
 							} else {
@@ -411,12 +429,26 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					break;
 				case POLLING_CDC:
 					if (StringUtils.isNotBlank(streamOffset)) {
-						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+						String streamOffsetStr = syncProgress.getStreamOffset();
+						streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
+						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode()));
 					} else {
 						syncProgress.setStreamOffsetObj(new HashMap<>());
 					}
 			}
 		}
+	}
+
+	@Nullable
+	private String uncompressStreamOffsetIfNeed(String streamOffsetStr) {
+		if (StringUtils.startsWith(syncProgress.getStreamOffset(), STREAM_OFFSET_COMPRESS_PREFIX)) {
+			try {
+				streamOffsetStr = StringCompression.uncompress(StringUtils.removeStart(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX));
+			} catch (IOException e) {
+				throw new RuntimeException("Uncompress stream offset failed: " + streamOffsetStr, e);
+			}
+		}
+		return streamOffsetStr;
 	}
 
 	protected void initStreamOffsetFromTime(Long offsetStartTimeMs) {
@@ -584,7 +616,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (obsLogger.isDebugEnabled()) {
 				obsLogger.debug("Starting load new table(s) schema: {}", addList);
 			}
-			Function<TapTable, Boolean> filterTableByNoPrimaryKey = Optional.ofNullable(getNode()).map(node->{
+			Function<TapTable, Boolean> filterTableByNoPrimaryKey = Optional.ofNullable(getNode()).map(node -> {
 				if (node instanceof DatabaseNode) {
 					DatabaseNode databaseNode = (DatabaseNode) node;
 					if ("expression".equals(databaseNode.getMigrateTableSelectType())) {
@@ -592,10 +624,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						switch (type) {
 							case HasKeys:
 								// filter no hove primary key tables
-								return (Function<TapTable, Boolean>)tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
+								return (Function<TapTable, Boolean>) tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
 							case NoKeys:
 								// filter has primary key tables
-								return (Function<TapTable, Boolean>)tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
+								return (Function<TapTable, Boolean>) tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
 							default:
 								break;
 						}
@@ -757,24 +789,24 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						}
 						return connectionsList;
 					}, connectionMap);
-  					if(CollectionUtils.isNotEmpty(connectionList) && tapEvent instanceof TapBaseEvent){
+					if (CollectionUtils.isNotEmpty(connectionList) && tapEvent instanceof TapBaseEvent) {
 						TapdataEvent finalTapdataEvent = tapdataEvent;
-							TapBaseEvent baseEvent = (TapBaseEvent) tapEvent;
-							connectionList.forEach(connection -> {
-								LogCollectorNode logCollectorNode = (LogCollectorNode) node;
-								List<String> logNameSpaces = logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getNamespace();
-								List<String> tableNames = logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getTableNames();
-								if(logNameSpaces.contains(baseEvent.getNamespaces().get(0))&& tableNames.contains(baseEvent.getTableId())){
-									finalTapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connection.getId());
-								}
+						TapBaseEvent baseEvent = (TapBaseEvent) tapEvent;
+						connectionList.forEach(connection -> {
+							LogCollectorNode logCollectorNode = (LogCollectorNode) node;
+							List<String> logNameSpaces = logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getNamespace();
+							List<String> tableNames = logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getTableNames();
+							if (logNameSpaces.contains(baseEvent.getNamespaces().get(0)) && tableNames.contains(baseEvent.getTableId())) {
+								finalTapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connection.getId());
+							}
 
-							});
-					}else{
+						});
+					} else {
 						if (null != connections) {
 							tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
 						}
 					}
-				}else{
+				} else {
 					if (null != connections) {
 						tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
 					}
@@ -1116,5 +1148,22 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		return null != nodes.stream().filter(n -> n instanceof MergeTableNode
 				|| n instanceof JoinProcessorNode
 				|| n instanceof UnionProcessorNode).findFirst().orElse(null);
+	}
+
+	private void initDynamicAdjustMemory() {
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		if (null == taskDto.getDynamicAdjustMemoryUsage()) {
+			taskDto.setDynamicAdjustMemoryUsage(false);
+		}
+		if (taskDto.getDynamicAdjustMemoryUsage()) {
+			taskDto.setDynamicAdjustMemoryThresholdByte(null != taskDto.getDynamicAdjustMemoryThresholdByte() && taskDto.getDynamicAdjustMemoryThresholdByte() > 0L ? taskDto.getDynamicAdjustMemoryThresholdByte() : DEFAULT_RAM_THRESHOLD_BYTE);
+			taskDto.setDynamicAdjustMemorySampleRate(null != taskDto.getDynamicAdjustMemorySampleRate() && taskDto.getDynamicAdjustMemorySampleRate() > 0L ? taskDto.getDynamicAdjustMemorySampleRate() : DEFAULT_SAMPLE_RATE);
+			DynamicAdjustMemoryContext dynamicAdjustMemoryContext = DynamicAdjustMemoryContext.create()
+					.sampleRate(taskDto.getDynamicAdjustMemorySampleRate())
+					.ramThreshold(taskDto.getDynamicAdjustMemoryThresholdByte())
+					.taskDto(taskDto)
+					.minQueueSize(MIN_QUEUE_SIZE);
+			this.dynamicAdjustMemoryService = new DynamicAdjustMemoryImpl(dynamicAdjustMemoryContext);
+		}
 	}
 }

@@ -6,12 +6,17 @@ import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 
+import java.io.Serializable;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.commons.schema.SchemaUtils.createField;
@@ -28,6 +33,7 @@ import static com.tapdata.tm.commons.schema.SchemaUtils.createField;
 public class FieldAddDelProcessorNode extends FieldProcessorNode {
 
     private boolean deleteAllFields;
+    private List<Postion> fieldsAfter;
 
     public FieldAddDelProcessorNode() {
         super("field_add_del_processor");
@@ -92,6 +98,20 @@ public class FieldAddDelProcessorNode extends FieldProcessorNode {
                 }
             });
         }
+
+        // check fieldsAfter sort fields
+        if (CollectionUtils.isNotEmpty(fieldsAfter)) {
+					Map<String, Integer> positionMap = new HashMap<>();
+					for (Postion p : fieldsAfter) {
+						positionMap.put(p.getField_name(), null == p.getColumnPosition() ? 0 : p.getColumnPosition());
+					}
+					outputSchema.getFields().forEach(field -> {
+						if (positionMap.containsKey(field.getFieldName())) {
+							field.setColumnPosition(positionMap.get(field.getFieldName()));
+						}
+					});
+					outputSchema.getFields().sort(Comparator.comparing(f -> null == f.getColumnPosition() ? 0 : f.getColumnPosition()));
+				}
         return outputSchema;
     }
 
@@ -133,5 +153,11 @@ public class FieldAddDelProcessorNode extends FieldProcessorNode {
                 operation.matchPdkFieldEvent(event);
             }
         }
+    }
+
+    @Data
+    static class Postion implements Serializable {
+        private String field_name;
+        private Integer columnPosition;
     }
 }

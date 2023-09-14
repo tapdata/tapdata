@@ -1,7 +1,7 @@
 package com.tapdata.tm.task.controller;
 
-import com.google.common.collect.Maps;
 import com.tapdata.tm.base.controller.BaseController;
+import com.tapdata.tm.base.dto.MutiResponseMessage;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -15,10 +15,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -104,9 +105,12 @@ public class LdpController extends BaseController {
 
     @Operation(summary = "fdm task batch start")
     @PostMapping("fdm/batch/start")
-    public ResponseMessage<Void> fdmBatchStart(@RequestBody FdmBatchStartDto fdmBatchStartDto) {
-       ldpService.fdmBatchStart(fdmBatchStartDto.getTagId(), fdmBatchStartDto.getTaskIds(), getLoginUser());
-        return success();
+    public ResponseMessage<List<MutiResponseMessage>> fdmBatchStart(@RequestBody FdmBatchStartDto fdmBatchStartDto,
+                                                                    HttpServletRequest request,
+                                                                    HttpServletResponse response) {
+        List<MutiResponseMessage> mutiResponseMessages =
+                ldpService.fdmBatchStart(fdmBatchStartDto.getTagId(), fdmBatchStartDto.getTaskIds(), getLoginUser(),request,response);
+        return success(mutiResponseMessages);
     }
 
 

@@ -10,6 +10,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 
 public class BeanUtil {
@@ -53,6 +54,22 @@ public class BeanUtil {
         }
         return target;
     }
+
+    public static <T, M> List<M> deepCloneList(List<T> source, Class<M> clazz, BiConsumer<T, M> consumer) {
+			List<M> target = new ArrayList<>();
+			try {
+				source.forEach(item -> {
+					M singleTarget = cn.hutool.core.bean.BeanUtil.copyProperties(item, clazz);
+					consumer.accept(item, singleTarget);
+					target.add(singleTarget);
+				});
+
+				return target;
+			} catch (Exception ex) {
+				logger.error("集合类克隆失败，失败原因-->{}" + ex);
+			}
+			return target;
+		}
 
     public static <T> List<T> deepCopyList(List<T> src) {
         ByteArrayOutputStream byteOut = new ByteArrayOutputStream();

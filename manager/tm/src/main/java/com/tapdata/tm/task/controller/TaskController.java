@@ -1,7 +1,7 @@
 package com.tapdata.tm.task.controller;
 
+import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
-import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
@@ -15,8 +15,8 @@ import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.ProcessorNodeType;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.commons.util.ProcessorNodeType;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -25,7 +25,10 @@ import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
-import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.LogSettingParam;
@@ -34,6 +37,7 @@ import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.github.openlg.graphlib.Graph;
@@ -58,6 +62,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -79,18 +84,39 @@ public class TaskController extends BaseController {
     private MetadataDefinitionService metadataDefinitionService;
     private DataSourceDefinitionService definitionService;
     private TaskCheckInspectService taskCheckInspectService;
-    private MetadataInstancesService metadataInstancesService;
     private TaskNodeService taskNodeService;
     private TaskSaveService taskSaveService;
-    private TaskStartService taskStartService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private TaskRecordService taskRecordService;
     private WorkerService workerService;
-    private AlarmService alarmService;
-
-    private TaskResetLogService taskResetLogService;
-
     private UserService userService;
+
+		private <T> T dataPermissionUnAuth() {
+			throw new RuntimeException("Un auth");
+		}
+
+		private <T> T dataPermissionCheckOfMenu(UserDetail userDetail, String syncType, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
+			DataPermissionMenuEnums menuEnums = DataPermissionMenuEnums.ofTaskSyncType(syncType);
+			return DataPermissionHelper.check(userDetail, menuEnums, actionEnums, DataPermissionDataTypeEnums.Task, null, supplier, this::dataPermissionUnAuth);
+		}
+
+		private <T> T dataPermissionCheckOfId(HttpServletRequest request, UserDetail userDetail, ObjectId id, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
+			id = Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString())).map(MongoUtils::toObjectId).orElse(id);
+			return DataPermissionHelper.checkOfQuery(
+				userDetail,
+				DataPermissionDataTypeEnums.Task,
+				actionEnums,
+				taskService.dataPermissionFindById(id, new Field()),
+				(dto) -> DataPermissionMenuEnums.ofTaskSyncType(dto.getSyncType()),
+				supplier,
+				this::dataPermissionUnAuth
+			);
+		}
+
+	@GetMapping("/{currentId}/parent-task-sign")
+	public ResponseMessage<String> dataPermissionTaskSign(@PathVariable String currentId, @RequestParam String parentId) {
+			return success(DataPermissionHelper.signEncode(currentId, parentId));
+	}
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -101,8 +127,10 @@ public class TaskController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
     public ResponseMessage<TaskDto> save(@RequestBody TaskDto task) {
+        UserDetail user = getLoginUser();
+
         task.setId(null);
-        return success(taskService.create(task, getLoginUser()));
+        return success(taskService.create(task, user));
     }
 
     /**
@@ -113,14 +141,17 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "Patch an existing model instance or insert a new one into the data source")
     @PatchMapping()
-    public ResponseMessage<TaskDto> update(@RequestBody TaskDto task) {
-        UserDetail user = getLoginUser();
-        taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
-        taskSaveService.supplementAlarm(task, user);
-        task.setStatus(null);
-        return success(taskService.updateById(task, user));
-    }
+    public ResponseMessage<TaskDto> update(HttpServletRequest request, @RequestBody TaskDto task) {
+			UserDetail user = getLoginUser();
+			TaskDto resultTask = dataPermissionCheckOfId(request, user, task.getId(), DataPermissionActionEnums.Edit, () -> {
+				taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
+				taskSaveService.supplementAlarm(task, user);
+				task.setStatus(null);
 
+				return taskService.updateById(task, user);
+			});
+			return success(resultTask);
+		}
 
     /**
      * 获取数据开发列表
@@ -144,7 +175,28 @@ public class TaskController extends BaseController {
             filter.setLimit(10000);
         }
 
-        return success(taskService.find(filter, getLoginUser()));
+        UserDetail userDetail;
+        Where where = filter.getWhere();
+        if (where.containsKey("_id") || where.containsKey("id")) {
+            Object objectId = where.get("_id");
+            String taskId;
+            if (objectId != null)
+                taskId = objectId instanceof Map ? ((Map) objectId).get("$oid").toString() : objectId.toString();
+            else taskId = where.get("id").toString();
+            TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+            if (taskDto == null) {
+                return success(new Page<>());
+            }
+            userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+        } else {
+            userDetail = getLoginUser();
+        }
+
+			final Filter finalFilter = filter;
+			Page<TaskDto> result = DataPermissionMenuEnums.checkAndSetFilter(
+				userDetail, filter, DataPermissionActionEnums.View, () -> taskService.find(finalFilter, userDetail)
+			);
+			return success(result);
     }
 
 
@@ -194,15 +246,17 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
-    public ResponseMessage<TaskDto> updateById(@PathVariable("id") String id, @RequestBody TaskDto task) {
-        task.setId(MongoUtils.toObjectId(id));
-        UserDetail user = getLoginUser();
-        taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
-        taskSaveService.supplementAlarm(task, user);
-        task.setStatus(null);
-        TaskDto taskDto = taskService.updateById(task, user);
-        return success(taskDto);
-    }
+    public ResponseMessage<TaskDto> updateById(HttpServletRequest request, @PathVariable("id") String id, @RequestBody TaskDto task) {
+			task.setId(MongoUtils.toObjectId(id));
+			UserDetail user = getLoginUser();
+			TaskDto taskDto = dataPermissionCheckOfId(request, user, task.getId(), DataPermissionActionEnums.Edit, () -> {
+				taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
+				taskSaveService.supplementAlarm(task, user);
+				task.setStatus(null);
+				return taskService.updateById(task, user);
+			});
+			return success(taskDto);
+		}
 
 
     /**
@@ -212,15 +266,22 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "编辑以一个已经存在的任务")
     @PatchMapping("confirm/{id}")
-    public ResponseMessage<TaskDto> confirmById(@PathVariable("id") String id, @RequestParam(value = "confirm", required = false, defaultValue = "false") Boolean confirm,
-                                                @RequestBody TaskDto task) {
-        task.setId(MongoUtils.toObjectId(id));
-        UserDetail user = getLoginUser();
-        taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
-        taskSaveService.supplementAlarm(task, user);
-        TaskDto taskDto = taskService.confirmById(task, user, confirm);
-        return success(taskDto);
-    }
+    public ResponseMessage<TaskDto> confirmById(
+			HttpServletRequest request,
+			@PathVariable("id") String id,
+			@RequestParam(value = "confirm", required = false, defaultValue = "false") Boolean confirm,
+			@RequestBody TaskDto task
+		) {
+			task.setId(MongoUtils.toObjectId(id));
+			UserDetail user = getLoginUser();
+
+			TaskDto resultTask = dataPermissionCheckOfId(request, user, task.getId(), DataPermissionActionEnums.Edit, () -> {
+				taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
+				taskSaveService.supplementAlarm(task, user);
+				return taskService.confirmById(task, user, confirm);
+			});
+			return success(resultTask);
+		}
 
     /**
      * 新增一个任务
@@ -263,35 +324,44 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "Find a model instance by {{id}} from the data source")
     @GetMapping("{id}")
-    public ResponseMessage<TaskDto> findById(@PathVariable("id") String id,
-                                             @RequestParam(value = "fields", required = false) String fieldsJson,
-                                             @RequestParam(value = "taskRecordId", required = false) String taskRecordId) {
-        Field fields = parseField(fieldsJson);
-        UserDetail user = getLoginUser();
-        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id), fields, user);
-        if (taskDto != null) {
-            if (StringUtils.isNotBlank(taskRecordId) && !taskRecordId.equals(taskDto.getTaskRecordId())) {
-                taskDto = taskRecordService.queryTask(taskRecordId, user.getUserId());
-            }
+    public ResponseMessage<TaskDto> findById(
+			HttpServletRequest request,
+			@PathVariable("id") String id,
+			@RequestParam(value = "fields", required = false) String fieldsJson,
+			@RequestParam(value = "taskRecordId", required = false) String taskRecordId
+		) {
+			Field fields = parseField(fieldsJson);
+			UserDetail user = getLoginUser();
+			TaskDto taskDto = dataPermissionCheckOfId(request, user, MongoUtils.toObjectId(id), DataPermissionActionEnums.View,
+				() -> taskService.findById(MongoUtils.toObjectId(id), fields, user)
+			);
+			if (taskDto != null) {
+				if (StringUtils.isNotBlank(taskRecordId) && !taskRecordId.equals(taskDto.getTaskRecordId())) {
+					taskDto = taskRecordService.queryTask(taskRecordId, user.getUserId());
+				}
 
-            taskDto.setCreator(StringUtils.isNotBlank(user.getUsername()) ? user.getUsername() : user.getEmail());
-            taskCheckInspectService.getInspectFlagDefaultFlag(taskDto, user);
+				taskDto.setCreator(StringUtils.isNotBlank(user.getUsername()) ? user.getUsername() : user.getEmail());
+				taskCheckInspectService.getInspectFlagDefaultFlag(taskDto, user);
 
-            taskNodeService.checkFieldNode(taskDto, user);
+				taskNodeService.checkFieldNode(taskDto, user);
 
-            // set hostName;
-            taskDto = workerService.setHostName(taskDto);
+				// set hostName;
+				taskDto = workerService.setHostName(taskDto);
 
-            // supplement startTime
-            if (Objects.isNull(taskDto.getStartTime())) {
-                TaskDto taskRecord = taskRecordService.queryTask(taskDto.getTaskRecordId(), user.getUserId());
-                if (Objects.nonNull(taskRecord)) {
-                    taskDto.setStartTime(taskRecord.getStartTime());
-                }
-            }
-        }
-        return success(taskDto);
-    }
+				// supplement startTime
+				if (Objects.isNull(taskDto.getStartTime())) {
+					TaskDto taskRecord = taskRecordService.queryTask(taskDto.getTaskRecordId(), user.getUserId());
+					if (Objects.nonNull(taskRecord)) {
+						taskDto.setStartTime(taskRecord.getStartTime());
+					}
+				}
+
+				if (StringUtils.isNotBlank(taskDto.getCrontabScheduleMsg())) {
+					taskDto.setCrontabScheduleMsg(MessageUtil.getMessage(taskDto.getCrontabScheduleMsg()));
+				}
+			}
+			return success(taskDto);
+		}
 
     /**
      * 获取任务详情
@@ -450,7 +520,22 @@ public class TaskController extends BaseController {
            }
         }
 
-        long count = taskService.updateByWhere(where, update, getLoginUser());
+        UserDetail userDetail;
+        if (where.containsKey("_id") || where.containsKey("id")) {
+            Object objectId = where.get("_id");
+            String taskId;
+            if (objectId != null)
+                taskId = objectId instanceof Map ? ((Map) objectId).get("$oid").toString() : objectId.toString();
+            else taskId = where.get("id").toString();
+            TaskDto taskDto = taskService.findById(new ObjectId(taskId));
+            Assert.notNull(taskDto, "task not found");
+            userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+        } else {
+            userDetail = getLoginUser();
+        }
+
+
+        long count = taskService.updateByWhere(where, update, userDetail);
         HashMap<String, Long> countValue = new HashMap<>();
         countValue.put("count", count);
 
@@ -465,9 +550,9 @@ public class TaskController extends BaseController {
                 String name = taskDto.getName();
                 log.info("subtask addMessage ,id :{},name :{},status:{}  ", id, name, status);
                 if ("error".equals(status)) {
-                    messageService.addMigration(name, idString, MsgTypeEnum.STOPPED_BY_ERROR, Level.ERROR, getLoginUser());
+                    messageService.addMigration(name, idString, MsgTypeEnum.STOPPED_BY_ERROR, Level.ERROR, userDetail);
                 } else if ("running".equals(status)) {
-                    messageService.addMigration(name, idString, MsgTypeEnum.CONNECTED, Level.INFO, getLoginUser());
+                    messageService.addMigration(name, idString, MsgTypeEnum.CONNECTED, Level.INFO, userDetail);
                 }
             }
         } catch (Exception e) {
@@ -538,46 +623,81 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "复制同步任务")
     @PutMapping("copy/{id}")
-    public ResponseMessage<TaskDto> copy(@PathVariable("id") String id) {
-        return success(taskService.copy(MongoUtils.toObjectId(id), getLoginUser()));
+    public ResponseMessage<TaskDto> copy(HttpServletRequest request, @PathVariable("id") String id) {
+			UserDetail userDetail = getLoginUser();
+			ObjectId objectId = MongoUtils.toObjectId(id);
+			TaskDto taskDto = dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.View, () -> {
+				return taskService.copy(objectId, userDetail);
+			});
+			return success(taskDto);
     }
 
 
     @Operation(summary = "启动同步任务")
     @PutMapping("start/{id}")
-    public ResponseMessage<Void> start(@PathVariable("id") String id) {
-        taskService.start(MongoUtils.toObjectId(id), getLoginUser());
-        return success();
-    }
+    public ResponseMessage<Void> start(HttpServletRequest request, @PathVariable("id") String id) {
+			UserDetail userDetail = getLoginUser();
+			ObjectId objectId = MongoUtils.toObjectId(id);
+			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+				taskService.start(objectId, userDetail);
+				return null;
+			});
+			return success();
+		}
 
     @Operation(summary = "暂停同步任务")
     //@PutMapping("pause/{id}")
-    public ResponseMessage<Void> pause(@PathVariable("id") String id
-            , @RequestParam(value = "force", defaultValue = "false") Boolean force) {
-        taskService.pause(MongoUtils.toObjectId(id), getLoginUser(), force);
-        return success();
-    }
+    public ResponseMessage<Void> pause(
+			HttpServletRequest request,
+			@PathVariable("id") String id,
+			@RequestParam(value = "force", defaultValue = "false") Boolean force
+		) {
+			UserDetail userDetail = getLoginUser();
+			ObjectId objectId = MongoUtils.toObjectId(id);
+			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+				taskService.pause(objectId, userDetail, force);
+				return null;
+			});
+			return success();
+		}
 
     @Operation(summary = "重置同步任务")
     @PutMapping("renew/{id}")
-    public ResponseMessage<Void> renew(@PathVariable("id") String id) {
-        taskService.renew(MongoUtils.toObjectId(id), getLoginUser());
-        return success();
-    }
+    public ResponseMessage<Void> renew(HttpServletRequest request, @PathVariable("id") String id) {
+			UserDetail userDetail = getLoginUser();
+			ObjectId objectId = MongoUtils.toObjectId(id);
+			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+				taskService.renew(objectId, userDetail);
+				return null;
+			});
+			return success();
+		}
 
     @Operation(summary = "停止同步任务")
     @PutMapping("stop/{id}")
-    public ResponseMessage<TaskDto> stop(@PathVariable("id") String id
-            , @RequestParam(value = "force", defaultValue = "false") Boolean force) {
-        taskService.pause(MongoUtils.toObjectId(id), getLoginUser(), force);
-        return success();
-    }
+    public ResponseMessage<TaskDto> stop(
+			HttpServletRequest request,
+			@PathVariable("id") String id,
+			@RequestParam(value = "force", defaultValue = "false") Boolean force
+		) {
+			UserDetail userDetail = getLoginUser();
+			ObjectId objectId = MongoUtils.toObjectId(id);
+			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+				taskService.pause(objectId, userDetail, force);
+				return null;
+			});
+			return success();
+		}
 
     @Operation(summary = "子任务已经成功运行回调接口")
     @PostMapping("running/{id}")
     public ResponseMessage<TaskOpResp> running(@PathVariable("id") String id) {
         log.info("subTask running status report by http, id = {}", id);
-        String successId = taskService.running(MongoUtils.toObjectId(id), getLoginUser());
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
+        Assert.notNull(taskDto, "task is empty");
+        UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+
+        String successId = taskService.running(MongoUtils.toObjectId(id), userDetail);
         TaskOpResp taskOpResp = new TaskOpResp();
         if (StringUtils.isBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
@@ -594,7 +714,11 @@ public class TaskController extends BaseController {
     @PostMapping("runError/{id}")
     public ResponseMessage<TaskOpResp> runError(@PathVariable("id") String id, @RequestParam(value = "errMsg", required = false) String errMsg,
                                                 @RequestParam(value = "errStack", required = false) String errStack) {
-        String successId = taskService.runError(MongoUtils.toObjectId(id), getLoginUser(), errMsg, errStack);
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
+        Assert.notNull(taskDto, "task is empty");
+        UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+
+        String successId = taskService.runError(MongoUtils.toObjectId(id), userDetail, errMsg, errStack);
         TaskOpResp taskOpResp = new TaskOpResp();
         if (StringUtils.isBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
@@ -611,7 +735,11 @@ public class TaskController extends BaseController {
     @Operation(summary = "任务执行完成回调接口")
     @PostMapping("complete/{id}")
     public ResponseMessage<TaskOpResp> complete(@PathVariable("id") String id) {
-        String successId = taskService.complete(MongoUtils.toObjectId(id), getLoginUser());
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
+        Assert.notNull(taskDto, "task is empty");
+        UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+
+        String successId = taskService.complete(MongoUtils.toObjectId(id), userDetail);
         TaskOpResp taskOpResp = new TaskOpResp();
         if (StringUtils.isBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
@@ -628,7 +756,11 @@ public class TaskController extends BaseController {
     @Operation(summary = "停止成功回调接口")
     @PostMapping("stopped/{id}")
     public ResponseMessage<TaskOpResp> stopped(@PathVariable("id") String id) {
-        String successId = taskService.stopped(MongoUtils.toObjectId(id), getLoginUser());
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
+        Assert.notNull(taskDto, "task is empty");
+        UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+
+        String successId = taskService.stopped(MongoUtils.toObjectId(id), userDetail);
         TaskOpResp taskOpResp = new TaskOpResp();
         if (StringUtils.isBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
@@ -644,10 +776,19 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "重置任务接口")
     @PostMapping("renew/{id}")
-    public ResponseMessage<Void> renew(@PathVariable("id") String id, @RequestParam(value = "force", defaultValue = "false") Boolean force) {
-        taskService.renew(MongoUtils.toObjectId(id), getLoginUser());
-        return success();
-    }
+    public ResponseMessage<Void> renew(
+			HttpServletRequest request,
+			@PathVariable("id") String id,
+			@RequestParam(value = "force", defaultValue = "false") Boolean force
+		) {
+			UserDetail userDetail = getLoginUser();
+			ObjectId objectId = MongoUtils.toObjectId(id);
+			dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+				taskService.renew(objectId, userDetail);
+				return null;
+			});
+			return success();
+		}
 
 
     /**
@@ -693,52 +834,70 @@ public class TaskController extends BaseController {
 
     @PutMapping("batchStart")
     public ResponseMessage<List<MutiResponseMessage>> batchStart(@RequestParam("taskIds") List<String> taskIds,
+																																 @RequestParam(value = "syncType", required = false) String syncType,
                                                                  HttpServletRequest request,
                                                                  HttpServletResponse response) {
-        List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchStart(taskObjectIds, getLoginUser(), request, response);
-        return success(responseMessages);
-    }
+			UserDetail userDetail = getLoginUser();
+			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Start,
+				() -> taskService.batchStart(taskObjectIds, userDetail, request, response)
+			);
+			return success(responseMessages);
+		}
 
     @PutMapping("batchStop")
     public ResponseMessage<List<MutiResponseMessage>> batchStop(@RequestParam("taskIds") List<String> taskIds,
+																																@RequestParam(value = "syncType", required = false) String syncType,
                                                                 HttpServletRequest request,
                                                                 HttpServletResponse response) {
-        List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchStop(taskObjectIds, getLoginUser(), request, response);
+			UserDetail userDetail = getLoginUser();
+			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Stop,
+				() -> taskService.batchStop(taskObjectIds, userDetail, request, response)
+			);
 
-        //add message
-        List<TaskEntity> taskEntityList = taskService.findByIds(taskObjectIds);
-        try {
-            if (CollectionUtils.isNotEmpty(taskEntityList)) {
-                for (TaskEntity task : taskEntityList) {
-                    messageService.addMigration(task.getName(), task.getId().toString(), MsgTypeEnum.PAUSED, Level.INFO, getLoginUser());
-                }
-            }
-        } catch (Exception e) {
-            log.warn("add migration message error");
-        }
-        return success(responseMessages);
-    }
+			//add message
+			List<TaskEntity> taskEntityList = taskService.findByIds(taskObjectIds);
+			try {
+				if (CollectionUtils.isNotEmpty(taskEntityList)) {
+					for (TaskEntity task : taskEntityList) {
+						messageService.addMigration(task.getName(), task.getId().toString(), MsgTypeEnum.PAUSED, Level.INFO, getLoginUser());
+					}
+				}
+			} catch (Exception e) {
+				log.warn("add migration message error");
+			}
+			return success(responseMessages);
+		}
 
     @DeleteMapping("batchDelete")
     public ResponseMessage<List<MutiResponseMessage>> batchDelete(@RequestParam("taskIds") List<String> taskIds,
-                                                                  HttpServletRequest request,
-                                                                  HttpServletResponse response) {
-        List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskObjectIds, getLoginUser(), request, response);
-        return success(responseMessages);
-    }
+																																	@RequestParam(value = "syncType", required = false) String syncType,
+																																	HttpServletRequest request,
+																																	HttpServletResponse response) {
+			UserDetail userDetail = getLoginUser();
+			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Delete,
+				() -> taskService.batchDelete(taskObjectIds, userDetail, request, response)
+			);
+			return success(responseMessages);
+		}
 
     @Operation(summary = "重置任务接口")
     @PatchMapping("batchRenew")
     public ResponseMessage<List<MutiResponseMessage>> batchRenew(@RequestParam("taskIds") List<String> taskIds,
-                                                                 HttpServletRequest request,
-                                                                 HttpServletResponse response) {
-        List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        List<MutiResponseMessage> responseMessages = taskService.batchRenew(taskObjectIds, getLoginUser(), request, response);
-        return success(responseMessages);
-    }
+																																 @RequestParam(value = "syncType", required = false) String syncType,
+																																 HttpServletRequest request,
+																																 HttpServletResponse response) {
+			UserDetail userDetail = getLoginUser();
+			List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+
+			List<MutiResponseMessage> responseMessages = dataPermissionCheckOfMenu(userDetail, syncType, DataPermissionActionEnums.Reset,
+					() -> taskService.batchRenew(taskObjectIds, userDetail, request, response)
+				);
+
+			return success(responseMessages);
+		}
 
     @GetMapping("search/logCollector")
     public ResponseMessage<LogCollectorResult> searchLogCollector(@RequestParam("key") String key) {
@@ -977,13 +1136,21 @@ public class TaskController extends BaseController {
 
     @GetMapping("transformParam/{taskId}")
     public ResponseMessage<TransformerWsMessageDto> findTransformParam(@PathVariable("taskId") String taskId) {
-        TransformerWsMessageDto dto = taskService.findTransformParam(taskId, getLoginUser());
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        Assert.notNull(taskDto, "task is empty");
+        UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+
+        TransformerWsMessageDto dto = taskService.findTransformParam(taskId, userDetail);
         return success(dto);
     }
 
     @GetMapping("transformAllParam/{taskId}")
     public ResponseMessage<TransformerWsMessageDto> findTransformAllParam(@PathVariable("taskId") String taskId) {
-        TransformerWsMessageDto dto = taskService.findTransformAllParam(taskId, getLoginUser());
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        Assert.notNull(taskDto, "task is empty");
+        UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
+
+        TransformerWsMessageDto dto = taskService.findTransformAllParam(taskId, userDetail);
         return success(dto);
     }
 

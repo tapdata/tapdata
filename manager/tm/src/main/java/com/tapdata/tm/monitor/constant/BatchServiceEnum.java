@@ -7,6 +7,7 @@ import com.tapdata.tm.monitor.dto.TaskLogDto;
 import com.tapdata.tm.monitor.param.IdFilterPageParam;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
+import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogCountParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
@@ -31,7 +32,8 @@ public enum BatchServiceEnum {
     MEASUREMENTQUERY(MeasurementServiceV2.class.getName(), "getSamples", "/api/measurement/query/v2", MeasurementQueryParam.class.getName()),
     TASK_ALARM_LIST(AlarmService.class.getName(), "listByTask", "/api/alarm/list_task", AlarmListReqDto.class.getName()),
     TASK_RELATION(TaskConsoleService.class.getName(), "getRelationTasks", "/api/task-console/relations", RelationTaskRequest.class.getName()),
-    TASK_RECORD(TaskRecordService.class.getName(), "queryRecords", "/api/task/records", TaskRecordDto.class.getName())
+    TASK_RECORD(TaskRecordService.class.getName(), "queryRecords", "/api/task/records", TaskRecordDto.class.getName()),
+	  TABLE_SYNC_STATUS_STATISTICS(MeasurementServiceV2.class.getName(), "queryTableSyncStatusStatistics", "/api/measurement/table_sync_status_statistics", SyncStatusStatisticsParam.class.getName()),
     ;
 
     private final String service;

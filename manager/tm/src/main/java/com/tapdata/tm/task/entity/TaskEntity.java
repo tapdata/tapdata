@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.schema.Tag;
@@ -25,7 +26,7 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("Task")
-public class TaskEntity extends BaseEntity {
+public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
     /** 扩展参数*/
     private Map<String, Object> attrs;
 
@@ -230,6 +231,7 @@ public class TaskEntity extends BaseEntity {
     private boolean needCreateRecord;
 
     private Boolean crontabExpressionFlag;
+    private String crontabScheduleMsg;
 
     private String testTaskId;
     private String transformTaskId;
@@ -246,9 +248,28 @@ public class TaskEntity extends BaseEntity {
 
     private Boolean fdmMain;
 
+    private String functionRetryStatus;
+    private Long functionRetryEx;
+    private String taskRetryStatus;
+
     /** 使用的共享挖掘任务停止 */
     private Boolean shareCdcStop;
     private String shareCdcStopMessage;
+
+    /**
+     * 开启动态调整队列内存使用
+     * true - 开启
+     * false - 关闭
+     */
+    private Boolean dynamicAdjustMemoryUsage;
+    /**
+     * 动态调整队列大小的阈值(单位：字节)
+     */
+    private Long dynamicAdjustMemoryThresholdByte;
+    /**
+     * 动态调整时，计算每行大小的采样比例
+     */
+    private Double dynamicAdjustMemorySampleRate;
 
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";

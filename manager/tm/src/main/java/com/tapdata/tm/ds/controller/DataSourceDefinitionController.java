@@ -25,8 +25,7 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 @Tag(name = "DataSourceDefinition", description = "数据源定义相关接口")
 @RestController
 @CrossOrigin
-@RequestMapping("" +
-        "api/DatabaseTypes")
+@RequestMapping("api/DatabaseTypes")
 public class DataSourceDefinitionController extends BaseController {
 
     @Autowired
@@ -137,5 +136,4 @@ public class DataSourceDefinitionController extends BaseController {
         }
         return success(dataSourceDefinitionService.dataSourceTypesV2(getLoginUser(), filter));
     }
-
 }

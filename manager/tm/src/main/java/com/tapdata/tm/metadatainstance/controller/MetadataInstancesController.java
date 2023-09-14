@@ -194,7 +194,6 @@ public class MetadataInstancesController extends BaseController {
                                                           @RequestParam(value = "fields", required = false) List<String> fields,
                                                           @RequestParam(value = "page", defaultValue = "1") Integer page,
                                                           @RequestParam(value = "pageSize", defaultValue = "0") Integer pageSize) {
-
         Page<MetadataInstancesDto> data = metadataInstancesService.findByNodeId(nodeId, fields, getLoginUser(), null, tableFilter, filterType, page, pageSize);
         if (CollectionUtils.isNotEmpty(data.getItems())) {
             for (MetadataInstancesDto metadataInstancesDto : data.getItems()) {
@@ -220,7 +219,7 @@ public class MetadataInstancesController extends BaseController {
     public ResponseMessage<Map<String, String>> findTableMapByNodeId(@RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
         log.info("query table map, filter = {}", filter);
-        Map<String, String> tableMap = metadataInstancesService.findTableMapByNodeId(filter, getLoginUser());
+        Map<String, String> tableMap = metadataInstancesService.findTableMapByNodeId(filter);
         log.info("the end of query table map, filter = {}, result = {}", filter, tableMap);
         return success(tableMap);
     }

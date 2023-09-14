@@ -3,6 +3,7 @@ package com.tapdata.tm.externalStorage.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.ConnectionString;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -59,6 +60,8 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 
 	@Autowired
 	private TaskService taskService;
+	@Autowired
+	private SettingsService settingsService;
 	@Autowired
 	private MessageQueueService messageQueueService;
 	@Autowired
@@ -194,7 +197,12 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 
 	@Override
 	public Page<ExternalStorageDto> find(Filter filter, UserDetail userDetail) {
-		Page<ExternalStorageDto> externalStorageDtoPage = super.find(filter, userDetail);
+		Page<ExternalStorageDto> externalStorageDtoPage;
+		if (settingsService.isCloud()) {
+			externalStorageDtoPage = super.find(filter);
+		} else {
+			externalStorageDtoPage = super.find(filter, userDetail);
+		}
 		if (null == filter.getWhere() || filter.getWhere().isEmpty()) {
 			List<ExternalStorageEntity> initExternalStorages = repository.findAll(Query.query(Criteria.where("init").is(true)));
 			List<ExternalStorageDto> items = externalStorageDtoPage.getItems();

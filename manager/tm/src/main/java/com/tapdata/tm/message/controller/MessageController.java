@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.dto.MessageDto;
+import com.tapdata.tm.message.service.BlacklistService;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.message.vo.MessageListVo;
 import com.tapdata.tm.utils.MapUtils;
@@ -47,6 +48,7 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class MessageController extends BaseController {
     private MessageService messageService;
+    private BlacklistService blacklistService;
 
     /**
      * 获取消息通知列表
@@ -228,5 +230,16 @@ public class MessageController extends BaseController {
             messageDtoRet = messageService.add(messageDto,getLoginUser());
         }
         return success(messageDtoRet);
+    }
+
+    @GetMapping("blacklist")
+    public ResponseMessage<Boolean> inBlacklist(@RequestParam(required = false) String type,
+                                                @RequestParam(required = false) String to) {
+        if ("email".equalsIgnoreCase(type)) {
+            return success(blacklistService.inBlacklist(to));
+        } else if ("phone".equalsIgnoreCase(type)) {
+            return success(blacklistService.inBlacklist("86", to));
+        }
+        return success(false);
     }
 }

@@ -4,14 +4,7 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataCompleteSnapshotEvent;
-import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataStartedCdcEvent;
-import com.tapdata.entity.TapdataStartingCdcEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -19,23 +12,8 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.BatchReadFuncAspect;
-import io.tapdata.aspect.SourceCDCDelayAspect;
-import io.tapdata.aspect.SourceJoinHeartbeatAspect;
-import io.tapdata.aspect.SourceStateAspect;
-import io.tapdata.aspect.StreamReadFuncAspect;
-import io.tapdata.aspect.TaskMilestoneFuncAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadBeginAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadEndAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadErrorAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadStartedAspect;
-import io.tapdata.aspect.taskmilestones.Snapshot2CDCAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadEndAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadErrorAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadTableBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadTableEndAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadTableErrorAspect;
+import io.tapdata.aspect.*;
+import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -53,6 +31,9 @@ import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
+import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustResult;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
@@ -67,20 +48,10 @@ import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
-import io.tapdata.pdk.apis.entity.FilterResults;
-import io.tapdata.pdk.apis.entity.QueryOperator;
-import io.tapdata.pdk.apis.entity.SortOn;
-import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
-import io.tapdata.pdk.apis.entity.TapExecuteCommand;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.ConnectionConfigWithTables;
-import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
-import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionFunction;
+import io.tapdata.pdk.apis.functions.connector.source.*;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -97,22 +68,16 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -267,8 +232,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_START));
 			}
 			try {
+				AtomicBoolean firstBatch = new AtomicBoolean(true);
 				while (isRunning()) {
 					for (String tableName : tableList) {
+						firstBatch.set(true);
 						// wait until we count the table
 						while (isRunning() && (null == snapshotRowSizeMap || !snapshotRowSizeMap.containsKey(tableName))) {
 							try {
@@ -315,6 +282,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											pdkMethodInvoker.runnable(() -> {
 														BiConsumer<List<TapEvent>, Object> consumer = (events, offsetObject) -> {
 															if (events != null && !events.isEmpty()) {
+																if (firstBatch.compareAndSet(true, false)) {
+																	TapdataAdjustMemoryEvent tapdataAdjustMemoryEvent = resizeEventQueueIfNeed(events);
+																	if (null != tapdataAdjustMemoryEvent) {
+																		enqueue(tapdataAdjustMemoryEvent);
+																	}
+																}
 																events = events.stream().map(event -> {
 																	if (null == event.getTime()) {
 																		throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
@@ -442,6 +415,41 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					.context(getProcessorBaseContext());
 		}
 		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
+	}
+
+	private TapdataAdjustMemoryEvent resizeEventQueueIfNeed(List<TapEvent> events) {
+		if (dataProcessorContext.getTaskDto().getDynamicAdjustMemoryUsage()) {
+			int newSourceQueueCapacity;
+			DynamicAdjustResult dynamicAdjustResult;
+			try {
+				dynamicAdjustResult = this.dynamicAdjustMemoryService.calcQueueSize(events, this.originalSourceQueueCapacity);
+			} catch (Exception e) {
+				throw new TapCodeException(DynamicAdjustMemoryExCode_25.UNKNOWN_ERROR, e);
+			}
+			DynamicAdjustResult.Mode mode = dynamicAdjustResult.getMode();
+			if (mode.equals(DynamicAdjustResult.Mode.KEEP)) {
+				return null;
+			} else if (mode.equals(DynamicAdjustResult.Mode.INCREASE)) {
+				newSourceQueueCapacity = originalSourceQueueCapacity;
+			} else {
+				newSourceQueueCapacity = new BigDecimal(this.originalSourceQueueCapacity)
+						.divide(BigDecimal.valueOf(dynamicAdjustResult.getCoefficient()).multiply(new BigDecimal(SOURCE_QUEUE_FACTOR)),
+								0, RoundingMode.HALF_UP).intValue();
+				newSourceQueueCapacity = Math.max(newSourceQueueCapacity, MIN_QUEUE_SIZE);
+			}
+			if (newSourceQueueCapacity != this.sourceQueueCapacity) {
+				while (isRunning()) {
+					if (this.eventQueue.isEmpty()) {
+						this.eventQueue = new LinkedBlockingQueue<>(newSourceQueueCapacity);
+						obsLogger.info("{}Source queue size adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.sourceQueueCapacity, newSourceQueueCapacity);
+						this.sourceQueueCapacity = newSourceQueueCapacity;
+						break;
+					}
+				}
+				return new TapdataAdjustMemoryEvent(mode.getValue(), dynamicAdjustResult.getCoefficient());
+			}
+		}
+		return null;
 	}
 
 	private static boolean isTableFilter(TableNode tableNode) {
@@ -704,13 +712,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				connectionQuery.fields().include("config").include("pdkHash");
 				return clientMongoOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 			});
-			if(CollectionUtils.isNotEmpty(connections)){
+			if (CollectionUtils.isNotEmpty(connections)) {
 				connections.forEach(connection -> {
 					LogCollectorNode logCollectorNode = (LogCollectorNode) node;
 					List<String> logNameSpaces = logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getNamespace();
-					logNameSpaces.forEach(logNameSpace ->{
-						connection.getNamespace().forEach(nameSpace ->{
-							if(logNameSpace.equals(nameSpace)){
+					logNameSpaces.forEach(logNameSpace -> {
+						connection.getNamespace().forEach(nameSpace -> {
+							if (logNameSpace.equals(nameSpace)) {
 								TapdataStartedCdcEvent startedCdcEvent = TapdataStartedCdcEvent.create();
 								startedCdcEvent.setCdcStartTime(System.currentTimeMillis());
 								startedCdcEvent.setSyncStage(SyncStage.CDC);
@@ -723,14 +731,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					});
 
 				});
-			}else{
+			} else {
 				LogCollectorNode logCollectorNode = (LogCollectorNode) node;
 				tapdataStartedCdcEvent.setType(SyncProgress.Type.LOG_COLLECTOR);
 				tapdataStartedCdcEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, dataProcessorContext.getConnections().getId());
 				tapdataStartedCdcEvent.addInfo(TapdataEvent.TABLE_NAMES_INFO_KEY, logCollectorNode.getTableNames());
 				enqueue(tapdataStartedCdcEvent);
 			}
-		}else{
+		} else {
 			enqueue(tapdataStartedCdcEvent);
 		}
 	}

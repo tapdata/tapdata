@@ -87,11 +87,15 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     public String updateAgent(UpdateAgentVersionParam param,UserDetail userDetail) {
         String retResult = "1";
         String processId = param.getProcessId();
-        String version = param.getVersion();
+
         if ((StringUtils.isEmpty(processId))) {
             throw new BizException("Cluster.ProcessId.Null");
-        } else if (StringUtils.isEmpty(param.getDownloadUrl())) {
-            throw new BizException("Cluster.DownloadUrl.Null");
+        }
+
+        if (ClusterOperationTypeEnum.upgrade.name().equals(param.getOp())) {
+            if (StringUtils.isEmpty(param.getDownloadUrl())) {
+                throw new BizException("Cluster.DownloadUrl.Null");
+            }
         }
         //根据processId 查找 clusterState
         Query query = Query.query(Criteria.where("systemInfo.process_id").is(processId));
@@ -100,22 +104,31 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             //如果找不到就更新对应的worker信息
             Query workQuery = Query.query(Criteria.where("process_id").is(processId));
             Update update = Update.update("updateStatus", "fail");
-            update.set("updateMsg", "can not find the agent");
+            update.set("updateMsg", "Execute '" + param.getOp() + "' operation failed, can not find the tapdata agent by process id");
             update.set("updateTime", new Date());
-            update.set("updateVersion", version);
+            update.set("updateVersion", param.getVersion());
 //            workerService.update(workQuery, update);
             workerService.update(query,update, userDetail);
             retResult = "1";
         } else {
-            List<String> downList = Arrays.asList("tapdata", "tapdata.exe", "tapdata-agent", "log4j2.yml");
-            clusterStateDtoList.forEach(clusterStateDto -> {
-                addNewClusterOperation(clusterStateDto, param, downList);
-                updateWorker(processId, param.getVersion(), userDetail);
-            });
+            if (ClusterOperationTypeEnum.upgrade.name().equals(param.getOp())) {
+                List<String> downList = Arrays.asList("tapdata", "tapdata.exe", "tapdata-agent", "log4j2.yml");
+                clusterStateDtoList.forEach(clusterStateDto -> {
+                    addNewClusterOperation(clusterStateDto, param, downList);
+                    updateWorker(processId, param.getVersion(), userDetail);
+                });
+            } else {
+                clusterStateDtoList.forEach(clusterStateDto -> {
+                    addNewClusterOperation(clusterStateDto, param, null);
+                });
+            }
 
+            // update clusterStateDto engine status
+            update(query, Update.update("engine.status", ClusterStateDto.ENGINE_STARTING));
         }
         return retResult;
     }
+
 
     public Long updateStatus(UpdataStatusRequest updataStatusRequest, UserDetail userDetail){
         ClusterOperationDto clusterOperationDto = new ClusterOperationDto();
@@ -131,7 +144,11 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         data.put("status", 0);
         data.put("msg", "");
         data.put("operation", updataStatusRequest.getOperation());
-        UpdateResult updateResult = update(Query.query(Criteria.where("uuid").is(updataStatusRequest.getUuid())), Update.update(server, data));
+        Update update = Update.update(server, data);
+        if ("backend".equals(clusterOperationDto.getServer()) && "stop".equals(updataStatusRequest.getOperation())) {
+            update.set("engine.status", ClusterStateDto.ENGINE_STOPPING);
+        }
+        UpdateResult updateResult = update(Query.query(Criteria.where("uuid").is(updataStatusRequest.getUuid())), update);
         return updateResult.getModifiedCount();
     }
 
@@ -233,12 +250,20 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     private void addNewClusterOperation(ClusterStateDto clusterStateDto, UpdateAgentVersionParam param, List downloadList) {
         ClusterOperationEntity cluserOperationEntity = new ClusterOperationEntity();
         cluserOperationEntity.setOperationTime(new Date());
-        cluserOperationEntity.setType(ClusterOperationTypeEnum.update.toString());
         cluserOperationEntity.setProcess_id(param.getProcessId());
         cluserOperationEntity.setUuid(clusterStateDto.getUuid());
-        cluserOperationEntity.setDownloadUrl(param.getDownloadUrl());
-        cluserOperationEntity.setToken(param.getToken());
-        cluserOperationEntity.setDownloadList(downloadList);
+        if (ClusterOperationTypeEnum.upgrade.name().equals(param.getOp())) {
+            cluserOperationEntity.setType(ClusterOperationTypeEnum.update.toString());
+            cluserOperationEntity.setDownloadUrl(param.getDownloadUrl());
+            cluserOperationEntity.setToken(param.getToken());
+            cluserOperationEntity.setDownloadList(downloadList);
+            cluserOperationEntity.setOnlyUpdateToken(param.getOnlyUpdateToken());
+        } else {
+            cluserOperationEntity.setType(ClusterOperationTypeEnum.changeStatus.toString());
+            cluserOperationEntity.setOperation(ClusterOperationTypeEnum.valueOf(param.getOp()).name());
+            cluserOperationEntity.setServer("engine");
+        }
+
         cluserOperationEntity.setStatus(AgentStatusEnum.NEED_UPDATE.getValue());
         cluserOperationEntity.setCreateAt(new Date());
         cluserOperationEntity.setLastUpdAt(new Date());
@@ -317,12 +342,12 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     public List<AccessNodeInfo> findAccessNodeInfo(UserDetail userDetail) {
         //需要过滤有效的work数据
         List<AccessNodeInfo> result = Lists.newArrayList();
+        boolean isCloud = settingsService.isCloud();
         List<Worker> workerList = workerService.findAllAgent(userDetail);
         if (CollectionUtils.isEmpty(workerList)) {
             return result;
         }
 
-        boolean isCloud = settingsService.isCloud();
         int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
         long liveTime = System.currentTimeMillis() - (overTime * 1000L);
 

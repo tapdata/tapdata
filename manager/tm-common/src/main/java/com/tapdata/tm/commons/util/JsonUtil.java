@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.util;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.ObjectCodec;
@@ -52,6 +53,7 @@ public class JsonUtil {
 			objectMapper = new ObjectMapper();
 			objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 			objectMapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+			objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 			if (_pretty) {
 				objectMapper.setDefaultPrettyPrinter(new DefaultPrettyPrinter());
 			}

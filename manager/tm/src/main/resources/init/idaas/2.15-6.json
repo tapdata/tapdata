@@ -1,7 +1,7 @@
 [
   {
     "delete": "Settings_Alarm",
-    "deletes": [
+      "deletes": [
       {
         "q": {
           "key": "TASK_STATUS_STOP"

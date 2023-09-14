@@ -12,7 +12,8 @@ import com.tapdata.tm.task.service.TaskResetLogService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.vo.TaskDagCheckLogVo;
 import com.tapdata.tm.task.vo.TaskLogInfoVo;
-import com.tapdata.tm.ws.handler.EditFlushHandler;
+import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.MongoUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
@@ -25,7 +26,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
 
 @Service
 @Slf4j
@@ -34,6 +38,8 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
 
     @Autowired
     private TaskService taskService;
+    @Autowired
+    private UserService userservice;
 
     @Value("${task.reset.times: 2}")
     private int resetAllTimes;
@@ -57,7 +63,9 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
     @Override
     public TaskResetEventDto save(TaskResetEventDto resetEventDto, UserDetail user) {
          //封装成为日志上报给前端。
-        TaskDto taskDto = taskService.checkExistById(new ObjectId(resetEventDto.getTaskId()), user);
+        TaskDto taskDto = taskService.findByTaskId(new ObjectId(resetEventDto.getTaskId()));
+        user = userservice.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+
         int resetTimes = taskDto.getResetTimes() == null ? 0 : taskDto.getResetTimes();
         resetEventDto.setTime(new Date());
         resetEventDto.setResetTimes(resetTimes);

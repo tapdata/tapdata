@@ -85,6 +85,9 @@ public class LiveDataPlatformController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
+        if (filter.getOrder() == null) {
+            filter.setOrder("_id desc");
+        }
         return success(liveDataPlatformService.findOneData(filter, getLoginUser()));
     }
 

@@ -1,7 +1,7 @@
 package com.tapdata.tm.scheduleTasks.entity;
 
-import com.mongodb.BasicDBObject;
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.worker.dto.WorkSchedule;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -27,7 +27,7 @@ public class ScheduleTasksEntity extends BaseEntity {
     private String task_profile;
     private String agent_id;
     private Long ping_time;
-    private ArrayList<BasicDBObject> thread;
+    private ArrayList<WorkSchedule> thread;
     private ArrayList<Object> filter;
     private Map<String, Object> task_data;
     private Object statsOffset;

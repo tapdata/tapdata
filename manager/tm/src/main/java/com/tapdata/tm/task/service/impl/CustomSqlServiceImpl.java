@@ -78,21 +78,10 @@ public class CustomSqlServiceImpl implements CustomSqlService {
                 query.fields().include("database_type");
                 List<DataSourceConnectionDto> connectionDtos = dataSourceService.findAllDto(query, user);
                 List<String> databaseTypes = connectionDtos.stream().map(DataSourceConnectionDto::getDatabase_type).collect(Collectors.toList());
-                List<DataSourceDefinitionDto> definitionDtos = definitionService.getByDataSourceType(databaseTypes, user, "tags");
-                if (CollectionUtils.isNotEmpty(definitionDtos)) {
-                    for (DataSourceDefinitionDto definitionDto : definitionDtos) {
-                        if (CollectionUtils.isNotEmpty(definitionDto.getTags())) {
-                            boolean contains = definitionDto.getTags().contains("schema-free");
-                            if (!contains) {
-                                throw new BizException("CustomSql.TargetNotSchemaFree");
-                            }
 
-                        } else {
-                            throw new BizException("CustomSql.TargetNotSchemaFree");
-                        }
-                    }
-                }
-
+								if (!databaseTypes.isEmpty() && !definitionService.isAllTypeSchemaFree(databaseTypes, user)) {
+									throw new BizException("CustomSql.TargetNotSchemaFree");
+								}
             }
         }
 

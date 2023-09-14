@@ -2,11 +2,9 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.*;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.OperationType;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
@@ -79,6 +77,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
+		if (AppType.init().isCloud())
+			externalStorageDto = ExternalStorageUtil.getTargetNodeExternalStorage(
+					processorBaseContext.getNode(),
+					processorBaseContext.getEdges(),
+					clientMongoOperator,
+					processorBaseContext.getNodes());
 	}
 
 	private void selfCheckNode(Node node) {
@@ -159,25 +163,33 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				if (doBatchCacheIfNeed(batchCache)) {
 					for (BatchEventWrapper eventWrapper : batchCache) {
 						String preTableName = getPreTableName(eventWrapper.getTapdataEvent());
-						wrapMergeInfo(eventWrapper.getTapdataEvent());
 						batchProcessResults.add(new BatchProcessResult(eventWrapper, ProcessResult.create().tableId(preTableName)));
 					}
 				}
-				batchProcessResults.add(new BatchProcessResult(new BatchEventWrapper(tapdataEvent, null), null));
+				batchProcessResults.add(new BatchProcessResult(new BatchEventWrapper(tapdataEvent, batchEventWrapper.getTapValueTransform()), null));
 				consumer.accept(batchProcessResults);
 				batchCache.clear();
 				batchProcessResults.clear();
 			} else {
+				wrapMergeInfo(tapdataEvent);
 				batchCache.add(batchEventWrapper);
 			}
+			lookupAndWrapMergeInfoIfNeed(tapdataEvent);
 		}
 		if (doBatchCacheIfNeed(batchCache)) {
 			for (BatchEventWrapper eventWrapper : batchCache) {
 				String preTableName = getPreTableName(eventWrapper.getTapdataEvent());
-				wrapMergeInfo(eventWrapper.getTapdataEvent());
 				batchProcessResults.add(new BatchProcessResult(eventWrapper, ProcessResult.create().tableId(preTableName)));
 			}
 			consumer.accept(batchProcessResults);
+		}
+	}
+
+	private void lookupAndWrapMergeInfoIfNeed(TapdataEvent tapdataEvent) {
+		MergeInfo mergeInfo = wrapMergeInfo(tapdataEvent);
+		if (needLookup(tapdataEvent)) {
+			List<MergeLookupResult> mergeLookupResults = lookup(tapdataEvent);
+			mergeInfo.setMergeLookupResults(mergeLookupResults);
 		}
 	}
 
@@ -203,11 +215,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		if (needCache(tapdataEvent)) {
 			cache(tapdataEvent);
 		}
-		MergeInfo mergeInfo = wrapMergeInfo(tapdataEvent);
-		if (needLookup(tapdataEvent)) {
-			List<MergeLookupResult> mergeLookupResults = lookup(tapdataEvent);
-			mergeInfo.setMergeLookupResults(mergeLookupResults);
-		}
+		lookupAndWrapMergeInfoIfNeed(tapdataEvent);
 		consumer.accept(tapdataEvent, ProcessResult.create().tableId(preTableName));
 	}
 
@@ -218,10 +226,14 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			io.tapdata.pdk.apis.entity.merge.MergeTableProperties pdkMergeTableProperties = copyMergeTableProperty(currentMergeTableProperty);
 			preNodeIdPdkMergeTablePropertieMap.put(preNodeId, pdkMergeTableProperties);
 		}
-		MergeInfo mergeInfo = new MergeInfo();
-		mergeInfo.setCurrentProperty(preNodeIdPdkMergeTablePropertieMap.get(preNodeId));
-		tapdataEvent.getTapEvent().addInfo(MergeInfo.EVENT_INFO_KEY, mergeInfo);
-		return mergeInfo;
+		if (tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY) == null || !(tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY) instanceof MergeInfo)) {
+			MergeInfo mergeInfo = new MergeInfo();
+			mergeInfo.setCurrentProperty(preNodeIdPdkMergeTablePropertieMap.get(preNodeId));
+			tapdataEvent.getTapEvent().addInfo(MergeInfo.EVENT_INFO_KEY, mergeInfo);
+			return mergeInfo;
+		} else {
+			return (MergeInfo) tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY);
+		}
 	}
 
 	@NotNull
@@ -430,17 +442,21 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	}
 
 	private boolean needLookup(TapdataEvent tapdataEvent) {
+		Node node = getNode();
+		MergeTableNode mergeTableNode = (MergeTableNode) node;
+		String mergeMode = mergeTableNode.getMergeMode();
 		SyncStage syncStage = tapdataEvent.getSyncStage();
-		if (SyncStage.INITIAL_SYNC.equals(syncStage)) {
-			return false;
-		}
 		if (isInvalidOperation(tapdataEvent)) return false;
 		String op = getOp(tapdataEvent);
 		if (op.equals(OperationType.DELETE.getOp())) {
 			return false;
 		}
 		String preNodeId = getPreNodeId(tapdataEvent);
-		return this.lookupMap.containsKey(preNodeId);
+		boolean existsInLookupMap = this.lookupMap.containsKey(preNodeId);
+		if (existsInLookupMap && SyncStage.INITIAL_SYNC.equals(syncStage) && MergeTableNode.MAIN_TABLE_FIRST_MERGE_MODE.equals(mergeMode)) {
+			return false;
+		}
+		return existsInLookupMap;
 	}
 
 	private String getOp(TapdataEvent tapdataEvent) {
@@ -884,6 +900,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	public static void clearCache(Node<?> node) {
 		if (!(node instanceof MergeTableNode)) return;
 		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
+		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
+	}
+
+	public static void clearCache(Node<?> node, List<Node> nodes, List<Edge> edges) {
+		if (!(node instanceof MergeTableNode)) return;
+		ExternalStorageDto externalStorage = ExternalStorageUtil.getTargetNodeExternalStorage(node, edges, ConnectorConstant.clientMongoOperator, nodes);
 		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
 	}
 
