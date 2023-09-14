@@ -24,59 +24,11 @@ public class TapdataScriptFactory implements ScriptFactory {
 			pythonEngine.eval("import java.util.ArrayList as ArrayList");
 		}catch (Exception e){}
 
-
-
-//        fileToString();
-//		try {
-//			pythonEngine.eval("from jnius import autoclass");
-//		}catch (Exception e){
-//			e.printStackTrace();
-//		}
-//		String pipPath = "D:\\GavinData\\deskTop\\Lib";
-//		try {
-//			PythonInterpreter interpreter = new PythonInterpreter();
-//			PySystemState sys = Py.getSystemState();
-//
-//			System.out.println(sys.path);
-//
-//
-//
-//			sys.path.add(pipPath);
-//			interpreter.exec("import sys");
-//			interpreter.exec("print sys.path");
-//			interpreter.exec("path = \"" + pipPath + "\"");
-//			interpreter.exec("sys.path.append(path)");
-//			interpreter.exec("print sys.path");
-//			//interpreter.exec("a=3; b=5;");
-//
-//			//InputStream filepy = new FileInputStream("E:\\input.py");
-//			//interpreter.execfile(filepy);
-//			//filepy.close();
-//		} catch (Exception e){
-//			e.printStackTrace();
-//		}
 		try {
 			pythonEngine.eval("import requests;");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-
-
-
-
-//		try {
-//			Properties props = new Properties();
-//			props.put("python.home", "D:\\GavinData\\deskTop\\Lib\\site-packages\\requests-2.2.1-py2.7.egg");
-//			props.put("python.console.encoding", "UTF-8");
-//			props.put("python.security.respectJavaAccessibility", "false");
-//			props.put("python.import.site", "false");
-//			Properties preprops = System.getProperties();
-//			PythonInterpreter.initialize (preprops, props, new String[0]);
-//			PythonInterpreter interpreter = new PythonInterpreter();
-//			pythonEngine.eval("import requests;");
-//		}catch (Exception e){
-//			e.printStackTrace();
-//		}
 	}
 
     @Override

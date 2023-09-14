@@ -25,7 +25,7 @@ public class ScriptNodeProcessNodeAppender extends BaseTaskAppender<MonitoringLo
     private final Logger logger;
     private String jsNodeId;
 
-    public FixedSizeBlockingDeque<MonitoringLogsDto> logList = new FixedSizeBlockingDeque<>(defaultLogLength);//new FixSizeLinkedList<>(defaultLogLength);
+    public FixedSizeBlockingDeque<MonitoringLogsDto> logList ;//= new FixedSizeBlockingDeque<>(defaultLogLength);//new FixSizeLinkedList<>(defaultLogLength);
     AtomicReference<Object> logCollector;
     //日志输出上限500条
     public static final int LOG_UPPER_LIMIT = 500;

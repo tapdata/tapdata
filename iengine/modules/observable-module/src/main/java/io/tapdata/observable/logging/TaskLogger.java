@@ -43,6 +43,10 @@ class TaskLogger extends ObsLogger {
 	private LogLevel formerLevel;
 	private Long recordCeiling;
 	private Long intervalCeiling;
+	private boolean testTask;
+	public boolean isTestTask() {
+		return testTask;
+	}
 
 	private TaskLogger(TaskDto taskDto, BiConsumer<String, LogLevel> consumer) {
 		String taskId = taskDto.getId().toHexString();
@@ -50,16 +54,16 @@ class TaskLogger extends ObsLogger {
 		this.taskName = taskDto.getName();
 		this.taskRecordId = taskDto.getTaskRecordId();
 		this.logAppendFactory = AppenderFactory.getInstance();
+		this.testTask = taskDto.isTestTask();
 
 		AtomicReference<Object> taskInfo = (AtomicReference<Object>) taskDto.taskInfo(ScriptNodeProcessNodeAppender.LOG_LIST_KEY + taskId);
 		if (taskDto.isTestTask() && null != taskInfo){
 			//js处理器试运行收集日志，不入库不额外操作，仅返回给前端
-			this.witAppender(
-							(WithAppender<MonitoringLogsDto>)(() ->
-											(BaseTaskAppender<MonitoringLogsDto>) ScriptNodeProcessNodeAppender.create(
-																			taskId, taskInfo, Optional.ofNullable((Integer) taskDto.taskInfo(ScriptNodeProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId)).orElse(100))
-															.nodeID((String)taskDto.taskInfo(ScriptNodeProcessNodeAppender.SCRIPT_NODE_ID_KEY + taskId))
-							)
+			this.witAppender((WithAppender<MonitoringLogsDto>)(() ->
+				(BaseTaskAppender<MonitoringLogsDto>) ScriptNodeProcessNodeAppender.create(
+							taskId, taskInfo, Optional.ofNullable((Integer) taskDto.taskInfo(ScriptNodeProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId)).orElse(100))
+					.nodeID((String)taskDto.taskInfo(ScriptNodeProcessNodeAppender.SCRIPT_NODE_ID_KEY + taskId))
+				)
 			);
 
 		} else {

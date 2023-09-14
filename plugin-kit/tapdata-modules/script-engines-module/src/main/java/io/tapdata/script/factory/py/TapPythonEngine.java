@@ -1,10 +1,15 @@
 package io.tapdata.script.factory.py;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import org.python.core.PyException;
+import org.python.core.PrePy;
+import org.python.core.Py;
+import org.python.core.PyList;
+import org.python.core.PySystemState;
 import org.python.jsr223.PyScriptEngineFactory;
 
 import javax.script.Bindings;
@@ -16,8 +21,14 @@ import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.script.SimpleScriptContext;
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 
@@ -27,43 +38,110 @@ import java.util.concurrent.Callable;
  * @create 2023/6/13 15:58
  **/
 public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
+    public static final int ERROR_PY_NODE_CODE = 1000010;
     private final ScriptEngine scriptEngine;
     private final Invocable invocable;
     private final String buildInScript;
     private final ClassLoader classLoader;
-
+    private final Log logger;
     public Invocable invocable() {
         return this.invocable;
     }
 
     public TapPythonEngine(ScriptOptions scriptOptions) {
+        this.logger = Optional.ofNullable(scriptOptions.getLog()).orElse(new TapLog());
+        File file = PythonUtils.getThreadPackagePath();
+        if (null == file) {
+            PythonUtils.flow(logger);
+            try {
+                String jarPath = "py-lib/jython-standalone-2.7.3.jar";
+                ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+                URL jarURL = new URL("file://" + jarPath);
+                Method addURLMethod = URLClassLoader.class.getDeclaredMethod("addURL", URL.class);
+                addURLMethod.setAccessible(true);
+                addURLMethod.invoke(classLoader, jarURL);
+            } catch (Exception e) {}
+        }
         classLoader = scriptOptions.getClassLoader();
         this.buildInScript = "";
         this.scriptEngine = initScriptEngine(scriptOptions.getEngineName());
         this.invocable = (Invocable) this.scriptEngine;
     }
     private ScriptEngine initScriptEngine(String engineName) {
-        TapPythonEngine.EngineType jsEngineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
-        ScriptEngine scriptEngine;
+        TapPythonEngine.EngineType engineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
+        ScriptEngine scriptEngine = null;
+//        String property = System.getProperty("java.class.path");
+//        System.setProperty("java.class.path", property + ";" + new File("py-lib/jython.jar").getAbsolutePath());
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         try {
             Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
-            if (EngineType.Python.engineName().equals(engineName)) {
-                //new org.python.jsr223.PyScriptEngine();
-                try {
-                    scriptEngine = new PyScriptEngineFactory().getScriptEngine();
-                }catch (PyException e){
+            try {
+                System.setProperty("python.import.site", "false");
+//                Field field = PySystemState.class.getDeclaredField("initialized");
+//                field.setAccessible(true);
+//                Field defaultArgvF = PySystemState.class.getDeclaredField("defaultArgv");
+//                defaultArgvF.setAccessible(true);
+//                Field defaultPathF = PySystemState.class.getDeclaredField("defaultPath");
+//                defaultPathF.setAccessible(true);
+//                Boolean initialized = (Boolean) field.get(null);
+//                field.set(null, false);
+//                try {
+//                    String jarFileName = Py.getJarFileName();
+//                    logger.info("JarFileName: {}", jarFileName);
+//                    if (!new File(jarFileName).exists()) {
+//                        String replace = jarFileName.replace("jython-standalone-2.7.3.jar", "");
+//                        File file = new File(replace);
+//                        if (!file.exists()) {
+//                            file.mkdirs();
+//                            PythonUtils.copyFile(new File("py-lib/jython-standalone-2.7.3.jar"), file);
+//                        }
+//                    }
+//                } catch (Exception e) {
+//                    logger.info("Get JarFileName failed, msg: {}", e.getMessage());
+//                }
+//
+//                logger.info("SystemProperties: {}", PrePy.getSystemProperties());
+//
+//                PyList defaultArgv = (PyList)(defaultArgvF.get(null)) ;
+//                PyList defaultPath = (PyList)(defaultPathF.get(null)) ;
+//                logger.info("before initialized: {}, defaultArgv: {}, defaultPath: {}, SystemProperties: {}", initialized, defaultArgv, defaultPath, PySystemState.registry);
+//                if (null == defaultArgv ) {
+//                    defaultArgvF.set(null, new PyList());
+//                }
+//                if (null == defaultPath) {
+//                    defaultPathF.set(null, new PyList());
+//                }
+//                if (null == PySystemState.registry || PySystemState.registry.isEmpty()){
+//                    PySystemState.registry = PrePy.getSystemProperties();
+//                }
+//                PySystemState.initialize(null, null, new String[]{""}, Thread.currentThread().getContextClassLoader());
+//                logger.info("after initialized: {}, defaultArgv: {}, defaultPath: {}, SystemProperties: {}", initialized, defaultArgv, defaultPath, PySystemState.registry);
+                scriptEngine = new ScriptEngineManager().getEngineByName(engineEnum.name);
+                if (null == scriptEngine) {
                     scriptEngine = new PyScriptEngineFactory().getScriptEngine();
                 }
+            } catch (Exception e) {
+                scriptEngine = new PyScriptEngineFactory().getScriptEngine();
+            }
+            if (Objects.nonNull(scriptEngine)) {
                 SimpleScriptContext scriptContext = new SimpleScriptContext();
                 scriptEngine.setContext(scriptContext);
-            } else {
-                scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());
+                try{
+                    File file = PythonUtils.getThreadPackagePath();
+                    if (null != file) {
+                        logger.info(String.format("import sys\\nsys.path.append('%s')", file.getAbsolutePath()));
+                        scriptEngine.eval(String.format("\nimport sys\nsys.path.append('%s')\n", file.getAbsolutePath()));
+                        PythonUtils.supportThirdPartyPackageList(file, logger);
+                    } else {
+                        logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory");
+                    }
+                } catch (Exception error){
+                    logger.warn("Unable to load Python's third-party dependencies from the third-party dependencies package directory: {}, msg: {}", PythonUtils.PYTHON_THREAD_PACKAGE_PATH, error.getMessage());
+                }
             }
         } catch (Exception e) {
-            //TapLogger.debug("Python Eninge", "Can not init python engine, goto init default.");
-            //scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());
-            throw new CoreException("Can not init python engine, error msg: " + e.getMessage());
+            //logger.error("Can not init python engine, error msg: {}", e.getMessage());
+            throw new CoreException(ERROR_PY_NODE_CODE, e, "Can not init python engine, error msg: {}", e.getMessage());
         } finally {
             Thread.currentThread().setContextClassLoader(classLoader);
         }
@@ -105,11 +183,11 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     public Object eval(Reader reader) throws ScriptException {
         try {
             return applyClassLoaderContext(() -> this.scriptEngine.eval(reader));
-        }finally {
+        } finally {
             try {
                 reader.close();
             } catch (IOException e) {
-                e.printStackTrace();
+                logger.warn(e.getMessage());
             }
         }
     }
@@ -195,7 +273,7 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     }
 
     public static enum EngineType {
-        Python("python")
+        Python("jython")
         ;
 
         String name;
@@ -205,12 +283,12 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         }
 
         public static TapPythonEngine.EngineType getByEngineName(String name) {
-            if (null != name && !"".equals(name.trim())) {
-                TapPythonEngine.EngineType[] values = values();
-                for (TapPythonEngine.EngineType value : values) {
-                    if (value.name.equals(name)) return value;
-                }
-            }
+//            if (null != name && !"".equals(name.trim())) {
+//                TapPythonEngine.EngineType[] values = values();
+//                for (TapPythonEngine.EngineType value : values) {
+//                    if (value.name.equals(name)) return value;
+//                }
+//            }
             return Python;
         }
 
