@@ -382,27 +382,6 @@
                 <targetPath>./${project.parent.artifactId}/${project.artifactId}/src/main/javascript/</targetPath>
             </resource>
         </resources>
-        <plugins>
-
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <outputDirectory>${basedir}/../</outputDirectory>
-                </configuration>
-
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>repackage</goal>
-                        </goals>
-                        <configuration>
-                            <mainClass>io.tapdata.Application</mainClass>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
     </build>
     <repositories>
         <repository>
