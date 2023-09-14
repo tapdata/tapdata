@@ -35,7 +35,9 @@ public class SkipIdleProcessor<T> implements AutoCloseable {
 		th = new Thread(() -> {
 			Item tmp;
 			while (isRunning.get() && !Thread.interrupted()) {
-				tmp = idleList.pollFirst();
+				synchronized (idleList) {
+					tmp = idleList.pollFirst();
+				}
 				if (null == tmp) {
 					try {
 						Thread.sleep(LOOP_INTERVAL);
@@ -53,7 +55,9 @@ public class SkipIdleProcessor<T> implements AutoCloseable {
 					} catch (InterruptedException e) {
 						break;
 					} finally {
-						idleList.add(tmp);
+						synchronized (idleList) {
+							idleList.add(tmp);
+						}
 					}
 				} else if (sleepTimes > 0) {
 					try {
@@ -125,7 +129,9 @@ public class SkipIdleProcessor<T> implements AutoCloseable {
 			if (counts < MAX_COUNTS) counts++;
 
 			nextTimes = System.currentTimeMillis() + (SLEEP_INTERVAL * counts);
-			idleList.add(this);
+			synchronized (idleList) {
+				idleList.add(this);
+			}
 		}
 
 		public void reset() {
