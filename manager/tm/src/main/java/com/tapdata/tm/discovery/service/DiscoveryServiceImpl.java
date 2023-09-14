@@ -1763,27 +1763,27 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         byte type = ((Double)map.get("type")).byteValue();
         switch (type) {
             case TapType.TYPE_ARRAY:
-                return MessageUtil.getTypeMsg(locale,"ARRAY");
+                return MessageUtil.getMessage(locale,"ARRAY");
             case TapType.TYPE_BINARY:
-                return MessageUtil.getTypeMsg(locale,"BINARY");
+                return MessageUtil.getMessage(locale,"BINARY");
             case TapType.TYPE_BOOLEAN:
-                return MessageUtil.getTypeMsg(locale,"BOOLEAN");
+                return MessageUtil.getMessage(locale,"BOOLEAN");
             case TapType.TYPE_DATE:
-                return MessageUtil.getTypeMsg(locale,"DATE");
+                return MessageUtil.getMessage(locale,"DATE");
             case TapType.TYPE_DATETIME:
-                return MessageUtil.getTypeMsg(locale,"DATETIME");
+                return MessageUtil.getMessage(locale,"DATETIME");
             case TapType.TYPE_MAP:
-                return MessageUtil.getTypeMsg(locale,"MAP");
+                return MessageUtil.getMessage(locale,"MAP");
             case TapType.TYPE_NUMBER:
-                return MessageUtil.getTypeMsg(locale,"NUMBER");
+                return MessageUtil.getMessage(locale,"NUMBER");
             case TapType.TYPE_STRING:
-                return MessageUtil.getTypeMsg(locale,"STRING");
+                return MessageUtil.getMessage(locale,"STRING");
             case TapType.TYPE_TIME:
-                return MessageUtil.getTypeMsg(locale,"TIME");
+                return MessageUtil.getMessage(locale,"TIME");
             case TapType.TYPE_YEAR:
-                return MessageUtil.getTypeMsg(locale,"YEAR");
+                return MessageUtil.getMessage(locale,"YEAR");
             default:
-                return MessageUtil.getTypeMsg(locale,"UNKNOW");
+                return MessageUtil.getMessage(locale,"UNKNOW");
         }
     }
 
