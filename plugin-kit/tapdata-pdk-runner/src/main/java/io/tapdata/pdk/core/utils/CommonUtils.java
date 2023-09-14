@@ -378,6 +378,11 @@ public class CommonUtils {
                     if (temp.chars().allMatch(Character::isDigit)) {
                         pdkAPIBuildNumber.set(Integer.parseInt(temp));
                     }
+                } else if (last.contains("-RELEASE")) {
+                    String temp = StringUtils.replace(last, "-RELEASE", "");
+                    if (temp.chars().allMatch(Character::isDigit)) {
+                        pdkAPIBuildNumber.set(Integer.parseInt(temp));
+                    }
                 } else if (last.chars().allMatch(Character::isDigit)) {
                     pdkAPIBuildNumber.set(Integer.parseInt(last));
                 }
