@@ -91,9 +91,13 @@ public class DataSourceController extends BaseController {
     @Operation(summary = "修改数据源连接")
     @PatchMapping
     public ResponseMessage<DataSourceConnectionDto> update(@RequestBody DataSourceConnectionDto updateDto) {
-        return success(dataSourceService.update(getLoginUser(), updateDto, !(
-                DataSourceEntity.STATUS_TESTING.equals(updateDto.getStatus()) || "loading".equals(updateDto.getLoadFieldsStatus()) // 界面连接测试和加载模型不修改时间
-        )));
+			UserDetail userDetail = getLoginUser();
+			DataSourceConnectionDto resultDto = DataPermissionMenuEnums.Connections.checkAndSetFilter(userDetail, DataPermissionActionEnums.Edit, () -> {
+				return dataSourceService.update(userDetail, updateDto, !(
+					DataSourceEntity.STATUS_TESTING.equals(updateDto.getStatus()) || "loading".equals(updateDto.getLoadFieldsStatus()) // 界面连接测试和加载模型不修改时间
+				));
+			});
+        return success(resultDto);
     }
 
     /**
@@ -105,17 +109,25 @@ public class DataSourceController extends BaseController {
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
     public ResponseMessage<DataSourceConnectionDto> updateById(@PathVariable("id") String id, @RequestBody(required = false) DataSourceConnectionDto dataSource) {
-        UserDetail userDetail = getLoginUser();
-        if (dataSource == null) {
-            dataSource = new DataSourceConnectionDto();
-        } else if (Boolean.FALSE.equals(dataSource.getHeartbeatEnable())) {
-            taskService.deleteHeartbeatByConnId(userDetail, id);
-        }
-        dataSource.setId(MongoUtils.toObjectId(id));
-        return success(dataSourceService.update(userDetail, dataSource, !(
-                DataSourceEntity.STATUS_TESTING.equals(dataSource.getStatus()) || "loading".equals(dataSource.getLoadFieldsStatus()) // 界面连接测试和加载模型不修改时间
-        )));
-    }
+			UserDetail userDetail = getLoginUser();
+			DataPermissionActionEnums actionEnums = Optional.ofNullable(dataSource).map(ds -> {
+				return DataSourceConnectionDto.STATUS_TESTING.equals(dataSource.getStatus()) || "loading".equals(dataSource.getLoadFieldsStatus());
+			}).orElse(false) ? DataPermissionActionEnums.View : DataPermissionActionEnums.Edit;
+			DataSourceConnectionDto resultDto = DataPermissionMenuEnums.Connections.checkAndSetFilter(userDetail, actionEnums, () -> {
+				DataSourceConnectionDto finaDataSource = Optional.ofNullable(dataSource).map(ds -> {
+					if (Boolean.FALSE.equals(ds.getHeartbeatEnable())) {
+						taskService.deleteHeartbeatByConnId(userDetail, id);
+					}
+					return ds;
+				}).orElseGet(DataSourceConnectionDto::new);
+				finaDataSource.setId(MongoUtils.toObjectId(id));
+
+				return dataSourceService.update(userDetail, finaDataSource, !(
+					DataSourceEntity.STATUS_TESTING.equals(finaDataSource.getStatus()) || "loading".equals(finaDataSource.getLoadFieldsStatus()) // 界面连接测试和加载模型不修改时间
+				));
+			});
+			return success(resultDto);
+		}
 
     /**
      * 根据条件查询数据源连接列表
