@@ -85,7 +85,7 @@ public class PythonUtils {
 
     private static boolean unzipIeJar(Log logger) {
         final String tapdataAgentPath = "components/tapdata-agent.jar";
-        final String unzipTapdataAgentPath = concat(PYTHON_THREAD_PACKAGE_PATH,"/agent");
+        final String unzipTapdataAgentPath = concat(PYTHON_THREAD_PACKAGE_PATH,"agent");
         if (new File(tapdataAgentPath).exists()) {
             ZipUtils.unzip(tapdataAgentPath, unzipTapdataAgentPath);
             return true;
