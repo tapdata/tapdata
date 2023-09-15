@@ -41,6 +41,9 @@ public class RedisConfig {
     private String schemaKey = "-schema-key-";
 
     public RedisConfig load(Map<String, Object> map) {
+        if(map !=null && map.get("database") instanceof String){
+            map.put("database",Integer.valueOf(map.get("database").toString()));
+        }
         beanUtils.mapToBean(map, this);
         if (EmptyKit.isNotNull(sentinelAddress)) {
             clusterNodes = sentinelAddress.stream().map(v ->
