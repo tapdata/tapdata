@@ -3,6 +3,7 @@ package io.tapdata.observable.metric;
 import com.sun.management.OperatingSystemMXBean;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.constant.FileUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
 import io.tapdata.aspect.ApplicationStartAspect;
@@ -16,8 +17,11 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import org.apache.commons.io.FileUtils;
 
 import javax.script.ScriptEngine;
+import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.util.HashMap;
 
@@ -65,6 +69,9 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
         }
 
         try {
+            try {
+                FileUtils.deleteDirectory(new File("py-lib"));
+            } catch (Exception ignore){}
             ScriptEngine scriptEnginePy = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(ScriptFactory.TYPE_PYTHON).log(new TapLog()));
             scriptEnginePy.eval("import sys\n" +
                     "builtin_modules = sys.builtin_module_names\n" +
