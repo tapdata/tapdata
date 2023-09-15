@@ -17,6 +17,7 @@ import io.tapdata.annotation.DatabaseTypeAnnotation;
 import io.tapdata.annotation.DatabaseTypeAnnotations;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -28,7 +29,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.BsonUndefined;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.graalvm.polyglot.Context;
@@ -36,7 +36,6 @@ import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyObject;
-import org.python.jsr223.PyScriptEngine;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.core.io.ClassPathResource;
 
@@ -51,7 +50,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.time.Instant;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -449,7 +447,7 @@ public class ScriptUtil {
 		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
 		final ClassLoader[] externalClassLoader = new ClassLoader[1];
 		String buildInMethod = initStandardizationBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalClassLoader[0] = urlClassLoader, standard);
-		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(jsEngineName).classLoader(externalClassLoader[0]));
+		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(jsEngineName).classLoader(externalClassLoader[0]).log(logger));
 		String scripts = script + System.lineSeparator() + buildInMethod;
 
 		e.put("tapUtil", new JsUtil());
@@ -579,10 +577,11 @@ public class ScriptUtil {
 		 }
 		 """
 	 * */
-	public static final String DEFAULT_PY_SCRIPT_START = "import json, random, time, datetime, uuid, types\n" + //", yaml"
-			"import urllib, urllib2\n" + //", requests"
+	public static final String DEFAULT_PY_SCRIPT_START = "import json, random, time, datetime, uuid, types, yaml\n" + //", yaml"
+			"import urllib, urllib2, requests\n" + //", requests"
 			"import math, hashlib, base64\n" + //# , yaml, requests\n" +
 			"def process(record, context):\n";
+	public static final String PYTHON_THREAD_PACKAGE_PATH = "py-lib/site-packages";
 	public static final String DEFAULT_PY_SCRIPT = DEFAULT_PY_SCRIPT_START + "\treturn record;\n";
 
 	public static Invocable getPyEngine(String script, ICacheGetter memoryCacheGetter, Log logger, ClassLoader loader) throws ScriptException {
@@ -601,7 +600,6 @@ public class ScriptUtil {
 		if (StringUtils.isBlank(script)) {
 			script = DEFAULT_PY_SCRIPT;
 		}
-		//script = script.replace(", yaml, requests", "");
 		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
 		final ClassLoader[] externalClassLoader = new ClassLoader[1];
 		String buildInMethod = "";
@@ -611,18 +609,26 @@ public class ScriptUtil {
 				loader,
 				urlClassLoader -> externalClassLoader[0] = urlClassLoader
 		);
-		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(engineName).classLoader(externalClassLoader[0]));
+		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(engineName).classLoader(externalClassLoader[0]).log(logger));
 		String scripts = buildInMethod + System.lineSeparator() + handlePyScript(script);
 		try {
 			e.put("tapUtil", new JsUtil());
 			e.put("tapLog", logger);
 			e.eval(globalScript);
-			e.eval("tapLog.info('Init python engine...');");
-		}catch (Exception es){
-			throw new RuntimeException(String.format("Can not init python engine, %s", es.getMessage()), es);
+		} catch (Exception es){
+			throw new CoreException("Fail init python node, msg: {}", es.getMessage(), es);
 		}
 		evalImportSources(e, "");
 
+		try {
+			e.eval("import sys\n" +
+					"builtin_modules = sys.builtin_module_names\n" +
+					"all_packages_arr = []\n" +
+					"for module_name in builtin_modules:\n" +
+					"    all_packages_arr.append(module_name)\n" +
+					"all_packages_str = ', '.join(all_packages_arr)\n" +
+					"tapLog.info('Python engine has loaded, support system packages: {}', all_packages_str)\n");
+		}catch (Exception ignore){}
 		try {
 			e.eval(scripts);
 		} catch (Throwable ex) {
@@ -713,12 +719,11 @@ public class ScriptUtil {
 		//	}
 		//}
 		URL[] urls = new URL[1];
-		if (null != loader && loader.getResource("").getProtocol().equals("jar")) {
-			//ClassLoader defaultClassLoader = PyScriptEngine.class.getClassLoader();
-			urls[0] = loader.getResource("BOOT-INF/lib/jython-standalone-2.7.2.jar");
-			if (null == urls[0]) {
-				//throw new CoreException("Can not load jython-standalone-2.7.2.jar, fail to init python engine");
-			}
+		urls[0] = loader.getResource("BOOT-INF/lib/jython-standalone-2.7.3.jar");
+		if (null == urls[0]) {
+			try {
+				urls[0] = (new File("py-lib/jython-standalone-2.7.3.jar")).toURI().toURL();
+			} catch (Exception e) {}
 		}
 		final URLClassLoader urlClassLoader = new URLClassLoader(urls, loader);
 		if (consumer != null) {

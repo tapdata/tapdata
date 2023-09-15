@@ -1,6 +1,5 @@
 package io.tapdata.observable.metric;
 
-import cn.hutool.core.date.DateUtil;
 import com.sun.management.OperatingSystemMXBean;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
@@ -12,15 +11,14 @@ import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.common.sample.process.GcSampler;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.aspect.annotations.AspectObserverClass;
+import io.tapdata.entity.logger.TapLog;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
 
 import javax.script.ScriptEngine;
-import javax.script.ScriptException;
-import java.io.InputStream;
 import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryUsage;
 import java.util.HashMap;
 
 /**
@@ -28,6 +26,8 @@ import java.util.HashMap;
  */
 @AspectObserverClass(ApplicationStartAspect.class)
 public class ApplicationStartAspectHandler implements AspectObserver<ApplicationStartAspect> {
+    public static final String TAG = ApplicationStartAspectHandler.class.getSimpleName();
+
     @Override
     public void observe(ApplicationStartAspect aspect) {
         ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
@@ -59,22 +59,22 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
         final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
         ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
         try {
-            scriptEngine.eval("console.log('graal.js engine loaded');");
-        } catch (ScriptException e) {
-            throw new RuntimeException(e);
+            scriptEngine.eval("console.log('[INFO ] Graal.js engine has loaded');");
+        } catch (Exception e) {
+            TapLogger.warn(TAG, "Can not load Graal.js engine, msg: {}", e.getMessage());
         }
 
-        ScriptEngine scriptEnginePy = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(ScriptFactory.TYPE_PYTHON));
         try {
-            scriptEnginePy.eval("print 'python engine loaded'");
-        } catch (ScriptException e) {
-            if (!ApplicationStartAspectHandler.class.getResource("").getProtocol().equals("jar")) {
-                // 以 idea 的方式运行
-                ClassLoader defaultClassLoader = ApplicationStartAspectHandler.class.getClassLoader();
-                if (null == defaultClassLoader.getResource("BOOT-INF/lib/jython-standalone-2.7.2.jar")) {
-                    throw new RuntimeException(e);
-                }
-            }
+            ScriptEngine scriptEnginePy = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(ScriptFactory.TYPE_PYTHON).log(new TapLog()));
+            scriptEnginePy.eval("import sys\n" +
+                    "builtin_modules = sys.builtin_module_names\n" +
+                    "all_packages_arr = []\n" +
+                    "for module_name in builtin_modules:\n" +
+                    "    all_packages_arr.append(module_name)\n" +
+                    "all_packages_str = ', '.join(all_packages_arr)\n" +
+                    "print ('[INFO ] Python engine has loaded, support system packages: ' + all_packages_str) ");
+        } catch (Exception e) {
+            TapLogger.warn(TAG, "Can not load python engine, msg: {}", e.getMessage());
         }
     }
 }

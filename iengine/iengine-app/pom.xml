@@ -25,6 +25,12 @@
         <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
     </properties>
     <dependencies>
+<!--        <dependency>-->
+<!--            <groupId>io.tapdata</groupId>-->
+<!--            <artifactId>tapdata-empty-module</artifactId>-->
+<!--            <version>1.0-SNAPSHOT</version>-->
+<!--            <scope>provided</scope>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-storage-module</artifactId>
@@ -276,32 +282,16 @@
             <version>0.5.2-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>jython-standalone</artifactId>
+            <version>${graalvm.py.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
         <finalName>ie</finalName>
-
         <testSourceDirectory>src/main/test</testSourceDirectory>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-            </resource>
-            <resource>
-                <directory>src/main/java</directory>
-                <includes>
-                    <include>**/*.js</include>
-                </includes>
-                <targetPath>./${parent.artifactId}/${project.artifactId}/src/main/java/</targetPath>
-            </resource>
-            <resource>
-                <directory>src/main/javascript</directory>
-                <includes>
-                    <include>**/*.js</include>
-                </includes>
-                <targetPath>./${project.parent.artifactId}/${project.artifactId}/src/main/javascript/</targetPath>
-            </resource>
-        </resources>
         <plugins>
 
             <plugin>
@@ -322,7 +312,78 @@
                     </execution>
                 </executions>
             </plugin>
+<!--            <plugin>-->
+<!--                <groupId>org.codehaus.mojo</groupId>-->
+<!--                <artifactId>exec-maven-plugin</artifactId>-->
+<!--                <version>3.0.0</version>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <phase>install</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>exec</goal>-->
+<!--                        </goals>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--                <configuration>-->
+<!--                    <executable>java</executable>-->
+<!--                    <arguments>-->
+<!--                        <argument>-jar</argument>-->
+<!--                        <argument>../../tapdata-cli/target/pdk.jar</argument>-->
+<!--                        <argument>py-install</argument>-->
+<!--                        <argument>-j</argument>-->
+<!--                        <argument>${graalvm.py.artifactId}-${graalvm.py.version}.jar</argument>-->
+<!--                        <argument>-p</argument>-->
+<!--                        <argument>${settings.localRepository}/io/tapdata/${graalvm.py.artifactId}/${graalvm.py.version}/</argument>-->
+<!--                        <argument>-uz</argument>-->
+<!--                        <argument>src/main/resources/py-libs</argument>-->
+<!--                    </arguments>-->
+<!--                    <environmentVariables>-->
+<!--                        <LANG>en_US</LANG>-->
+<!--                    </environmentVariables>-->
+<!--                </configuration>-->
+<!--            </plugin>-->
+<!--            <plugin>-->
+<!--                <groupId>org.springframework.boot</groupId>-->
+<!--                <artifactId>spring-boot-maven-plugin</artifactId>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <goals>-->
+<!--                            <goal>repackage</goal>-->
+<!--                        </goals>-->
+<!--                        <configuration>-->
+<!--                            <include>py-libs/**/*.class</include>-->
+<!--                        </configuration>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
         </plugins>
+        <resources>
+<!--            <resource>-->
+<!--                <directory>src/main/resources/py-libs</directory>-->
+<!--                <includes>-->
+<!--                    <include>**</include>-->
+<!--                </includes>-->
+<!--                <targetPath>py-libs</targetPath>/-->
+<!--            </resource>-->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+            <resource>
+                <directory>src/main/java</directory>
+                <includes>
+                    <include>**/*.js</include>
+                </includes>
+                <targetPath>./${parent.artifactId}/${project.artifactId}/src/main/java/</targetPath>
+            </resource>
+            <resource>
+                <directory>src/main/javascript</directory>
+                <includes>
+                    <include>**/*.js</include>
+                </includes>
+                <targetPath>./${project.parent.artifactId}/${project.artifactId}/src/main/javascript/</targetPath>
+            </resource>
+        </resources>
     </build>
     <repositories>
         <repository>

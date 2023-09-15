@@ -249,17 +249,14 @@
             <artifactId>js-scriptengine</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.python</groupId>
+            <groupId>io.tapdata</groupId>
             <artifactId>jython-standalone</artifactId>
             <version>${graalvm.py.version}</version>
         </dependency>
 <!--        <dependency>-->
-<!--            <groupId>io.tapdata</groupId>-->
-<!--            <artifactId>${graalvm.py.artifactId}</artifactId>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>io.tapdata</groupId>-->
-<!--            <artifactId>jython</artifactId>-->
+<!--            <groupId>org.python</groupId>-->
+<!--            <artifactId>jython-standalone</artifactId>-->
+<!--            <version>2.7.3</version>-->
 <!--        </dependency>-->
         <dependency>
             <groupId>io.prometheus</groupId>

@@ -14,7 +14,7 @@
     <properties>
         <graalvm.js.version>21.3.0</graalvm.js.version>
         <java.version>8</java.version>
-        <graalvm.py.version>2.7.2</graalvm.py.version>
+        <graalvm.py.version>2.7.3</graalvm.py.version>
     </properties>
     <!--<dependencyManagement>-->
     <dependencies>
@@ -43,27 +43,14 @@
             <version>${graalvm.js.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.python</groupId>
+            <groupId>io.tapdata</groupId>
             <artifactId>jython-standalone</artifactId>
             <version>${graalvm.py.version}</version>
         </dependency>
 <!--        <dependency>-->
 <!--            <groupId>org.python</groupId>-->
-<!--            <artifactId>jython</artifactId>-->
-<!--            <version>${graalvm.py.version}</version>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>io.tapdata</groupId>-->
 <!--            <artifactId>jython-standalone</artifactId>-->
-<!--            <version>${graalvm.py.version}</version>-->
-<!--            <scope>provided</scope>-->
-<!--        </dependency>-->
-
-<!--        <dependency>-->
-<!--            <groupId>io.tapdata</groupId>-->
-<!--            <artifactId>jython</artifactId>-->
-<!--            <version>${graalvm.py.version}</version>-->
-<!--            <scope>provided</scope>-->
+<!--            <version>2.7.3</version>-->
 <!--        </dependency>-->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
@@ -83,8 +70,27 @@
             <version>4.12</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.11.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>1.8.1</version>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <includes>
+                    <include>Lib/**</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.felix</groupId>
@@ -112,18 +118,19 @@
                     </execution>
                 </executions>
             </plugin>
-<!--            <plugin>-->
-<!--                <groupId>org.apache.maven.plugins</groupId>-->
-<!--                <artifactId>maven-source-plugin</artifactId>-->
-<!--                <executions>-->
-<!--                    <execution>-->
-<!--                        <id>attach-sources</id>-->
-<!--                        <goals>-->
-<!--                            <goal>jar</goal>-->
-<!--                        </goals>-->
-<!--                    </execution>-->
-<!--                </executions>-->
-<!--            </plugin>-->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.2.1</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
     <distributionManagement>

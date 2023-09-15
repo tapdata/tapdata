@@ -1,6 +1,5 @@
 package io.tapdata.pdk.performance;
 
-import com.tapdata.manager.common.utils.StringUtils;
 import io.tapdata.entity.conversion.TargetTypesGenerator;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -61,7 +60,7 @@ public class TestYashanWriteRecord {
         String jarUrl = "/Users/aplomb/dev/code/NewTapdataProjects/tapdata_enterprise/connectors/dist/yashandb-connector-v1.0-SNAPSHOT.jar";//CommonUtils.getProperty("pdk_test_jar_file", "");
 //        String tddJarUrl = CommonUtils.getProperty("pdk_external_jar_path", "connectors/dist") + "/yashandb-connector-v1.0-SNAPSHOT.jar";
 
-        if (StringUtils.isBlank(jarUrl))
+        if (null == jarUrl || "".equals(jarUrl.trim()))
             throw new IllegalArgumentException("Please specify jar file in env properties or java system properties, key is pdk_test_jar_file");
         File jarFile = new File(jarUrl);
         if (!jarFile.isFile())
