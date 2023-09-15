@@ -1,5 +1,6 @@
 package io.tapdata.mongodb.writer.error.handler;
 
+import com.alibaba.fastjson.JSON;
 import com.mongodb.MongoBulkWriteException;
 import com.mongodb.bulk.BulkWriteError;
 import com.mongodb.client.MongoCollection;
@@ -20,6 +21,7 @@ import java.util.List;
  * @Description Duplicate key error
  * @create 2023-04-23 19:10
  **/
+
 public class Code11000Handler implements BulkWriteErrorHandler {
 	private static final String TAG = Code11000Handler.class.getSimpleName();
 
@@ -32,23 +34,28 @@ public class Code11000Handler implements BulkWriteErrorHandler {
 			BulkWriteError writeError,
 			MongoCollection<Document> collection
 	) {
+
 		if (bulkWriteModel.isAllInsert() || isContainDocument(bulkWriteModel, writeError)) {
 			int index = writeError.getIndex();
 			List<WriteModel<Document>> allOpWriteModels = bulkWriteModel.getAllOpWriteModels();
 			if (CollectionUtils.isEmpty(allOpWriteModels)) {
+				TapLogger.warn(TAG," AllOpWriteModels is empty: {}", JSON.toJSONString(bulkWriteModel));
 				return null;
 			}
 			try {
 				return allOpWriteModels.get(index);
 			} catch (Exception ignored) {
+				TapLogger.warn(TAG," AllOpWriteModels is exception: {}", JSON.toJSONString(bulkWriteModel));
 				return null;
 			}
 		} else {
+			TapLogger.warn(TAG," AllOpWriteModels is not match : {}", JSON.toJSONString(bulkWriteModel));
 			return null;
 		}
 	}
 
 	private boolean isContainDocument(BulkWriteModel bulkWriteModel, BulkWriteError writeError) {
+		TapLogger.info(TAG," ContainDocument BulkWriteModel: {}", JSON.toJSONString(bulkWriteModel));
 		if (CollectionUtils.isEmpty(bulkWriteModel.getOnlyInsertWriteModels())) {
 			return false;
 		}
@@ -80,6 +87,8 @@ public class Code11000Handler implements BulkWriteErrorHandler {
 			TapLogger.error(TAG, "Code11000Handler handle containDocument error", e);
 			return false;
 		}
+
+		TapLogger.warn(TAG, "ContainDocument is false ");
 		return false;
 	}
 }
