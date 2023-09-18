@@ -1475,7 +1475,8 @@ public class ConnectorManager {
 			}
 			logger.info(exitInfo);
 			beforeExit.accept(true);
-			System.exit(1);
+			//用System.exit强制停止引擎会导致JS守护线程重新拉起，导致云版停止引擎后，过几分钟自动拉起
+			//System.exit(1);
 		} else {
 			beforeExit.accept(false);
 		}
