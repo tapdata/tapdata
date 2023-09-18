@@ -792,6 +792,13 @@ public class MongodbConnector extends ConnectorBase {
 					}
 				}
 				break;
+			case OBJECT_ID:
+				if (value instanceof String) {
+					try {
+						value = new ObjectId(value.toString());
+					} catch (Exception ignored) {
+					}
+				}
 			default:
 				break;
 		}
@@ -1178,6 +1185,9 @@ public class MongodbConnector extends ConnectorBase {
 				MongoBatchOffset mongoOffset = (MongoBatchOffset) offset;//fromJson(offset, MongoOffset.class);
 				Object offsetValue = mongoOffset.value();
 				if (offsetValue != null) {
+					if (mongoOffset.getObjectId()) {
+						offsetValue = new ObjectId(offsetValue.toString());
+					}
 					findIterable = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
 							.batchSize(batchSize);
 				} else {
