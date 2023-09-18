@@ -600,11 +600,11 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (worker.getProcessId() == null || worker.getWorkerType() == null) {
             throw new BizException("IllegalArgument", "processId or workerType can't be empty.");
         }
-        if(worker.getPingTime()!=null&&worker.getPingTime()==1){
-            log.info("The engine {} has stopped",worker.getProcessId());
-        }else{
+//        if(worker.getPingTime()!=null&&worker.getPingTime()==1){
+//            log.info("The engine {} has stopped",worker.getProcessId());
+//        }else{
             worker.setPingTime(System.currentTimeMillis());
-        }
+//        }
         Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
         boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
         Criteria where = Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType());
