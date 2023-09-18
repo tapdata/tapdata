@@ -601,9 +601,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             throw new BizException("IllegalArgument", "processId or workerType can't be empty.");
         }
         if(worker.getPingTime()!=null&&worker.getPingTime()==1){
-            log.info("The engine{} has stopped,WorkerType{}",worker.getProcessId(),worker.getWorkerType());
+            log.info("The engine {} has stopped",worker.getProcessId());
         }else{
-            log.info("The engine{} set pingTime,WorkerType{}",worker.getProcessId(),worker.getWorkerType());
             worker.setPingTime(System.currentTimeMillis());
         }
         Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
