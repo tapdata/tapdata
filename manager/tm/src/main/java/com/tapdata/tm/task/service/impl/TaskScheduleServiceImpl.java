@@ -63,7 +63,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     @Override
     public void scheduling(TaskDto taskDto, UserDetail user) {
 
-        CalculationEngineVo calculationEngineVo = cloudTaskLimitNum(taskDto, user);
+        CalculationEngineVo calculationEngineVo = cloudTaskLimitNum(taskDto, user, false);
         UserDetail finalUser = user;
         FunctionUtils.ignoreAnyError(() -> {
             String template = "Scheduling calculation results: {0}, all agent data: {1}.";
@@ -139,7 +139,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     }
 
 
-    public CalculationEngineVo cloudTaskLimitNum(TaskDto taskDto, UserDetail user) {
+    public CalculationEngineVo cloudTaskLimitNum(TaskDto taskDto, UserDetail user, boolean limitNum) {
         TaskDto userId = taskService.findByTaskId(taskDto.getId(), "user_id");
         Assert.notNull(userId, "task not found");
         user = userService.loadUserById(new ObjectId(userId.getUserId()));
@@ -175,7 +175,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             int num = taskService.runningTaskNum(taskDto.getAgentId(), user);
             WorkerDto workerDto = workerService.findByProcessId(taskDto.getAgentId(), user, "user_id", "agentTags", "process_id");
             int limitTaskNum = workerService.getLimitTaskNum(workerDto, user);
-            if (num > limitTaskNum) {
+            if (num > limitTaskNum && !limitNum) {
                 StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
                 if (stateMachineResult.isOk()) {
                     throw new BizException("Task.ScheduleLimit");
@@ -185,7 +185,8 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
 
-        if (StringUtils.isNotBlank(taskDto.getAgentId()) && calculationEngineVo.getRunningNum() > calculationEngineVo.getTaskLimit()) {
+        if (StringUtils.isNotBlank(taskDto.getAgentId()) && calculationEngineVo.getRunningNum() > calculationEngineVo.getTaskLimit()
+                && !limitNum) {
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
             if (stateMachineResult.isOk()) {
                 throw new BizException("Task.ScheduleLimit");
