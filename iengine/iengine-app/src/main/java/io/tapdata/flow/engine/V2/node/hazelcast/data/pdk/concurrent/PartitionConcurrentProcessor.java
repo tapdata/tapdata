@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent;
 
 import com.google.common.collect.Queues;
 import com.tapdata.constant.ExecutorUtil;
+import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
@@ -72,6 +73,7 @@ public class PartitionConcurrentProcessor {
 	private final ErrorHandler<Throwable, String> errorHandler;
 	private final Supplier<Boolean> nodeRunning;
 	private TaskDto taskDto;
+	private SyncStage syncStage;
 
 	public PartitionConcurrentProcessor(
 			int partitionSize,
@@ -82,12 +84,14 @@ public class PartitionConcurrentProcessor {
 			Consumer<TapdataEvent> flushOffset,
 			ErrorHandler<Throwable, String> errorHandler,
 			Supplier<Boolean> nodeRunning,
-			TaskDto taskDto
+			TaskDto taskDto,
+			SyncStage syncStage
 	) {
 
 		this.concurrentProcessThreadNamePrefix = "concurrent-process-thread-" + taskDto.getId().toHexString() + "-" + taskDto.getName() + "-";
 
 		this.taskDto = taskDto;
+		this.syncStage = syncStage;
 		this.batchSize = batchSize;
 
 		this.partitionSize = partitionSize;
@@ -215,7 +219,7 @@ public class PartitionConcurrentProcessor {
 				}
 			}
 		}
-		if (null == partitionValue) {
+		if (null == partitionValue && syncStage == SyncStage.CDC) {
 			return true;
 		}
 		return false;

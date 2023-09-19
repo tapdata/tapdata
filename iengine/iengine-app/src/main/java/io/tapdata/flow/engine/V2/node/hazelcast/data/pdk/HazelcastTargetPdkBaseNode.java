@@ -266,7 +266,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
 				this.initialConcurrent = initialConcurrent && initialConcurrentWriteNum > 1;
 				if (initialConcurrent) {
-					this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum);
+					this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum, SyncStage.INITIAL_SYNC);
 					this.initialPartitionConcurrentProcessor.start();
 				}
 			}
@@ -275,7 +275,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this.cdcConcurrentWriteNum = dataParentNode.getCdcConcurrentWriteNum() != null ? dataParentNode.getCdcConcurrentWriteNum() : 4;
 				this.cdcConcurrent = cdcConcurrent && cdcConcurrentWriteNum > 1;
 				if (cdcConcurrent) {
-					this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum);
+					this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum, SyncStage.CDC);
 					this.cdcPartitionConcurrentProcessor.start();
 				}
 			}
@@ -284,7 +284,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			Optional.ofNullable(((HazelCastImdgNode) node).getCdcConcurrentWriteNum()).ifPresent(ccw -> this.cdcConcurrentWriteNum = ccw);
 			if (this.cdcConcurrent) {
 				this.cdcConcurrentWriteNum = this.cdcConcurrentWriteNum > 0 ? this.cdcConcurrentWriteNum : DEFAULT_CDC_CONCURRENT_WRITE_NUM;
-				this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(this.cdcConcurrentWriteNum);
+				this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(this.cdcConcurrentWriteNum, SyncStage.CDC);
 				this.cdcPartitionConcurrentProcessor.start();
 			}
 		}
@@ -973,7 +973,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@NotNull
-	private PartitionConcurrentProcessor initConcurrentProcessor(int concurrentWriteNum) {
+	private PartitionConcurrentProcessor initConcurrentProcessor(int concurrentWriteNum, SyncStage syncStage) {
 		int batchSize = Math.max(this.targetBatch / concurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
 		PartitionKeySelector<TapEvent, Object, Map<String, Object>> tapEventPartitionKeySelector = null;
 		Node node = getNode();
@@ -1005,7 +1005,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this::flushSyncProgressMap,
 				this::errorHandle,
 				this::isRunning,
-				dataProcessorContext.getTaskDto()
+				dataProcessorContext.getTaskDto(),
+				syncStage
 		);
 	}
 
