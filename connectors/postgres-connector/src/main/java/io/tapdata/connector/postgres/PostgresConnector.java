@@ -16,6 +16,7 @@ import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
@@ -42,8 +43,11 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -61,6 +65,7 @@ public class PostgresConnector extends CommonDbConnector {
     private PostgresCdcRunner cdcRunner; //only when task start-pause this variable can be shared
     private Object slotName; //must be stored in stateMap
     protected String postgresVersion;
+    protected Map<String, Boolean> writtenTableMap = new ConcurrentHashMap<>();
 
     @Override
     public void onStart(TapConnectionContext connectorContext) {
@@ -259,8 +264,27 @@ public class PostgresConnector extends CommonDbConnector {
         exceptionCollector = new PostgresExceptionCollector();
     }
 
+    private void openIdentity(TapTable tapTable) throws SQLException {
+        if (EmptyKit.isEmpty(tapTable.primaryKeys())
+                && (EmptyKit.isEmpty(tapTable.getIndexList()) || tapTable.getIndexList().stream().noneMatch(TapIndex::isUnique))) {
+            jdbcContext.execute("ALTER TABLE \"" + jdbcContext.getConfig().getSchema() + "\".\"" + tapTable.getId() + "\" REPLICA IDENTITY FULL");
+        }
+    }
+
+    protected boolean makeSureHasUnique(TapTable tapTable) throws SQLException {
+        return jdbcContext.queryAllIndexes(Collections.singletonList(tapTable.getId())).stream().anyMatch(v -> "1".equals(v.getString("isUnique")));
+    }
+
     //write records as all events, prepared
     protected void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
+        boolean hasUniqueIndex;
+        if (EmptyKit.isNull(writtenTableMap.get(tapTable.getId()))) {
+            openIdentity(tapTable);
+            hasUniqueIndex = makeSureHasUnique(tapTable);
+            writtenTableMap.put(tapTable.getId(), hasUniqueIndex);
+        } else {
+            hasUniqueIndex = writtenTableMap.get(tapTable.getId());
+        }
         String insertDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
         if (insertDmlPolicy == null) {
             insertDmlPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
@@ -278,14 +302,14 @@ public class PostgresConnector extends CommonDbConnector {
                 connection = postgresJdbcContext.getConnection();
                 transactionConnectionMap.put(threadName, connection);
             }
-            new PostgresRecordWriter(postgresJdbcContext, connection, tapTable, postgresVersion)
+            new PostgresRecordWriter(postgresJdbcContext, connection, tapTable, hasUniqueIndex ? postgresVersion : "90500")
                     .setInsertPolicy(insertDmlPolicy)
                     .setUpdatePolicy(updateDmlPolicy)
                     .setTapLogger(tapLogger)
                     .write(tapRecordEvents, writeListResultConsumer, this::isAlive);
 
         } else {
-            new PostgresRecordWriter(postgresJdbcContext, tapTable, postgresVersion)
+            new PostgresRecordWriter(postgresJdbcContext, tapTable, hasUniqueIndex ? postgresVersion : "90500")
                     .setInsertPolicy(insertDmlPolicy)
                     .setUpdatePolicy(updateDmlPolicy)
                     .setTapLogger(tapLogger)
