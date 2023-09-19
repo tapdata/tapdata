@@ -154,8 +154,9 @@ public interface SybaseDataTypeConvert {
         if (null == obj) return null;
         if (obj instanceof String) {
             try {
-                String binaryObj = (String) obj;
-                return decoder.decodeBuffer(binaryObj);
+                //String binaryObj = (String) obj;
+                //return decoder.decodeBuffer(binaryObj);
+                return ((String)obj).getBytes();
             } catch (Exception e) {
                 return null;
             }
