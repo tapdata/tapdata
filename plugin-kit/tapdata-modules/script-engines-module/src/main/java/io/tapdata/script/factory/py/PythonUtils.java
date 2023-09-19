@@ -290,7 +290,7 @@ public class PythonUtils {
         return 1;
     }
 
-    private static String concat(String path, String ...paths){
+    public static String concat(String path, String ...paths){
         for (String s : paths) {
             path = FilenameUtils.concat(path, s);
         }
