@@ -216,14 +216,21 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
 
     public ClassLoader classLoader(ClassLoader loader) {
         if (null == loader) loader = Thread.currentThread().getContextClassLoader();
-        try {
-            if (null != loader.getResource(PythonUtils.PYTHON_THREAD_JAR)) return loader;
-        } catch (Exception ignore) {}
+        File urlFile = new File(PythonUtils.concat(PythonUtils.PYTHON_THREAD_PACKAGE_PATH, PythonUtils.PYTHON_THREAD_JAR));
+        if (loader instanceof URLClassLoader) {
+            URLClassLoader classLoader = (URLClassLoader) loader;
+            URL[] urls = classLoader.getURLs();
+            for (URL url : urls) {
+                if (urlFile.getAbsolutePath().equals(url.getFile())) {
+                    return loader;
+                }
+            }
+        }
         URL[] urls = new URL[1];
         urls[0] = loader.getResource(PythonUtils.concat("BOOT-INF","lib", PythonUtils.PYTHON_THREAD_JAR));
         if (null == urls[0]) {
             try {
-                urls[0] = (new File(PythonUtils.concat(PythonUtils.PYTHON_THREAD_PACKAGE_PATH, PythonUtils.PYTHON_THREAD_JAR))).toURI().toURL();
+                urls[0] = (urlFile).toURI().toURL();
             } catch (Exception e) {}
         }
         return new URLClassLoader(urls, loader);
