@@ -720,11 +720,11 @@ public class ScriptUtil {
 		//}
 		URL[] urls = new URL[1];
 		urls[0] = loader.getResource("BOOT-INF/lib/jython-standalone-2.7.3.jar");
-		if (null == urls[0]) {
-			try {
-				urls[0] = (new File("py-lib/jython-standalone-2.7.3.jar")).toURI().toURL();
-			} catch (Exception e) {}
-		}
+//		if (null == urls[0]) {
+//			try {
+//				urls[0] = (new File("py-lib/jython-standalone-2.7.3.jar")).toURI().toURL();
+//			} catch (Exception e) {}
+//		}
 		final URLClassLoader urlClassLoader = new URLClassLoader(urls, loader);
 		if (consumer != null) {
 			consumer.accept(urlClassLoader);
