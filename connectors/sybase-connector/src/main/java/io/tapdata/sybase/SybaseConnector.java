@@ -496,7 +496,7 @@ public class SybaseConnector extends CommonDbConnector {
         }
 
         ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
-        String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> " " + c + " ").collect(Collectors.joining(","));
+        String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> " \"" + c + "\" ").collect(Collectors.joining(","));
         String sql = String.format("SELECT %s FROM " + config.getDatabase() + "." + config.getSchema() + "." + tapTable.getId(), columns);
         final Set<String> dateTypeSet = ConnectorUtil.dateFields(tapTable);
         final List<TapEvent>[] tapEvents = new List[]{new ArrayList<TapEvent>()};

@@ -44,10 +44,10 @@ import java.util.stream.Collectors;
 public class SybaseSqlMarker implements SqlMaker {
 
     private static final String TAG = MysqlMaker.class.getSimpleName();
-    private static final String CREATE_TABLE_TEMPLATE = "CREATE TABLE `%s`.`%s`(\n%s) %s";
-    private static final String MYSQL_TABLE_TEMPLATE = "`%s`.`%s`";
-    private static final String MYSQL_FIELD_TEMPLATE = "`%s`";
-    private static final String MYSQL_ADD_INDEX = "ALTER TABLE `%s`.`%s` ADD %s %s (%s)";
+    private static final String CREATE_TABLE_TEMPLATE = "CREATE TABLE \"%s\".\"%s\"(\n%s) %s";
+    private static final String MYSQL_TABLE_TEMPLATE = "\"%s\".\"%s\"";
+    private static final String MYSQL_FIELD_TEMPLATE = "\"%s\"";
+    private static final String MYSQL_ADD_INDEX = "ALTER TABLE \"%s\".\"%s\" ADD %s %s (%s)";
     private boolean hasAutoIncrement;
     protected static final int DEFAULT_CONSTRAINT_NAME_MAX_LENGTH = 30;
 
@@ -133,10 +133,10 @@ public class SybaseSqlMarker implements SqlMaker {
         if (EmptyKit.isNull(projection) || (EmptyKit.isEmpty(projection.getIncludeFields()) && EmptyKit.isEmpty(projection.getExcludeFields()))) {
             sql = String.format(MysqlJdbcContext.SELECT_TABLE, database, tableId);
         } else if (EmptyKit.isNotEmpty(tapAdvanceFilter.getProjection().getIncludeFields())) {
-            sql = String.format(MysqlJdbcContext.SELECT_SOME_FROM_TABLE, String.join("`,`", tapAdvanceFilter.getProjection().getIncludeFields()), database, tableId);
+            sql = String.format(MysqlJdbcContext.SELECT_SOME_FROM_TABLE, String.join("\",\"", tapAdvanceFilter.getProjection().getIncludeFields()), database, tableId);
         } else {
             sql = String.format(MysqlJdbcContext.SELECT_SOME_FROM_TABLE, tapTable.getNameFieldMap().keySet().stream()
-                    .filter(tapField -> !tapAdvanceFilter.getProjection().getExcludeFields().contains(tapField)).collect(Collectors.joining("`,`")), database, tableId);
+                    .filter(tapField -> !tapAdvanceFilter.getProjection().getExcludeFields().contains(tapField)).collect(Collectors.joining("\",\"")), database, tableId);
         }
         DataMap match = tapAdvanceFilter.getMatch();
         List<String> whereList = new ArrayList<>();
@@ -205,7 +205,7 @@ public class SybaseSqlMarker implements SqlMaker {
     @Override
     public String selectSql(TapConnectorContext tapConnectorContext, TapTable tapTable, TapPartitionFilter tapPartitionFilter) throws Throwable {
         String database = tapConnectorContext.getConnectionConfig().getString("database");
-        String sql = String.format("SELECT * FROM `%s`.`%s`", database, tapTable.getId());
+        String sql = String.format("SELECT * FROM \"%s\".\"%s\"", database, tapTable.getId());
         if (null == tapPartitionFilter) {
             return sql;
         }
@@ -223,7 +223,7 @@ public class SybaseSqlMarker implements SqlMaker {
         if (MapUtils.isNotEmpty(match)) {
             match.forEach((k,v)->{
                 String valueStr = MysqlUtil.object2String(v);
-                whereList.add(String.format("`%s`<=>%s", k, valueStr));
+                whereList.add(String.format("\"%s\"<=>%s", k, valueStr));
             });
         }
         if (CollectionUtils.isNotEmpty(whereList)) {
@@ -241,7 +241,7 @@ public class SybaseSqlMarker implements SqlMaker {
         Object value = queryOperator.getValue();
         String valueStr = MysqlUtil.object2String(value);
         SybaseSqlMarker.QueryOperatorEnum queryOperatorEnum = SybaseSqlMarker.QueryOperatorEnum.fromOp(operator);
-        sql = "`" + queryOperator.getKey() + "`" + queryOperatorEnum.opStr + valueStr;
+        sql = "\"" + queryOperator.getKey() + "\"" + queryOperatorEnum.opStr + valueStr;
         return sql;
     }
 
@@ -279,7 +279,7 @@ public class SybaseSqlMarker implements SqlMaker {
             if (null != fieldAsc && !fieldAsc) {
                 fieldSort = "DESC";
             }
-            fieldName = "`" + fieldName + "`" + fieldLength + fieldSort;
+            fieldName = "\"" + fieldName + "\"" + fieldLength + fieldSort;
 
             return fieldName;
         }).collect(Collectors.toList());
@@ -345,7 +345,7 @@ public class SybaseSqlMarker implements SqlMaker {
 
         // pk fields
         Collection<String> primaryKeys = tapTable.primaryKeys();
-        String pkFieldString = "`" + String.join("`,`", primaryKeys) + "`";
+        String pkFieldString = "\"" + String.join("\",\"", primaryKeys) + "\"";
 
         pkSql += pkFieldString + ")";
         return pkSql;
