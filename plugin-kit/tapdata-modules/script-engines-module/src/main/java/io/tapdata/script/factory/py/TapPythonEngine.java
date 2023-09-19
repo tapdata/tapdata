@@ -46,7 +46,12 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         this.logger = Optional.ofNullable(scriptOptions.getLog()).orElse(new TapLog());
         File file = PythonUtils.getThreadPackagePath();
         if (null == file) {
-            PythonUtils.flow(logger);
+            synchronized (TapPythonEngine.class) {
+                file = PythonUtils.getThreadPackagePath();
+                if (null == file) {
+                    PythonUtils.flow(logger);
+                }
+            }
         }
         classLoader = classLoader(scriptOptions.getClassLoader());
         this.buildInScript = "";
@@ -55,21 +60,16 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
     }
     private ScriptEngine initScriptEngine(String engineName) {
         ScriptEngine scriptEngine = null;
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        final ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         try {
             Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
             try {
-                System.setProperty("python.import.site", "false");
-                scriptEngine = new ScriptEngineManager().getEngineByName("python");
-                if (null == scriptEngine) {
-                    scriptEngine = new PyScriptEngineFactory().getScriptEngine();
-                }
+                scriptEngine = Optional.ofNullable(new ScriptEngineManager().getEngineByName("python")).orElse(new PyScriptEngineFactory().getScriptEngine());
             } catch (Exception e) {
                 scriptEngine = new PyScriptEngineFactory().getScriptEngine();
             }
             if (Objects.nonNull(scriptEngine)) {
-                SimpleScriptContext scriptContext = new SimpleScriptContext();
-                scriptEngine.setContext(scriptContext);
+                scriptEngine.setContext(new SimpleScriptContext());
                 try{
                     File file = PythonUtils.getThreadPackagePath();
                     if (null != file) {

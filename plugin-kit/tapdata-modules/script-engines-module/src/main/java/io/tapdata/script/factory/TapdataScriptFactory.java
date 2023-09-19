@@ -42,7 +42,10 @@ public class TapdataScriptFactory implements ScriptFactory {
 			}
 		}
 		switch (type) {
+			case "py":
+			case "jython":
 			case TYPE_PYTHON: return new TapPythonEngine(scriptOptions);
+			case "js":
 			case TYPE_JAVASCRIPT: return new TapRunScriptEngine(scriptOptions);
 		}
 		return null;

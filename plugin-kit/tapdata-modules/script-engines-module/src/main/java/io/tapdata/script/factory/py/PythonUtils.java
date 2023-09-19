@@ -44,7 +44,7 @@ public class PythonUtils {
     public static final String PYTHON_THREAD_JAR = "jython-standalone-2.7.3.jar";
     public static final String PYTHON_SITE_PACKAGES_VERSION_CONFIG = "install.json";
 
-    public static synchronized File getThreadPackagePath(){
+    public static File getThreadPackagePath(){
         File file = new File(concat(PYTHON_THREAD_PACKAGE_PATH, "Lib", PYTHON_THREAD_SITE_PACKAGES_PATH));
         if (!file.exists() || null == file.list() || file.list().length <= 0) {
             return null;
@@ -53,7 +53,7 @@ public class PythonUtils {
     }
 
     public static final String TAG = TapPythonEngine.class.getSimpleName();
-    public static synchronized void flow(Log logger) {
+    public static void flow(Log logger) {
         try {
             if (!unzipIeJar(logger)){
                 execute(PythonUtils.PYTHON_THREAD_JAR, PythonUtils.PYTHON_THREAD_PACKAGE_PATH, logger);

@@ -69,6 +69,7 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
         }
 
         try {
+            System.setProperty("python.import.site", "false");
             try {
                 FileUtils.deleteDirectory(new File("py-lib"));
             } catch (Exception ignore){}
