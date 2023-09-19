@@ -854,7 +854,12 @@ public class SybaseConnector extends CommonDbConnector {
 
     @Override
     protected void multiThreadDiscoverSchema(List<DataMap> tables, int tableSize, Consumer<List<TapTable>> consumer) {
-        Map<String, List<DataMap>> tableName = tables.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(t -> t.getString("tableName")));
+        Map<String, List<DataMap>> tableName = tables.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.groupingBy(t -> t.getString("tableName")));
+        if (null != tableName && !tableName.isEmpty() && tableName.containsKey(ConfigPaths.HEARTBEAT_TABLE_NAME)) {
+            tableName.remove(ConfigPaths.HEARTBEAT_TABLE_NAME);
+        }
         CopyOnWriteArraySet<List<String>> tableLists = new CopyOnWriteArraySet<>(DbKit.splitToPieces(new ArrayList<>(tableName.keySet()), tableSize));
         AtomicReference<Throwable> throwable = new AtomicReference<>();
         CountDownLatch countDownLatch = new CountDownLatch(5);
