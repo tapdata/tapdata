@@ -11,6 +11,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
@@ -95,6 +96,7 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.exception.TapCodeException;
@@ -200,6 +202,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private DateNodeService dateNodeService;
 
     private final Map<String, ReentrantLock> scheduleLockMap = new ConcurrentHashMap<>();
+
+    private SettingsService settingsService;
 
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
@@ -3459,6 +3463,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         lock.lock();
 
         try {
+            if (settingsService.isCloud()) {
+                CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(taskDto, user);
+                if (calculationEngineVo.getRunningNum() > calculationEngineVo.getTaskLimit()) {
+                    throw new BizException("Task.ScheduleLimit");
+                }
+            }
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.START, user);
             if (stateMachineResult.isFail()) {
                 //如果更新失败，则表示可能为并发启动操作，本次不做处理
