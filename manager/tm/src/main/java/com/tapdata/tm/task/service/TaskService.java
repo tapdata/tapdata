@@ -1270,9 +1270,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                                 HttpServletRequest request, HttpServletResponse response) {
         List<MutiResponseMessage> responseMessages = new ArrayList<>();
         List<TaskDto> taskDtos = findAllTasksByIds(taskIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
+        int index = 1;
         for (TaskDto task : taskDtos) {
             MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
             mutiResponseMessage.setId(task.getId().toHexString());
+            if (settingsService.isCloud()) {
+                CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(task, user, true);
+                if (calculationEngineVo.getRunningNum() >= calculationEngineVo.getTaskLimit() ||
+                        index > calculationEngineVo.getTotalLimit()) {
+                    throw new BizException("Task.ScheduleLimit");
+                }
+            }
 
             try {
                 start(task, user, "11");
@@ -1288,10 +1296,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         mutiResponseMessage.setCode(responseMessage.getCode());
                         mutiResponseMessage.setMessage(responseMessage.getMessage());
                     } catch (Throwable ex) {
-                        log.warn("delete task, handle exception error, task id = {}",  task.getId().toHexString());
+                        log.warn("delete task, handle exception error, task id = {}", task.getId().toHexString());
                     }
                 }
             }
+            index++;
             responseMessages.add(mutiResponseMessage);
         }
         return responseMessages;

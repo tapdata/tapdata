@@ -438,6 +438,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         AtomicInteger scheduleWeight = new AtomicInteger();
         AtomicInteger scheduleRunNum = new AtomicInteger();
         AtomicInteger scheduleTaskLimit = new AtomicInteger();
+        AtomicInteger totalTaskLimit = new AtomicInteger();
 
         for (int i = 0; i < workers.size(); i++) {
             WorkerDto worker = workers.get(i);
@@ -454,6 +455,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             workSchedule.setTaskRunNum(runningNum);
             workSchedule.setTaskLimit(taskLimit);
             threadLog.add(workSchedule);
+            totalTaskLimit.addAndGet(taskLimit);
 
             if (i == 0 || workSchedule.getProcessId() == null) {
                 scheduleAgentId.set(processId);
@@ -486,7 +488,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         calculationEngineVo.setManually(false);
         calculationEngineVo.setTaskLimit(scheduleTaskLimit.get());
         calculationEngineVo.setRunningNum(scheduleRunNum.get());
-
+        calculationEngineVo.setTotalLimit(totalTaskLimit.get());
         return calculationEngineVo;
     }
 
