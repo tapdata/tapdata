@@ -433,6 +433,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         Query query = Query.query(where);
         List<WorkerDto> workers = findAll(query);
+        if (CollectionUtils.isEmpty(workers)) {
+            throw new BizException("Task.AgentNotFound");
+        }
         availableNum = workers.size();
 
         AtomicInteger scheduleWeight = new AtomicInteger();
