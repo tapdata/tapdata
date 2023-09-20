@@ -278,7 +278,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             Criteria criteria = Criteria.where("agentId").is(worker.getProcessId())
                     .and("is_deleted").ne(true)
                     .and("user_id").is(userDetail.getUserId())
-                    .orOperator(Criteria.where("status").is(TaskDto.STATUS_RUNNING), Criteria.where("crontabExpressionFlag").is(true));
+                    .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
+                     Criteria.where("crontabExpressionFlag").is(true),
+                     Criteria.where("planStartDateFlag").is(true));
             Query query = Query.query(criteria);
             query.fields().include("id", "name", "syncType");
             //List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
