@@ -451,7 +451,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             runningNum = taskService.runningTaskNum(processId, userDetail);
             taskLimit = getLimitTaskNum(worker, userDetail);
             Integer weight = worker.getWeight();
-
+            totalTaskLimit.addAndGet(taskLimit);
+            if (isCloud && runningNum > taskLimit) {
+                continue;
+            }
 
             WorkSchedule workSchedule = new WorkSchedule();
             workSchedule.setProcessId(processId);
@@ -459,10 +462,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             workSchedule.setTaskRunNum(runningNum);
             workSchedule.setTaskLimit(taskLimit);
             threadLog.add(workSchedule);
-            totalTaskLimit.addAndGet(taskLimit);
-            if (isCloud && runningNum > taskLimit) {
-                continue;
-            }
+
 
             if (i == 0 || workSchedule.getProcessId() == null) {
                 scheduleAgentId.set(processId);
