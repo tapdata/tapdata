@@ -1274,15 +1274,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         for (TaskDto task : taskDtos) {
             MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
             mutiResponseMessage.setId(task.getId().toHexString());
-            if (settingsService.isCloud()) {
-                CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(task, user, true);
-                if (calculationEngineVo.getRunningNum() >= calculationEngineVo.getTaskLimit() ||
-                        index > calculationEngineVo.getTotalLimit()) {
-                    throw new BizException("Task.ScheduleLimit");
-                }
-            }
-
             try {
+                if (settingsService.isCloud()) {
+                    CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(task, user, true);
+                    if (calculationEngineVo.getRunningNum() >= calculationEngineVo.getTaskLimit() ||
+                            index > calculationEngineVo.getTotalLimit()) {
+                        throw new BizException("Task.ScheduleLimit");
+                    }
+                }
                 start(task, user, "11");
             } catch (Exception e) {
                 log.warn("start task exception, task id = {}, e = {}", task.getId(), ThrowableUtils.getStackTraceByPn(e));
