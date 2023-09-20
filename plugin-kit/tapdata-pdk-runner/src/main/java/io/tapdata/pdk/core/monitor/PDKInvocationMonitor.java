@@ -17,6 +17,7 @@ import io.tapdata.pdk.core.utils.RetryUtils;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -35,7 +36,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
     private Consumer<String> errorListener;
 
     private static Map<Node,List<PDKMethodInvoker>> nodeStopInvokerMap = new ConcurrentHashMap<>();
-    public void invokerEnter(Node node,PDKMethodInvoker invoker){
+    public void invokerEnter(Node node, PDKMethodInvoker invoker){
         if (null == node || invoker == null){
             return;
         }
@@ -134,7 +135,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
         invokerRetrySetter(invoker);
         final long retryTimes = invoker.getRetryTimes();
         try {
-            this.invokerEnter(node,invoker);
+            invokerEnter(node, invoker);
             if (async) {
                 ExecutorsManager.getInstance().getExecutorService().execute(() -> {
                     if (contextClassLoader != null) {
@@ -153,7 +154,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                     node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
                 }
             }
-        }finally {
+        } finally {
             PDKInvocationMonitor.release(node,invoker);
         }
     }
@@ -221,7 +222,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                 long takes = System.currentTimeMillis() - time;
                 collector.getTotalTakes().add(takes);
                 if(error != null && logTag != null) {
-                    TapLogger.info(logTag, "methodEnd - {} | message - ({})", method, error.getMessage());//ExceptionUtils.getStackTrace(error)
+                    TapLogger.info(logTag, "MethodEnd - {} | message - ({})", method, error.getMessage(), error);//ExceptionUtils.getStackTrace(error)
                     //throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, error.getMessage(), error);
                 } else {
 //                    TapLogger.info(logTag, "methodEnd {} invokeId {} successfully, message {} takes {}", method, invokeId, message, takes);
@@ -281,19 +282,19 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                 if (retryPeriodSeconds > 0) {//重试间隔时间大于0
                     //计算重试次数，向下取整
                     invoker.setRetryTimes(maxRetryTimeMinute*60 / retryPeriodSeconds);
-                }else {
-                    if (retryTimes > 0){
+                } else {
+                    if (retryTimes > 0) {
                         invoker.setRetryPeriodSeconds(maxRetryTimeMinute*60 / retryTimes);
-                    }else {
+                    } else {
                         invoker.setRetryPeriodSeconds(DEFAULT_RETRY_PERIOD_SECONDS);
                         invoker.setRetryTimes(maxRetryTimeMinute*60 / DEFAULT_RETRY_PERIOD_SECONDS );
                         TapLogger.info("ErrorRetry", "Retry period seconds can not be zero or less than zero, it has been set as the default value: {} seconds", DEFAULT_RETRY_PERIOD_SECONDS);
                     }
                 }
-            }else {
+            } else {
                 if (retryPeriodSeconds>0 && retryTimes>0){
                     invoker.setMaxRetryTimeMinute(retryPeriodSeconds * retryTimes);
-                }else{
+                } else {
                     invoker.setRetryPeriodSeconds(DEFAULT_RETRY_PERIOD_SECONDS);
                     invoker.setRetryTimes(0);
                 }

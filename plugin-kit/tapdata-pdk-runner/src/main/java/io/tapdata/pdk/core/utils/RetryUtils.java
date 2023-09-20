@@ -8,11 +8,15 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.ErrorHandleFunction;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.core.api.ConnectionNode;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.TapPdkRunnerExCode_18;
 import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
+import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 
 import java.io.IOException;
 import java.sql.SQLRecoverableException;
@@ -51,6 +55,17 @@ public class RetryUtils extends CommonUtils {
 		return false;
 	}
 
+	private static String nodeInfo(Node node) {
+		if (node instanceof ConnectorNode) {
+			ConnectorNode connectorNode = (ConnectorNode)node;
+			TapNodeInfo info = connectorNode.getTapNodeInfo();
+			TapNodeSpecification tapNodeSpecification = info.getTapNodeSpecification();
+			return String.format("Node type: %s, dag id: %s", tapNodeSpecification.getName(), node.getDagId());
+		} else {
+			return node.toString();
+		}
+	}
+
 	public static void autoRetry(Node node, PDKMethod method, PDKMethodInvoker invoker) {
 		CommonUtils.AnyError runnable = invoker.getR();
 		String message = invoker.getMessage();
@@ -60,9 +75,14 @@ public class RetryUtils extends CommonUtils {
 		if (retryPeriodSeconds <= 0) {
 			throw new IllegalArgumentException("PeriodSeconds can not be zero or less than zero");
 		}
+		boolean isRetry = false;
 		while (invoker.getRetryTimes() >= 0) {
 			try {
 				runnable.run();
+				if (isRetry) {
+					Optional.ofNullable(invoker.getLogListener())
+							.ifPresent(log -> log.info(String.format("Auto retry info: node status restored, retry successfully. %s", nodeInfo(node))));
+				}
 				break;
 			} catch (Throwable errThrowable) {
 				CommonUtils.FunctionAndContext functionAndContext = CommonUtils.FunctionAndContext.create();
@@ -71,7 +91,8 @@ public class RetryUtils extends CommonUtils {
 				switch (autoRetryPolicy) {
 					case WHEN_NEED:
 						if (null == errorHandleFunction) {
-							TapLogger.debug(logTag, "This PDK data source not support retry. ");
+							Optional.ofNullable(invoker.getLogListener())
+									.ifPresent(log -> log.debug("This PDK data source not support retry. " + nodeInfo(node)));
 							Optional.ofNullable(invoker.getResetRetry()).ifPresent(Runnable::run);
 							errorHandle(errThrowable);
 						}
@@ -89,8 +110,14 @@ public class RetryUtils extends CommonUtils {
 						throwIfNeed(invoker, retryOptions, message, errThrowable);
 					}
 					Optional.ofNullable(invoker.getLogListener())
-							.ifPresent(log -> log.warn(String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [%s] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage(), errThrowable)));
+							.ifPresent(log -> log.warn(
+									String.format("Auto retry info: retry times (%s), period seconds %ss, error msg: %s. %s, please wait",
+											invoker.getRetryTimes(),
+											retryPeriodSeconds,
+											errThrowable.getMessage(),
+											nodeInfo(node))));
 					invoker.setRetryTimes(retryTimes - 1);
+					isRetry = true;
 					if (async) {
 						ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node, method, invoker), retryPeriodSeconds, TimeUnit.SECONDS);
 						break;
