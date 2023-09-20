@@ -460,7 +460,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             workSchedule.setTaskLimit(taskLimit);
             threadLog.add(workSchedule);
             totalTaskLimit.addAndGet(taskLimit);
-            if (isCloud && runningNum >= taskLimit) {
+            if (isCloud && runningNum > taskLimit) {
                 continue;
             }
 
