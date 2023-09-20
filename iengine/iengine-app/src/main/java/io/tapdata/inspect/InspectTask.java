@@ -64,11 +64,32 @@ public abstract class InspectTask implements Runnable {
 	private Logger logger = LogManager.getLogger(InspectTask.class);
 	private static final String INSPECT_THREAD_NAME_PREFIX = "INSPECT-RUNNER-";
 	private static final String PROCESS_ID = ConfigurationCenter.processId;
+	private final AtomicBoolean isDoStop = new AtomicBoolean(false);
+	private final List<Future<?>> jobFutures = new ArrayList<>();
 
 	public InspectTask(InspectService inspectService, Inspect inspect, ClientMongoOperator clientMongoOperator) {
 		this.inspectService = inspectService;
 		this.inspect = inspect;
 		this.clientMongoOperator = clientMongoOperator;
+	}
+
+	public String getInspectId() {
+		return inspect.getId();
+	}
+
+	public void doStop() {
+		synchronized (jobFutures) {
+			isDoStop.set(true);
+			for (Future<?> future : jobFutures) {
+				try {
+					logger.info("stop begin");
+					future.cancel(true);
+					logger.info("stop completed");
+				} catch (Exception e) {
+					logger.warn("Stop inspect failed: {}", e.getMessage(), e);
+				}
+			}
+		}
 	}
 
 	@Override
@@ -216,8 +237,6 @@ public abstract class InspectTask implements Runnable {
 			ScheduledExecutorService heartBeatThreads = new ScheduledThreadPoolExecutor(1);
 			heartBeatThreads.scheduleAtFixedRate(() -> inspectService.inspectHeartBeat(inspect.getId()), 5, 5, TimeUnit.SECONDS);
 
-			List<Future<?>> futures = new ArrayList<>();
-
 			// Create a verification task for each table and submit it for execution
 			Map<String, ConnectorNode> finalConnectorNodeMap = connectorNodeMap;
 			inspectResult.getInspect().getTasks().forEach(task -> {
@@ -234,8 +253,8 @@ public abstract class InspectTask implements Runnable {
 					logger.error("Not found target Connections by connectionId " + task.getTarget().getConnectionId());
 					return;
 				}
-				ConnectorNode sourceNode = finalConnectorNodeMap.get(task.getSource().getConnectionId()),
-						targetNode = finalConnectorNodeMap.get(task.getTarget().getConnectionId());
+				ConnectorNode sourceNode = finalConnectorNodeMap.get(task.getSource().getNodeId()),
+						targetNode = finalConnectorNodeMap.get(task.getTarget().getNodeId());
 
 				AtomicLong atomicLong = new AtomicLong(System.currentTimeMillis());
 				// submit verification task
@@ -298,12 +317,14 @@ public abstract class InspectTask implements Runnable {
 							}
 						}, sourceNode, targetNode, clientMongoOperator
 				);
-				futures.add(executorService.submit(createTableInspectJob(inspectTaskContext)));
+				synchronized (jobFutures) {
+					jobFutures.add(executorService.submit(createTableInspectJob(inspectTaskContext)));
+				}
 			});
 
 			boolean hasError = false;
 			String errorMessage = "";
-			for (Future future : futures) {
+			for (Future<?> future : jobFutures) {
 				try {
 					future.get();
 				} catch (InterruptedException | ExecutionException e) {
@@ -329,7 +350,10 @@ public abstract class InspectTask implements Runnable {
 			}
 
 			InspectStatus inspectStatus = null;
-			if (hasError) {
+			if (isDoStop.get()) {
+				inspectStatus = InspectStatus.ERROR;
+				errorMessage = "Exit of user stop";
+			} else if (hasError) {
 				inspectStatus = InspectStatus.ERROR;
 			} else {
 				switch (Inspect.Mode.fromValue(inspect.getMode())) {
@@ -348,26 +372,31 @@ public abstract class InspectTask implements Runnable {
 			logger.info("Execute data verification done.");
 		} catch (Throwable e) {
 			logger.error("Execute data verification failed", e);
-			if (null == inspectResult.getErrorMsg()) {
+			if (isDoStop.get()) {
+				inspectResult.setErrorMsg("Failed of user stop");
+				inspectService.updateStatus(inspect.getId(), InspectStatus.ERROR, "Failed of user stop: " + e.getMessage());
+			} else if (null == inspectResult.getErrorMsg()) {
 				inspectResult.setErrorMsg("Execute data verification error: " + e.getMessage());
+				inspectService.updateStatus(inspect.getId(), InspectStatus.ERROR, "Execute data verification error: " + e.getMessage());
 			}
-			inspectService.updateStatus(inspect.getId(), InspectStatus.ERROR, "Execute data verification error: " + e.getMessage());
 		} finally {
-			releaseConnectionNodes(connectorNodeMap);
-			inspectService.stopInspect(inspect);
+			inspectService.onInspectStopped(inspect);
+			releaseConectorNodes(connectorNodeMap);
 		}
 	}
 
 	private Map<String, ConnectorNode> initConnectorNodeMap(Map<String, Connections> connectionsMap) {
 		Map<String, ConnectorNode> connectorNodeMap = new HashMap<>();
 		for (com.tapdata.entity.inspect.InspectTask task : inspect.getTasks()) {
+			String sourceKey = task.getSource().getNodeId();
 			Connections sourceConn = connectionsMap.get(task.getSource().getConnectionId());
-			Connections targetConn = connectionsMap.get(task.getTarget().getConnectionId());
-			if (!connectorNodeMap.containsKey(task.getSource().getConnectionId())) {
-				connectorNodeMap.put(sourceConn.getId(), initConnectorNode(task.getSource().getNodeId(), sourceConn));
+			if (!connectorNodeMap.containsKey(sourceKey)) {
+				connectorNodeMap.put(sourceKey, initConnectorNode(sourceKey, sourceConn));
 			}
-			if (!connectorNodeMap.containsKey(task.getTarget().getConnectionId())) {
-				connectorNodeMap.put(targetConn.getId(), initConnectorNode(task.getTarget().getNodeId(), targetConn));
+			String targetKey = task.getTarget().getNodeId();
+			Connections targetConn = connectionsMap.get(task.getTarget().getConnectionId());
+			if (!connectorNodeMap.containsKey(targetKey)) {
+				connectorNodeMap.put(targetKey, initConnectorNode(targetKey, targetConn));
 			}
 		}
 		return connectorNodeMap;
@@ -398,7 +427,7 @@ public abstract class InspectTask implements Runnable {
 		);
 	}
 
-	private void releaseConnectionNodes(Map<String, ConnectorNode> connectorNodeMap) {
+	private void releaseConectorNodes(Map<String, ConnectorNode> connectorNodeMap) {
 		if (MapUtils.isEmpty(connectorNodeMap)) return;
 		for (ConnectorNode connectorNode : connectorNodeMap.values()) {
 			if (null == connectorNode || StringUtils.isBlank(connectorNode.getAssociateId()))

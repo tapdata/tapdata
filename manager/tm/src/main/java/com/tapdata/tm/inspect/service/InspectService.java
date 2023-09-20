@@ -311,9 +311,11 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
 
         super.save(inspectDto, user);
 
-        Where where = new Where();
-        where.put("id", inspectDto.getId().toString());
-        executeInspect(where, inspectDto, user);
+				if (InspectStatusEnum.SCHEDULING.getValue().equalsIgnoreCase(inspectDto.getStatus())) {
+					Where where = new Where();
+					where.put("id", inspectDto.getId().toString());
+					executeInspect(where, inspectDto, user);
+				}
         return inspectDto;
     }
 
@@ -375,7 +377,7 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
     public InspectDto updateInspectByWhere(Where where, InspectDto updateDto, UserDetail user) {
         InspectDto retDto = null;
         if (InspectStatusEnum.SCHEDULING.getValue().equals(updateDto.getStatus())) {
-            log.info("用户点击了校验");
+            log.info("用户点击了执行校验");
             retDto = executeInspect(where, updateDto, user);
             userLogService.addUserLog(Modular.INSPECT, Operation.START, user.getUserId(), retDto.getId().toString(), retDto.getName());
         } else {
@@ -387,7 +389,12 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
             super.updateByWhere(where, updateDto, user);
             retDto = updateDto;
 
-            if (InspectStatusEnum.ERROR.getValue().equals(status)) {
+            if (InspectStatusEnum.STOPPING.getValue().equals(status)) {
+							log.info("校验 停止 inspect:{}", updateDto);
+							InspectDto dto = findById(new ObjectId(id));
+							stopInspectTask(dto);
+							userLogService.addUserLog(Modular.INSPECT, Operation.STOP, user.getUserId(), dto.getId().toHexString(), dto.getName());
+						} else if (InspectStatusEnum.ERROR.getValue().equals(status)) {
                 log.info("校验 出错 inspect:{}", updateDto);
                 messageService.addInspect(name, id, MsgTypeEnum.INSPECT_ERROR, Level.ERROR, user);
             } else if (InspectStatusEnum.DONE.getValue().equals(status)) {
@@ -495,6 +502,37 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         }
         return processId;
     }
+    /**
+     * 停止数据校验
+     *
+     * @param inspectDto
+     * @return
+     */
+    private void stopInspectTask(InspectDto inspectDto) {
+			try {
+				String processId = inspectDto.getAgentId();
+				if (null == processId || processId.isEmpty()) {
+					log.error("Stop inspect '{}' failed, agentId can not be empty", inspectDto.getId().toHexString());
+					return;
+				}
+
+				Map<String, Object> data = new HashMap<>();
+				data.put("id", inspectDto.getId().toHexString());
+				data.put("type", "data_inspect");
+				data.put("status", InspectStatusEnum.STOPPING.getValue());
+				//data里面要放需要校验的数据
+				MessageQueueDto messageQueueDto = new MessageQueueDto();
+				messageQueueDto.setReceiver(processId);
+				messageQueueDto.setSender("");
+				messageQueueDto.setData(data);
+				messageQueueDto.setType("pipe");
+
+				log.info("Send stop inspect websocket message success, processId = {}, name {}, inspectId {}", processId, inspectDto.getName(), inspectDto.getId());
+				messageQueueService.sendMessage(messageQueueDto);
+			} catch (Exception e) {
+				log.error("Stop inspect failed: {}", e.getMessage(), e);
+			}
+		}
 
     /**
      * 编辑的时候，如果新增了校验条件，就要新生成一个taskId ,如果原有taskId ,就不用
@@ -524,7 +562,9 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         //编辑的时候，都先把就的定时任务删掉
         CronUtil.removeJob(inspectDto.getId().toString());
 
-        startInspectTask(inspectDto, agentId);
+				if (InspectStatusEnum.SCHEDULING.getValue().equalsIgnoreCase(inspectDto.getStatus())) {
+					startInspectTask(inspectDto, agentId);
+				}
         return inspectDto;
     }
 
