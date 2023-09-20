@@ -47,14 +47,15 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 				if (!isAlive()) return;
 				boolean batch = false;
 				try {
-					if (consumeEvents.get(0) instanceof TapInsertRecordEvent) {
+					final TapRecordEvent tapRecordEvent = consumeEvents.get(0);
+					if (tapRecordEvent instanceof TapInsertRecordEvent) {
 						if (canLargeInsertSql(tapTable)) {
 							batch = true;
 							writeListResult.get().incrementInserted(doInsert(tapConnectorContext, tapTable, consumeEvents));
 						} else {
 							doOneByOne(tapConnectorContext, tapTable, writeListResult, consumeEvents);
 						}
-					} else if (consumeEvents.get(0) instanceof TapUpdateRecordEvent) {
+					} else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
 						String dmlUpdatePolicy = getDmlUpdatePolicy(tapConnectorContext);
 						if (canReplaceInto(tapTable, dmlUpdatePolicy)) {
 							batch = true;
@@ -62,7 +63,7 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 						} else {
 							doOneByOne(tapConnectorContext, tapTable, writeListResult, consumeEvents);
 						}
-					} else if (consumeEvents.get(0) instanceof TapDeleteRecordEvent) {
+					} else if (tapRecordEvent instanceof TapDeleteRecordEvent) {
 						batch = true;
 						writeListResult.get().incrementRemove(doDelete(tapConnectorContext, tapTable, consumeEvents));
 					}
@@ -70,7 +71,7 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 					if (batch) {
 						getJdbcCache().getConnection().rollback();
 						if (isAlive()) {
-							TapLogger.warn(TAG, "Do batch operation failed: " + e.getMessage() + "\n Will try one by one mode");
+							TapLogger.warn(TAG, "Do batch operation failed: {}}. Will try one by one mode", e.getMessage());
 							doOneByOne(tapConnectorContext, tapTable, writeListResult, consumeEvents);
 						}
 					} else {
@@ -117,8 +118,7 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 		String dmlInsertPolicy = getDmlInsertPolicy(tapConnectorContext);
 		if (EmptyKit.isEmpty(tapTable.primaryKeys(true))) {
 			sql = appendLargeInsertSql(tapConnectorContext, tapTable, tapRecordEvents);
-		}
-		else if (ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS.equals(dmlInsertPolicy)) {
+		} else if (ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS.equals(dmlInsertPolicy)) {
 			sql = appendLargeInsertIgnoreSql(tapConnectorContext, tapTable, tapRecordEvents);
 		} else {
 			sql = appendLargeInsertOnDuplicateUpdateSql(tapConnectorContext, tapTable, tapRecordEvents);

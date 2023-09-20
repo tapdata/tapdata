@@ -123,18 +123,27 @@ public abstract class MysqlWriter {
     protected void dispatch(List<TapRecordEvent> tapRecordEvents, AnyErrorConsumer<List<TapRecordEvent>> consumer) throws Throwable {
         if (CollectionUtils.isEmpty(tapRecordEvents)) return;
         TapRecordEvent preEvent = null;
+        String preEventClassName = "";
         List<TapRecordEvent> consumeList = new ArrayList<>();
-        for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
-            if (!isAlive()) break;
-            if (null != preEvent && !tapRecordEvent.getClass().getName().equals(preEvent.getClass().getName())) {
-                consumer.accept(consumeList);
-                consumeList.clear();
+        try {
+            for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
+                if (!isAlive()) break;
+                final String currentEventClassName = tapRecordEvent.getClass().getName();
+                if (null != preEvent && !currentEventClassName.equals(preEventClassName)) {
+                    consumer.accept(consumeList);
+                    consumeList = new ArrayList<>();
+                    preEventClassName = currentEventClassName;
+                }
+                consumeList.add(tapRecordEvent);
+                if (null == preEvent) {
+                    preEventClassName = currentEventClassName;
+                }
+                preEvent = tapRecordEvent;
             }
-            consumeList.add(tapRecordEvent);
-            preEvent = tapRecordEvent;
-        }
-        if (CollectionUtils.isNotEmpty(consumeList)) {
-            consumer.accept(consumeList);
+        } finally {
+            if (CollectionUtils.isNotEmpty(consumeList)) {
+                consumer.accept(consumeList);
+            }
         }
     }
 
