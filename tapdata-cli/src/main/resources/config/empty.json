@@ -1,0 +1,8 @@
+{
+  "connection": {
+    "host" : "localhost",
+    "port" : 12345
+  },
+  "node": {
+  }
+}

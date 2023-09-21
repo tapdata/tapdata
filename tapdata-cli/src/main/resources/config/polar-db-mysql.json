@@ -1,0 +1,11 @@
+{
+	"connection": {
+		"host": "tapdata-polardb.***.rds.aliyuncs.com",
+		"port": 3306,
+		"username": "****",
+		"password": "******",
+		"database": "test"
+	},
+	"node": {
+	}
+}

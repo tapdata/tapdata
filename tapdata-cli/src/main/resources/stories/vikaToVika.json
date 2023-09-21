@@ -1,0 +1,42 @@
+{
+    "id" : "dag1",
+    "nodes" : [
+        {
+            "connectionConfig" : {
+                "token" : "uskMiSCZAbukcGsqOfRqjZZ",
+                "spaceId" : "spcvyGLrtcYgs"
+            }, 
+            "table" : {
+                "name" : "FromTablesSource",
+                "id" : "dstgtvBgCXiwum93FJ"
+            }, 
+            "id" : "s1", 
+            "pdkId" : "vika-pdk", 
+            "group" : "tapdata", 
+            "type" : "SourceAndTarget", 
+            "minBuildNumber" : 0
+        }, 
+        {
+            "connectionConfig" : {
+                "token" : "uskMiSCZAbukcGsqOfRqjZZ",
+                "spaceId" : "spcvyGLrtcYgs"
+            }, 
+            "table" : {
+                "name" : "FromTablesTarget",
+                "id" : "dstgH73f88tdnlJDTT"
+            }, 
+            "id" : "t2", 
+            "pdkId" : "vika-pdk", 
+            "group" : "tapdata", 
+            "type" : "SourceAndTarget", 
+            "minBuildNumber" : 0
+        }
+    ], 
+    "dag" : [
+        ["s1", "t2"]
+    ], 
+    "jobOptions" : {
+        "queueSize" : 100, 
+        "queueBatchSize" : 100
+    }
+}

@@ -1,0 +1,15 @@
+{
+  "connection": {
+      "seedHosts": "192.168.153.132:3000",
+      "keyspace": "test",
+      "userName": "",
+      "password": "",
+      "maxConcurrentRequests": 10,
+      "timeoutMs": 100,
+      "retries": 1
+  },
+  "table": {
+    "name": "test_set_name",
+    "id": "test_set_name"
+  }
+}

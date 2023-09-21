@@ -1,0 +1,13 @@
+{
+  "connection": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "database": "postgres",
+    "schema": "public",
+    "user": "postgres",
+    "password": "gj0628",
+    "logPluginName": "wal2json"
+  },
+  "node": {
+  }
+}

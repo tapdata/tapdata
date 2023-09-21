@@ -1,0 +1,92 @@
+{
+  "connectionConfig": {
+    "client_id": "1000.33EVKI7TCHY661GPOPMCXDEF4N2T6H",
+    "client_secret": "441ed39ecd48ed5608e1143ffe5453a47585824b55",
+    "refreshToken": "1000.45aa49be6ab936fbbe806c2e200db98e.3f407a0573af25e041832b62c533b50e",
+    "accessToken": "1000.b406fdef5dc06f05e9daa44df6501449.f1caf8dc75a0bf36e1983b04981f069d",
+    "code": "1000.aed5277c00148660b3eebfd093520560.c15769c0836f82c6a61df803abc80245"
+  },
+  "nodeConfig": {
+
+  },
+  "functionParams": {
+    "discoverSchema": {
+    },
+    "connectionTest": {
+    },
+    "insertRecord": {
+      "eventDataList": [
+        {
+          "eventType": "i",
+          "afterData": {},
+          "beforeData": {},
+          "referenceTime": 0,
+          "tableName": "example_table_lark"
+        }
+      ]
+    },
+    "deleteRecord": {
+      "eventDataList": [
+        {
+          "eventType": "i",
+          "afterData": {},
+          "beforeData": {},
+          "referenceTime": 0,
+          "tableName": "example_table_lark"
+        }
+      ]
+    },
+    "updateRecord": {
+      "eventDataList": [
+        {
+          "eventType": "i",
+          "afterData": {},
+          "beforeData": {},
+          "referenceTime": 0,
+          "tableName": "example_table_lark"
+        }
+      ]
+    },
+    "writeRecord": {
+      "eventDataList": [
+        {
+          "eventType": "i",
+          "afterData": {},
+          "beforeData": {},
+          "referenceTime": 0,
+          "tableName": "example_table_lark"
+        }
+      ]
+    },
+    "batchRead": {
+      "tableName": "Leads",
+      "pageSize": 500
+    },
+    "batchCount": {
+      "tableName": "Leads"
+    },
+    "streamRead": {
+      "offset": {},
+      "tableNameList": [
+        "Leads"
+      ],
+      "pageSize": 500
+    },
+    "commandCallback": {
+      "commandInfo": {
+        "command": "DescribeUserProjects",
+        "action": "",
+        "argMap": {},
+        "time": 0
+      }
+    },
+    "webhookEvent": {
+      "tableNameList": [
+        "Leads"
+      ],
+      "eventDataMap": {
+
+      }
+    }
+  }
+}

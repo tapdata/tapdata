@@ -1,0 +1,46 @@
+{
+  "connectionConfig": {
+    "app_id": "cli_a34d032330f8d00c",
+    "app_secret": "22RXUWAoMwGVoX2iNJ2qCg2G3vDraWKr",
+    "app_name": "Lark"
+  },
+  "nodeConfig": {},
+  "functionParams": {
+    "discoverSchema": {
+    },
+    "connectionTest": {
+    },
+    "batchRead": {
+      "offset": {},
+      "tableName": "my_lark_doc",
+      "pageSize": 500
+    },
+    "streamRead": {
+      "offset": {},
+      "tableNameList": [
+        "my_lark_doc"
+      ],
+      "pageSize": 500
+    },
+    "commandCallback": {
+      "commandInfo": {
+        "command": "",
+        "action": "",
+        "argMap": {},
+        "time": 0
+      }
+    },
+    "webhookEvent": {
+      "tableNameList": [
+        "example_table_lark"
+      ],
+      "eventDataMap": {
+        "eventType": "i",
+        "afterData": {},
+        "beforeData": {},
+        "referenceTime": 0,
+        "tableName": "example_table_lark"
+      }
+    }
+  }
+}

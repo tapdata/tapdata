@@ -1,0 +1,68 @@
+{
+  "connectionConfig": {
+    "app_id": "cli_a302e1fcf4b9900d",
+    "app_secret": "bLuYRsGYUAbS87ethAas3g2gJaWm5ah6"
+  },
+  "nodeConfig": {
+
+  },
+  "functionParams": {
+    "discoverSchema": {
+    },
+    "connectionTest": {
+    },
+    "insertRecord": {
+      "eventDataList": [
+        {
+          "eventType": "i",
+          "afterData": {
+            "phone": "13320063291",
+            "richSummary": "1028",
+            "richDescription": "10281028",
+            "collaboratorIds": "18289735855,13320063291",
+            "time": "1676332705",
+            "followerIds": "18289735855",
+            "title": "少吃水果，多运动，健康生活，快乐工作",
+            "url": "https://open.feishu.cn",
+            "content": "{\n  \"summary\": \"每天喝八杯水，保持身心愉悦\",\n  \"description\": \"多吃水果，多运动，健康生活，快乐工作。\",\n  \"rich_summary\": \"富文本标题[飞书开放平台](https://open.feishu.cn)\",\n  \"rich_description\": \"富文本备注[飞书开放平台](https://open.feishu.cn)\",\n  \"extra\": \"dGVzdA==\",\n  \"due\": {\n    \"time\": \"1623124318\",\n    \"timezone\": \"Asia/Shanghai\",\n    \"is_all_day\": false\n  },\n  \"origin\": {\n    \"platform_i18n_name\": \"{\\\"zh_cn\\\": \\\"IT 工作台\\\", \\\"en_us\\\": \\\"IT Workspace\\\"}\",\n    \"href\": {\n      \"url\": \"https://support.feishu.com/internal/foo-bar\",\n      \"title\": \"反馈一个问题，需要协助排查\"\n    }\n  },\n  \"can_edit\": true,\n  \"custom\": \"{\\\"custom_complete\\\":{\\\"android\\\":{\\\"href\\\":\\\"https://www.feishu.cn/\\\",\\\"tip\\\":{\\\"zh_cn\\\":\\\"你好\\\",\\\"en_us\\\":\\\"hello\\\"}},\\\"ios\\\":{\\\"href\\\":\\\"https://www.feishu.cn/\\\",\\\"tip\\\":{\\\"zh_cn\\\":\\\"你好\\\",\\\"en_us\\\":\\\"hello\\\"}},\\\"pc\\\":{\\\"href\\\":\\\"https://www.feishu.cn/\\\",\\\"tip\\\":{\\\"zh_cn\\\":\\\"你好\\\",\\\"en_us\\\":\\\"hello\\\"}}}}\",\n  \"follower_ids\": [\n    \"ou_13585843f02bc94923ed17a007cbc9b1\",\n    \"ou_219a0611de2a639aa939ee97013f37a5\"\n  ],\n  \"collaborator_ids\": [\n    \"ou_13585843f02bc94923ed17a007cbc9b1\",\n    \"ou_219a0611de2a639aa939ee97013f37a5\"\n  ],\n  \"repeat_rule\": \"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR\"\n}"
+          },
+          "beforeData": {},
+          "referenceTime": 0,
+          "tableName": "example_table_lark"
+        }
+      ]
+    },
+    "batchRead": {
+      "offset": {},
+      "tableName": "example_table_lark",
+      "pageSize": 500
+    },
+    "streamRead": {
+      "offset": {},
+      "tableNameList": [
+        "example_table_lark"
+      ],
+      "pageSize": 500
+    },
+    "commandCallback": {
+      "commandInfo": {
+        "command": "",
+        "action": "",
+        "argMap": {},
+        "time": 0
+      }
+    },
+    "webhookEvent": {
+      "tableNameList": [
+        "example_table_lark"
+      ],
+      "eventDataMap": {
+        "eventType": "i",
+        "afterData": {},
+        "beforeData": {},
+        "referenceTime": 0,
+        "tableName": "example_table_lark"
+      }
+    }
+  }
+}

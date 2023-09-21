@@ -1,0 +1,71 @@
+{
+  "connectionConfig": {
+    "app_id": "cli_a34d032330f8d00c",
+    "app_secret": "22RXUWAoMwGVoX2iNJ2qCg2G3vDraWKr",
+    "app_name": "Lark"
+  },
+  "nodeConfig": {
+    "sendType": "dynamic_binding",
+    "receiver": "",
+    "receiverArray": "",
+    "dynamicBinding": [{
+      "receiveType": "phone",
+      "receiveId": "phone"
+    }],
+    "messageConfig": [
+      {"messageType": "text","messageField": "content"}
+    ]
+  },
+  "functionParams": {
+    "discoverSchema": {
+    },
+    "connectionTest": {
+    },
+    "insertRecord": {
+      "eventDataList": [
+        {
+          "eventType": "i",
+          "afterData": {
+            "phone": "13320063291",
+            "content": "{\"text\":\" Hello! This is lark !\"}"
+          },
+          "beforeData": {},
+          "referenceTime": 0,
+          "tableName": "example_table_lark"
+        }
+      ]
+    },
+    "batchRead": {
+      "offset": {},
+      "tableName": "example_table_lark",
+      "pageSize": 500
+    },
+    "streamRead": {
+      "offset": {},
+      "tableNameList": [
+        "example_table_lark"
+      ],
+      "pageSize": 500
+    },
+    "commandCallback": {
+      "commandInfo": {
+        "command": "",
+        "action": "",
+        "argMap": {},
+        "time": 0
+      }
+    },
+    "webhookEvent": {
+      "tableNameList": [
+        "example_table_lark"
+      ],
+      "eventDataMap": {
+        "eventType": "i",
+        "afterData": {},
+        "beforeData": {},
+        "referenceTime": 0,
+        "tableName": "example_table_lark"
+      }
+    }
+  }
+}
