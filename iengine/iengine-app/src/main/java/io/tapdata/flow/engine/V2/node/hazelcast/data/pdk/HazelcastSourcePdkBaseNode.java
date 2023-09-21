@@ -201,12 +201,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void initSyncProgress() throws JsonProcessingException {
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
-		Node node = getNode();
+		Node<?> node = getNode();
 		this.syncProgress = foundSyncProgress(taskDto.getAttrs());
 		if (null == this.syncProgress) {
-			obsLogger.info("On the first run, the breakpoint will be initialized", node.getName());
+			obsLogger.info("On the first run, the breakpoint will be initialized, node name: {}", node.getName());
 		} else {
-			obsLogger.info("Found exists breakpoint, will decode batch/stream offset", node.getName());
+			obsLogger.info("Found exists breakpoint, will decode batch/stream offset, node name: {}", node.getName());
 		}
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
