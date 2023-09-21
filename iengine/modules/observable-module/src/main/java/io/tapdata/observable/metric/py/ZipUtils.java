@@ -1,4 +1,4 @@
-package io.tapdata.script.factory.py;
+package io.tapdata.observable.metric.py;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;

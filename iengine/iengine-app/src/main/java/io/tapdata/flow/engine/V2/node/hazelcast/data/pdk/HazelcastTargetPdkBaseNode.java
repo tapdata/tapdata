@@ -248,8 +248,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			clientMongoOperator.insertOne(Collections.singletonList(tapTable),
 					ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
 		} catch (Throwable throwable) {
-			throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_TABLE_FAILED, "Table model: " + tapTable, throwable)
-					.addEvent(tapCreateTableEvent.get());
+			Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
+			if (null != matched) {
+				throw (TapCodeException) matched;
+			}else {
+				throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_TABLE_FAILED, "Table model: " + tapTable, throwable)
+						.addEvent(tapCreateTableEvent.get());
+			}
 		}
 		return createdTable;
 	}

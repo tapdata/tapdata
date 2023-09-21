@@ -62,58 +62,9 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
     @Override
     public void scheduling(TaskDto taskDto, UserDetail user) {
-        TaskDto userId = taskService.findByTaskId(taskDto.getId(), "user_id");
-        Assert.notNull(userId, "task not found");
-        user = userService.loadUserById(new ObjectId(userId.getUserId()));
 
-        AtomicBoolean needCalculateAgent = new AtomicBoolean(true);
-        String agentId = taskDto.getAgentId();
+        CalculationEngineVo calculationEngineVo = cloudTaskLimitNum(taskDto, user, false);
         UserDetail finalUser = user;
-        Optional.ofNullable(agentId).ifPresent(id -> {
-            List<Worker> workerList = workerService.findAvailableAgentByAccessNode(finalUser, Lists.newArrayList(agentId));
-            if (CollectionUtils.isNotEmpty(workerList)) {
-                Worker workerDto = workerList.get(0);
-
-                Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT);
-                long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48) * 1000 : 108000;
-
-                if (workerDto.getPingTime() < heartExpire) {
-                    needCalculateAgent.set(false);
-                }
-            }
-        });
-
-        if (needCalculateAgent.get()) {
-            if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
-                    && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
-                taskDto.setAgentId(taskDto.getAccessNodeProcessIdList().get(0));
-            } else {
-                taskDto.setAgentId(null);
-            }
-        }
-
-        if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
-                && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
-            int num = taskService.runningTaskNum(taskDto.getAgentId(), user);
-            WorkerDto workerDto = workerService.findByProcessId(taskDto.getAgentId(), user, "user_id","agentTags", "process_id");
-            int limitTaskNum = workerService.getLimitTaskNum(workerDto, user);
-            if (num > limitTaskNum) {
-                StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
-                if (stateMachineResult.isOk()) {
-                    throw new BizException("Task.ScheduleLimit");
-                }
-            }
-        }
-
-        CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
-
-        if (StringUtils.isNotBlank(taskDto.getAgentId()) && calculationEngineVo.getRunningNum() > calculationEngineVo.getTaskLimit()) {
-            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
-            if (stateMachineResult.isOk()) {
-                throw new BizException("Task.ScheduleLimit");
-            }
-        }
-
         FunctionUtils.ignoreAnyError(() -> {
             String template = "Scheduling calculation results: {0}, all agent data: {1}.";
             String msg = MessageFormat.format(template, calculationEngineVo.getProcessId() , JSON.toJSONString(calculationEngineVo.getThreadLog()));
@@ -185,6 +136,63 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         } else {
             throw new BizException("Task.AgentNotFound");
         }
+    }
+
+
+    public CalculationEngineVo cloudTaskLimitNum(TaskDto taskDto, UserDetail user, boolean limitNum) {
+        TaskDto userId = taskService.findByTaskId(taskDto.getId(), "user_id");
+        Assert.notNull(userId, "task not found");
+        user = userService.loadUserById(new ObjectId(userId.getUserId()));
+
+        AtomicBoolean needCalculateAgent = new AtomicBoolean(true);
+        String agentId = taskDto.getAgentId();
+        UserDetail finalUser = user;
+        Optional.ofNullable(agentId).ifPresent(id -> {
+            List<Worker> workerList = workerService.findAvailableAgentByAccessNode(finalUser, Lists.newArrayList(agentId));
+            if (CollectionUtils.isNotEmpty(workerList)) {
+                Worker workerDto = workerList.get(0);
+
+                Object heartTime = settingsService.getValueByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT);
+                long heartExpire = Objects.nonNull(heartTime) ? (Long.parseLong(heartTime.toString()) + 48) * 1000 : 108000;
+
+                if (workerDto.getPingTime() < heartExpire) {
+                    needCalculateAgent.set(false);
+                }
+            }
+        });
+
+        if (needCalculateAgent.get()) {
+            if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
+                    && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
+                taskDto.setAgentId(taskDto.getAccessNodeProcessIdList().get(0));
+            } else {
+                taskDto.setAgentId(null);
+            }
+        }
+
+        if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
+                && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
+            int num = taskService.runningTaskNum(taskDto.getAgentId(), user);
+            WorkerDto workerDto = workerService.findByProcessId(taskDto.getAgentId(), user, "user_id", "agentTags", "process_id");
+            int limitTaskNum = workerService.getLimitTaskNum(workerDto, user);
+            if (num > limitTaskNum && !limitNum) {
+                StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
+                if (stateMachineResult.isOk()) {
+                    throw new BizException("Task.ScheduleLimit");
+                }
+            }
+        }
+
+        CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
+
+        if (StringUtils.isNotBlank(taskDto.getAgentId()) && calculationEngineVo.getRunningNum() > calculationEngineVo.getTaskLimit()
+                && !limitNum) {
+            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
+            if (stateMachineResult.isOk()) {
+                throw new BizException("Task.ScheduleLimit");
+            }
+        }
+        return calculationEngineVo;
     }
 
 }

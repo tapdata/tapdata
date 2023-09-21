@@ -17,6 +17,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.observable.metric.py.PythonUtils;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.io.FileUtils;
 
@@ -69,9 +70,12 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
         }
 
         try {
+            System.setProperty("python.import.site", "false");
             try {
                 FileUtils.deleteDirectory(new File("py-lib"));
-            } catch (Exception ignore){}
+            } catch (Exception ignore){} finally {
+                PythonUtils.flow(new TapLog());
+            }
             ScriptEngine scriptEnginePy = scriptFactory.create(ScriptFactory.TYPE_PYTHON, new ScriptOptions().engineName(ScriptFactory.TYPE_PYTHON).log(new TapLog()));
             scriptEnginePy.eval("import sys\n" +
                     "builtin_modules = sys.builtin_module_names\n" +

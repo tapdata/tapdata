@@ -278,7 +278,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             Criteria criteria = Criteria.where("agentId").is(worker.getProcessId())
                     .and("is_deleted").ne(true)
                     .and("user_id").is(userDetail.getUserId())
-                    .orOperator(Criteria.where("status").is(TaskDto.STATUS_RUNNING), Criteria.where("crontabExpressionFlag").is(true));
+                    .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
+                     Criteria.where("crontabExpressionFlag").is(true),
+                     Criteria.where("planStartDateFlag").is(true));
             Query query = Query.query(criteria);
             query.fields().include("id", "name", "syncType");
             //List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
@@ -431,11 +433,15 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         Query query = Query.query(where);
         List<WorkerDto> workers = findAll(query);
+        if (CollectionUtils.isEmpty(workers)) {
+            throw new BizException("Task.AgentNotFound");
+        }
         availableNum = workers.size();
 
         AtomicInteger scheduleWeight = new AtomicInteger();
         AtomicInteger scheduleRunNum = new AtomicInteger();
         AtomicInteger scheduleTaskLimit = new AtomicInteger();
+        AtomicInteger totalTaskLimit = new AtomicInteger();
 
         for (int i = 0; i < workers.size(); i++) {
             WorkerDto worker = workers.get(i);
@@ -445,6 +451,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             runningNum = taskService.runningTaskNum(processId, userDetail);
             taskLimit = getLimitTaskNum(worker, userDetail);
             Integer weight = worker.getWeight();
+            totalTaskLimit.addAndGet(taskLimit);
+            if (isCloud && runningNum > taskLimit) {
+                continue;
+            }
 
             WorkSchedule workSchedule = new WorkSchedule();
             workSchedule.setProcessId(processId);
@@ -452,6 +462,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             workSchedule.setTaskRunNum(runningNum);
             workSchedule.setTaskLimit(taskLimit);
             threadLog.add(workSchedule);
+
 
             if (i == 0 || workSchedule.getProcessId() == null) {
                 scheduleAgentId.set(processId);
@@ -484,7 +495,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         calculationEngineVo.setManually(false);
         calculationEngineVo.setTaskLimit(scheduleTaskLimit.get());
         calculationEngineVo.setRunningNum(scheduleRunNum.get());
-
+        calculationEngineVo.setTotalLimit(totalTaskLimit.get());
         return calculationEngineVo;
     }
 

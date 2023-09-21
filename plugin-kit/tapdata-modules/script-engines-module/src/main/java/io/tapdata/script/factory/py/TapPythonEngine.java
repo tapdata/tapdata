@@ -6,10 +6,6 @@ import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import org.python.core.PrePy;
-import org.python.core.Py;
-import org.python.core.PyList;
-import org.python.core.PySystemState;
 import org.python.jsr223.PyScriptEngineFactory;
 
 import javax.script.Bindings;
@@ -24,8 +20,6 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Objects;
@@ -50,45 +44,26 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
 
     public TapPythonEngine(ScriptOptions scriptOptions) {
         this.logger = Optional.ofNullable(scriptOptions.getLog()).orElse(new TapLog());
-        File file = PythonUtils.getThreadPackagePath();
-        if (null == file) {
-            PythonUtils.flow(logger);
-//            try {
-//                String jarPath = "py-lib/jython-standalone-2.7.3.jar";
-//                ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-//                URL jarURL = new URL("file://" + jarPath);
-//                Method addURLMethod = URLClassLoader.class.getDeclaredMethod("addURL", URL.class);
-//                addURLMethod.setAccessible(true);
-//                addURLMethod.invoke(classLoader, jarURL);
-//            } catch (Exception e) {}
-        }
-        classLoader = scriptOptions.getClassLoader();
+        classLoader = classLoader(scriptOptions.getClassLoader());
         this.buildInScript = "";
         this.scriptEngine = initScriptEngine(scriptOptions.getEngineName());
         this.invocable = (Invocable) this.scriptEngine;
     }
     private ScriptEngine initScriptEngine(String engineName) {
-        TapPythonEngine.EngineType engineEnum = TapPythonEngine.EngineType.getByEngineName(engineName);
         ScriptEngine scriptEngine = null;
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        final ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         try {
             Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
             try {
-                System.setProperty("python.import.site", "false");
-                scriptEngine = new ScriptEngineManager().getEngineByName(engineEnum.name);
-                if (null == scriptEngine) {
-                    scriptEngine = new PyScriptEngineFactory().getScriptEngine();
-                }
+                scriptEngine = Optional.ofNullable(new ScriptEngineManager().getEngineByName("python")).orElse(new PyScriptEngineFactory().getScriptEngine());
             } catch (Exception e) {
                 scriptEngine = new PyScriptEngineFactory().getScriptEngine();
             }
             if (Objects.nonNull(scriptEngine)) {
-                SimpleScriptContext scriptContext = new SimpleScriptContext();
-                scriptEngine.setContext(scriptContext);
+                scriptEngine.setContext(new SimpleScriptContext());
                 try{
                     File file = PythonUtils.getThreadPackagePath();
                     if (null != file) {
-                        //logger.info(String.format("import sys\\nsys.path.append('%s')", file.getPath()));
                         scriptEngine.eval(String.format("\nimport sys\nsys.path.append('%s')\n", file.getAbsolutePath()));
                         PythonUtils.supportThirdPartyPackageList(file, logger);
                     } else {
@@ -230,28 +205,25 @@ public class TapPythonEngine implements ScriptEngine, Invocable, Closeable {
         return this.invocable.getInterface(thiz, clasz);
     }
 
-    public static enum EngineType {
-        Python("jython")
-        ;
-
-        String name;
-
-        EngineType(String name) {
-            this.name = name;
+    public ClassLoader classLoader(ClassLoader loader) {
+        if (null == loader) loader = Thread.currentThread().getContextClassLoader();
+        File urlFile = new File(PythonUtils.concat(PythonUtils.PYTHON_THREAD_PACKAGE_PATH, PythonUtils.PYTHON_THREAD_JAR));
+        if (loader instanceof URLClassLoader) {
+            URLClassLoader classLoader = (URLClassLoader) loader;
+            URL[] urls = classLoader.getURLs();
+            for (URL url : urls) {
+                if (urlFile.getAbsolutePath().equals(url.getFile())) {
+                    return loader;
+                }
+            }
         }
-
-        public static TapPythonEngine.EngineType getByEngineName(String name) {
-//            if (null != name && !"".equals(name.trim())) {
-//                TapPythonEngine.EngineType[] values = values();
-//                for (TapPythonEngine.EngineType value : values) {
-//                    if (value.name.equals(name)) return value;
-//                }
-//            }
-            return Python;
+        URL[] urls = new URL[1];
+        urls[0] = loader.getResource(PythonUtils.concat("BOOT-INF","lib", PythonUtils.PYTHON_THREAD_JAR));
+        if (null == urls[0]) {
+            try {
+                urls[0] = (urlFile).toURI().toURL();
+            } catch (Exception e) {}
         }
-
-        public String engineName() {
-            return this.name;
-        }
+        return new URLClassLoader(urls, loader);
     }
 }

@@ -7,10 +7,12 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
@@ -95,6 +97,7 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.exception.TapCodeException;
@@ -200,6 +203,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private DateNodeService dateNodeService;
 
     private final Map<String, ReentrantLock> scheduleLockMap = new ConcurrentHashMap<>();
+
+    private SettingsService settingsService;
 
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
@@ -1266,11 +1271,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                                 HttpServletRequest request, HttpServletResponse response) {
         List<MutiResponseMessage> responseMessages = new ArrayList<>();
         List<TaskDto> taskDtos = findAllTasksByIds(taskIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
+        int index = 1;
         for (TaskDto task : taskDtos) {
             MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
             mutiResponseMessage.setId(task.getId().toHexString());
-
             try {
+                if (settingsService.isCloud()) {
+                    CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(task, user, true);
+                    if (calculationEngineVo.getRunningNum() >= calculationEngineVo.getTaskLimit() ||
+                            index > calculationEngineVo.getTotalLimit()) {
+                        throw new BizException("Task.ScheduleLimit");
+                    }
+                }
                 start(task, user, "11");
             } catch (Exception e) {
                 log.warn("start task exception, task id = {}, e = {}", task.getId(), ThrowableUtils.getStackTraceByPn(e));
@@ -1284,10 +1296,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         mutiResponseMessage.setCode(responseMessage.getCode());
                         mutiResponseMessage.setMessage(responseMessage.getMessage());
                     } catch (Throwable ex) {
-                        log.warn("delete task, handle exception error, task id = {}",  task.getId().toHexString());
+                        log.warn("delete task, handle exception error, task id = {}", task.getId().toHexString());
                     }
                 }
             }
+            index++;
             responseMessages.add(mutiResponseMessage);
         }
         return responseMessages;
@@ -3459,6 +3472,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         lock.lock();
 
         try {
+            if (settingsService.isCloud()) {
+                CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(taskDto, user, true);
+                if (calculationEngineVo.getRunningNum() >= calculationEngineVo.getTaskLimit()) {
+                    throw new BizException("Task.ScheduleLimit");
+                }
+            }
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.START, user);
             if (stateMachineResult.isFail()) {
                 //如果更新失败，则表示可能为并发启动操作，本次不做处理
