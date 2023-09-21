@@ -19,6 +19,8 @@ public class KafkaConfig extends MqConfig {
     private Boolean schemaRegister = false;
     private String schemaRegisterUrl;
     private Boolean basicAuth = false;
+    private Boolean enableScript = false;
+    private String script;
 
     public String getAuthCredentialsSource() {
         return authCredentialsSource;
@@ -315,5 +317,21 @@ public class KafkaConfig extends MqConfig {
 
     public void setKafkaIgnorePushError(Boolean kafkaIgnorePushError) {
         this.kafkaIgnorePushError = kafkaIgnorePushError;
+    }
+
+    public Boolean getEnableScript() {
+        return enableScript;
+    }
+
+    public void setEnableScript(Boolean enableScript) {
+        this.enableScript = enableScript;
+    }
+
+    public String getScript() {
+        return script;
+    }
+
+    public void setScript(String script) {
+        this.script = script;
     }
 }
