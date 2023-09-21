@@ -495,7 +495,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         calculationEngineVo.setManually(false);
         calculationEngineVo.setTaskLimit(scheduleTaskLimit.get());
         calculationEngineVo.setRunningNum(scheduleRunNum.get());
-        calculationEngineVo.setTotalLimit(totalTaskLimit.get());
+        int totalTask = totalTaskLimit.get() < 0 ? Integer.MAX_VALUE : totalTaskLimit.get();
+        calculationEngineVo.setTotalLimit(totalTask);
         return calculationEngineVo;
     }
 
