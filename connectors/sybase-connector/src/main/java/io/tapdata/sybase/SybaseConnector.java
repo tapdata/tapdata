@@ -494,10 +494,11 @@ public class SybaseConnector extends CommonDbConnector {
                 stateMap.put("has_sleep_after_process_start", true);
             }
         }
-
-        ConnectionConfig config = new ConnectionConfig(tapConnectorContext);
+        connectionConfig = new ConnectionConfig(tapConnectorContext);
         String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> " \"" + c + "\" ").collect(Collectors.joining(","));
-        String sql = String.format("SELECT %s FROM " + config.getDatabase() + "." + config.getSchema() + "." + tapTable.getId(), columns);
+        String sql = String.format("SELECT %s FROM %s",
+                null == columns || "".equals(columns.trim())? "*" : columns,
+                getSchemaAndTable(tableId));
         final Set<String> dateTypeSet = ConnectorUtil.dateFields(tapTable);
         final List<TapEvent>[] tapEvents = new List[]{new ArrayList<TapEvent>()};
         try {
@@ -510,7 +511,7 @@ public class SybaseConnector extends CommonDbConnector {
                     if (null == type) continue;
                     typeAndNameFromMetaData.put(metaData.getColumnName(index), type.toUpperCase(Locale.ROOT));
                 }
-                while (root.checkStep() && resultSet.next()) {
+                while (resultSet.next()) {
                     tapEvents[0].add(insertRecordEvent(
                             filterTimeForMysql0(resultSet, typeAndNameFromMetaData, dateTypeSet, needEncode, encode, decode),
                             tableId).referenceTime(System.currentTimeMillis()));
@@ -527,7 +528,7 @@ public class SybaseConnector extends CommonDbConnector {
                 }
             });
         } catch (Exception e) {
-            tapConnectorContext.getLog().error("Batch read failed, table name: {}, error msg: {}", tableId, e.getMessage());
+            tapConnectorContext.getLog().error("Batch read failed, table name: {}, sql: {}, error msg: {}", tableId, sql, e.getMessage());
         } finally {
             if (!tapEvents[0].isEmpty()) {
 //                isOver = acceptTableNames.get("isOver");
