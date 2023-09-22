@@ -8,7 +8,6 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.processor.dataflow.aggregation.PersistentLRUMap;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -68,7 +67,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	public static final String TAG = HazelcastTargetPdkShareCDCNode.class.getSimpleName();
 	private final static ObjectSerializable OBJECT_SERIALIZABLE = InstanceFactory.instance(ObjectSerializable.class);
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkShareCDCNode.class);
-	private final Map<String, ConstructRingBuffer<?>> constructMap = new ConcurrentHashMap<>();/*new PersistentLRUMap(500, entry -> {
+	/*private final PersistentLRUMap constructMap = new PersistentLRUMap(100, entry -> {
 		if (entry instanceof ConstructRingBuffer) {
 			try {
 				((ConstructRingBuffer<?>) entry).destroy();
@@ -77,6 +76,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			}
 		}
 	});*/
+	private final Map<String, ConstructRingBuffer<?>> constructMap = new ConcurrentHashMap<>();
 	private final AtomicReference<String> constructReferenceId = new AtomicReference<>();
 	private List<String> tableNames;
 	private Map<String, Map<String, List<Document>>> batchCacheData;
@@ -102,12 +102,25 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		externalStorageDto.setTtlDay(shareCdcTtlDay);
 		LogContent startTimeSign = LogContent.createStartTimeSign();
 		Document document = MapUtil.obj2Document(startTimeSign);
+		obsLogger.info("Init share log storage, table count: " + tableNames.size());
+		List<CompletableFuture<?>> completableFutures = new ArrayList<>();
 		for (String tableName : tableNames) {
-			HazelcastConstruct<Document> construct = getConstruct(tableName);
-			if (construct.isEmpty()) {
-				construct.insert(document);
-			}
+			completableFutures.add(CompletableFuture.runAsync(() -> {
+				try {
+					HazelcastConstruct<Document> construct = getConstruct(tableName);
+					if (construct.isEmpty()) {
+						construct.insert(document);
+					}
+				} catch (Exception e) {
+					throw new RuntimeException(e);
+				}
+			}));
 		}
+		CompletableFuture.allOf(completableFutures.toArray(new CompletableFuture<?>[0])).whenComplete((v, e) -> {
+			if (null != e) {
+				throw new RuntimeException(e);
+			}
+		}).join();
 		this.batchCacheData = new ConcurrentHashMap<>();
 		this.flushShareCdcTableMetricsThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>(),
 				r -> new Thread(r, "Flush-Share-Cdc-Table-Metrics-Consumer-"
@@ -134,7 +147,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				}
 				Object originValue = tapValue.getOriginValue();
 				if ("OBJECT_ID".equals(tapValue.getOriginType())
-					&& null != originValue && ObjectId.class.getName().equals(originValue.getClass().getName())) {
+						&& null != originValue && ObjectId.class.getName().equals(originValue.getClass().getName())) {
 					return new ObjectId(tapValue.getValue());
 				}
 				return tapValue.getValue();
