@@ -70,17 +70,6 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> im
 		PDKIntegration.registerMemoryFetcher(ConstructRingBuffer.class.getSimpleName() + "-" + name, this);
 	}
 
-	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto, PersistenceStorage.SequenceMode sequenceMode) {
-		super(referenceId, name, externalStorageDto);
-		ExternalStorageUtil.initHZRingBufferStorage(externalStorageDto, referenceId, name, hazelcastInstance.getConfig(), sequenceMode);
-		this.ringbuffer = hazelcastInstance.getRingbuffer(name);
-		Integer ttlDay = externalStorageDto.getTtlDay();
-		if (ttlDay != null && ttlDay > 0) {
-			convertTtlDay2Second(ttlDay);
-			PersistenceStorage.getInstance().setRingBufferTTL(this.ringbuffer, this.ttlSecond);
-		}
-	}
-
 	@Override
 	public int insert(T data) throws Exception {
 		this.ringbuffer.add(data);
