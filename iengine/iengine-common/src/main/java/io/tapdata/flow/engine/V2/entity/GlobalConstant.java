@@ -27,6 +27,10 @@ public class GlobalConstant {
 		return this;
 	}
 
+	public HazelcastInstance getHazelcastInstance() {
+		return hazelcastInstance;
+	}
+
 	private GlobalConstant() {
 	}
 

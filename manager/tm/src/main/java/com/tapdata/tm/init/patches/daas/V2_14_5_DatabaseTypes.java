@@ -49,8 +49,11 @@ public class V2_14_5_DatabaseTypes extends AbsPatch {
         }
 
         //bak
-        OutOperation outOperation = new OutOperation("DatabaseTypes_bak_2_14");
-        mongoTemplate.aggregate(Aggregation.newAggregation(outOperation), collectionName, BasicDBObject.class);
+        try {
+            OutOperation outOperation = new OutOperation("DatabaseTypes_bak_2_14");
+            mongoTemplate.aggregate(Aggregation.newAggregation(outOperation), collectionName, BasicDBObject.class);
+        } catch (Exception ignored) {
+        }
 
         mongoTemplate.indexOps(collectionName).getIndexInfo().forEach(index -> {
             if ("index_pdkHash_1_pdkAPIBuildNumber_1".equals(index.getName())) {

@@ -20,6 +20,8 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.error.ExternalStorageExCode_26;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -75,6 +77,16 @@ public class ExternalStorageUtil {
 		try {
 			PersistenceStorage.getInstance().initRingBufferConfig(referenceId, config, name, sequenceMode);
 			logger.info("Init RingBuffer store config succeed, name: " + name);
+		} catch (Exception e) {
+			throw new RuntimeException(LOG_PREFIX + "Init hazelcast RingBuffer persistence failed. " + e.getMessage(), e);
+		}
+	}
+
+	public synchronized static void initStateMap(ExternalStorageDto externalStorageDto, String referenceId, String name, Config config) {
+		addConfig(externalStorageDto, ConstructType.RINGBUFFER, name);
+		try {
+			PersistenceStorage.getInstance().initMapStoreConfig(referenceId, config, name);
+			logger.info("Init state IMap store config succeed, name: " + name);
 		} catch (Exception e) {
 			throw new RuntimeException(LOG_PREFIX + "Init hazelcast RingBuffer persistence failed. " + e.getMessage(), e);
 		}
@@ -520,5 +532,22 @@ public class ExternalStorageUtil {
 		ClientMongoOperator clientMongoOperator = ConnectorConstant.clientMongoOperator;
 		Query query = Query.query(where("defaultStorage").is(true));
 		return clientMongoOperator.findOne(query, ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
+	}
+
+	public static ExternalStorageDto getTapdataOrDefaultExternalStorage() {
+		ClientMongoOperator clientMongoOperator = ConnectorConstant.clientMongoOperator;
+		if (null == clientMongoOperator) {
+			throw new TapCodeException(ExternalStorageExCode_26.UNKNOWN_ERROR, "Get tapdata or default external storage failed, client mongo operator is null");
+		}
+		Query query = Query.query(new Criteria().orOperator(
+				where("name").is(ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME),
+				where("defaultStorage").is(true)
+		));
+		List<ExternalStorageDto> externalStorages = clientMongoOperator.find(query, ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
+		if (CollectionUtils.isEmpty(externalStorages)) {
+			throw new TapCodeException(ExternalStorageExCode_26.CANNOT_FOUND_EXTERNAL_STORAGE_CONFIG, "Query: " + query.getQueryObject().toJson());
+		}
+		return externalStorages.stream().filter(e -> ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME.equals(e.getName())).findFirst()
+				.orElse(externalStorages.stream().filter(ExternalStorageDto::isDefaultStorage).findFirst().orElse(null));
 	}
 }

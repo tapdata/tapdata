@@ -7,7 +7,7 @@ import io.tapdata.exception.TapExCode;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2023/4/18 11:55 Create
  */
-@TapExClass(code = 19, module = "Share Cache", prefix = "SC", describe = "Share cache")
+@TapExClass(code = 20, module = "Share Cache", prefix = "SC", describe = "Share cache")
 public interface ShareCacheExCode_20 {
 	@TapExCode(
 			describe = "Write to share cache failed",
