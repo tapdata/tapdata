@@ -41,6 +41,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @create 2022-09-14 10:19
  **/
 public class ExternalStorageUtil {
+	public static final String EXTERNAL_STORAGE_TABLE_NAME_PREFIX = "ExternalStorage_";
 	private final static String LOG_PREFIX = "[Hazelcast IMDG Persistence] - ";
 	private static final Logger logger = LogManager.getLogger(ExternalStorageUtil.class);
 	public static final int DEFAULT_IN_MEM_SIZE = 1000;
@@ -61,6 +62,16 @@ public class ExternalStorageUtil {
 		addConfig(externalStorageDto, ConstructType.RINGBUFFER, name);
 		try {
 			PersistenceStorage.getInstance().initRingBufferConfig(referenceId, config, name);
+			logger.info("Init RingBuffer store config succeed, name: " + name);
+		} catch (Exception e) {
+			throw new RuntimeException(LOG_PREFIX + "Init hazelcast RingBuffer persistence failed. " + e.getMessage(), e);
+		}
+	}
+
+	public synchronized static void initHZRingBufferStorage(ExternalStorageDto externalStorageDto, String referenceId, String name, Config config, PersistenceStorage.SequenceMode sequenceMode) {
+		addConfig(externalStorageDto, ConstructType.RINGBUFFER, name);
+		try {
+			PersistenceStorage.getInstance().initRingBufferConfig(referenceId, config, name, sequenceMode);
 			logger.info("Init RingBuffer store config succeed, name: " + name);
 		} catch (Exception e) {
 			throw new RuntimeException(LOG_PREFIX + "Init hazelcast RingBuffer persistence failed. " + e.getMessage(), e);
