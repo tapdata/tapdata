@@ -25,8 +25,10 @@ import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
@@ -38,7 +40,9 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SkipIdleProcessor;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.collections4.CollectionUtils;
@@ -66,7 +70,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @Description Shared incremental task reader
  * @create 2022-02-17 15:13
  **/
-public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializable {
+public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializable, MemoryFetcher {
 	private static final long serialVersionUID = -8010918045236535239L;
 	private static final int DEFAULT_THREAD_NUMBER = 8;
 	private static final String THREAD_NAME_PREFIX = "Share-CDC-Task-Reader-";
@@ -133,6 +137,9 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		} catch (Exception e) {
 			throw new ShareCdcUnsupportedException("An internal error occurred when init share cdc reader; Error: " + e.getMessage(), e, false);
 		}
+		CommonUtils.ignoreAnyError(() -> {
+			PDKIntegration.registerMemoryFetcher("share-cdc-reader", this);
+		}, TAG);
 		logger.info("Init share cdc reader completed");
 	}
 
@@ -352,6 +359,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			}
 			shareCdcContext.getObsLogger().info("Start read old version log data, name: {}, sequence: {}", ringBuffer.getName(), sequence);
 			while (this.running.get()) {
+				long start = System.currentTimeMillis();
 				Document document = iterator.tryNext();
 				if (null == document) {
 					break;
@@ -363,12 +371,22 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				if (!tableNames.contains(fromTable)) {
 					continue;
 				}
+				if (shareCdcContext.getObsLogger().isDebugEnabled()) {
+					shareCdcContext.getObsLogger().debug(LOG_PREFIX + "Read old version log data, name: {}, sequence: {}, document: {}, try next time consuming: {}",
+							ringBuffer.getName(), sequence, document, (System.currentTimeMillis() - start));
+				}
 				enqueue(tapEventWrapper(document));
 			}
 		} catch (Exception e) {
 			String err = "Read old version log data failed";
 			handleFailed(err, e);
 		}
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		DataMap dataMap = new DataMap();
+		return dataMap;
 	}
 
 	private class ReadRunner {
@@ -485,6 +503,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						}
 
 						List<Document> documents = new ArrayList<>();
+						long start = System.currentTimeMillis();
 						try {
 							Document document = iterator.tryNext();
 							if (null == document) {
@@ -503,10 +522,10 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 							return ctlStatusIdle;
 						}
 
-						if (logger.isDebugEnabled()) {
-							logger.debug("Received log documents");
-							shareCdcContext.getObsLogger().debug("Received log documents");
-							documents.forEach(doc -> logger.debug("  " + doc.toJson()));
+						if (shareCdcContext.getObsLogger().isDebugEnabled()) {
+							shareCdcContext.getObsLogger().debug(LOG_PREFIX + "Read log data, name: {}, sequence: {}, size: {}, try next time consuming: {}",
+									shareCdcReaderResource.construct.getName(), iterator.getSequence(), documents.size(), (System.currentTimeMillis() - start));
+							documents.forEach(doc -> shareCdcContext.getObsLogger().debug("  " + doc.toJson()));
 						}
 						sequenceMap.put(tableName, iterator.getSequence());
 						documents.forEach(doc -> enqueue(tapEventWrapper(doc)));

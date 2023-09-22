@@ -68,7 +68,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	public static final String TAG = HazelcastTargetPdkShareCDCNode.class.getSimpleName();
 	private final static ObjectSerializable OBJECT_SERIALIZABLE = InstanceFactory.instance(ObjectSerializable.class);
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkShareCDCNode.class);
-	private final PersistentLRUMap constructMap = new PersistentLRUMap(100, entry -> {
+	private final Map<String, ConstructRingBuffer<?>> constructMap = new ConcurrentHashMap<>();/*new PersistentLRUMap(500, entry -> {
 		if (entry instanceof ConstructRingBuffer) {
 			try {
 				((ConstructRingBuffer<?>) entry).destroy();
@@ -76,7 +76,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				logger.warn("Destroy construct ring buffer failed: {}", e.getMessage());
 			}
 		}
-	});
+	});*/
 	private final AtomicReference<String> constructReferenceId = new AtomicReference<>();
 	private List<String> tableNames;
 	private Map<String, Map<String, List<Document>>> batchCacheData;
