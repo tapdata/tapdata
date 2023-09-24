@@ -500,6 +500,7 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
 					<fork>true</fork>
+					<classifier>exec</classifier>
 					<!--<executable>true</executable>-->
 					<!--<outputDirectory>${project.basedir}/../dist/${project.name}-${project.version}-${profile.active}/lib/</outputDirectory>-->
 				</configuration>
