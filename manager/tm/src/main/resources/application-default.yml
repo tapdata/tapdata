@@ -23,23 +23,6 @@ spring:
     static-path-pattern: /**
     format:
       date-time: yyyyMM-dd HH:mm:ss
-  resources:
-    static-locations: classpath:/static/
-
-    chain:
-      strategy:
-        content:
-          enabled: true
-          paths: /static, /*.js, /*.js.gz
-      cache: true
-      compressed: false
-      enabled: true
-    cache:
-      cachecontrol:
-        cache-public: true
-        max-age: 24h
-      period: 7d
-
   jackson:
     default-property-inclusion: non_null
 
@@ -54,6 +37,23 @@ spring:
       encoding: UTF-8
       cache-seconds: 1
       basename: messages
+  web:
+    resources:
+      static-locations: file:${TAPDATA_HOME:.}/components/webroot/
+      chain:
+        strategy:
+          content:
+            enabled: true
+            paths: /static, /*.js, /*.js.gz
+        enabled: true
+        compressed: false
+        cache: true
+      cache:
+        period: 7d
+        cachecontrol:
+          max-age: 24h
+          cache-public: true
+
 # https://springdoc.org/springdoc-properties.html
 springdoc:
   enabled: true
