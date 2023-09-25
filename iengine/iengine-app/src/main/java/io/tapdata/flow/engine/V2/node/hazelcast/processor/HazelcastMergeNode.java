@@ -209,7 +209,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 					String preTableName = getPreTableName(eventWrapper.getTapdataEvent());
 					batchProcessResults.add(new BatchProcessResult(eventWrapper, ProcessResult.create().tableId(preTableName)));
 				}
-				batchProcessResults.add(new BatchProcessResult(new BatchEventWrapper(tapdataEvent, null), null));
+				batchProcessResults.add(new BatchProcessResult(new BatchEventWrapper(tapdataEvent, batchEventWrapper.getTapValueTransform()), null));
 				acceptIfNeed(consumer, batchProcessResults, lookupCfs);
 				batchCache.clear();
 				batchProcessResults.clear();
