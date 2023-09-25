@@ -138,7 +138,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			throw new ShareCdcUnsupportedException("An internal error occurred when init share cdc reader; Error: " + e.getMessage(), e, false);
 		}
 		CommonUtils.ignoreAnyError(() -> {
-			PDKIntegration.registerMemoryFetcher("share-cdc-reader", this);
+			PDKIntegration.registerMemoryFetcher(String.format("Share CDC Pdk Task Reader-%s", ((ShareCdcTaskPdkContext) shareCdcContext).getTaskDto().getName()), this);
 		}, TAG);
 		obsLogger.info("Init share cdc reader completed");
 	}
@@ -390,12 +390,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			String err = "Read old version log data failed";
 			handleFailed(err, e);
 		}
-	}
-
-	@Override
-	public DataMap memory(String keyRegex, String memoryLevel) {
-		DataMap dataMap = new DataMap();
-		return dataMap;
 	}
 
 	private class ReadRunner {
@@ -689,5 +683,14 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				}
 			}
 		});
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		DataMap dataMap = new DataMap();
+		if (MapUtils.isNotEmpty(sequenceMap)) {
+			dataMap.putAll(sequenceMap);
+		}
+		return dataMap;
 	}
 }
