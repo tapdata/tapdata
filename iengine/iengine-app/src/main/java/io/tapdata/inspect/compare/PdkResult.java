@@ -55,6 +55,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	private final List<List<Object>> diffKeyValues;
 	private final AtomicReference<Thread> queryThreadAR = new AtomicReference<>();
 	private final List<QueryOperator> conditions;
+	private final AtomicBoolean firstTimeRead = new AtomicBoolean();
 
 	public PdkResult(List<String> sortColumns, Connections connections, String tableName, Set<String> columns, ConnectorNode connectorNode, boolean fullMatch, List<String> dataKeys, List<List<Object>> diffKeyValues, List<QueryOperator> conditions) {
 		super(sortColumns, connections, tableName);
@@ -234,6 +235,9 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 							conditions.stream().filter(op -> op.getOperator() == 5).forEach(op -> match.put(op.getKey(), op.getValue()));
 						}
 						tapAdvanceFilter.match(match);
+						if (firstTimeRead.compareAndSet(false, true)) {
+							logger.info("Inspect job[{}] read data from table '{}' by filter: {}", connections.getName(), tableName, tapAdvanceFilter);
+						}
 						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
 							() -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
 								Throwable error = filterResults.getError();

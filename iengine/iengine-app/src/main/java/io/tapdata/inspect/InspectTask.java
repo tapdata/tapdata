@@ -276,9 +276,6 @@ public abstract class InspectTask implements Runnable {
 						inspectResult.getParentId(),
 						inspect.getInspectDifferenceMode(),
 						(inspectTask, inspectResultStats, inspectDetails) -> {
-
-							logger.info(inspectTask.getTaskId() + " inspect done, status " + inspectResultStats.getStatus() + ", result " + inspectResultStats.getResult());
-
 							Optional<InspectResultStats> optional = inspectResult.getStats().stream()
 									.filter((stats) -> stats.getTaskId().equals(inspectResultStats.getTaskId()))
 									.findFirst();
@@ -330,6 +327,7 @@ public abstract class InspectTask implements Runnable {
 				synchronized (jobFutures) {
 					jobFutures.add(executorService.submit(createTableInspectJob(inspectTaskContext)));
 				}
+				logger.info("Inspect job[{}] started, source: {}, target: {}", inspect.getName(), inspectTaskContext.getTask().getSource(), inspectTaskContext.getTask().getTarget());
 			});
 
 			boolean hasError = false;

@@ -3,30 +3,21 @@ package io.tapdata.inspect.compare;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.tapdata.constant.*;
+import com.tapdata.constant.CommonUtil;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.Connections;
-import com.tapdata.entity.inspect.InspectDataSource;
-import com.tapdata.entity.inspect.InspectDetail;
-import com.tapdata.entity.inspect.InspectDifferenceMode;
-import com.tapdata.entity.inspect.InspectLimit;
-import com.tapdata.entity.inspect.InspectResultStats;
-import com.tapdata.entity.inspect.InspectStatus;
-import com.tapdata.entity.inspect.InspectTask;
+import com.tapdata.entity.inspect.*;
 import io.tapdata.inspect.InspectTaskContext;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -46,6 +37,8 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 	protected long rowField = 0;
 	protected long startTime = System.currentTimeMillis() / 1000;
 	long max = 0L;
+	private final AtomicBoolean firstCompareKeyValue = new AtomicBoolean();
+	private final AtomicBoolean firstCompareAllValue = new AtomicBoolean();
 
 	public TableRowContentInspectJob(InspectTaskContext inspectTaskContext) {
 		super(inspectTaskContext);
@@ -214,8 +207,19 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 						Object[] targetKeyArr = getKeyArray(targetRecord, targetKeys);
 						int compare = CommonUtil.compareObjects(sourceKeyArr, targetKeyArr);
 
+						if (firstCompareKeyValue.compareAndSet(false, true)) {
+							logger.info("Inspect job[{}] first compare sort value, source: {}, target: {}, result: {}",
+									String.join("-", inspectTaskContext.getName(), source.getName(), inspectTask.getSource().getTable(), target.getName(), inspectTask.getTarget().getTable()),
+									sourceKeyArr, targetKeyArr, compare);
+						}
+
 						if (fullMatch && compare == 0) {
 							String res = compareRecord(current, sourceVal, targetVal, sourceRecord, targetRecord, compareFn);
+							if (firstCompareAllValue.compareAndSet(false, true)) {
+								logger.info("Inspect job[{}] first compare all value, source: {}, target: {}, result: {}",
+										String.join("-", inspectTaskContext.getName(), source.getName(), inspectTask.getSource().getTable(), target.getName(), inspectTask.getTarget().getTable()),
+										sourceRecord, targetRecord, res);
+							}
 							if (null == res) {
 								rowPassed++;
 							} else {
