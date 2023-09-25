@@ -6,6 +6,7 @@ import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
+import com.tapdata.tm.ds.utils.DSConfigUtil;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.GZIPUtil;
 import org.apache.commons.net.util.Base64;
@@ -154,12 +155,18 @@ public class DataSourceRepository extends BaseRepository<DataSourceEntity, Objec
     public void encryptConfig(DataSourceEntity entity) {
         //AES256Util.Aes256Encode()
         if (entity != null && entity.getConfig() != null) {
-            String configData = JsonUtil.toJsonUseJackson(entity.getConfig());
-            String encryptData = AES256Util.Aes256Encode(configData);
-
-            byte[] compressEncryptData = GZIPUtil.gzip(encryptData.getBytes());
-            String encodeCompressEncryptData = Base64.encodeBase64String(compressEncryptData);
-
+            String configData;
+            try {
+                configData = JsonUtil.toJsonUseJackson(entity.getConfig());
+            } catch (Exception e) {
+                throw new RuntimeException("Parse config map to json string failed: " + entity.getConfig(), e);
+            }
+            String encodeCompressEncryptData;
+            try {
+                encodeCompressEncryptData = DSConfigUtil.encrypt(configData);
+            } catch (Exception e) {
+                throw new RuntimeException("Encrypt config failed: " + configData, e);
+            }
             entity.setEncryptConfig(encodeCompressEncryptData);
             entity.setConfig(null);
         }
@@ -169,10 +176,17 @@ public class DataSourceRepository extends BaseRepository<DataSourceEntity, Objec
         //AES256Util.Aes256Encode()
         if (entity != null && entity.getEncryptConfig() != null) {
             String encodeCompressEncryptData = entity.getEncryptConfig();
-            byte[] uncompressEncryptData = GZIPUtil.unGzip(Base64.decodeBase64(encodeCompressEncryptData));
-            String decryptFromUncompressData = AES256Util.Aes256Decode(new String(uncompressEncryptData));
-
-            entity.setConfig(JsonUtil.parseJsonUseJackson(decryptFromUncompressData, Map.class));
+            String decrypt;
+            try {
+                decrypt = DSConfigUtil.decrypt(encodeCompressEncryptData);
+            } catch (Exception e) {
+                throw new RuntimeException("Decrypt config failed, encrypt config: " + encodeCompressEncryptData, e);
+            }
+            try {
+                entity.setConfig(JsonUtil.parseJsonUseJackson(decrypt, Map.class));
+            } catch (Exception e) {
+                throw new RuntimeException("Parse decrypt config to map failed: " + decrypt, e);
+            }
             entity.setEncryptConfig(null);
         }
     }
