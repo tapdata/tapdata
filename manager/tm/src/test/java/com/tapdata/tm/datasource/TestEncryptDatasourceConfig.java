@@ -3,6 +3,7 @@ package com.tapdata.tm.datasource;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClientFactory;
 import com.mongodb.client.MongoClients;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
 import org.junit.jupiter.api.Assertions;
