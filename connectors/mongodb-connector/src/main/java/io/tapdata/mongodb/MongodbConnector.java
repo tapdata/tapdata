@@ -481,12 +481,13 @@ public class MongodbConnector extends ConnectorBase {
 		Collection<String> pks = table.primaryKeys();
 		if (CollectionUtils.isNotEmpty(pks) && (pks.size() > 1 || !"_id".equals(pks.iterator().next()))) {
 			List<TapIndex> tapIndices = new ArrayList<>();
+			TapIndex tapIndex = new TapIndex();
 			Iterator<String> iterator = pks.iterator();
 			while (iterator.hasNext()) {
 				String pk = iterator.next();
-				TapIndex tapIndex = new TapIndex().indexField(new TapIndexField().name(pk).fieldAsc(true));
-				tapIndices.add(tapIndex);
+				tapIndex.indexField(new TapIndexField().name(pk).fieldAsc(true));
 			}
+			tapIndices.add(tapIndex);
 			TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent().indexList(tapIndices);
 			createIndex(tapConnectorContext, table, tapCreateIndexEvent);
 		}
