@@ -180,6 +180,15 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesDtos);
     }
 
+    @GetMapping("nodes/schema-map")
+    @Operation(summary = "根据节点ID数组获取节点Schema的Map")
+    public ResponseMessage<Map<String, List<MetadataInstancesDto>>> getNodeSchemaMapByIds(@RequestParam("nodeIds") List<String> nodeIds,
+                                                                    @RequestParam(value = "fields", required = false) List<String> fields) {
+
+        Map<String, List<MetadataInstancesDto>> metadataInstancesMap = metadataInstancesService.findByNodeIds(nodeIds, fields, getLoginUser(), null);
+        return success(metadataInstancesMap);
+    }
+
     @GetMapping("node/filterTypeList")
     public ResponseMessage<Set<String>> getTypeFilter(@RequestParam("nodeId") String nodeId) {
         return success(metadataInstancesService.getTypeFilter(nodeId,getLoginUser()));
