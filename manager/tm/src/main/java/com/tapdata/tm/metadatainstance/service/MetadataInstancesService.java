@@ -1605,6 +1605,35 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return page.getItems();
     }
 
+    /**
+     * Retrieves a map of metadata instances grouped by node IDs.
+     *
+     * @param  nodeIds    a list of node IDs to retrieve metadata instances for
+     * @param  fields     a list of fields to include in the metadata instances
+     * @param  user       the user detail
+     * @param  taskDto    the task DTO
+     * @return            a map of metadata instances grouped by node IDs
+     */
+    public Map<String, List<MetadataInstancesDto>> findByNodeIds(List<String> nodeIds, List<String> fields, UserDetail user, TaskDto taskDto) {
+        Map<String, List<MetadataInstancesDto>> result = new HashMap<>();
+
+        for (String nodeId : nodeIds) {
+            Page<MetadataInstancesDto> page = findByNodeId(nodeId, fields, user, taskDto, null, null, 1, 0);
+            List<MetadataInstancesDto> list = page.getItems();
+
+            if (CollectionUtils.isNotEmpty(list)) {
+                for (MetadataInstancesDto metadataInstancesDto : list) {
+                    ////页面显示排序问题处理
+                    MetadataInstancesDto.sortField(metadataInstancesDto.getFields());
+                }
+            }
+
+            result.put(nodeId, list);
+        }
+
+        return result;
+    }
+
     public Page<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto, String tableFilter, String filterType, int page, int pageSize) {
 			  user.setFreeAuth();
         if (taskDto == null || taskDto.getDag() == null) {
