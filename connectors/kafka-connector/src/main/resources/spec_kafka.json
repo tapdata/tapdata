@@ -226,6 +226,26 @@
             "tooltip": "${scriptTooltip}"
           }
         },
+        "partitionNum": {
+          "required": true,
+          "type": "string",
+          "title": "${partitionNum}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "partitionNum",
+          "default": 1,
+          "value": [1,255]
+        },
+        "ReplicasSize": {
+          "required": true,
+          "type": "string",
+          "title": "${ReplicasSize}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "partitionNum",
+          "default": 1,
+          "value": [1,255]
+        },
         "script": {
           "type": "string",
           "required": false,
@@ -257,6 +277,8 @@
   "messages": {
     "default": "en_US",
     "en_US": {
+      "ReplicasSize": "Number of repetions",
+      "partitionNum": "Number of partitions",
       "doc": "docs/kafka_en_US.md",
       "nameSrvAddr": "DB Host",
       "mqTopicString": "topic expression",
@@ -282,6 +304,8 @@
       "scriptTooltip": "1. Parameter Description:\n· 'record' is the data record, including 'header' and 'data', where 'data' contains 'before' and 'after'.\n· 'op' represents the operation type, with a total of 3 options: insert, update, and delete.\n· 'conditionKeys' is the collection of primary key field names.\n2. Examples:\n· Add the operation type to the Kafka message: record.data.op = op\n· Add a custom header: record.header.test='test header'\n· Delete the 'before' field: delete record.data.before\n· Discard the data record: return null"
     },
     "zh_CN": {
+      "ReplicasSize": "副本数数量",
+      "partitionNum": "分区数量",
       "doc": "docs/kafka_zh_CN.md",
       "nameSrvAddr": "数据库地址",
       "mqTopicString": "主题表达式",
@@ -308,6 +332,8 @@
 
     },
     "zh_TW": {
+      "ReplicasSize": "副本數數量",
+      "partitionNum": "分區數量",
       "doc": "docs/kafka_zh_TW.md",
       "nameSrvAddr": "數據庫地址",
       "mqTopicString": "主題表達式",

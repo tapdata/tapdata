@@ -1,11 +1,13 @@
 package io.tapdata.connector.kafka.admin;
 
 import io.tapdata.connector.kafka.config.AdminConfiguration;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.ListTopicsOptions;
-import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.*;
+import org.apache.kafka.common.KafkaFuture;
+import org.apache.kafka.common.TopicPartitionInfo;
+import org.apache.kafka.common.Uuid;
 
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 public class DefaultAdmin implements Admin {
 
@@ -45,6 +47,36 @@ public class DefaultAdmin implements Admin {
                 .map(topic -> new NewTopic(topic, 3, (short) 1))
                 .collect(java.util.stream.Collectors.toSet());
         adminClient.createTopics(newTopics);
+    }
+
+    @Override
+    public void createTopics(String topic, int numPartitions, short replicationFactor) {
+        NewTopic newTopic = new NewTopic(topic, numPartitions, replicationFactor);
+        adminClient.createTopics(Collections.singleton(newTopic));
+    }
+
+    @Override
+    public void addTopicPartitions(String topic,Integer numPartitions) {
+        NewPartitions newPartitions = NewPartitions.increaseTo(numPartitions);
+        Map<String, NewPartitions> newPartitionsMap = new HashMap<>();
+        newPartitionsMap.put(topic, newPartitions);
+        CreatePartitionsResult partitions = adminClient.createPartitions(newPartitionsMap);
+    }
+
+    public List<TopicPartitionInfo> getTopicPartitionInfo(String topic){
+        List<String> list=new ArrayList<>();
+        list.add(topic);
+        DescribeTopicsResult describeTopicsResult = adminClient.describeTopics(list);
+        try {
+            Map<String, TopicDescription> stringTopicDescriptionMap = describeTopicsResult.allTopicNames().get();
+            TopicDescription topicDescription = stringTopicDescriptionMap.get(topic);
+            List<TopicPartitionInfo> partitions = topicDescription.partitions();
+            return partitions;
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

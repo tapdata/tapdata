@@ -2,9 +2,13 @@ package io.tapdata.connector.kafka;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConfig;
+import io.tapdata.connector.kafka.admin.Admin;
+import io.tapdata.connector.kafka.admin.DefaultAdmin;
+import io.tapdata.connector.kafka.config.AdminConfiguration;
 import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -14,6 +18,10 @@ import io.tapdata.entity.schema.value.TapDateValue;
 import io.tapdata.entity.schema.value.TapRawValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.cache.Entry;
+import io.tapdata.entity.utils.cache.Iterator;
+import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -24,9 +32,15 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import org.apache.kafka.clients.admin.NewPartitions;
+import org.apache.kafka.common.Node;
+import org.apache.kafka.common.TopicPartitionInfo;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -70,6 +84,7 @@ public class KafkaConnector extends ConnectorBase {
 
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
+        connectorFunctions.supportCreateTableV2(this::createTableV2);
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportBatchRead(this::batchRead);
         connectorFunctions.supportStreamRead(this::streamRead);
@@ -79,6 +94,38 @@ public class KafkaConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+    }
+
+    private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Exception {
+        DataMap nodeConfig = tapConnectorContext.getNodeConfig();
+        Integer replicasSize = (Integer) nodeConfig.get("ReplicasSize");
+        Integer partitionNum = (Integer) nodeConfig.get("partitionNum");
+        CreateTableOptions createTableOptions = new CreateTableOptions();
+        AdminConfiguration configuration = new AdminConfiguration(kafkaConfig, tapConnectorContext.getId());
+        String nameSrvAddr = kafkaConfig.getNameSrvAddr();
+        Admin admin = new DefaultAdmin(configuration);
+        Set<String> existTopics = admin.listTopics();
+        if (!existTopics.contains(tapCreateTableEvent.getTableId())) {
+            String[] nameSrvAddrs = nameSrvAddr.split(",");
+            if (nameSrvAddrs.length < replicasSize) {
+                throw new RuntimeException(String.format(TAG,"Cluster size is {} ,can not create topic replicasSize is {} ", String.valueOf(nameSrvAddrs.length), replicasSize.toString()));
+            }
+            admin.createTopics(tapCreateTableEvent.getTableId(), partitionNum, replicasSize.shortValue());
+        } else {
+            List<TopicPartitionInfo> topicPartitionInfos = admin.getTopicPartitionInfo(tapCreateTableEvent.getTableId());
+            int existTopicPartition = topicPartitionInfos.size();
+            int existReplicasSize = topicPartitionInfos.get(0).replicas().size();
+            if (existReplicasSize != replicasSize) {
+                TapLogger.warn(TAG,"Topic {} ReplicasSize is {} , can not resize", tapCreateTableEvent.getTableId(), existReplicasSize);
+            }
+            if (partitionNum < existTopicPartition) {
+                TapLogger.warn(TAG,"Topic {} partitionNum is {} , can not lower than original one", tapCreateTableEvent.getTableId(), existTopicPartition);
+            }
+            admin.addTopicPartitions(tapCreateTableEvent.getTableId(), partitionNum);
+        }
+        admin.close();
+
+        return createTableOptions;
     }
 
     private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
@@ -123,9 +170,9 @@ public class KafkaConnector extends ConnectorBase {
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
         String enableScript = connectorContext.getNodeConfig().getString("enableScript");
-        if ("true".equals(enableScript)){
-            kafkaService.produce(connectorContext,tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
-        }else {
+        if ("true".equals(enableScript)) {
+            kafkaService.produce(connectorContext, tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
+        } else {
             kafkaService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
         }
     }
