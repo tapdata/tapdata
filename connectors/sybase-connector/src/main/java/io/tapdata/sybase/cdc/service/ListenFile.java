@@ -262,12 +262,17 @@ public class ListenFile implements CdcStep<CdcRoot> {
             futureReadFile = null;
         }
         try {
-            Optional.ofNullable(scheduledExecutorServiceCheckFile).ifPresent(ExecutorService::shutdown);
+            scheduledExecutorServiceCheckFile.shutdown();
         } catch (Exception e) {
             root.getContext().getLog().debug("Csv collect process stop fail, msg: {}", e.getMessage());
         }
         try {
             Optional.ofNullable(scheduledExecutorService).ifPresent(ExecutorService::shutdown);
+        } catch (Exception e) {
+            root.getContext().getLog().debug("Csv collect process stop fail, msg: {}", e.getMessage());
+        }
+        try {
+            scheduledExecutorDeleteCsvFileService.shutdown();
         } catch (Exception e) {
             root.getContext().getLog().debug("Csv collect process stop fail, msg: {}", e.getMessage());
         }
