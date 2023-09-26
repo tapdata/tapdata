@@ -118,7 +118,7 @@ public class CommonSqlMaker {
         return builder.toString();
     }
 
-    public String buildSelectClause(TapTable tapTable, TapAdvanceFilter filter) {
+    public String buildSelectClause(TapTable tapTable, TapAdvanceFilter filter, boolean needRowNumber) {
         StringBuilder builder = new StringBuilder("SELECT ");
         Projection projection = filter.getProjection();
         if (EmptyKit.isNull(projection) || (EmptyKit.isEmpty(projection.getIncludeFields()) && EmptyKit.isEmpty(projection.getExcludeFields()))) {
@@ -131,7 +131,10 @@ public class CommonSqlMaker {
                 builder.append(tapTable.getNameFieldMap().keySet().stream()
                         .filter(tapField -> !filter.getProjection().getExcludeFields().contains(tapField)).collect(Collectors.joining(escapeChar + "," + escapeChar)));
             }
-            builder.append(escapeChar).append(",").append(escapeChar).append("ROWNO_").append(escapeChar);
+            builder.append(escapeChar);
+            if (needRowNumber) {
+                builder.append(",").append(escapeChar).append("ROWNO_").append(escapeChar);
+            }
         }
         builder.append(" FROM ");
         return builder.toString();
