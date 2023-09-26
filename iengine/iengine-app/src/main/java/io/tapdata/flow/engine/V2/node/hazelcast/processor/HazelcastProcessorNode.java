@@ -2,14 +2,12 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.constant.MapUtilV2;
+import com.tapdata.constant.NotExistsNode;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.processor.dataflow.DataFlowProcessor;
-import com.tapdata.processor.dataflow.FieldDataFlowProcessor;
-import com.tapdata.processor.dataflow.ProcessorContext;
-import com.tapdata.processor.dataflow.RowFilterProcessor;
-import com.tapdata.processor.dataflow.ScriptDataFlowProcessor;
+import com.tapdata.processor.dataflow.*;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
@@ -35,12 +33,8 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -111,17 +105,17 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		final List<MessageEntity> processedMessages = dataFlowProcessor.process(Collections.singletonList(messageEntity));
 		if (CollectionUtils.isNotEmpty(processedMessages)) {
 			for (MessageEntity processedMessage : processedMessages) {
-				if (OperationType.COMMIT_OFFSET.getOp().equals(processedMessage.getOp())){
+				if (OperationType.COMMIT_OFFSET.getOp().equals(processedMessage.getOp())) {
 					HeartbeatEvent heartbeatEvent = new HeartbeatEvent();
-					if (tapdataEvent.getBatchOffset()==null&&tapdataEvent.getStreamOffset()==null){
+					if (tapdataEvent.getBatchOffset() == null && tapdataEvent.getStreamOffset() == null) {
 						continue;
 					}
-					if (tapRecordEvent.getReferenceTime()==null){
+					if (tapRecordEvent.getReferenceTime() == null) {
 						continue;
 					}
 					heartbeatEvent.setReferenceTime(tapRecordEvent.getReferenceTime());
 					tapdataEvent.setTapEvent(heartbeatEvent);
-				}else {
+				} else {
 					TapEventUtil.setBefore(tapRecordEvent, processedMessage.getBefore());
 					TapEventUtil.setAfter(tapRecordEvent, processedMessage.getAfter());
 				}
@@ -280,5 +274,35 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 			dataFlowProcessor.stop();
 		}
 		super.doClose();
+	}
+
+	@Override
+	protected void handleOriginalValueMapIfNeed(AtomicReference<TapValueTransform> tapValueTransform) {
+		if (getNode() instanceof FieldRenameProcessorNode) {
+			FieldRenameProcessorNode fieldRenameProcessorNode = (FieldRenameProcessorNode) getNode();
+			List<FieldProcessorNode.Operation> processorNodeOperations = fieldRenameProcessorNode.getOperations();
+			TapValueTransform tapValueTransformTemp = tapValueTransform.get();
+			Map before = tapValueTransformTemp.getBefore();
+			Map after = tapValueTransformTemp.getAfter();
+			for (FieldProcessorNode.Operation processorNodeOperation : processorNodeOperations) {
+				if ("RENAME".equals(processorNodeOperation.getOp())) {
+					String field = processorNodeOperation.getField();
+					String operand = processorNodeOperation.getOperand();
+					rename(before, field, operand);
+					rename(after, field, operand);
+				}
+			}
+		}
+	}
+
+	private void rename(Map data, String field, String operand) {
+		Object value = MapUtilV2.getValueByKey(data, field);
+		if (value instanceof NotExistsNode) return;
+		MapUtilV2.removeValueByKey(data, field);
+		try {
+			MapUtilV2.putValueInMap(data, operand, value);
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
 	}
 }

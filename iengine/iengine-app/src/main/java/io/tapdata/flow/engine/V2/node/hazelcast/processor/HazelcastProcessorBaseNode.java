@@ -1,16 +1,12 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.google.common.collect.Queues;
-import com.tapdata.constant.MapUtilV2;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
-import com.tapdata.tm.commons.dag.process.FieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -24,7 +20,6 @@ import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
@@ -217,8 +212,6 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					// Update memory from ddl event info map
 					updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()));
 					AtomicReference<TapValueTransform> tapValueTransform = new AtomicReference<>();
-					AtomicReference<String> originKey = new AtomicReference();
-					AtomicReference<String> operand = new AtomicReference();
 					if (tapdataEvent.isDML()) {
 						tapValueTransform.set(transformFromTapValue(tapdataEvent));
 					}
@@ -242,46 +235,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 						} else {
 							result.compareAndSet(false, true);
 						}
-						if(getNode() instanceof FieldRenameProcessorNode){
-							FieldRenameProcessorNode fieldRenameProcessorNode = (FieldRenameProcessorNode) getNode();
-							List<FieldProcessorNode.Operation> processorNodeOperations = fieldRenameProcessorNode.getOperations();
-							for (FieldProcessorNode.Operation processorNodeOperation : processorNodeOperations) {
-								if ("RENAME".equals(processorNodeOperation.getOp())){
-									originKey.set(processorNodeOperation.getField());
-									operand.set(processorNodeOperation.getOperand());
-								}
-							}
-							if (null!=tapValueTransform){
-								TapValueTransform tapValueTransformTemp = tapValueTransform.get();
-								Map before = tapValueTransformTemp.getBefore();
-								Map after = tapValueTransformTemp.getAfter();
-								if (MapUtils.isNotEmpty(before)){
-									if (!before.containsKey(operand)){
-										Object value = MapUtilV2.getValueByKey(before, originKey.get());
-										MapUtilV2.removeValueByKey(before,originKey.get());
-										try {
-											MapUtilV2.putValueInMap(before,operand.get(),value);
-										} catch (Exception e) {
-											throw new RuntimeException(e);
-										}
-									}
-								}if (MapUtils.isNotEmpty(after)){
-									if (!after.containsKey(operand)){
-										Object value = MapUtilV2.getValueByKey(after, originKey.get());
-										MapUtilV2.removeValueByKey(after,originKey.get());
-										try {
-											MapUtilV2.putValueInMap(after,operand.get(),value);
-										} catch (Exception e) {
-											throw new RuntimeException(e);
-										}
-									}
-								}
-								TapValueTransform transform = new TapValueTransform();
-								transform.before(before);
-								transform.after(after);
-								tapValueTransform.set(transform);
-							}
-						}
+						handleOriginalValueMapIfNeed(tapValueTransform);
 						tryProcess(tapdataEvent, (event, processResult) -> {
 							if (null == event) {
 								return;
@@ -326,6 +280,10 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			errorHandle(throwable, throwable.getMessage());
 		}
 		return result.get();
+	}
+
+	protected void handleOriginalValueMapIfNeed(AtomicReference<TapValueTransform> tapValueTransform) {
+		// do nothing
 	}
 
 	private boolean controlOrIgnoreEvent(TapdataEvent tapdataEvent) {
