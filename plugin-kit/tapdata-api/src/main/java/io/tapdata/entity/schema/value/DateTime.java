@@ -109,8 +109,7 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
     public DateTime(Timestamp timestamp) {
         if (timestamp == null)
             throw new IllegalArgumentException("DateTime constructor timestamp is null");
-        long time = timestamp.getTime();
-        seconds = time / 1000;
+        seconds = timestamp.toLocalDateTime().toEpochSecond(ZoneOffset.UTC);
         nano = timestamp.getNanos();
         originType = ORIGIN_TYPE_TIMESTAMP;
     }
