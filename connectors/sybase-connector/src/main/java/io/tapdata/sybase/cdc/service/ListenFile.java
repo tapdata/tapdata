@@ -756,9 +756,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     }
                 }
             }
-            if (!hasHandelInit.get()) {
-                hasHandelInit.set(true);
-            }
         }
     }
 
