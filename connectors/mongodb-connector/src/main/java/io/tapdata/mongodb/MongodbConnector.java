@@ -1371,6 +1371,11 @@ public class MongodbConnector extends ConnectorBase {
 					|| ArrayUtils.contains(RETRYABLE_ERROR_CODES, code)) {
 				throw new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), throwable);
 			}
+			if (throwable instanceof MongoInterruptedException){
+				TapLogger.warn(TAG,"Mongodb was interrupted.");
+				return;
+			}
+
 		}
 		throw throwable instanceof RuntimeException ? (RuntimeException) throwable : new RuntimeException(throwable);
 	}
