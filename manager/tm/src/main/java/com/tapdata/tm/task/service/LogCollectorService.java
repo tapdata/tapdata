@@ -999,7 +999,14 @@ public class LogCollectorService {
                 logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
             }
 
-
+            Node node = group.get(v.get(0).getId()).get(0);
+            Map<String, Object> nodeconfig =null;
+            if(node instanceof TableNode){
+                nodeconfig= ((TableNode) node).getNodeConfig();
+            }else if (node instanceof  DatabaseNode){
+                nodeconfig=(((DatabaseNode)node).getNodeConfig());
+            }
+            logCollectorNode.setNodeConfig(nodeconfig);
             logCollectorNode.setId(UUIDUtil.getUUID());
             logCollectorNode.setConnectionIds(connectionIds);
             logCollectorNode.setDatabaseType(v.get(0).getDatabase_type());
