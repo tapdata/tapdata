@@ -4,6 +4,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.entity.AppType;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
@@ -11,6 +12,9 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.error.ExternalStorageExCode_26;
+import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -24,6 +28,7 @@ import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author samuel
@@ -37,7 +42,8 @@ public class PdkStateMap implements KVMap<Object> {
 	public static final int READ_TIMEOUT_MS = 60 * 1000;
 	//	private IMap<String, Document> imap;
 	private static final String KEY = PdkStateMap.class.getSimpleName();
-	public static final long GLOBAL_MAP_TTL_SECONDS = 604800L;
+	public static final long GLOBAL_MAP_TTL_SECONDS = TimeUnit.DAYS.toSeconds(7L);
+	public static final String STATEMAP_TABLE = "HazelcastPersistence";
 	private Logger logger = LogManager.getLogger(PdkStateMap.class);
 	private static volatile PdkStateMap globalStateMap;
 	private DocumentIMap<Document> constructIMap;
@@ -98,7 +104,13 @@ public class PdkStateMap implements KVMap<Object> {
 	}
 
 	private void initConstructMap(HazelcastInstance hazelcastInstance, String mapName) {
-		initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), mapName);
+		if (AppType.init().isCloud()) {
+			initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), mapName);
+		} else {
+			ExternalStorageDto tapdataOrDefaultExternalStorage = ExternalStorageUtil.getTapdataOrDefaultExternalStorage();
+			tapdataOrDefaultExternalStorage.setTable(STATEMAP_TABLE);
+			constructIMap = new DocumentIMap<>(hazelcastInstance, TAG, mapName, tapdataOrDefaultExternalStorage);
+		}
 	}
 
 	private void initHttpTMStateMap(HazelcastInstance hazelcastInstance, ConfigurationCenter configurationCenter, String name) {
@@ -136,7 +148,7 @@ public class PdkStateMap implements KVMap<Object> {
 		externalStorageDto.setAccessToken(accessCode);
 		externalStorageDto.setConnectTimeoutMs(CONNECT_TIMEOUT_MS);
 		externalStorageDto.setReadTimeoutMs(READ_TIMEOUT_MS);
-		constructIMap = new DocumentIMap<>(hazelcastInstance, PdkStateMap.class.getSimpleName(), name, externalStorageDto);
+		constructIMap = new DocumentIMap<>(hazelcastInstance, TAG, name, externalStorageDto);
 	}
 
 	@NotNull
@@ -148,8 +160,10 @@ public class PdkStateMap implements KVMap<Object> {
 		if (globalStateMap == null) {
 			synchronized (GLOBAL_MAP_NAME) {
 				if (globalStateMap == null) {
-					globalStateMap = new PdkStateMap(hazelcastInstance, GLOBAL_MAP_NAME);
-					PersistenceStorage.getInstance().setImapTTL(globalStateMap.getConstructIMap().getiMap(), GLOBAL_MAP_TTL_SECONDS);
+					synchronized (GLOBAL_MAP_NAME) {
+						globalStateMap = new PdkStateMap(hazelcastInstance, GLOBAL_MAP_NAME);
+						PersistenceStorage.getInstance().setImapTTL(globalStateMap.getConstructIMap().getiMap(), GLOBAL_MAP_TTL_SECONDS);
+					}
 				}
 			}
 		}

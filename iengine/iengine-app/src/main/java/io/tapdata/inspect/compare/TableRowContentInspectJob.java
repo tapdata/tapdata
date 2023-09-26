@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -33,6 +34,8 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 	protected long rowField = 0;
 	protected long startTime = System.currentTimeMillis() / 1000;
 	long max = 0L;
+	private final AtomicBoolean firstCompareKeyValue = new AtomicBoolean();
+	private final AtomicBoolean firstCompareAllValue = new AtomicBoolean();
 
 	public TableRowContentInspectJob(InspectTaskContext inspectTaskContext) {
 		super(inspectTaskContext);
@@ -196,8 +199,19 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 						Object[] targetKeyArr = getKeyArray(targetRecord, targetKeys);
 						int compare = CommonUtil.compareObjects(sourceKeyArr, targetKeyArr);
 
+						if (firstCompareKeyValue.compareAndSet(false, true)) {
+							logger.info("Inspect job[{}] first compare sort value, source: {}, target: {}, result: {}",
+									String.join("-", inspectTaskContext.getName(), source.getName(), inspectTask.getSource().getTable(), target.getName(), inspectTask.getTarget().getTable()),
+									sourceKeyArr, targetKeyArr, compare);
+						}
+
 						if (fullMatch && compare == 0) {
 							String res = compareRecord(current, sourceVal, targetVal, sourceRecord, targetRecord, compareFn);
+							if (firstCompareAllValue.compareAndSet(false, true)) {
+								logger.info("Inspect job[{}] first compare all value, source: {}, target: {}, result: {}",
+										String.join("-", inspectTaskContext.getName(), source.getName(), inspectTask.getSource().getTable(), target.getName(), inspectTask.getTarget().getTable()),
+										sourceRecord, targetRecord, res);
+							}
 							if (null == res) {
 								rowPassed++;
 							} else {

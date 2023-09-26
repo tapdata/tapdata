@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -32,8 +33,10 @@ import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -85,6 +88,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 /**
  * @author samuel
@@ -128,6 +132,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected Map<String, Long> snapshotRowSizeMap;
 	private ExecutorService snapshotRowSizeThreadPool;
 	private ConnectorOnTaskThreadGroup connectorOnTaskThreadGroup;
+	private ConcurrentHashMap<String, Connections> connectionMap = new ConcurrentHashMap<>();
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -731,8 +736,38 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			case LOG_COLLECTOR:
 				tapdataEvent = new TapdataShareLogEvent();
 				Connections connections = dataProcessorContext.getConnections();
-				if (null != connections) {
-					tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
+				Node<?> node = getNode();
+				if (node.isLogCollectorNode()) {
+					List<Connections> connectionList = ShareCdcUtil.getConnectionIds(getNode(), ids -> {
+						Query connectionQuery = new Query(where("_id").in(ids));
+						connectionQuery.fields().include("config").include("pdkHash");
+						List<Connections> connectionsList = clientMongoOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+						for (Connections conn : connectionsList) {
+							connectionMap.put(conn.getId(), conn);
+						}
+						return connectionsList;
+					}, connectionMap);
+  					if(CollectionUtils.isNotEmpty(connectionList) && tapEvent instanceof TapBaseEvent){
+						TapdataEvent finalTapdataEvent = tapdataEvent;
+							TapBaseEvent baseEvent = (TapBaseEvent) tapEvent;
+							connectionList.forEach(connection -> {
+								LogCollectorNode logCollectorNode = (LogCollectorNode) node;
+								List<String> logNameSpaces = logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getNamespace();
+								List<String> tableNames = logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getTableNames();
+								if(logNameSpaces.contains(baseEvent.getNamespaces().get(0))&& tableNames.contains(baseEvent.getTableId())){
+									finalTapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connection.getId());
+								}
+
+							});
+					}else{
+						if (null != connections) {
+							tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
+						}
+					}
+				}else{
+					if (null != connections) {
+						tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
+					}
 				}
 				break;
 		}

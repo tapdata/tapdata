@@ -52,6 +52,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	private final List<String> dataKeys;
 	private final List<List<Object>> diffKeyValues;
 	private final AtomicReference<Thread> queryThreadAR = new AtomicReference<>();
+	private final AtomicBoolean firstTimeRead = new AtomicBoolean();
 
 	public PdkResult(List<String> sortColumns, Connections connections, String tableName, Set<String> columns, ConnectorNode connectorNode, boolean fullMatch, List<String> dataKeys, List<List<Object>> diffKeyValues) {
 		super(sortColumns, connections, tableName);
@@ -210,6 +211,9 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 //						tapAdvanceFilter.setLimit(BATCH_SIZE); // can not add limit because queryByAdvanceFilterFunction not support 'or' conditions
 						tapAdvanceFilter.setSortOnList(sortOnList);
 						tapAdvanceFilter.setProjection(projection);
+						if (firstTimeRead.compareAndSet(false, true)) {
+							logger.info("Inspect job[{}] read data from table '{}' by filter: {}", connections.getName(), tableName, tapAdvanceFilter);
+						}
 						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
 							() -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
 								Throwable error = filterResults.getError();
