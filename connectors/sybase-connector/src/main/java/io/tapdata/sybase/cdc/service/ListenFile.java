@@ -64,6 +64,8 @@ import java.util.concurrent.atomic.AtomicReference;
  **/
 public class ListenFile implements CdcStep<CdcRoot> {
     public static final String TAG = ListenFile.class.getSimpleName();
+    public static final int DELETE_CACHE_SIZE = 10;
+    public static final int DELETE_FILE_DELAY_MIN = 10;
     private final CdcRoot root;
     private final String monitorPath; ///${host:port:database}/sybase-poc/config/csv
     private final StopLock lock;
@@ -88,6 +90,9 @@ public class ListenFile implements CdcStep<CdcRoot> {
     private final Object readFileLock = new Object();
     Map<String, Set<String>> blockFieldsMap;
     Map<String, TapTable> tapTableMap = new HashMap<>();
+    private ScheduledFuture<?> futureDeleteCsvFile;
+    private final ScheduledExecutorService scheduledExecutorDeleteCsvFileService= Executors.newSingleThreadScheduledExecutor();
+
 
     private final ReadFilter readFilter;
     
@@ -197,6 +202,13 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     futureReadFile = null;
                 }
             }
+            if (Objects.nonNull(futureDeleteCsvFile)) {
+                try {
+                    futureDeleteCsvFile.cancel(true);
+                } catch (Exception e) {
+                    futureDeleteCsvFile = null;
+                }
+            }
             this.futureCheckFile = this.scheduledExecutorServiceCheckFile.scheduleWithFixedDelay(() -> {
                 try {
                     listener.foreachYaml(false);
@@ -211,6 +223,13 @@ public class ListenFile implements CdcStep<CdcRoot> {
                         root.getThrowableCatch().set(t);
                     }
                 }   , 2, readcsvDelay, TimeUnit.SECONDS);
+            this.futureDeleteCsvFile = this.scheduledExecutorDeleteCsvFileService.scheduleWithFixedDelay(() -> {
+                    try {
+                        listener.deleteFile();
+                    } catch (Throwable t) {
+                        root.getThrowableCatch().set(t);
+                    }
+                }   , 1, DELETE_FILE_DELAY_MIN, TimeUnit.MINUTES);
             //fileMonitor.start();
         } catch (Throwable e) {
             onStop();
@@ -610,7 +629,6 @@ public class ListenFile implements CdcStep<CdcRoot> {
             }
         }
 
-        Map<String, Long> metadataYamlFileModifyTimeCache = new HashMap<>();
         public void foreachYaml(boolean needDeleteCsvFile) {
             if (tables.isEmpty()) return;
             //遍历monitorPath 所有子目录下的
@@ -683,6 +701,63 @@ public class ListenFile implements CdcStep<CdcRoot> {
                 return "object_metadata.yaml".equals(file.getName());
             } else {
                 return false;
+            }
+        }
+
+
+        public void deleteFile() {
+            if (tables.isEmpty()) return;
+            //遍历monitorPath 所有子目录下的
+            for (Map.Entry<String, Map<String, List<String>>> databaseEntry : tables.entrySet()) {
+                if (!root.getIsAlive().test(null)) break;
+                String database = databaseEntry.getKey();
+                Map<String, List<String>> schemaMap = databaseEntry.getValue();
+                if (null == database || null == schemaMap || schemaMap.isEmpty())  continue;
+                final String tableSpace = monitorPath + "/" + database + "/";
+                Set<Map.Entry<String, List<String>>> schemaEntry = schemaMap.entrySet();
+                for (Map.Entry<String, List<String>> schemaMaps : schemaEntry) {
+                    if (!root.getIsAlive().test(null)) break;
+                    String schema = schemaMaps.getKey();
+                    List<String> tablesMaps = schemaMaps.getValue();
+                    if (null == schema || null == tablesMaps || tablesMaps.isEmpty()) continue;
+                    final String tempDir = tableSpace + schema + "/";
+                    for (String table : tablesMaps) {
+                        if (!root.getIsAlive().test(null)) break;
+                        if (null == table || "".equals(table.trim())) continue;
+                        final String tempPath = tempDir + table + "/object_metadata.yaml";
+                        File file = new File(tempPath);
+                        if (file.exists() && file.isFile() && isObjectMetadataYaml(file)) {
+                            try {
+                                YamlUtil objectMetadataYaml = new YamlUtil(file.getAbsolutePath());
+                                List<Map<String, Object>> csvFileOffset = (List<Map<String, Object>>) objectMetadataYaml.get("file-row-count");
+                                final int handelSize = csvFileOffset.size() - DELETE_CACHE_SIZE;
+                                if (handelSize <= 0) continue;
+                                for (int index = 0; index < handelSize; index++) {
+                                    Map<String, Object> offset = csvFileOffset.get(index);
+                                    if (null == offset || !root.getIsAlive().test(null)) break;
+                                    String csvFilePath = String.valueOf(offset.get("file-name"));
+                                    String absolutePath = file.getParentFile().getAbsolutePath();
+                                    File csvFile = new File(FilenameUtils.concat(absolutePath, csvFilePath));
+                                    if (csvFile.exists() && csvFile.isFile() && isCSV(csvFile)) {
+                                        String csvFileName = csvFile.getName();
+                                        Integer fileIndex = root.getCsvFileModifyIndexByCsvFileName(csvFileName);
+                                        Integer fileIndexFromCsvName = CdcPosition.PositionOffset.fixFileNameByFilePathWithoutSuf(csvFileName);
+                                        //上次读到第fileIndex个csv文件，当前是第fileIndexFromCsvName个csv文件，
+                                        if (null == fileIndex || fileIndex <= fileIndexFromCsvName){
+                                            break;
+                                        }
+                                        FileUtils.delete(csvFile);
+                                    }
+                                }
+                            } catch (Exception e) {
+                                log.info("Unable delete file: {}, msg: {}", file.getAbsolutePath(), e.getMessage());
+                            }
+                        }
+                    }
+                }
+            }
+            if (!hasHandelInit.get()) {
+                hasHandelInit.set(true);
             }
         }
     }
