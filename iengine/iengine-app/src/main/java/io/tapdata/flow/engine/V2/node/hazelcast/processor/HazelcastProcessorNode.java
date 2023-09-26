@@ -280,6 +280,9 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	}
 
 	private void rename(Map data, String field, String operand) {
+		if(MapUtils.isEmpty(data)) {
+			return;
+		}
 		Object value = MapUtilV2.getValueByKey(data, field);
 		if (value instanceof NotExistsNode) return;
 		MapUtilV2.removeValueByKey(data, field);
