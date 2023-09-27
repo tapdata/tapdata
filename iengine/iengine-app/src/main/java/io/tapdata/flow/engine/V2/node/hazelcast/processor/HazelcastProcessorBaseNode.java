@@ -7,6 +7,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.TapCodecsRegistry;
