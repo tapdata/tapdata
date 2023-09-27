@@ -35,6 +35,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -229,7 +230,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                     } catch (Throwable t) {
                         root.getThrowableCatch().set(t);
                     }
-                }   , 1, DELETE_FILE_DELAY_MIN, TimeUnit.MINUTES);
+                }   , DELETE_FILE_DELAY_MIN, DELETE_FILE_DELAY_MIN, TimeUnit.MINUTES);
             //fileMonitor.start();
         } catch (Throwable e) {
             onStop();
@@ -710,8 +711,11 @@ public class ListenFile implements CdcStep<CdcRoot> {
         }
 
 
+        byte cleanTranceLogFlag = 0;
         public void deleteFile() {
-            if (tables.isEmpty()) return;
+            if (!hasHandelInit.get() || tables.isEmpty()) {
+                return;
+            }
             //遍历monitorPath 所有子目录下的
             for (Map.Entry<String, Map<String, List<String>>> databaseEntry : tables.entrySet()) {
                 if (!root.getIsAlive().test(null)) break;
@@ -736,7 +740,10 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                 YamlUtil objectMetadataYaml = new YamlUtil(file.getAbsolutePath());
                                 List<Map<String, Object>> csvFileOffset = (List<Map<String, Object>>) objectMetadataYaml.get("file-row-count");
                                 final int handelSize = csvFileOffset.size() - DELETE_CACHE_SIZE;
-                                if (handelSize <= 0) continue;
+                                if (handelSize <= 0) {
+                                    log.debug("Find table csv file config in {}, but cav file less 10, will be ignore this table's csv files", tempPath);
+                                    continue;
+                                }
                                 for (int index = 0; index < handelSize; index++) {
                                     Map<String, Object> offset = csvFileOffset.get(index);
                                     if (null == offset || !root.getIsAlive().test(null)) break;
@@ -751,6 +758,7 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                         if (null == fileIndex || fileIndex <= fileIndexFromCsvName){
                                             break;
                                         }
+                                        log.debug("File has delete: {}", csvFile.getAbsolutePath());
                                         FileUtils.delete(csvFile);
                                     }
                                 }
@@ -758,6 +766,29 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                 log.info("Unable delete file: {}, msg: {}", file.getAbsolutePath(), e.getMessage());
                             }
                         }
+                    }
+                }
+            }
+            if (cleanTranceLogFlag <= 5) {
+                cleanTranceLogFlag += 1;
+            } else {
+                //清空trace.log
+                cleanTranceLogFlag = 0;
+                File tranceParent = new File(monitorPath).getParentFile();
+                String tracePath = FilenameUtils.concat(
+                        FilenameUtils.concat(
+                                FilenameUtils.concat(
+                                        tranceParent.getAbsolutePath(),
+                                        "trace"),
+                                root.getTaskCdcId()),
+                        "trace.log");
+                File file = new File(tracePath);
+                if(file.exists() && file.isFile()) {
+                    try (FileWriter fileWriter = new FileWriter(file)) {
+                        fileWriter.write("");
+                        fileWriter.flush();
+                    } catch (Exception e) {
+                        log.debug("Can not clean trace.log: {}, msg: {}", tracePath, e.getMessage());
                     }
                 }
             }
