@@ -780,13 +780,14 @@ public class ListenFile implements CdcStep<CdcRoot> {
                                 FilenameUtils.concat(
                                         tranceParent.getAbsolutePath(),
                                         "trace"),
-                                root.getTaskCdcId()),
+                                ConnectorUtil.getGlobalCdcProcessId(context)),
                         "trace.log");
                 File file = new File(tracePath);
                 if(file.exists() && file.isFile()) {
                     try (FileWriter fileWriter = new FileWriter(file)) {
                         fileWriter.write("");
                         fileWriter.flush();
+                        log.debug("File has be cleaned trace.log {}", tracePath);
                     } catch (Exception e) {
                         log.debug("Can not clean trace.log: {}, msg: {}", tracePath, e.getMessage());
                     }
