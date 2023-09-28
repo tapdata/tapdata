@@ -62,6 +62,7 @@ public class SnapshotOrderService {
 		}
 		SnapshotOrderController snapshotOrderController = SnapshotOrderController.create(taskDto, snapshotOrderList);
 		handleSnapshotOrderMode(taskDto, oldMergeMode, snapshotOrderController.getSnapshotOrderList());
+		runningFirstLayer(snapshotOrderController.getSnapshotOrderList());
 		controllerMap.remove(taskId);
 		controllerMap.put(taskId, snapshotOrderController);
 		return snapshotOrderController;
@@ -80,31 +81,20 @@ public class SnapshotOrderService {
 				mergeMode = MergeTableNode.MAIN_TABLE_FIRST_MERGE_MODE;
 			}
 			switch (mergeMode) {
-				case MergeTableNode.MAIN_TABLE_FIRST_MERGE_MODE:
-					if (CollectionUtils.isNotEmpty(snapshotOrderList)) {
-						NodeControlLayer firstLayer = snapshotOrderList.get(0);
-						for (NodeController nodeController : firstLayer.getNodeControllers()) {
-							nodeController.running();
-						}
-					}
-					break;
 				case MergeTableNode.SUB_TABLE_FIRST_MERGE_MODE:
 					if (CollectionUtils.isNotEmpty(snapshotOrderList)) {
 						Collections.reverse(snapshotOrderList);
-						if (snapshotOrderList.size() == 1) {
-							for (NodeController nodeController : snapshotOrderList.get(0).getNodeControllers()) {
-								nodeController.running();
-							}
-						} else {
-							for (int i = 0; i < snapshotOrderList.size() - 1; i++) {
-								NodeControlLayer nodeControlLayer = snapshotOrderList.get(i);
-								for (NodeController nodeController : nodeControlLayer.getNodeControllers()) {
-									nodeController.running();
-								}
-							}
-						}
 					}
 					break;
+			}
+		}
+	}
+
+	private static void runningFirstLayer(List<NodeControlLayer> snapshotOrderList) {
+		if (CollectionUtils.isNotEmpty(snapshotOrderList)) {
+			NodeControlLayer firstLayer = snapshotOrderList.get(0);
+			for (NodeController nodeController : firstLayer.getNodeControllers()) {
+				nodeController.running();
 			}
 		}
 	}
