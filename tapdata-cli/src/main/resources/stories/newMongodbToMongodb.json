@@ -1,0 +1,155 @@
+{
+  "id": "dag1",
+  "nodes": [
+    {
+      "connectionConfig": {
+        "uri": "mongodb://localhost:27017/",
+        "database": "sample_training"
+      },
+      "nodeConfig": {
+
+      },
+      "sourceOptions": {
+        "batchRead": true,
+        "streamRead": true,
+        "eventBatchSize": 1000
+      },
+      "table": "test",
+      "tasks": [
+        {
+          "type": "ChangeTableName",
+          "tables": [
+            {
+              "from": "test",
+              "to": "test1"
+            }
+          ]
+        }
+
+      ],
+      "id": "s1",
+      "pdkId": "mongodb",
+      "group": "io.tapdata",
+      "type": "Source",
+      "version": "1.0-SNAPSHOT"
+    },
+    {
+      "id": "p1",
+      "type": "Processor",
+
+      "pdkId": "fieldChange",
+      "group": "io.tapdata",
+      "version": "1.0",
+
+      "nodeConfig": {
+
+      },
+      "tasks": [
+        {
+          "type": "changeAllFields",
+          "prefix": "a_",
+          "suffix": "_ended"
+        },
+        {
+          "type": "changeField",
+          "fromNodeId": "s1",
+          "table": "test1",
+          "fields" : [
+            {
+              "field": "TapNumber",
+              "to": {
+                "field": "TapNumber1",
+                "tapType": {
+
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "udf": {
+        "before": [
+          {
+            "type": "javascript",
+            "script": "var i = 0; "
+          }
+        ],
+        "after": [
+          {
+            "type": "javascript",
+            "script": "var d = 1;"
+          }
+        ]
+      }
+    },
+    {
+      "connectionConfig": {
+        "uri": "mongodb://localhost:27017/",
+        "database": "sample_training"
+      },
+      "nodeConfig": {
+
+      },
+      "targetOptions": {
+        "actionsBeforeStart": ["dropTable", "createTable"],
+        "writeMode": "insertOnly|updateOnly|upsert",
+        "updateFields": ["key1", "key2"]
+      },
+      "table": "emptyTable2",
+      "tasks": [
+        {
+          "type": "ChangeTableName",
+          "fromNodeIds": ["s1"],
+          "tables": [
+            {
+              "from": "test1",
+              "to": "test"
+            }
+          ]
+        },
+        {
+          "type": "dropTable",
+          "tables": ["t1", "t2"]
+        },
+        {
+          "type": "createIndex",
+          "indexes": [
+            {
+              "name": "index1",
+              "fields": {"ascAField" : true, "ascBField":  true}
+            },
+            {
+              "name": "index2",
+              "fields": {"ascAField" : true, "ascBField":  false}
+            }
+          ]
+        },
+        {
+          "type": "removeIndex",
+          "indexes": [
+            {
+              "name": "index1",
+              "fields": {"ascAField" : true, "ascBField":  true}
+            }
+          ]
+        }
+      ],
+      "id": "t2",
+      "pdkId": "mongodb",
+      "group": "io.tapdata",
+      "type": "Target",
+      "version": "1.0-SNAPSHOT"
+    }
+  ],
+  "dag": [
+    [
+      "s1",
+      "t2"
+    ]
+  ],
+  "jobOptions": {
+    "queueSize": 100,
+    "queueBatchSize": 100,
+    "actionsBeforeStart": ["dropTable", "createTable"]
+  }
+}
