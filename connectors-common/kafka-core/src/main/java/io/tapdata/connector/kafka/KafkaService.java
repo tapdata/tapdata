@@ -323,7 +323,7 @@ public class KafkaService extends AbstractMqService {
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
         CountDownLatch countDownLatch = new CountDownLatch(tapRecordEvents.size());
         ScriptEngine scriptEngine;
-        String script = connectorContext.getNodeConfig().getString("script");
+        String script = kafkaConfig.getScript();
         Map<String,Object> record = new HashMap();
         try {
             scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT,

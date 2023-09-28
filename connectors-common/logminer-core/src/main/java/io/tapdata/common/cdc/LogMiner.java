@@ -199,6 +199,9 @@ public abstract class LogMiner implements ILogMiner {
             case SqlConstant.REDO_LOG_OPERATION_LOB_WRITE:
             case SqlConstant.REDO_LOG_OPERATION_SEL_LOB_LOCATOR:
                 if (!transactionBucket.containsKey(xid)) {
+                    if (EmptyKit.isBlank(redoLogContent.getSqlUndo())) {
+                        return;
+                    }
                     tapLogger.debug(TapLog.D_CONN_LOG_0003.getMsg(), xid);
                     Map<String, List> redoLogContents = new LinkedHashMap<>();
                     redoLogContents.put(rsId, new ArrayList<>(4));
@@ -478,7 +481,7 @@ public abstract class LogMiner implements ILogMiner {
                 }
             }
         }
-        return needToAborted;
+        return true;
     }
 
     private boolean need2WaitingCommit(LogTransaction transaction) {

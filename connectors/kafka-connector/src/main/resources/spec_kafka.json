@@ -320,6 +320,7 @@
         "enableScript": {
           "title": "${enableScript}",
           "type": "boolean",
+          "default": false,
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "x-decorator-props": {
