@@ -1,0 +1,39 @@
+{
+    "id" : "dag1",
+    "nodes" : [
+        {
+            "connectionConfig" : {
+            },
+            "table" : {
+                "name" : "empty-table1",
+                "id" : "empty-table1"
+            },
+            "id" : "s1",
+            "pdkId" : "emptySource",
+            "group" : "io.tapdata.connector.empty",
+            "type" : "Source",
+            "version" : "1.1-SNAPSHOT"
+        },
+        {
+            "connectionConfig" : {
+                "folderPath" : "/Users/aplomb/dev/tapdata/AgentProjects/tmp"
+            },
+            "table" : {
+                "name" : "target1.txt",
+                "id" : "target1.txt"
+            },
+            "id" : "t2",
+            "pdkId" : "fileTarget",
+            "group" : "io.tapdata.connector.file",
+            "type" : "Target",
+            "version" : "1.0-SNAPSHOT"
+        }
+    ],
+    "dag" : [
+        ["s1", "t2"]
+    ],
+    "jobOptions" : {
+        "queueSize" : 100,
+        "queueBatchSize" : 100
+    }
+}
