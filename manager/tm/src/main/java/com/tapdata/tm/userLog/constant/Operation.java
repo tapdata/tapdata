@@ -2,6 +2,7 @@ package com.tapdata.tm.userLog.constant;
 
 public enum Operation {
     UPDATE("update"),
+    RESTART_AGENT("restart"),
     BATCH_UPDATE("batch_update"),
 
     CREATE ("create"),
