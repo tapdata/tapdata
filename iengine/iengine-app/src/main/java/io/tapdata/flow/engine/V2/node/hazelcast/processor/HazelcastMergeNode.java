@@ -976,10 +976,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	}
 
 	public static void clearCache(Node<?> node) {
-		// When the task is reset, cached data will not be automatically deleted. If you want to clean it, use manual methods
-		/*if (!(node instanceof MergeTableNode)) return;
+		if (!(node instanceof MergeTableNode)) return;
 		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
-		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());*/
+		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
 	}
 
 	private static void recursiveClearCache(ExternalStorageDto externalStorageDto, List<MergeTableProperties> mergeTableProperties, HazelcastInstance hazelcastInstance) {
