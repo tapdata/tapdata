@@ -2,6 +2,7 @@ package com.tapdata.tm.userLog.aop;
 
 import com.tapdata.tm.cluster.dto.UpdateAgentVersionParam;
 import com.tapdata.tm.cluster.service.ClusterStateService;
+import com.tapdata.tm.clusterOperation.constant.ClusterOperationTypeEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
@@ -71,7 +72,13 @@ public class ClusterStateServiceAop {
 
         Query query = Query.query(Criteria.where("process_id").is(updateAgentVersionParam.getProcessId()).and("worker_type").is("connector"));
         WorkerDto workerDto = workerService.findOne(query);
-        userLogService.addUserLog(Modular.AGENT, Operation.UPDATE, userDetail, workerDto.getTcmInfo().getAgentName());
+        if (ClusterOperationTypeEnum.restart.name().equals(updateAgentVersionParam.getOp())){
+            userLogService.addUserLog(Modular.AGENT, Operation.RESTART_AGENT, userDetail, workerDto.getTcmInfo().getAgentName());
+        }else if (ClusterOperationTypeEnum.start.name().equals(updateAgentVersionParam.getOp())){
+            userLogService.addUserLog(Modular.AGENT, Operation.START, userDetail, workerDto.getTcmInfo().getAgentName());
+        }else {
+            userLogService.addUserLog(Modular.AGENT, Operation.UPDATE, userDetail, workerDto.getTcmInfo().getAgentName());
+        }
         return null;
     }
 
