@@ -19,10 +19,7 @@ import org.apache.logging.log4j.Logger;
 import org.bson.BsonDocument;
 import org.bson.Document;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -59,7 +56,7 @@ public class MongodbLookupUtil {
 					Document mongodbDeleteCache = new Document()
 							.append("mongodbUri", mongodbUri)
 							.append("collectionName", lookupDocument.getCollectionName())
-							.append("timestamp", System.currentTimeMillis())
+							.append("timestamp", new Date())
 							.append("data",
 									CollectionUtils.isNotEmpty(lookupDocument.getData()) ? lookupDocument.getData().get(0) : null
 							);
