@@ -50,6 +50,8 @@ public class LogCollectorNode extends Node<List<Schema>> {
 
     private Map<String, LogCollecotrConnConfig> logCollectorConnConfigs;
 
+    private Map<String, Object> nodeConfig;
+
     @EqField
     /**
      *  allTables - 所有表
