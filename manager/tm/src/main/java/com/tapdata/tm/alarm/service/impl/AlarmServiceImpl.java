@@ -832,17 +832,19 @@ public class AlarmServiceImpl implements AlarmService {
         ExpressionParser parser = new SpelExpressionParser();
         TemplateParserContext parserContext = new TemplateParserContext();
         List<AlarmListInfoVo> collect = alarmInfos.stream()
+                .filter(Objects::nonNull)
                 .map(t -> {
                     String template = MessageUtil.getAlarmMsg(locale, t.getSummary());
-                    if (Objects.nonNull(t.getParam())) {
-                        if (t.getParam().containsValue("GREATER")) {
-                            t.getParam().put("flag", MessageUtil.getAlarmMsg(locale, "GREATER"));
-                        } else if (t.getParam().containsValue("LESS")){
-                            t.getParam().put("flag", MessageUtil.getAlarmMsg(locale, "LESS"));
+                    String content = "";
+                    Map<String, Object> params = t.getParam();
+                    if (Objects.nonNull(params)) {
+                        if (params.containsValue("GREATER")) {
+                            params.put("flag", MessageUtil.getAlarmMsg(locale, "GREATER"));
+                        } else if (params.containsValue("LESS")){
+                            params.put("flag", MessageUtil.getAlarmMsg(locale, "LESS"));
                         }
+                        content = parser.parseExpression(template, parserContext).getValue(params, String.class);
                     }
-
-                    String content = parser.parseExpression(template, parserContext).getValue(t.getParam(), String.class);
                     return AlarmListInfoVo.builder()
                             .id(t.getId().toHexString())
                             .level(t.getLevel())
@@ -857,7 +859,6 @@ public class AlarmServiceImpl implements AlarmService {
                             .syncType(taskDtoMap.get(t.getTaskId()).getSyncType())
                             .build();
                 }).collect(Collectors.toList());
-
         return new Page<>(count, collect);
     }
 
