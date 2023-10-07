@@ -14,13 +14,30 @@ public class MergeBundle {
 
 		private Map<String, Object> after;
 
+		private Map<String, Object> removefields;
+
 		public MergeBundle(EventOperation operation, Map<String, Object> before, Map<String, Object> after) {
 				this.operation = operation;
 				this.before = before;
 				this.after = after;
 		}
 
-		public EventOperation getOperation() {
+	public MergeBundle(EventOperation operation, Map<String, Object> before, Map<String, Object> after, Map<String, Object> removefields) {
+		this.operation = operation;
+		this.before = before;
+		this.after = after;
+		this.removefields = removefields;
+	}
+
+	public Map<String, Object> getRemovefields() {
+		return removefields;
+	}
+
+	public void setRemovefields(Map<String, Object> removefields) {
+		this.removefields = removefields;
+	}
+
+	public EventOperation getOperation() {
 				return operation;
 		}
 

@@ -146,7 +146,9 @@ public class MongodbMergeOperate {
 			case INSERT:
 			case UPDATE:
 				Map<String, Object> after = mergeBundle.getAfter();
+				Map<String, Object> removeFields = mergeBundle.getRemovefields();
 				Document setOperateDoc = new Document();
+				Document unsetOperateDoc = new Document();
 				Map<String, Object> flatValue = new Document();
 				MapUtil.recursiveFlatMap(after, flatValue, "");
 				after = MapUtils.isNotEmpty(flatValue) ? flatValue : after;
@@ -163,6 +165,20 @@ public class MongodbMergeOperate {
 				} else {
 					update.put("$set", setOperateDoc);
 				}
+                if (removeFields != null) {
+                    if (EmptyKit.isNotEmpty(targetPath)) {
+                        for (Map.Entry<String, Object> entry : removeFields.entrySet()) {
+                            unsetOperateDoc.append(targetPath + "." + entry.getKey(), entry.getValue());
+                        }
+                    } else {
+                        unsetOperateDoc.putAll(removeFields);
+                    }
+                    if (update.containsKey("$unset")) {
+                        update.get("$unset", Document.class).putAll(unsetOperateDoc);
+                    } else {
+                        update.put("$unset", unsetOperateDoc);
+                    }
+                }
 				if (operation == MergeBundle.EventOperation.INSERT) {
 					mergeResult.getUpdateOptions().upsert(true);
 				}
@@ -197,6 +213,7 @@ public class MongodbMergeOperate {
 		}
 
 		Map<String, Object> value = MapUtils.isNotEmpty(mergeBundle.getAfter()) ? mergeBundle.getAfter() : mergeBundle.getBefore();
+		Map<String, Object> removeFields = mergeBundle.getRemovefields();
 		final MergeBundle.EventOperation operation = mergeBundle.getOperation();
 
 		String updatePatch = targetPath;
@@ -211,6 +228,7 @@ public class MongodbMergeOperate {
 		}
 
 		Document updateOpDoc = new Document();
+		Document unsetOpDoc = new Document();
 		Map<String, Object> flatValue = new Document();
 		MapUtil.recursiveFlatMap(value, flatValue, "");
 		value = MapUtils.isNotEmpty(flatValue) ? flatValue : value;
@@ -218,8 +236,16 @@ public class MongodbMergeOperate {
 			for (Map.Entry<String, Object> entry : value.entrySet()) {
 				updateOpDoc.append(updatePatch + "." + entry.getKey(), entry.getValue());
 			}
+			if (removeFields != null) {
+				for (Map.Entry<String, Object> entry : removeFields.entrySet()) {
+					unsetOpDoc.append(updatePatch + "." + entry.getKey(), entry.getValue());
+				}
+			}
 		} else {
 			updateOpDoc.putAll(value);
+			if (removeFields != null) {
+				unsetOpDoc.putAll(removeFields);
+			}
 		}
 		if (mergeResult.getOperation() == null) {
 			mergeResult.setOperation(MergeResult.Operation.UPDATE);
@@ -231,6 +257,13 @@ public class MongodbMergeOperate {
 					mergeResult.getUpdate().get("$set", Document.class).putAll(updateOpDoc);
 				} else {
 					mergeResult.getUpdate().put("$set", updateOpDoc);
+				}
+				if (removeFields != null) {
+					if (mergeResult.getUpdate().containsKey("$unset")) {
+						mergeResult.getUpdate().get("unset", Document.class).putAll(unsetOpDoc);
+					} else {
+						mergeResult.getUpdate().put("$unset", unsetOpDoc);
+					}
 				}
 				break;
 			case DELETE:
@@ -284,7 +317,9 @@ public class MongodbMergeOperate {
 		}
 
 		Map<String, Object> after = mergeBundle.getAfter();
+		Map<String, Object> removefields = mergeBundle.getRemovefields();
 		Document updateOpDoc = new Document();
+		Document unsetOpDoc = new Document();
 
 		if (mergeResult.getOperation() == null) {
 			mergeResult.setOperation(MergeResult.Operation.UPDATE);
@@ -338,6 +373,25 @@ public class MongodbMergeOperate {
 				} else {
 					mergeResult.getUpdate().put("$set", updateOpDoc);
 				}
+				if (removefields != null) {
+					for (Map.Entry<String, Object> entry : removefields.entrySet()) {
+						if (array) {
+							String[] paths = targetPath.split("\\.");
+							if (paths.length > 1) {
+								updateOpDoc.append(paths[0] + ".$[element1]." + paths[1] + ".$[element2]." + entry.getKey(), entry.getValue());
+							} else {
+								updateOpDoc.append(targetPath + ".$[element1]." + entry.getKey(), entry.getValue());
+							}
+						} else {
+							updateOpDoc.append(targetPath + ".$[element1]." + entry.getKey(), entry.getValue());
+						}
+					}
+					if (mergeResult.getUpdate().containsKey("$unset")) {
+						mergeResult.getUpdate().get("$unset", Document.class).putAll(updateOpDoc);
+					} else {
+						mergeResult.getUpdate().put("$unset", updateOpDoc);
+					}
+				}
 				break;
 			case DELETE:
 				for (String arrayKey : arrayKeys) {
@@ -356,6 +410,7 @@ public class MongodbMergeOperate {
 	private static MergeBundle mergeBundle(TapRecordEvent tapRecordEvent) {
 		Map<String, Object> before = null;
 		Map<String, Object> after = null;
+		Map<String, Object> removefields = null;
 		MergeBundle.EventOperation eventOperation = null;
 		if (tapRecordEvent instanceof TapInsertRecordEvent) {
 			after = ((TapInsertRecordEvent) tapRecordEvent).getAfter();
@@ -363,13 +418,21 @@ public class MongodbMergeOperate {
 		} else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
 			before = ((TapUpdateRecordEvent) tapRecordEvent).getBefore();
 			after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
+			List<String> removedFields = ((TapUpdateRecordEvent) tapRecordEvent).getRemovedFields();
+			if(removedFields != null && removedFields.size() > 0)
+			{
+				removefields = new HashMap<>();
+				for(String removeField : removedFields){
+					removefields.put(removeField,true);
+				}
+			}
 			eventOperation = MergeBundle.EventOperation.UPDATE;
 		} else {
 			before = ((TapDeleteRecordEvent) tapRecordEvent).getBefore();
 			eventOperation = MergeBundle.EventOperation.DELETE;
 		}
 
-		return new MergeBundle(eventOperation, before, after);
+		return new MergeBundle(eventOperation, before, after, removefields);
 	}
 
 	private static Document filter(Map<String, Object> data, List<Map<String, String>> joinKeys) {
