@@ -349,17 +349,24 @@ public class MeasurementServiceV2 {
         }
 
         MatchOperation match = Aggregation.match(criteria);
-        GroupOperation group = Aggregation.group(MeasurementEntity.FIELD_TAGS)
-                .first(MeasurementEntity.FIELD_DATE).as(MeasurementEntity.FIELD_DATE)
-                .first(MeasurementEntity.FIELD_TAGS).as(MeasurementEntity.FIELD_TAGS)
-                .first(MeasurementEntity.FIELD_SAMPLES).as(MeasurementEntity.FIELD_SAMPLES);
-
+        LimitOperation limitOperation = Aggregation.limit(1L);
+        AggregationOperation projectionOperation = new AggregationOperation() {
+            @Override
+            public Document toDocument(AggregationOperationContext context) {
+                Document projectFields = new Document();
+                projectFields.put(MeasurementEntity.FIELD_ID,"$"+MeasurementEntity.FIELD_TAGS);
+                projectFields.put(MeasurementEntity.FIELD_DATE,1);
+                projectFields.put(MeasurementEntity.FIELD_TAGS,1);
+                projectFields.put(MeasurementEntity.FIELD_SAMPLES,1);
+                return new Document("$project", projectFields);
+            }
+        };
         Aggregation aggregation;
         if (typeIsEngine) {
             LimitOperation limit = new LimitOperation(1L);
-            aggregation = Aggregation.newAggregation( match, sort, limit, group);
+            aggregation = Aggregation.newAggregation( match, sort, limit, limitOperation, projectionOperation);
         } else {
-            aggregation = Aggregation.newAggregation( match, sort, group);
+            aggregation = Aggregation.newAggregation( match, sort, limitOperation,projectionOperation);
         }
         aggregation.withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
         AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
