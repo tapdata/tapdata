@@ -36,6 +36,11 @@
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.tapdata</groupId>
+            <artifactId>iengine-common</artifactId>
+            <version>0.5.2-SNAPSHOT</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

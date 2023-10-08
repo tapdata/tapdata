@@ -1,5 +1,6 @@
 package io.tapdata.wsclient.modules.imclient.impls;
 
+import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.memory.LastData;
 import io.tapdata.entity.memory.MemoryFetcher;
@@ -138,8 +139,9 @@ public class MonitorThread<T extends PushChannel> extends Thread implements Memo
                 } else {
                     baseUrlIndex++;
                 }
+                String accessToken = (String) imClient.getConfigurationCenter().getConfig(ConfigurationCenter.TOKEN);
                 String old = lastBaseUrl;
-                lastBaseUrl = baseUrls.get(baseUrlIndex);
+                lastBaseUrl = baseUrls.get(baseUrlIndex)+ "proxy?access_token=" + accessToken;
                 TapLogger.debug(TAG, "Will reconnect other url {} as already retry {} times on url {}", lastBaseUrl, MAX, old);
             }
         }
@@ -278,10 +280,8 @@ public class MonitorThread<T extends PushChannel> extends Thread implements Memo
                             Constructor<? extends PushChannel> constructor = pushChannelClass.getConstructor();
                             pushChannel = (T)constructor.newInstance();
                             pushChannel.setImClient(imClient);
-                            if(lastBaseUrl == null) {
-                                lastBaseUrl = imClient.getBaseUrls().get(baseUrlIndex);
-                                //TODO need to choose other base urls to reconnect.
-                            }
+                            String accessToken = (String) imClient.getConfigurationCenter().getConfig(ConfigurationCenter.TOKEN);
+                            lastBaseUrl = imClient.getBaseUrls().get(baseUrlIndex)+ "proxy?access_token=" + accessToken;
                             pushChannel.start(lastBaseUrl);
                         }
                     }

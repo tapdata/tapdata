@@ -32,7 +32,7 @@ public class LoginSuccessfullyObserver implements AspectObserver<LoginSuccessful
             return;
         }
         String accessToken = (String) configurationCenter.getConfig(ConfigurationCenter.TOKEN);
-        proxySubscriptionManager.startIMClient(baseURLs, accessToken);
+        proxySubscriptionManager.startIMClient(baseURLs, accessToken,configurationCenter);
 
         proxySubscriptionManager.setProcessId(ConfigurationCenter.processId);
         proxySubscriptionManager.setUserId((String) configurationCenter.getConfig(ConfigurationCenter.USER_ID));

@@ -72,7 +72,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 //		proxySubscription = new ProxySubscription().nodeId(nodeId).service("engine");
 		maxFrequencyLimiter = new MaxFrequencyLimiter(500, this::syncSubscribeIds);
 	}
-	public void startIMClient(List<String> baseURLs, String accessToken) {
+	public void startIMClient(List<String> baseURLs, String accessToken,ConfigurationCenter configurationCenter) {
 		if(imClient == null) {
 			synchronized (this) {
 				if(imClient == null) {
@@ -80,7 +80,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 					for(String baseUrl : baseURLs) {
 						if(!baseUrl.endsWith("/"))
 							baseUrl = baseUrl + "/";
-						newBaseUrls.add(baseUrl + "proxy?access_token=" + accessToken);
+						newBaseUrls.add(baseUrl);
 					}
 					imClient = new IMClientBuilder()
 							.withBaseUrl(newBaseUrls)
@@ -89,6 +89,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 							.withClientId(ConfigurationCenter.processId + "_" + UUID.randomUUID().toString().replace("-", ""))
 							.withTerminal(1)
 							.withToken(accessToken)
+							.withConfigurationCenter(configurationCenter)
 							.build();
 					imClient.start();
 					EventManager eventManager = EventManager.getInstance();

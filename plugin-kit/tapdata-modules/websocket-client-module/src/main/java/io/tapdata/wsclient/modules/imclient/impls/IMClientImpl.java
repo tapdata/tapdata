@@ -1,5 +1,6 @@
 package io.tapdata.wsclient.modules.imclient.impls;
 
+import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
@@ -29,6 +30,8 @@ public class IMClientImpl implements IMClient {
     private AtomicLong msgCounter;
 
     private String prefix;
+
+    private ConfigurationCenter configurationCenter;
     
 
     LinkedBlockingQueue<Data> messageQueue;
@@ -47,13 +50,14 @@ public class IMClientImpl implements IMClient {
     }
 
 
-    public IMClientImpl(String prefix, String clientId, String service, Integer terminal, String token, List<String> baseUrls) {
+    public IMClientImpl(String prefix, String clientId, String service, Integer terminal, String token, List<String> baseUrls, ConfigurationCenter configurationCenter) {
         this.prefix = prefix;
         this.clientId = clientId;
         this.service = service;
         this.baseUrls = baseUrls;
         this.token = token;
         this.terminal = terminal;
+        this.configurationCenter = configurationCenter;
 
         msgCounter = new AtomicLong(0);
         resultMap = new ConcurrentHashMap<>();
@@ -237,6 +241,14 @@ public class IMClientImpl implements IMClient {
 
     public void setContentTypeClassMap(ConcurrentHashMap<String, Class<? extends Data>> contentTypeClassMap) {
         this.contentTypeClassMap = contentTypeClassMap;
+    }
+
+    public ConfigurationCenter getConfigurationCenter() {
+        return configurationCenter;
+    }
+
+    public void setConfigurationCenter(ConfigurationCenter configurationCenter) {
+        this.configurationCenter = configurationCenter;
     }
 
     @Override
