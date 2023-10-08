@@ -138,7 +138,10 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			throw new ShareCdcUnsupportedException("An internal error occurred when init share cdc reader; Error: " + e.getMessage(), e, false);
 		}
 		CommonUtils.ignoreAnyError(() -> {
-			PDKIntegration.registerMemoryFetcher(String.format("Share CDC Pdk Task Reader-%s", ((ShareCdcTaskPdkContext) shareCdcContext).getTaskDto().getName()), this);
+			PDKIntegration.registerMemoryFetcher(String.format("Share CDC Pdk Task Reader-%s-%s(%s)",
+					((ShareCdcTaskPdkContext) shareCdcContext).getTaskDto().getName(),
+					((ShareCdcTaskPdkContext) shareCdcContext).getNode().getName(),
+					((ShareCdcTaskPdkContext) shareCdcContext).getNode().getId()), this);
 		}, TAG);
 		obsLogger.info("Init share cdc reader completed");
 	}
