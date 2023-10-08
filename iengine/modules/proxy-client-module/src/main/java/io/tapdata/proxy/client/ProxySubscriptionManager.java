@@ -46,6 +46,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 @Bean
 public class ProxySubscriptionManager implements MemoryFetcher {
@@ -72,7 +73,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 //		proxySubscription = new ProxySubscription().nodeId(nodeId).service("engine");
 		maxFrequencyLimiter = new MaxFrequencyLimiter(500, this::syncSubscribeIds);
 	}
-	public void startIMClient(List<String> baseURLs, String accessToken,ConfigurationCenter configurationCenter) {
+	public void startIMClient(List<String> baseURLs,Supplier<String> accessToken) {
 		if(imClient == null) {
 			synchronized (this) {
 				if(imClient == null) {
@@ -89,7 +90,6 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 							.withClientId(ConfigurationCenter.processId + "_" + UUID.randomUUID().toString().replace("-", ""))
 							.withTerminal(1)
 							.withToken(accessToken)
-							.withConfigurationCenter(configurationCenter)
 							.build();
 					imClient.start();
 					EventManager eventManager = EventManager.getInstance();

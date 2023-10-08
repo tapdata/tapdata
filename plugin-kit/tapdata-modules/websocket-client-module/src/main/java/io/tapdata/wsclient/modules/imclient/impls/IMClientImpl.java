@@ -1,6 +1,5 @@
 package io.tapdata.wsclient.modules.imclient.impls;
 
-import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
@@ -18,21 +17,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 public class IMClientImpl implements IMClient {
     private static final String TAG = IMClient.class.getSimpleName();
     private String clientId;
     private String service;
     private List<String> baseUrls;
-    private String token;
+    private Supplier<String> token;
     private Integer terminal;
 
     private AtomicLong msgCounter;
 
     private String prefix;
-
-    private ConfigurationCenter configurationCenter;
-    
 
     LinkedBlockingQueue<Data> messageQueue;
 //    WorkerQueue<IMData> messageWorkerQueue;
@@ -50,14 +47,13 @@ public class IMClientImpl implements IMClient {
     }
 
 
-    public IMClientImpl(String prefix, String clientId, String service, Integer terminal, String token, List<String> baseUrls, ConfigurationCenter configurationCenter) {
+    public IMClientImpl(String prefix, String clientId, String service, Integer terminal, Supplier<String> token, List<String> baseUrls) {
         this.prefix = prefix;
         this.clientId = clientId;
         this.service = service;
         this.baseUrls = baseUrls;
         this.token = token;
         this.terminal = terminal;
-        this.configurationCenter = configurationCenter;
 
         msgCounter = new AtomicLong(0);
         resultMap = new ConcurrentHashMap<>();
@@ -195,11 +191,11 @@ public class IMClientImpl implements IMClient {
         this.baseUrls = baseUrls;
     }
 
-    public String getToken() {
+    public Supplier<String> getToken() {
         return token;
     }
 
-    public void setToken(String token) {
+    public void setToken(Supplier<String> token) {
         this.token = token;
     }
 
@@ -241,14 +237,6 @@ public class IMClientImpl implements IMClient {
 
     public void setContentTypeClassMap(ConcurrentHashMap<String, Class<? extends Data>> contentTypeClassMap) {
         this.contentTypeClassMap = contentTypeClassMap;
-    }
-
-    public ConfigurationCenter getConfigurationCenter() {
-        return configurationCenter;
-    }
-
-    public void setConfigurationCenter(ConfigurationCenter configurationCenter) {
-        this.configurationCenter = configurationCenter;
     }
 
     @Override

@@ -1,18 +1,17 @@
 package io.tapdata.wsclient.modules.imclient;
 
 import io.tapdata.wsclient.modules.imclient.impls.IMClientImpl;
-import com.tapdata.constant.ConfigurationCenter;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 public class IMClientBuilder {
     private String prefix;
     private String clientId;
     private String service;
     private Integer terminal;
-    private String token;
+    private Supplier<String> token;
     private List<String> baseUrls;
-    private ConfigurationCenter configurationCenter;
 
     public IMClientBuilder() {
     }
@@ -33,7 +32,7 @@ public class IMClientBuilder {
         this.terminal = terminal;
         return this;
     }
-    public IMClientBuilder withToken(String token) {
+    public IMClientBuilder withToken(Supplier<String> token) {
         this.token = token;
         return this;
     }
@@ -41,11 +40,6 @@ public class IMClientBuilder {
         this.baseUrls = baseUrls;
         return this;
     }
-    public IMClientBuilder withConfigurationCenter(ConfigurationCenter configurationCenter) {
-        this.configurationCenter = configurationCenter;
-        return this;
-    }
-
 
     public IMClient build() {
         if(this.prefix == null ||
@@ -53,9 +47,8 @@ public class IMClientBuilder {
                 this.service == null ||
                 this.terminal == null ||
                 this.token == null ||
-                this.baseUrls == null ||
-                this.configurationCenter == null)
+                this.baseUrls == null )
             throw new IllegalArgumentException("Build IMClient failed, need clientId, service, terminal, token and baseUrls");
-        return new IMClientImpl(prefix, clientId, service, terminal, token, baseUrls,configurationCenter);
+        return new IMClientImpl(prefix, clientId, service, terminal, token, baseUrls);
     }
 }
