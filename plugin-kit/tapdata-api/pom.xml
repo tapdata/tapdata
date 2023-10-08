@@ -5,7 +5,7 @@
     <artifactId>tapdata-api</artifactId>
     <groupId>io.tapdata</groupId>
     <name>tapdata-api</name>
-    <version>1.2.6-RELEASE</version>
+    <version>1.2.7-SNAPSHOT</version>
 
     <properties>
         <java.version>8</java.version>
