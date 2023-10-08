@@ -378,18 +378,18 @@ public class MongodbMergeOperate {
 						if (array) {
 							String[] paths = targetPath.split("\\.");
 							if (paths.length > 1) {
-								updateOpDoc.append(paths[0] + ".$[element1]." + paths[1] + ".$[element2]." + entry.getKey(), entry.getValue());
+								unsetOpDoc.append(paths[0] + ".$[element1]." + paths[1] + ".$[element2]." + entry.getKey(), entry.getValue());
 							} else {
-								updateOpDoc.append(targetPath + ".$[element1]." + entry.getKey(), entry.getValue());
+								unsetOpDoc.append(targetPath + ".$[element1]." + entry.getKey(), entry.getValue());
 							}
 						} else {
-							updateOpDoc.append(targetPath + ".$[element1]." + entry.getKey(), entry.getValue());
+							unsetOpDoc.append(targetPath + ".$[element1]." + entry.getKey(), entry.getValue());
 						}
 					}
 					if (mergeResult.getUpdate().containsKey("$unset")) {
-						mergeResult.getUpdate().get("$unset", Document.class).putAll(updateOpDoc);
+						mergeResult.getUpdate().get("$unset", Document.class).putAll(unsetOpDoc);
 					} else {
-						mergeResult.getUpdate().put("$unset", updateOpDoc);
+						mergeResult.getUpdate().put("$unset", unsetOpDoc);
 					}
 				}
 				break;
@@ -419,11 +419,10 @@ public class MongodbMergeOperate {
 			before = ((TapUpdateRecordEvent) tapRecordEvent).getBefore();
 			after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
 			List<String> removedFields = ((TapUpdateRecordEvent) tapRecordEvent).getRemovedFields();
-			if(removedFields != null && removedFields.size() > 0)
-			{
+			if (removedFields != null && removedFields.size() > 0) {
 				removefields = new HashMap<>();
-				for(String removeField : removedFields){
-					removefields.put(removeField,true);
+				for (String removeField : removedFields) {
+					removefields.put(removeField, true);
 				}
 			}
 			eventOperation = MergeBundle.EventOperation.UPDATE;

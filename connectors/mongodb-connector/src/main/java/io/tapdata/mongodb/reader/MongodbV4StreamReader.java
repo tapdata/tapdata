@@ -162,8 +162,8 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 							after.putAll(fullDocument);
 
 							TapUpdateRecordEvent recordEvent = updateDMLEvent(null, after, collectionName);
-							Map<String, Object> info = new DataMap();
-							Map<String, Object> unset = new DataMap();
+//							Map<String, Object> info = new DataMap();
+//							Map<String, Object> unset = new DataMap();
 							List<String> removedFields = new ArrayList<>();
 							UpdateDescription updateDescription = event.getUpdateDescription();
 							if (updateDescription != null) {
@@ -179,7 +179,7 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 //								if (unset.size() > 0) {
 //									info.put("$unset", unset);
 //								}
-								if(removedFields.size()>0){
+								if (removedFields.size() > 0) {
 									recordEvent.removedFields(removedFields);
 								}
 							}
