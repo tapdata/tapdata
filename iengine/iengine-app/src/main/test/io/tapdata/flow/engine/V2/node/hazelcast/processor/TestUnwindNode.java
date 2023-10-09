@@ -170,4 +170,50 @@ public class TestUnwindNode {
 
     }
 
+    @Test
+    public void performanceTesting() {
+        List<TapEvent> events = new ArrayList();
+        for ( int index = 0;  index < 10000; index++) {
+            Map<String, Object> before = new HashMap<>();
+            before.put("id", 1);
+            List<Integer> arr = new ArrayList<>();
+            arr.add(1);
+            arr.add(2);
+            arr.add(1);
+            arr.add(2);
+            arr.add(1);
+            arr.add(2);
+            arr.add(1);
+            arr.add(2);
+            arr.add(1);
+            arr.add(2);
+            arr.add(1);
+            arr.add(2);
+            arr.add(1);
+            arr.add(2);
+            arr.add(1);
+            arr.add(2);
+            arr.add(1);
+            arr.add(2);
+            arr.add(1);
+            arr.add(2);
+            arr.add(1);
+            arr.add(2);
+            arr.add(1);
+            arr.add(2);
+            before.put("field", arr);
+            TapDeleteRecordEvent event = TapDeleteRecordEvent.create();
+            event.before(before);
+            event.setReferenceTime(System.currentTimeMillis());
+            events.add(event);
+        }
+        UnwindProcessNode node = new UnwindProcessNode();
+        node.setPath("field");
+        long start = System.currentTimeMillis();
+        for (TapEvent event : events) {
+            EventHandel.getHandelResult(node, event);
+        }
+        long end = System.currentTimeMillis();
+        System.out.println("Cost time: " + (end-start) + " ms about 1000 records");
+    }
 }
