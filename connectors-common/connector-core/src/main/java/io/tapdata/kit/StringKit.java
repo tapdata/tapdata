@@ -90,8 +90,6 @@ public class StringKit {
         if (endIndex <= 0) {
             return "";
         }
-
-        startIndex = startIndex + start.length();
         if (startIndex >= endIndex) {
             throw new RuntimeException(String.format("Invalid sql: %s, start: %s, end: %s", sql, start, end));
         } else {
