@@ -352,7 +352,7 @@ class UpdateHandel implements EventHandel {
             TapInsertRecordEvent insert = TapInsertRecordEvent.create();
             insert.after(after);
             insert.referenceTime(referenceTime);
-            List<TapEvent> inserts = EventHandel.getHandelResult(node, delete);
+            List<TapEvent> inserts = EventHandel.getHandelResult(node, insert);
             if (null != inserts) {
                 events.addAll(inserts);
             }
