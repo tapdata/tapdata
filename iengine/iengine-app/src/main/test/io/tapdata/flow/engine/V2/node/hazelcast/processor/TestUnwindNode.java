@@ -19,6 +19,7 @@ import static com.tapdata.tm.sdk.util.JacksonUtil.toJson;
 
 
 public class TestUnwindNode {
+
     @Test
     public void deleteEventWithUnwindNode() throws JsonProcessingException {
         Map<String, Object> before = new HashMap<>();
@@ -127,6 +128,7 @@ public class TestUnwindNode {
 
     @Test
     public void updateEventWithUnwindNode() throws JsonProcessingException {
+
         Map<String, Object> before = new HashMap<>();
         before.put("id", 1);
         List<Integer> arr0 = new ArrayList<>();
@@ -145,6 +147,10 @@ public class TestUnwindNode {
         event.setReferenceTime(System.currentTimeMillis());
         UnwindProcessNode node = new UnwindProcessNode();
         node.setPath("field");
+
+        /**
+         * update event with before and after
+         * */
         List<TapEvent> handelResult1 = EventHandel.getHandelResult(node, event);
         boolean count = handelResult1.size() == 2;
         Assert.assertTrue(
@@ -167,6 +173,29 @@ public class TestUnwindNode {
         Map<String, Object> after1 = ((TapInsertRecordEvent) tapEvent1).getAfter();
         Assert.assertEquals(" The content of the second inserted event after processing by the Uwind node does not meet expectations,  It should be " +
                 "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(after1), "{\"field\":2,\"id\":1}", toJson(after1));
+
+
+        /**
+         * update event with empty before
+         * */
+        event.before(null);
+        handelResult1 = EventHandel.getHandelResult(node, event);
+        count = handelResult1.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 event from tapdata event by unwind node about update event which not have before map, from event: " + toJson(after)
+                        + ", only " + handelResult1.size() + " after unwind node",
+                count);
+        tapEvent0 = handelResult1.get(0);
+        type0 = tapEvent0 instanceof TapUpdateRecordEvent;
+        Assert.assertTrue(
+                "Fail translate update event to one delete event after unwind node for the first event",
+                type0);
+        before0 = ((TapUpdateRecordEvent) tapEvent0).getBefore();
+        Map<String, Object> after0 = ((TapUpdateRecordEvent) tapEvent0).getAfter();
+        Assert.assertEquals(" The content of the first inserted event after processing by the Unwind node does not meet expectations,  It should be " +
+                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(after0), "{\"field\":2,\"id\":1}", toJson(after0));
+        Assert.assertEquals(" The content of the first inserted event before processing by the Unwind node does not meet expectations,  It should be " +
+                "null , but the result is  " + toJson(before0), "null", toJson(before0));
 
     }
 
