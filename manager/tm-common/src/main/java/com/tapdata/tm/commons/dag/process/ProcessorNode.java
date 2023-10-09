@@ -5,7 +5,6 @@ import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
-import lombok.Data;
 
 import java.util.Collection;
 import java.util.Collections;
