@@ -890,7 +890,7 @@ public class MongodbConnector extends ConnectorBase {
 					}
 					collection.createIndex(keys, indexOptions);
 					long createIndexEnd = System.currentTimeMillis();
-					tapConnectorContext.getLog().info("Create table index successfully,index contains fields {},cost {} seconds", tapIndex.getIndexFields(),(createIndexEnd-createIndexStart)/1000);
+					tapConnectorContext.getLog().info("Create table index successfully,table name is {},index contains fields {},cost {} seconds",table.getName(), tapIndex.getIndexFields(), (createIndexEnd-createIndexStart)/1000);
 				}
 			}
 		}
