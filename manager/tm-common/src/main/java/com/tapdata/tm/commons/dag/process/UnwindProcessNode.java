@@ -15,18 +15,24 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapMap;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import static io.tapdata.entity.simplify.TapSimplify.field;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 
 /**
  * @author GavinXiao
@@ -37,6 +43,7 @@ import java.util.stream.Collectors;
 @NodeType("unwind_processor")
 @Slf4j
 public class UnwindProcessNode extends ProcessorNode {
+    public static final String SUF_PATH_KEY = "$";
 
     private String nodeName;
 
@@ -137,6 +144,18 @@ public class UnwindProcessNode extends ProcessorNode {
             }
         }
 
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (nameFieldMap.containsKey(path)) {
+            TapField field = nameFieldMap.get(path);
+            field.setTapType(new TapMap());
+            if (null != includeArrayIndex && !"".equals(includeArrayIndex.trim())) {
+                TapField includeArrayIndexField = field(includeArrayIndex, JAVA_Long);
+                includeArrayIndexField.setName(includeArrayIndex);
+                includeArrayIndexField.setComment("The name of a new field to hold the array index of the element. The name cannot start with a dollar sign $.");
+                tapTable.add(includeArrayIndexField);
+            }
+        }
+
         if (StringUtils.isNotBlank(expression)) {
             PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
         }
@@ -150,20 +169,13 @@ public class UnwindProcessNode extends ProcessorNode {
             schema.setOriginalName(schema1.getOriginalName());
             schema.setCreateSource(schema1.getCreateSource());
 
-
             List<Field> fields1 = schema1.getFields();
             Map<String, Field> originFieldMap = fields1.stream().collect(Collectors.toMap(Field::getFieldName, f -> f));
-
-            if (originFieldMap.containsKey(path)) {
-                Field field = originFieldMap.get(path);
-                field.setTapType("TapMapping");
-            }
 
             String sourceDbType = null;
             if (CollectionUtils.isNotEmpty(fields1)) {
                 sourceDbType = fields1.get(0).getSourceDbType();
             }
-
 
             List<Field> fields = schema.getFields();
 
@@ -212,6 +224,7 @@ public class UnwindProcessNode extends ProcessorNode {
     }
 
     public String getPath() {
+        if (null != path && path.startsWith(SUF_PATH_KEY) && !SUF_PATH_KEY.equals(path.trim())) return path.substring(1);
         return path;
     }
 
