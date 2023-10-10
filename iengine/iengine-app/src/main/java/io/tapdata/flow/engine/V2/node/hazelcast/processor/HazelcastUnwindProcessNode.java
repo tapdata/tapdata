@@ -59,8 +59,9 @@ public class HazelcastUnwindProcessNode extends HazelcastProcessorBaseNode {
             consumer.accept(tapdataEvent, processResult);
         } else {
             for (TapEvent e : eventList) {
-                tapdataEvent.setTapEvent(e);
-                consumer.accept(tapdataEvent, processResult);
+                TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
+                cloneTapdataEvent.setTapEvent(e);
+                consumer.accept(cloneTapdataEvent, processResult);
             }
         }
     }
