@@ -182,6 +182,7 @@ class InsertHandel implements EventHandel {
                     TapInsertRecordEvent e = TapInsertRecordEvent.create();
                     e.after(containsPathAndSetValue(path, after, item, includeArrayIndex, index));
                     e.setReferenceTime(((TapInsertRecordEvent)event).getReferenceTime());
+                    e.setTableId(((TapInsertRecordEvent)event).getTableId());
                     events.add(e);
                     index ++;
                 }
@@ -203,6 +204,7 @@ class InsertHandel implements EventHandel {
                     TapInsertRecordEvent e = TapInsertRecordEvent.create();
                     e.after(containsPathAndSetValue(path, after, arr[index], includeArrayIndex, index));
                     e.setReferenceTime(((TapInsertRecordEvent)event).getReferenceTime());
+                    e.setTableId(((TapInsertRecordEvent)event).getTableId());
                     events.add(e);
                 }
             } else {
@@ -254,6 +256,7 @@ class DeleteHandel implements EventHandel {
                     TapDeleteRecordEvent e = TapDeleteRecordEvent.create();
                     e.before(containsPathAndSetValue(path, before, item, includeArrayIndex, index));
                     e.setReferenceTime(((TapDeleteRecordEvent)event).getReferenceTime());
+                    e.setTableId(((TapDeleteRecordEvent)event).getTableId());
                     events.add(e);
                     index ++;
                 }
@@ -275,6 +278,7 @@ class DeleteHandel implements EventHandel {
                     TapDeleteRecordEvent e = TapDeleteRecordEvent.create();
                     e.before(containsPathAndSetValue(path, before, arr[index], includeArrayIndex, index));
                     e.setReferenceTime(((TapDeleteRecordEvent)event).getReferenceTime());
+                    e.setTableId(((TapDeleteRecordEvent)event).getTableId());
                     events.add(e);
                 }
             } else {
@@ -329,6 +333,7 @@ class UpdateHandel implements EventHandel {
                         TapUpdateRecordEvent e = TapUpdateRecordEvent.create();
                         e.after(containsPathAndSetValue(path, after, item, includeArrayIndex, index));
                         e.setReferenceTime(((TapUpdateRecordEvent) event).getReferenceTime());
+                        e.setTableId(((TapUpdateRecordEvent)event).getTableId());
                         events.add(e);
                         index++;
                     }
@@ -349,6 +354,7 @@ class UpdateHandel implements EventHandel {
                         TapUpdateRecordEvent e = TapUpdateRecordEvent.create();
                         e.after(containsPathAndSetValue(path, after, arr[index], includeArrayIndex, index));
                         e.setReferenceTime(((TapUpdateRecordEvent) event).getReferenceTime());
+                        e.setTableId(((TapUpdateRecordEvent)event).getTableId());
                         events.add(e);
                     }
                 } else {
