@@ -129,7 +129,7 @@ public interface EventHandel {
         return copyMap;
     }
 
-    default void containsPathAndSetValue(Map<String, Object> record, String includeArrayIndex, long arrayIndexValue) {
+    default void containsPathAndSetValue(Map<String, Object> record, String includeArrayIndex, Long arrayIndexValue) {
         if (null != includeArrayIndex && !"".equals(includeArrayIndex.trim())) {
             record.put(includeArrayIndex, arrayIndexValue);
         }
@@ -158,7 +158,9 @@ class InsertHandel implements EventHandel {
         if (null != after) {
             Map<String, Object> parentMap = EventHandel.containsParentFromPath(path, after, containsKey);
             if (null == parentMap || !containsKey.get()) {
-                events.add(event);
+                if (preserveNullAndEmptyArrays) {
+                    events.add(event);
+                }
                 return events;
             }
             Object result = containsPath(path, after, containsKey);
@@ -204,7 +206,12 @@ class InsertHandel implements EventHandel {
                     events.add(e);
                 }
             } else {
-                events.add(event);
+                if (!(null == result && !preserveNullAndEmptyArrays)) {
+                    if (containsKey.get()) {
+                        containsPathAndSetValue(parentMap, includeArrayIndex, null);
+                    }
+                    events.add(event);
+                }
             }
         }
         return events;
@@ -223,7 +230,9 @@ class DeleteHandel implements EventHandel {
         if (null != before) {
             Map<String, Object> parentMap = EventHandel.containsParentFromPath(path, before, containsKey);
             if (null == parentMap || !containsKey.get()) {
-                events.add(event);
+                if (preserveNullAndEmptyArrays) {
+                    events.add(event);
+                }
                 return events;
             }
             Object result = containsPath(path, before, containsKey);
@@ -269,7 +278,12 @@ class DeleteHandel implements EventHandel {
                     events.add(e);
                 }
             } else {
-                events.add(event);
+                if (!(null == result && !preserveNullAndEmptyArrays)) {
+                    if (containsKey.get()) {
+                        containsPathAndSetValue(parentMap, includeArrayIndex, null);
+                    }
+                    events.add(event);
+                }
             }
         }
         return events;
@@ -288,10 +302,13 @@ class UpdateHandel implements EventHandel {
             final String includeArrayIndex = node.getIncludeArrayIndex();
             final boolean preserveNullAndEmptyArrays = node.isPreserveNullAndEmptyArrays();
             final AtomicBoolean containsKey = new AtomicBoolean(false);
+            String[] split = path.split("\\.");
             if (null != after) {
                 Map<String, Object> parentMap = EventHandel.containsParentFromPath(path, after, containsKey);
                 if (null == parentMap || !containsKey.get()) {
-                    events.add(event);
+                    if (preserveNullAndEmptyArrays) {
+                        events.add(event);
+                    }
                     return events;
                 }
                 Object result = containsPath(path, after, containsKey);
@@ -301,7 +318,6 @@ class UpdateHandel implements EventHandel {
                             if (after.containsKey(path)) {
                                 parentMap.remove(path);
                             } else {
-                                String[] split = path.split("\\.");
                                 parentMap.remove(split[split.length - 1]);
                             }
                             events.add(event);
@@ -323,7 +339,6 @@ class UpdateHandel implements EventHandel {
                             if (after.containsKey(path)) {
                                 parentMap.remove(path);
                             } else {
-                                String[] split = path.split("\\.");
                                 parentMap.remove(split[split.length - 1]);
                             }
                             events.add(event);
@@ -337,7 +352,12 @@ class UpdateHandel implements EventHandel {
                         events.add(e);
                     }
                 } else {
-                    events.add(event);
+                    if (!(null == result && !preserveNullAndEmptyArrays)) {
+                        if (containsKey.get()) {
+                            containsPathAndSetValue(parentMap, includeArrayIndex, null);
+                        }
+                        events.add(event);
+                    }
                 }
             }
         } else {

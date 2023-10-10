@@ -66,7 +66,6 @@ public class UnwindProcessNode extends ProcessorNode {
 
     @Override
     protected Schema loadSchema(List<String> includes) {
-//        List<Node<Schema>> predecessors = this.predecessors();
         final List<String> predIds = new ArrayList<>();
         getPrePre(this, predIds);
         predIds.add(this.getId());

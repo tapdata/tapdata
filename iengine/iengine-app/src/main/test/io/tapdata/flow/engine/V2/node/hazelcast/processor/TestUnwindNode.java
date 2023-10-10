@@ -10,16 +10,644 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.unwind.EventHandel;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import static com.tapdata.tm.sdk.util.JacksonUtil.toJson;
 
 
 public class TestUnwindNode {
 
+    /**
+     * 依次测试节点的各个属性值
+     * */
+    @Test
+    public void unwindConfigTest() throws JsonProcessingException {
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 1);
+        List<Integer> arr = new ArrayList<>();
+        arr.add(1);
+        arr.add(2);
+        before.put("field", arr);
+        TapDeleteRecordEvent event = TapDeleteRecordEvent.create();
+        event.before(before);
+        event.setReferenceTime(System.currentTimeMillis());
+
+        UnwindProcessNode node = new UnwindProcessNode();
+        node.setPath("field");
+        List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
+        boolean count = handelResult.size() == 2;
+        Assert.assertTrue(
+                "Fail get 2 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        TapEvent tapEvent0 = handelResult.get(0);
+        boolean type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "\"{\"field\":1,\"id\":1}\" , but the result is  " + toJson(before0), "{\"field\":1,\"id\":1}", toJson(before0));
+
+        TapEvent tapEvent1 = handelResult.get(1);
+        boolean type1 = tapEvent1 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue("ail translate insert event to delete event after unwind node for the second event", type1);
+        Map<String, Object> before1 = ((TapDeleteRecordEvent) tapEvent1).getBefore();
+        Assert.assertEquals(" The content of the second delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(before1), "{\"field\":2,\"id\":1}", toJson(before1));
+
+        /**
+         * unwind with IncludeArrayIndex
+         * */
+        node.setIncludeArrayIndex("index");
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 2;
+        Assert.assertTrue(
+                "Fail get 2 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        tapEvent0 = handelResult.get(0);
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":1,\"index\":0,\"id\":1} , but the result is  " + toJson(before0), "{\"field\":1,\"index\":0,\"id\":1}", toJson(before0));
+
+        tapEvent1 = handelResult.get(1);
+        type1 = tapEvent1 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue("ail translate insert event to delete event after unwind node for the second event", type1);
+        before1 = ((TapDeleteRecordEvent) tapEvent1).getBefore();
+        Assert.assertEquals(" The content of the second delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":2,\"index\":1,\"id\":1}, but the result is  " + toJson(before1), "{\"field\":2,\"index\":1,\"id\":1}", toJson(before1));
+
+
+        /**
+         * unwind with IncludeArrayIndex and PreserveNullAndEmptyArrays
+         * */
+        node.setPreserveNullAndEmptyArrays(true);
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 2;
+        Assert.assertTrue(
+                "Fail get 2 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        tapEvent0 = handelResult.get(0);
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":1,\"index\":0,\"id\":1}, but the result is  " + toJson(before0), "{\"field\":1,\"index\":0,\"id\":1}", toJson(before0));
+
+        tapEvent1 = handelResult.get(1);
+        type1 = tapEvent1 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue("ail translate insert event to delete event after unwind node for the second event", type1);
+        before1 = ((TapDeleteRecordEvent) tapEvent1).getBefore();
+        Assert.assertEquals(" The content of the second delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":2,\"index\":1,\"id\":1}, but the result is  " + toJson(before1), "{\"field\":2,\"index\":1,\"id\":1}", toJson(before1));
+    }
+
+    /**
+     * 测试源事件不包含path值的情况
+     * */
+    @Test
+    public void emptyValueOfSinglePathWithUnwind() throws JsonProcessingException {
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 1);
+        List<Integer> arr = new ArrayList<>();
+        arr.add(1);
+        arr.add(2);
+        before.put("field", arr);
+        TapDeleteRecordEvent event = TapDeleteRecordEvent.create();
+        event.before(before);
+        event.setReferenceTime(System.currentTimeMillis());
+
+        UnwindProcessNode node = new UnwindProcessNode();
+        node.setPath("field1");
+
+        //不指定索引字段，忽略null或empty
+        List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
+        boolean count = handelResult.size() == 0;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        //不指定索引字段，不忽略null或empty
+        node.setPreserveNullAndEmptyArrays(true);
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+        TapEvent tapEvent0 = handelResult.get(0);
+        boolean type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":[1,2],\"id\":1} , but the result is  " + toJson(before0), "{\"field\":[1,2],\"id\":1}", toJson(before0));
+
+
+        //指定索引字段，不忽略null或empty
+        node.setIncludeArrayIndex("index");
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        tapEvent0 = handelResult.get(0);
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":[1,2],\"id\":1} , but the result is  " + toJson(before0), "{\"field\":[1,2],\"id\":1}", toJson(before0));
+
+    }
+
+    /**
+     * 测试源事件path值为null情况
+     * */
+    @Test
+    public void nullValueOfSinglePathWithUnwind() throws JsonProcessingException {
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 1);
+        before.put("field", null);
+        TapDeleteRecordEvent event = TapDeleteRecordEvent.create();
+        event.before(before);
+        event.setReferenceTime(System.currentTimeMillis());
+
+        UnwindProcessNode node = new UnwindProcessNode();
+        node.setPath("field");
+
+        //不指定索引字段，忽略null或empty
+        List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
+        boolean count = handelResult.size() == 0;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        //不指定索引字段，不忽略null或empty
+        node.setPreserveNullAndEmptyArrays(true);
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+        TapEvent tapEvent0 = handelResult.get(0);
+        boolean type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":null,\"id\":1} , but the result is  " + toJson(before0), "{\"field\":null,\"id\":1}", toJson(before0));
+
+
+        //指定索引字段，不忽略null或empty
+        node.setIncludeArrayIndex("index");
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        tapEvent0 = handelResult.get(0);
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":null,\"index\":null,\"id\":1}, but the result is  " + toJson(before0),
+                "{\"field\":null,\"index\":null,\"id\":1}",
+                toJson(before0));
+
+    }
+
+    /**
+     * 测试源事件path值为null情况
+     * */
+    @Test
+    public void emptyListValueOfSinglePathWithUnwind() throws JsonProcessingException {
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 1);
+        before.put("field", new ArrayList<>());
+        TapDeleteRecordEvent event = TapDeleteRecordEvent.create();
+        event.before(before);
+        event.setReferenceTime(System.currentTimeMillis());
+
+        UnwindProcessNode node = new UnwindProcessNode();
+        node.setPath("field");
+
+        //不指定索引字段，忽略null或empty
+        List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
+        boolean count = handelResult.size() == 0;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        //不指定索引字段，不忽略null或empty
+        node.setPreserveNullAndEmptyArrays(true);
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+        TapEvent tapEvent0 = handelResult.get(0);
+        boolean type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"id\":1} , but the result is  " + toJson(before0), "{\"id\":1}", toJson(before0));
+
+
+        //指定索引字段，不忽略null或empty
+        node.setIncludeArrayIndex("index");
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        tapEvent0 = handelResult.get(0);
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"id\":1} , but the result is  " + toJson(before0), "{\"id\":1}", toJson(before0));
+
+    }
+
+    /**
+     * 测试源事件path值为非数组或列表情况
+     * */
+    @Test
+    public void unListValueOfSinglePathWithUnwind() throws JsonProcessingException {
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 1);
+        before.put("field", "test case by gavin");
+        TapDeleteRecordEvent event = TapDeleteRecordEvent.create();
+        event.before(before);
+        event.setReferenceTime(System.currentTimeMillis());
+
+        UnwindProcessNode node = new UnwindProcessNode();
+        node.setPath("field");
+
+        //不指定索引字段，忽略null或empty
+        List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
+        boolean count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+        TapEvent tapEvent0 = handelResult.get(0);
+        boolean type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":\"test case by gavin\",\"id\":1} , but the result is  " + toJson(before0), "{\"field\":\"test case by gavin\",\"id\":1}", toJson(before0));
+
+
+        //指定索引字段，不忽略null或empty
+        node.setIncludeArrayIndex("index");
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        tapEvent0 = handelResult.get(0);
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":\"test case by gavin\",\"index\":null,\"id\":1} , but the result is  " + toJson(before0), "{\"field\":\"test case by gavin\",\"index\":null,\"id\":1}", toJson(before0));
+
+        //不指定索引字段，不忽略null或empty
+        node.setPreserveNullAndEmptyArrays(true);
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+        tapEvent0 = handelResult.get(0);
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":\"test case by gavin\",\"index\":null,\"id\":1} , but the result is  " + toJson(before0), "{\"field\":\"test case by gavin\",\"index\":null,\"id\":1}", toJson(before0));
+
+    }
+
+
+    /**
+     * 多层path测试源事件不包含path值的情况
+     * */
+    @Test
+    public void emptyValueOfManyPathWithUnwind() throws JsonProcessingException {
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 1);
+        Map<String, Object> map = new HashMap<>();
+        map.put("key", "007");
+        before.put("field", map);
+        TapDeleteRecordEvent event = TapDeleteRecordEvent.create();
+        event.before(before);
+        event.setReferenceTime(System.currentTimeMillis());
+
+        UnwindProcessNode node = new UnwindProcessNode();
+        node.setPath("field.array");
+
+        //不指定索引字段，忽略null或empty
+        List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
+        boolean count = handelResult.size() == 0;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        //不指定索引字段，不忽略null或empty
+        node.setPreserveNullAndEmptyArrays(true);
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+        TapEvent tapEvent0 = handelResult.get(0);
+        boolean type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":{\"key\":\"007\"},\"id\":1} , but the result is  " + toJson(before0), "{\"field\":{\"key\":\"007\"},\"id\":1}", toJson(before0));
+
+
+        //指定索引字段，不忽略null或empty
+        node.setIncludeArrayIndex("index");
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        tapEvent0 = handelResult.get(0);
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":{\"key\":\"007\"},\"id\":1} , but the result is  " + toJson(before0), "{\"field\":{\"key\":\"007\"},\"id\":1}", toJson(before0));
+
+    }
+
+    /**
+     * 多层path测试源事件path值为null情况
+     * */
+    @Test
+    public void nullValueOfManyPathWithUnwind() throws JsonProcessingException {
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 1);
+        Map<String, Object> map = new HashMap<>();
+        map.put("key", "007");
+        map.put("array", null);
+        before.put("field", map);
+        TapDeleteRecordEvent event = TapDeleteRecordEvent.create();
+        event.before(before);
+        event.setReferenceTime(System.currentTimeMillis());
+
+        UnwindProcessNode node = new UnwindProcessNode();
+        node.setPath("field.array");
+
+        //不指定索引字段，忽略null或empty
+        List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
+        boolean count = handelResult.size() == 0;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        //不指定索引字段，不忽略null或empty
+        node.setPreserveNullAndEmptyArrays(true);
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+        TapEvent tapEvent0 = handelResult.get(0);
+        boolean type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":{\"array\":null,\"key\":\"007\"},\"id\":1} , but the result is  " + toJson(before0), "{\"field\":{\"array\":null,\"key\":\"007\"},\"id\":1}", toJson(before0));
+
+
+        //指定索引字段，不忽略null或empty
+        node.setIncludeArrayIndex("index");
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        tapEvent0 = handelResult.get(0);
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":{\"array\":null,\"index\":null,\"key\":\"007\"},\"id\":1}, but the result is  " + toJson(before0),
+                "{\"field\":{\"array\":null,\"index\":null,\"key\":\"007\"},\"id\":1}",
+                toJson(before0));
+
+    }
+
+    /**
+     * 多层path测试源事件path值为null情况
+     * */
+    @Test
+    public void emptyListValueOfManyPathWithUnwind() throws JsonProcessingException {
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 1);
+        Map<String, Object> map = new HashMap<>();
+        map.put("key", "007");
+        map.put("array", new ArrayList<Object>());
+        before.put("field", map);
+        TapDeleteRecordEvent event = TapDeleteRecordEvent.create();
+        event.before(before);
+        event.setReferenceTime(System.currentTimeMillis());
+
+        UnwindProcessNode node = new UnwindProcessNode();
+        node.setPath("field.array");
+
+        //不指定索引字段，忽略null或empty
+        List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
+        boolean count = handelResult.size() == 0;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        //不指定索引字段，不忽略null或empty
+        node.setPreserveNullAndEmptyArrays(true);
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+        TapEvent tapEvent0 = handelResult.get(0);
+        boolean type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":{\"key\":\"007\"},\"id\":1} , but the result is  " + toJson(before0), "{\"field\":{\"key\":\"007\"},\"id\":1}", toJson(before0));
+
+
+        //指定索引字段，不忽略null或empty
+        node.setIncludeArrayIndex("index");
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        tapEvent0 = handelResult.get(0);
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":{\"key\":\"007\"},\"id\":1} , but the result is  " + toJson(before0), "{\"field\":{\"key\":\"007\"},\"id\":1}", toJson(before0));
+
+    }
+
+    /**
+     * 多层path测试源事件path值为非数组或列表情况
+     * */
+    @Test
+    public void unListValueOfManyPathWithUnwind() throws JsonProcessingException {
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 1);
+        Map<String, Object> map = new HashMap<>();
+        map.put("key", "007");
+        map.put("array", "test case by gavin");
+        before.put("field", map);
+        TapDeleteRecordEvent event = TapDeleteRecordEvent.create();
+        event.before(before);
+        event.setReferenceTime(System.currentTimeMillis());
+
+        UnwindProcessNode node = new UnwindProcessNode();
+        node.setPath("field.array");
+
+        //不指定索引字段，忽略null或empty
+        List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
+        boolean count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+        TapEvent tapEvent0 = handelResult.get(0);
+        boolean type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":{\"array\":\"test case by gavin\",\"key\":\"007\"},\"id\":1}, but the result is  " + toJson(before0), "{\"field\":{\"array\":\"test case by gavin\",\"key\":\"007\"},\"id\":1}", toJson(before0));
+
+
+        //指定索引字段，不忽略null或empty
+        node.setIncludeArrayIndex("index");
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+
+        tapEvent0 = handelResult.get(0);
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":{\"array\":\"test case by gavin\",\"index\":null,\"key\":\"007\"},\"id\":1} , but the result is  " + toJson(before0),
+                "{\"field\":{\"array\":\"test case by gavin\",\"index\":null,\"key\":\"007\"},\"id\":1}",
+                toJson(before0));
+
+        //不指定索引字段，不忽略null或empty
+        node.setPreserveNullAndEmptyArrays(true);
+        handelResult = EventHandel.getHandelResult(node, event);
+        count = handelResult.size() == 1;
+        Assert.assertTrue(
+                "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
+                        + ", only " + handelResult.size() + " after unwind node",
+                count);
+        tapEvent0 = handelResult.get(0);
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
+        Assert.assertTrue(
+                "Fail translate delete event to insert event after unwind node for the first event",
+                type0);
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
+                "{\"field\":{\"array\":\"test case by gavin\",\"index\":null,\"key\":\"007\"},\"id\":1}, but the result is  " + toJson(before0),
+                "{\"field\":{\"array\":\"test case by gavin\",\"index\":null,\"key\":\"007\"},\"id\":1}",
+                toJson(before0));
+
+    }
+
+    /**
+     * 删除事件的测试
+     * */
     @Test
     public void deleteEventWithUnwindNode() throws JsonProcessingException {
         Map<String, Object> before = new HashMap<>();
@@ -58,6 +686,9 @@ public class TestUnwindNode {
 
     }
 
+    /**
+     * 新增事件的测试
+     * */
     @Test
     public void insertEventWithUnwindNode() throws JsonProcessingException {
         Map<String, Object> after = new HashMap<>();
@@ -126,6 +757,9 @@ public class TestUnwindNode {
 
     }
 
+    /**
+     * 修改事件的测试
+     * */
     @Test
     public void updateEventWithUnwindNode() throws JsonProcessingException {
 
@@ -199,37 +833,21 @@ public class TestUnwindNode {
 
     }
 
+    /**
+     * 性能检查
+     * */
     @Test
     public void performanceTesting() {
         List<TapEvent> events = new ArrayList();
-        for ( int index = 0;  index < 10000; index++) {
+        final int arraySize = 5000;
+        final int itemSize = 25;
+        for ( int index = 0;  index < arraySize; index++) {
             Map<String, Object> before = new HashMap<>();
             before.put("id", 1);
             List<Integer> arr = new ArrayList<>();
-            arr.add(1);
-            arr.add(2);
-            arr.add(1);
-            arr.add(2);
-            arr.add(1);
-            arr.add(2);
-            arr.add(1);
-            arr.add(2);
-            arr.add(1);
-            arr.add(2);
-            arr.add(1);
-            arr.add(2);
-            arr.add(1);
-            arr.add(2);
-            arr.add(1);
-            arr.add(2);
-            arr.add(1);
-            arr.add(2);
-            arr.add(1);
-            arr.add(2);
-            arr.add(1);
-            arr.add(2);
-            arr.add(1);
-            arr.add(2);
+            for (int i = 0; i < itemSize; i++) {
+                arr.add(new Random().nextInt());
+            }
             before.put("field", arr);
             TapDeleteRecordEvent event = TapDeleteRecordEvent.create();
             event.before(before);
@@ -243,6 +861,13 @@ public class TestUnwindNode {
             EventHandel.getHandelResult(node, event);
         }
         long end = System.currentTimeMillis();
-        System.out.println("Cost time: " + (end-start) + " ms about 1000 records");
+        long cost = end-start;
+        //  x = 1000*1000/cost*1000   1000/56 * 1000
+        System.out.println("=========[Performance Test of Unwind Node]===========");
+        System.out.println("\t- The performance test results are as follows: " +
+                         "\n\t    Cost time: " + cost + " ms about " + arraySize  + " records and each record has " + itemSize +" items in array");
+        System.out.println("\t- QPS is approximately: " +
+                (new DecimalFormat("0.000")).format(((double)( Float.parseFloat((new DecimalFormat("0.0000000000")).format(arraySize / cost)) * 1000)) / 10000) + " w/s");
+        System.out.println("=====================================================");
     }
 }
