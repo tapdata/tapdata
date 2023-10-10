@@ -869,7 +869,7 @@ public class MongodbConnector extends ConnectorBase {
 		final List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
 		if (CollectionUtils.isNotEmpty(indexList)) {
 			for (TapIndex tapIndex : indexList) {
-
+				long createIndexStart = System.currentTimeMillis();
 				if (EmptyKit.isNotBlank(tapIndex.getName()) && tapIndex.getName().startsWith("__t__")) {
 					continue;
 				}
@@ -889,6 +889,8 @@ public class MongodbConnector extends ConnectorBase {
 						indexOptions.name(tapIndex.getName());
 					}
 					collection.createIndex(keys, indexOptions);
+					long createIndexEnd = System.currentTimeMillis();
+					tapConnectorContext.getLog().info("Create table index successfully,index contains fields {},cost {} seconds", tapIndex.getIndexFields(),(createIndexEnd-createIndexStart)/1000);
 				}
 			}
 		}
