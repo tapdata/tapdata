@@ -23,9 +23,10 @@ import org.jetbrains.annotations.NotNull;
  * @doc https://www.mongodb.com/docs/manual/reference/operator/aggregation/unwind/
  **/
 public class HazelcastUnwindProcessNode extends HazelcastProcessorBaseNode {
-    private static final Logger logger = LogManager.getLogger(HazelcastPythonProcessNode.class);
-    public static final String TAG = HazelcastPythonProcessNode.class.getSimpleName();
+    private static final Logger logger = LogManager.getLogger(HazelcastUnwindProcessNode.class);
+    public static final String TAG = HazelcastUnwindProcessNode.class.getSimpleName();
     UnwindProcessNode node;
+
     @SneakyThrows
     public HazelcastUnwindProcessNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
