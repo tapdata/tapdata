@@ -34,6 +34,8 @@ public class CacheNode extends Node<Object> {
     private Long maxRows;
     /** 最大缓存 单位M */
     private Integer maxMemory;
+    /** 需要创建索引字段*/
+    private List<String> needCreateIndex;
 
 
     public CacheNode() {
