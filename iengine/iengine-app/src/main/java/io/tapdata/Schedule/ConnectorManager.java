@@ -1393,10 +1393,10 @@ public class ConnectorManager {
 					// 更新ping_time为1，以便于其他端可以快速识别本实例已经停止，而不用等待超时
 					value.put("ping_time", 1);
 				}
-
-				sendWorkerHeartbeat(
-						value,
-						v -> pingClientMongoOperator.insertOne(v, ConnectorConstant.WORKER_COLLECTION + "/health"));
+				pingClientMongoOperator.insertOne(value, ConnectorConstant.WORKER_COLLECTION + "/health");
+//				sendWorkerHeartbeat(
+//						value,
+//						v -> pingClientMongoOperator.insertOne(v, ConnectorConstant.WORKER_COLLECTION + "/health"));
 			});
 		} catch (Exception e) {
 			logger.error("Worker heart beat failed {}.", e.getMessage(), e);
