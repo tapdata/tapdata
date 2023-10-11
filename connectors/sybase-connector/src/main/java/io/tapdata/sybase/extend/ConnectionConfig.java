@@ -8,6 +8,7 @@ import io.tapdata.sybase.cdc.dto.analyse.filter.ReadFilter;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.StringJoiner;
 
 /**
  * @author GavinXiao
@@ -25,6 +26,19 @@ public class ConnectionConfig {
     private String timezone;
     private int logCdcQuery;
     private boolean normalTask;
+    private String toolJavaOptionsLine;
+    private final static String DEFAULT_EXPORT_JAVA_OPTS =
+            "\"-XX:+UseG1GC\" " + //使用G1收集器
+            "\"-XX:InitialHeapSize=2g\" " + //初始化堆内存2G
+            "\"-XX:MaxHeapSize=95g\" " + //最大堆内存95G
+            "\"-XX:MaxGCPauseMillis=2000\" " +
+            "\"-XX:+DisableExplicitGC\" " +
+            "\"-XX:+UseStringDeduplication\" " +
+            "\"-XX:+ParallelRefProcEnabled\" " +
+            "\"-XX:MaxMetaspaceSize=1g\" " +
+            "\"-XX:MaxTenuringThreshold=1\" " +
+            "\"-XX:-UseCompressedOops\" " + //关闭压缩指针
+            "\"-XX:+PrintGCDetails\""; //打印GC日志
 
     public ConnectionConfig(TapConnectionContext context) {
         if (null == context || null == context.getConnectionConfig()) {
@@ -52,6 +66,28 @@ public class ConnectionConfig {
             logCdcQuery = ReadFilter.LOG_CDC_QUERY_READ_LOG;
         }
         normalTask = (Boolean)Optional.ofNullable(config.getObject("normalTask")).orElse(false);
+        this.toolJavaOptionsLine = withToolJavaOptionsLine(config.getString("toolJavaOptionsLine"));
+    }
+
+    public String withToolJavaOptionsLine(String str) {
+        if (null == toolJavaOptionsLine || "".equals(toolJavaOptionsLine.trim())) {
+             return DEFAULT_EXPORT_JAVA_OPTS;
+        }
+        String toolJavaOptionsLine = str.replaceAll("\\\n", " ")
+                .replaceAll("\\\r", " ");
+        String[] split = toolJavaOptionsLine.split(" ");
+        StringJoiner joiner = new StringJoiner(" ");
+        for (String s : split) {
+            if ("".endsWith(s.trim())) continue;
+            if (!s.startsWith("\"")) {
+                s = "\"" + s;
+            }
+            if (!s.endsWith("\"")){
+                s = s + "\"";
+            }
+            joiner.add(s);
+        }
+        return joiner.toString();
     }
 
 
@@ -133,5 +169,13 @@ public class ConnectionConfig {
 
     public boolean normalTask() {
         return this.normalTask;
+    }
+
+    public String getToolJavaOptionsLine() {
+        return toolJavaOptionsLine;
+    }
+
+    public void setToolJavaOptionsLine(String toolJavaOptionsLine) {
+        this.toolJavaOptionsLine = toolJavaOptionsLine;
     }
 }

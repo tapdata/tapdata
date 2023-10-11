@@ -689,9 +689,10 @@ public class ConnectorUtil {
         return sb.toString();
     }
 
-    public static void execCmd(String cmd, String errorMsg, Log log, boolean wait) {
+    public static void execCmd(String[] cmds, Log log, boolean wait, String errorMsg) {
         try {
-            Process p = Runtime.getRuntime().exec(cmd);
+            Runtime runtime = Runtime.getRuntime();
+            runtime.exec(cmds);
         } catch (Exception e) {
             log.warn(errorMsg, e.getMessage());
         }

@@ -241,31 +241,10 @@ public class CdcHandle {
             //配置 reInit.yaml
             List<SybaseReInitConfig> initTables = compileReInitTableYamlConfig(appendTables, log);
             //写入 reInit.yaml
-            List<LinkedHashMap<String, Object>> initTable = configYaml.configReInitTable(initTables);
+            configYaml.configReInitTable(initTables);
 
             //执行命令
-            String sybasePocPath = root.getSybasePocPath();
-            try {
-                String command = String.format(ExecCommand.RE_INIT_AND_ADD_TABLE,
-                        root.getCliPath(),
-                        CommandType.CDC.getType(),
-                        sybasePocPath,
-                        sybasePocPath,
-                        sybasePocPath,
-                        root.getFilterTableConfigPath(),
-                        sybasePocPath,
-                        ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext()),
-                        sybasePocPath,
-                        root.getTaskCdcId(),
-                        "--" + OverwriteType.RESUME.getType()
-                );
-                root.getContext().getLog().info("shell reinit is {}", command);
-                ConnectorUtil.execCmd(command,
-                        "Fail to reInit when an new task start with new tables, msg: {}",
-                        root.getContext().getLog(), false);
-            } finally {
-                root.getContext().getLog().info("Cdc process has restart...");
-            }
+            new ExecCommand(root, CommandType.CDC, OverwriteType.RESUME).restartProcess();
         }
         //命令结束后，写入filter.yaml
         try {

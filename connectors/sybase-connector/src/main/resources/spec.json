@@ -83,6 +83,42 @@
           "apiServerKey": "database_password",
           "x-index": 50
         },
+        "logCdcQuery": {
+          "type": "string",
+          "title": "${log_cdc_query}",
+          "default": 0,
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-decorator-props": {
+            "tooltip": "${log_cdc_query_tip}"
+          },
+          "x-index": 60,
+          "enum": [
+            {
+              "label": "Read Log",
+              "value": 0
+            },
+            {
+              "label": "Query Source",
+              "value": 1
+            }
+          ]
+        },
+        "toolJavaOptionsLine": {
+          "type": "string",
+          "title": "${tool_java_options_line}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-component-props": {
+            "type": "textarea",
+            "size": "large",
+            "cutString": true,
+            "trim": false,
+            "autoHeight": true
+          },
+          "x-index": 70,
+          "default": "-XX:+UseG1GC\r\n -XX:InitialHeapSize=2g\r\n -XX:MaxHeapSize=95g\r\n -XX:MaxGCPauseMillis=2000\r\n -XX:+DisableExplicitGC\r\n -XX:+UseStringDeduplication\r\n -XX:+ParallelRefProcEnabled\r\n -XX:MaxMetaspaceSize=1g\r\n -XX:MaxTenuringThreshold=1\r\n -XX:-UseCompressedOops\r\n -XX:+PrintGCDetails"
+        },
         "addtionalString": {
           "type": "string",
           "title": "${addtionalString}",
@@ -90,7 +126,7 @@
           "x-component": "Input",
           "default": "",
           "apiServerKey": "addtionalString",
-          "x-index": 60
+          "x-index": 80
         },
         "timezone": {
           "type": "string",
@@ -98,7 +134,8 @@
           "default": "",
           "x-decorator": "FormItem",
           "x-component": "Select",
-          "x-index": 7,
+          "x-index": 90,
+          "x-display": "hidden",
           "enum": [
             {
               "label": "Database Timezone",
@@ -217,28 +254,7 @@
           "x-component": "Switch",
           "default": false,
           "x-display" : "hidden",
-          "x-index": 70
-        },
-        "logCdcQuery": {
-          "type": "string",
-          "title": "${log_cdc_query}",
-          "default": 0,
-          "x-decorator": "FormItem",
-          "x-component": "Select",
-          "x-decorator-props": {
-            "tooltip": "${log_cdc_query_tip}"
-          },
-          "x-index": 55,
-          "enum": [
-            {
-              "label": "Read Log",
-              "value": 0
-            },
-            {
-              "label": "Query Source",
-              "value": 1
-            }
-          ]
+          "x-index": 100
         }
       }
     },
@@ -482,6 +498,7 @@
   "messages": {
     "default": "en_US",
     "en_US": {
+      "tool_java_options_line": "JVM parameters for CDC",
       "host": "Host",
       "port": "Port",
       "database": "database",
@@ -512,6 +529,7 @@
       "log_cdc_query_batch_delay": "Maximum latency of source database query (unit: second, value range 1s-100s, default value 5s)"
     },
     "zh_CN": {
+      "tool_java_options_line": "启动增量的JVM参数",
       "host": "地址",
       "port": "端口",
       "database": "数据库",
@@ -542,6 +560,7 @@
       "log_cdc_query_batch_delay_tip": "源库查询的最大延迟（单位：秒, 取值范围1s-100s，默认值5s）"
     },
     "zh_TW": {
+      "tool_java_options_line": "啟動增量的JVM參數",
       "host": "地址",
       "port": "端口",
       "database": "數據庫",

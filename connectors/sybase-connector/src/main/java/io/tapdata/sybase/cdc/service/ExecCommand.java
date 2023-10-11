@@ -33,12 +33,9 @@ class ExecCommand implements CdcStep<CdcRoot> {
         isRunCdc = false;
     }
 
-    private final static String EXPORT_JAVA_HOME = "export JAVA_TOOL_OPTIONS=\"-Duser.language=en\"";
-
+    public final static String EXPORT_JAVA_OPTS = "export JAVA_OPTS='%s'";
+    public final static String EXPORT_TOOL_OPTS = "export JAVA_TOOL_OPTIONS=\"-Duser.language=en\"";
     private final static String START_CDC_0 = "%s/bin/replicant %s %s/config/sybase2csv/src_sybasease.yaml %s/config/sybase2csv/dst_localstorage.yaml --general %s/config/sybase2csv/general.yaml --filter %s --extractor %s/config/sybase2csv/ext_sybasease.yaml --id %s --replace %s";     // --verbose
-
-    //private final static String START_CDC_0 = "%s/bin/replicant %s %s/config/sybase2csv/src_sybasease.yaml %s/config/sybase2csv/dst_localstorage.yaml --general %s/config/sybase2csv/general.yaml --filter %s --extractor %s/config/sybase2csv/ext_sybasease.yaml --applier %s/config/sybase2csv/localstrange.yaml --id %s --replace %s";     // --verbose
-
     public final static String RE_INIT_AND_ADD_TABLE =  "%s/bin/replicant %s %s/config/sybase2csv/src_sybasease.yaml %s/config/sybase2csv/dst_localstorage.yaml --general %s/config/sybase2csv/general.yaml --filter %s --extractor %s/config/sybase2csv/ext_sybasease.yaml --id %s --reinitialize %s/config/sybase2csv/task/%s/sybasease_reinit.yaml --replace %s";
 
     @Override
@@ -60,7 +57,10 @@ class ExecCommand implements CdcStep<CdcRoot> {
         );
         log.info("shell is {}", cmd);
         try {
-            String[] cmds = new String[]{"/bin/sh", "-c", EXPORT_JAVA_HOME + "; " + cmd};
+            String[] cmds = new String[]{
+                    "/bin/sh",
+                    "-c",
+                    String.format(EXPORT_JAVA_OPTS, root.getConnectionConfig().getToolJavaOptionsLine()) + "; " + EXPORT_TOOL_OPTS + "; " + cmd};
             Process exec = run(cmds);
             if (null == exec) {
                 throw new CoreException("Cdc tool can not running, fail to get stream data");
@@ -91,6 +91,37 @@ class ExecCommand implements CdcStep<CdcRoot> {
     }
 
     public static final int RUN_TOOL_FAIL = 3624815;
+
+    public void restartProcess(){
+        String sybasePocPath = root.getSybasePocPath();
+        try {
+            String command = String.format(RE_INIT_AND_ADD_TABLE,
+                    root.getCliPath(),
+                    this.commandType.getType(),
+                    sybasePocPath,
+                    sybasePocPath,
+                    sybasePocPath,
+                    root.getFilterTableConfigPath(),
+                    sybasePocPath,
+                    ConnectorUtil.maintenanceGlobalCdcProcessId(root.getContext()),
+                    sybasePocPath,
+                    root.getTaskCdcId(),
+                    "--" + this.overwriteType.getType()
+            );
+            String[] cmds = new String[]{
+                    "/bin/sh",
+                    "-c",
+                    String.format(EXPORT_JAVA_OPTS, root.getConnectionConfig().getToolJavaOptionsLine()) + "; " + EXPORT_TOOL_OPTS + "; " + command};
+            root.getContext().getLog().info("shell reinit is {}", command);
+            ConnectorUtil.execCmd(
+                    cmds,
+                    root.getContext().getLog(),
+                    false,
+                    "Fail to reInit when an new task start with new tables, msg: {}");
+        } finally {
+            root.getContext().getLog().info("Cdc process has restart...");
+        }
+    }
 
     private Process run(String[] cmds) throws IOException {
         Runtime runtime = Runtime.getRuntime();
