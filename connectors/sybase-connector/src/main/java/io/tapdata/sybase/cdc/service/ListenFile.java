@@ -65,7 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
  **/
 public class ListenFile implements CdcStep<CdcRoot> {
     public static final String TAG = ListenFile.class.getSimpleName();
-    public static final int DELETE_CACHE_SIZE = 10;
+    public static final int DELETE_CACHE_SIZE = 1000;
     public static final int DELETE_FILE_DELAY_MIN = 10;
     private final CdcRoot root;
     private final String monitorPath; ///${host:port:database}/sybase-poc/config/csv
