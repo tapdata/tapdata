@@ -22,6 +22,8 @@ import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -473,5 +475,14 @@ public class CommonUtils {
             classList.add(superclass);
         }
         return res;
+    }
+    public static String getStackString(Throwable throwable) {
+        StringWriter sw = new StringWriter();
+        try (
+                PrintWriter pw = new PrintWriter(sw)
+        ) {
+            throwable.printStackTrace(pw);
+            return sw.toString();
+        }
     }
 }

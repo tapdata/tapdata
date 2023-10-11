@@ -113,8 +113,8 @@ public class RetryUtils extends CommonUtils {
 						serverErrorCode = "null";
 					}
 					Optional.ofNullable(invoker.getLogListener())
-							.ifPresent(log -> log.warn(String.format(LOG_PREFIX + "Method (%s) encountered an error, triggering auto retry.\n - Error code: %s, message: %s\n - Remaining retry %s time(s)\n - Period %s second(s)",
-									method.name().toLowerCase(), serverErrorCode, errThrowable.getMessage(), invoker.getRetryTimes(), retryPeriodSeconds)));
+							.ifPresent(log -> log.warn(String.format(LOG_PREFIX + "Method (%s) encountered an error, triggering auto retry.\n - Error code: %s, message: %s\n - Remaining retry %s time(s)\n - Period %s second(s)\n - Stack info: %s\n",
+									method.name().toLowerCase(), serverErrorCode, errThrowable.getMessage(), invoker.getRetryTimes(), retryPeriodSeconds, CommonUtils.getStackString(errThrowable))));
 					invoker.setRetryTimes(retryTimes - 1);
 					if (async) {
 						ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node, method, invoker), retryPeriodSeconds, TimeUnit.SECONDS);
