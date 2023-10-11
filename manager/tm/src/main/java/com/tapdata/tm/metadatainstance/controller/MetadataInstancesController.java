@@ -836,4 +836,9 @@ public class MetadataInstancesController extends BaseController {
         MetadataInstancesDto metadataInstancesDto = metadataInstancesService.multiTransform(multiPleTransformReq, getLoginUser());
         return success(metadataInstancesDto);
     }
+    @Operation(summary = "校验缓存键是否有索引")
+    @GetMapping("check/filedIndex")
+    public ResponseMessage<Boolean> checkMetadataInstancesIndex(@RequestParam("cacheKeys") String cacheKeys,@RequestParam("id") String id){
+        return success(metadataInstancesService.checkMetadataInstancesIndex(cacheKeys,id));
+    }
 }
