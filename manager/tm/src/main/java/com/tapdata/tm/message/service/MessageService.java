@@ -96,8 +96,6 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     private final static String WILL_RELEASE_AGENT_TITLE = "Tapdata】测试Agent资源即将回收提醒";
     private final static String RELEASE_AGENT_TITLE = "【Tapdata】测试Agent资源回收提醒";
 
-    private CopyOnWriteArrayList<MessageDto> agentConnectedMessageList = new CopyOnWriteArrayList<>();
-
     private ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
 
     private final static String FEISHU_ADDRESS = "http://34.96.213.48:30008/send_to/feishu/group";
@@ -646,17 +644,19 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
             messageEntity.setMessageMetadata(messageMetadata);
             messageEntity.setUserId(userDetail.getUserId());
-            messageEntity.setCreateAt(new Date());
+            Date now = new Date();
+            messageEntity.setCreateAt(now);
             messageEntity.setServerName(messageDto.getAgentName());
-            messageEntity.setLastUpdAt(new Date());
+            messageEntity.setLastUpdAt(now);
             messageEntity.setLastUpdBy(userDetail.getUsername());
             repository.save(messageEntity, userDetail);
             messageDto.setId(messageEntity.getId());
             if(SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())
                     && MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(messageDto.getMsg())){
-                agentConnectedMessageList.add(messageDto);
                 if(!scheduledExecutorService.isShutdown()){
-                    scheduledExecutorService.schedule(this::checkAagentConnectedMessage, 3, TimeUnit.MINUTES);
+                    scheduledExecutorService.schedule(()->{
+                        checkAagentConnectedMessage(now);
+                    }, 3, TimeUnit.MINUTES);
                     scheduledExecutorService.shutdown();
                 }
             }else{
@@ -671,22 +671,30 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     /**
      * 等待3个心跳周期，观察在该周期内，新增离线agent的数量是否超过（10）个
      */
-    public void checkAagentConnectedMessage(){
-        if(agentConnectedMessageList.size() >= OFFLINE_AGENT_COUNT){
-           log.info("agent offline exceeds limit");
+    public void checkAagentConnectedMessage(Date date){
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(date);
+        cal.add(Calendar.MINUTE, 3);
+        Date nowEnd = cal.getTime();
+        Query query = new Query(Criteria.where("createTime").gte(date).lte(nowEnd).
+                and("msg").is(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue()).
+                and("system").is(SourceModuleEnum.AGENT.getValue()).
+                and("isSend").is(false));
+        List<MessageDto> messageDtoList = findAll(query);
+        if(messageDtoList.size() >= OFFLINE_AGENT_COUNT){
+            log.info("agent offline exceeds limit");
+            updateMany(query,Update.update("isSend",true));
             Map<String,String> map = new HashMap<>();
-            String content = "最近3分钟，累计超过"+agentConnectedMessageList.size()+"个Agent离线，已自动启动Agent离线告警熔断机制，请尽快检查相关服务是否正常!";
+            String content = "最近3分钟，累计超过"+messageDtoList.size()+"个Agent离线，已自动启动Agent离线告警熔断机制，请尽快检查相关服务是否正常!";
             map.put("title", "Agent离线告警通知熔断提醒");
             map.put("content", content);
             map.put("color", "red");
             map.put("groupId","oc_d6bc5fe48d56453264ec73a2fb3eec70");
            HttpUtils.sendPostData(FEISHU_ADDRESS,JSONObject.toJSONString(map));
-           agentConnectedMessageList.clear();
         }else{
-            if(CollectionUtils.isNotEmpty(agentConnectedMessageList)){
-                agentConnectedMessageList.forEach(this::informUser);
+            if(CollectionUtils.isNotEmpty(messageDtoList)){
+                messageDtoList.forEach(this::informUser);
                 log.info("send agent offline notification");
-                agentConnectedMessageList.clear();
             }
         }
         scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
@@ -705,8 +713,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         String msgType = messageDto.getMsg();
         String userId = messageDto.getUserId();
         String system = messageDto.getSystem();
-
-
+        update(Query.query(Criteria.where("_id").is(messageDto.getId())),Update.update("isSend",true));
         UserDetail userDetail = userService.loadUserById(new ObjectId(userId));
 
 //        UserInfoDto userInfoDto = tcmService.getUserInfo(userDetail.getExternalUserId());
@@ -797,18 +804,18 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         }
 
         // 发送微信通知
-//        if (sendWeChat) {
-//            String openId = userDetail.getOpenid();
-//            if (StringUtils.isBlank(openId)) {
-//                log.error("Current user ({}, {}) can't bind weChat, cancel push message.", userDetail.getUsername(), userDetail.getUserId());
-//            } else {
-//                log.info("Send alarm message ({}, {}) to user ({}, {}).",
-//                        title, weChatContent, userDetail.getUsername(), userDetail.getUserId());
-//            }
-//            log.info("Send weChat message {}", openId);
-//            SendStatus status = mpService.sendAlarmMsg(openId, title, weChatContent, new Date());
-//            eventsService.recordEvents(MAIL_SUBJECT, weChatContent, openId, messageDto, status, 0, Type.NOTICE_WECHAT);
-//        }
+        if (sendWeChat) {
+            String openId = userDetail.getOpenid();
+            if (StringUtils.isBlank(openId)) {
+                log.error("Current user ({}, {}) can't bind weChat, cancel push message.", userDetail.getUsername(), userDetail.getUserId());
+            } else {
+                log.info("Send alarm message ({}, {}) to user ({}, {}).",
+                        title, weChatContent, userDetail.getUsername(), userDetail.getUserId());
+            }
+            log.info("Send weChat message {}", openId);
+            SendStatus status = mpService.sendAlarmMsg(openId, title, weChatContent, new Date());
+            eventsService.recordEvents(MAIL_SUBJECT, weChatContent, openId, messageDto, status, 0, Type.NOTICE_WECHAT);
+        }
     }
 
 
