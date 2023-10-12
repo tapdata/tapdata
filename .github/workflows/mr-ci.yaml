@@ -7,7 +7,6 @@ on:
     types: ["opened", "reopened"]
     branches: [ "develop-v3.5.2-ci" ]
 
-
 jobs:
 
   Get-Stable-Branch:
