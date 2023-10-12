@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.util;
 
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -116,8 +117,16 @@ public class SkipIdleProcessor<T> implements AutoCloseable, MemoryFetcher {
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
 		DataMap dataMap = new DataMap();
-		dataMap.put("idle", idleList);
-		dataMap.put("process queue", queue);
+		try {
+			dataMap.kv("idle", idleList);
+		} catch (Exception e) {
+			dataMap.kv("idle error", e.getMessage() + "; Stack: " + ExceptionUtils.getStackTrace(e));
+		}
+		try {
+			dataMap.kv("process queue", queue);
+		} catch (Exception e) {
+			dataMap.kv("process queue error", e.getMessage() + "; Stack: " + ExceptionUtils.getStackTrace(e));
+		}
 		return dataMap;
 	}
 

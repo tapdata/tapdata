@@ -12,9 +12,11 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +35,7 @@ import java.util.function.Predicate;
 public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> implements MemoryFetcher {
 	private final static Logger logger = LogManager.getLogger(ConstructRingBuffer.class);
 	public final static String SEQUENCE_KEY = "sequence";
+	public static final String TAG = ConstructRingBuffer.class.getSimpleName();
 	private final Ringbuffer<Document> ringbuffer;
 
 	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String name) {
@@ -43,7 +46,7 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> im
 		if (logger.isDebugEnabled()) {
 			logger.debug("Create construct ringbuffer succeed. Name: {}, head: {}, tail: {}", this.ringbuffer.getName(), headSequence, tailSequence);
 		}
-		PDKIntegration.registerMemoryFetcher(ConstructRingBuffer.class.getSimpleName() + "-" + name, this);
+		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(genMemoryKey(name), this), TAG);
 	}
 
 	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto) {
@@ -55,7 +58,7 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> im
 			convertTtlDay2Second(ttlDay);
 			PersistenceStorage.getInstance().setRingBufferTTL(this.ringbuffer, this.ttlSecond);
 		}
-		PDKIntegration.registerMemoryFetcher(ConstructRingBuffer.class.getSimpleName() + "-" + name, this);
+		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(genMemoryKey(name), this), TAG);
 	}
 
 	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto, PersistenceStorage.SequenceMode sequenceMode) {
@@ -67,7 +70,12 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> im
 			convertTtlDay2Second(ttlDay);
 			PersistenceStorage.getInstance().setRingBufferTTL(this.ringbuffer, this.ttlSecond);
 		}
-		PDKIntegration.registerMemoryFetcher(ConstructRingBuffer.class.getSimpleName() + "-" + name, this);
+		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(genMemoryKey(name), this), TAG);
+	}
+
+	@NotNull
+	private static String genMemoryKey(String name) {
+		return ConstructRingBuffer.class.getSimpleName() + "-" + name;
 	}
 
 	@Override
@@ -81,6 +89,7 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> im
 		if (PersistenceStorage.getInstance().destroy(referenceId, ConstructType.RINGBUFFER, name) && null != ringbuffer) {
 			ringbuffer.destroy();
 		}
+		CommonUtils.ignoreAnyError(() -> PDKIntegration.unregisterMemoryFetcher(genMemoryKey(name)), TAG);
 	}
 
 	@Override
@@ -157,8 +166,12 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> im
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
 		DataMap dataMap = new DataMap();
-		dataMap.put("Name", ringbuffer.getName());
-		dataMap.put("Tail sequence", ringbuffer.tailSequence());
+		try {
+			dataMap.kv("Name", ringbuffer.getName());
+			dataMap.kv("Tail sequence", ringbuffer.tailSequence());
+		} catch (Exception e) {
+			dataMap.kv("error", e.getMessage() + "; Stack: " + ExceptionUtils.getStackTrace(e));
+		}
 		return dataMap;
 	}
 
