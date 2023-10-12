@@ -2,6 +2,7 @@ package io.tapdata.common.cdc;
 
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.ErrorKit;
+import io.tapdata.kit.StringKit;
 import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
@@ -49,6 +50,9 @@ public class LogTransaction {
     private ExcerptAppender keyQueueAppender;
     private ExcerptTailer keyTailer;
 
+    //局部回滚
+    private Map<String, Long> partRollbackMap = new HashMap<>();
+
     private long size;
 
     private Long racMinimalScn;
@@ -93,49 +97,81 @@ public class LogTransaction {
     }
 
     public void addRedoLogContent(RedoLogContent redoLogContent) throws IOException {
-        String rsId = redoLogContent.getRsId();
-        if (EmptyKit.isNull(redoLogContents)) {
-            redoLogContents = new LinkedHashMap<>();
-        }
-        if (size >= largeTransactionUpperLimit) {
-            if (EmptyKit.isNull(chronicleMap)) {
-                File cacheDir = new File("cacheTransaction" + File.separator + connectorId);
-                if (!cacheDir.exists()) {
-                    cacheDir.mkdirs();
-                }
-                File cacheFile = new File("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".data");
-                if (!cacheFile.exists()) {
-                    cacheFile.createNewFile();
-                }
-                chronicleMap = ChronicleMap
-                        .of(String.class, List.class)
-                        .name("xid" + xid)
-                        .averageKey(xid)
-                        .averageValue(Collections.singletonList(redoLogContent))
-                        .entries(500000L)
-                        .maxBloatFactor(200)
-                        .createPersistedTo(cacheFile);
-                keyQueue = SingleChronicleQueueBuilder.binary("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".key").build();
-                keyQueueAppender = keyQueue.acquireAppender();
-                keyTailer = keyQueue.createTailer();
-                chronicleMap.putAll(redoLogContents);
-                redoLogContents.forEach((k, v) -> pushKey(k));
+        if (redoLogContent.getRollback() == 1 && EmptyKit.isBlank(redoLogContent.getSqlUndo())) {
+            String rollbackKey = redoLogContent.getRowId();
+            switch (redoLogContent.getOperation()) {
+                case "INSERT":
+                    rollbackKey += "|" + "DELETE" + "|" + redoLogContent.getSqlRedo();
+                    break;
+                case "UPDATE":
+                    rollbackKey += "|" + "UPDATE" + "|" + StringKit.subStringBetweenTwoString(redoLogContent.getSqlRedo(), "set", "where");
+                    break;
+                case "DELETE":
+                    rollbackKey += "|" + "INSERT";
+                    break;
             }
-            if (!chronicleMap.containsKey(rsId)) {
-                List<RedoLogContent> list = new ArrayList<>();
-                list.add(redoLogContent);
-                chronicleMap.put(rsId, list);
-                pushKey(rsId);
+            if (!partRollbackMap.containsKey(rollbackKey)) {
+                partRollbackMap.put(rollbackKey, 1L);
             } else {
-                List<RedoLogContent> list = chronicleMap.get(rsId);
-                list.add(redoLogContent);
-                chronicleMap.put(rsId, list);
+                partRollbackMap.put(rollbackKey, partRollbackMap.get(rollbackKey) + 1);
             }
         } else {
-            if (!redoLogContents.containsKey(rsId)) {
-                redoLogContents.put(rsId, new ArrayList<>());
+            String rsId = redoLogContent.getRsId();
+            if (EmptyKit.isNull(redoLogContents)) {
+                redoLogContents = new LinkedHashMap<>();
             }
-            redoLogContents.get(rsId).add(redoLogContent);
+            if (size >= largeTransactionUpperLimit) {
+                if (EmptyKit.isNull(chronicleMap)) {
+                    File cacheDir = new File("cacheTransaction" + File.separator + connectorId);
+                    if (!cacheDir.exists()) {
+                        cacheDir.mkdirs();
+                    }
+                    File cacheFile = new File("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".data");
+                    if (!cacheFile.exists()) {
+                        cacheFile.createNewFile();
+                    }
+                    chronicleMap = ChronicleMap
+                            .of(String.class, List.class)
+                            .name("xid" + xid)
+                            .averageKey(xid)
+                            .averageValue(Collections.singletonList(redoLogContent))
+                            .entries(500000L)
+                            .maxBloatFactor(200)
+                            .createPersistedTo(cacheFile);
+                    keyQueue = SingleChronicleQueueBuilder.binary("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".key").build();
+                    keyQueueAppender = keyQueue.acquireAppender();
+                    keyTailer = keyQueue.createTailer();
+                    chronicleMap.putAll(redoLogContents);
+                    redoLogContents.forEach((k, v) -> pushKey(k));
+                }
+                if (!chronicleMap.containsKey(rsId)) {
+                    List<RedoLogContent> list = new ArrayList<>();
+                    list.add(redoLogContent);
+                    chronicleMap.put(rsId, list);
+                    pushKey(rsId);
+                } else {
+                    List<RedoLogContent> list = chronicleMap.get(rsId);
+                    list.add(redoLogContent);
+                    chronicleMap.put(rsId, list);
+                }
+            } else {
+                if (!redoLogContents.containsKey(rsId)) {
+                    redoLogContents.put(rsId, new ArrayList<>());
+                }
+                redoLogContents.get(rsId).add(redoLogContent);
+            }
+            size++;
+        }
+    }
+
+    public void decreasePartRollback(String key) {
+        if (partRollbackMap.containsKey(key)) {
+            long count = partRollbackMap.get(key) - 1;
+            if (count > 0) {
+                partRollbackMap.put(key, count);
+            } else {
+                partRollbackMap.remove(key);
+            }
         }
     }
 
@@ -284,6 +320,10 @@ public class LogTransaction {
 
     public void setReceivedCommitTs(long receivedCommitTs) {
         this.receivedCommitTs = receivedCommitTs;
+    }
+
+    public Map<String, Long> getPartRollbackMap() {
+        return partRollbackMap;
     }
 
     @Override
