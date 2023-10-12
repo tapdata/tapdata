@@ -9,6 +9,8 @@ import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.TaskStopAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
@@ -121,6 +123,10 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 						);
 						if (processorBaseContext.getTaskDto().isDeduceSchemaTask()) {
 							sampleDataCacheMap.put(sampleDataId, tapEventList);
+						}
+						TaskDto taskDto = processorBaseContext.getTaskDto();
+						if (null != taskDto && taskDto.isTestTask() && tapEventList.isEmpty()) {
+							AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(new CoreException("Source table has no data")));
 						}
 					} catch (Exception e) {
 						logger.warn("Error getting sample data, will try to simulate: {}", e.getMessage());
