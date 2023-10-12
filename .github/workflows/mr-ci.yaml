@@ -69,7 +69,7 @@ jobs:
           workflow_file_name: build-self-hosted.yaml
           ref: ${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}
           wait_interval: 10
-          client_payload: '{"ref": "release-v3.5.4", "inputs": {"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}", "LISENSE_BRANCH": "main" }}'
+          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}", "LISENSE_BRANCH": "main"}'
           propagate_failure: true
           trigger_workflow: true
           wait_workflow: true
