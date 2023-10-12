@@ -76,31 +76,20 @@ public class ElasticsearchRecordWriter {
         long updateCount = 0L;
         long deleteCount = 0L;
         for (BulkItemResponse bulkItemResponse : bulkResponse) {
+            if (bulkItemResponse.isFailed()) {
+                BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
+                throw failure.getCause();
+            }
             switch (bulkItemResponse.getOpType()) {
                 case INDEX:
                 case CREATE:
-                    if (!bulkItemResponse.isFailed()) {
                         insertCount++;
-                    } else {
-                        BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
-                        listResult.addError(eventMap.get(failure.getId()), new Throwable(failure.getMessage()));
-                    }
                     break;
                 case UPDATE:
-                    if (!bulkItemResponse.isFailed()) {
                         updateCount++;
-                    } else {
-                        BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
-                        listResult.addError(eventMap.get(failure.getId()), new Throwable(failure.getMessage()));
-                    }
                     break;
                 case DELETE:
-                    if (!bulkItemResponse.isFailed()) {
                         deleteCount++;
-                    } else {
-                        BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
-                        listResult.addError(eventMap.get(failure.getId()), new Throwable(failure.getMessage()));
-                    }
                     break;
                 default:
                     break;

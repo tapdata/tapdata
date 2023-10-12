@@ -167,7 +167,10 @@
       "to": "TapBinary"
     },
     "object": {
-      "to": "TapString"
+      "to": "TapMap"
+    },
+    "nested": {
+      "to": "TapArray"
     }
   }
 }
