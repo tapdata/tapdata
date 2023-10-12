@@ -34,10 +34,7 @@ import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.user.entity.Notification;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.FunctionUtils;
-import com.tapdata.tm.utils.MailUtils;
-import com.tapdata.tm.utils.MessageUtil;
-import com.tapdata.tm.utils.SendStatus;
+import com.tapdata.tm.utils.*;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -58,6 +55,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
@@ -97,6 +95,15 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     //mail title
     private final static String WILL_RELEASE_AGENT_TITLE = "Tapdata】测试Agent资源即将回收提醒";
     private final static String RELEASE_AGENT_TITLE = "【Tapdata】测试Agent资源回收提醒";
+
+    private CopyOnWriteArrayList<MessageDto> agentConnectedMessageList = new CopyOnWriteArrayList<>();
+
+    private ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+
+    private final static String FEISHU_ADDRESS = "http://34.96.213.48:30008/send_to/feishu/group";
+
+    private final static int OFFLINE_AGENT_COUNT = 10;
+
 
 
     public MessageService(@NonNull MessageRepository repository) {
@@ -645,11 +652,44 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             messageEntity.setLastUpdBy(userDetail.getUsername());
             repository.save(messageEntity, userDetail);
             messageDto.setId(messageEntity.getId());
-            informUser(messageDto);
+            if(SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())
+                    && MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(messageDto.getMsg())){
+                agentConnectedMessageList.add(messageDto);
+                if(!scheduledExecutorService.isShutdown()){
+                    scheduledExecutorService.schedule(this::checkAagentConnectedMessage, 3, TimeUnit.MINUTES);
+                    scheduledExecutorService.shutdown();
+                }
+            }else{
+                informUser(messageDto);
+            }
         } catch (Exception e) {
             log.error("新增消息异常，", e);
         }
         return messageDto;
+    }
+
+    /**
+     * 等待3个心跳周期，观察在该周期内，新增离线agent的数量是否超过（10）个
+     */
+    public void checkAagentConnectedMessage(){
+        if(agentConnectedMessageList.size() >= OFFLINE_AGENT_COUNT){
+           log.info("agent offline exceeds limit");
+            Map<String,String> map = new HashMap<>();
+            String content = "最近3分钟，累计超过"+agentConnectedMessageList.size()+"个Agent离线，已自动启动Agent离线告警熔断机制，请尽快检查相关服务是否正常!";
+            map.put("title", "Agent离线告警通知熔断提醒");
+            map.put("content", content);
+            map.put("color", "red");
+            map.put("groupId","oc_d6bc5fe48d56453264ec73a2fb3eec70");
+           HttpUtils.sendPostData(FEISHU_ADDRESS,JSONObject.toJSONString(map));
+           agentConnectedMessageList.clear();
+        }else{
+            if(CollectionUtils.isNotEmpty(agentConnectedMessageList)){
+                agentConnectedMessageList.forEach(this::informUser);
+                log.info("send agent offline notification");
+                agentConnectedMessageList.clear();
+            }
+        }
+        scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     }
 
 
@@ -757,18 +797,18 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         }
 
         // 发送微信通知
-        if (sendWeChat) {
-            String openId = userDetail.getOpenid();
-            if (StringUtils.isBlank(openId)) {
-                log.error("Current user ({}, {}) can't bind weChat, cancel push message.", userDetail.getUsername(), userDetail.getUserId());
-            } else {
-                log.info("Send alarm message ({}, {}) to user ({}, {}).",
-                        title, weChatContent, userDetail.getUsername(), userDetail.getUserId());
-            }
-            log.info("Send weChat message {}", openId);
-            SendStatus status = mpService.sendAlarmMsg(openId, title, weChatContent, new Date());
-            eventsService.recordEvents(MAIL_SUBJECT, weChatContent, openId, messageDto, status, 0, Type.NOTICE_WECHAT);
-        }
+//        if (sendWeChat) {
+//            String openId = userDetail.getOpenid();
+//            if (StringUtils.isBlank(openId)) {
+//                log.error("Current user ({}, {}) can't bind weChat, cancel push message.", userDetail.getUsername(), userDetail.getUserId());
+//            } else {
+//                log.info("Send alarm message ({}, {}) to user ({}, {}).",
+//                        title, weChatContent, userDetail.getUsername(), userDetail.getUserId());
+//            }
+//            log.info("Send weChat message {}", openId);
+//            SendStatus status = mpService.sendAlarmMsg(openId, title, weChatContent, new Date());
+//            eventsService.recordEvents(MAIL_SUBJECT, weChatContent, openId, messageDto, status, 0, Type.NOTICE_WECHAT);
+//        }
     }
 
 
@@ -894,6 +934,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         });
         return query;
     }
+
 
 
 }
