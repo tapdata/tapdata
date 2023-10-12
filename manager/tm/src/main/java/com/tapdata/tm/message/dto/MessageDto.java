@@ -49,6 +49,7 @@ public class MessageDto  extends BaseDto {
     private String mappingTemplate;
     private Boolean read = false;
     private Boolean isDeleted = false;
+    private Boolean isSend = false;
 
     private String time;
     private String last_updated;
