@@ -78,7 +78,7 @@ jobs:
     runs-on: gcp-docker
     timeout-minutes: 60
     needs:
-      - Deploy
+      - Build-And-Deploy
     steps:
       - name: Check - If Push Action
         if: ${{ github.event_name == 'push' }}
