@@ -10,50 +10,101 @@ on:
 jobs:
 
   Get-Stable-Branch:
-    uses: tapdata/tapdata-application/.github/workflows/stable-branch.yml@main
+    runs-on: ubuntu-latest
+    outputs:
+      OPENSOURCE_BRANCH: ${{ steps.set-output.outputs.OPENSOURCE_BRANCH }}
+      ENTERPRISE_BRANCH: ${{ steps.set-output.outputs.ENTERPRISE_BRANCH }}
+      FRONTEND_BRANCH: ${{ steps.set-output.outputs.FRONTEND_BRANCH }}
+    steps:
+      - name: Checkout Tapdata Opensource
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata'
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata
+          depth: 0
+      - name: Checkout Tapdata Enterprise Web
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-enterprise-web'
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-enterprise-web
+          depth: 0
+      - name: Checkout Tapdata Enterpris
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-enterprise'
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-enterprise
+          depth: 0
+      - name: Checkout Tapdata Application
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-application'
+          ref: "main"
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-application
+      - name: Get last stable branch
+        id: set-output
+        run: |
+          cd tapdata-application
+          OPENSOURCE_BRANCH=$(bash build/build.sh -e 1 | grep OPENSOURCE_BRANCH | awk -F' ' '{print $2}')
+          ENTERPRISE_BRANCH=$(bash build/build.sh -e 1 | grep ENTERPRISE_BRANCH | awk -F' ' '{print $2}')
+          FRONTEND_BRANCH=$(bash build/build.sh -e 1 | grep FRONTEND_BRANCH | awk -F' ' '{print $2}')
+          echo "::set-output name=OPENSOURCE_BRANCH::${OPENSOURCE_BRANCH}"
+          echo "::set-output name=ENTERPRISE_BRANCH::${ENTERPRISE_BRANCH}"
+          echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
 
   Build-And-Deploy:
+    runs-on: ubuntu-latest
     needs:
       - Get-Stable-Branch
-    uses: tapdata/tapdata-application/.github/workflows/cicd-workflow.yml@main
-    with:
-      FRONTEND_BRANCH: ${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}
-      ENTERPRISE_BRANCH: ${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}
-      OPENSOURCE_BRANCH: ${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}
-      LISENSE_BRANCH: "main"
-      CONNECTOR_BRANCH: "main"
-      ENTERPRISE_CONNECTOR_BRANCH: "ENTERPRISE_CONNECTOR_BRANCH"
-      FRONTEND_MODE: "production"
+    steps:
+      - name: Trigger - Build And Deploy
+        uses: convictional/trigger-workflow-and-wait@v1.6.1
+        with:
+          owner: tapdata
+          repo: tapdata-enterprise
+          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          workflow_file_name: build-self-hosted.yaml
+          ref: ${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}
+          wait_interval: 10
+          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}", "LISENSE_BRANCH": "main" }'
+          propagate_failure: true
+          trigger_workflow: true
+          wait_workflow: true
 
-    MRCI:
-      runs-on: gcp-docker
-      timeout-minutes: 60
-      steps:
-        - name: Check - If Push Action
-          if: ${{ github.event_name == 'push' }}
-          run: |
-            echo "CURRENT_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
-        - name: Check - If Merge Request Action
-          if: ${{ github.event_name == 'pull_request' }}
-          run: |
-            echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
-        - name: Fetch Code - Main Repo
-          uses: actions/checkout@v3
-          with:
-              fetch-depth: 0
-              ref: ${{ env.CURRENT_BRANCH }}
-              token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-              path: ./
-        - name: Compile - IEngine And Management
-          run: |
-            #mvn clean install -DskipTests -P idaas -P not_encrypt -U -T1C
-            echo "OK"
-        - name: Run - Local Service
-          run: |
-            bash build/run_smoke_tests.sh
-        - name: Test - Register Test Connector
-          run: |
-            echo "OK"
-        - name: Test - E2E Qucik Test
-          run: |
-            echo "OK"
+  MRCI:
+    runs-on: gcp-docker
+    timeout-minutes: 60
+    needs:
+      - Deploy
+    steps:
+      - name: Check - If Push Action
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          echo "CURRENT_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Check - If Merge Request Action
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
+      - name: Fetch Code - Main Repo
+        uses: actions/checkout@v3
+        with:
+            fetch-depth: 0
+            ref: ${{ env.CURRENT_BRANCH }}
+            token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+            path: ./
+      - name: Compile - IEngine And Management
+        run: |
+          #mvn clean install -DskipTests -P idaas -P not_encrypt -U -T1C
+          echo "OK"
+      - name: Run - Local Service
+        run: |
+          bash build/run_smoke_tests.sh
+      - name: Test - Register Test Connector
+        run: |
+          echo "OK"
+      - name: Test - E2E Qucik Test
+        run: |
+          echo "OK"
