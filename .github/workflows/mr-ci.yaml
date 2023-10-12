@@ -1,6 +1,8 @@
 name: Merge Request CI
 
 on:
+  push:
+    branches: [ "develop-v3.5.2-ci-mr-test" ]
   pull_request:
     types: ["opened", "reopened"]
     branches: [ "develop-v3.5.2-ci" ]
@@ -9,6 +11,23 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+
+  Get-Stable-Branch:
+    uses: tapdata/tapdata-application/.github/workflows/stable-branch.yml@main
+
+  Build-And-Deploy:
+    needs:
+      - Get-Stable-Branch
+    uses: tapdata/tapdata-application/.github/workflows/cicd-workflow.yml@main
+    with:
+      FRONTEND_BRANCH: ${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}
+      ENTERPRISE_BRANCH: ${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}
+      OPENSOURCE_BRANCH: ${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}
+      LISENSE_BRANCH: "main"
+      CONNECTOR_BRANCH: "main"
+      ENTERPRISE_CONNECTOR_BRANCH: "ENTERPRISE_CONNECTOR_BRANCH"
+      FRONTEND_MODE: "production"
+
     MRCI:
       runs-on: gcp-docker
       timeout-minutes: 60
