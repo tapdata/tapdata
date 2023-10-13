@@ -43,6 +43,7 @@ public class MongodbConfig extends CommonDbConfig {
 	private boolean enableSaveDeleteData;
 
 	private boolean enableFillingModifiedData;
+	private boolean skipDeletedEventsOnFilling = true; // 默认为：true
 
 	private boolean noCursorTimeout;
 
@@ -246,5 +247,13 @@ public class MongodbConfig extends CommonDbConfig {
 
 	public void setNoCursorTimeout(boolean noCursorTimeout) {
 		this.noCursorTimeout = noCursorTimeout;
+	}
+
+	public boolean isSkipDeletedEventsOnFilling() {
+		return skipDeletedEventsOnFilling;
+	}
+
+	public void setSkipDeletedEventsOnFilling(boolean skipDeletedEventsOnFilling) {
+		this.skipDeletedEventsOnFilling = skipDeletedEventsOnFilling;
 	}
 }
