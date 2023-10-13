@@ -11,6 +11,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -45,6 +46,8 @@ import java.util.stream.Collectors;
 @TapConnectorClass("spec_elasticsearch.json")
 public class ElasticsearchConnector extends ConnectorBase {
 
+    public static final int DEFAULT_NUMBER_OF_SHARDS = 1;
+    public static final int DEFAULT_NUMBER_OF_REPLICAS = 1;
     private ElasticsearchHttpContext elasticsearchHttpContext;
     private ElasticsearchConfig elasticsearchConfig;
     private String elasticsearchVersion;
@@ -198,11 +201,15 @@ public class ElasticsearchConnector extends ConnectorBase {
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
         TapTable tapTable = tapCreateTableEvent.getTable();
         if (!elasticsearchHttpContext.existsIndex(tapTable.getId().toLowerCase())) {
-            int chunkSize = 1;
+            DataMap nodeConfig = tapConnectorContext.getNodeConfig();
+            Integer numberOfShards = nodeConfig.getInteger("number_of_shards");
+            numberOfShards = numberOfShards == null ? DEFAULT_NUMBER_OF_SHARDS : numberOfShards;
+            Integer numberOfReplicas = nodeConfig.getInteger("number_of_replicas");
+            numberOfReplicas = numberOfReplicas == null ? DEFAULT_NUMBER_OF_REPLICAS : numberOfReplicas;
             CreateIndexRequest indexRequest = new CreateIndexRequest(tapTable.getId().toLowerCase());
             indexRequest.settings(Settings.builder()
-                    .put("number_of_shards", chunkSize)
-                    .put("number_of_replicas", 1));
+                    .put("number_of_shards", numberOfShards)
+                    .put("number_of_replicas", numberOfReplicas));
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
             xContentBuilder.startObject();
             xContentBuilder.field("dynamic", "true");
