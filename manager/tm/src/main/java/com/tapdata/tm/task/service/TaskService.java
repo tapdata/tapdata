@@ -837,7 +837,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return;
         }
 
-        DAG dag = taskDto.getDag();
+        DAG dag = taskDto.getDag().clone(true);
         List<String> connectionIdList = new ArrayList<>();
         dag.getNodes().forEach(node -> {
             if (node instanceof DataParentNode) {

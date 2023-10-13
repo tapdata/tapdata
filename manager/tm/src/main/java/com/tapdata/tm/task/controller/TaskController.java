@@ -192,11 +192,11 @@ public class TaskController extends BaseController {
             userDetail = getLoginUser();
         }
 
-			final Filter finalFilter = filter;
-			Page<TaskDto> result = DataPermissionMenuEnums.checkAndSetFilter(
-				userDetail, filter, DataPermissionActionEnums.View, () -> taskService.find(finalFilter, userDetail)
-			);
-			return success(result);
+        final Filter finalFilter = filter;
+        Page<TaskDto> result = DataPermissionMenuEnums.checkAndSetFilter(
+            userDetail, filter, DataPermissionActionEnums.View, () -> taskService.find(finalFilter, userDetail)
+        );
+        return success(result);
     }
 
 
