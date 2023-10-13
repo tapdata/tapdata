@@ -103,6 +103,7 @@ jobs:
           port=$(cat .service_ip_port | cut -d ':' -f 2)
           echo "::set-output name=IP::$ip"
           echo "::set-output name=PORT::$port"
+          echo $ip:$port
 
   MRCI:
     runs-on: aws-ubuntu-20
