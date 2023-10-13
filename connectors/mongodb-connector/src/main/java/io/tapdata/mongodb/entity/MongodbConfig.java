@@ -43,6 +43,7 @@ public class MongodbConfig extends CommonDbConfig {
 	private boolean enableSaveDeleteData;
 
 	private boolean enableFillingModifiedData;
+	private boolean skipDeletedEventsOnFilling = true; // 默认为：true
 
 //	public static MongodbConfig load(String jsonFile) throws IOException {
 //		ObjectMapper mapper = new ObjectMapper(new JsonFactory());
@@ -226,5 +227,13 @@ public class MongodbConfig extends CommonDbConfig {
 
 	public void setEnableFillingModifiedData(boolean enableFillingModifiedData) {
 		this.enableFillingModifiedData = enableFillingModifiedData;
+	}
+
+	public boolean isSkipDeletedEventsOnFilling() {
+		return skipDeletedEventsOnFilling;
+	}
+
+	public void setSkipDeletedEventsOnFilling(boolean skipDeletedEventsOnFilling) {
+		this.skipDeletedEventsOnFilling = skipDeletedEventsOnFilling;
 	}
 }

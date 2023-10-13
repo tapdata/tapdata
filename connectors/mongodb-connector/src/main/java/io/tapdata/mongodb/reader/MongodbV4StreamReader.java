@@ -162,19 +162,30 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 								}
 							}
 
-							if (MapUtils.isEmpty(fullDocument)) {
+							if (MapUtils.isEmpty(fullDocument) && mongodbConfig.isSkipDeletedEventsOnFilling()) {
 								TapLogger.warn(TAG, "Found update event already deleted in collection {}, _id {}", collectionName, event.getDocumentKey().get("_id"));
 								continue;
 							}
 						}
 
 						if (event.getDocumentKey() != null) {
-							after.putAll(fullDocument);
+							UpdateDescription updateDescription = event.getUpdateDescription();
+							if (MapUtils.isNotEmpty(fullDocument)) {
+								after.putAll(fullDocument);
+							} else if (null != updateDescription) {
+								Document decodeDocument = new DocumentCodec().decode(new BsonDocumentReader(event.getDocumentKey()), DecoderContext.builder().build());
+								after.putAll(decodeDocument);
+								if (null != updateDescription.getUpdatedFields()) {
+									decodeDocument = new DocumentCodec().decode(new BsonDocumentReader(updateDescription.getUpdatedFields()), DecoderContext.builder().build());
+									for (String key : decodeDocument.keySet()) {
+										after.put(key, decodeDocument.get(key));
+									}
+								}
+							}
 
 							TapUpdateRecordEvent recordEvent = updateDMLEvent(null, after, collectionName);
 							Map<String, Object> info = new DataMap();
 							Map<String, Object> unset = new DataMap();
-							UpdateDescription updateDescription = event.getUpdateDescription();
 							if (updateDescription != null) {
 								for (String f:updateDescription.getRemovedFields()) {
 									if (after.keySet().stream().noneMatch(v -> v.equals(f) || v.startsWith(f + ".") || f.startsWith(v + "."))) {

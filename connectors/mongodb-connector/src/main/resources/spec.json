@@ -279,7 +279,7 @@
                 "visible": "{{$deps[0].length>0}}"
               }
             }
-          }
+          }, "x-index": 1
         },
         "enableFillingModifiedData": {
           "title": "${FillingModifiedData}",
@@ -299,7 +299,29 @@
                 "visible": "{{$deps[0].length>0}}"
               }
             }
-          }
+          }, "x-index": 2
+        },
+        "skipDeletedEventsOnFilling": {
+          "title": "${skipDeletedEventsOnFilling}",
+          "type": "boolean",
+          "x-component": "Switch",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "layout": "horizontal",
+            "tooltip": "${skipDeletedEventsOnFillingTips}"
+          },
+          "default": true,
+          "x-reactions": {
+            "dependencies": [
+              "$outputs", ".enableFillingModifiedData"
+            ],
+            "fulfill": {
+              "state": {
+                "visible": "{{$deps[0].length>0 && $deps[1]}}"
+              }
+            }
+          },
+          "x-index": 3
         }
       }
     }
@@ -331,7 +353,9 @@
       "dataForm_form_sslValidate": "Validate server certificate",
       "dataForm_form_sslCA": "Certificate Authority",
       "saveData": "Save Delete Data",
-      "FillingModifiedData": "Filling Modified Data"
+      "FillingModifiedData": "Filling Modified Data",
+      "skipDeletedEventsOnFilling": "Skip Deleted Events On Filling",
+      "skipDeletedEventsOnFillingTips": "The following conditions can cause delta exceptions when shutting down:\n1. Tasks use non-_id to make business judgments;\n2. Change the source field type to subdocument and modify the corresponding attributes;\n3. The source changes the field type to an embedded array and has a 'pull' operation;"
     },
     "zh_CN": {
       "doc": "docs/mongodb_zh_CN.md",
@@ -358,7 +382,9 @@
       "dataForm_form_sslValidate": "验证服务端证书",
       "dataForm_form_sslCA": "证书颁发机构",
       "saveData": "保存删除数据",
-      "FillingModifiedData": "补充更新数据的完整字段"
+      "FillingModifiedData": "补充更新数据的完整字段",
+      "skipDeletedEventsOnFilling": "补充时跳过已删除的事件",
+      "skipDeletedEventsOnFillingTips": "关闭时以下情况会导致增量异常：\n1. 任务使用非 _id 做业务判断；\n2. 源变更字段类型为子文档，并修改对应属性；\n3. 源变更字段类型为内嵌数组，并有 'pull' 操作；"
     },
     "zh_TW": {
       "doc": "docs/mongodb_zh_TW.md",
@@ -385,8 +411,9 @@
       "dataForm_form_sslValidate": "驗證服務端證書",
       "dataForm_form_sslCA": "證書頒發機構",
       "saveData": "保存刪除數據",
-      "FillingModifiedData": "補充更新數據的完整字段"
-
+      "FillingModifiedData": "補充更新數據的完整字段",
+      "skipDeletedEventsOnFilling": "補充時跳過已刪除的事件",
+      "skipDeletedEventsOnFillingTips": "關閉時以下情況會導致增量異常：\n1. 任務使用非 _id 做業務判斷；\n2. 來源變更欄位類型為子文檔，並修改對應屬性；\n3. 來源變更欄位類型為內嵌數組，並有 'pull' 操作；"
     }
   },
   "dataTypes": {
