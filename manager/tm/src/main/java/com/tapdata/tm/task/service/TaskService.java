@@ -1854,6 +1854,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         shareCacheDetailVo.setTableName(((TableNode) sourceNode).getTableName());
         shareCacheDetailVo.setCacheKeys(targetNode.getCacheKeys());
+        shareCacheDetailVo.setAutoCreateIndex(targetNode.getAutoCreateIndex());
         shareCacheDetailVo.setCreateTime(taskDto.getCreateAt());
         shareCacheDetailVo.setCreateUser(taskDto.getCreateUser());
         if (null != sourceNode.getAttrs()) {
@@ -1930,6 +1931,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             CacheNode cacheNode = new CacheNode();
             cacheNode.setCacheKeys((String) targetNodeMap.get("cacheKeys"));
             cacheNode.setNeedCreateIndex((List<String>) targetNodeMap.get("needCreateIndex"));
+            cacheNode.setAutoCreateIndex((Boolean) targetNodeMap.get("autoCreateIndex"));
             Integer maxRows = MapUtil.getInt(targetNodeMap, "maxRows");
             Integer maxMemory = MapUtil.getInt(targetNodeMap, "maxMemory");
             cacheNode.setMaxRows(maxRows == null ? Integer.MAX_VALUE : maxRows.longValue());

@@ -38,5 +38,6 @@ public class ShareCacheVo extends BaseVo {
 
   private String externalStorageId;
   private String externalStorageName;
+  private Boolean autoCreateIndex;
 
 }
