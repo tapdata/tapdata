@@ -73,23 +73,32 @@ jobs:
       IP: ${{ steps.get_ip_port.outputs.IP }}
       PORT: ${{ steps.get_ip_port.outputs.PORT }}
     steps:
-      - name: Trigger - Build And Deploy
-        uses: convictional/trigger-workflow-and-wait@v1.6.1
+#      - name: Trigger - Build And Deploy
+#        uses: convictional/trigger-workflow-and-wait@v1.6.1
+#        with:
+#          owner: tapdata
+#          repo: tapdata-enterprise
+#          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+#          workflow_file_name: build-self-hosted.yaml
+#          ref: ${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}
+#          wait_interval: 10
+#          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}", "FOR_AUTO_TEST": "true", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
+#          propagate_failure: true
+#          trigger_workflow: true
+#          wait_workflow: true
+      - id: 'auth'
+        uses: 'google-github-actions/auth@v1'
         with:
-          owner: tapdata
-          repo: tapdata-enterprise
-          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          workflow_file_name: build-self-hosted.yaml
-          ref: ${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}
-          wait_interval: 10
-          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}", "FOR_AUTO_TEST": "true", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
-          propagate_failure: true
-          trigger_workflow: true
-          wait_workflow: true
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+      - id: 'get-credentials'
+        uses: 'google-github-actions/get-gke-credentials@v1'
+        with:
+          cluster_name: 'tapdata-cloud-cluster'
+          location: 'asia-east2'
       - name: Get IP and Port
         id: get_ip_port
         run: |
-          kubectl get service tapdata-${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} -n dev -o jsonpath='{.status.loadBalancer.ingress[0].ip}:{.spec.ports[?(@.name=="web")].port}' > .service_ip_port
+          kubectl get service tapdata-v354-6529259e -n dev -o jsonpath='{.status.loadBalancer.ingress[0].ip}:{.spec.ports[?(@.name=="web")].port}' > .service_ip_port
           ip=$(cat .service_ip_port | cut -d ':' -f 1)
           port=$(cat .service_ip_port | cut -d ':' -f 2)
           echo "::set-output name=IP::$ip"
