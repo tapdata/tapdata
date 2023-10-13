@@ -36,6 +36,8 @@ public class CacheNode extends Node<Object> {
     private Integer maxMemory;
     /** 需要创建索引字段*/
     private List<String> needCreateIndex;
+    /** 是否自动创建索引*/
+    private Boolean autoCreateIndex = false;
 
 
     public CacheNode() {
