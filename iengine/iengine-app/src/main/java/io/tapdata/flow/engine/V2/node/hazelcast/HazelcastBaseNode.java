@@ -826,9 +826,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (!(newDAG instanceof DAG)) {
 			return;
 		}
-		processorBaseContext.getTaskDto().setDag((DAG) newDAG);
-		processorBaseContext.setNodes(((DAG) newDAG).getNodes());
-		processorBaseContext.setEdges(((DAG) newDAG).getEdges());
+		DAG dag = ((DAG) newDAG).clone(true);
+		processorBaseContext.getTaskDto().setDag(dag);
+		processorBaseContext.setNodes(dag.getNodes());
+		processorBaseContext.setEdges(dag.getEdges());
 	}
 
 	protected void updateNode(TapdataEvent tapdataEvent) {
@@ -836,8 +837,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (!(newDAG instanceof DAG)) {
 			return;
 		}
+		DAG dag = ((DAG) newDAG).clone(true);
 		String nodeId = getNode().getId();
-		Node<?> newNode = ((DAG) newDAG).getNode(nodeId);
+		Node<?> newNode = dag.getNode(nodeId);
 		processorBaseContext.setNode(newNode);
 		updateNodeConfig(tapdataEvent);
 	}
