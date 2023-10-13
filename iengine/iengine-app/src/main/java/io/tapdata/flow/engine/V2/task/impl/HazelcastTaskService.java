@@ -177,6 +177,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 //        TaskThreadGroup threadGroup = new TaskThreadGroup(taskDto);
 //        try (ThreadPoolExecutorEx threadPoolExecutorEx = AsyncUtils.createThreadPoolExecutor("RootTask-" + taskDto.getName(), 1, threadGroup, TAG)) {
 		try {
+			taskDto.setDag(taskDto.getDag().clone(true));
 			ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).log(InstanceFactory.instance(LogFactory.class).getLog(taskDto)));
 //            return threadPoolExecutorEx.submitSync(() -> {
@@ -199,6 +200,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	@Override
 	public TaskClient<TaskDto> startTestTask(TaskDto taskDto) {
 		try {
+			taskDto.setDag(taskDto.getDag().clone(true));
 			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).log(new TapLog()));
 			long startTs = System.currentTimeMillis();
 			final JetDag jetDag = task2HazelcastDAG(taskDto);
@@ -217,6 +219,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	@Override
 	public TaskClient<TaskDto> startTestTask(TaskDto taskDto, AtomicReference<Object> result) {
 		try {
+			taskDto.setDag(taskDto.getDag().clone(true));
 			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).info("KYE_OF_SCRIPT_RUN_RESULT", result).log(new TapLog()));
 			long startTs = System.currentTimeMillis();
 			final JetDag jetDag = task2HazelcastDAG(taskDto);
@@ -245,7 +248,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			params.put("id", taskDto.getId().toHexString());
 			params.put("time", tmCurrentTime);
 			clientMongoOperator.deleteByMap(params, ConnectorConstant.TASK_COLLECTION + "/history");
-			taskDtoAtomicReference.set(clientMongoOperator.findOne(params, ConnectorConstant.TASK_COLLECTION + "/history", TaskDto.class));
+			TaskDto taskDtoByMongoFind = clientMongoOperator.findOne(params, ConnectorConstant.TASK_COLLECTION + "/history", TaskDto.class);
+			taskDtoByMongoFind.setDag(taskDtoByMongoFind.getDag().clone(true));
+			taskDtoAtomicReference.set(taskDtoByMongoFind);
 			if (null == taskDtoAtomicReference.get()) {
 				throw new RuntimeException("Get task history failed, param: " + params + ", result is null");
 			}
