@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.util;
 
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -13,7 +15,7 @@ import java.util.function.Supplier;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2023/5/31 15:41 Create
  */
-public class SkipIdleProcessor<T> implements AutoCloseable {
+public class SkipIdleProcessor<T> implements AutoCloseable, MemoryFetcher {
 	private final static Logger logger = LogManager.getLogger(SkipIdleProcessor.class);
 
 	private final static int SLEEP_INTERVAL = 100;
@@ -109,6 +111,14 @@ public class SkipIdleProcessor<T> implements AutoCloseable {
 			th.interrupt();
 			th = null;
 		}
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		DataMap dataMap = new DataMap();
+		dataMap.put("idle", idleList);
+		dataMap.put("process queue", queue);
+		return dataMap;
 	}
 
 	public interface IFn<T, P, V> {

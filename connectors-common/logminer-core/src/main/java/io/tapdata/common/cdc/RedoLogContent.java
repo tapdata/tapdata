@@ -2,6 +2,7 @@ package io.tapdata.common.cdc;
 
 import io.tapdata.kit.DateTimeKit;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.StringKit;
 
 import java.io.Serializable;
 import java.sql.ResultSet;
@@ -202,6 +203,36 @@ public class RedoLogContent implements Serializable {
         if (EmptyKit.isBlank(operation)) {
             setOperationFromOperationCode();
         }
+    }
+
+    public String generateRollbackKey() {
+        String rollbackKey = rowId;
+        if (rollback == 1 && EmptyKit.isBlank(sqlUndo)) {
+            switch (operation) {
+                case "INSERT":
+                    rollbackKey += "|" + "DELETE" + "|" + sqlRedo;
+                    break;
+                case "UPDATE":
+                    rollbackKey += "|" + "UPDATE" + "|" + StringKit.subStringBetweenTwoString(sqlRedo, "set", "where");
+                    break;
+                case "DELETE":
+                    rollbackKey += "|" + "INSERT";
+                    break;
+            }
+        } else {
+            switch (operation) {
+                case "INSERT":
+                    rollbackKey += "|" + "INSERT";
+                    break;
+                case "UPDATE":
+                    rollbackKey += "|" + "UPDATE" + "|" + StringKit.subStringBetweenTwoString(sqlUndo, "set", "where");
+                    break;
+                case "DELETE":
+                    rollbackKey += "|" + "DELETE" + "|" + sqlUndo;
+                    break;
+            }
+        }
+        return rollbackKey;
     }
 
     public Boolean getGrpc() {

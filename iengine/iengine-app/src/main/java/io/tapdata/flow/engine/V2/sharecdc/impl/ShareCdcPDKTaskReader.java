@@ -45,6 +45,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
+import org.apache.commons.collections4.map.LRUMap;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.BsonType;
 import org.bson.Document;
@@ -137,13 +138,16 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		} catch (Exception e) {
 			throw new ShareCdcUnsupportedException("An internal error occurred when init share cdc reader; Error: " + e.getMessage(), e, false);
 		}
-		CommonUtils.ignoreAnyError(() -> {
-			PDKIntegration.registerMemoryFetcher(String.format("Share CDC Pdk Task Reader-%s-%s(%s)",
-					((ShareCdcTaskPdkContext) shareCdcContext).getTaskDto().getName(),
-					((ShareCdcTaskPdkContext) shareCdcContext).getNode().getName(),
-					((ShareCdcTaskPdkContext) shareCdcContext).getNode().getId()), this);
-		}, TAG);
+		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(memoryFetchName((ShareCdcTaskPdkContext) shareCdcContext), this), TAG);
 		obsLogger.info("Init share cdc reader completed");
+	}
+
+	private static String memoryFetchName(ShareCdcTaskPdkContext shareCdcContext) {
+		return String.format("%s-%s-%s(%s)",
+				TAG,
+				shareCdcContext.getTaskDto().getName(),
+				shareCdcContext.getNode().getName(),
+				shareCdcContext.getNode().getId());
 	}
 
 	/**
@@ -441,6 +445,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			}*/
 
 			try (SkipIdleProcessor<String> skipIdleProcessor = new SkipIdleProcessor<>(() -> running.get(), tableNames)) {
+				CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(skipIdleMemoryFetchName((ShareCdcTaskPdkContext) shareCdcContext), skipIdleProcessor), TAG);
 				final BiFunction<String, ShareCdcReaderResource, ConstructIterator<Document>> constructItFn = (tableName, shareCdcReaderResource) -> {
 					HazelcastConstruct<Document> construct = shareCdcReaderResource.construct;
 					if (null == shareCdcReaderResource.sequence) {
@@ -509,7 +514,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						}
 
 						List<Document> documents = new ArrayList<>();
-						long start = System.currentTimeMillis();
 						try {
 							Document document = iterator.tryNext();
 							if (null == document) {
@@ -557,7 +561,15 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				if (null == readerResource) continue;
 				CommonUtils.ignoreAnyError(() -> PersistenceStorage.getInstance().destroy(constructReferenceId, ConstructType.RINGBUFFER, readerResource.construct.getName()), tag);
 			}
+			CommonUtils.ignoreAnyError(() -> PDKIntegration.unregisterMemoryFetcher(memoryFetchName((ShareCdcTaskPdkContext) shareCdcContext)), TAG);
+			CommonUtils.ignoreAnyError(() -> PDKIntegration.unregisterMemoryFetcher(skipIdleMemoryFetchName((ShareCdcTaskPdkContext) shareCdcContext)), TAG);
 		}
+	}
+
+	private static String skipIdleMemoryFetchName(ShareCdcTaskPdkContext shareCdcTaskPdkContext) {
+		return String.format("%s-%s-%s-%s(%s)", TAG, SkipIdleProcessor.class.getSimpleName(),
+				shareCdcTaskPdkContext.getTaskDto().getName(), shareCdcTaskPdkContext.getNode().getName(),
+				shareCdcTaskPdkContext.getNode().getId());
 	}
 
 	private static class ShareCdcReaderResource {
@@ -695,5 +707,34 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			dataMap.putAll(sequenceMap);
 		}
 		return dataMap;
+	}
+
+	private static class MemoryMetrics {
+		private final String table;
+		private Long sequence;
+		private Long findAllCostMs;
+		private Long findTime;
+		private Long findMaxCostMs;
+
+		public MemoryMetrics(String table) {
+			this.table = table;
+			this.sequence = -1L;
+			this.findAllCostMs = -1L;
+			this.findTime = -1L;
+			this.findMaxCostMs = -1L;
+		}
+
+		public void find(Runnable runnable) {
+			if (null == runnable) {
+				return;
+			}
+			long startMS = System.currentTimeMillis();
+			runnable.run();
+			long endMS = System.currentTimeMillis();
+			long costMS = endMS - startMS;
+			if (costMS > findMaxCostMs) {
+				findMaxCostMs = costMS;
+			}
+		}
 	}
 }

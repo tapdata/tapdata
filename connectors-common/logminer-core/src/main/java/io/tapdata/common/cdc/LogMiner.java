@@ -199,6 +199,9 @@ public abstract class LogMiner implements ILogMiner {
             case SqlConstant.REDO_LOG_OPERATION_LOB_WRITE:
             case SqlConstant.REDO_LOG_OPERATION_SEL_LOB_LOCATOR:
                 if (!transactionBucket.containsKey(xid)) {
+                    if (EmptyKit.isBlank(redoLogContent.getSqlUndo())) {
+                        return;
+                    }
                     tapLogger.debug(TapLog.D_CONN_LOG_0003.getMsg(), xid);
                     Map<String, List> redoLogContents = new LinkedHashMap<>();
                     redoLogContents.put(rsId, new ArrayList<>(4));
@@ -211,15 +214,11 @@ public abstract class LogMiner implements ILogMiner {
                     transactionBucket.put(xid, orclTransaction);
                 } else {
                     LogTransaction logTransaction = transactionBucket.get(xid);
-                    Map<String, List> redoLogContents = logTransaction.getRedoLogContents();
                     try {
-                        if (!needToAborted(operation, redoLogContent, redoLogContents)) {
-                            logTransaction.addRedoLogContent(redoLogContent);
-                            logTransaction.incrementSize(1);
-                            long txLogContentsSize = logTransaction.getSize();
-                            if (txLogContentsSize % logTransaction.getLargeTransactionUpperLimit() == 0) {
-                                tapLogger.info(TapLog.CON_LOG_0008.getMsg(), xid, txLogContentsSize);
-                            }
+                        logTransaction.addRedoLogContent(redoLogContent);
+                        long txLogContentsSize = logTransaction.getSize();
+                        if (txLogContentsSize % logTransaction.getLargeTransactionUpperLimit() == 0) {
+                            tapLogger.info(TapLog.CON_LOG_0008.getMsg(), xid, txLogContentsSize);
                         }
                     } catch (Exception e) {
                         String msg = String.format("Error redo log content, error: %s, content: %s", e.getMessage(), redoLogContent);
@@ -292,7 +291,7 @@ public abstract class LogMiner implements ILogMiner {
             if (logTransaction.isLarge()) {
                 String keyTemp;
                 while ((keyTemp = logTransaction.pollKey()) != null) {
-                    batchCreateEvents(redoLogContents.get(keyTemp), eventList, lastRedoLogContent, logTransaction.getReceivedCommitTs());
+                    batchCreateEvents(redoLogContents.get(keyTemp), eventList, lastRedoLogContent, logTransaction);
                     if (eventList.get().size() >= 1000) {
                         submitEvent(lastRedoLogContent.get(), eventList.get());
                         eventList.set(TapSimplify.list());
@@ -301,7 +300,7 @@ public abstract class LogMiner implements ILogMiner {
                 submitEvent(lastRedoLogContent.get(), eventList.get());
             } else {
                 for (List<RedoLogContent> redoLogContentList : redoLogContents.values()) {
-                    batchCreateEvents(redoLogContentList, eventList, lastRedoLogContent, logTransaction.getReceivedCommitTs());
+                    batchCreateEvents(redoLogContentList, eventList, lastRedoLogContent, logTransaction);
                 }
                 submitEvent(lastRedoLogContent.get(), eventList.get());
             }
@@ -311,7 +310,7 @@ public abstract class LogMiner implements ILogMiner {
 
     protected abstract void ddlFlush() throws Throwable;
 
-    protected abstract void batchCreateEvents(List<RedoLogContent> redoLogContentList, AtomicReference<List<TapEvent>> eventList, AtomicReference<RedoLogContent> lastRedoLogContent, long timestamp);
+    protected abstract void batchCreateEvents(List<RedoLogContent> redoLogContentList, AtomicReference<List<TapEvent>> eventList, AtomicReference<RedoLogContent> lastRedoLogContent, LogTransaction logTransaction);
 
     protected abstract void submitEvent(RedoLogContent redoLogContent, List<TapEvent> list);
 
@@ -478,7 +477,7 @@ public abstract class LogMiner implements ILogMiner {
                 }
             }
         }
-        return needToAborted;
+        return true;
     }
 
     private boolean need2WaitingCommit(LogTransaction transaction) {
