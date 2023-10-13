@@ -103,7 +103,6 @@ jobs:
           port=$(cat .service_ip_port | cut -d ':' -f 2)
           echo "::set-output name=IP::$ip"
           echo "::set-output name=PORT::$port"
-          echo $ip:$port
 
   MRCI:
     runs-on: aws-ubuntu-20
@@ -111,6 +110,10 @@ jobs:
     needs:
       - Build-And-Deploy
     steps:
+      - name: Set Env
+        run: |
+          echo "IP=${{ needs.Build-And-Deploy.outputs.IP }}" >> $GITHUB_ENV
+          echo "PORT=${{ needs.Build-And-Deploy.outputs.PORT }}" >> $GITHUB_ENV
       - name: Check - If Push Action
         if: ${{ github.event_name == 'push' }}
         run: |
@@ -140,3 +143,24 @@ jobs:
         run: |
           echo "OK"
 
+  CLOSE_ENV:
+    runs-on: ubuntu-latest
+    needs:
+      - MRCI
+      - Get-Stable-Branch
+    steps:
+      - id: 'auth'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+      - id: 'get-credentials'
+        uses: 'google-github-actions/get-gke-credentials@v1'
+        with:
+          cluster_name: 'tapdata-cloud-cluster'
+          location: 'asia-east2'
+      - name: Get IP and Port
+        id: get_ip_port
+        run: |
+          kubectl delete deployment tapdata-v354-6529259e -n dev
+          kubectl delete service tapdata-v354-6529259e -n dev
+          
