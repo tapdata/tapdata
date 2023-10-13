@@ -105,7 +105,7 @@ jobs:
           echo "::set-output name=PORT::$port"
 
   MRCI:
-    runs-on: gcp-docker
+    runs-on: aws-ubuntu-20
     timeout-minutes: 60
     needs:
       - Build-And-Deploy
