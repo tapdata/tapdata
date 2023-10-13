@@ -92,6 +92,7 @@ public class ElasticsearchConnector extends ConnectorBase {
 
     private void initConnection(TapConnectionContext connectorContext) {
         elasticsearchConfig = new ElasticsearchConfig().load(connectorContext.getConnectionConfig());
+        elasticsearchConfig.load(connectorContext.getNodeConfig());
         elasticsearchHttpContext = new ElasticsearchHttpContext(elasticsearchConfig);
         elasticsearchVersion = elasticsearchHttpContext.queryVersion();
     }
@@ -127,9 +128,9 @@ public class ElasticsearchConnector extends ConnectorBase {
 //            if (tapMapValue != null && tapMapValue.getValue() != null) return toJson(tapMapValue.getValue());
 //            return "null";
 //        });
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS"));
-        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), elasticsearchConfig.getTimeFormat()));
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> formatTapDateTime(tapDateTimeValue.getValue(), elasticsearchConfig.getDateFormat()));
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), elasticsearchConfig.getDatetimeFormat()));
     }
 
     @Override
@@ -252,7 +253,7 @@ public class ElasticsearchConnector extends ConnectorBase {
                     case "date":
                         xContentBuilder.startObject(field.getName())
                                 .field("type", "date")
-                                .field("format", "yyyy-MM-dd||yyyy-MM-dd HH:mm:ss.SSSSSS||HH:mm:ss||epoch_millis")
+                                .field("format", format("{}||{}||{}||epoch_millis",elasticsearchConfig.getDateFormat(),elasticsearchConfig.getDatetimeFormat(),elasticsearchConfig.getTimeFormat()))
                                 .endObject();
                         break;
                     default:

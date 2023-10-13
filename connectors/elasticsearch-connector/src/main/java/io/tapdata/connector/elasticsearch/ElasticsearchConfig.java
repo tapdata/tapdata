@@ -13,6 +13,32 @@ public class ElasticsearchConfig {
     private int port;
     private String user;
     private String password;
+    private String dateFormat;
+    private String datetimeFormat;
+    private String timeFormat;
+    public String getDatetimeFormat() {
+        return datetimeFormat;
+    }
+
+    public void setDatetimeFormat(String datetimeFormat) {
+        this.datetimeFormat = datetimeFormat;
+    }
+
+    public String getTimeFormat() {
+        return timeFormat;
+    }
+
+    public void setTimeFormat(String timeFormat) {
+        this.timeFormat = timeFormat;
+    }
+
+    public String getDateFormat() {
+        return dateFormat;
+    }
+
+    public void setDateFormat(String dateFormat) {
+        this.dateFormat = dateFormat;
+    }
 
     public ElasticsearchConfig load(Map<String, Object> map)  {
         return beanUtils.mapToBean(map, this);
