@@ -514,7 +514,7 @@ public class MongodbConnector extends ConnectorBase {
 						return;
 					}
 					MongoCollection<Document> targetCollection = mongoDatabase.getCollection(table.getName());
-					IndexOptions indexOptions = new IndexOptions();
+					IndexOptions indexOptions = new IndexOptions().background(true);
 					// 1. 遍历 index, 生成 indexOptions
 					dIndex.forEach((key, value) -> {
 						if ("unique".equals(key)) {
@@ -886,7 +886,7 @@ public class MongodbConnector extends ConnectorBase {
 					for (TapIndexField indexField : indexFields) {
 						keys.append(indexField.getName(), 1);
 					}
-					final IndexOptions indexOptions = new IndexOptions();
+					final IndexOptions indexOptions = new IndexOptions().background(true);
 					if (indexFields.size() != 1 || !"_id".equals(indexFields.stream().findFirst().get().getName())) {
 						indexOptions.unique(tapIndex.isUnique());
 					}
