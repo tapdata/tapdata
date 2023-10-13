@@ -15,6 +15,7 @@ jobs:
       OPENSOURCE_BRANCH: ${{ steps.set-output.outputs.OPENSOURCE_BRANCH }}
       ENTERPRISE_BRANCH: ${{ steps.set-output.outputs.ENTERPRISE_BRANCH }}
       FRONTEND_BRANCH: ${{ steps.set-output.outputs.FRONTEND_BRANCH }}
+      TAG_NAME: ${{ steps.set-output.outputs.TAG_NAME }}
     steps:
       - name: Checkout Tapdata Opensource
         uses: actions/checkout@v2
@@ -23,6 +24,14 @@ jobs:
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           path: tapdata
           depth: 0
+      - name: Set Tag
+        run: |
+          cd tapdata
+          main_tag=$(git branch --show-current | cut -d '-' -f 2)
+          current_timestamp=$(date +%s)
+          hex_timestamp=$(printf "%X" "$current_timestamp" | tr 'A-F' 'a-f')
+          tag_name="$main_tag-$hex_timestamp"
+          echo "TAG_NAME=$tag_name" >> $GITHUB_ENV
       - name: Checkout Tapdata Enterprise Web
         uses: actions/checkout@v2
         with:
@@ -54,11 +63,15 @@ jobs:
           echo "::set-output name=OPENSOURCE_BRANCH::${OPENSOURCE_BRANCH}"
           echo "::set-output name=ENTERPRISE_BRANCH::${ENTERPRISE_BRANCH}"
           echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
+          echo "::set-output name=TAG_NAME::${TAG_NAME}"
 
   Build-And-Deploy:
     runs-on: ubuntu-latest
     needs:
       - Get-Stable-Branch
+    outputs:
+      IP: ${{ steps.get_ip_port.outputs.IP }}
+      PORT: ${{ steps.get_ip_port.outputs.PORT }}
     steps:
       - name: Trigger - Build And Deploy
         uses: convictional/trigger-workflow-and-wait@v1.6.1
@@ -69,13 +82,18 @@ jobs:
           workflow_file_name: build-self-hosted.yaml
           ref: ${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}
           wait_interval: 10
-          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}", "FOR_AUTO_TEST": "true"}'
+          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}", "FOR_AUTO_TEST": "true", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
           propagate_failure: true
           trigger_workflow: true
           wait_workflow: true
       - name: Get IP and Port
+        id: get_ip_port
         run: |
-          echo "OK"
+          kubectl get service tapdata-${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} -n dev -o jsonpath='{.status.loadBalancer.ingress[0].ip}:{.spec.ports[?(@.name=="web")].port}' > .service_ip_port
+          ip=$(cat .service_ip_port | cut -d ':' -f 1)
+          port=$(cat .service_ip_port | cut -d ':' -f 2)
+          echo "::set-output name=IP::$ip"
+          echo "::set-output name=PORT::$port"
 
   MRCI:
     runs-on: gcp-docker
