@@ -143,7 +143,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			CacheNode cacheNode = (CacheNode) taskDto.getDag().getNodes().stream().filter(node -> node instanceof CacheNode && node.getType().equals(TaskDto.SYNC_TYPE_MEM_CACHE))
 					 .findFirst().orElse(null);
-			if(cacheNode != null && TaskDto.SYNC_TYPE_MEM_CACHE.equals(taskDto.getSyncType()) && CollectionUtils.isNotEmpty(cacheNode.getNeedCreateIndex())){
+			if(cacheNode != null && TaskDto.SYNC_TYPE_MEM_CACHE.equals(taskDto.getSyncType())
+					&& cacheNode.getAutoCreateIndex()
+					&& CollectionUtils.isNotEmpty(cacheNode.getNeedCreateIndex())){
 				for (String tableId : tapTableMap.keySet()) {
 					TapTable tapTable = tapTableMap.get(tableId);
 					AtomicBoolean succeed = new AtomicBoolean(false);
