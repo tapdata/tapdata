@@ -596,7 +596,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             Objects.requireNonNull(build).setNodes(new LinkedList<Node>(){{addAll(nodes);}});
             build.setEdges(edges);
 
-            DAG temp = DAG.build(build);
+            DAG temp = DAG.build(build, true);
             taskDtoCopy.setDag(temp);
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
             final List<String> predIds = new ArrayList<>();
@@ -633,7 +633,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             dag.setNodes(nodes);
             dag.setEdges(edges);
 
-            DAG build = DAG.build(dag);
+            DAG build = DAG.build(dag, true);
             taskDtoCopy.setDag(build);
         }
 
@@ -706,7 +706,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             Objects.requireNonNull(build).setNodes(new LinkedList<Node>(){{addAll(nodes);}});
             build.setEdges(edges);
 
-            DAG temp = DAG.build(build);
+            DAG temp = DAG.build(build, true);
             taskDtoCopy.setDag(temp);
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
             final List<String> predIds = new ArrayList<>();
@@ -748,7 +748,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             dag.setNodes(nodes);
             dag.setEdges(edges);
 
-            DAG build = DAG.build(dag);
+            DAG build = DAG.build(dag, true);
             taskDtoCopy.setDag(build);
         }
 
