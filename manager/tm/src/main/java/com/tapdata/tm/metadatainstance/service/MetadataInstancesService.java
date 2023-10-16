@@ -1218,17 +1218,23 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                             .and("original_name").as("tableName")
                             .and("comment").as("tableComment")
                             .and(ConditionalOperators
-                                    .when(new Criteria().orOperator(Criteria.where("indices.uniquee").ne(true), Criteria.where("fields.primaryKey").is(true)))
+                                    .when(ComparisonOperators.Eq.valueOf("fields.primaryKey").equalToValue(true))
                                     .then(1)
                                     .otherwise(0)
-                            ).as("primaryKey"),
+                            ).as("primaryKey")
+                            .and(ConditionalOperators
+                                    .when(ComparisonOperators.Eq.valueOf("indices.unique").equalToValue(true))
+                                    .then(1)
+                                    .otherwise(0)
+                            ).as("uniqueIndex"),
                     Aggregation.group("_id")
                             .first("tableName").as("tableName")
                             .first("tableComment").as("tableComment")
-                            .sum("primaryKey").as("primaryKeyCounts"),
+                            .sum("primaryKey").as("primaryKeyCounts")
+                            .sum("uniqueIndex").as("uniqueIndexCounts"),
                     Aggregation.project()
                             .and("_id").as("tableId")
-                            .andInclude("tableName", "tableComment", "primaryKeyCounts")
+                            .andInclude("tableName", "tableComment", "primaryKeyCounts", "uniqueIndexCounts")
                             .andExclude("_id"),
                     Aggregation.sort(Sort.by("tableId"))
             );
