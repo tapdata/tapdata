@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @AspectTaskSession(
-        includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC},
+        includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC,TaskDto.SYNC_TYPE_MEM_CACHE},
         order = Integer.MIN_VALUE)
 public class CustomSqlAspectTask extends AbstractAspectTask {
 

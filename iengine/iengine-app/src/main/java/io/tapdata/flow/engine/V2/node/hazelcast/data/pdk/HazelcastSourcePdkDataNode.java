@@ -10,16 +10,21 @@ import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
+import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.DateTime;
@@ -45,6 +50,7 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -52,6 +58,7 @@ import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.*;
+import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -65,8 +72,11 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -82,11 +92,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 /**
@@ -99,6 +111,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private final Logger logger = LogManager.getRootLogger();
 	private static final int CDC_POLLING_MIN_INTERVAL_MS = 500;
 	private static final int CDC_POLLING_MIN_BATCH_SIZE = 1000;
+	private static final long BATCH_COUNT_LIMIT = 5000000;
 	private static final int EQUAL_VALUE = 5;
 	private ShareCdcReader shareCdcReader;
 	private final SourceStateAspect sourceStateAspect;
@@ -126,7 +139,25 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@Override
 	public void startSourceRunner() {
 		try {
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+			CacheNode cacheNode = (CacheNode) taskDto.getDag().getNodes().stream().filter(node -> node instanceof CacheNode && node.getType().equals(TaskDto.SYNC_TYPE_MEM_CACHE))
+					 .findFirst().orElse(null);
+			if(cacheNode != null && TaskDto.SYNC_TYPE_MEM_CACHE.equals(taskDto.getSyncType())
+					&& cacheNode.getAutoCreateIndex()
+					&& CollectionUtils.isNotEmpty(cacheNode.getNeedCreateIndex())){
+				for (String tableId : tapTableMap.keySet()) {
+					TapTable tapTable = tapTableMap.get(tableId);
+					AtomicBoolean succeed = new AtomicBoolean(false);
+					if(checkBatchCount(tableId,tapTable)){
+						createTargetIndex(cacheNode.getNeedCreateIndex(),succeed.get(),tableId,tapTable);
+						Update update = new Update().set("dag.nodes.$.needCreateIndex",new ArrayList<>());
+						clientMongoOperator.update(Query.query(Criteria.where("_id").is(taskDto.getId()).and("dag.nodes.id").is(cacheNode.getId())), update, ConnectorConstant.TASK_COLLECTION);
+					}else{
+						obsLogger.warn("The amount of data is too large and the index cannot be automatically created.");
+					}
+				}
+			}
 			try {
 				if (need2InitialSync(syncProgress)) {
 					if (this.sourceRunnerFirstTime.get()) {
@@ -138,7 +169,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					doSnapshot(newTables);
 				}
 
-				TaskDto taskDto = dataProcessorContext.getTaskDto();
 				if (CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
 					if (newTables == null) {
 						newTables = new CopyOnWriteArrayList<>();
@@ -415,6 +445,77 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					.context(getProcessorBaseContext());
 		}
 		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
+	}
+
+	private void createTargetIndex(List<String> updateConditionFields, boolean createUnique, String tableId, TapTable tapTable) {
+		CreateIndexFunction createIndexFunction = getConnectorNode().getConnectorFunctions().getCreateIndexFunction();
+		if (null == createIndexFunction) {
+			return;
+		}
+		AtomicReference<TapCreateIndexEvent> indexEvent = new AtomicReference<>();
+		try {
+			List<TapIndex> tapIndices = new ArrayList<>();
+			TapIndex tapIndex = new TapIndex().unique(createUnique);
+			List<TapIndexField> tapIndexFields = new ArrayList<>();
+			if (null == updateConditionFields) {
+				obsLogger.warn("Table " + tableId + " index fields is null, will not create index automatically");
+				return;
+			}
+			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
+				boolean usePkAsUpdateConditions = usePkAsUpdateConditions(updateConditionFields, tapTable.primaryKeys());
+				if (usePkAsUpdateConditions) {
+					return;
+				}
+				updateConditionFields.forEach(field -> {
+					TapIndexField tapIndexField = new TapIndexField();
+					tapIndexField.setName(field);
+					tapIndexField.setFieldAsc(true);
+					tapIndexFields.add(tapIndexField);
+				});
+				tapIndex.setIndexFields(tapIndexFields);
+				tapIndices.add(tapIndex);
+				indexEvent.set(createIndexEvent(tableId, tapIndices));
+
+				executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
+						.table(tapTable)
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
+						.createIndexEvent(indexEvent.get())
+						.start(), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
+						PDKMethod.TARGET_CREATE_INDEX,
+						() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent.get()), TAG));
+				LoadSchemaRunner loadSchemaRunner = new LoadSchemaRunner(dataProcessorContext.getConnections(), clientMongoOperator, 1);
+				loadSchemaRunner.run();
+			}
+		} catch (Throwable throwable) {
+			obsLogger.warn("Automatic index creation failed, please create it manually.");
+		}
+	}
+
+	private boolean checkBatchCount(String tableId, TapTable tapTable){
+		AtomicLong atomicLong = new AtomicLong(0);
+		BatchCountFunction batchCountFunction = getConnectorNode().getConnectorFunctions().getBatchCountFunction();
+		if (null == batchCountFunction) {
+			obsLogger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+			return false;
+		}
+		executeDataFuncAspect(TableCountFuncAspect.class, () -> new TableCountFuncAspect()
+						.dataProcessorContext(this.getDataProcessorContext())
+						.start(),
+				tableCountFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT,
+						createPdkMethodInvoker().runnable(
+								() -> {
+									try {
+										long count = batchCountFunction.count(getConnectorNode().getConnectorContext(), tapTable);
+										atomicLong.set(count);
+									} catch (Exception e) {
+										throw new NodeException("Count " + tableId + " failed: " + e.getMessage(), e)
+												.context(getProcessorBaseContext());
+									}
+								}
+						)
+				));
+		return atomicLong.get() <= BATCH_COUNT_LIMIT;
 	}
 
 	private TapdataAdjustMemoryEvent resizeEventQueueIfNeed(List<TapEvent> events) {
