@@ -167,8 +167,10 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> im
 	public DataMap memory(String keyRegex, String memoryLevel) {
 		DataMap dataMap = new DataMap();
 		try {
+			long startMS = System.currentTimeMillis();
 			dataMap.kv("Name", ringbuffer.getName());
 			dataMap.kv("Tail sequence", ringbuffer.tailSequence());
+			dataMap.kv("costMS", System.currentTimeMillis() - startMS);
 		} catch (Exception e) {
 			dataMap.kv("error", e.getMessage() + "; Stack: " + ExceptionUtils.getStackTrace(e));
 		}

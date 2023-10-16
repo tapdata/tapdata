@@ -712,6 +712,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		DataMap dataMap = new DataMap();
 		try {
 			if (MapUtils.isNotEmpty(memoryMetricsMap)) {
+				long startMS = System.currentTimeMillis();
 				for (Map.Entry<String, MemoryMetrics> entry : memoryMetricsMap.entrySet()) {
 					try {
 						dataMap.kv(entry.getKey(), entry.getValue().toString());
@@ -719,6 +720,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						dataMap.kv(entry.getKey() + " error", e.getMessage() + "; Stack: " + ExceptionUtils.getStackTrace(e));
 					}
 				}
+				dataMap.kv("costMS", System.currentTimeMillis() - startMS);
 			}
 		} catch (Exception e) {
 			dataMap.kv("error", e.getMessage() + "  \n" + ExceptionUtils.getStackTrace(e));
