@@ -74,34 +74,35 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 					);
 					Update update = new Update().set("pingTime", System.currentTimeMillis());
 					try {
-						Map<String, Object> pingData = new HashMap<String, Object>() {{
-							put("where", query.getQueryObject().toJson());
-							put("update", update.getUpdateObject().toJson());
-						}};
-						PingDto pingDto = new PingDto();
-						pingDto.setPingType(PingType.TASK_PING);
-						String pingId = UUIDGenerator.uuid();
-						pingDto.setPingId(pingId);
-						pingDto.setData(pingData);
-						WebSocketEvent<PingDto> webSocketEvent = new WebSocketEvent<>();
-						webSocketEvent.setType("ping");
-						webSocketEvent.setData(pingDto);
-						BeanUtil.getBean(ManagementWebsocketHandler.class).sendMessage(new TextMessage(JSONUtil.obj2Json(webSocketEvent)));
-						boolean handleResponse = PongHandler.handleResponse(
-								pingId,
-								cache -> {
-									String pingResult = cache.get(PingDto.PING_RESULT).toString();
-									if (PingDto.PingResult.FAIL.name().equals(pingResult)) {
-										throw new RuntimeException("Failed to send task heartbeat use websocket, will retry use http, message: " + cache.getOrDefault(PingDto.ERR_MESSAGE, "unknown error"));
-									}
-								}
-						);
-						if (!handleResponse) {
-							throw new RuntimeException("No response from task heartbeat websocket, will retry use http");
-						}
+//						Map<String, Object> pingData = new HashMap<String, Object>() {{
+//							put("where", query.getQueryObject().toJson());
+//							put("update", update.getUpdateObject().toJson());
+//						}};
+//						PingDto pingDto = new PingDto();
+//						pingDto.setPingType(PingType.TASK_PING);
+//						String pingId = UUIDGenerator.uuid();
+//						pingDto.setPingId(pingId);
+//						pingDto.setData(pingData);
+//						WebSocketEvent<PingDto> webSocketEvent = new WebSocketEvent<>();
+//						webSocketEvent.setType("ping");
+//						webSocketEvent.setData(pingDto);
+//						BeanUtil.getBean(ManagementWebsocketHandler.class).sendMessage(new TextMessage(JSONUtil.obj2Json(webSocketEvent)));
+//						boolean handleResponse = PongHandler.handleResponse(
+//								pingId,
+//								cache -> {
+//									String pingResult = cache.get(PingDto.PING_RESULT).toString();
+//									if (PingDto.PingResult.FAIL.name().equals(pingResult)) {
+//										throw new RuntimeException("Failed to send task heartbeat use websocket, will retry use http, message: " + cache.getOrDefault(PingDto.ERR_MESSAGE, "unknown error"));
+//									}
+//								}
+//						);
+//						if (!handleResponse) {
+//							throw new RuntimeException("No response from task heartbeat websocket, will retry use http");
+//						}
+						taskPingTimeUseHttp(query, update);
 					} catch (Exception e) {
 						logger.warn(e.getMessage(), e);
-						taskPingTimeUseHttp(query, update);
+//						taskPingTimeUseHttp(query, update);
 					} finally {
 						ThreadContext.clearAll();
 					}
