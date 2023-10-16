@@ -92,12 +92,46 @@ public class MongodbWriter {
 		if (null == pksCache) pksCache = table.primaryKeys();
 		final Collection<String> pks = (Collection<String>) pksCache;
 
-		removeOidIfNeed(tapRecordEvents, pks);
-
 		// daas data will cache local
 		if (!is_cloud && mongodbConfig.isEnableSaveDeleteData()) {
-			MongodbLookupUtil.lookUpAndSaveDeleteMessage(tapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
+			List<TapRecordEvent> dispatchTapRecordEvents = new ArrayList<>();
+			int lastRecordType = 0;
+			for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
+				int tapRecordEventType = tapRecordEvent.getType();
+				if (0 == lastRecordType) {
+					lastRecordType = tapRecordEventType;
+				}
+				if (lastRecordType != tapRecordEventType) {
+					if (TapDeleteRecordEvent.TYPE == lastRecordType) {
+						MongodbLookupUtil.lookUpAndSaveDeleteMessage(dispatchTapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
+					}
+					if (TapDeleteRecordEvent.TYPE == tapRecordEventType) {
+						bulkWrite(dispatchTapRecordEvents, table, inserted, updated, deleted, collection, pks, writeListResult);
+						dispatchTapRecordEvents.clear();
+					}
+				}
+				dispatchTapRecordEvents.add(tapRecordEvent);
+				lastRecordType = tapRecordEvent.getType();
+			}
+			if (CollectionUtils.isNotEmpty(dispatchTapRecordEvents)) {
+				if (TapDeleteRecordEvent.TYPE == dispatchTapRecordEvents.get(0).getType()) {
+					MongodbLookupUtil.lookUpAndSaveDeleteMessage(dispatchTapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
+				}
+				bulkWrite(dispatchTapRecordEvents, table, inserted, updated, deleted, collection, pks, writeListResult);
+			}
+		} else {
+			bulkWrite(tapRecordEvents, table, inserted, updated, deleted, collection, pks, writeListResult);
 		}
+
+		//Need to tell incremental engine the write result
+		writeListResultConsumer.accept(writeListResult
+				.insertedCount(inserted.get())
+				.modifiedCount(updated.get())
+				.removedCount(deleted.get()));
+	}
+
+	private void bulkWrite(List<TapRecordEvent> tapRecordEvents, TapTable table, AtomicLong inserted, AtomicLong updated, AtomicLong deleted, MongoCollection<Document> collection, Collection<String> pks, WriteListResult<TapRecordEvent> writeListResult) {
+		removeOidIfNeed(tapRecordEvents, pks);
 		BulkWriteModel bulkWriteModel = buildBulkWriteModel(tapRecordEvents, table, inserted, updated, deleted, collection, pks);
 
 		if (bulkWriteModel.isEmpty()) {
@@ -123,12 +157,6 @@ public class MongodbWriter {
 				}
 			}
 		}
-
-		//Need to tell incremental engine the write result
-		writeListResultConsumer.accept(writeListResult
-				.insertedCount(inserted.get())
-				.modifiedCount(updated.get())
-				.removedCount(deleted.get()));
 	}
 
 	private void removeOidIfNeed(List<TapRecordEvent> tapRecordEvents, Collection<String> pks) {
