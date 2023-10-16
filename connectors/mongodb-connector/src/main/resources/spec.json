@@ -291,7 +291,7 @@
                 "visible": "{{$deps[0].length>0}}"
               }
             }
-          }
+          }, "x-index": 1
         },
         "enableSaveDeleteData": {
           "title": "${saveData}",
@@ -311,7 +311,7 @@
                 "visible": "{{$deps[0].length>0}}"
               }
             }
-          }, "x-index": 1
+          }, "x-index": 2
         },
         "enableFillingModifiedData": {
           "title": "${FillingModifiedData}",
@@ -331,7 +331,7 @@
                 "visible": "{{!$deps[0].length}}"
               }
             }
-          }
+          }, "x-index": 3
         },
         "noCursorTimeout": {
           "title": "${noCursorTimeout}",
@@ -351,7 +351,7 @@
                 "visible": "{{$deps[0].length>0}}"
               }
             }
-          }, "x-index": 2
+          }, "x-index": 4
         },
         "skipDeletedEventsOnFilling": {
           "title": "${skipDeletedEventsOnFilling}",
@@ -373,7 +373,7 @@
               }
             }
           },
-          "x-index": 3
+          "x-index": 5
         }
       }
     }
