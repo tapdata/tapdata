@@ -1204,28 +1204,35 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 				criteria.and("original_name").regex(regex);
 			}
 
-			Aggregation aggregation = Aggregation.newAggregation(
-				Aggregation.match(criteria),
-				Aggregation.unwind("fields"),
-				Aggregation.project()
-					.and(AggregationExpression.from(MongoExpression.create("{ \"$toString\": \"$_id\" }"))).as("_id")
-					.and("original_name").as("tableName")
-					.and("comment").as("tableComment")
-					.and(ConditionalOperators
-						.when(ComparisonOperators.Eq.valueOf("fields.primaryKey").equalToValue(true))
-						.then(1)
-						.otherwise(0)
-					).as("primaryKey"),
-				Aggregation.group("_id")
-					.first("tableName").as("tableName")
-					.first("tableComment").as("tableComment")
-					.sum("primaryKey").as("primaryKeyCounts"),
-				Aggregation.project()
-					.and("_id").as("tableId")
-					.andInclude("tableName", "tableComment", "primaryKeyCounts")
-					.andExclude("_id"),
-				Aggregation.sort(Sort.by("tableId"))
-			);
+            Aggregation aggregation = Aggregation.newAggregation(
+                    Aggregation.match(criteria),
+                    Aggregation.unwind("fields"),
+                    Aggregation.unwind("indices"),
+                    Aggregation.project()
+                            .and(AggregationExpression.from(MongoExpression.create("{ \"$toString\": \"$_id\" }"))).as("_id")
+                            .and("original_name").as("tableName")
+                            .and("comment").as("tableComment")
+                            .and(ConditionalOperators
+                                    .when(ComparisonOperators.Eq.valueOf("fields.primaryKey").equalToValue(true))
+                                    .then(1)
+                                    .otherwise(0)
+                            ).as("primaryKey")
+                            .and(ConditionalOperators
+                                    .when(ComparisonOperators.Eq.valueOf("indices.unique").equalToValue(true))
+                                    .then(1)
+                                    .otherwise(0)
+                            ).as("uniqueIndex"),
+                    Aggregation.group("_id")
+                            .first("tableName").as("tableName")
+                            .first("tableComment").as("tableComment")
+                            .sum("primaryKey").as("primaryKeyCounts")
+                            .sum("uniqueIndex").as("uniqueIndexCounts"),
+                    Aggregation.project()
+                            .and("_id").as("tableId")
+                            .andInclude("tableName", "tableComment", "primaryKeyCounts", "uniqueIndexCounts")
+                            .andExclude("_id"),
+                    Aggregation.sort(Sort.by("tableId"))
+            );
 
 			long totals;
 			List<Map<String, Object>> values = new ArrayList<>();
