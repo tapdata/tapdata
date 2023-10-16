@@ -325,11 +325,12 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 													after = mongoCursor.next();
 												}
 											}
-											if (after == null) {
+											if (after == null && mongodbConfig.isSkipDeletedEventsOnFilling()) {
 												TapLogger.warn(TAG, "Found update event _id {} already deleted in collection {}, event {}", _id, collectionName, event.toJson());
 												return null;
 											}
-										} else {
+										}
+										if (null == after) {
 											after = new Document("_id", _id);
 											info.put("_id", _id);
 											info.put("$op", o);
