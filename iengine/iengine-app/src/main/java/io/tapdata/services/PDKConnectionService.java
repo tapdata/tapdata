@@ -64,6 +64,10 @@ public class PDKConnectionService {
     }
 
     public Map<String, String> databaseLogInfoService(String connectionId) {
+        if (null == connectionId || "".equals(connectionId.trim())) {
+            PDKConnectionService.log.debug("connection id is empty, cancel to get database log info");
+            return new HashMap<>();
+        }
         String associateId = "DatabaseLogInfoService_" + connectionId + "_" + UUID.randomUUID();
         try {
             ConnectionNode connectorNode = createConnectionNode(connectionId, associateId);
