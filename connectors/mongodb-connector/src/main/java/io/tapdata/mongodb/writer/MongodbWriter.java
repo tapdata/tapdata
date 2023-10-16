@@ -18,11 +18,12 @@ import io.tapdata.mongodb.MongodbUtil;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.reader.MongodbV4StreamReader;
 import io.tapdata.mongodb.util.MongodbLookupUtil;
-import io.tapdata.mongodb.writer.BulkWriteModel;
 import io.tapdata.mongodb.writer.error.BulkWriteErrorCodeHandlerEnum;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
+import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
+import io.tapdata.pdk.apis.entity.merge.MergeTableProperties;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.bson.Document;
@@ -31,6 +32,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static io.tapdata.base.ConnectorBase.writeListResult;
 
@@ -92,8 +94,44 @@ public class MongodbWriter {
 
 		// daas data will cache local
 		if (!is_cloud && mongodbConfig.isEnableSaveDeleteData()) {
-			MongodbLookupUtil.lookUpAndSaveDeleteMessage(tapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
+			List<TapRecordEvent> dispatchTapRecordEvents = new ArrayList<>();
+			int lastRecordType = 0;
+			for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
+				int tapRecordEventType = tapRecordEvent.getType();
+				if (0 == lastRecordType) {
+					lastRecordType = tapRecordEventType;
+				}
+				if (lastRecordType != tapRecordEventType) {
+					if (TapDeleteRecordEvent.TYPE == lastRecordType) {
+						MongodbLookupUtil.lookUpAndSaveDeleteMessage(dispatchTapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
+					}
+					if (TapDeleteRecordEvent.TYPE == tapRecordEventType) {
+						bulkWrite(dispatchTapRecordEvents, table, inserted, updated, deleted, collection, pks, writeListResult);
+						dispatchTapRecordEvents.clear();
+					}
+				}
+				dispatchTapRecordEvents.add(tapRecordEvent);
+				lastRecordType = tapRecordEvent.getType();
+			}
+			if (CollectionUtils.isNotEmpty(dispatchTapRecordEvents)) {
+				if (TapDeleteRecordEvent.TYPE == dispatchTapRecordEvents.get(0).getType()) {
+					MongodbLookupUtil.lookUpAndSaveDeleteMessage(dispatchTapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
+				}
+				bulkWrite(dispatchTapRecordEvents, table, inserted, updated, deleted, collection, pks, writeListResult);
+			}
+		} else {
+			bulkWrite(tapRecordEvents, table, inserted, updated, deleted, collection, pks, writeListResult);
 		}
+
+		//Need to tell incremental engine the write result
+		writeListResultConsumer.accept(writeListResult
+				.insertedCount(inserted.get())
+				.modifiedCount(updated.get())
+				.removedCount(deleted.get()));
+	}
+
+	private void bulkWrite(List<TapRecordEvent> tapRecordEvents, TapTable table, AtomicLong inserted, AtomicLong updated, AtomicLong deleted, MongoCollection<Document> collection, Collection<String> pks, WriteListResult<TapRecordEvent> writeListResult) {
+		removeOidIfNeed(tapRecordEvents, pks);
 		BulkWriteModel bulkWriteModel = buildBulkWriteModel(tapRecordEvents, table, inserted, updated, deleted, collection, pks);
 
 		if (bulkWriteModel.isEmpty()) {
@@ -119,12 +157,95 @@ public class MongodbWriter {
 				}
 			}
 		}
+	}
 
-		//Need to tell incremental engine the write result
-		writeListResultConsumer.accept(writeListResult
-				.insertedCount(inserted.get())
-				.modifiedCount(updated.get())
-				.removedCount(deleted.get()));
+	private void removeOidIfNeed(List<TapRecordEvent> tapRecordEvents, Collection<String> pks) {
+		if (null == tapRecordEvents) {
+			return;
+		}
+		HashSet<String> pkSet = new HashSet<>(pks);
+		// remove _id in after
+		for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
+			Object mergeInfoObj = tapRecordEvent.getInfo(MergeInfo.EVENT_INFO_KEY);
+			MergeInfo mergeInfo;
+			if (mergeInfoObj instanceof MergeInfo) {
+				mergeInfo = (MergeInfo) mergeInfoObj;
+				MergeTableProperties currentProperty = mergeInfo.getCurrentProperty();
+				MergeTableProperties.MergeType mergeType = currentProperty.getMergeType();
+				List<Map<String, String>> joinKeys;
+				switch (mergeType) {
+					case updateOrInsert:
+					case updateWrite:
+						joinKeys = currentProperty.getJoinKeys();
+						if (CollectionUtils.isNotEmpty(joinKeys)) {
+							pkSet.clear();
+							pkSet.addAll(joinKeys.stream().map(jk -> jk.get("source")).collect(Collectors.toList()));
+						}
+						break;
+					case updateIntoArray:
+						joinKeys = currentProperty.getJoinKeys();
+						List<String> arrayKeys = currentProperty.getArrayKeys();
+						if (CollectionUtils.isNotEmpty(joinKeys)) {
+							pkSet.clear();
+							pkSet.addAll(joinKeys.stream().map(jk -> jk.get("source")).collect(Collectors.toList()));
+						}
+						if (CollectionUtils.isNotEmpty(arrayKeys)) {
+							pkSet.addAll(arrayKeys);
+						}
+						break;
+				}
+				recursiveRemoveOidInMergeResults(mergeInfo.getMergeLookupResults());
+			}
+			if (pkSet.contains("_id")) {
+				continue;
+			}
+			Map<String, Object> after = null;
+			if (tapRecordEvent instanceof TapInsertRecordEvent) {
+				after = ((TapInsertRecordEvent) tapRecordEvent).getAfter();
+			} else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
+				after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
+			}
+			if (null == after) {
+				continue;
+			}
+			after.remove("_id");
+		}
+	}
+
+	private void recursiveRemoveOidInMergeResults(List<MergeLookupResult> mergeLookupResults) {
+		if (CollectionUtils.isEmpty(mergeLookupResults)) return;
+		for (MergeLookupResult mergeLookupResult : mergeLookupResults) {
+			Set<String> keys = new HashSet<>();
+			MergeTableProperties property = mergeLookupResult.getProperty();
+			MergeTableProperties.MergeType mergeType = property.getMergeType();
+			List<Map<String, String>> joinKeys;
+			switch (mergeType) {
+				case updateOrInsert:
+				case updateWrite:
+					joinKeys = property.getJoinKeys();
+					if (CollectionUtils.isNotEmpty(joinKeys)) {
+						keys.addAll(joinKeys.stream().map(jk -> jk.get("source")).collect(Collectors.toList()));
+					}
+					break;
+				case updateIntoArray:
+					joinKeys = property.getJoinKeys();
+					List<String> arrayKeys = property.getArrayKeys();
+					if (CollectionUtils.isNotEmpty(joinKeys)) {
+						keys.addAll(joinKeys.stream().map(jk -> jk.get("source")).collect(Collectors.toList()));
+					}
+					if (CollectionUtils.isNotEmpty(arrayKeys)) {
+						keys.addAll(arrayKeys);
+					}
+					break;
+			}
+			Map<String, Object> data = mergeLookupResult.getData();
+			if (!keys.contains("_id") && MapUtils.isNotEmpty(data)) {
+				data.remove("_id");
+			}
+			if (CollectionUtils.isNotEmpty(mergeLookupResult.getMergeLookupResults())) {
+				recursiveRemoveOidInMergeResults(mergeLookupResult.getMergeLookupResults());
+			}
+		}
 	}
 
 	private boolean handleBulkWriteError(

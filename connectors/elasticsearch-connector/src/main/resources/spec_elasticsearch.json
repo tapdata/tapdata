@@ -46,6 +46,67 @@
           "x-index": 4
         }
       }
+    },
+    "node": {
+      "properties": {
+        "number_of_shards": {
+          "type": "string",
+          "title": "${number_of_shards}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "default": 1,
+          "x-decorator-props": {
+            "tooltip": "${number_of_shards_tip}",
+            "min": 1
+          },
+          "x-index": 1
+        },
+        "number_of_replicas": {
+          "type": "string",
+          "title": "${number_of_replicas}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "default": 1,
+          "x-decorator-props": {
+            "tooltip": "${number_of_replicas_tip}",
+            "min": 1
+          },
+          "x-index": 2
+        },
+        "dateFormat": {
+          "type": "string",
+          "title": "${date_format}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "yyyy-MM-dd",
+          "x-index": 3,
+          "x-decorator-props": {
+            "tooltip": "${date_format_tip}"
+          }
+        },
+        "datetimeFormat": {
+          "type": "string",
+          "title": "${date_time_format}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+          "x-index": 4,
+          "x-decorator-props": {
+            "tooltip": "${date_time_format_tip}"
+          }
+        },
+        "timeFormat": {
+          "type": "string",
+          "title": "${time_format}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "HH:mm:ss",
+          "x-index": 5,
+          "x-decorator-props": {
+            "tooltip": "${time_format_tip}"
+          }
+        }
+      }
     }
   },
   "messages": {
@@ -55,21 +116,51 @@
       "host": "DB Host",
       "port": "Port",
       "user" : "User Name",
-      "password" : "Password"
+      "password" : "Password",
+      "number_of_shards": "Number Of Shards",
+      "number_of_replicas": "Number Of Replicas",
+      "number_of_shards_tip": "An important configuration parameter for Elasticsearch indices. It defines how many primary shards an index should be divided into",
+      "number_of_replicas_tip": "An important configuration parameter in Elasticsearch that determines the number of replica shards associated with each primary shard in an index",
+      "date_format": "Date format",
+      "date_format_tip": "yyyy-MM-dd",
+      "date_time_format": "Datetime format",
+      "date_time_format_tip": "example: yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+      "time_format": "Time format",
+      "time_format_tip": "example: HH:mm:ss"
     },
     "zh_CN": {
       "doc": "docs/elasticsearch_zh_CN.md",
       "host": "数据库地址",
       "port": "端口",
       "user" : "账号",
-      "password" : "密码"
+      "password" : "密码",
+      "number_of_shards": "分片数量",
+      "number_of_replicas": "副本数量",
+      "number_of_shards_tip": "是 Elasticsearch 索引的一个重要配置参数，它定义了索引应该被分成多少个主分片",
+      "number_of_replicas_tip": "是 Elasticsearch 中的一个重要配置参数，它决定了每个主分片在一个索引中关联的复制分片的数量",
+      "date_format": "Date格式",
+      "date_format_tip": "示例：yyyy-MM-dd",
+      "date_time_format": "Datetime格式",
+      "date_time_format_tip": "示例：yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+      "time_format": "Time格式",
+      "time_format_tip": "示例：HH:mm:ss"
     },
     "zh_TW": {
       "doc": "docs/elasticsearch_zh_TW.md",
       "host": "數據庫地址",
       "port": "端口",
       "user" : "賬號",
-      "password" : "密碼"
+      "password" : "密碼",
+      "number_of_shards": "分片數量",
+      "number_of_replicas": "副本數量",
+      "number_of_shards_tip": "是 Elasticsearch 索引的一個重要配置參數，它定義了索引應該被分成多少個主分片",
+      "number_of_replicas_tip": "是 Elasticsearch 中的一個重要配置參數，它決定了每個主分片在一個索引中關聯的復製分片的數量",
+      "date_format": "Date格式",
+      "date_format_tip": "yyyy-MM-dd||yyyy-MM-dd'T'HH:mm:ss.SSS'Z'||HH:mm:ss||epoch_millis",
+      "date_time_format": "Datetime格式",
+      "date_time_format_tip": "示例：yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+      "time_format": "Time格式",
+      "time_format_tip": "示例：HH:mm:ss"
     }
   },
   "dataTypes": {
@@ -167,7 +258,10 @@
       "to": "TapBinary"
     },
     "object": {
-      "to": "TapString"
+      "to": "TapMap"
+    },
+    "nested": {
+      "to": "TapArray"
     }
   }
 }

@@ -235,12 +235,12 @@ public class SnapshotOrderController implements Serializable {
 	@Override
 	public String toString() {
 		if (CollectionUtils.isNotEmpty(snapshotOrderList)) {
-			return "Node performs snapshot read by order list: " + snapshotOrderList.stream()
+			return "Node performs snapshot read by order list: [ " + snapshotOrderList.stream()
 					.map(so -> so.getNodeControllers().stream()
 							.filter(nc -> nc.getNode() != null)
 							.map(nc -> nc.getNode().getName())
 							.collect(Collectors.joining(",")))
-					.collect(Collectors.joining("->"));
+					.collect(Collectors.joining(" ] -> [ ")) + " ]";
 		} else {
 			return "Node performs snapshot read asynchronously";
 		}

@@ -12,7 +12,6 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
-import io.tapdata.construct.HazelcastConstruct;
 import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -61,6 +60,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	public static final int DEFAULT_LOOKUP_THREAD_NUM = 8;
 	public static final String MERGE_LOOKUP_THREAD_NUM_PROP_KEY = "MERGE_LOOKUP_THREAD_NUM";
 	public static final String MERGE_CACHE_IN_MEM_SIZE_PROP_KEY = "MERGE_CACHE_IN_MEM_SIZE";
+	public static final int DEFAULT_MERGE_CACHE_BATCH_SIZE = 100;
+	public static final String MERGE_CACHE_BATCH_SIZE_PROP_KEY = "MERGE_CACHE_BATCH_SIZE";
 	private Logger logger = LogManager.getLogger(HazelcastMergeNode.class);
 
 	// 缓存表信息{"前置节点id": "Hazelcast缓存资源{"join value string": {"pk value string": "after data"}}"}
@@ -84,9 +85,11 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	private Map<String, Integer> sourceNodeLevelMap;
 	private String mergeMode;
 	private ExecutorService lookupThreadPool;
+	private int cacheBatchSize;
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
+		this.cacheBatchSize = CommonUtils.getPropertyInt(MERGE_CACHE_BATCH_SIZE_PROP_KEY, DEFAULT_MERGE_CACHE_BATCH_SIZE);
 	}
 
 	private void selfCheckNode(Node node) {
@@ -209,7 +212,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 					String preTableName = getPreTableName(eventWrapper.getTapdataEvent());
 					batchProcessResults.add(new BatchProcessResult(eventWrapper, ProcessResult.create().tableId(preTableName)));
 				}
-				batchProcessResults.add(new BatchProcessResult(new BatchEventWrapper(tapdataEvent, batchEventWrapper.getTapValueTransform()), null));
 				acceptIfNeed(consumer, batchProcessResults, lookupCfs);
 				batchCache.clear();
 				batchProcessResults.clear();
@@ -596,7 +598,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		if (null == tapdataEvents) {
 			return;
 		}
-		checkBatchCache(tapdataEvents);
+//		checkBatchCache(tapdataEvents);
 		Map<String, List<TapdataEvent>> preNodeIdPartitionEventMap = new HashMap<>();
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
 			String preNodeId = getPreNodeId(tapdataEvent);
@@ -614,7 +616,23 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			ConstructIMap<Document> hazelcastConstruct = getHazelcastConstruct(getPreNodeId(samePreNodeIdEvents.get(0)));
 			MergeTableProperties mergeProperty = getMergeProperty(samePreNodeIdEvents.get(0));
 			try {
-				upsertCache(samePreNodeIdEvents, mergeProperty, hazelcastConstruct);
+				String lastOp = "";
+				List<TapdataEvent> dispatchByOpEvents = new ArrayList<>();
+				for (TapdataEvent samePreNodeIdEvent : samePreNodeIdEvents) {
+					String op = getOp(samePreNodeIdEvent);
+					if (StringUtils.isNotBlank(lastOp) && !lastOp.equals(op)) {
+						handleCacheByOp(lastOp, dispatchByOpEvents, mergeProperty, hazelcastConstruct);
+						dispatchByOpEvents.clear();
+					}
+					dispatchByOpEvents.add(samePreNodeIdEvent);
+					lastOp = op;
+				}
+				if (CollectionUtils.isNotEmpty(dispatchByOpEvents)) {
+					TapdataEvent firstEvent = dispatchByOpEvents.get(0);
+					String op = getOp(firstEvent);
+					handleCacheByOp(op, dispatchByOpEvents, mergeProperty, hazelcastConstruct);
+					dispatchByOpEvents.clear();
+				}
 			} catch (Exception e) {
 				if (e instanceof TapCodeException) {
 					throw (TapCodeException) e;
@@ -622,6 +640,29 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 					throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHE_UNKNOWN_ERROR, e);
 				}
 			}
+		}
+	}
+
+	private void handleCacheByOp(String op, List<TapdataEvent> events, MergeTableProperties mergeProperty, ConstructIMap<Document> hazelcastConstruct) {
+		OperationType operationType = OperationType.fromOp(op);
+		switch (operationType) {
+			case INSERT:
+			case UPDATE:
+				try {
+					upsertCache(events, mergeProperty, hazelcastConstruct);
+				} catch (Exception e) {
+					throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHE_UNKNOWN_ERROR, "First event: " + events.get(0), e);
+				}
+				break;
+			case DELETE:
+				events.forEach(event -> {
+					try {
+						deleteCache(event, mergeProperty, hazelcastConstruct);
+					} catch (Exception e) {
+						throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHE_UNKNOWN_ERROR, "Event: " + event, e);
+					}
+				});
+				break;
 		}
 	}
 
@@ -976,10 +1017,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	}
 
 	public static void clearCache(Node<?> node) {
-		// When the task is reset, cached data will not be automatically deleted. If you want to clean it, use manual methods
-		/*if (!(node instanceof MergeTableNode)) return;
+		if (!(node instanceof MergeTableNode)) return;
 		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
-		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());*/
+		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
 	}
 
 	private static void recursiveClearCache(ExternalStorageDto externalStorageDto, List<MergeTableProperties> mergeTableProperties, HazelcastInstance hazelcastInstance) {

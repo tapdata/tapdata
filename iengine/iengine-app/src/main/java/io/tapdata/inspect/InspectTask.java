@@ -343,9 +343,9 @@ public abstract class InspectTask implements Runnable {
 			}
 			String msg = errorMessage;
 			Optional.ofNullable(inspectStatus).ifPresent(status -> inspectService.updateStatus(inspect.getId(), status, msg));
-			logger.info("Execute data verification done.");
+			logger.info("Execute inspect task[{}] verification done, status: {}, msg: {}", inspect.getName(), inspectStatus.getCode(), msg);
 		} catch (Throwable e) {
-			logger.error("Execute data verification failed", e);
+			logger.error("Execute inspect task[{}] verification failed", inspect.getName(), e);
 			if (null == inspectResult.getErrorMsg()) {
 				inspectResult.setErrorMsg("Execute data verification error: " + e.getMessage());
 			}

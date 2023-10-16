@@ -2,7 +2,6 @@ package io.tapdata.common.cdc;
 
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.ErrorKit;
-import io.tapdata.kit.StringKit;
 import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
@@ -98,18 +97,7 @@ public class LogTransaction {
 
     public void addRedoLogContent(RedoLogContent redoLogContent) throws IOException {
         if (redoLogContent.getRollback() == 1 && EmptyKit.isBlank(redoLogContent.getSqlUndo())) {
-            String rollbackKey = redoLogContent.getRowId();
-            switch (redoLogContent.getOperation()) {
-                case "INSERT":
-                    rollbackKey += "|" + "DELETE" + "|" + redoLogContent.getSqlRedo();
-                    break;
-                case "UPDATE":
-                    rollbackKey += "|" + "UPDATE" + "|" + StringKit.subStringBetweenTwoString(redoLogContent.getSqlRedo(), "set", "where");
-                    break;
-                case "DELETE":
-                    rollbackKey += "|" + "INSERT";
-                    break;
-            }
+            String rollbackKey = redoLogContent.generateRollbackKey();
             if (!partRollbackMap.containsKey(rollbackKey)) {
                 partRollbackMap.put(rollbackKey, 1L);
             } else {
