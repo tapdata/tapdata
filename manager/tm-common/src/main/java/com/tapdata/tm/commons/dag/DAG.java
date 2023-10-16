@@ -1081,12 +1081,12 @@ public class DAG implements Serializable, Cloneable {
         return clone(false);
     }
 
-    public DAG clone(boolean isStartTask) {
+    public DAG clone(boolean ignoreDisabledNode) {
         Dag dag = this.toDag();
         String json = JsonUtil.toJsonUseJackson(dag);
         Dag dag1 = JsonUtil.parseJsonUseJackson(json, new TypeReference<Dag>() {});
-        DAG build = DAG.build(dag1, isStartTask);
-        if (isStartTask) {
+        DAG build = DAG.build(dag1, ignoreDisabledNode);
+        if (ignoreDisabledNode) {
             build.setTaskId(taskId);
             build.setSyncType(syncType);
             build.setOwnerId(ownerId);
@@ -1097,7 +1097,7 @@ public class DAG implements Serializable, Cloneable {
         return build;
     }
 
-    public static DAG build(Dag taskDag, boolean isRunTask) {
+    public static DAG build(Dag taskDag, boolean ignoreDisabledNode) {
 
         Graph<Node, Edge> graph = new Graph<>();
         DAG dag = new DAG(graph);
@@ -1105,8 +1105,8 @@ public class DAG implements Serializable, Cloneable {
         List<Edge> edges = taskDag.getEdges();
         ConcurrentHashMap<String, String> edgeMap = new ConcurrentHashMap<>();
         List<Node> nodes = taskDag.getNodes();
-        Set<String> nodeIds = isRunTask? new HashSet<>() : null;
-        if (isRunTask && CollectionUtils.isNotEmpty(nodes)) {
+        Set<String> nodeIds = ignoreDisabledNode ? new HashSet<>() : null;
+        if (ignoreDisabledNode && CollectionUtils.isNotEmpty(nodes)) {
             nodes = nodes.stream().filter(next -> {
                 Map<String, Object> attrs = next.getAttrs();
                 if (null != attrs && !attrs.isEmpty()) {
@@ -1123,7 +1123,7 @@ public class DAG implements Serializable, Cloneable {
             for (Edge edge : edges) {
                 String from = edge.getSource();
                 String target = edge.getTarget();
-                if (isRunTask && (!nodeIds.contains(from) || !nodeIds.contains(target))) continue;
+                if (ignoreDisabledNode && (!nodeIds.contains(from) || !nodeIds.contains(target))) continue;
                 graph.setEdge(from, target, edge);
                 edgeMap.put(target, from);
                 edge.setDag(dag);
