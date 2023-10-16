@@ -136,7 +136,7 @@ jobs:
           echo "OK"
       - name: Run - Local Service
         run: |
-          bash build/run_smoke_tests.sh
+          bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}"
       - name: Test - Register Test Connector
         run: |
           echo "OK"
