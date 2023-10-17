@@ -14,6 +14,7 @@ import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.entity.task.NodeUtil;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.shareCdcTableMapping.ShareCdcTableMappingDto;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.ConstructIterator;
 import io.tapdata.construct.HazelcastConstruct;
@@ -55,7 +56,6 @@ import java.io.Serializable;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -255,10 +255,17 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		} else {
 			constructName = ShareCdcUtil.getConstructName(this.logCollectorTaskDto, tableName);
 		}
-		// Use different construct, but same collection name
-		tableName = ExternalStorageUtil.EXTERNAL_STORAGE_TABLE_NAME_PREFIX + constructName;
-		logCollectorExternalStorage.setTable(tableName);
 		constructName = constructName + "_" + ((ShareCdcTaskPdkContext) shareCdcContext).getTaskDto().getName();
+
+		String connId = ((ShareCdcTaskPdkContext) shareCdcContext).getConnections().getId();
+		String sign = ShareCdcTableMappingDto.genSign(logCollectorTaskDto.getId().toHexString(), connId, tableName);
+		Query query = Query.query(where("sign").is(sign));
+		ShareCdcTableMappingDto shareCdcTableMappingDto = clientMongoOperator.findOne(query, ConnectorConstant.SHARE_CDC_TABLE_MAPPING_COLLECTION, ShareCdcTableMappingDto.class);
+		if (null == shareCdcTableMappingDto) {
+			throw new RuntimeException("Share cdc table mapping not found, sign: " + sign);
+		}
+		tableName = shareCdcTableMappingDto.getExternalStorageTableName();
+		logCollectorExternalStorage.setTable(tableName);
 		logCollectorExternalStorage.setTtlDay(null);
 
 		return new ConstructRingBuffer<>(
