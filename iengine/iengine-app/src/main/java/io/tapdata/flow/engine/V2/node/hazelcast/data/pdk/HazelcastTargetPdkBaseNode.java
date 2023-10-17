@@ -604,6 +604,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						obsLogger.info("{}Target initial concurrent processor stopped", DynamicAdjustMemoryConstant.LOG_PREFIX);
 					}
 					newQueueSize = BigDecimal.valueOf(this.originalWriteQueueCapacity).divide(BigDecimal.valueOf(coefficient).multiply(BigDecimal.valueOf(TARGET_QUEUE_FACTOR)), 0, RoundingMode.HALF_UP).intValue();
+					newQueueSize = Math.max(newQueueSize,10);
+					newQueueSize = Math.min(newQueueSize,this.originalWriteQueueCapacity);
 					break;
 				case TapdataAdjustMemoryEvent.KEEP:
 					break;
