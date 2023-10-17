@@ -1212,7 +1212,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             Aggregation aggregation = Aggregation.newAggregation(
                     Aggregation.match(criteria),
                     Aggregation.unwind("fields"),
-                    Aggregation.unwind("indices"),
+                    Aggregation.unwind("indices", true),
                     Aggregation.project()
                             .and(AggregationExpression.from(MongoExpression.create("{ \"$toString\": \"$_id\" }"))).as("_id")
                             .and("original_name").as("tableName")
