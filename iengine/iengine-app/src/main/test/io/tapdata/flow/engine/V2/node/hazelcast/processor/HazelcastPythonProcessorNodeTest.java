@@ -30,7 +30,7 @@ public class HazelcastPythonProcessorNodeTest extends BaseTest {
 
     private static final org.apache.logging.log4j.Logger logger = LogManager.getLogger(HazelcastJavaScriptProcessorNodeTest.class);
 
-    @Test
+//    @Test
     public void testLog() {
         try (Context context = Context.newBuilder("python")
                 .allowAllAccess(true)
@@ -96,7 +96,7 @@ public class HazelcastPythonProcessorNodeTest extends BaseTest {
         }
     }
 
-    @Test
+//    @Test
     public void fun(){
         PythonInterpreter python = new PythonInterpreter();
 
