@@ -39,6 +39,7 @@ public class LogContent implements Serializable {
 	private String offsetString;
 	private String type = LogContentType.DATA.name();
 	private byte[] tapDDLEvent;
+	private String connectionId;
 
 	public LogContent() {
 	}
@@ -205,6 +206,14 @@ public class LogContent implements Serializable {
 		return tapDDLEvent;
 	}
 
+	public String getConnectionId() {
+		return connectionId;
+	}
+
+	public void setConnectionId(String connectionId) {
+		this.connectionId = connectionId;
+	}
+
 	public static LogContent valueOf(Document document) {
 		LogContent logContent = new LogContent();
 		logContent.setFromTable(document.getOrDefault("fromTable", "").toString());
@@ -262,6 +271,7 @@ public class LogContent implements Serializable {
 				"\n  ddl event=" + (null != tapDDLEventObj ? tapDDLEventObj : "") +
 				"\n  offsetString=" + offsetString +
 				"\n  type=" + type +
+				"\n  connectionId=" + connectionId +
 				"\n}";
 	}
 
