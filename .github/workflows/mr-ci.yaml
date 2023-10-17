@@ -167,4 +167,3 @@ jobs:
           kubectl delete deployment tapdata-$deployment_name -n dev
           kubectl delete service tapdata-$deployment_name -n dev
 
-
