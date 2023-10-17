@@ -160,7 +160,7 @@ jobs:
         with:
           cluster_name: 'tapdata-cloud-cluster'
           location: 'asia-east2'
-      - name: Get IP and Port
+      - name: Close Test Env
         id: get_ip_port
         run: |
           deployment_name=$(echo ${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} | tr 'A-F' 'a-f' | sed 's/\.//g')
