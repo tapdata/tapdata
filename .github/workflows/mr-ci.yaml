@@ -166,3 +166,4 @@ jobs:
           deployment_name=$(echo ${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} | tr 'A-F' 'a-f' | sed 's/\.//g')
           kubectl delete deployment tapdata-$deployment_name -n dev
           kubectl delete service tapdata-$deployment_name -n dev
+
