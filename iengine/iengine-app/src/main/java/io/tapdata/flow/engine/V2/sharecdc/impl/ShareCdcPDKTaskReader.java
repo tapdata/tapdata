@@ -25,8 +25,10 @@ import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
@@ -39,11 +41,13 @@ import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SkipIdleProcessor;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bson.BsonType;
 import org.bson.Document;
 import org.bson.types.Binary;
@@ -53,9 +57,13 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -65,7 +73,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @Description Shared incremental task reader
  * @create 2022-02-17 15:13
  **/
-public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializable {
+public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializable, MemoryFetcher {
 	private static final long serialVersionUID = -8010918045236535239L;
 	private static final int DEFAULT_THREAD_NUMBER = 8;
 	private static final String THREAD_NAME_PREFIX = "Share-CDC-Task-Reader-";
@@ -73,6 +81,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	public static final String TAG = ShareCdcPDKTaskReader.class.getSimpleName();
 	private final static ObjectSerializable OBJECT_SERIALIZABLE = InstanceFactory.instance(ObjectSerializable.class);
 	public static final int QUEUE_CAPACITY = 100;
+	public static final int TABLE_NAME_PARTITION_SIZE = 10;
 	private ExecutorService readThreadPool;
 	private TaskDto logCollectorTaskDto;
 	private HazelcastInstance hazelcastInstance;
@@ -86,6 +95,8 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	private Future<?> future;
 	private StreamReadConsumer streamReadConsumer;
 	private CountDownLatch readCountDown;
+	private final Map<String, MemoryMetrics> memoryMetricsMap = new HashMap<>();
+	private AtomicBoolean readFirstData = new AtomicBoolean();
 
 	ShareCdcPDKTaskReader(Object offset) {
 		super();
@@ -122,13 +133,22 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			this.tableNames = NodeUtil.getTableNames(shareCdcTaskContext.getNode());
 			step = canShareCdc(step);
 			this.readRunners = new ArrayList<>();
-			logger.info(logWrapper(++step, "Init read thread pool completed"));
+			obsLogger.info(logWrapper(++step, "Init read thread pool completed"));
 		} catch (IllegalArgumentException | ShareCdcUnsupportedException e) {
 			throw e;
 		} catch (Exception e) {
 			throw new ShareCdcUnsupportedException("An internal error occurred when init share cdc reader; Error: " + e.getMessage(), e, false);
 		}
-		logger.info("Init share cdc reader completed");
+		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(memoryFetchName((ShareCdcTaskPdkContext) shareCdcContext), this), TAG);
+		obsLogger.info("Init share cdc reader completed");
+	}
+
+	private static String memoryFetchName(ShareCdcTaskPdkContext shareCdcContext) {
+		return String.format("%s-%s-%s(%s)",
+				TAG,
+				shareCdcContext.getTaskDto().getName(),
+				shareCdcContext.getNode().getName(),
+				shareCdcContext.getNode().getId());
 	}
 
 	/**
@@ -143,13 +163,13 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		if (!connections.isShareCdcEnable()) {
 			throw new ShareCdcUnsupportedException("Connection " + connections.getName() + "(" + connections.getId() + ")" + " not enable share cdc", true);
 		}
-		logger.info(logWrapper(++step, "Check connection " + connections.getName() + " enable share cdc: true"));
+		obsLogger.info(logWrapper(++step, "Check connection " + connections.getName() + " enable share cdc: true"));
 
 		// Check task whether to open enable share cdc
 		if (!taskDto.getShareCdcEnable()) {
 			throw new ShareCdcUnsupportedException("Task " + taskDto.getName() + " not enable share cdc", true);
 		}
-		logger.info(logWrapper(++step, "Check task " + taskDto.getName() + " enable share cdc: true"));
+		obsLogger.info(logWrapper(++step, "Check task " + taskDto.getName() + " enable share cdc: true"));
 
 		// Check log collector task is exists
 		Map<String, String> shareCdcTaskId = taskDto.getShareCdcTaskId();
@@ -160,7 +180,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			throw new ShareCdcUnsupportedException("Not found log collector task by connection id: " + connections.getId(), false);
 		}
 		this.logCollectorTaskDto = getLogCollectorSubTask();
-		logger.info(logWrapper(++step, "Found log collector task: " + this.logCollectorTaskDto.getName()));
+		obsLogger.info(logWrapper(++step, "Found log collector task: " + this.logCollectorTaskDto.getName()));
 
 		// Get log collector external storage config
 		String shareCDCExternalStorageId = connections.getShareCDCExternalStorageId();
@@ -214,8 +234,8 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 						if (!syncType.equals(SyncTypeEnum.CDC.getSyncType())
 								&& logContent.getType().equals(LogContent.LogContentType.SIGN.name())) {
-							if (logger.isDebugEnabled()) {
-								logger.debug("Found first log is a sign log: " + logContent);
+							if (obsLogger.isDebugEnabled()) {
+								obsLogger.debug("Found first log is a sign log: " + logContent);
 							}
 						} else if (logContent.getTimestamp() > this.shareCdcContext.getCdcStartTs()) {
 							// First data's timestamp in storage must be lte task start cdc timestamp
@@ -223,21 +243,21 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 									+ Instant.ofEpochMilli(logContent.getTimestamp()) + ") is greater than task cdc start timestamp("
 									+ Instant.ofEpochMilli(this.shareCdcContext.getCdcStartTs()) + ")", false);
 						}
-						if (logger.isDebugEnabled()) {
-							logger.debug(logWrapper(++step, String.format("Log storage %s is available, first log timestamp: %s, task cdc start timestamp: %s",
+						if (obsLogger.isDebugEnabled()) {
+							obsLogger.debug(logWrapper(++step, String.format("Log storage %s is available, first log timestamp: %s, task cdc start timestamp: %s",
 									constructRingBuffer.getName(),
 									Instant.ofEpochMilli(logContent.getTimestamp()),
 									Instant.ofEpochMilli(this.shareCdcContext.getCdcStartTs()))
 							));
 						}
 					} else {
-						if (logger.isDebugEnabled()) {
-							logger.debug(logWrapper(++step, String.format("Log storage %s is empty and available to use", constructRingBuffer.getName())));
+						if (obsLogger.isDebugEnabled()) {
+							obsLogger.debug(logWrapper(++step, String.format("Log storage %s is empty and available to use", constructRingBuffer.getName())));
 						}
 					}
 				} else {
-					if (logger.isDebugEnabled()) {
-						logger.debug(logWrapper(++step, "Task incremental start timestamp less than 0, table [{}] will read from first line"), tableName);
+					if (obsLogger.isDebugEnabled()) {
+						obsLogger.debug(logWrapper(++step, "Task incremental start timestamp less than 0, table [{}] will read from first line"), tableName);
 					}
 				}
 			} catch (Exception e) {
@@ -290,11 +310,19 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 	@Override
 	public void listen(StreamReadConsumer streamReadConsumer) throws Exception {
-		logger.info(logWrapper("Starting listen share log storage..."));
+		obsLogger.info(logWrapper("Starting listen share log storage..."));
 		this.streamReadConsumer = streamReadConsumer;
-		int size = Math.max(1, tableNames.size() / threadNum);
-		List<List<String>> partitionTableNames = ListUtils.partition(tableNames, size);
-		threadNum = partitionTableNames.size();
+		List<List<String>> partitionTableNames;
+		if (!tableNames.isEmpty() && tableNames.size() <= TABLE_NAME_PARTITION_SIZE * 8) {
+			int size = Math.max(1, tableNames.size() / threadNum);
+			partitionTableNames = ListUtils.partition(tableNames, size);
+			threadNum = partitionTableNames.size();
+			obsLogger.info(logWrapper(String.format("Read table count: %s, partition size: %s, read thread number: %s", tableNames.size(), size, threadNum)));
+		} else {
+			partitionTableNames = ListUtils.partition(tableNames, TABLE_NAME_PARTITION_SIZE);
+			threadNum = partitionTableNames.size();
+			obsLogger.info(logWrapper(String.format("Read table count: %s, partition size: %s, read thread number: %s", tableNames.size(), TABLE_NAME_PARTITION_SIZE, threadNum)));
+		}
 		this.readThreadPool = new ThreadPoolExecutor(threadNum + 1, threadNum + 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
 		int index = 1;
 //		future = this.readThreadPool.submit(this::readPreVersionData);
@@ -352,6 +380,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			}
 			shareCdcContext.getObsLogger().info("Start read old version log data, name: {}, sequence: {}", ringBuffer.getName(), sequence);
 			while (this.running.get()) {
+				long start = System.currentTimeMillis();
 				Document document = iterator.tryNext();
 				if (null == document) {
 					break;
@@ -362,6 +391,10 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				String fromTable = document.getString("fromTable");
 				if (!tableNames.contains(fromTable)) {
 					continue;
+				}
+				if (shareCdcContext.getObsLogger().isDebugEnabled()) {
+					shareCdcContext.getObsLogger().debug(LOG_PREFIX + "Read old version log data, name: {}, sequence: {}, document: {}, try next time consuming: {}",
+							ringBuffer.getName(), sequence, document, (System.currentTimeMillis() - start));
 				}
 				enqueue(tapEventWrapper(document));
 			}
@@ -405,7 +438,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		public void read() {
 			Thread.currentThread().setName(THREAD_NAME_PREFIX + "-" + taskDto.getName() + "-" + index);
 			shareCdcContext.getObsLogger().info(logWrapper("Starting read log from hazelcast construct, tables: " + tableNames));
-			while (running.get()) {
+			/*while (running.get()) {
 				if (null == future || future.isDone()) {
 					break;
 				}
@@ -414,9 +447,10 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				} catch (InterruptedException e) {
 					break;
 				}
-			}
+			}*/
 
 			try (SkipIdleProcessor<String> skipIdleProcessor = new SkipIdleProcessor<>(() -> running.get(), tableNames)) {
+				CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(skipIdleMemoryFetchName((ShareCdcTaskPdkContext) shareCdcContext, index), skipIdleProcessor), TAG);
 				final BiFunction<String, ShareCdcReaderResource, ConstructIterator<Document>> constructItFn = (tableName, shareCdcReaderResource) -> {
 					HazelcastConstruct<Document> construct = shareCdcReaderResource.construct;
 					if (null == shareCdcReaderResource.sequence) {
@@ -451,7 +485,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						try {
 							iterator = construct.find(filter);
 							shareCdcReaderResource.iterator = iterator;
-							logger.info(logWrapper("Find by " + tableName + " filter: " + filter));
+							obsLogger.info(logWrapper("Find by " + tableName + " filter: " + filter));
 						} catch (Exception e) {
 							String err = "Find from hazelcast construct " + construct.getClass().getName() + " failed, filter: " + filter + "; Error: " + e.getMessage();
 							handleFailed(err);
@@ -470,6 +504,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				final Boolean ctlStatusBreak = true, ctlStatusIdle = null, ctlStatusNormal = false;
 				while (running.get()) {
 					Boolean needBreak = skipIdleProcessor.process(readerResourceMap, (tableName, readerResourceMap) -> {
+						MemoryMetrics memoryMetrics = memoryMetricsMap.computeIfAbsent(tableName, k -> new MemoryMetrics(tableName));
 						ShareCdcReaderResource shareCdcReaderResource = readerResourceMap.get(tableName);
 						if (null == shareCdcReaderResource) {
 							if (running.get()) {
@@ -486,15 +521,19 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 						List<Document> documents = new ArrayList<>();
 						try {
-							Document document = iterator.tryNext();
-							if (null == document) {
+							AtomicReference<Document> document = new AtomicReference<>();
+							memoryMetrics.find(() -> document.set(iterator.tryNext()));
+							if (null == document.get()) {
 								return ctlStatusIdle;
 							}
 
-							if (document.containsKey("type") && LogContent.LogContentType.SIGN.name().equals(document.getString("type"))) {
+							if (document.get().containsKey("type") && LogContent.LogContentType.SIGN.name().equals(document.get().getString("type"))) {
 								return ctlStatusNormal;
 							}
-							documents.add(document);
+							documents.add(document.get());
+							if (readFirstData.compareAndSet(false, true)) {
+								obsLogger.info(logWrapper("Successfully read first log data: " + document.get()));
+							}
 						} catch (DistributedObjectDestroyedException e) {
 							return ctlStatusIdle;
 						} catch (Exception e) {
@@ -503,12 +542,13 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 							return ctlStatusIdle;
 						}
 
-						if (logger.isDebugEnabled()) {
-							logger.debug("Received log documents");
+						if (obsLogger.isDebugEnabled()) {
+							obsLogger.debug("Received log documents");
 							shareCdcContext.getObsLogger().debug("Received log documents");
-							documents.forEach(doc -> logger.debug("  " + doc.toJson()));
+							documents.forEach(doc -> obsLogger.debug("  " + doc.toJson()));
 						}
 						sequenceMap.put(tableName, iterator.getSequence());
+						memoryMetrics.setSequence(iterator.getSequence());
 						documents.forEach(doc -> enqueue(tapEventWrapper(doc)));
 						if (shareCdcReaderResource.firstData) {
 							shareCdcContext.getObsLogger().info(logWrapper("Successfully read " + tableName + "'s first log data, will continue to read the log"));
@@ -533,7 +573,14 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				if (null == readerResource) continue;
 				CommonUtils.ignoreAnyError(() -> PersistenceStorage.getInstance().destroy(constructReferenceId, ConstructType.RINGBUFFER, readerResource.construct.getName()), tag);
 			}
+			CommonUtils.ignoreAnyError(() -> PDKIntegration.unregisterMemoryFetcher(skipIdleMemoryFetchName((ShareCdcTaskPdkContext) shareCdcContext, index)), TAG);
 		}
+	}
+
+	private static String skipIdleMemoryFetchName(ShareCdcTaskPdkContext shareCdcTaskPdkContext, int index) {
+		return String.format("%s-%s-%s-%s(%s)-%s", TAG, SkipIdleProcessor.class.getSimpleName(),
+				shareCdcTaskPdkContext.getTaskDto().getName(), shareCdcTaskPdkContext.getNode().getName(),
+				shareCdcTaskPdkContext.getNode().getId(), index);
 	}
 
 	private static class ShareCdcReaderResource {
@@ -633,6 +680,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 					this.readThreadPool.shutdownNow();
 				}
 			}, TAG);
+			CommonUtils.ignoreAnyError(() -> PDKIntegration.unregisterMemoryFetcher(memoryFetchName((ShareCdcTaskPdkContext) shareCdcContext)), TAG);
 		} finally {
 			super.close();
 		}
@@ -662,5 +710,77 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				}
 			}
 		});
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		DataMap dataMap = new DataMap();
+		try {
+			if (MapUtils.isNotEmpty(memoryMetricsMap)) {
+				for (Map.Entry<String, MemoryMetrics> entry : memoryMetricsMap.entrySet()) {
+					try {
+						dataMap.kv(entry.getKey(), entry.getValue().toString());
+					} catch (Exception e) {
+						dataMap.kv(entry.getKey() + " error", e.getMessage() + "; Stack: " + ExceptionUtils.getStackTrace(e));
+					}
+				}
+			}
+		} catch (Exception e) {
+			dataMap.kv("error", e.getMessage() + "  \n" + ExceptionUtils.getStackTrace(e));
+		}
+		return dataMap;
+	}
+
+	private static class MemoryMetrics {
+		private final String table;
+		private Long sequence;
+		private Long findAllCostMS;
+		private Long findTime;
+		private Long findMaxCostMS;
+
+		public MemoryMetrics(String table) {
+			this.table = table;
+			this.sequence = -1L;
+			this.findAllCostMS = 0L;
+			this.findTime = 0L;
+			this.findMaxCostMS = 0L;
+		}
+
+		public void setSequence(Long sequence) {
+			this.sequence = sequence;
+		}
+
+		public void find(Runnable runnable) {
+			if (null == runnable) {
+				return;
+			}
+			long startMS = System.currentTimeMillis();
+			runnable.run();
+			long endMS = System.currentTimeMillis();
+			long costMS = endMS - startMS;
+			if (costMS > findMaxCostMS) {
+				findMaxCostMS = costMS;
+			}
+			findTime++;
+			findAllCostMS += costMS;
+			if (findTime == 100000L) {
+				findAllCostMS = costMS;
+				findTime = 1L;
+			}
+		}
+
+		@Override
+		public String toString() {
+			BigDecimal findAvgMS = BigDecimal.ZERO;
+			if (findTime > 0L) {
+				findAvgMS = BigDecimal.valueOf(findAllCostMS).divide(BigDecimal.valueOf(findTime), 2, RoundingMode.HALF_UP);
+			}
+			BigDecimal qps = BigDecimal.ZERO;
+			if (findAvgMS.compareTo(BigDecimal.ZERO) > 0) {
+				qps = BigDecimal.valueOf(1000).divide(findAvgMS, 2, RoundingMode.HALF_UP);
+			}
+			return String.format("Table: %s, Sequence: %s, FindAllCostMS: %s, FindTime: %s, FindAvgMS: %s, FindMaxCostMS: %s, QPS: %s",
+					table, sequence, findAllCostMS, findTime, findAvgMS, findMaxCostMS, qps);
+		}
 	}
 }

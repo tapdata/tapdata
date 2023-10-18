@@ -13,6 +13,8 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcReaderExCode_13;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -46,6 +48,8 @@ public class ShareCdcBaseReader implements ShareCdcReader {
 	protected LinkedBlockingQueue<ShareCDCReaderEvent> queue;
 	protected Throwable throwable;
 
+	protected ObsLogger obsLogger;
+
 	protected ShareCdcBaseReader() {
 		this.running = new AtomicBoolean(true);
 	}
@@ -56,6 +60,7 @@ public class ShareCdcBaseReader implements ShareCdcReader {
 		this.clientMongoOperator = ClientOperatorUtil.buildHttpClientMongoOperator(shareCdcContext.getConfigurationCenter());
 		this.queue = new LinkedBlockingQueue<>(DEFAULT_QUEUE_SIZE);
 		this.running = new AtomicBoolean(true);
+		this.obsLogger = shareCdcContext.getObsLogger();
 
 		// Check global share cdc setting
 		if (!ShareCdcUtil.shareCdcEnable(new SettingService(clientMongoOperator))) {
