@@ -933,6 +933,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (metadata.getId() == null) {
 					metadata.setId(metadata.getOldId());
 				}
+				metadata.setTableAttr(metadata.getTableAttr());
 				updateMetadata.put(metadata.getId().toHexString(), metadata);
 				obsLogger.info("Alter table schema transform finished");
 			}

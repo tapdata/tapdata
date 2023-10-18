@@ -66,6 +66,7 @@ public class PdkSchemaConvert {
         tapTable.pdkVersion(schema.getPdkVersion());
         tapTable.setStorageEngine(schema.getStorageEngine());
         tapTable.setCharset(schema.getCharset());
+        tapTable.setTableAttr(schema.getTableAttr());
         if (CollectionUtils.isNotEmpty(schema.getIndices())) {
             List<TapIndex> tapIndexList = schema.getIndices().stream().map(in -> {
                 TapIndex tapIndex = new TapIndex();
@@ -156,6 +157,7 @@ public class PdkSchemaConvert {
         tapTable.pdkVersion(schema.getPdkVersion());
         tapTable.setStorageEngine(schema.getStorageEngine());
         tapTable.setCharset(schema.getCharset());
+        tapTable.setTableAttr(schema.getTableAttr());
         if (CollectionUtils.isNotEmpty(schema.getIndices())) {
             List<TapIndex> tapIndexList = schema.getIndices().stream().map(in -> {
                 TapIndex tapIndex = new TapIndex();
@@ -287,6 +289,7 @@ public class PdkSchemaConvert {
         }
         tapTable.setNameFieldMap(nameFieldMap);
         tapTable.setLastUpdate(schema.getLastUpdate());
+        tapTable.setTableAttr(schema.getTableAttr());
 
         return tapTable;
     }
@@ -304,6 +307,7 @@ public class PdkSchemaConvert {
         schema.setCharset(tapTable.getCharset());
         schema.setStorageEngine(tapTable.getStorageEngine());
         schema.setComment(tapTable.getComment());
+        schema.setTableAttr(tapTable.getTableAttr());
 
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         List<Field> fields = new ArrayList<>();
@@ -459,6 +463,7 @@ public class PdkSchemaConvert {
         schema.setCharset(tapTable.getCharset());
         schema.setStorageEngine(tapTable.getStorageEngine());
         schema.setComment(tapTable.getComment());
+        schema.setTableAttr(tapTable.getTableAttr());
 
 
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
