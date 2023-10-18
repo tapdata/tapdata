@@ -47,6 +47,7 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bson.BsonType;
 import org.bson.Document;
 import org.bson.types.Binary;
@@ -56,10 +57,13 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -91,7 +95,8 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	private Future<?> future;
 	private StreamReadConsumer streamReadConsumer;
 	private CountDownLatch readCountDown;
-	private final AtomicBoolean readFirstData = new AtomicBoolean();
+	private final Map<String, MemoryMetrics> memoryMetricsMap = new HashMap<>();
+	private AtomicBoolean readFirstData = new AtomicBoolean();
 
 	ShareCdcPDKTaskReader(Object offset) {
 		super();
@@ -135,13 +140,16 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		} catch (Exception e) {
 			throw new ShareCdcUnsupportedException("An internal error occurred when init share cdc reader; Error: " + e.getMessage(), e, false);
 		}
-		CommonUtils.ignoreAnyError(() -> {
-			PDKIntegration.registerMemoryFetcher(String.format("Share CDC Pdk Task Reader-%s-%s(%s)",
-					((ShareCdcTaskPdkContext) shareCdcContext).getTaskDto().getName(),
-					((ShareCdcTaskPdkContext) shareCdcContext).getNode().getName(),
-					((ShareCdcTaskPdkContext) shareCdcContext).getNode().getId()), this);
-		}, TAG);
+		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(memoryFetchName((ShareCdcTaskPdkContext) shareCdcContext), this), TAG);
 		obsLogger.info("Init share cdc reader completed");
+	}
+
+	private static String memoryFetchName(ShareCdcTaskPdkContext shareCdcContext) {
+		return String.format("%s-%s-%s(%s)",
+				TAG,
+				shareCdcContext.getTaskDto().getName(),
+				shareCdcContext.getNode().getName(),
+				shareCdcContext.getNode().getId());
 	}
 
 	/**
@@ -443,6 +451,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			}*/
 
 			try (SkipIdleProcessor<String> skipIdleProcessor = new SkipIdleProcessor<>(() -> running.get(), tableNames)) {
+				CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(skipIdleMemoryFetchName((ShareCdcTaskPdkContext) shareCdcContext, index), skipIdleProcessor), TAG);
 				final BiFunction<String, ShareCdcReaderResource, ConstructIterator<Document>> constructItFn = (tableName, shareCdcReaderResource) -> {
 					HazelcastConstruct<Document> construct = shareCdcReaderResource.construct;
 					if (null == shareCdcReaderResource.sequence) {
@@ -496,6 +505,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				final Boolean ctlStatusBreak = true, ctlStatusIdle = null, ctlStatusNormal = false;
 				while (running.get()) {
 					Boolean needBreak = skipIdleProcessor.process(readerResourceMap, (tableName, readerResourceMap) -> {
+						MemoryMetrics memoryMetrics = memoryMetricsMap.computeIfAbsent(tableName, k -> new MemoryMetrics(tableName));
 						ShareCdcReaderResource shareCdcReaderResource = readerResourceMap.get(tableName);
 						if (null == shareCdcReaderResource) {
 							if (running.get()) {
@@ -513,17 +523,18 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						List<Document> documents = new ArrayList<>();
 						long start = System.currentTimeMillis();
 						try {
-							Document document = iterator.tryNext();
-							if (null == document) {
+							AtomicReference<Document> document = new AtomicReference<>();
+							memoryMetrics.find(() -> document.set(iterator.tryNext()));
+							if (null == document.get()) {
 								return ctlStatusIdle;
 							}
 
-							if (document.containsKey("type") && LogContent.LogContentType.SIGN.name().equals(document.getString("type"))) {
+							if (document.get().containsKey("type") && LogContent.LogContentType.SIGN.name().equals(document.get().getString("type"))) {
 								return ctlStatusNormal;
 							}
-							documents.add(document);
+							documents.add(document.get());
 							if (readFirstData.compareAndSet(false, true)) {
-								obsLogger.info(logWrapper("Successfully read first log data: " + document));
+								obsLogger.info(logWrapper("Successfully read first log data: " + document.get()));
 							}
 						} catch (DistributedObjectDestroyedException e) {
 							return ctlStatusIdle;
@@ -539,6 +550,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 							documents.forEach(doc -> obsLogger.debug("  " + doc.toJson()));
 						}
 						sequenceMap.put(tableName, iterator.getSequence());
+						memoryMetrics.setSequence(iterator.getSequence());
 						documents.forEach(doc -> enqueue(tapEventWrapper(doc)));
 
 						return ctlStatusNormal;
@@ -559,7 +571,14 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				if (null == readerResource) continue;
 				CommonUtils.ignoreAnyError(() -> PersistenceStorage.getInstance().destroy(constructReferenceId, ConstructType.RINGBUFFER, readerResource.construct.getName()), tag);
 			}
+			CommonUtils.ignoreAnyError(() -> PDKIntegration.unregisterMemoryFetcher(skipIdleMemoryFetchName((ShareCdcTaskPdkContext) shareCdcContext, index)), TAG);
 		}
+	}
+
+	private static String skipIdleMemoryFetchName(ShareCdcTaskPdkContext shareCdcTaskPdkContext, int index) {
+		return String.format("%s-%s-%s-%s(%s)-%s", TAG, SkipIdleProcessor.class.getSimpleName(),
+				shareCdcTaskPdkContext.getTaskDto().getName(), shareCdcTaskPdkContext.getNode().getName(),
+				shareCdcTaskPdkContext.getNode().getId(), index);
 	}
 
 	private static class ShareCdcReaderResource {
@@ -659,6 +678,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 					this.readThreadPool.shutdownNow();
 				}
 			}, TAG);
+			CommonUtils.ignoreAnyError(() -> PDKIntegration.unregisterMemoryFetcher(memoryFetchName((ShareCdcTaskPdkContext) shareCdcContext)), TAG);
 		} finally {
 			super.close();
 		}
@@ -693,9 +713,72 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
 		DataMap dataMap = new DataMap();
-		if (MapUtils.isNotEmpty(sequenceMap)) {
-			dataMap.putAll(sequenceMap);
+		try {
+			if (MapUtils.isNotEmpty(memoryMetricsMap)) {
+				for (Map.Entry<String, MemoryMetrics> entry : memoryMetricsMap.entrySet()) {
+					try {
+						dataMap.kv(entry.getKey(), entry.getValue().toString());
+					} catch (Exception e) {
+						dataMap.kv(entry.getKey() + " error", e.getMessage() + "; Stack: " + ExceptionUtils.getStackTrace(e));
+					}
+				}
+			}
+		} catch (Exception e) {
+			dataMap.kv("error", e.getMessage() + "  \n" + ExceptionUtils.getStackTrace(e));
 		}
 		return dataMap;
+	}
+
+	private static class MemoryMetrics {
+		private final String table;
+		private Long sequence;
+		private Long findAllCostMS;
+		private Long findTime;
+		private Long findMaxCostMS;
+
+		public MemoryMetrics(String table) {
+			this.table = table;
+			this.sequence = -1L;
+			this.findAllCostMS = 0L;
+			this.findTime = 0L;
+			this.findMaxCostMS = 0L;
+		}
+
+		public void setSequence(Long sequence) {
+			this.sequence = sequence;
+		}
+
+		public void find(Runnable runnable) {
+			if (null == runnable) {
+				return;
+			}
+			long startMS = System.currentTimeMillis();
+			runnable.run();
+			long endMS = System.currentTimeMillis();
+			long costMS = endMS - startMS;
+			if (costMS > findMaxCostMS) {
+				findMaxCostMS = costMS;
+			}
+			findTime++;
+			findAllCostMS += costMS;
+			if (findTime == 100000L) {
+				findAllCostMS = costMS;
+				findTime = 1L;
+			}
+		}
+
+		@Override
+		public String toString() {
+			BigDecimal findAvgMS = BigDecimal.ZERO;
+			if (findTime > 0L) {
+				findAvgMS = BigDecimal.valueOf(findAllCostMS).divide(BigDecimal.valueOf(findTime), 2, RoundingMode.HALF_UP);
+			}
+			BigDecimal qps = BigDecimal.ZERO;
+			if (findAvgMS.compareTo(BigDecimal.ZERO) > 0) {
+				qps = BigDecimal.valueOf(1000).divide(findAvgMS, 2, RoundingMode.HALF_UP);
+			}
+			return String.format("Table: %s, Sequence: %s, FindAllCostMS: %s, FindTime: %s, FindAvgMS: %s, FindMaxCostMS: %s, QPS: %s",
+					table, sequence, findAllCostMS, findTime, findAvgMS, findMaxCostMS, qps);
+		}
 	}
 }
