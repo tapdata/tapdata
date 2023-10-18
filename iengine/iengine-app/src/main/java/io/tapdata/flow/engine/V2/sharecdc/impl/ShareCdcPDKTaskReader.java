@@ -423,12 +423,12 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			this.readerResourceMap = new HashMap<>();
 			for (String tableName : tableNames) {
 				ConstructRingBuffer<Document> constructRingBuffer = getConstruct(tableName);
+				obsLogger.info("[{}] Successfully obtained construct, name: {}, external storage name: {}", LOG_PREFIX, constructRingBuffer.getName(), logCollectorExternalStorage.getTable());
 				ShareCdcReaderResource shareCdcReaderResource = new ShareCdcReaderResource(constructRingBuffer);
 				if (null != sequenceMap && sequenceMap.containsKey(tableName)) {
 					shareCdcReaderResource.sequence(sequenceMap.get(tableName));
 					if (logger.isDebugEnabled()) {
-						logger.debug("Found share cdc table[{}] offset, sequence: {}", tableNames, sequenceMap.get(tableName));
-						shareCdcContext.getObsLogger().debug("Found share cdc table[{}] offset, sequence: {}", tableNames, sequenceMap.get(tableName));
+						obsLogger.debug("[{}] Found share cdc table[{}] offset, sequence: {}", LOG_PREFIX, tableNames, sequenceMap.get(tableName));
 					}
 				}
 				readerResourceMap.put(tableName, shareCdcReaderResource);
@@ -437,7 +437,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 		public void read() {
 			Thread.currentThread().setName(THREAD_NAME_PREFIX + "-" + taskDto.getName() + "-" + index);
-			shareCdcContext.getObsLogger().info(logWrapper("Starting read log from hazelcast construct, tables: " + tableNames));
+			obsLogger.info(logWrapper("Starting read log from hazelcast construct, tables: " + tableNames));
 			/*while (running.get()) {
 				if (null == future || future.isDone()) {
 					break;
