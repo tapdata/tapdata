@@ -65,6 +65,8 @@ public class MetadataInstancesDto extends BaseDto {
     private String aliasName;
     @JsonProperty("custom_properties")
     private Map<String, Object> customProperties;
+    @JsonProperty("tableAttr")
+    private Map<String, Object> tableAttr;
 
     //下面几个只有历史版本中存在的字段
     @JsonProperty("version_user_id")
