@@ -18,7 +18,7 @@ jobs:
       TAG_NAME: ${{ steps.set-output.outputs.TAG_NAME }}
     steps:
       - name: Checkout Tapdata Opensource
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: 'tapdata/tapdata'
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
@@ -32,6 +32,9 @@ jobs:
           hex_timestamp=$(printf "%X" "$current_timestamp" | tr 'A-F' 'a-f')
           tag_name="$main_tag-$hex_timestamp"
           echo "TAG_NAME=$tag_name" >> $GITHUB_ENV
+      - name: Setup tmate session
+        if: always()
+        uses: mxschmitt/action-tmate@v3
       - name: Checkout Tapdata Enterprise Web
         uses: actions/checkout@v2
         with:
