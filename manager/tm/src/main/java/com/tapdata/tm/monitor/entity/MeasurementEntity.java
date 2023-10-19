@@ -14,7 +14,7 @@ import java.util.Map;
 @Data
 public class MeasurementEntity {
     public static final String COLLECTION_NAME = "AgentMeasurementV2";
-
+    public static final String FIELD_ID = "_id";
     public static final String FIELD_GRANULARITY = "grnty";
     public static final String FIELD_DATE = "date";
     public static final String FIELD_SAMPLE_SIZE = "size";
