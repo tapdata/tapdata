@@ -58,8 +58,8 @@ jobs:
         run: |
           cd tapdata-application
           OPENSOURCE_BRANCH=${{ github.ref_name }}
-          ENTERPRISE_BRANCH=$(bash build/build.sh -e 1 | grep ENTERPRISE_BRANCH | awk -F' ' '{print $2}')
-          FRONTEND_BRANCH=$(bash build/build.sh -e 1 | grep FRONTEND_BRANCH | awk -F' ' '{print $2}')
+          ENTERPRISE_BRANCH="main"
+          FRONTEND_BRANCH="main"
           echo "::set-output name=OPENSOURCE_BRANCH::${OPENSOURCE_BRANCH}"
           echo "::set-output name=ENTERPRISE_BRANCH::${ENTERPRISE_BRANCH}"
           echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
