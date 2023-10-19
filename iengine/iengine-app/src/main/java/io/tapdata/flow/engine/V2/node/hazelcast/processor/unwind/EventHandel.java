@@ -21,24 +21,36 @@ public interface EventHandel {
     Map<String, EventHandel> handelMap = new ConcurrentHashMap<>();
 
     static List<TapEvent> getHandelResult(UnwindProcessNode node, TapEvent event) {
-        final String op = event instanceof TapUpdateRecordEvent ? "u" :
-                    event instanceof TapInsertRecordEvent ? "i" :
-                    event instanceof TapDeleteRecordEvent ? "d" : null;
-        if (null == op) return null;
-        EventHandel eventHandel = handelMap.get(op);
-        if (null == eventHandel) {
-            switch (op) {
-                case "u" : eventHandel = new UpdateHandel();break;
-                case "i" : eventHandel = new InsertHandel();break;
-                default: eventHandel = new DeleteHandel();
-            }
-            handelMap.put(op, eventHandel);
+        final String op;
+        if (event instanceof TapUpdateRecordEvent) {
+            op = "u";
+        } else if (event instanceof TapInsertRecordEvent) {
+            op = "i";
+        } else if (event instanceof TapDeleteRecordEvent) {
+            op = "d";
+        } else {
+            op = null;
         }
-
-
-        List<TapEvent> events = UnWindNodeUtil.initHandel(node, event);
-        if (!events.isEmpty()) return events;
-        return eventHandel.handel(node, event);
+        if (null != op) {
+            EventHandel eventHandel = handelMap.get(op);
+            if (null == eventHandel) {
+                switch (op) {
+                    case "u":
+                        eventHandel = new UpdateHandel();
+                        break;
+                    case "i":
+                        eventHandel = new InsertHandel();
+                        break;
+                    default:
+                        eventHandel = new DeleteHandel();
+                }
+                handelMap.put(op, eventHandel);
+            }
+            List<TapEvent> events = UnWindNodeUtil.initHandel(node, event);
+            if (!events.isEmpty()) return events;
+            return eventHandel.handel(node, event);
+        }
+        return new ArrayList<>();
     }
 
     static void close() {
