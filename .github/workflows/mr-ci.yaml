@@ -146,6 +146,7 @@ jobs:
         run: |
           bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}"
       - name: Print Test Result
+        if: ${{ always() }}
         run: |
           echo "RUN_ID=$(cat /tmp/.run_id)" >> $GITHUB_ENV
           echo "TEST_PLAN_ID=$(cat /tmp/.test_plan_id)" >> $GITHUB_ENV
