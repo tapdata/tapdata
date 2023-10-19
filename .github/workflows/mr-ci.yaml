@@ -2,7 +2,7 @@ name: Merge Request CI
 
 on:
   push:
-    branches: [ "main", "develop", "release-v*.*" ]
+    branches: [ "main", "develop", "release-v*.*", "fix-v3.5.4-cicd" ]
   pull_request:
     types: ["opened", "reopened"]
     branches: [ "main", "develop", "release-v*.*" ]
