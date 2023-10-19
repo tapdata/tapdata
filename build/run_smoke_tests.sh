@@ -242,11 +242,11 @@ else
   echo "$RUN_ID"
 fi
 
-echo $RUN_ID > /tmp/run_id
+echo $RUN_ID > ./run_id
 if [[ $? -ne 0 ]]; then
   echo "Failed to export RUN_ID to /tmp"
 fi
-echo $TESTSIGMA_TEST_PLAN_ID > /tmp/test_plan_id
+echo $TESTSIGMA_TEST_PLAN_ID > ./test_plan_id
 if [[ $? -ne 0 ]]; then
   echo "Failed to export TESTSIGMA_TEST_PLAN_ID to /tmp"
 fi
