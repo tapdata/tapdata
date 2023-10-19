@@ -57,7 +57,7 @@ jobs:
         id: set-output
         run: |
           cd tapdata-application
-          OPENSOURCE_BRANCH=${{ github.ref_name }}
+          OPENSOURCE_BRANCH=${{github.event.pull_request.head.ref}}
           ENTERPRISE_BRANCH="main"
           FRONTEND_BRANCH="main"
           echo "::set-output name=OPENSOURCE_BRANCH::${OPENSOURCE_BRANCH}"
@@ -66,13 +66,21 @@ jobs:
           echo "::set-output name=TAG_NAME::${TAG_NAME}"
 
   Build-And-Deploy:
-    runs-on: aws-ubuntu-20
+    runs-on: ubuntu-latest
     needs:
       - Get-Stable-Branch
     outputs:
       IP: ${{ steps.get_ip_port.outputs.IP }}
       PORT: ${{ steps.get_ip_port.outputs.PORT }}
     steps:
+      - name: Get OpenSource Branch Name -- Common
+        run: |
+          echo "OPENSOURCE_BRANCH=${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}" >> $GITHUB_ENV
+#      - name: Set OpenSource Branch Name -- Pull Request
+#        if: ${{ github.event_name == 'pull_request' }}
+#        run: |
+#          branch_name="refs/remotes/pull/${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}"
+#          echo "OPENSOURCE_BRANCH=$branch_name" >> $GITHUB_ENV
       - name: Trigger - Build And Deploy
         uses: convictional/trigger-workflow-and-wait@v1.6.1
         with:
@@ -82,7 +90,7 @@ jobs:
           workflow_file_name: build-self-hosted.yaml
           ref: ${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}
           wait_interval: 10
-          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}", "FOR_AUTO_TEST": "true", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
+          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ env.OPENSOURCE_BRANCH }}", "FOR_AUTO_TEST": "true", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
           propagate_failure: true
           trigger_workflow: true
           wait_workflow: true
@@ -137,6 +145,13 @@ jobs:
       - name: Run - Local Service
         run: |
           bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}"
+      - name: Print Test Result
+        if: ${{ always() }}
+        run: |
+          run_id=`cat ./run_id`
+          test_plan_id=`cat ./test_plan_id`
+          echo "**TestSigma Test Result Link:**" >> $GITHUB_STEP_SUMMARY
+          echo "https://app.testsigma.com/ui/td/results/$run_id/runs/$test_plan_id" >> $GITHUB_STEP_SUMMARY
       - name: Test - Register Test Connector
         run: |
           echo "OK"
