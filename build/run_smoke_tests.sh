@@ -241,6 +241,8 @@ if [[ $RUN_ID =~ $NUMBERS_REGEX ]]; then
 else
   echo "$RUN_ID"
 fi
+echo $RUN_ID > /tmp/.run_id
+echo $TESTSIGMA_TEST_PLAN_ID > /tmp/.test_plan_id
  
 EXITCODE=0
 # example using the status
