@@ -73,10 +73,14 @@ jobs:
       IP: ${{ steps.get_ip_port.outputs.IP }}
       PORT: ${{ steps.get_ip_port.outputs.PORT }}
     steps:
-      - name: Set OpenSource Branch Name
+      - name: Get OpenSource Branch Name -- Common
+        run: |
+          echo "OPENSOURCE_BRANCH=${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}" >> $GITHUB_ENV
+      - name: Set OpenSource Branch Name -- Pull Request
         if: ${{ github.event_name == 'pull_request' }}
         run: |
           branch_name="refs/remotes/pull/${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}"
+          echo "OPENSOURCE_BRANCH=$branch_name" >> $GITHUB_ENV
       - name: Trigger - Build And Deploy
         uses: convictional/trigger-workflow-and-wait@v1.6.1
         with:
@@ -86,7 +90,7 @@ jobs:
           workflow_file_name: build-self-hosted.yaml
           ref: ${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}
           wait_interval: 10
-          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}", "FOR_AUTO_TEST": "true", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
+          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ env.OPENSOURCE_BRANCH }}", "FOR_AUTO_TEST": "true", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
           propagate_failure: true
           trigger_workflow: true
           wait_workflow: true
