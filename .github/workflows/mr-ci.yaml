@@ -18,16 +18,16 @@ jobs:
       TAG_NAME: ${{ steps.set-output.outputs.TAG_NAME }}
     steps:
       - name: Checkout Tapdata Opensource
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: 'tapdata/tapdata'
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           path: tapdata
-          depth: 0
+          fetch-depth: 0
       - name: Set Tag
         run: |
           cd tapdata
-          main_tag=$(git branch --show-current | cut -d '-' -f 2)
+          main_tag=$(git describe --tags | cut -d '-' -f 1)
           current_timestamp=$(date +%s)
           hex_timestamp=$(printf "%X" "$current_timestamp" | tr 'A-F' 'a-f')
           tag_name="$main_tag-$hex_timestamp"
@@ -66,7 +66,7 @@ jobs:
           echo "::set-output name=TAG_NAME::${TAG_NAME}"
 
   Build-And-Deploy:
-    runs-on: ubuntu-latest
+    runs-on: aws-ubuntu-20
     needs:
       - Get-Stable-Branch
     outputs:
@@ -166,4 +166,3 @@ jobs:
           deployment_name=$(echo ${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} | tr 'A-F' 'a-f' | sed 's/\.//g')
           kubectl delete deployment tapdata-$deployment_name -n dev
           kubectl delete service tapdata-$deployment_name -n dev
-
