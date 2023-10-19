@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 public abstract class MysqlJdbcWriter extends MysqlWriter {
     private final static String TAG = MysqlJdbcWriter.class.getSimpleName();
     protected static final String INSERT_SQL_TEMPLATE = "INSERT INTO `%s`.`%s`(%s) values(%s)";
+    protected static final String UPSERT_SQL_TEMPLATE = "INSERT INTO `%s`.`%s`(%s) values(%s) ON DUPLICATE KEY UPDATE %s";
     protected static final String UPDATE_SQL_TEMPLATE = "UPDATE `%s`.`%s` SET %s WHERE %s";
     protected static final String DELETE_SQL_TEMPLATE = "DELETE FROM `%s`.`%s` WHERE %s";
     protected static final String CHECK_ROW_EXISTS_TEMPLATE = "SELECT COUNT(1) as count FROM `%s`.`%s` WHERE %s";
@@ -95,7 +96,9 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
                 fields.add("`" + fieldName + "`");
             });
             List<String> questionMarks = fields.stream().map(f -> "?").collect(Collectors.toList());
-            String sql = String.format(INSERT_SQL_TEMPLATE, database, tableId, String.join(",", fields), String.join(",", questionMarks));
+            String sql = String.format(UPSERT_SQL_TEMPLATE, database, tableId, String.join(",", fields), String.join(",", questionMarks),
+                    fields.stream().map(k -> k + "=values(" + k + ")").collect(Collectors.joining(", ")));
+//            String sql = String.format(INSERT_SQL_TEMPLATE, database, tableId, String.join(",", fields), String.join(",", questionMarks));
             try {
                 preparedStatement = jdbcCache.getConnection().prepareStatement(sql);
             } catch (SQLException e) {
