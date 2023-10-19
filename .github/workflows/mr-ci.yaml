@@ -75,12 +75,12 @@ jobs:
     steps:
       - name: Get OpenSource Branch Name -- Common
         run: |
-          echo "OPENSOURCE_BRANCH=${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}" >> $GITHUB_ENV
-#      - name: Set OpenSource Branch Name -- Pull Request
-#        if: ${{ github.event_name == 'pull_request' }}
-#        run: |
-#          branch_name="refs/remotes/pull/${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}"
-#          echo "OPENSOURCE_BRANCH=$branch_name" >> $GITHUB_ENV
+          echo "OPENSOURCE_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Set OpenSource Branch Name -- Pull Request
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          branch_name="refs/remotes/pull/${{ github.event.pull_request.head.ref }}"
+          echo "OPENSOURCE_BRANCH=$branch_name" >> $GITHUB_ENV
       - name: Trigger - Build And Deploy
         uses: convictional/trigger-workflow-and-wait@v1.6.1
         with:
