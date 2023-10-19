@@ -27,7 +27,7 @@ jobs:
       - name: Set Tag
         run: |
           cd tapdata
-          main_tag=$(git describe --tags --always --dirty | cut -d '-' -f 1)
+          main_tag=$(git describe --tags | cut -d '-' -f 1)
           current_timestamp=$(date +%s)
           hex_timestamp=$(printf "%X" "$current_timestamp" | tr 'A-F' 'a-f')
           tag_name="$main_tag-$hex_timestamp"
@@ -180,4 +180,3 @@ jobs:
           deployment_name=$(echo ${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} | tr 'A-F' 'a-f' | sed 's/\.//g')
           kubectl delete deployment tapdata-$deployment_name -n dev
           kubectl delete service tapdata-$deployment_name -n dev
-
