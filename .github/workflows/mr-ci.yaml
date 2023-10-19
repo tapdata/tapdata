@@ -73,6 +73,10 @@ jobs:
       IP: ${{ steps.get_ip_port.outputs.IP }}
       PORT: ${{ steps.get_ip_port.outputs.PORT }}
     steps:
+      - name: Set OpenSource Branch Name
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          branch_name="refs/remotes/pull/${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}"
       - name: Trigger - Build And Deploy
         uses: convictional/trigger-workflow-and-wait@v1.6.1
         with:
