@@ -79,7 +79,7 @@ jobs:
       - name: Set OpenSource Branch Name -- Pull Request
         if: ${{ github.event_name == 'pull_request' }}
         run: |
-          branch_name="refs/remotes/pull/${{ github.event.pull_request.head.ref }}"
+          branch_name="${{ github.event.pull_request.head.ref }}"
           echo "OPENSOURCE_BRANCH=$branch_name" >> $GITHUB_ENV
       - name: Trigger - Build And Deploy
         uses: convictional/trigger-workflow-and-wait@v1.6.1
