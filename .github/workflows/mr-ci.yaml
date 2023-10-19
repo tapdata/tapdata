@@ -82,8 +82,8 @@ jobs:
           depth: 0
       - name: Rsync Tapdata Code
         run: |
-          echo "${{ secret.RSYNC_PASSWD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
-          rsync -avz --password-file=/tmp/rsync.passwd --delete tapdata/.* rsync://root@${{ secret.RSYNC_SERVER }}/data/code/${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}/
+          echo "${{ secrets.RSYNC_PASSWD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync -avz --password-file=/tmp/rsync.passwd --delete tapdata/.* rsync://root@${{ secrets.RSYNC_SERVER }}/data/code/${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}/
       - name: Trigger - Build And Deploy
         uses: convictional/trigger-workflow-and-wait@v1.6.1
         with:
