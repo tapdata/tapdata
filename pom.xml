@@ -20,6 +20,11 @@
         <!--        <module>connectors-javascript</module>-->
     </modules>
 
+    <properties>
+        <sonar.organization>tapdata</sonar.organization>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+    </properties>
+
     <build>
         <plugins>
             <plugin>

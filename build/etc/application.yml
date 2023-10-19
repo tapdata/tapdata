@@ -1,0 +1,12 @@
+tapdata:
+    conf:
+        tapdataPort: '3030'
+        backendUrl: 'http://127.0.0.1:3030/api/'
+        apiServerPort: '3080'
+        apiServerErrorCode: 'true'
+        tapdataJavaOpts: "-Xmx2G -Xms2G"
+        SCRIPT_DIR: etc
+        reportInterval: 20000
+        uuid: 3646252d-be24-42e7-ae96-a5b359c94e02
+        Decimal128ToNumber: 'false'
+        tapdataTMJavaOpts: '-Xmx2G -Xms2G'

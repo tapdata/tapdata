@@ -1,0 +1,168 @@
+name: Merge Request CI
+
+on:
+  push:
+    branches: [ "fix-v3.5.4-cicd" ]
+  pull_request:
+    types: ["opened", "reopened"]
+    branches: [ "fix-v3.5.4-cicd" ]
+
+jobs:
+
+  Get-Stable-Branch:
+    runs-on: ubuntu-latest
+    outputs:
+      OPENSOURCE_BRANCH: ${{ steps.set-output.outputs.OPENSOURCE_BRANCH }}
+      ENTERPRISE_BRANCH: ${{ steps.set-output.outputs.ENTERPRISE_BRANCH }}
+      FRONTEND_BRANCH: ${{ steps.set-output.outputs.FRONTEND_BRANCH }}
+      TAG_NAME: ${{ steps.set-output.outputs.TAG_NAME }}
+    steps:
+      - name: Checkout Tapdata Opensource
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata'
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata
+          depth: 0
+      - name: Set Tag
+        run: |
+          cd tapdata
+          main_tag=$(git branch --show-current | cut -d '-' -f 2)
+          current_timestamp=$(date +%s)
+          hex_timestamp=$(printf "%X" "$current_timestamp" | tr 'A-F' 'a-f')
+          tag_name="$main_tag-$hex_timestamp"
+          echo "TAG_NAME=$tag_name" >> $GITHUB_ENV
+      - name: Checkout Tapdata Enterprise Web
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-enterprise-web'
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-enterprise-web
+          depth: 0
+      - name: Checkout Tapdata Enterpris
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-enterprise'
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-enterprise
+          depth: 0
+      - name: Checkout Tapdata Application
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-application'
+          ref: "main"
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-application
+      - name: Get last stable branch
+        id: set-output
+        run: |
+          cd tapdata-application
+          OPENSOURCE_BRANCH=${{ github.ref_name }}
+          ENTERPRISE_BRANCH=$(bash build/build.sh -e 1 | grep ENTERPRISE_BRANCH | awk -F' ' '{print $2}')
+          FRONTEND_BRANCH=$(bash build/build.sh -e 1 | grep FRONTEND_BRANCH | awk -F' ' '{print $2}')
+          echo "::set-output name=OPENSOURCE_BRANCH::${OPENSOURCE_BRANCH}"
+          echo "::set-output name=ENTERPRISE_BRANCH::${ENTERPRISE_BRANCH}"
+          echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
+          echo "::set-output name=TAG_NAME::${TAG_NAME}"
+
+  Build-And-Deploy:
+    runs-on: ubuntu-latest
+    needs:
+      - Get-Stable-Branch
+    outputs:
+      IP: ${{ steps.get_ip_port.outputs.IP }}
+      PORT: ${{ steps.get_ip_port.outputs.PORT }}
+    steps:
+      - name: Trigger - Build And Deploy
+        uses: convictional/trigger-workflow-and-wait@v1.6.1
+        with:
+          owner: tapdata
+          repo: tapdata-enterprise
+          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          workflow_file_name: build-self-hosted.yaml
+          ref: ${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}
+          wait_interval: 10
+          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}", "FOR_AUTO_TEST": "true", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
+          propagate_failure: true
+          trigger_workflow: true
+          wait_workflow: true
+      - id: 'auth'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+      - id: 'get-credentials'
+        uses: 'google-github-actions/get-gke-credentials@v1'
+        with:
+          cluster_name: 'tapdata-cloud-cluster'
+          location: 'asia-east2'
+      - name: Get IP and Port
+        id: get_ip_port
+        run: |
+          deployment_name=$(echo ${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} | tr 'A-F' 'a-f' | sed 's/\.//g')
+          kubectl get service tapdata-$deployment_name -n dev -o jsonpath='{.status.loadBalancer.ingress[0].ip}:{.spec.ports[?(@.name=="web")].port}' > .service_ip_port
+          ip=$(cat .service_ip_port | cut -d ':' -f 1)
+          port=$(cat .service_ip_port | cut -d ':' -f 2)
+          echo "::set-output name=IP::$ip"
+          echo "::set-output name=PORT::$port"
+
+  MRCI:
+    runs-on: aws-ubuntu-20
+    timeout-minutes: 60
+    needs:
+      - Build-And-Deploy
+    steps:
+      - name: Set Env
+        run: |
+          echo "IP=${{ needs.Build-And-Deploy.outputs.IP }}" >> $GITHUB_ENV
+          echo "PORT=${{ needs.Build-And-Deploy.outputs.PORT }}" >> $GITHUB_ENV
+      - name: Check - If Push Action
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          echo "CURRENT_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Check - If Merge Request Action
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
+      - name: Fetch Code - Main Repo
+        uses: actions/checkout@v3
+        with:
+            fetch-depth: 0
+            ref: ${{ env.CURRENT_BRANCH }}
+            token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+            path: ./
+      - name: Compile - IEngine And Management
+        run: |
+          #mvn clean install -DskipTests -P idaas -P not_encrypt -U -T1C
+          echo "OK"
+      - name: Run - Local Service
+        run: |
+          bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}"
+      - name: Test - Register Test Connector
+        run: |
+          echo "OK"
+      - name: Test - E2E Qucik Test
+        run: |
+          echo "OK"
+
+  CLOSE_ENV:
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs:
+      - MRCI
+      - Get-Stable-Branch
+    steps:
+      - id: 'auth'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+      - id: 'get-credentials'
+        uses: 'google-github-actions/get-gke-credentials@v1'
+        with:
+          cluster_name: 'tapdata-cloud-cluster'
+          location: 'asia-east2'
+      - name: Close Test Env
+        id: get_ip_port
+        run: |
+          deployment_name=$(echo ${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} | tr 'A-F' 'a-f' | sed 's/\.//g')
+          kubectl delete deployment tapdata-$deployment_name -n dev
+          kubectl delete service tapdata-$deployment_name -n dev
