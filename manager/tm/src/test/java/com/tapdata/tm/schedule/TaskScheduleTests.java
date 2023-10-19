@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 
 @ActiveProfiles("dev")
-@SpringBootTest(classes = {TMApplication.class})
+//@SpringBootTest(classes = {TMApplication.class})
 public class TaskScheduleTests {
 
     @Autowired

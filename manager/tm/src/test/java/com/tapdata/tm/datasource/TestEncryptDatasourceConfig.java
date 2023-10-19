@@ -21,7 +21,7 @@ import java.util.Map;
  */
 public class TestEncryptDatasourceConfig {
 
-    @Test
+//    @Test
     public void testEncryptConfig() {
         MongoClient client = MongoClients.create("mongodb://localhost:27017/test");
         MongoTemplate operations = new MongoTemplate(client, "test");

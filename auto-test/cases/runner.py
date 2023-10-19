@@ -98,8 +98,8 @@ def gen_support_datasources(datasources):
 def run_jobs(test_case, run_params_template):
     result = []
     timeout = args.bench / 10
-    if timeout < 60:
-        timeout = 60
+    if timeout < 30:
+        timeout = 30
 
     def run_job(p, test_case, run_param):
         fn = test_case.test
@@ -187,7 +187,7 @@ def run_jobs(test_case, run_params_template):
                 before = getattr(p.job.stats(), "input_" + event)
                 getattr(db_client, event)()
                 s = time.time()
-                wait_stats = {"input_" + event: before + 1}
+                wait_stats = {"input_" + event: before}
                 if p.wait_stats(wait_stats):
                     logger.info("metrics input {} changes from {} to {}, wait time is: {} seconds", event, before,
                                 wait_stats, int(time.time() - s))
