@@ -630,6 +630,20 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.build()
 				);
 				break;
+			case UNWIND_PROCESS:
+				hazelcastNode = new HazelcastUnwindProcessNode(
+						DataProcessorContext.newBuilder()
+								.withTaskDto(taskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withCacheService(cacheService)
+								.withConfigurationCenter(config)
+								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
+								.build()
+				);
+				break;
 			case FIELD_PROCESSOR:
 			case ROW_FILTER_PROCESSOR:
 			case FIELD_RENAME_PROCESSOR:
