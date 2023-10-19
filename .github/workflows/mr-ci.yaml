@@ -27,7 +27,7 @@ jobs:
       - name: Set Tag
         run: |
           cd tapdata
-          main_tag=$(git branch --show-current | cut -d '-' -f 2)
+          main_tag=$(git describe --tags | cut -d '-' -f 1)
           current_timestamp=$(date +%s)
           hex_timestamp=$(printf "%X" "$current_timestamp" | tr 'A-F' 'a-f')
           tag_name="$main_tag-$hex_timestamp"
