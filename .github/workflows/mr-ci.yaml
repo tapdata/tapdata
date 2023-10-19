@@ -2,10 +2,10 @@ name: Merge Request CI
 
 on:
   push:
-    branches: [ "main", "develop", "release-v*" ]
+    branches: [ "main", "develop", "release-v*.*" ]
   pull_request:
     types: ["opened", "reopened"]
-    branches: [ "main", "develop", "release-v*" ]
+    branches: [ "main", "develop", "release-v*.*" ]
 
 jobs:
 
@@ -18,16 +18,16 @@ jobs:
       TAG_NAME: ${{ steps.set-output.outputs.TAG_NAME }}
     steps:
       - name: Checkout Tapdata Opensource
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: 'tapdata/tapdata'
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           path: tapdata
-          depth: 0
+          fetch-depth: 0
       - name: Set Tag
         run: |
           cd tapdata
-          main_tag=$(git branch --show-current | cut -d '-' -f 2)
+          main_tag=$(git describe --tags | cut -d '-' -f 1)
           current_timestamp=$(date +%s)
           hex_timestamp=$(printf "%X" "$current_timestamp" | tr 'A-F' 'a-f')
           tag_name="$main_tag-$hex_timestamp"
@@ -58,15 +58,15 @@ jobs:
         run: |
           cd tapdata-application
           OPENSOURCE_BRANCH=${{ github.ref_name }}
-          ENTERPRISE_BRANCH=$(bash build/build.sh -e 1 | grep ENTERPRISE_BRANCH | awk -F' ' '{print $2}')
-          FRONTEND_BRANCH=$(bash build/build.sh -e 1 | grep FRONTEND_BRANCH | awk -F' ' '{print $2}')
+          ENTERPRISE_BRANCH="main"
+          FRONTEND_BRANCH="main"
           echo "::set-output name=OPENSOURCE_BRANCH::${OPENSOURCE_BRANCH}"
           echo "::set-output name=ENTERPRISE_BRANCH::${ENTERPRISE_BRANCH}"
           echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
           echo "::set-output name=TAG_NAME::${TAG_NAME}"
 
   Build-And-Deploy:
-    runs-on: ubuntu-latest
+    runs-on: aws-ubuntu-20
     needs:
       - Get-Stable-Branch
     outputs:
