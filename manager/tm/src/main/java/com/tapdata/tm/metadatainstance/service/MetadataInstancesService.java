@@ -84,6 +84,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
@@ -190,7 +191,6 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             page = find(filter);
         }
         List<MetadataInstancesDto> metadataInstancesDtoList = page.getItems();
-
         afterFindAll(metadataInstancesDtoList);
         afterFind(metadataInstancesDtoList);
         return page;
@@ -2453,5 +2453,29 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
         return metadataInstancesDto;
 
+    }
+
+    public Boolean checkMetadataInstancesIndex(String cacheKeys,String id){
+        AtomicBoolean result = new AtomicBoolean(false);
+        MetadataInstancesDto metadataInstancesDto = findById(MongoUtils.toObjectId(id));
+            List<TableIndex> indices = metadataInstancesDto.getIndices();
+            if(CollectionUtils.isNotEmpty(indices)){
+                indices.forEach(tableIndex -> {
+                    if(StringUtils.isNotBlank(tableIndex.getColumns().get(0).getColumnName())){
+                        String index = tableIndex.getColumns().stream().map(TableIndexColumn::getColumnName).collect(Collectors.joining(","));
+                        if(index.equals(cacheKeys)) result.set(true);
+                    }else{
+                        String name = tableIndex.getIndexName();
+                        name = name.substring(5);
+                        Document dIndex = Document.parse(name);
+                        if (dIndex == null) {
+                            return;
+                        }
+                        String index = dIndex.get("key",Document.class).keySet().stream().map(Object::toString).collect(Collectors.joining(","));
+                        if(index.equals(cacheKeys)) result.set(true);
+                    }
+                });
+            }
+        return result.get();
     }
 }

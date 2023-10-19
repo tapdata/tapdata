@@ -1166,4 +1166,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			this.dynamicAdjustMemoryService = new DynamicAdjustMemoryImpl(dynamicAdjustMemoryContext);
 		}
 	}
+
+	protected boolean usePkAsUpdateConditions(Collection<String> updateConditions, Collection<String> pks) {
+		if (pks == null) {
+			pks = Collections.emptySet();
+		}
+		for (String updateCondition : updateConditions) {
+			if (!pks.contains(updateCondition)) {
+				return false;
+			}
+		}
+		return true;
+	}
 }

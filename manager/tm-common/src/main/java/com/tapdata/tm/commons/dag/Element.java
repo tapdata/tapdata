@@ -27,6 +27,8 @@ public abstract class Element implements Serializable {
 
     private Map<String, Object> attrs;
 
+    private boolean disable;
+
     @JsonIgnore
     private transient Graph<? extends Element, ? extends Element> graph;
     @JsonIgnore

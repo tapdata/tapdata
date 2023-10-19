@@ -6,6 +6,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
@@ -140,95 +141,7 @@ public class DAG implements Serializable, Cloneable {
      * @return
      */
     public static DAG build(Dag taskDag) {
-
-        Graph<Node, Edge> graph = new Graph<>();
-        DAG dag = new DAG(graph);
-
-        List<Edge> edges = taskDag.getEdges();
-        ConcurrentHashMap<String, String> edgeMap = new ConcurrentHashMap<>();
-        if (CollectionUtils.isNotEmpty(edges)) {
-            for (Edge edge : edges) {
-                graph.setEdge(edge.getSource(), edge.getTarget(), edge);
-
-                edgeMap.put(edge.getTarget(), edge.getSource());
-                edge.setDag(dag);
-                edge.setGraph(graph);
-            }
-        }
-
-        List<Node> nodes = taskDag.getNodes();
-        if (CollectionUtils.isNotEmpty(nodes)) {
-            List<String> tableNamesList = Lists.newArrayList();
-            Set<String> targetIdList = graph.getSinks();
-            Set<String> resourceIdList = graph.getSources();
-
-            nodes.stream().filter(node -> node instanceof DatabaseNode && resourceIdList.contains(node.getId())
-                            && CollectionUtils.isNotEmpty(((DatabaseNode) node).getTableNames()))
-                    .forEach(resource -> tableNamesList.addAll(((DatabaseNode) resource).getTableNames()));
-
-            ArrayList<String> objectNames = Lists.newArrayList(tableNamesList);
-            LinkedHashMap<String, String> tableNameRelation = Maps.newLinkedHashMap();
-
-            // 中间有表改的话 需要同步更新
-//            LinkedList<TableRenameProcessNode> collect = nodes.stream()
-//                    .filter(n -> n instanceof TableRenameProcessNode)
-//                    .map(t -> (TableRenameProcessNode) t)
-//                    .collect(Collectors.toCollection(LinkedList::new));
-
-            LinkedList<Node> nodeLists = parseLinkedNode(taskDag);
-
-
-
-            if (CollectionUtils.isNotEmpty(nodeLists)) {
-                Map<String, TableRenameTableInfo> originalMap = new LinkedHashMap<>();
-                for (Node nodeList : nodeLists) {
-                    if (nodeList instanceof TableRenameProcessNode) {
-                        Map<String, TableRenameTableInfo> tableRenameTableInfoMap = ((TableRenameProcessNode) nodeList).originalMap();
-                        originalMap.putAll(tableRenameTableInfoMap);
-                    }
-                }
-                for (int i = 0; i < tableNamesList.size(); i++) {
-                    String tableName = tableNamesList.get(i);
-                    String currentTableName = tableName;
-                    if (originalMap.containsKey(tableName)) {
-                        currentTableName = originalMap.get(tableName).getCurrentTableName();
-                        objectNames.set(i, currentTableName);
-                    }
-                    tableNameRelation.put(tableName, currentTableName);
-                }
-            }
-
-            for (Node<?> node : nodes) {
-                if (node == null) {
-                    continue;
-                }
-
-                // 补充目标节点 syncObjects
-                String targetId = node.getId();
-                if (node instanceof DatabaseNode && targetIdList.contains(targetId)) {
-                    SyncObjects syncObjects = new SyncObjects();
-                    syncObjects.setType("table");
-                    syncObjects.setTableNameRelation(tableNameRelation);
-                    if (CollectionUtils.isNotEmpty(objectNames)) {
-                        syncObjects.setObjectNames(objectNames);
-                    } else {
-                        syncObjects.setObjectNames(Lists.newArrayList());
-                    }
-
-                    List<SyncObjects> list = new ArrayList<>();
-                    list.add(syncObjects);
-
-                    ((DatabaseNode) node).setSyncObjects(list);
-                    ((DatabaseNode) node).setTableNames(null);
-                }
-
-                graph.setNode(targetId, node);
-                node.setGraph(graph);
-                node.setDag(dag);
-            }
-        }
-
-        return dag;
+        return build(taskDag, false);
     }
 
 
@@ -1121,7 +1034,7 @@ public class DAG implements Serializable, Cloneable {
             if (node instanceof DatabaseNode ||  node instanceof MigrateProcessorNode) {
                 next(event, node, results);
                 Dag dag = toDag();
-                DAG newDag = build(dag);
+                DAG newDag = build(dag, true);
                 BeanUtils.copyProperties(newDag, this);
             }
             return;
@@ -1165,11 +1078,129 @@ public class DAG implements Serializable, Cloneable {
 
     @Override
     public DAG clone() throws CloneNotSupportedException {
+        return clone(false);
+    }
+
+    public DAG clone(boolean ignoreDisabledNode) {
         Dag dag = this.toDag();
         String json = JsonUtil.toJsonUseJackson(dag);
-        Dag dag1 = JsonUtil.parseJsonUseJackson(json, new TypeReference<Dag>() {
-        });
+        Dag dag1 = JsonUtil.parseJsonUseJackson(json, new TypeReference<Dag>() {});
+        DAG build = DAG.build(dag1, ignoreDisabledNode);
+        if (ignoreDisabledNode) {
+            build.setTaskId(taskId);
+            build.setSyncType(syncType);
+            build.setOwnerId(ownerId);
+            build.id = id;
+            build.nodeEventListeners = nodeEventListeners;
+            build.privateNodeEventListener = privateNodeEventListener;
+        }
+        return build;
+    }
 
-        return DAG.build(dag1);
+    public static DAG build(Dag taskDag, boolean ignoreDisabledNode) {
+
+        Graph<Node, Edge> graph = new Graph<>();
+        DAG dag = new DAG(graph);
+
+        List<Edge> edges = taskDag.getEdges();
+        ConcurrentHashMap<String, String> edgeMap = new ConcurrentHashMap<>();
+        List<Node> nodes = taskDag.getNodes();
+        Set<String> nodeIds = ignoreDisabledNode ? new HashSet<>() : null;
+        if (ignoreDisabledNode && CollectionUtils.isNotEmpty(nodes)) {
+            nodes = nodes.stream().filter(next -> {
+                Map<String, Object> attrs = next.getAttrs();
+                if (null != attrs && !attrs.isEmpty()) {
+                    Object disable = attrs.get("disabled");
+                    return !((disable instanceof Boolean) && (Boolean)disable);
+                }
+                return true;
+            }).filter(next -> {
+                nodeIds.add(next.getId());
+                return true;
+            }).collect(Collectors.toList());
+        }
+        if (CollectionUtils.isNotEmpty(edges)) {
+            for (Edge edge : edges) {
+                String from = edge.getSource();
+                String target = edge.getTarget();
+                if (ignoreDisabledNode && (!nodeIds.contains(from) || !nodeIds.contains(target))) continue;
+                graph.setEdge(from, target, edge);
+                edgeMap.put(target, from);
+                edge.setDag(dag);
+                edge.setGraph(graph);
+            }
+        }
+        if (CollectionUtils.isNotEmpty(nodes)) {
+            List<String> tableNamesList = Lists.newArrayList();
+            Set<String> targetIdList = graph.getSinks();
+            Set<String> resourceIdList = graph.getSources();
+
+            nodes.stream().filter(node -> node instanceof DatabaseNode && resourceIdList.contains(node.getId())
+                    && CollectionUtils.isNotEmpty(((DatabaseNode) node).getTableNames()))
+                    .forEach(resource -> tableNamesList.addAll(((DatabaseNode) resource).getTableNames()));
+
+            ArrayList<String> objectNames = Lists.newArrayList(tableNamesList);
+            LinkedHashMap<String, String> tableNameRelation = Maps.newLinkedHashMap();
+
+            // 中间有表改的话 需要同步更新
+//            LinkedList<TableRenameProcessNode> collect = nodes.stream()
+//                    .filter(n -> n instanceof TableRenameProcessNode)
+//                    .map(t -> (TableRenameProcessNode) t)
+//                    .collect(Collectors.toCollection(LinkedList::new));
+
+            LinkedList<Node> nodeLists = parseLinkedNode(taskDag);
+
+
+
+            if (CollectionUtils.isNotEmpty(nodeLists)) {
+                Map<String, TableRenameTableInfo> originalMap = new LinkedHashMap<>();
+                for (Node nodeList : nodeLists) {
+                    if (nodeList instanceof TableRenameProcessNode) {
+                        Map<String, TableRenameTableInfo> tableRenameTableInfoMap = ((TableRenameProcessNode) nodeList).originalMap();
+                        originalMap.putAll(tableRenameTableInfoMap);
+                    }
+                }
+                for (int i = 0; i < tableNamesList.size(); i++) {
+                    String tableName = tableNamesList.get(i);
+                    String currentTableName = tableName;
+                    if (originalMap.containsKey(tableName)) {
+                        currentTableName = originalMap.get(tableName).getCurrentTableName();
+                        objectNames.set(i, currentTableName);
+                    }
+                    tableNameRelation.put(tableName, currentTableName);
+                }
+            }
+
+            for (Node<?> node : nodes) {
+                if (node == null) {
+                    continue;
+                }
+
+                // 补充目标节点 syncObjects
+                String targetId = node.getId();
+                if (node instanceof DatabaseNode && targetIdList.contains(targetId)) {
+                    SyncObjects syncObjects = new SyncObjects();
+                    syncObjects.setType("table");
+                    syncObjects.setTableNameRelation(tableNameRelation);
+                    if (CollectionUtils.isNotEmpty(objectNames)) {
+                        syncObjects.setObjectNames(objectNames);
+                    } else {
+                        syncObjects.setObjectNames(Lists.newArrayList());
+                    }
+
+                    List<SyncObjects> list = new ArrayList<>();
+                    list.add(syncObjects);
+
+                    ((DatabaseNode) node).setSyncObjects(list);
+                    ((DatabaseNode) node).setTableNames(null);
+                }
+
+                graph.setNode(targetId, node);
+                node.setGraph(graph);
+                node.setDag(dag);
+            }
+        }
+
+        return dag;
     }
 }
