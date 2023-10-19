@@ -864,10 +864,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
 				Collection<String> pks = tapTable.primaryKeys();
 				if (!usePkAsUpdateConditions(updateConditionFields, pks)) {
-					ignorePksAndIndices(tapTable);
+					ignorePksAndIndices(tapTable, updateConditionFields);
+				} else {
+					// 设置逻辑主键
+					tapTable.setLogicPrimaries(updateConditionFields);
 				}
-				// 设置逻辑主键
-				tapTable.setLogicPrimaries(updateConditionFields);
 			} else {
 				Collection<String> logicUniqueKey = tapTable.primaryKeys(true);
 				if (CollectionUtils.isEmpty(logicUniqueKey)) {
@@ -876,17 +877,19 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} else if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.appendWrite.name())) {
 			// 没有关联条件，清空主键信息
-			ignorePksAndIndices(tapTable);
+			ignorePksAndIndices(tapTable, null);
 		}
 	}
 
-	private static void ignorePksAndIndices(TapTable tapTable) {
+	private static void ignorePksAndIndices(TapTable tapTable, List<String> logicPrimaries) {
+		// fix: #140674 Bulk write data failed, write model list is empty, received record size: 7
+		// The method may be called concurrently, need to clean the 'indexList' and field primaryKey mark after set 'logicPrimaries', because tapTable call the method 'primaryKey(true)' maybe empty
+		tapTable.setLogicPrimaries(logicPrimaries);
+		tapTable.setIndexList(null);
 		tapTable.getNameFieldMap().values().forEach(v -> {
 			v.setPrimaryKeyPos(0);
 			v.setPrimaryKey(false);
 		});
-		tapTable.setLogicPrimaries(null);
-		tapTable.setIndexList(null);
 	}
 
 	@Override
