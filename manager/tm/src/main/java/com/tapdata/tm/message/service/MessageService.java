@@ -655,7 +655,14 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                     && MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(messageDto.getMsg())){
                 if(!scheduledExecutorService.isShutdown()){
                     scheduledExecutorService.schedule(()->{
-                        checkAagentConnectedMessage(now);
+                        try{
+                            checkAagentConnectedMessage(now);
+                        }catch (Exception e){
+                            log.error("Delayed message sending failed {}.",e.getMessage());
+                        }finally {
+                            scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+                        }
+
                     }, 3, TimeUnit.MINUTES);
                     scheduledExecutorService.shutdown();
                 }
@@ -680,7 +687,13 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                 and("msg").is(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue()).
                 and("system").is(SourceModuleEnum.AGENT.getValue()).
                 and("isSend").is(false));
-        List<MessageDto> messageDtoList = findAll(query);
+        List<MessageEntity> messageEntities = messageRepository.findAll(query);
+        List<MessageDto> messageDtoList = messageEntities.stream().map(messageEntity -> {
+            MessageDto messageDto = new MessageDto();
+            BeanUtil.copyProperties(messageEntity,messageDto);
+            messageDto.setMessageMetadata(JSONObject.toJSONString(messageEntity.getMessageMetadata()));
+            return messageDto;
+        }).collect(Collectors.toList());
         if(messageDtoList.size() >= OFFLINE_AGENT_COUNT){
             log.info("agent offline exceeds limit");
             updateMany(query,Update.update("isSend",true));
@@ -697,7 +710,6 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                 log.info("send agent offline notification");
             }
         }
-        scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     }
 
 
