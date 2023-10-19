@@ -24,7 +24,10 @@ public class UnWindNodeUtil {
 
     public static List<TapEvent> initHandel(UnwindProcessNode node, TapEvent event) {
         List<TapEvent> list = new ArrayList<>();
-        if (null == node) list.add(event);
+        if (null == node) {
+            list.add(event);
+            return list;
+        }
         final String path = node.getPath();
         if (null == path || "".equals(path.trim())) list.add(event);
         return list;
