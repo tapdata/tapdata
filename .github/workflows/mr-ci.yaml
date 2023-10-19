@@ -148,10 +148,10 @@ jobs:
       - name: Print Test Result
         if: ${{ always() }}
         run: |
-          echo "RUN_ID=$(cat /tmp/.run_id)" >> $GITHUB_ENV
-          echo "TEST_PLAN_ID=$(cat /tmp/.test_plan_id)" >> $GITHUB_ENV
-          echo '**TestSigma Test Result Link:**' >> $GITHUB_STEP_SUMMARY
-          echo 'https://app.testsigma.com/ui/td/results/${{ env.RUN_ID }}/runs/${{ env.TEST_PLAN_ID }}' >> $GITHUB_STEP_SUMMARY
+          echo "RUN_ID=$(cat /tmp/run_id)" >> $GITHUB_ENV
+          echo "TEST_PLAN_ID=$(cat /tmp/test_plan_id)" >> $GITHUB_ENV
+          echo "**TestSigma Test Result Link:**" >> $GITHUB_STEP_SUMMARY
+          echo "https://app.testsigma.com/ui/td/results/${{ env.RUN_ID }}/runs/${{ env.TEST_PLAN_ID }}" >> $GITHUB_STEP_SUMMARY
       - name: Test - Register Test Connector
         run: |
           echo "OK"
