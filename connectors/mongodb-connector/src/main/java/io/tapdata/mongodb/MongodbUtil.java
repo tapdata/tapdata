@@ -499,4 +499,31 @@ public class MongodbUtil {
 	 * @param commandStr: db.test.find({}), db.getCollection('test').find({})
 	 * @return
 	 */
+
+	protected static Throwable matchThrowable(Throwable throwable, Class<? extends Throwable> match) {
+		if (null == throwable) {
+			return null;
+		}
+		if (throwable.getClass().equals(match)) {
+			return throwable;
+		}
+		List<Throwable> throwables = new ArrayList<>();
+		throwables.add(throwable);
+		Throwable matched = null;
+		while (!Thread.currentThread().isInterrupted()) {
+			Throwable cause = throwables.get(throwables.size() - 1).getCause();
+			if (null == cause) {
+				break;
+			}
+			if (throwables.contains(cause)) {
+				break;
+			}
+			if (match.isInstance(cause)) {
+				matched = cause;
+				break;
+			}
+			throwables.add(cause);
+		}
+		return matched;
+	}
 }
