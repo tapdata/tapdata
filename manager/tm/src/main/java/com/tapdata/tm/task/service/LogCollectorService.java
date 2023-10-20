@@ -1661,7 +1661,7 @@ public class LogCollectorService {
 					shareCdcTableInfo.setTodayCount(metricsDto.getCount());
 					shareCdcTableInfo.setAllCount(metricsDto.getAllCount());
                     ShareCdcTableMappingDto shareCdcTableMappingDto = shareCdcTableMappingService.findOne(Query.query(Criteria.where("sign")
-                            .is(ShareCdcTableMappingDto.genSign(taskId, shareCdcTableInfo.getConnectionId(), shareCdcTableInfo.getName()))));
+                            .is(ShareCdcTableMappingDto.genSign(shareCdcTableInfo.getConnectionId(), shareCdcTableInfo.getName()))));
 					shareCdcTableInfo.setExternalStorageTableName(shareCdcTableMappingDto.getExternalStorageTableName());
 				}
 		}
