@@ -151,7 +151,7 @@ jobs:
           run_id=`cat ./run_id`
           test_plan_id=`cat ./test_plan_id`
           echo "**TestSigma Test Result Link:**" >> $GITHUB_STEP_SUMMARY
-          echo "https://app.testsigma.com/ui/td/results/$run_id/runs/$test_plan_id" >> $GITHUB_STEP_SUMMARY
+          echo "https://app.testsigma.com/ui/td/results/$test_plan_id/runs/$run_id" >> $GITHUB_STEP_SUMMARY
       - name: Test - Register Test Connector
         run: |
           echo "OK"
