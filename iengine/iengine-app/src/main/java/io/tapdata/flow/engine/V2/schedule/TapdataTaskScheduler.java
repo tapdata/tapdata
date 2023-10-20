@@ -13,8 +13,6 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
-import io.tapdata.entity.memory.MemoryFetcher;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -62,7 +60,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  */
 @Component
 @DependsOn("connectorManager")
-public class TapdataTaskScheduler implements MemoryFetcher {
+public class TapdataTaskScheduler {
 	public static final String TAG = TapdataTaskScheduler.class.getSimpleName();
 	private Logger logger = LogManager.getLogger(TapdataTaskScheduler.class);
 	private Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
@@ -657,13 +655,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 	public Map<String, TaskClient<TaskDto>> getTaskClientMap() {
 		return taskClientMap;
-	}
-
-	@Override
-	public DataMap memory(String keyRegex, String memoryLevel) {
-		DataMap dataMap = new DataMap();
-		dataMap.kv("test", "test");
-		return dataMap;
 	}
 
 	private enum StopTaskResource {
