@@ -278,12 +278,13 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		constructName = constructName + "_" + ((ShareCdcTaskPdkContext) shareCdcContext).getTaskDto().getName();
 
 		String connId = ((ShareCdcTaskPdkContext) shareCdcContext).getConnections().getId();
-		String sign = ShareCdcTableMappingDto.genSign(logCollectorTaskDto.getId().toHexString(), connId, tableName);
+		String sign = ShareCdcTableMappingDto.genSign(connId, tableName);
 		Query query = Query.query(where("sign").is(sign));
 		ShareCdcTableMappingDto shareCdcTableMappingDto = clientMongoOperator.findOne(query, ConnectorConstant.SHARE_CDC_TABLE_MAPPING_COLLECTION, ShareCdcTableMappingDto.class);
 		if (null == shareCdcTableMappingDto) {
 			throw new RuntimeException("Share cdc table mapping not found, sign: " + sign);
 		}
+		obsLogger.info(logWrapper("Found share cdc table mapping: " + shareCdcTableMappingDto));
 		tableName = shareCdcTableMappingDto.getExternalStorageTableName();
 		logCollectorExternalStorage.setTable(tableName);
 		logCollectorExternalStorage.setTtlDay(null);
