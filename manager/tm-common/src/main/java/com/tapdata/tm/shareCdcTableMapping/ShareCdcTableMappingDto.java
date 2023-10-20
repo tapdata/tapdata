@@ -26,14 +26,12 @@ public class ShareCdcTableMappingDto extends BaseDto {
 	private String connectionId;
 
 	public String genSign() {
-		if (StringUtils.isBlank(shareCdcTaskId))
-			throw new IllegalArgumentException("Share cdc task id cannot be blank");
 		if (StringUtils.isBlank(connectionId)) throw new IllegalArgumentException("Connection id cannot be blank");
 		if (StringUtils.isBlank(tableName)) throw new IllegalArgumentException("Table name cannot be blank");
-		return String.join("_", shareCdcTaskId, connectionId, tableName);
+		return String.join("_", connectionId, tableName);
 	}
 
-	public static String genSign(String taskId, String connId, String tableName) {
-		return String.join("_", taskId, connId, tableName);
+	public static String genSign(String connId, String tableName) {
+		return String.join("_", connId, tableName);
 	}
 }
