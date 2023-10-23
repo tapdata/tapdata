@@ -98,53 +98,52 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 		String tableName = TapEventUtil.getTableId(tapEvent);
 		ProcessResult processResult = getProcessResult(tableName);
 
-		if (!disabledNode()) {
-			if (!(tapEvent instanceof TapRecordEvent)) {
-				consumer.accept(tapdataEvent, processResult);
-				return;
-			}
-
-			Node node = getNode();
-			TapTable tapTable;
-			boolean syncTask;
-			if (node instanceof DateProcessorNode) {
-				tapTable = processorBaseContext.getTapTableMap().get(getNode().getId());
-				syncTask = true;
-			} else {
-				tapTable = processorBaseContext.getTapTableMap().get(tableName);
-				syncTask = false;
-			}
-
-			if (tapTable == null) {
-				throw new TapCodeException(TaskDateProcessorExCode_17.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: " + tableName + "node id: " + getNode().getId());
-			}
-
-			LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-			List<String> addTimeFields = new ArrayList<>();
-
-			if (nameFieldMap != null) {
-				nameFieldMap.forEach((k, v) -> {
-
-					String dataType = v.getDataType();
-					if (!syncTask) {
-						TypeExprResult<DataMap> exprResult = matchingMap.get(v.getDataType());
-						if (exprResult != null) {
-							dataType = exprResult.getExpression();
-						}
-					}
-
-					if (dataTypes.contains(dataType)) {
-						addTimeFields.add(k);
-					}
-				});
-			}
-
-			final Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-
-			if (after != null) {
-				addTime(addTimeFields, after, tableName, null);
-			}
+		if (!(tapEvent instanceof TapRecordEvent)) {
+			consumer.accept(tapdataEvent, processResult);
+			return;
 		}
+
+		Node node = getNode();
+		TapTable tapTable;
+		boolean syncTask;
+		if (node instanceof DateProcessorNode) {
+			tapTable = processorBaseContext.getTapTableMap().get(getNode().getId());
+			syncTask = true;
+		} else {
+			tapTable = processorBaseContext.getTapTableMap().get(tableName);
+			syncTask = false;
+		}
+
+		if (tapTable == null) {
+			throw new TapCodeException(TaskDateProcessorExCode_17.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: " + tableName + "node id: " + getNode().getId());
+		}
+
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+		List<String> addTimeFields = new ArrayList<>();
+
+		if (nameFieldMap != null) {
+			nameFieldMap.forEach((k, v) -> {
+
+				String dataType = v.getDataType();
+				if (!syncTask) {
+					TypeExprResult<DataMap> exprResult = matchingMap.get(v.getDataType());
+					if (exprResult != null) {
+						dataType = exprResult.getExpression();
+					}
+				}
+
+				if (dataTypes.contains(dataType)) {
+					addTimeFields.add(k);
+				}
+			});
+		}
+
+		final Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
+
+		if (after != null) {
+			addTime(addTimeFields, after, tableName, null);
+		}
+
 		consumer.accept(tapdataEvent, processResult);
 	}
 

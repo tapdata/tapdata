@@ -36,19 +36,14 @@ public class HazelcastTypeFilterProcessorNode extends HazelcastProcessorBaseNode
     public HazelcastTypeFilterProcessorNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
         Node node = getNode();
-        if (!node.disabledNode()) {
-            if (node instanceof FieldModTypeFilterNode) {
-                FieldModTypeFilterNode filterProces = (FieldModTypeFilterNode) getNode();
-                this.filterTypes = filterProces.getFilterTypes();
-                this.fieldTypeFilterMap = filterProces.getFieldTypeFilterMap();
-            } else if (node instanceof MigrateTypeFilterProcessorNode) {
-                MigrateTypeFilterProcessorNode filterProces = (MigrateTypeFilterProcessorNode) getNode();
-                this.filterTypes = filterProces.getFilterTypes();
-                this.fieldTypeFilterMap = filterProces.getFieldTypeFilterMap();
-            } else {
-                this.filterTypes = new ArrayList<>();
-                this.fieldTypeFilterMap = new HashMap<>();
-            }
+        if (node instanceof FieldModTypeFilterNode) {
+            FieldModTypeFilterNode filterProces = (FieldModTypeFilterNode) getNode();
+            this.filterTypes = filterProces.getFilterTypes();
+            this.fieldTypeFilterMap = filterProces.getFieldTypeFilterMap();
+        } else if (node instanceof MigrateTypeFilterProcessorNode) {
+            MigrateTypeFilterProcessorNode filterProces = (MigrateTypeFilterProcessorNode) getNode();
+            this.filterTypes = filterProces.getFilterTypes();
+            this.fieldTypeFilterMap = filterProces.getFieldTypeFilterMap();
         } else {
             this.filterTypes = new ArrayList<>();
             this.fieldTypeFilterMap = new HashMap<>();
@@ -62,10 +57,6 @@ public class HazelcastTypeFilterProcessorNode extends HazelcastProcessorBaseNode
             consumer.accept(tapdataEvent, null);
         }
         String tableId = TapEventUtil.getTableId(tapEvent);
-        if (disabledNode()) {
-            consumer.accept(tapdataEvent, getProcessResult(tableId));
-            return;
-        }
         AtomicReference<TapdataEvent> processedEvent = new AtomicReference<>();
         if (tapEvent instanceof TapRecordEvent) {
             //dml event

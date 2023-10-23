@@ -82,9 +82,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
-		if (getNode().disabledNode()) {
-			return;
-		}
 		try {
 			super.doInit(context);
 			if (getNode() instanceof TableNode) {

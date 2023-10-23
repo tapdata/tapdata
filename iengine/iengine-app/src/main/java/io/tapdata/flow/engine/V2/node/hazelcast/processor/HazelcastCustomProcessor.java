@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
@@ -12,7 +13,6 @@ import com.tapdata.processor.ScriptUtil;
 import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.utils.cache.KVMap;
@@ -63,13 +63,13 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
 		Node<?> node = processorBaseContext.getNode();
-		if (!node.disabledNode() && NodeTypeEnum.CUSTOM_PROCESSOR.equals(NodeTypeEnum.get(node.getType()))) {
+		if (NodeTypeEnum.CUSTOM_PROCESSOR.equals(NodeTypeEnum.get(node.getType()))) {
 			String customNodeId = ((CustomProcessorNode) node).getCustomNodeId();
 			Query query = new Query(Criteria.where("_id").is(customNodeId));
 			CustomNodeTempDto customNodeTempDto = clientMongoOperator.findOne(query, ConnectorConstant.CUSTOMNODETEMP_COLLECTION, CustomNodeTempDto.class,
 					n -> !running.get());
 			if (null == customNodeTempDto) {
-				throw new CoreException("Init script engine failed, cannot find custom node template by id: " + customNodeId);
+				throw new RuntimeException("Init script engine failed, cannot find custom node template by id: " + customNodeId);
 			}
 			List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
 					ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class, n -> !running.get());
@@ -110,9 +110,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
-		if (processorBaseContext.getNode().disabledNode()) {
-			execute(tapdataEvent);
-		}
+		execute(tapdataEvent);
 		String tableName = TapEventUtil.getTableId(tapdataEvent.getTapEvent());
 		ProcessResult processResult = null;
 		if (StringUtils.isNotEmpty(tableName)) {
@@ -149,9 +147,9 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		try {
 			result = engine.invokeFunction(FUNCTION_NAME, beforeOrAfterMapFromRecord, ((CustomProcessorNode) node).getForm());
 		} catch (ScriptException e) {
-			throw new CoreException("Execute script error, record: " + beforeOrAfterMapFromRecord + ", error: " + e.getMessage());
+			throw new RuntimeException("Execute script error, record: " + beforeOrAfterMapFromRecord + ", error: " + e.getMessage());
 		} catch (NoSuchMethodException e) {
-			throw new CoreException("Execute script error, cannot found function " + FUNCTION_NAME);
+			throw new RuntimeException("Execute script error, cannot found function " + FUNCTION_NAME);
 		}
 		if (null == result) {
 			return;
@@ -180,10 +178,8 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	@Override
 	protected void doClose() throws Exception {
 		CommonUtils.ignoreAnyError(() -> {
-			if (this.engine instanceof AutoCloseable) {
-				((AutoCloseable) this.engine).close();
-			} else if (this.engine instanceof Closeable) {
-				((Closeable) this.engine).close();
+			if (this.engine instanceof GraalJSScriptEngine) {
+				((GraalJSScriptEngine) this.engine).close();
 			}
 		}, TAG);
 		super.doClose();

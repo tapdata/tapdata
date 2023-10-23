@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
+import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.cache.scripts.ScriptCacheService;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
@@ -23,7 +24,6 @@ import com.tapdata.tm.commons.dag.process.StandardJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.StandardMigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -47,7 +47,6 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
-import java.io.Closeable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,12 +63,12 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	private static final Logger logger = LogManager.getLogger(HazelcastJavaScriptProcessorNode.class);
 	public static final String TAG = HazelcastJavaScriptProcessorNode.class.getSimpleName();
 
-	private Invocable engine;
+	private final Invocable engine;
 
 	private ScriptExecutorsManager scriptExecutorsManager;
 
-	private ThreadLocal<Map<String, Object>> processContextThreadLocal;
-	private Map<String, Object> globalTaskContent;
+	private final ThreadLocal<Map<String, Object>> processContextThreadLocal;
+	private final Map<String, Object> globalTaskContent;
 	private ScriptExecutorsManager.ScriptExecutor source;
 	private ScriptExecutorsManager.ScriptExecutor target;
 
@@ -93,7 +92,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		} else if (node instanceof CacheLookupProcessorNode) {
 			script = ((CacheLookupProcessorNode) node).getScript();
 		} else {
-			throw new CoreException("unsupported node " + node.getClass().getName());
+			throw new RuntimeException("unsupported node " + node.getClass().getName());
 		}
 
 		if (node instanceof StandardJsProcessorNode || node instanceof StandardMigrateJsProcessorNode) {
@@ -148,7 +147,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
 		Node<?> node = getNode();
-		if (!node.disabledNode() && !this.standard) {
+		if (!this.standard) {
 			this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
 					node.getTaskId(), node.getId(),
 					StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
@@ -193,7 +192,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		String tableName = TapEventUtil.getTableId(tapEvent);
 		ProcessResult processResult = getProcessResult(tableName);
-		if (disabledNode() || !(tapEvent instanceof TapRecordEvent)) {
+		if (!(tapEvent instanceof TapRecordEvent)) {
 			consumer.accept(tapdataEvent, processResult);
 			return;
 		}
@@ -245,7 +244,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				Thread.currentThread().setName("Javascript-Test-Runner");
 				try {
 					scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord));
-				} catch (Exception throwable) {
+				} catch (Throwable throwable) {
 					errorAtomicRef.set(throwable);
 				} finally {
 					countDownLatch.countDown();
@@ -334,13 +333,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.target).ifPresent(ScriptExecutorsManager.ScriptExecutor::close), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.scriptExecutorsManager).ifPresent(ScriptExecutorsManager::close), TAG);
 			CommonUtils.ignoreAnyError(() -> {
-				if (this.engine instanceof AutoCloseable) {
-					((AutoCloseable) this.engine).close();
-				} else if (this.engine instanceof Closeable) {
-					((Closeable) this.engine).close();
+				if (this.engine instanceof GraalJSScriptEngine) {
+					((GraalJSScriptEngine) this.engine).close();
 				}
 			}, TAG);
-			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(processContextThreadLocal).ifPresent(ThreadLocal::remove), TAG);
 		} finally {
 			super.doClose();
 		}

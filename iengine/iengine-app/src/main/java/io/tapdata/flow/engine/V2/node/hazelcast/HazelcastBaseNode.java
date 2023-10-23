@@ -16,6 +16,7 @@ import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.RuntimeInfo;
 import com.tapdata.entity.Stats;
+import com.tapdata.entity.TapdataCompleteSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.DataFlowSetting;
@@ -203,6 +204,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected void doInit(@NotNull Processor.Context context) throws Exception {
 	}
 
+	protected void doInitAndStop(@NotNull Context context) {
+	}
+
 	@Override
 	public final void init(@NotNull Processor.Context context) throws Exception {
 		try {
@@ -221,7 +225,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				jetJobStatusMonitor = (JetJobStatusMonitor) monitorManager.getMonitorByType(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR);
 			}
 			setThreadName();
-			doInit(context);
+			if (!getNode().disabledNode()) {
+				doInit(context);
+			} else {
+				doInitAndStop(context);
+			}
 		} catch (Throwable e) {
 			errorHandle(e, "Node init failed: " + e.getMessage());
 		}

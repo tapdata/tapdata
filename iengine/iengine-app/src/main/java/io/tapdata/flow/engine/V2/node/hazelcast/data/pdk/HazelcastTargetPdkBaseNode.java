@@ -154,19 +154,33 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
-		if (!getNode().disabledNode()) {
-			queueConsumerThreadPool.submitSync(() -> {
-				super.doInit(context);
-				createPdkAndInit(context);
-				initExactlyOnceWriteIfNeed();
-				initTargetVariable();
-				initTargetQueueConsumer();
-				initTargetConcurrentProcessorIfNeed();
-				initTapEventFilter();
-				flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
-			});
-			Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
-		}
+		queueConsumerThreadPool.submitSync(() -> {
+			super.doInit(context);
+			createPdkAndInit(context);
+			initExactlyOnceWriteIfNeed();
+			initTargetVariable();
+			initTargetQueueConsumer();
+			initTargetConcurrentProcessorIfNeed();
+			initTapEventFilter();
+			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
+		});
+		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
+	}
+
+	@Override
+	protected void doInitAndStop(@NotNull Context context) {
+		queueConsumerThreadPool.submitSync(() -> {
+			super.doInitAndStop(context);
+			createPdkAndInit(context);
+//			initExactlyOnceWriteIfNeed();
+//			initTargetVariable();
+//			initTargetQueueConsumer();
+//			initTargetConcurrentProcessorIfNeed();
+//			initTapEventFilter();
+//			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
+		});
+		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
+
 	}
 
 	private void initExactlyOnceWriteIfNeed() {

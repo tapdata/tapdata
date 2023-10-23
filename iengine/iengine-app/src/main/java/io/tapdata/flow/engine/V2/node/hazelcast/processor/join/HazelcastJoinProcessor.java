@@ -205,7 +205,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 	}
 
 	private boolean verifyJoinNode(Node<?> node) {
-		if (node instanceof JoinProcessorNode && (disabledNode()
+		if (node instanceof JoinProcessorNode && (node.disabledNode()
 				|| verifyPreNodeHasDisabled(node, ((JoinProcessorNode)node).getLeftNodeId())
 				|| verifyPreNodeHasDisabled(node, ((JoinProcessorNode)node).getRightNodeId()))) {
 			return false;

@@ -2,7 +2,9 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
 
 import java.util.function.BiConsumer;
 
@@ -19,6 +21,9 @@ public class HazelcastBlank extends HazelcastProcessorBaseNode {
 
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
-		consumer.accept(tapdataEvent, ProcessResult.create().tableId(null));
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		String tableName = TapEventUtil.getTableId(tapEvent);
+		ProcessResult processResult = getProcessResult(tableName);
+		consumer.accept(tapdataEvent, processResult);
 	}
 }

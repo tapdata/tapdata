@@ -120,45 +120,34 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
-		if (!disabledNode()) {
-			selfCheckNode(getNode());
+		selfCheckNode(getNode());
 
-			initMergeTableProperties(null);
-			initLookupMergeProperties();
-			initMergeCache();
-			initSourceNodeMap(null);
-			initSourceConnectionMap(null);
-			initSourcePkOrUniqueFieldMap(null);
+		initMergeTableProperties(null);
+		initLookupMergeProperties();
+		initMergeCache();
+		initSourceNodeMap(null);
+		initSourceConnectionMap(null);
+		initSourcePkOrUniqueFieldMap(null);
 
-			TapCreateIndexEvent mergeConfigCreateIndexEvent = generateCreateIndexEventsForTarget();
-			this.createIndexEvent = new TapdataEvent();
-			this.createIndexEvent.setTapEvent(mergeConfigCreateIndexEvent);
-		}
+		TapCreateIndexEvent mergeConfigCreateIndexEvent = generateCreateIndexEventsForTarget();
+		this.createIndexEvent = new TapdataEvent();
+		this.createIndexEvent.setTapEvent(mergeConfigCreateIndexEvent);
 	}
 
 	@Override
 	protected void updateNodeConfig(TapdataEvent tapdataEvent) {
-		if (!disabledNode()) {
-			super.updateNodeConfig(tapdataEvent);
-			initMergeTableProperties(null);
-			initLookupMergeProperties();
-			initMergeCache();
-			initSourceNodeMap(null);
-			initSourceConnectionMap(null);
-			initSourcePkOrUniqueFieldMap(null);
-		}
+		super.updateNodeConfig(tapdataEvent);
+		initMergeTableProperties(null);
+		initLookupMergeProperties();
+		initMergeCache();
+		initSourceNodeMap(null);
+		initSourceConnectionMap(null);
+		initSourcePkOrUniqueFieldMap(null);
 	}
 
 	@Override
 	protected void tryProcess(List<HazelcastProcessorBaseNode.BatchEventWrapper> tapdataEvents, Consumer<List<BatchProcessResult>> consumer) {
 		List<BatchProcessResult> batchProcessResults = new ArrayList<>();
-		if (disabledNode()) {
-			for (BatchEventWrapper event : tapdataEvents) {
-				batchProcessResults.add(new BatchProcessResult(new BatchEventWrapper(event.getTapdataEvent(), event.getTapValueTransform()), null));
-			}
-			consumer.accept(batchProcessResults);
-			return;
-		}
 		if (this.createIndexEvent != null) {
 			BatchProcessResult batchProcessResult = new BatchProcessResult(new BatchEventWrapper(this.createIndexEvent, null), null);
 			batchProcessResults.add(batchProcessResult);
@@ -214,19 +203,16 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
-		String preTableName = getPreTableName(tapdataEvent);
-		if (disabledNode()) {
-			consumer.accept(tapdataEvent, ProcessResult.create().tableId(preTableName));
-			return;
-		}
 		if (this.createIndexEvent != null) {
 			consumer.accept(this.createIndexEvent, null);
 			this.createIndexEvent = null;
 		}
+
 		if (!tapdataEvent.isDML()) {
 			consumer.accept(tapdataEvent, null);
 			return;
 		}
+		String preTableName = getPreTableName(tapdataEvent);
 		if (needCache(tapdataEvent)) {
 			cache(tapdataEvent);
 		}

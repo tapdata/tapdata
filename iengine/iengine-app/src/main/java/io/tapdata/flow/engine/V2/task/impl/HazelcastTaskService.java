@@ -42,6 +42,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -406,6 +407,19 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			TaskConfig taskConfig
 	) throws Exception {
 		List<RelateDataBaseTable> nodeSchemas = new ArrayList<>();
+		if ((node instanceof ProcessorNode || node instanceof MigrateDateProcessorNode) && node.disabledNode()) {
+			HazelcastBlank newNode = new HazelcastBlank(
+					DataProcessorContext.newBuilder()
+							.withTaskDto(taskDto)
+							.withNode(node)
+							.withNodeSchemas(nodeSchemas)
+							.withTapTableMap(tapTableMap)
+							.withTaskConfig(taskConfig)
+							.build()
+			);
+			MergeTableUtil.setMergeTableIntoHZTarget(mergeTableMap, newNode);
+			return newNode;
+		}
 		HazelcastBaseNode hazelcastNode;
 		final String type = node.getType();
 		final NodeTypeEnum nodeTypeEnum = NodeTypeEnum.get(type);

@@ -125,13 +125,27 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
-		if (getNode().disabledNode()) return;
 		try {
 			super.doInit(context);
 			checkPollingCDCIfNeed();
 		} catch (Throwable e) {
 			//Notify error for task.
 			throw errorHandle(e, "init failed");
+		}
+	}
+
+	@Override
+	protected void doInitAndStop(@NotNull Context context) {
+		super.doInitAndStop(context);
+		if (getNode().disabledNode() && isRunning()) {
+			enqueue(new TapdataCompleteSnapshotEvent());
+			Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
+			Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
+			if (obj instanceof AtomicInteger) {
+				((AtomicInteger) obj).decrementAndGet();
+			}
+			executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
+			AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 		}
 	}
 
@@ -558,7 +572,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 	@SneakyThrows
 	protected void doCdc() {
-		if (getNode().disabledNode()) return;
 		if (!isRunning()) {
 			return;
 		}

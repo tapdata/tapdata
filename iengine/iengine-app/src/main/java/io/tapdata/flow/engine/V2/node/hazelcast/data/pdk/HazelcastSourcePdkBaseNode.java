@@ -30,6 +30,7 @@ import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceDynamicTableAspect;
+import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
@@ -178,30 +179,35 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
-		if (!getNode().disabledNode()) {
-			if (connectorOnTaskThreadGroup == null)
-				connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
-			this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
-			this.sourceRunner.submitSync(() -> {
-				super.doInit(context);
-				try {
-					createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
-					AspectUtils.executeAspect(DataNodeThreadGroupAspect.class, () ->
-							new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
-									.dataProcessorContext(dataProcessorContext));
-					connectorNodeInit(dataProcessorContext);
-				} catch (Throwable e) {
-					throw new NodeException(e).context(getProcessorBaseContext());
-				}
-				initSourceReadBatchSize();
-				initSourceEventQueue();
-				initSyncProgress();
-				initDDLFilter();
-				initTableMonitor();
-				initDynamicAdjustMemory();
-				initAndStartSourceRunner();
-			});
-		}
+		if (connectorOnTaskThreadGroup == null)
+			connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
+		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
+		this.sourceRunner.submitSync(() -> {
+			super.doInit(context);
+			try {
+				createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
+				AspectUtils.executeAspect(DataNodeThreadGroupAspect.class, () ->
+						new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
+								.dataProcessorContext(dataProcessorContext));
+				connectorNodeInit(dataProcessorContext);
+			} catch (Throwable e) {
+				throw new NodeException(e).context(getProcessorBaseContext());
+			}
+			initSourceReadBatchSize();
+			initSourceEventQueue();
+			initSyncProgress();
+			initDDLFilter();
+			initTableMonitor();
+			initDynamicAdjustMemory();
+			initAndStartSourceRunner();
+		});
+	}
+
+	@Override
+	protected void doInitAndStop(@NotNull Context context) {
+		super.doInitAndStop(context);
+		initSourceReadBatchSize();
+		initSourceEventQueue();
 	}
 
 	private void initSyncProgress() throws JsonProcessingException {
@@ -480,15 +486,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	final public boolean complete() {
-		if (getNode().disabledNode()){
-			Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
-			Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
-			if (obj instanceof AtomicInteger) {
-				((AtomicInteger) obj).decrementAndGet();
-			}
-			executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
-			return true;
-		}
 		try {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			if (firstComplete) {
@@ -498,6 +495,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			TapdataEvent dataEvent = null;
 			if (!isRunning()) {
 				return true;
+			}
+			if (getNode().disabledNode()) {
+				return false;
 			}
 			if (pendingEvent != null) {
 				dataEvent = pendingEvent;
