@@ -111,7 +111,6 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 	@Override
 	public void startSourceRunner() {
-		if (getNode().disabledNode()) return;
 		try {
 			startAsyncJobs();
 		} catch (Throwable throwable) {
@@ -121,7 +120,6 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
-		if (getNode().disabledNode()) return;
 		try {
 			FileUtils.deleteQuietly(new File("./partition_storage/" + getNode().getId()));
 			Node<?> node = dataProcessorContext.getNode();
