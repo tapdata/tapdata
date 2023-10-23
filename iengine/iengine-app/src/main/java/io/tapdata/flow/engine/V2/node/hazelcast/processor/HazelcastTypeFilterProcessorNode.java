@@ -5,15 +5,12 @@ import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.process.DateProcessorNode;
 import com.tapdata.tm.commons.dag.process.FieldModTypeFilterNode;
-import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateTypeFilterProcessorNode;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.util.RemoveBracketsUtil;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
 import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
@@ -39,7 +36,7 @@ public class HazelcastTypeFilterProcessorNode extends HazelcastProcessorBaseNode
     public HazelcastTypeFilterProcessorNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
         Node node = getNode();
-        if (!node.isDisabled()) {
+        if (!node.disabledNode()) {
             if (node instanceof FieldModTypeFilterNode) {
                 FieldModTypeFilterNode filterProces = (FieldModTypeFilterNode) getNode();
                 this.filterTypes = filterProces.getFilterTypes();

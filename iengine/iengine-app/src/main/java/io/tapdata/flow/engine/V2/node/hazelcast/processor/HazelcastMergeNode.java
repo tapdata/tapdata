@@ -75,9 +75,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	private final Map<String, Node<?>> preNodeMap = new ConcurrentHashMap<>();
 	private final Map<String, io.tapdata.pdk.apis.entity.merge.MergeTableProperties> preNodeIdPdkMergeTablePropertiesMap = new ConcurrentHashMap<>();
 
-	//被禁用的前置节点
-	private final Set<String> disabledNode = new HashSet<>();
-
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		if (AppType.init().isCloud())
@@ -123,34 +120,45 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
-		selfCheckNode(getNode());
+		if (!disabledNode()) {
+			selfCheckNode(getNode());
 
-		initMergeTableProperties(null);
-		initLookupMergeProperties();
-		initMergeCache();
-		initSourceNodeMap(null);
-		initSourceConnectionMap(null);
-		initSourcePkOrUniqueFieldMap(null);
+			initMergeTableProperties(null);
+			initLookupMergeProperties();
+			initMergeCache();
+			initSourceNodeMap(null);
+			initSourceConnectionMap(null);
+			initSourcePkOrUniqueFieldMap(null);
 
-		TapCreateIndexEvent mergeConfigCreateIndexEvent = generateCreateIndexEventsForTarget();
-		this.createIndexEvent = new TapdataEvent();
-		this.createIndexEvent.setTapEvent(mergeConfigCreateIndexEvent);
+			TapCreateIndexEvent mergeConfigCreateIndexEvent = generateCreateIndexEventsForTarget();
+			this.createIndexEvent = new TapdataEvent();
+			this.createIndexEvent.setTapEvent(mergeConfigCreateIndexEvent);
+		}
 	}
 
 	@Override
 	protected void updateNodeConfig(TapdataEvent tapdataEvent) {
-		super.updateNodeConfig(tapdataEvent);
-		initMergeTableProperties(null);
-		initLookupMergeProperties();
-		initMergeCache();
-		initSourceNodeMap(null);
-		initSourceConnectionMap(null);
-		initSourcePkOrUniqueFieldMap(null);
+		if (!disabledNode()) {
+			super.updateNodeConfig(tapdataEvent);
+			initMergeTableProperties(null);
+			initLookupMergeProperties();
+			initMergeCache();
+			initSourceNodeMap(null);
+			initSourceConnectionMap(null);
+			initSourcePkOrUniqueFieldMap(null);
+		}
 	}
 
 	@Override
 	protected void tryProcess(List<HazelcastProcessorBaseNode.BatchEventWrapper> tapdataEvents, Consumer<List<BatchProcessResult>> consumer) {
 		List<BatchProcessResult> batchProcessResults = new ArrayList<>();
+		if (disabledNode()) {
+			for (BatchEventWrapper event : tapdataEvents) {
+				batchProcessResults.add(new BatchProcessResult(new BatchEventWrapper(event.getTapdataEvent(), event.getTapValueTransform()), null));
+			}
+			consumer.accept(batchProcessResults);
+			return;
+		}
 		if (this.createIndexEvent != null) {
 			BatchProcessResult batchProcessResult = new BatchProcessResult(new BatchEventWrapper(this.createIndexEvent, null), null);
 			batchProcessResults.add(batchProcessResult);
@@ -206,6 +214,11 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
+		String preTableName = getPreTableName(tapdataEvent);
+		if (disabledNode()) {
+			consumer.accept(tapdataEvent, ProcessResult.create().tableId(preTableName));
+			return;
+		}
 		if (this.createIndexEvent != null) {
 			consumer.accept(this.createIndexEvent, null);
 			this.createIndexEvent = null;
@@ -214,7 +227,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			consumer.accept(tapdataEvent, null);
 			return;
 		}
-		String preTableName = getPreTableName(tapdataEvent);
 		if (needCache(tapdataEvent)) {
 			cache(tapdataEvent);
 		}
@@ -382,13 +394,13 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				case updateOrInsert:
 				case updateWrite:
 					if (CollectionUtils.isEmpty(primaryKeys)) {
-						throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY, String.format("- Table name: %s\n- Node name: %s\n- Merge operation: %s", tableName, nodeName, mergeType));
+						throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY, String.format("- Table name: %s </br>- Node name: %s </br>- Merge operation: %s", tableName, nodeName, mergeType));
 					}
 					fieldNames = new ArrayList<>(primaryKeys);
 					break;
 				case updateIntoArray:
 					if (CollectionUtils.isEmpty(arrayKeys)) {
-						throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY, String.format("- Table name: %s- Node name: %s\n", tableName, nodeName));
+						throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY, String.format("- Table name: %s- Node name: %s </br>", tableName, nodeName));
 					}
 					fieldNames = arrayKeys;
 					break;
@@ -851,7 +863,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				Set<String> keySet = findData.keySet();
 				keySet.remove("_ts");
 				if (keySet.size() > 1) {
-					logger.warn("Update write merge lookup, find more than one row by join key: " + joinValueKey + ", will use first row: " + data);
+					logger.warn("Update write merge lookup, find more than one row by join key: {}, will use first row: {}", joinValueKey, data);
 				}
 				String firstKey = findData.keySet().iterator().next();
 				Map<String, Object> lookupMap = (Map<String, Object>) findData.get(firstKey);

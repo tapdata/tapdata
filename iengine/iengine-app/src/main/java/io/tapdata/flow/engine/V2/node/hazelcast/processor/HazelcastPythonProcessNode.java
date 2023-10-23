@@ -74,7 +74,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
     public HazelcastPythonProcessNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
         Node<?> node = getNode();
-        if (!node.isDisabled()) {
+        if (!node.disabledNode()) {
             String script;
             if (node instanceof PyProcessNode) {
                 script = ((PyProcessNode) node).getScript();
@@ -103,7 +103,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
     protected void doInit(@NotNull Context context) throws Exception {
         super.doInit(context);
         Node<?> node = getNode();
-        if (!node.isDisabled()) {
+        if (!node.disabledNode()) {
             this.scriptExecutorsManager = new ScriptExecutorsManager(
                     new ObsScriptLogger(obsLogger),
                     clientMongoOperator,

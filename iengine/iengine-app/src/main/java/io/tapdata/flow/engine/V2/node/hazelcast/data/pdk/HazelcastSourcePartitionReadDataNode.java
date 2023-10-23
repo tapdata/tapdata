@@ -111,7 +111,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 	@Override
 	public void startSourceRunner() {
-		if (getNode().isDisabled()) return;
+		if (getNode().disabledNode()) return;
 		try {
 			startAsyncJobs();
 		} catch (Throwable throwable) {
@@ -121,7 +121,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
-		if (getNode().isDisabled()) return;
+		if (getNode().disabledNode()) return;
 		try {
 			FileUtils.deleteQuietly(new File("./partition_storage/" + getNode().getId()));
 			Node<?> node = dataProcessorContext.getNode();
@@ -366,7 +366,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 	}
 
 	public void startAsyncJobs() {
-		if (getNode().isDisabled()) return;
+		if (getNode().disabledNode()) return;
 		newTables = new CopyOnWriteArrayList<>();
 		tableParallelWorkerStarted.set(false);
 		if (tableParallelWorker != null) {

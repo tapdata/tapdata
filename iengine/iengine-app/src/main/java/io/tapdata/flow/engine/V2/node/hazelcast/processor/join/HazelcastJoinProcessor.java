@@ -218,7 +218,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 				JoinProcessorNode joinNode = (JoinProcessorNode) currentNode;
 				LinkedList<Node<?>> preNodes = joinNode.getPreNodes(verifyNodeId);
 				Node<?> lastPreNodes = preNodes.getLast();
-				if (null != lastPreNodes && lastPreNodes.isDisabled()) {
+				if (null != lastPreNodes && lastPreNodes.disabledNode()) {
 					return true;
 				}
 			}

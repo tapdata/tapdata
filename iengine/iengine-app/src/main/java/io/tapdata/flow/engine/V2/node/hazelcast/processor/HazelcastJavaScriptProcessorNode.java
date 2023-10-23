@@ -148,7 +148,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
 		Node<?> node = getNode();
-		if (!node.isDisabled() && !this.standard) {
+		if (!node.disabledNode() && !this.standard) {
 			this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
 					node.getTaskId(), node.getId(),
 					StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),

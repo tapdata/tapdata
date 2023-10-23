@@ -347,7 +347,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	protected boolean disabledNode() {
 		Node<?> node = getNode();
-		return null == node || node.isDisabled();
+		return null == node || node.disabledNode();
 	}
 
 	protected void setIgnore(boolean ignore) {

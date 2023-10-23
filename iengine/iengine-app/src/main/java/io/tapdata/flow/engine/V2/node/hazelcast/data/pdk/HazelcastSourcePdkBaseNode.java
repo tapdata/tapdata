@@ -178,7 +178,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
-		if (!getNode().isDisabled()) {
+		if (!getNode().disabledNode()) {
 			if (connectorOnTaskThreadGroup == null)
 				connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
 			this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
@@ -480,7 +480,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	final public boolean complete() {
-		if (getNode().isDisabled()){
+		if (getNode().disabledNode()){
 			Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
 			Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
 			if (obj instanceof AtomicInteger) {

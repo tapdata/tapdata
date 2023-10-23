@@ -1,7 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
@@ -64,7 +63,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
 		Node<?> node = processorBaseContext.getNode();
-		if (!node.isDisabled() && NodeTypeEnum.CUSTOM_PROCESSOR.equals(NodeTypeEnum.get(node.getType()))) {
+		if (!node.disabledNode() && NodeTypeEnum.CUSTOM_PROCESSOR.equals(NodeTypeEnum.get(node.getType()))) {
 			String customNodeId = ((CustomProcessorNode) node).getCustomNodeId();
 			Query query = new Query(Criteria.where("_id").is(customNodeId));
 			CustomNodeTempDto customNodeTempDto = clientMongoOperator.findOne(query, ConnectorConstant.CUSTOMNODETEMP_COLLECTION, CustomNodeTempDto.class,
@@ -111,7 +110,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
-		if (processorBaseContext.getNode().isDisabled()) {
+		if (processorBaseContext.getNode().disabledNode()) {
 			execute(tapdataEvent);
 		}
 		String tableName = TapEventUtil.getTableId(tapdataEvent.getTapEvent());

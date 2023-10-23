@@ -125,7 +125,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
-		if (getNode().isDisabled()) return;
+		if (getNode().disabledNode()) return;
 		try {
 			super.doInit(context);
 			checkPollingCDCIfNeed();
@@ -558,7 +558,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 	@SneakyThrows
 	protected void doCdc() {
-		if (getNode().isDisabled()) return;
+		if (getNode().disabledNode()) return;
 		if (!isRunning()) {
 			return;
 		}
