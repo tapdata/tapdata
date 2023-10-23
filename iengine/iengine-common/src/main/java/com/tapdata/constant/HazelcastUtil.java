@@ -57,8 +57,9 @@ public class HazelcastUtil {
 	private final static String KEYSTORE_DIR = ".keystore";
 	private final static String KEYSTORE_SUFFIX = ".keystore";
 	private final static String TRUSTSTORE_SUFFIX = ".truststore";
-	private static final String DEFAULT_CALL_TIMEOUT = String.valueOf(TimeUnit.MINUTES.toMillis(5L));
+	private static final String DEFAULT_CALL_TIMEOUT = String.valueOf(TimeUnit.HOURS.toMillis(3L));
 	public static final HZLoggingType DEFAULT_HZ_LOGGING_TYPE = HZLoggingType.LOG4J2;
+	public static final String HAZELCAST_OPERATION_CALL_TIMEOUT_MILLIS_PROP_KEY = "HAZELCAST_OPERATION_CALL_TIMEOUT_MILLIS";
 	private static Logger logger = LogManager.getLogger(HazelcastUtil.class);
 
 	public static Config getConfig(String instanceName) {
@@ -86,7 +87,8 @@ public class HazelcastUtil {
 		if (null == config) {
 			return;
 		}
-		config.setProperty(ClusterProperty.OPERATION_CALL_TIMEOUT_MILLIS.getName(), CommonUtils.getProperty(ClusterProperty.OPERATION_CALL_TIMEOUT_MILLIS.getName(), DEFAULT_CALL_TIMEOUT));
+		String hazelcastOperationCallTimeoutMillis = CommonUtils.getProperty(HAZELCAST_OPERATION_CALL_TIMEOUT_MILLIS_PROP_KEY, DEFAULT_CALL_TIMEOUT);
+		config.setProperty(ClusterProperty.OPERATION_CALL_TIMEOUT_MILLIS.getName(), CommonUtils.getProperty(ClusterProperty.OPERATION_CALL_TIMEOUT_MILLIS.getName(), hazelcastOperationCallTimeoutMillis));
 		config.setProperty(ClusterProperty.LOGGING_TYPE.getName(), hzLoggingType.getType());
 		Properties properties = config.getProperties();
 		StringWriter stringWriter = new StringWriter();
