@@ -116,7 +116,7 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
         ObjectId taskId = this.getDag().getTaskId();
         dag.setNodes(nodes);
         dag.setEdges(edges);
-        DAG build = DAG.build(dag, true);
+        DAG build = DAG.build(dag);
         build.getNodes().forEach(node -> node.getDag().setTaskId(taskId));
 
         TaskDto taskDto = service.getTaskById(taskId == null ? null : taskId.toHexString());
