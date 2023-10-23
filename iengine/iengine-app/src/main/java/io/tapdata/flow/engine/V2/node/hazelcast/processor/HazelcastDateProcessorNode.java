@@ -143,7 +143,6 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 		if (after != null) {
 			addTime(addTimeFields, after, tableName, null);
 		}
-
 		consumer.accept(tapdataEvent, processResult);
 	}
 

@@ -73,7 +73,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	// Create index events for target
 	private TapdataEvent createIndexEvent;
 	private final Map<String, Node<?>> preNodeMap = new ConcurrentHashMap<>();
-	private final Map<String, io.tapdata.pdk.apis.entity.merge.MergeTableProperties> preNodeIdPdkMergeTablePropertiesMap = new ConcurrentHashMap<>();
+	private final Map<String, io.tapdata.pdk.apis.entity.merge.MergeTableProperties> preNodeIdPdkMergeTablePropertieMap = new ConcurrentHashMap<>();
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -222,14 +222,14 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	private MergeInfo wrapMergeInfo(TapdataEvent tapdataEvent) {
 		String preNodeId = getPreNodeId(tapdataEvent);
-		if (!preNodeIdPdkMergeTablePropertiesMap.containsKey(preNodeId)) {
+		if (!preNodeIdPdkMergeTablePropertieMap.containsKey(preNodeId)) {
 			MergeTableProperties currentMergeTableProperty = this.mergeTablePropertiesMap.get(preNodeId);
 			io.tapdata.pdk.apis.entity.merge.MergeTableProperties pdkMergeTableProperties = copyMergeTableProperty(currentMergeTableProperty);
-			preNodeIdPdkMergeTablePropertiesMap.put(preNodeId, pdkMergeTableProperties);
+			preNodeIdPdkMergeTablePropertieMap.put(preNodeId, pdkMergeTableProperties);
 		}
 		if (tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY) == null || !(tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY) instanceof MergeInfo)) {
 			MergeInfo mergeInfo = new MergeInfo();
-			mergeInfo.setCurrentProperty(preNodeIdPdkMergeTablePropertiesMap.get(preNodeId));
+			mergeInfo.setCurrentProperty(preNodeIdPdkMergeTablePropertieMap.get(preNodeId));
 			tapdataEvent.getTapEvent().addInfo(MergeInfo.EVENT_INFO_KEY, mergeInfo);
 			return mergeInfo;
 		} else {
@@ -380,13 +380,13 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				case updateOrInsert:
 				case updateWrite:
 					if (CollectionUtils.isEmpty(primaryKeys)) {
-						throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY, String.format("- Table name: %s </br>- Node name: %s </br>- Merge operation: %s", tableName, nodeName, mergeType));
+						throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY, String.format("- Table name: %s\n- Node name: %s\n- Merge operation: %s", tableName, nodeName, mergeType));
 					}
 					fieldNames = new ArrayList<>(primaryKeys);
 					break;
 				case updateIntoArray:
 					if (CollectionUtils.isEmpty(arrayKeys)) {
-						throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY, String.format("- Table name: %s- Node name: %s </br>", tableName, nodeName));
+						throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY, String.format("- Table name: %s- Node name: %s\n", tableName, nodeName));
 					}
 					fieldNames = arrayKeys;
 					break;

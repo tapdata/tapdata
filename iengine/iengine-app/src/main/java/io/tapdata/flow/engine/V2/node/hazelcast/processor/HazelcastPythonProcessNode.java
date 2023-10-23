@@ -102,16 +102,16 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
         super.doInit(context);
         Node<?> node = getNode();
         this.scriptExecutorsManager = new ScriptExecutorsManager(
-                new ObsScriptLogger(obsLogger),
-                clientMongoOperator,
-                jetContext.hazelcastInstance(),
-                node.getTaskId(),
-                node.getId(),
-                StringUtils.equalsAnyIgnoreCase(
-                        processorBaseContext.getTaskDto().getSyncType(),
-                        TaskDto.SYNC_TYPE_TEST_RUN,
-                        TaskDto.SYNC_TYPE_DEDUCE_SCHEMA
-                )
+            new ObsScriptLogger(obsLogger),
+            clientMongoOperator,
+            jetContext.hazelcastInstance(),
+            node.getTaskId(),
+            node.getId(),
+            StringUtils.equalsAnyIgnoreCase(
+                    processorBaseContext.getTaskDto().getSyncType(),
+                    TaskDto.SYNC_TYPE_TEST_RUN,
+                    TaskDto.SYNC_TYPE_DEDUCE_SCHEMA
+            )
         );
         ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
         this.source = getDefaultScriptExecutor(GraphUtil.predecessors(node, Node::isDataNode), "source");
@@ -126,6 +126,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
         TapEvent tapEvent = tapdataEvent.getTapEvent();
         String tableName = TapEventUtil.getTableId(tapEvent);
         ProcessResult processResult = getProcessResult(tableName);
+
         if (!(tapEvent instanceof TapRecordEvent)) {
             consumer.accept(tapdataEvent, processResult);
             return;

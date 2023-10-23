@@ -101,8 +101,8 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 			// No processing required
 			consumer.accept(tapdataEvent, null);
 		}
-		String tableId = TapEventUtil.getTableId(tapEvent);
 		AtomicReference<TapdataEvent> processedEvent = new AtomicReference<>();
+		String tableId = TapEventUtil.getTableId(tapEvent);
 		if (tapEvent instanceof TapRecordEvent) {
 			//dml event
 			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);

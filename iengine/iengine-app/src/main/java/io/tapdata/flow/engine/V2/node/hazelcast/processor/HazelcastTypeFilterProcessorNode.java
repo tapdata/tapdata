@@ -52,12 +52,13 @@ public class HazelcastTypeFilterProcessorNode extends HazelcastProcessorBaseNode
 
     @Override
     protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
+
         TapEvent tapEvent = tapdataEvent.getTapEvent();
         if (!(tapEvent instanceof TapBaseEvent)) {
             consumer.accept(tapdataEvent, null);
         }
-        String tableId = TapEventUtil.getTableId(tapEvent);
         AtomicReference<TapdataEvent> processedEvent = new AtomicReference<>();
+        String tableId = TapEventUtil.getTableId(tapEvent);
         if (tapEvent instanceof TapRecordEvent) {
             //dml event
             Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
