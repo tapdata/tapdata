@@ -39,15 +39,20 @@ public class HazelcastTypeFilterProcessorNode extends HazelcastProcessorBaseNode
     public HazelcastTypeFilterProcessorNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
         Node node = getNode();
-        if (node instanceof FieldModTypeFilterNode) {
-            FieldModTypeFilterNode filterProces = (FieldModTypeFilterNode)getNode();
-            this.filterTypes = filterProces.getFilterTypes();
-            this.fieldTypeFilterMap = filterProces.getFieldTypeFilterMap();
-        } else if (node instanceof MigrateTypeFilterProcessorNode) {
-            MigrateTypeFilterProcessorNode filterProces = (MigrateTypeFilterProcessorNode)getNode();
-            this.filterTypes = filterProces.getFilterTypes();
-            this.fieldTypeFilterMap = filterProces.getFieldTypeFilterMap();
-        }else {
+        if (!node.isDisabled()) {
+            if (node instanceof FieldModTypeFilterNode) {
+                FieldModTypeFilterNode filterProces = (FieldModTypeFilterNode) getNode();
+                this.filterTypes = filterProces.getFilterTypes();
+                this.fieldTypeFilterMap = filterProces.getFieldTypeFilterMap();
+            } else if (node instanceof MigrateTypeFilterProcessorNode) {
+                MigrateTypeFilterProcessorNode filterProces = (MigrateTypeFilterProcessorNode) getNode();
+                this.filterTypes = filterProces.getFilterTypes();
+                this.fieldTypeFilterMap = filterProces.getFieldTypeFilterMap();
+            } else {
+                this.filterTypes = new ArrayList<>();
+                this.fieldTypeFilterMap = new HashMap<>();
+            }
+        } else {
             this.filterTypes = new ArrayList<>();
             this.fieldTypeFilterMap = new HashMap<>();
         }
@@ -55,13 +60,16 @@ public class HazelcastTypeFilterProcessorNode extends HazelcastProcessorBaseNode
 
     @Override
     protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
-
         TapEvent tapEvent = tapdataEvent.getTapEvent();
         if (!(tapEvent instanceof TapBaseEvent)) {
             consumer.accept(tapdataEvent, null);
         }
-        AtomicReference<TapdataEvent> processedEvent = new AtomicReference<>();
         String tableId = TapEventUtil.getTableId(tapEvent);
+        if (disabledNode()) {
+            consumer.accept(tapdataEvent, getProcessResult(tableId));
+            return;
+        }
+        AtomicReference<TapdataEvent> processedEvent = new AtomicReference<>();
         if (tapEvent instanceof TapRecordEvent) {
             //dml event
             Map<String, Object> after = TapEventUtil.getAfter(tapEvent);

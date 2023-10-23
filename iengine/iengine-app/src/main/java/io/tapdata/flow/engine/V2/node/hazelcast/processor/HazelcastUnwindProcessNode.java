@@ -49,7 +49,7 @@ public class HazelcastUnwindProcessNode extends HazelcastProcessorBaseNode {
         String tableName = TapEventUtil.getTableId(tapEvent);
         ProcessResult processResult = getProcessResult(tableName);
 
-        if (!(tapEvent instanceof TapRecordEvent)) {
+        if (!(tapEvent instanceof TapRecordEvent) || disabledNode()) {
             consumer.accept(tapdataEvent, processResult);
             return;
         }

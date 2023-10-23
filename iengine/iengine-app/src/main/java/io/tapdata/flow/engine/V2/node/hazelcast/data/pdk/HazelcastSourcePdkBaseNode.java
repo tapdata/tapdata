@@ -33,6 +33,7 @@ import io.tapdata.aspect.SourceDynamicTableAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotWriteEndAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -156,6 +157,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private boolean needCdcDelay() {
+		//if (getNode().disabledNode()) return false;
 		if (Boolean.TRUE.equals(dataProcessorContext.getConnections().getHeartbeatEnable())) {
 			return Optional.ofNullable(dataProcessorContext.getTapTableMap()).map(tapTableMap -> {
 				try {
@@ -176,29 +178,30 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
-		if (connectorOnTaskThreadGroup == null)
-			connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
-		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
-		this.sourceRunner.submitSync(() -> {
-			super.doInit(context);
-			try {
-				createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
-				AspectUtils.executeAspect(DataNodeThreadGroupAspect.class, () ->
-						new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
-								.dataProcessorContext(dataProcessorContext));
-				connectorNodeInit(dataProcessorContext);
-			} catch (Throwable e) {
-				throw new NodeException(e).context(getProcessorBaseContext());
-			}
-
-			initSourceReadBatchSize();
-			initSourceEventQueue();
-			initSyncProgress();
-			initDDLFilter();
-			initTableMonitor();
-			initDynamicAdjustMemory();
-			initAndStartSourceRunner();
-		});
+		if (!getNode().isDisabled()) {
+			if (connectorOnTaskThreadGroup == null)
+				connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
+			this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
+			this.sourceRunner.submitSync(() -> {
+				super.doInit(context);
+				try {
+					createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
+					AspectUtils.executeAspect(DataNodeThreadGroupAspect.class, () ->
+							new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
+									.dataProcessorContext(dataProcessorContext));
+					connectorNodeInit(dataProcessorContext);
+				} catch (Throwable e) {
+					throw new NodeException(e).context(getProcessorBaseContext());
+				}
+				initSourceReadBatchSize();
+				initSourceEventQueue();
+				initSyncProgress();
+				initDDLFilter();
+				initTableMonitor();
+				initDynamicAdjustMemory();
+				initAndStartSourceRunner();
+			});
+		}
 	}
 
 	private void initSyncProgress() throws JsonProcessingException {
@@ -477,6 +480,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	final public boolean complete() {
+		if (getNode().isDisabled()){
+			Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
+			Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
+			if (obj instanceof AtomicInteger) {
+				((AtomicInteger) obj).decrementAndGet();
+			}
+			executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
+			return true;
+		}
 		try {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			if (firstComplete) {
@@ -491,16 +503,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				dataEvent = pendingEvent;
 				pendingEvent = null;
 			} else {
-				try {
-					dataEvent = eventQueue.poll(500, TimeUnit.MILLISECONDS);
-				} catch (InterruptedException ignored) {
-				}
-				if (null != dataEvent) {
-					// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
-					// the event is considered been output to the next node.
-					TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-					TapEvent tapEvent = dataEvent.getTapEvent();
-					tapRecordToTapValue(tapEvent, codecsFilterManager);
+				if (null != eventQueue) {
+					try {
+						dataEvent = eventQueue.poll(500, TimeUnit.MILLISECONDS);
+					} catch (InterruptedException ignored) {
+					}
+					if (null != dataEvent) {
+						// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
+						// the event is considered been output to the next node.
+						TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+						TapEvent tapEvent = dataEvent.getTapEvent();
+						tapRecordToTapValue(tapEvent, codecsFilterManager);
+					}
 				}
 			}
 

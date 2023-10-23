@@ -33,6 +33,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
+import java.io.Closeable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +63,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
 		Node<?> node = processorBaseContext.getNode();
-		if (NodeTypeEnum.get(node.getType()).equals(NodeTypeEnum.CUSTOM_PROCESSOR)) {
+		if (!node.isDisabled() && NodeTypeEnum.CUSTOM_PROCESSOR.equals(NodeTypeEnum.get(node.getType()))) {
 			String customNodeId = ((CustomProcessorNode) node).getCustomNodeId();
 			Query query = new Query(Criteria.where("_id").is(customNodeId));
 			CustomNodeTempDto customNodeTempDto = clientMongoOperator.findOne(query, ConnectorConstant.CUSTOMNODETEMP_COLLECTION, CustomNodeTempDto.class,
@@ -109,7 +110,9 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
-		execute(tapdataEvent);
+		if (processorBaseContext.getNode().isDisabled()) {
+			execute(tapdataEvent);
+		}
 		String tableName = TapEventUtil.getTableId(tapdataEvent.getTapEvent());
 		ProcessResult processResult = null;
 		if (StringUtils.isNotEmpty(tableName)) {
@@ -177,8 +180,10 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	@Override
 	protected void doClose() throws Exception {
 		CommonUtils.ignoreAnyError(() -> {
-			if (this.engine instanceof GraalJSScriptEngine) {
-				((GraalJSScriptEngine) this.engine).close();
+			if (this.engine instanceof AutoCloseable) {
+				((AutoCloseable) this.engine).close();
+			} else if (this.engine instanceof Closeable) {
+				((Closeable) this.engine).close();
 			}
 		}, TAG);
 		super.doClose();

@@ -65,60 +65,64 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
     private ScriptExecutorsManager scriptExecutorsManager;
     private ScriptExecutorsManager.ScriptExecutor source;
     private ScriptExecutorsManager.ScriptExecutor target;
-    private final ThreadLocal<Map<String, Object>> processContextThreadLocal;
-    private final Map<String, Object> globalMap;
-    private final Invocable engine;
+    private ThreadLocal<Map<String, Object>> processContextThreadLocal;
+    private Map<String, Object> globalMap;
+    private Invocable engine;
 
     @SneakyThrows
     public HazelcastPythonProcessNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
         Node<?> node = getNode();
-        String script;
-        if (node instanceof PyProcessNode) {
-            script = ((PyProcessNode) node).getScript();
-        } else {
-            throw new RuntimeException("unsupported node " + node.getClass().getName());
-        }
+        if (!node.isDisabled()) {
+            String script;
+            if (node instanceof PyProcessNode) {
+                script = ((PyProcessNode) node).getScript();
+            } else {
+                throw new RuntimeException("unsupported node " + node.getClass().getName());
+            }
 
-        //@todo initPythonBuildInMethod and add python function from mongo db
-        //List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
-        //        ConnectorConstant.PYTHON_FUNCTION_COLLECTION, JavaScriptFunctions.class);
-        ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
-        this.engine = ScriptUtil.getPyEngine(
-                ScriptFactory.TYPE_PYTHON,
-                script,
-                null, //javaScriptFunctions,
-                clientMongoOperator,
-                null,
-                null,
-                scriptCacheService,
-                new ObsScriptLogger(obsLogger, logger),
-                Application.class.getClassLoader());
-        this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
-        this.globalMap = new HashMap<>();
+            //@todo initPythonBuildInMethod and add python function from mongo db
+            //List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
+            //        ConnectorConstant.PYTHON_FUNCTION_COLLECTION, JavaScriptFunctions.class);
+            ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
+            this.engine = ScriptUtil.getPyEngine(
+                    ScriptFactory.TYPE_PYTHON,
+                    script,
+                    null, //javaScriptFunctions,
+                    clientMongoOperator,
+                    null,
+                    null,
+                    scriptCacheService,
+                    new ObsScriptLogger(obsLogger, logger),
+                    Application.class.getClassLoader());
+            this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
+            this.globalMap = new HashMap<>();
+        }
     }
 
     @Override
     protected void doInit(@NotNull Context context) throws Exception {
         super.doInit(context);
         Node<?> node = getNode();
-        this.scriptExecutorsManager = new ScriptExecutorsManager(
-            new ObsScriptLogger(obsLogger),
-            clientMongoOperator,
-            jetContext.hazelcastInstance(),
-            node.getTaskId(),
-            node.getId(),
-            StringUtils.equalsAnyIgnoreCase(
-                processorBaseContext.getTaskDto().getSyncType(),
-                TaskDto.SYNC_TYPE_TEST_RUN,
-                TaskDto.SYNC_TYPE_DEDUCE_SCHEMA
-            )
-        );
-        ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
-        this.source = getDefaultScriptExecutor(GraphUtil.predecessors(node, Node::isDataNode), "source");
-        this.target = getDefaultScriptExecutor(GraphUtil.successors(node, Node::isDataNode), "target");
-        ((ScriptEngine) this.engine).put("source", source);
-        ((ScriptEngine) this.engine).put("target", target);
+        if (!node.isDisabled()) {
+            this.scriptExecutorsManager = new ScriptExecutorsManager(
+                    new ObsScriptLogger(obsLogger),
+                    clientMongoOperator,
+                    jetContext.hazelcastInstance(),
+                    node.getTaskId(),
+                    node.getId(),
+                    StringUtils.equalsAnyIgnoreCase(
+                            processorBaseContext.getTaskDto().getSyncType(),
+                            TaskDto.SYNC_TYPE_TEST_RUN,
+                            TaskDto.SYNC_TYPE_DEDUCE_SCHEMA
+                    )
+            );
+            ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
+            this.source = getDefaultScriptExecutor(GraphUtil.predecessors(node, Node::isDataNode), "source");
+            this.target = getDefaultScriptExecutor(GraphUtil.successors(node, Node::isDataNode), "target");
+            ((ScriptEngine) this.engine).put("source", source);
+            ((ScriptEngine) this.engine).put("target", target);
+        }
     }
 
     @SneakyThrows
@@ -127,6 +131,10 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
         TapEvent tapEvent = tapdataEvent.getTapEvent();
         String tableName = TapEventUtil.getTableId(tapEvent);
         ProcessResult processResult = getProcessResult(tableName);
+        if (disabledNode()) {
+            consumer.accept(tapdataEvent, processResult);
+            return;
+        }
 
         if (!(tapEvent instanceof TapRecordEvent)) {
             consumer.accept(tapdataEvent, processResult);

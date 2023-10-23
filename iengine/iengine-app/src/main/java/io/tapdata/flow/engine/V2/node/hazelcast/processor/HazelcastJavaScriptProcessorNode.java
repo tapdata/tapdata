@@ -53,6 +53,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
+import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.util.HashMap;
@@ -71,12 +72,12 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	private static final Logger logger = LogManager.getLogger(HazelcastJavaScriptProcessorNode.class);
 	public static final String TAG = HazelcastJavaScriptProcessorNode.class.getSimpleName();
 
-	private final Invocable engine;
+	private Invocable engine;
 
 	private ScriptExecutorsManager scriptExecutorsManager;
 
-	private final ThreadLocal<Map<String, Object>> processContextThreadLocal;
-	private final Map<String, Object> globalTaskContent;
+	private ThreadLocal<Map<String, Object>> processContextThreadLocal;
+	private Map<String, Object> globalTaskContent;
 	private ScriptExecutorsManager.ScriptExecutor source;
 	private ScriptExecutorsManager.ScriptExecutor target;
 
@@ -155,7 +156,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
 		Node<?> node = getNode();
-		if (!this.standard) {
+		if (!node.isDisabled() && !this.standard) {
 			this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
 					node.getTaskId(), node.getId(),
 					StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
@@ -200,6 +201,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		String tableName = TapEventUtil.getTableId(tapEvent);
 		ProcessResult processResult = getProcessResult(tableName);
+		if (disabledNode()) {
+			consumer.accept(tapdataEvent, processResult);
+			return;
+		}
 
 		if (!(tapEvent instanceof TapRecordEvent)) {
 			consumer.accept(tapdataEvent, processResult);
@@ -342,8 +347,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.target).ifPresent(ScriptExecutorsManager.ScriptExecutor::close), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.scriptExecutorsManager).ifPresent(ScriptExecutorsManager::close), TAG);
 			CommonUtils.ignoreAnyError(() -> {
-				if (this.engine instanceof GraalJSScriptEngine) {
-					((GraalJSScriptEngine) this.engine).close();
+				if (this.engine instanceof AutoCloseable) {
+					((AutoCloseable) this.engine).close();
+				} else if (this.engine instanceof Closeable) {
+					((Closeable) this.engine).close();
 				}
 			}, TAG);
 		} finally {

@@ -345,6 +345,11 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		consumer.accept(batchProcessResults);
 	}
 
+	protected boolean disabledNode() {
+		Node<?> node = getNode();
+		return null == node || node.isDisabled();
+	}
+
 	protected void setIgnore(boolean ignore) {
 		this.ignore = ignore;
 	}

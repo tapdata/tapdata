@@ -10,7 +10,6 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
-import io.tapdata.construct.HazelcastConstruct;
 import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -74,7 +73,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	// Create index events for target
 	private TapdataEvent createIndexEvent;
 	private final Map<String, Node<?>> preNodeMap = new ConcurrentHashMap<>();
-	private final Map<String, io.tapdata.pdk.apis.entity.merge.MergeTableProperties> preNodeIdPdkMergeTablePropertieMap = new ConcurrentHashMap<>();
+	private final Map<String, io.tapdata.pdk.apis.entity.merge.MergeTableProperties> preNodeIdPdkMergeTablePropertiesMap = new ConcurrentHashMap<>();
+
+	//被禁用的前置节点
+	private final Set<String> disabledNode = new HashSet<>();
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -222,14 +224,14 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	private MergeInfo wrapMergeInfo(TapdataEvent tapdataEvent) {
 		String preNodeId = getPreNodeId(tapdataEvent);
-		if (!preNodeIdPdkMergeTablePropertieMap.containsKey(preNodeId)) {
+		if (!preNodeIdPdkMergeTablePropertiesMap.containsKey(preNodeId)) {
 			MergeTableProperties currentMergeTableProperty = this.mergeTablePropertiesMap.get(preNodeId);
 			io.tapdata.pdk.apis.entity.merge.MergeTableProperties pdkMergeTableProperties = copyMergeTableProperty(currentMergeTableProperty);
-			preNodeIdPdkMergeTablePropertieMap.put(preNodeId, pdkMergeTableProperties);
+			preNodeIdPdkMergeTablePropertiesMap.put(preNodeId, pdkMergeTableProperties);
 		}
 		if (tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY) == null || !(tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY) instanceof MergeInfo)) {
 			MergeInfo mergeInfo = new MergeInfo();
-			mergeInfo.setCurrentProperty(preNodeIdPdkMergeTablePropertieMap.get(preNodeId));
+			mergeInfo.setCurrentProperty(preNodeIdPdkMergeTablePropertiesMap.get(preNodeId));
 			tapdataEvent.getTapEvent().addInfo(MergeInfo.EVENT_INFO_KEY, mergeInfo);
 			return mergeInfo;
 		} else {
@@ -679,7 +681,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		List<Map<String, String>> joinKeys = mergeProperty.getJoinKeys();
 		List<String> joinKeyList = getJoinKeys(joinKeys, JoinConditionType.SOURCE);
 		if (CollectionUtils.isEmpty(joinKeyList)) {
-			throw new TapCodeException(TaskMergeProcessorExCode_16.MISSING_SOURCE_JOIN_KEY_CONFIG, String.format("Map name: %s, Merge property: %s", hazelcastConstruct.getName(), mergeProperty));
+			throw new TapCodeException(TaskMergeProcessorExCode_16.MISSING_SOURCE_JOIN_KEY_CONFIG, String.format("The sub node [%s] of the merged node requires an association condition, but no corresponding configuration was found.</br>----------</br> Map name: %s, merge property: %s", mergeProperty.getTableName(), hazelcastConstruct.getName(), mergeProperty));
 		}
 		if (MapUtils.isEmpty(data)) {
 			return "";
@@ -699,7 +701,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		List<Map<String, String>> joinKeys = mergeProperty.getJoinKeys();
 		List<String> joinKeyList = getJoinKeys(joinKeys, JoinConditionType.TARGET);
 		if (CollectionUtils.isEmpty(joinKeyList)) {
-			throw new TapCodeException(TaskMergeProcessorExCode_16.MISSING_TARGET_JOIN_KEY_CONFIG, String.format("Map name: %s, Merge property: %s", hazelcastConstruct, mergeProperty));
+			throw new TapCodeException(TaskMergeProcessorExCode_16.MISSING_TARGET_JOIN_KEY_CONFIG,
+					String.format("The sub node [%s] of the merged node requires an association condition, but no corresponding configuration was found.</br>----------</br> need Map name: %s, merge property: %s", mergeProperty.getTableName(), hazelcastConstruct, mergeProperty));
 		}
 		if (MapUtils.isEmpty(data)) {
 			return "";

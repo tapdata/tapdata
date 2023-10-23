@@ -50,7 +50,6 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
-import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -72,7 +71,6 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -127,6 +125,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
+		if (getNode().isDisabled()) return;
 		try {
 			super.doInit(context);
 			checkPollingCDCIfNeed();
@@ -559,6 +558,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 	@SneakyThrows
 	protected void doCdc() {
+		if (getNode().isDisabled()) return;
 		if (!isRunning()) {
 			return;
 		}

@@ -28,7 +28,9 @@ public class HazelcastRenameTableProcessorNode extends HazelcastProcessorBaseNod
 
 	public HazelcastRenameTableProcessorNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
-		initTableNameMapping();
+		if (!disabledNode()) {
+			initTableNameMapping();
+		}
 	}
 
 	private void initTableNameMapping() {
@@ -48,10 +50,12 @@ public class HazelcastRenameTableProcessorNode extends HazelcastProcessorBaseNod
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		String tableId = TapEventUtil.getTableId(tapEvent);
 
-		if (tapEvent instanceof TapBaseEvent) {
-			TableRenameTableInfo tableRenameTableInfo = tableNameMappingMap.get(tableId);
-			if (tableRenameTableInfo != null && StringUtils.isNotEmpty(tableRenameTableInfo.getCurrentTableName())) {
-				((TapBaseEvent) tapEvent).setTableId(tableRenameTableInfo.getCurrentTableName());
+		if (!disabledNode()) {
+			if (tapEvent instanceof TapBaseEvent) {
+				TableRenameTableInfo tableRenameTableInfo = tableNameMappingMap.get(tableId);
+				if (tableRenameTableInfo != null && StringUtils.isNotEmpty(tableRenameTableInfo.getCurrentTableName())) {
+					((TapBaseEvent) tapEvent).setTableId(tableRenameTableInfo.getCurrentTableName());
+				}
 			}
 		}
 		consumer.accept(tapdataEvent, getProcessResult(TapEventUtil.getTableId(tapEvent)));
@@ -59,19 +63,23 @@ public class HazelcastRenameTableProcessorNode extends HazelcastProcessorBaseNod
 
 	@Override
 	protected String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
-		String tableId = TapEventUtil.getTableId(tapEvent);
-		TableRenameTableInfo tableRenameTableInfo = tableNameMappingMap.get(tableId);
-		if (tableRenameTableInfo != null && StringUtils.isNotEmpty(tableRenameTableInfo.getCurrentTableName())) {
-			return tableRenameTableInfo.getCurrentTableName();
+		if (!disabledNode()) {
+			String tableId = TapEventUtil.getTableId(tapEvent);
+			TableRenameTableInfo tableRenameTableInfo = tableNameMappingMap.get(tableId);
+			if (tableRenameTableInfo != null && StringUtils.isNotEmpty(tableRenameTableInfo.getCurrentTableName())) {
+				return tableRenameTableInfo.getCurrentTableName();
+			}
 		}
 		return super.getTgtTableNameFromTapEvent(tapEvent);
 	}
 
 	protected void updateNodeConfig(TapdataEvent tapdataEvent) {
 		super.updateNodeConfig(tapdataEvent);
-		TapEvent tapEvent = tapdataEvent.getTapEvent();
-		if (tapEvent instanceof TapCreateTableEvent || tapEvent instanceof TapDropTableEvent) {
-			initTableNameMapping();
+		if (!disabledNode()) {
+			TapEvent tapEvent = tapdataEvent.getTapEvent();
+			if (tapEvent instanceof TapCreateTableEvent || tapEvent instanceof TapDropTableEvent) {
+				initTableNameMapping();
+			}
 		}
 	}
 }
