@@ -364,7 +364,6 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 	}
 
 	public void startAsyncJobs() {
-		if (getNode().disabledNode()) return;
 		newTables = new CopyOnWriteArrayList<>();
 		tableParallelWorkerStarted.set(false);
 		if (tableParallelWorker != null) {

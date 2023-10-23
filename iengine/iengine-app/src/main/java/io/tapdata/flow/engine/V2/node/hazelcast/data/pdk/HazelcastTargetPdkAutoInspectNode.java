@@ -122,6 +122,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
 	@Override
 	protected void doInit(@NonNull Processor.Context context) throws Exception {
 		super.doInit(context);
+
 		TaskDto task = dataProcessorContext.getTaskDto();
 		String taskId = task.getId().toHexString();
 		TaskType taskType = TaskType.parseByTaskType(syncType.getSyncType());
