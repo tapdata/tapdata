@@ -33,7 +33,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
-import java.io.Closeable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +62,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
 		Node<?> node = processorBaseContext.getNode();
-		if (NodeTypeEnum.CUSTOM_PROCESSOR.equals(NodeTypeEnum.get(node.getType()))) {
+		if (NodeTypeEnum.get(node.getType()).equals(NodeTypeEnum.CUSTOM_PROCESSOR)) {
 			String customNodeId = ((CustomProcessorNode) node).getCustomNodeId();
 			Query query = new Query(Criteria.where("_id").is(customNodeId));
 			CustomNodeTempDto customNodeTempDto = clientMongoOperator.findOne(query, ConnectorConstant.CUSTOMNODETEMP_COLLECTION, CustomNodeTempDto.class,
@@ -139,15 +138,15 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		if (MapUtils.isEmpty(after) && MapUtils.isEmpty(before)) {
 			return;
 		}
-		Map<String, Object> beforeOrAfterMapFromRecord = null == after ? before : after;
+		Map<String, Object> record = null == after ? before : after;
 		isAfter = null != after;
 		((ScriptEngine) engine).put("log", logger);
 
 		Object result;
 		try {
-			result = engine.invokeFunction(FUNCTION_NAME, beforeOrAfterMapFromRecord, ((CustomProcessorNode) node).getForm());
+			result = engine.invokeFunction(FUNCTION_NAME, record, ((CustomProcessorNode) node).getForm());
 		} catch (ScriptException e) {
-			throw new RuntimeException("Execute script error, record: " + beforeOrAfterMapFromRecord + ", error: " + e.getMessage());
+			throw new RuntimeException("Execute script error, record: " + record + ", error: " + e.getMessage());
 		} catch (NoSuchMethodException e) {
 			throw new RuntimeException("Execute script error, cannot found function " + FUNCTION_NAME);
 		}
@@ -193,10 +192,15 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 			return this;
 		}
 
+		// private IMap<String, Object> map;
 		private Map<String, Object> map;
 
 		@Override
 		public void init(String mapKey, Class<Object> valueClass) {
+//			if (null == hazelcastInstance) {
+//				throw new IllegalArgumentException("Hazelcast instance cannot be null");
+//			}
+//			this.map = hazelcastInstance.getMap(mapKey);
 			this.map = new HashMap<>();
 		}
 
