@@ -311,8 +311,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			recursiveGetLookupList(child);
 		}
 		String preNodeId = mergeTableProperties.getId();
-		Node<?> preNode = preNodeMap.get(preNodeId);
-		if (null == preNode && !preNode.disabledNode()) {
+		Node<?> preNode = Optional.ofNullable(preNodeMap.get(preNodeId)).orElse((Node)getPreNode(preNodeId));
+		if (null != preNode && !preNode.disabledNode()) {
 			this.lookupMap.put(preNodeId, lookupList);
 			this.needCacheIdList.addAll(lookupList.stream().map(MergeTableProperties::getId).collect(Collectors.toList()));
 		}
