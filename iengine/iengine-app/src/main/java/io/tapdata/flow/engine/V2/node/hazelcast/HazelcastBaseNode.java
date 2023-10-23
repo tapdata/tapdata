@@ -104,6 +104,8 @@ import java.util.stream.Collectors;
  * @date 2021/12/7 3:25 PM
  **/
 public abstract class HazelcastBaseNode extends AbstractProcessor {
+	public static final String TARGET_TAG = "target";
+	public static final String SOURCE_TAG = "source";
 	/**
 	 * [sub task id]-[node id]
 	 */
@@ -248,16 +250,15 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				runtimeInfo.setUnSupportedDDLS(new ArrayList<>());
 				job.setRuntimeInfo(runtimeInfo);
 				final List<Stage> stages = job.getStages();
-				if (CollectionUtils.isNotEmpty(stages)) {
-					if (stages.stream().anyMatch(s -> s.getId().equals(node.getId()))) {
-						job.setId(node.getId());
-						job.setStatus(ConnectorConstant.SCHEDULED);
-						job.setStatus(ConnectorConstant.RUNNING);
-						job.setTaskId(dataFlow.getTaskId());
-						job.setSubTaskId(dataFlow.getSubTaskId());
-						job.setClientMongoOperator(clientMongoOperator);
-						return job;
-					}
+				if (CollectionUtils.isNotEmpty(stages)
+						&& stages.stream().anyMatch(s -> s.getId().equals(node.getId()))) {
+					job.setId(node.getId());
+					job.setStatus(ConnectorConstant.SCHEDULED);
+					job.setStatus(ConnectorConstant.RUNNING);
+					job.setTaskId(dataFlow.getTaskId());
+					job.setSubTaskId(dataFlow.getSubTaskId());
+					job.setClientMongoOperator(clientMongoOperator);
+					return job;
 				}
 			}
 		}
@@ -513,10 +514,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			List<Map<String, String>> joinKeys = new ArrayList<>();
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
 				for (String updateConditionField : updateConditionFields) {
-					joinKeys.add(new HashMap<String, String>() {{
-						put("source", updateConditionField);
-						put("target", updateConditionField);
-					}});
+					Map<String, String> nodeMap = new HashMap<>();
+					nodeMap.put(SOURCE_TAG, updateConditionField);
+					nodeMap.put(TARGET_TAG, updateConditionField);
+					joinKeys.add(nodeMap);
 				}
 			}
 			joinTable = new JoinTable();
@@ -682,7 +683,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected void initMilestoneService(MilestoneContext.VertexType vertexType) {
 		Node<?> node = processorBaseContext.getNode();
-		String vertexName = NodeUtil.getVertexName(node);
 		List<Node<?>> nextOrPreDataNodes;
 		switch (vertexType) {
 			case SOURCE:

@@ -13,6 +13,7 @@ import com.tapdata.processor.ScriptUtil;
 import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.utils.cache.KVMap;
@@ -69,7 +70,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 			CustomNodeTempDto customNodeTempDto = clientMongoOperator.findOne(query, ConnectorConstant.CUSTOMNODETEMP_COLLECTION, CustomNodeTempDto.class,
 					n -> !running.get());
 			if (null == customNodeTempDto) {
-				throw new RuntimeException("Init script engine failed, cannot find custom node template by id: " + customNodeId);
+				throw new CoreException("Init script engine failed, cannot find custom node template by id: " + customNodeId);
 			}
 			List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
 					ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class, n -> !running.get());
@@ -141,17 +142,17 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		if (MapUtils.isEmpty(after) && MapUtils.isEmpty(before)) {
 			return;
 		}
-		Map<String, Object> record = null == after ? before : after;
+		Map<String, Object> beforeOrAfterMapFromRecord = null == after ? before : after;
 		isAfter = null != after;
 		((ScriptEngine) engine).put("log", logger);
 
 		Object result;
 		try {
-			result = engine.invokeFunction(FUNCTION_NAME, record, ((CustomProcessorNode) node).getForm());
+			result = engine.invokeFunction(FUNCTION_NAME, beforeOrAfterMapFromRecord, ((CustomProcessorNode) node).getForm());
 		} catch (ScriptException e) {
-			throw new RuntimeException("Execute script error, record: " + record + ", error: " + e.getMessage());
+			throw new CoreException("Execute script error, record: " + beforeOrAfterMapFromRecord + ", error: " + e.getMessage());
 		} catch (NoSuchMethodException e) {
-			throw new RuntimeException("Execute script error, cannot found function " + FUNCTION_NAME);
+			throw new CoreException("Execute script error, cannot found function " + FUNCTION_NAME);
 		}
 		if (null == result) {
 			return;
@@ -197,15 +198,10 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 			return this;
 		}
 
-		//		private IMap<String, Object> map;
 		private Map<String, Object> map;
 
 		@Override
 		public void init(String mapKey, Class<Object> valueClass) {
-//			if (null == hazelcastInstance) {
-//				throw new IllegalArgumentException("Hazelcast instance cannot be null");
-//			}
-//			this.map = hazelcastInstance.getMap(mapKey);
 			this.map = new HashMap<>();
 		}
 

@@ -1,6 +1,5 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
-import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.cache.scripts.ScriptCacheService;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
@@ -24,18 +23,14 @@ import com.tapdata.tm.commons.dag.process.StandardJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.StandardMigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.logger.TapLog;
-import io.tapdata.entity.script.ScriptFactory;
-import io.tapdata.entity.script.ScriptOptions;
-import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.util.JsUtil;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -52,10 +47,7 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
-import javax.script.ScriptException;
 import java.io.Closeable;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -101,7 +93,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		} else if (node instanceof CacheLookupProcessorNode) {
 			script = ((CacheLookupProcessorNode) node).getScript();
 		} else {
-			throw new RuntimeException("unsupported node " + node.getClass().getName());
+			throw new CoreException("unsupported node " + node.getClass().getName());
 		}
 
 		if (node instanceof StandardJsProcessorNode || node instanceof StandardMigrateJsProcessorNode) {
@@ -165,19 +157,19 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
 			List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
 
-			this.source = getDefaultScriptExecutor(predecessors, "source");
-			this.target = getDefaultScriptExecutor(successors, "target");
-			((ScriptEngine) this.engine).put("source", source);
-			((ScriptEngine) this.engine).put("target", target);
+			this.source = getDefaultScriptExecutor(predecessors, SOURCE_TAG);
+			this.target = getDefaultScriptExecutor(successors, TARGET_TAG);
+			((ScriptEngine) this.engine).put(SOURCE_TAG, source);
+			((ScriptEngine) this.engine).put(TARGET_TAG, target);
 		}
 	}
 
 	private ScriptExecutorsManager.ScriptExecutor getDefaultScriptExecutor(List<Node<?>> nodes, String flag) {
 		TaskDto taskDto = processorBaseContext.getTaskDto();
-		if ("target".equals(flag) && taskDto.isTestTask()) {
+		if (TARGET_TAG.equals(flag) && taskDto.isTestTask()) {
 			return this.scriptExecutorsManager.createDummy();
 		}
-		if (nodes != null && nodes.size() > 0) {
+		if (nodes != null && !nodes.isEmpty()) {
 			Node<?> node = nodes.get(0);
 			if (node instanceof DataParentNode) {
 				String connectionId = ((DataParentNode<?>) node).getConnectionId();
@@ -191,7 +183,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				}
 			}
 		}
-		obsLogger.warn("The " + flag + " could not build the executor, please check");
+		obsLogger.warn("The {} could not build the executor, please check", flag);
 		return null;
 	}
 
@@ -201,19 +193,14 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		String tableName = TapEventUtil.getTableId(tapEvent);
 		ProcessResult processResult = getProcessResult(tableName);
-		if (disabledNode()) {
+		if (disabledNode() || !(tapEvent instanceof TapRecordEvent)) {
 			consumer.accept(tapdataEvent, processResult);
 			return;
 		}
 
-		if (!(tapEvent instanceof TapRecordEvent)) {
-			consumer.accept(tapdataEvent, processResult);
-			return;
-		}
-
-		Map<String, Object> record = TapEventUtil.getAfter(tapEvent);
-		if (MapUtils.isEmpty(record) && MapUtils.isNotEmpty(TapEventUtil.getBefore(tapEvent))) {
-			record = TapEventUtil.getBefore(tapEvent);
+		Map<String, Object> afterMapInRecord = TapEventUtil.getAfter(tapEvent);
+		if (MapUtils.isEmpty(afterMapInRecord) && MapUtils.isNotEmpty(TapEventUtil.getBefore(tapEvent))) {
+			afterMapInRecord = TapEventUtil.getBefore(tapEvent);
 		}
 
 		String op = TapEventUtil.getOp(tapEvent);
@@ -251,14 +238,14 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
 				TaskDto.SYNC_TYPE_TEST_RUN,
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
-			Map<String, Object> finalRecord = record;
+			Map<String, Object> finalRecord = afterMapInRecord;
 			CountDownLatch countDownLatch = new CountDownLatch(1);
 			AtomicReference<Throwable> errorAtomicRef = new AtomicReference<>();
 			Thread thread = new Thread(() -> {
 				Thread.currentThread().setName("Javascript-Test-Runner");
 				try {
 					scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord));
-				} catch (Throwable throwable) {
+				} catch (Exception throwable) {
 					errorAtomicRef.set(throwable);
 				} finally {
 					countDownLatch.countDown();
@@ -274,7 +261,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			}
 
 		} else {
-			scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record));
+			scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
 		}
 
 		if (StringUtils.isNotEmpty((CharSequence) context.get("op"))) {
@@ -353,26 +340,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 					((Closeable) this.engine).close();
 				}
 			}, TAG);
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(processContextThreadLocal).ifPresent(ThreadLocal::remove), TAG);
 		} finally {
 			super.doClose();
 		}
 	}
 
-	public static void main(String[] args)throws FileNotFoundException, ScriptException {
-		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
-		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(JSEngineEnum.GRAALVM_JS.getEngineName()));
-		e.put("tapUtil", new JsUtil());
-		e.put("tapLog", new TapLog());
-		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/csvUtils.js"));
-		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/arrayUtils.js"));
-		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/dateUtils.js"));
-		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/exceptionUtils.js"));
-		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/stringUtils.js"));
-		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/mapUtils.js"));
-		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/log.js"));
-
-		Object invoker = e.eval("dateUtils.timeStamp2Date(new Date().getTime(), \"yyyy-MM-dd'T'HH:mm:ssXXX\");");
-		System.out.println(invoker + " ---- " + new JsUtil().timeStamp2Date(System.currentTimeMillis(), "yyyy-MM-dd'T'HH:mm:ssXXX"));
-		e.eval("log.warn(\"Hello Log, i'm %s\", 'Gavin');");
-	}
 }
