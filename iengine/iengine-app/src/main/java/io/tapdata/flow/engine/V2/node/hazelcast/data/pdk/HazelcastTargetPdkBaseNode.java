@@ -168,19 +168,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	protected void doInitAndStop(@NotNull Context context) {
+	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
 		queueConsumerThreadPool.submitSync(() -> {
-			super.doInitAndStop(context);
+			super.doInitWithDisableNode(context);
 			createPdkAndInit(context);
-//			initExactlyOnceWriteIfNeed();
-//			initTargetVariable();
-//			initTargetQueueConsumer();
-//			initTargetConcurrentProcessorIfNeed();
-//			initTapEventFilter();
-//			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
-
 	}
 
 	private void initExactlyOnceWriteIfNeed() {
@@ -348,46 +341,47 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	final public void process(int ordinal, @NotNull Inbox inbox) {
-		if (!getNode().disabledNode()) {
-			try {
-				if (!inbox.isEmpty()) {
-					List<TapdataEvent> tapdataEvents = new ArrayList<>();
-					final int count = inbox.drainTo(tapdataEvents, targetBatch);
-					if (count > 0) {
-						for (TapdataEvent tapdataEvent : tapdataEvents) {
-							// Filter TapEvent
-							if (null != tapdataEvent.getTapEvent() && this.targetTapEventFilter.test(tapdataEvent)) {
-								if (tapdataEvent.getSyncStage().equals(SyncStage.CDC)) {
-									tapdataEvent = TapdataHeartbeatEvent.create(TapEventUtil.getTimestamp(tapdataEvent.getTapEvent()), tapdataEvent.getStreamOffset(), tapdataEvent.getNodeIds());
-								} else {
-									continue;
-								}
+		if (getNode().disabledNode()) {
+			return;
+		}
+		try {
+			if (!inbox.isEmpty()) {
+				List<TapdataEvent> tapdataEvents = new ArrayList<>();
+				final int count = inbox.drainTo(tapdataEvents, targetBatch);
+				if (count > 0) {
+					for (TapdataEvent tapdataEvent : tapdataEvents) {
+						// Filter TapEvent
+						if (null != tapdataEvent.getTapEvent() && this.targetTapEventFilter.test(tapdataEvent)) {
+							if (tapdataEvent.getSyncStage().equals(SyncStage.CDC)) {
+								tapdataEvent = TapdataHeartbeatEvent.create(TapEventUtil.getTimestamp(tapdataEvent.getTapEvent()), tapdataEvent.getStreamOffset(), tapdataEvent.getNodeIds());
+							} else {
+								continue;
 							}
-							while (isRunning()) {
-								try {
-									if (tapEventQueue.offer(tapdataEvent, 1L, TimeUnit.SECONDS)) {
-										break;
-									}
-								} catch (InterruptedException ignored) {
+						}
+						while (isRunning()) {
+							try {
+								if (tapEventQueue.offer(tapdataEvent, 1L, TimeUnit.SECONDS)) {
+									break;
 								}
+							} catch (InterruptedException ignored) {
 							}
-							if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {
-								if (((TapdataAdjustMemoryEvent) tapdataEvent).needAdjust()) {
-									synchronized (this.dynamicAdjustQueueLock) {
-										obsLogger.info("{}The target node enters the waiting phase until the queue adjustment is completed", DynamicAdjustMemoryConstant.LOG_PREFIX);
-										this.dynamicAdjustQueueLock.wait();
-									}
+						}
+						if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {
+							if (((TapdataAdjustMemoryEvent) tapdataEvent).needAdjust()) {
+								synchronized (this.dynamicAdjustQueueLock) {
+									obsLogger.info("{}The target node enters the waiting phase until the queue adjustment is completed", DynamicAdjustMemoryConstant.LOG_PREFIX);
+									this.dynamicAdjustQueueLock.wait();
 								}
 							}
 						}
 					}
 				}
-			} catch (Throwable e) {
-				RuntimeException runtimeException = new RuntimeException(String.format("Drain from inbox failed: %s", e.getMessage()), e);
-				errorHandle(runtimeException);
-			} finally {
-				ThreadContext.clearAll();
 			}
+		} catch (Throwable e) {
+			RuntimeException runtimeException = new RuntimeException(String.format("Drain from inbox failed: %s", e.getMessage()), e);
+			errorHandle(runtimeException);
+		} finally {
+			ThreadContext.clearAll();
 		}
 	}
 

@@ -30,11 +30,9 @@ import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceDynamicTableAspect;
-import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotWriteEndAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -158,7 +156,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private boolean needCdcDelay() {
-		//if (getNode().disabledNode()) return false;
 		if (Boolean.TRUE.equals(dataProcessorContext.getConnections().getHeartbeatEnable())) {
 			return Optional.ofNullable(dataProcessorContext.getTapTableMap()).map(tapTableMap -> {
 				try {
@@ -204,10 +201,25 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	protected void doInitAndStop(@NotNull Context context) {
-		super.doInitAndStop(context);
-		initSourceReadBatchSize();
-		initSourceEventQueue();
+	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
+		if (connectorOnTaskThreadGroup == null)
+			connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
+		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
+		this.sourceRunner.submitSync(() -> {
+			super.doInitWithDisableNode(context);
+			try {
+				createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
+				AspectUtils.executeAspect(DataNodeThreadGroupAspect.class, () ->
+						new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
+								.dataProcessorContext(dataProcessorContext));
+				connectorNodeInit(dataProcessorContext);
+			} catch (Throwable e) {
+				throw new NodeException(e).context(getProcessorBaseContext());
+			}
+			initSourceReadBatchSize();
+			initSourceEventQueue();
+			initSyncProgress();
+		});
 	}
 
 	private void initSyncProgress() throws JsonProcessingException {

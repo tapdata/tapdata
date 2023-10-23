@@ -135,10 +135,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	@Override
-	protected void doInitAndStop(@NotNull Context context) {
-		super.doInitAndStop(context);
+	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
+		super.doInitWithDisableNode(context);
 		if (getNode().disabledNode() && isRunning()) {
-			enqueue(new TapdataCompleteSnapshotEvent());
 			Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
 			Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
 			if (obj instanceof AtomicInteger) {

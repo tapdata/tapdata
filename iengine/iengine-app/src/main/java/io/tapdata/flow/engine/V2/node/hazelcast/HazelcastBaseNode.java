@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast;
 
 import cn.hutool.core.date.StopWatch;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
@@ -16,7 +17,6 @@ import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.RuntimeInfo;
 import com.tapdata.entity.Stats;
-import com.tapdata.entity.TapdataCompleteSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.DataFlowSetting;
@@ -204,7 +204,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected void doInit(@NotNull Processor.Context context) throws Exception {
 	}
 
-	protected void doInitAndStop(@NotNull Context context) {
+	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
 	}
 
 	@Override
@@ -228,7 +228,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			if (!getNode().disabledNode()) {
 				doInit(context);
 			} else {
-				doInitAndStop(context);
+				doInitWithDisableNode(context);
 			}
 		} catch (Throwable e) {
 			errorHandle(e, "Node init failed: " + e.getMessage());
