@@ -249,23 +249,7 @@ public class LdpServiceImpl implements LdpService {
 
         boolean streamRead = true;
         boolean batchRead = true;
-        ResponseBody responseBody = connection.getResponse_body();
-        if (responseBody != null) {
-            List<ValidateDetail> validateDetails = responseBody.getValidateDetails();
-            Map<String, ValidateDetail> map = new HashMap<>();
-            if (org.apache.commons.collections.CollectionUtils.isNotEmpty(validateDetails)) {
-                // list to map
-                map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity()));
-            }
-            if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
-                streamRead = false;
-            }
 
-            if (!map.containsKey(TestItem.ITEM_READ) || !"passed".equals(map.get(TestItem.ITEM_READ).getStatus())) {
-                batchRead = false;
-            }
-
-        }
         Set<String> capabilityIds = capabilities.stream().map(Capability::getId).collect(Collectors.toSet());
         if (!capabilityIds.contains(CapabilityEnum.STREAM_READ_FUNCTION.name().toLowerCase())) {
             streamRead = false;
