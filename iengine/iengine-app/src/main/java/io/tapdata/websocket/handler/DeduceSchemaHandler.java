@@ -74,7 +74,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		String json = new String(bytes, StandardCharsets.UTF_8);
 		DeduceSchemaRequest request = JsonUtil.parseJsonUseJackson(json, DeduceSchemaRequest.class);
 		DAG dagAgo = request.getTaskDto().getDag();
-		request.getTaskDto().setDag(dagAgo.clone(true));
+		request.getTaskDto().setDag(dagAgo);
 		DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(
 				request.getMetadataInstancesDtoList(),
 				request.getDataSourceMap(),

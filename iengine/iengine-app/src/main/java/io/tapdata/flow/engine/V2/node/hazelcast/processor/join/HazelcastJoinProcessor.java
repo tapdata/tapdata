@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -149,7 +150,9 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 
 	private void initNode() throws Exception {
 		Node<?> node = processorBaseContext.getNode();
-		vatidate(node);
+		if (verifyJoinNode(node)) {
+			vatidate(node);
+		}
 		JoinProcessorNode joinNode = (JoinProcessorNode) node;
 		this.joinType = JoinType.get(joinNode.getJoinType());
 
@@ -201,6 +204,30 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		}
 	}
 
+	private boolean verifyJoinNode(Node<?> node) {
+		if (node instanceof JoinProcessorNode && (node.disabledNode()
+				|| verifyPreNodeHasDisabled(node, ((JoinProcessorNode)node).getLeftNodeId())
+				|| verifyPreNodeHasDisabled(node, ((JoinProcessorNode)node).getRightNodeId()))) {
+			return false;
+		}
+		return true;
+	}
+	private boolean verifyPreNodeHasDisabled(Node<?> currentNode, String verifyNodeId) {
+		try {
+			if (currentNode instanceof JoinProcessorNode) {
+				JoinProcessorNode joinNode = (JoinProcessorNode) currentNode;
+				LinkedList<Node<?>> preNodes = joinNode.getPreNodes(verifyNodeId);
+				Node<?> lastPreNodes = preNodes.getLast();
+				if (null != lastPreNodes && lastPreNodes.disabledNode()) {
+					return true;
+				}
+			}
+		} catch (Exception e) {
+			return true;
+		}
+		return false;
+	}
+
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 		Node<?> node = processorBaseContext.getNode();
@@ -212,11 +239,14 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 					tapdataEvent
 			);
 		}
+		if (!verifyJoinNode(node)) {
+			consumer.accept(tapdataEvent, null);
+			return;
+		}
 
 		Map<String, Object> before;
 		Map<String, Object> after;
 		String opType;
-		String tableName;
 		if (!(tapdataEvent.isDML())) {
 			consumer.accept(tapdataEvent, null);
 			return;

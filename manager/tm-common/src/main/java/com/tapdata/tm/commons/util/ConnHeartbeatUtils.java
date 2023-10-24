@@ -113,7 +113,7 @@ public class ConnHeartbeatUtils {
         taskDto.setDag(DAG.build(new Dag(
                 Collections.singletonList(new Edge(sourceNode.getId(), targetNode.getId())),
                 Arrays.asList(sourceNode, targetNode)
-        ), true));
+        )));
         taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC_CDC);
         taskDto.setSyncType(TaskDto.SYNC_TYPE_CONN_HEARTBEAT);
         taskDto.setHeartbeatTasks(new HashSet<>(Collections.singleton(subTaskId)));

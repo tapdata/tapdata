@@ -146,13 +146,6 @@ public abstract class Node<S> extends Element{
         transformSchema(null);
     }
     public void transformSchema(DAG.Options options) {
-        //节点被禁用不进行推演, Skip this node and to do next node's implement
-        Map<String, Object> attrs = getAttrs();
-        if (null != attrs && !attrs.isEmpty() && Boolean.TRUE.equals(attrs.get("disabled"))) {
-            next(options);
-            return;
-        }
-
         //优化模型推演的顺序
         List<Node<S>> predNodes = predecessors();
         if (CollectionUtils.isNotEmpty(predNodes)) {

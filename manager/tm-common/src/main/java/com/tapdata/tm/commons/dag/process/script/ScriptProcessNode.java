@@ -97,7 +97,7 @@ public class ScriptProcessNode extends ProcessorNode {
         dag.setNodes(nodes);
         dag.setEdges(edges);
 
-        DAG build = DAG.build(dag, true);
+        DAG build = DAG.build(dag);
 
         ObjectId taskId = this.getDag().getTaskId();
         TaskDto taskDto = service.getTaskById(taskId == null ? null : taskId.toHexString());

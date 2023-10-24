@@ -1046,7 +1046,7 @@ public class LogCollectorService {
             Edge edge = new Edge(logCollectorNode.getId(), hazelCastImdgNode.getId());
             List<Edge> edges = Lists.newArrayList(edge);
             Dag dag1 = new Dag(edges, nodes);
-            DAG build = DAG.build(dag1, true);
+            DAG build = DAG.build(dag1);
             taskDto.setName("来自" + dataSource.getName() + "的共享挖掘任务");
             int i = 1;
             String taskName = taskDto.getName();

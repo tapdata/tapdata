@@ -27,7 +27,7 @@ public abstract class Element implements Serializable {
 
     private Map<String, Object> attrs;
 
-    private boolean disable;
+    private boolean disabled;
 
     @JsonIgnore
     private transient Graph<? extends Element, ? extends Element> graph;
@@ -80,4 +80,9 @@ public abstract class Element implements Serializable {
         Link
     }
 
+    public boolean disabledNode() {
+        final String disabledKey = "disabled";
+        if (null == attrs || attrs.isEmpty() || !attrs.containsKey(disabledKey)) return false;
+        return Boolean.TRUE.equals(attrs.get(disabledKey));
+    }
 }

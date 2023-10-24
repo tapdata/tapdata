@@ -50,7 +50,6 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
-import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -72,7 +71,6 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -133,6 +131,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		} catch (Throwable e) {
 			//Notify error for task.
 			throw errorHandle(e, "init failed");
+		}
+	}
+
+	@Override
+	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
+		super.doInitWithDisableNode(context);
+		if (getNode().disabledNode() && isRunning()) {
+			Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
+			Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
+			if (obj instanceof AtomicInteger) {
+				((AtomicInteger) obj).decrementAndGet();
+			}
+			executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
+			AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 		}
 	}
 
