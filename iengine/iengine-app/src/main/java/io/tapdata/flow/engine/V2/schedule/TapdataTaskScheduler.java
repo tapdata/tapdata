@@ -410,9 +410,10 @@ public class TapdataTaskScheduler {
 										clearTaskCacheAfterStopped(taskClient);
 										TaskDto taskDto = clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
+										long retryStartTime = System.currentTimeMillis();
 										sendStartTask(taskDto);
-										taskRetryTimeMap.put(taskId, System.currentTimeMillis());
-										signTaskRetry(taskId);
+										taskRetryTimeMap.put(taskId,retryStartTime);
+										signTaskRetry(taskId, retryStartTime);
 									}
 								} else {
 									stopTaskResource = StopTaskResource.RUN_ERROR;
@@ -439,15 +440,19 @@ public class TapdataTaskScheduler {
 		}
 	}
 
-	private void signTaskRetry(String taskId) {
+	private void signTaskRetry(String taskId, long retryStartTime) {
 		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_RUNNING),
+				clientMongoOperator.update(
+						Query.query(Criteria.where("_id").is(new ObjectId(taskId))),
+						new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_RUNNING).set("taskRetryStartTime", retryStartTime),
 						ConnectorConstant.TASK_COLLECTION), "Failed to sign task retry status");
 	}
 
 	public void clearTaskRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_NONE),
+				clientMongoOperator.update(
+						Query.query(Criteria.where("_id").is(new ObjectId(taskId))),
+						new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_NONE).set("taskRetryStartTime", 0),
 						ConnectorConstant.TASK_COLLECTION), "Failed to clear task retry status");
 	}
 

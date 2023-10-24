@@ -165,6 +165,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     private String functionRetryStatus;
     private Long functionRetryEx;
     private String taskRetryStatus;
+    private Long taskRetryStartTime;
 
     /** 使用的共享挖掘任务停止 */
     private Boolean shareCdcStop;
