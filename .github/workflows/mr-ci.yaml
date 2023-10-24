@@ -2,10 +2,10 @@ name: Merge Request CI
 
 on:
   push:
-    branches: [ "fix-v3.5.4-cicd" ]
+    branches: [ "main", "develop", "release-v*.*" ]
   pull_request:
     types: ["opened", "reopened"]
-    branches: [ "fix-v3.5.4-cicd" ]
+    branches: [ "main", "develop", "release-v*.*" ]
 
 jobs:
 
@@ -18,12 +18,12 @@ jobs:
       TAG_NAME: ${{ steps.set-output.outputs.TAG_NAME }}
     steps:
       - name: Checkout Tapdata Opensource
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: 'tapdata/tapdata'
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           path: tapdata
-          depth: 0
+          fetch-depth: 0
       - name: Set Tag
         run: |
           cd tapdata
@@ -57,9 +57,9 @@ jobs:
         id: set-output
         run: |
           cd tapdata-application
-          OPENSOURCE_BRANCH=${{ github.ref_name }}
-          ENTERPRISE_BRANCH=$(bash build/build.sh -e 1 | grep ENTERPRISE_BRANCH | awk -F' ' '{print $2}')
-          FRONTEND_BRANCH=$(bash build/build.sh -e 1 | grep FRONTEND_BRANCH | awk -F' ' '{print $2}')
+          OPENSOURCE_BRANCH=${{github.event.pull_request.head.ref}}
+          ENTERPRISE_BRANCH="main"
+          FRONTEND_BRANCH="main"
           echo "::set-output name=OPENSOURCE_BRANCH::${OPENSOURCE_BRANCH}"
           echo "::set-output name=ENTERPRISE_BRANCH::${ENTERPRISE_BRANCH}"
           echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
@@ -73,6 +73,14 @@ jobs:
       IP: ${{ steps.get_ip_port.outputs.IP }}
       PORT: ${{ steps.get_ip_port.outputs.PORT }}
     steps:
+      - name: Get OpenSource Branch Name -- Common
+        run: |
+          echo "OPENSOURCE_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Set OpenSource Branch Name -- Pull Request
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          branch_name="${{ github.event.pull_request.head.ref }}"
+          echo "OPENSOURCE_BRANCH=$branch_name" >> $GITHUB_ENV
       - name: Trigger - Build And Deploy
         uses: convictional/trigger-workflow-and-wait@v1.6.1
         with:
@@ -82,7 +90,7 @@ jobs:
           workflow_file_name: build-self-hosted.yaml
           ref: ${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}
           wait_interval: 10
-          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}", "FOR_AUTO_TEST": "true", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
+          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ env.OPENSOURCE_BRANCH }}", "FOR_AUTO_TEST": "true", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
           propagate_failure: true
           trigger_workflow: true
           wait_workflow: true
@@ -137,6 +145,13 @@ jobs:
       - name: Run - Local Service
         run: |
           bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}"
+      - name: Print Test Result
+        if: ${{ always() }}
+        run: |
+          run_id=`cat ./run_id`
+          test_plan_id=`cat ./test_plan_id`
+          echo "**TestSigma Test Result Link:**" >> $GITHUB_STEP_SUMMARY
+          echo "https://app.testsigma.com/ui/td/results/$test_plan_id/runs/$run_id" >> $GITHUB_STEP_SUMMARY
       - name: Test - Register Test Connector
         run: |
           echo "OK"

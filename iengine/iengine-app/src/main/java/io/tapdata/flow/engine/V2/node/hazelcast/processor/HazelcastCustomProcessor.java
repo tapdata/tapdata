@@ -192,15 +192,10 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 			return this;
 		}
 
-		//		private IMap<String, Object> map;
 		private Map<String, Object> map;
 
 		@Override
 		public void init(String mapKey, Class<Object> valueClass) {
-//			if (null == hazelcastInstance) {
-//				throw new IllegalArgumentException("Hazelcast instance cannot be null");
-//			}
-//			this.map = hazelcastInstance.getMap(mapKey);
 			this.map = new HashMap<>();
 		}
 

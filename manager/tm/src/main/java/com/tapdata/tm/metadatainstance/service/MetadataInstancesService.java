@@ -84,6 +84,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
@@ -190,7 +191,6 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             page = find(filter);
         }
         List<MetadataInstancesDto> metadataInstancesDtoList = page.getItems();
-
         afterFindAll(metadataInstancesDtoList);
         afterFind(metadataInstancesDtoList);
         return page;
@@ -1209,28 +1209,35 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 				criteria.and("original_name").regex(regex);
 			}
 
-			Aggregation aggregation = Aggregation.newAggregation(
-				Aggregation.match(criteria),
-				Aggregation.unwind("fields"),
-				Aggregation.project()
-					.and(AggregationExpression.from(MongoExpression.create("{ \"$toString\": \"$_id\" }"))).as("_id")
-					.and("original_name").as("tableName")
-					.and("comment").as("tableComment")
-					.and(ConditionalOperators
-						.when(ComparisonOperators.Eq.valueOf("fields.primaryKey").equalToValue(true))
-						.then(1)
-						.otherwise(0)
-					).as("primaryKey"),
-				Aggregation.group("_id")
-					.first("tableName").as("tableName")
-					.first("tableComment").as("tableComment")
-					.sum("primaryKey").as("primaryKeyCounts"),
-				Aggregation.project()
-					.and("_id").as("tableId")
-					.andInclude("tableName", "tableComment", "primaryKeyCounts")
-					.andExclude("_id"),
-				Aggregation.sort(Sort.by("tableId"))
-			);
+            Aggregation aggregation = Aggregation.newAggregation(
+                    Aggregation.match(criteria),
+                    Aggregation.unwind("fields"),
+                    Aggregation.unwind("indices", true),
+                    Aggregation.project()
+                            .and(AggregationExpression.from(MongoExpression.create("{ \"$toString\": \"$_id\" }"))).as("_id")
+                            .and("original_name").as("tableName")
+                            .and("comment").as("tableComment")
+                            .and(ConditionalOperators
+                                    .when(ComparisonOperators.Eq.valueOf("fields.primaryKey").equalToValue(true))
+                                    .then(1)
+                                    .otherwise(0)
+                            ).as("primaryKey")
+                            .and(ConditionalOperators
+                                    .when(ComparisonOperators.Eq.valueOf("indices.unique").equalToValue(true))
+                                    .then(1)
+                                    .otherwise(0)
+                            ).as("uniqueIndex"),
+                    Aggregation.group("_id")
+                            .first("tableName").as("tableName")
+                            .first("tableComment").as("tableComment")
+                            .sum("primaryKey").as("primaryKeyCounts")
+                            .sum("uniqueIndex").as("uniqueIndexCounts"),
+                    Aggregation.project()
+                            .and("_id").as("tableId")
+                            .andInclude("tableName", "tableComment", "primaryKeyCounts", "uniqueIndexCounts")
+                            .andExclude("_id"),
+                    Aggregation.sort(Sort.by("tableId"))
+            );
 
 			long totals;
 			List<Map<String, Object>> values = new ArrayList<>();
@@ -2446,5 +2453,29 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
         return metadataInstancesDto;
 
+    }
+
+    public Boolean checkMetadataInstancesIndex(String cacheKeys,String id){
+        AtomicBoolean result = new AtomicBoolean(false);
+        MetadataInstancesDto metadataInstancesDto = findById(MongoUtils.toObjectId(id));
+            List<TableIndex> indices = metadataInstancesDto.getIndices();
+            if(CollectionUtils.isNotEmpty(indices)){
+                indices.forEach(tableIndex -> {
+                    if(StringUtils.isNotBlank(tableIndex.getColumns().get(0).getColumnName())){
+                        String index = tableIndex.getColumns().stream().map(TableIndexColumn::getColumnName).collect(Collectors.joining(","));
+                        if(index.equals(cacheKeys)) result.set(true);
+                    }else{
+                        String name = tableIndex.getIndexName();
+                        name = name.substring(5);
+                        Document dIndex = Document.parse(name);
+                        if (dIndex == null) {
+                            return;
+                        }
+                        String index = dIndex.get("key",Document.class).keySet().stream().map(Object::toString).collect(Collectors.joining(","));
+                        if(index.equals(cacheKeys)) result.set(true);
+                    }
+                });
+            }
+        return result.get();
     }
 }

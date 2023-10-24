@@ -6,6 +6,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
@@ -140,7 +141,6 @@ public class DAG implements Serializable, Cloneable {
      * @return
      */
     public static DAG build(Dag taskDag) {
-
         Graph<Node, Edge> graph = new Graph<>();
         DAG dag = new DAG(graph);
 
@@ -163,21 +163,13 @@ public class DAG implements Serializable, Cloneable {
             Set<String> resourceIdList = graph.getSources();
 
             nodes.stream().filter(node -> node instanceof DatabaseNode && resourceIdList.contains(node.getId())
-                            && CollectionUtils.isNotEmpty(((DatabaseNode) node).getTableNames()))
+                    && CollectionUtils.isNotEmpty(((DatabaseNode) node).getTableNames()))
                     .forEach(resource -> tableNamesList.addAll(((DatabaseNode) resource).getTableNames()));
 
             ArrayList<String> objectNames = Lists.newArrayList(tableNamesList);
             LinkedHashMap<String, String> tableNameRelation = Maps.newLinkedHashMap();
 
-            // 中间有表改的话 需要同步更新
-//            LinkedList<TableRenameProcessNode> collect = nodes.stream()
-//                    .filter(n -> n instanceof TableRenameProcessNode)
-//                    .map(t -> (TableRenameProcessNode) t)
-//                    .collect(Collectors.toCollection(LinkedList::new));
-
             LinkedList<Node> nodeLists = parseLinkedNode(taskDag);
-
-
 
             if (CollectionUtils.isNotEmpty(nodeLists)) {
                 Map<String, TableRenameTableInfo> originalMap = new LinkedHashMap<>();

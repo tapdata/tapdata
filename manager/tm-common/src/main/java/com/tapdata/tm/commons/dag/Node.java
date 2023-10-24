@@ -184,7 +184,7 @@ public abstract class Node<S> extends Element{
         log.info("input schema = {}", inputSchemas == null ? null: inputSchemas.size());
         // 防止子类直接修改原始模型，这里需要对输入模型（inputSchema）、当前节点原始模型（schema）进行复制
         boolean mergedSchema = false;   // 输入模型为null，不进行merge操作，不需要执行保存更新
-        if (inputSchemas != null && inputSchemas.size() > 0) {
+        if (inputSchemas != null && !inputSchemas.isEmpty()) {
             inputSchemas = inputSchemas.stream().map(this::cloneSchema).collect(Collectors.toList());
 
 
