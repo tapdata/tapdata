@@ -90,7 +90,7 @@ public class ShareCdcTableMappingService extends BaseService<ShareCdcTableMappin
 					continue;
 				}
 				shareCdcTableMappingEntity.setVersion(ShareCdcTableMappingDto.VERSION_V2);
-				shareCdcTableMappingEntity.setExternalStorageTableName(genExternalStorageTableName(logCollectorTask.getId().toHexString(), connId, connNamespaceStr, addedTableName));
+				shareCdcTableMappingEntity.setExternalStorageTableName(genExternalStorageTableName(connId, connNamespaceStr, addedTableName));
 				wait2SaveShareCdcTableMappingEntities.add(shareCdcTableMappingEntity);
 			}
 			if (wait2SaveShareCdcTableMappingEntities.size() >= 1000) {
@@ -104,12 +104,12 @@ public class ShareCdcTableMappingService extends BaseService<ShareCdcTableMappin
 		}
 	}
 
-	private static String genExternalStorageTableName(String taskId, String connId, String connNamespaceStr, String tableName) {
+	public static String genExternalStorageTableName(String connId, String connNamespaceStr, String tableName) {
 		String name = SHARE_CDC_KEY_PREFIX;
 		if (null != connNamespaceStr) {
-			name += String.join("_", taskId, connId, String.join(".", connNamespaceStr, tableName)).hashCode();
+			name += String.join("_", connId, String.join(".", connNamespaceStr, tableName)).hashCode();
 		} else {
-			name += String.join("_", taskId, connId, tableName).hashCode();
+			name += String.join("_", connId, tableName).hashCode();
 		}
 		return name;
 	}

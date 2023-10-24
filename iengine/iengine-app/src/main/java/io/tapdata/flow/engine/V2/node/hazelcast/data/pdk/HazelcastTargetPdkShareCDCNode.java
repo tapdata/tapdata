@@ -466,12 +466,13 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		return constructMap.computeIfAbsent(tableName, k -> {
 			String taskId = processorBaseContext.getTaskDto().getId().toHexString();
 			String[] split = tableName.split("\\.");
-			String sign = ShareCdcTableMappingDto.genSign(taskId, connectionId, split[split.length - 1]);
+			String sign = ShareCdcTableMappingDto.genSign(connectionId, split[split.length - 1]);
 			Query query = Query.query(Criteria.where("sign").is(sign));
 			ShareCdcTableMappingDto shareCdcTableMappingDto = clientMongoOperator.findOne(query, ConnectorConstant.SHARE_CDC_TABLE_MAPPING_COLLECTION, ShareCdcTableMappingDto.class);
 			if (null == shareCdcTableMappingDto) {
 				throw new RuntimeException("Share cdc table mapping not found, sign: " + sign);
 			}
+			obsLogger.info("[{}] Found table mapping: {}", TAG, shareCdcTableMappingDto);
 			externalStorageDto.setTable(shareCdcTableMappingDto.getExternalStorageTableName());
 			return new ConstructRingBuffer<>(
 					jetContext.hazelcastInstance(),
