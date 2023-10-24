@@ -167,15 +167,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 	}
 
-	@Override
-	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
-		queueConsumerThreadPool.submitSync(() -> {
-			super.doInitWithDisableNode(context);
-			createPdkAndInit(context);
-		});
-		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
-	}
-
 	private void initExactlyOnceWriteIfNeed() {
 		checkExactlyOnceWriteEnableResult = enableExactlyOnceWrite();
 		if (!checkExactlyOnceWriteEnableResult.getEnable()) {
@@ -221,10 +212,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected boolean createTable(TapTable tapTable, AtomicBoolean succeed) {
-		if (getNode().disabledNode()) {
-			obsLogger.info("Target node has been disabled, task will skip: create table");
-			return false;
-		}
 		AtomicReference<TapCreateTableEvent> tapCreateTableEvent = new AtomicReference<>();
 		boolean createdTable;
 		try {
@@ -341,9 +328,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	final public void process(int ordinal, @NotNull Inbox inbox) {
-		if (getNode().disabledNode()) {
-			return;
-		}
 		try {
 			if (!inbox.isEmpty()) {
 				List<TapdataEvent> tapdataEvents = new ArrayList<>();
@@ -620,8 +604,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						obsLogger.info("{}Target initial concurrent processor stopped", DynamicAdjustMemoryConstant.LOG_PREFIX);
 					}
 					newQueueSize = BigDecimal.valueOf(this.originalWriteQueueCapacity).divide(BigDecimal.valueOf(coefficient).multiply(BigDecimal.valueOf(TARGET_QUEUE_FACTOR)), 0, RoundingMode.HALF_UP).intValue();
-					newQueueSize = Math.max(newQueueSize,10);
-					newQueueSize = Math.min(newQueueSize,this.originalWriteQueueCapacity);
 					break;
 				case TapdataAdjustMemoryEvent.KEEP:
 					break;

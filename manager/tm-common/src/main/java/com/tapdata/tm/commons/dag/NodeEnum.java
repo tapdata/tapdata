@@ -35,8 +35,7 @@ public enum NodeEnum {
     migrate_python_processor("Python节点"),
     standard_migrate_js_processor("标准JS节点"),
     union_processor("Union节点"),
-    migrate_field_mod_type_filter_processor("类型过滤节点"),
-    unwind_processor("Unwind节点");
+    migrate_field_mod_type_filter_processor("类型过滤节点");
     @Getter
     private String nodeName;
 

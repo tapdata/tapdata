@@ -281,18 +281,15 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		if (getNode() instanceof FieldRenameProcessorNode) {
 			FieldRenameProcessorNode fieldRenameProcessorNode = (FieldRenameProcessorNode) getNode();
 			List<FieldProcessorNode.Operation> processorNodeOperations = fieldRenameProcessorNode.getOperations();
-			if (null != processorNodeOperations && !processorNodeOperations.isEmpty()) {
-				TapValueTransform tapValueTransformTemp = tapValueTransform.get();
-				if (null == tapValueTransformTemp) return;
-				Map before = tapValueTransformTemp.getBefore();
-				Map after = tapValueTransformTemp.getAfter();
-				for (FieldProcessorNode.Operation processorNodeOperation : processorNodeOperations) {
-					if (null != processorNodeOperation && "RENAME".equals(processorNodeOperation.getOp())) {
-						String field = processorNodeOperation.getField();
-						String operand = processorNodeOperation.getOperand();
-						rename(before, field, operand);
-						rename(after, field, operand);
-					}
+			TapValueTransform tapValueTransformTemp = tapValueTransform.get();
+			Map before = tapValueTransformTemp.getBefore();
+			Map after = tapValueTransformTemp.getAfter();
+			for (FieldProcessorNode.Operation processorNodeOperation : processorNodeOperations) {
+				if ("RENAME".equals(processorNodeOperation.getOp())) {
+					String field = processorNodeOperation.getField();
+					String operand = processorNodeOperation.getOperand();
+					rename(before, field, operand);
+					rename(after, field, operand);
 				}
 			}
 		}

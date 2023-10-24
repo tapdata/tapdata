@@ -51,7 +51,7 @@ public class SnapshotOrderService {
 				Map<String, Object> map = (Map<String, Object>) object;
 				Object listObj = map.get(SNAPSHOT_ORDER_LIST_KEY);
 				if (listObj instanceof List) {
-					snapshotOrderList = (List<NodeControlLayer>) listObj;
+					snapshotOrderList = (List<NodeControlLayer>) object;
 					SnapshotOrderController.init(taskDto, snapshotOrderList);
 				}
 				Object mergeModeObj = map.get(MERGE_MODE_KEY);

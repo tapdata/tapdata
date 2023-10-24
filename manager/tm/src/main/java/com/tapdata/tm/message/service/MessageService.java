@@ -34,7 +34,10 @@ import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.user.entity.Notification;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.*;
+import com.tapdata.tm.utils.FunctionUtils;
+import com.tapdata.tm.utils.MailUtils;
+import com.tapdata.tm.utils.MessageUtil;
+import com.tapdata.tm.utils.SendStatus;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -55,7 +58,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
@@ -95,13 +97,6 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     //mail title
     private final static String WILL_RELEASE_AGENT_TITLE = "Tapdata】测试Agent资源即将回收提醒";
     private final static String RELEASE_AGENT_TITLE = "【Tapdata】测试Agent资源回收提醒";
-
-    private ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
-
-    private final static String FEISHU_ADDRESS = "http://34.96.213.48:30008/send_to/feishu/group";
-
-    private final static int OFFLINE_AGENT_COUNT = 10;
-
 
 
     public MessageService(@NonNull MessageRepository repository) {
@@ -644,72 +639,17 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
             messageEntity.setMessageMetadata(messageMetadata);
             messageEntity.setUserId(userDetail.getUserId());
-            Date now = new Date();
-            messageEntity.setCreateAt(now);
+            messageEntity.setCreateAt(new Date());
             messageEntity.setServerName(messageDto.getAgentName());
-            messageEntity.setLastUpdAt(now);
+            messageEntity.setLastUpdAt(new Date());
             messageEntity.setLastUpdBy(userDetail.getUsername());
             repository.save(messageEntity, userDetail);
             messageDto.setId(messageEntity.getId());
-            if(SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())
-                    && MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(messageDto.getMsg())){
-                if(!scheduledExecutorService.isShutdown()){
-                    scheduledExecutorService.schedule(()->{
-                        try{
-                            checkAagentConnectedMessage(now);
-                        }catch (Exception e){
-                            log.error("Delayed message sending failed {}.",e.getMessage());
-                        }finally {
-                            scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
-                        }
-
-                    }, 3, TimeUnit.MINUTES);
-                    scheduledExecutorService.shutdown();
-                }
-            }else{
-                informUser(messageDto);
-            }
+            informUser(messageDto);
         } catch (Exception e) {
             log.error("新增消息异常，", e);
         }
         return messageDto;
-    }
-
-    /**
-     * 等待3个心跳周期，观察在该周期内，新增离线agent的数量是否超过（10）个
-     */
-    public void checkAagentConnectedMessage(Date date){
-        Calendar cal = Calendar.getInstance();
-        cal.setTime(date);
-        cal.add(Calendar.MINUTE, 3);
-        Date nowEnd = cal.getTime();
-        Query query = new Query(Criteria.where("createTime").gte(date).lte(nowEnd).
-                and("msg").is(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue()).
-                and("system").is(SourceModuleEnum.AGENT.getValue()).
-                and("isSend").is(false));
-        List<MessageEntity> messageEntities = messageRepository.findAll(query);
-        List<MessageDto> messageDtoList = messageEntities.stream().map(messageEntity -> {
-            MessageDto messageDto = new MessageDto();
-            BeanUtil.copyProperties(messageEntity,messageDto);
-            messageDto.setMessageMetadata(JSONObject.toJSONString(messageEntity.getMessageMetadata()));
-            return messageDto;
-        }).collect(Collectors.toList());
-        if(messageDtoList.size() >= OFFLINE_AGENT_COUNT){
-            log.info("agent offline exceeds limit");
-            updateMany(query,Update.update("isSend",true));
-            Map<String,String> map = new HashMap<>();
-            String content = "最近3分钟，累计超过"+messageDtoList.size()+"个Agent离线，已自动启动Agent离线告警熔断机制，请尽快检查相关服务是否正常!";
-            map.put("title", "Agent离线告警通知熔断提醒");
-            map.put("content", content);
-            map.put("color", "red");
-            map.put("groupId","oc_d6bc5fe48d56453264ec73a2fb3eec70");
-           HttpUtils.sendPostData(FEISHU_ADDRESS,JSONObject.toJSONString(map));
-        }else{
-            if(CollectionUtils.isNotEmpty(messageDtoList)){
-                messageDtoList.forEach(this::informUser);
-                log.info("send agent offline notification");
-            }
-        }
     }
 
 
@@ -725,7 +665,8 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         String msgType = messageDto.getMsg();
         String userId = messageDto.getUserId();
         String system = messageDto.getSystem();
-        update(Query.query(Criteria.where("_id").is(messageDto.getId())),Update.update("isSend",true));
+
+
         UserDetail userDetail = userService.loadUserById(new ObjectId(userId));
 
 //        UserInfoDto userInfoDto = tcmService.getUserInfo(userDetail.getExternalUserId());
@@ -953,7 +894,6 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         });
         return query;
     }
-
 
 
 }

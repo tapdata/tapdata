@@ -1,0 +1,8 @@
+{
+  "string": {"to": "TapString"},
+  "number": {"to": "TapNumber"},
+  "boolean" : {"to": "TapBoolean"},
+  "array" : {"to": "TapArray"},
+  "map" : {"to": "TapMap"},
+  "object" : {"to": "TapRaw"}
+}

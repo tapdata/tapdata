@@ -190,6 +190,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			} catch (Throwable e) {
 				throw new NodeException(e).context(getProcessorBaseContext());
 			}
+
 			initSourceReadBatchSize();
 			initSourceEventQueue();
 			initSyncProgress();
@@ -197,28 +198,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initTableMonitor();
 			initDynamicAdjustMemory();
 			initAndStartSourceRunner();
-		});
-	}
-
-	@Override
-	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
-		if (connectorOnTaskThreadGroup == null)
-			connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
-		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
-		this.sourceRunner.submitSync(() -> {
-			super.doInitWithDisableNode(context);
-			try {
-				createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
-				AspectUtils.executeAspect(DataNodeThreadGroupAspect.class, () ->
-						new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
-								.dataProcessorContext(dataProcessorContext));
-				connectorNodeInit(dataProcessorContext);
-			} catch (Throwable e) {
-				throw new NodeException(e).context(getProcessorBaseContext());
-			}
-			initSourceReadBatchSize();
-			initSourceEventQueue();
-			initSyncProgress();
 		});
 	}
 
@@ -508,25 +487,20 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (!isRunning()) {
 				return true;
 			}
-			if (getNode().disabledNode()) {
-				return false;
-			}
 			if (pendingEvent != null) {
 				dataEvent = pendingEvent;
 				pendingEvent = null;
 			} else {
-				if (null != eventQueue) {
-					try {
-						dataEvent = eventQueue.poll(500, TimeUnit.MILLISECONDS);
-					} catch (InterruptedException ignored) {
-					}
-					if (null != dataEvent) {
-						// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
-						// the event is considered been output to the next node.
-						TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-						TapEvent tapEvent = dataEvent.getTapEvent();
-						tapRecordToTapValue(tapEvent, codecsFilterManager);
-					}
+				try {
+					dataEvent = eventQueue.poll(500, TimeUnit.MILLISECONDS);
+				} catch (InterruptedException ignored) {
+				}
+				if (null != dataEvent) {
+					// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
+					// the event is considered been output to the next node.
+					TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+					TapEvent tapEvent = dataEvent.getTapEvent();
+					tapRecordToTapValue(tapEvent, codecsFilterManager);
 				}
 			}
 
@@ -1191,17 +1165,5 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					.minQueueSize(MIN_QUEUE_SIZE);
 			this.dynamicAdjustMemoryService = new DynamicAdjustMemoryImpl(dynamicAdjustMemoryContext);
 		}
-	}
-
-	protected boolean usePkAsUpdateConditions(Collection<String> updateConditions, Collection<String> pks) {
-		if (pks == null) {
-			pks = Collections.emptySet();
-		}
-		for (String updateCondition : updateConditions) {
-			if (!pks.contains(updateCondition)) {
-				return false;
-			}
-		}
-		return true;
 	}
 }

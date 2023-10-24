@@ -56,7 +56,10 @@ import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
-import com.tapdata.tm.utils.*;
+import com.tapdata.tm.utils.CronUtil;
+import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -87,6 +90,10 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class InspectService extends BaseService<InspectDto, InspectEntity, ObjectId, InspectRepository> {
+
+    @Autowired
+    @Lazy
+    private DataFlowService dataFlowService;
     @Autowired
     private MessageService messageService;
     @Autowired
@@ -143,7 +150,6 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
             Criteria criteria = Criteria.where("id").is(MongoUtils.toObjectId(inspect.getFlowId()));
             Query query = new Query(criteria);
             query.fields().include("agentTags");
-            DataFlowService dataFlowService = SpringContextHelper.getBean(DataFlowService.class);
             DataFlowDto dataFlowDto = dataFlowService.findOne(query, user);
             if (dataFlowDto != null) {
                 if (CollectionUtils.isNotEmpty(dataFlowDto.getAgentTags())) {

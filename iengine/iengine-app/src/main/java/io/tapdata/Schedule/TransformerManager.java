@@ -795,10 +795,10 @@ public class TransformerManager {
 					value.put("platformInfo", platformInfo);
 				}
 			}
-			pingClientMongoOperator.insertOne(value, ConnectorConstant.WORKER_COLLECTION + "/health");
-//			ConnectorManager.sendWorkerHeartbeat(
-//					value,
-//					v -> pingClientMongoOperator.insertOne(v, ConnectorConstant.WORKER_COLLECTION + "/health"));
+
+			ConnectorManager.sendWorkerHeartbeat(
+					value,
+					v -> pingClientMongoOperator.insertOne(v, ConnectorConstant.WORKER_COLLECTION + "/health"));
 		} catch (Exception e) {
 			logger.error("Transformer heartbeat failed {}", e.getMessage(), e);
 		}

@@ -81,6 +81,8 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
         }
 
         //@todo initPythonBuildInMethod and add python function from mongo db
+        //List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
+        //        ConnectorConstant.PYTHON_FUNCTION_COLLECTION, JavaScriptFunctions.class);
         ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
         this.engine = ScriptUtil.getPyEngine(
                 ScriptFactory.TYPE_PYTHON,
@@ -94,7 +96,6 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                 Application.class.getClassLoader());
         this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
         this.globalMap = new HashMap<>();
-
     }
 
     @Override
@@ -108,9 +109,9 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
             node.getTaskId(),
             node.getId(),
             StringUtils.equalsAnyIgnoreCase(
-                    processorBaseContext.getTaskDto().getSyncType(),
-                    TaskDto.SYNC_TYPE_TEST_RUN,
-                    TaskDto.SYNC_TYPE_DEDUCE_SCHEMA
+                processorBaseContext.getTaskDto().getSyncType(),
+                TaskDto.SYNC_TYPE_TEST_RUN,
+                TaskDto.SYNC_TYPE_DEDUCE_SCHEMA
             )
         );
         ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
@@ -132,9 +133,9 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
             return;
         }
 
-        Map<String, Object> afterMapInRecord = TapEventUtil.getAfter(tapEvent);
-        if (MapUtils.isEmpty(afterMapInRecord) && MapUtils.isNotEmpty(TapEventUtil.getBefore(tapEvent))) {
-            afterMapInRecord = TapEventUtil.getBefore(tapEvent);
+        Map<String, Object> record = TapEventUtil.getAfter(tapEvent);
+        if (MapUtils.isEmpty(record) && MapUtils.isNotEmpty(TapEventUtil.getBefore(tapEvent))) {
+            record = TapEventUtil.getBefore(tapEvent);
         }
 
         String op = TapEventUtil.getOp(tapEvent);
@@ -165,16 +166,20 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
         contextMap.put("global", this.globalMap);
         Map<String, Object> context = this.processContextThreadLocal.get();
         context.putAll(contextMap);
+        //((ScriptEngine) this.engine).put("context", context);
         AtomicReference<Object> scriptInvokeResult = new AtomicReference<>();
         if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
                 TaskDto.SYNC_TYPE_TEST_RUN,
                 TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
-            Map<String, Object> finalRecord = afterMapInRecord;
+            Map<String, Object> finalRecord = record;
             CountDownLatch countDownLatch = new CountDownLatch(1);
             AtomicReference<Throwable> errorAtomicRef = new AtomicReference<>();
             Thread thread = new Thread(() -> {
                 Thread.currentThread().setName("Python-Test-Runner");
                 try {
+                    //function process(record, context){
+                    //	return record;
+                    //}
                     scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord, context));
                 } catch (Throwable throwable) {
                     errorAtomicRef.set(throwable);
@@ -192,7 +197,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
             }
 
         } else {
-            scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord, context));
+            scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record, context));
         }
 
         if (StringUtils.isNotEmpty((CharSequence) context.get("op"))) {

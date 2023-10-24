@@ -1,0 +1,19 @@
+name: Run Testsigma Tests
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Run my script
+      run: |
+        chmod +x ./build/run_smoke_tests.sh
+        ./build/run_smoke_tests.sh

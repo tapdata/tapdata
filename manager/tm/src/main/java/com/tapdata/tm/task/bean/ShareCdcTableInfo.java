@@ -21,6 +21,4 @@ public class ShareCdcTableInfo {
     private Long allCount;
     /** 进入挖掘日志条数*/
     private Long todayCount;
-    /** 实际的外存表名 */
-    private String externalStorageTableName;
 }

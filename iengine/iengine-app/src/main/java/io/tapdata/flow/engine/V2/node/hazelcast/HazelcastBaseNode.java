@@ -1,7 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast;
 
 import cn.hutool.core.date.StopWatch;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
@@ -105,8 +104,6 @@ import java.util.stream.Collectors;
  * @date 2021/12/7 3:25 PM
  **/
 public abstract class HazelcastBaseNode extends AbstractProcessor {
-	public static final String TARGET_TAG = "target";
-	public static final String SOURCE_TAG = "source";
 	/**
 	 * [sub task id]-[node id]
 	 */
@@ -204,9 +201,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected void doInit(@NotNull Processor.Context context) throws Exception {
 	}
 
-	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
-	}
-
 	@Override
 	public final void init(@NotNull Processor.Context context) throws Exception {
 		try {
@@ -225,11 +219,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				jetJobStatusMonitor = (JetJobStatusMonitor) monitorManager.getMonitorByType(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR);
 			}
 			setThreadName();
-			if (!getNode().disabledNode()) {
-				doInit(context);
-			} else {
-				doInitWithDisableNode(context);
-			}
+			doInit(context);
 		} catch (Throwable e) {
 			errorHandle(e, "Node init failed: " + e.getMessage());
 		}
@@ -258,15 +248,16 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				runtimeInfo.setUnSupportedDDLS(new ArrayList<>());
 				job.setRuntimeInfo(runtimeInfo);
 				final List<Stage> stages = job.getStages();
-				if (CollectionUtils.isNotEmpty(stages)
-						&& stages.stream().anyMatch(s -> s.getId().equals(node.getId()))) {
-					job.setId(node.getId());
-					job.setStatus(ConnectorConstant.SCHEDULED);
-					job.setStatus(ConnectorConstant.RUNNING);
-					job.setTaskId(dataFlow.getTaskId());
-					job.setSubTaskId(dataFlow.getSubTaskId());
-					job.setClientMongoOperator(clientMongoOperator);
-					return job;
+				if (CollectionUtils.isNotEmpty(stages)) {
+					if (stages.stream().anyMatch(s -> s.getId().equals(node.getId()))) {
+						job.setId(node.getId());
+						job.setStatus(ConnectorConstant.SCHEDULED);
+						job.setStatus(ConnectorConstant.RUNNING);
+						job.setTaskId(dataFlow.getTaskId());
+						job.setSubTaskId(dataFlow.getSubTaskId());
+						job.setClientMongoOperator(clientMongoOperator);
+						return job;
+					}
 				}
 			}
 		}
@@ -522,10 +513,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			List<Map<String, String>> joinKeys = new ArrayList<>();
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
 				for (String updateConditionField : updateConditionFields) {
-					Map<String, String> nodeMap = new HashMap<>();
-					nodeMap.put(SOURCE_TAG, updateConditionField);
-					nodeMap.put(TARGET_TAG, updateConditionField);
-					joinKeys.add(nodeMap);
+					joinKeys.add(new HashMap<String, String>() {{
+						put("source", updateConditionField);
+						put("target", updateConditionField);
+					}});
 				}
 			}
 			joinTable = new JoinTable();
@@ -691,6 +682,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected void initMilestoneService(MilestoneContext.VertexType vertexType) {
 		Node<?> node = processorBaseContext.getNode();
+		String vertexName = NodeUtil.getVertexName(node);
 		List<Node<?>> nextOrPreDataNodes;
 		switch (vertexType) {
 			case SOURCE:
@@ -834,10 +826,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (!(newDAG instanceof DAG)) {
 			return;
 		}
-		DAG dag = ((DAG) newDAG);
-		processorBaseContext.getTaskDto().setDag(dag);
-		processorBaseContext.setNodes(dag.getNodes());
-		processorBaseContext.setEdges(dag.getEdges());
+		processorBaseContext.getTaskDto().setDag((DAG) newDAG);
+		processorBaseContext.setNodes(((DAG) newDAG).getNodes());
+		processorBaseContext.setEdges(((DAG) newDAG).getEdges());
 	}
 
 	protected void updateNode(TapdataEvent tapdataEvent) {
@@ -846,7 +837,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			return;
 		}
 		String nodeId = getNode().getId();
-		Node<?> newNode = ((DAG)newDAG).getNode(nodeId);
+		Node<?> newNode = ((DAG) newDAG).getNode(nodeId);
 		processorBaseContext.setNode(newNode);
 		updateNodeConfig(tapdataEvent);
 	}

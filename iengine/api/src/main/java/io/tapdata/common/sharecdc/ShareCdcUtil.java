@@ -12,7 +12,6 @@ import io.tapdata.common.SettingService;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.functions.connector.source.ConnectionConfigWithTables;
-import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -83,19 +82,6 @@ public class ShareCdcUtil {
 			return new ArrayList<>(tableNames);
 		}
 		return logCollectorNode.getTableNames();
-	}
-
-	public static List<LogCollecotrConnConfig> getLogCollectorConfigs(LogCollectorNode logCollectorNode) {
-		List<LogCollecotrConnConfig> connConfigs = new ArrayList<>();
-		if (MapUtils.isNotEmpty(logCollectorNode.getLogCollectorConnConfigs())) {
-			connConfigs.addAll(logCollectorNode.getLogCollectorConnConfigs().values());
-		}else{
-			List<String> tableNames = logCollectorNode.getTableNames();
-			String connectionId = logCollectorNode.getConnectionIds().get(0);
-			LogCollecotrConnConfig logCollecotrConnConfig = new LogCollecotrConnConfig(connectionId, logCollectorNode.getTableNames());
-			connConfigs.add(logCollecotrConnConfig);
-		}
-		return connConfigs;
 	}
 
 	public static void fillConfigNamespace(LogCollectorNode logCollectorNode, Function<String, Connections> findConnection) {

@@ -38,8 +38,6 @@ import com.tapdata.tm.externalStorage.vo.ExternalStorageVo;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
-import com.tapdata.tm.shareCdcTableMapping.ShareCdcTableMappingDto;
-import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
 import com.tapdata.tm.shareCdcTableMetrics.service.ShareCdcTableMetricsService;
 import com.tapdata.tm.task.bean.*;
@@ -63,6 +61,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.MatchOperation;
@@ -100,7 +99,6 @@ public class LogCollectorService {
     private ShareCdcTableMetricsService shareCdcTableMetricsService;
     private UserService userService;
     private TaskSaveService taskSaveService;
-    private ShareCdcTableMappingService shareCdcTableMappingService;
 
     private final List<String> syncTimePoints = Lists.newArrayList("current", "localTZ", "connTZ");;
 
@@ -1060,7 +1058,6 @@ public class LogCollectorService {
             taskSaveService.supplementAlarm(taskDto, user);
             taskDto = taskService.create(taskDto, user);
             taskDto = taskService.confirmById(taskDto, user, true);
-			shareCdcTableMappingService.genShareCdcTableMappingsByLogCollectorTask(taskDto, true);
 
             //保存新增挖掘任务id到子任务中
             for (String id : ids) {
@@ -1132,7 +1129,6 @@ public class LogCollectorService {
         if (logCollectorNode.getLogCollectorConnConfigs() == null || logCollectorNode.getLogCollectorConnConfigs().size() != 0) {
             logCollectorNode.setTableNames(new ArrayList<>(finalTableNames));
         }
-		shareCdcTableMappingService.genShareCdcTableMappingsByLogCollectorTask(oldLogCollectorTask, false);
         taskService.updateById(oldLogCollectorTask, user);
         updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
 
@@ -1211,7 +1207,6 @@ public class LogCollectorService {
 					exclusionTables.removeIf(collect::contains);
 				}
 				logCollectorNode.setTableNames(collect);
-                shareCdcTableMappingService.genShareCdcTableMappingsByLogCollectorTask(oldLogCollectorTask, false);
         taskService.updateById(oldLogCollectorTask, user);
         updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
 
@@ -1660,9 +1655,6 @@ public class LogCollectorService {
 					shareCdcTableInfo.setJoinTime(metricsDto.getStartCdcTime());
 					shareCdcTableInfo.setTodayCount(metricsDto.getCount());
 					shareCdcTableInfo.setAllCount(metricsDto.getAllCount());
-                    ShareCdcTableMappingDto shareCdcTableMappingDto = shareCdcTableMappingService.findOne(Query.query(Criteria.where("sign")
-                            .is(ShareCdcTableMappingDto.genSign(shareCdcTableInfo.getConnectionId(), shareCdcTableInfo.getName()))));
-					shareCdcTableInfo.setExternalStorageTableName(shareCdcTableMappingDto.getExternalStorageTableName());
 				}
 		}
 

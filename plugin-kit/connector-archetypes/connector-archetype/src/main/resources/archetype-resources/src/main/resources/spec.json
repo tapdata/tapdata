@@ -1,0 +1,59 @@
+{
+  "properties": {
+    "name": "YourConnectorName",
+    "icon": "icons/icon.png",
+    "id": "your_connector_id"
+  },
+  "configOptions":{
+    "connection":{
+      "type":"object",
+      "properties":{
+        "host": {
+          "type": "string",
+          "title": "Host",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 1,
+          "required": true
+        },
+        "port": {
+          "type": "string",
+          "title": "Port",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "database_port",
+          "x-index": 2,
+          "required": true
+        },
+        "database": {
+          "type": "string",
+          "title": "Database",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_name",
+          "x-index": 3,
+          "required": true
+        },
+        "username": {
+          "type": "string",
+          "title": "User name",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_username",
+          "x-index": 4,
+          "required": true
+        },
+        "password": {
+          "type": "string",
+          "title": "Password",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "database_password",
+          "x-index": 5
+        }
+      }
+    }
+  },
+  "dataTypes":{}
+}

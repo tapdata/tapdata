@@ -46,8 +46,6 @@ public enum NodeTypeEnum {
 	FIELD_MOD_TYPE_FILTER_PROCESSOR("field_mod_type_filter_processor"),
 
 	PYTHON_PROCESS("python_processor"),
-
-	UNWIND_PROCESS("unwind_processor"),
 	;
 
 	public final String type;

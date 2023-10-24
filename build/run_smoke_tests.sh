@@ -241,16 +241,7 @@ if [[ $RUN_ID =~ $NUMBERS_REGEX ]]; then
 else
   echo "$RUN_ID"
 fi
-
-echo $RUN_ID > ./run_id
-if [[ $? -ne 0 ]]; then
-  echo "Failed to export RUN_ID to /tmp"
-fi
-echo $TESTSIGMA_TEST_PLAN_ID > ./test_plan_id
-if [[ $? -ne 0 ]]; then
-  echo "Failed to export TESTSIGMA_TEST_PLAN_ID to /tmp"
-fi
-
+ 
 EXITCODE=0
 # example using the status
 if [ ! $HTTP_STATUS -eq 200  ]; then

@@ -43,7 +43,7 @@ public class MessageEntity extends BaseEntity {
     private Date time;
     private String groupId;
     private Boolean isDeleted;
-    private Boolean isSend;
+
     /**
      * 兼容旧数据
      */

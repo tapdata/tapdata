@@ -41,12 +41,4 @@ public class TapdataAdjustMemoryEvent extends TapdataEvent implements Serializab
 			this.coefficient = tapdataAdjustMemoryEvent.coefficient;
 		}
 	}
-
-	@Override
-	public String toString() {
-		return "TapdataAdjustMemoryEvent{" +
-				"mode=" + mode +
-				", coefficient=" + coefficient +
-				'}';
-	}
 }

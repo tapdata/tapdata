@@ -182,48 +182,19 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			}
 			TapdataEvent tapdataEvent = (TapdataEvent) item;
 			List<TapdataEvent> processedEventList = new ArrayList<>();
-			if (!getNode().disabledNode()) {
-				try {
-					AspectUtils.executeProcessorFuncAspect(ProcessorNodeProcessAspect.class, () -> new ProcessorNodeProcessAspect()
-							.processorBaseContext(getProcessorBaseContext())
-							.inputEvent(tapdataEvent)
-							.start(), (processorNodeProcessAspect) -> {
-						if (null != tapdataEvent.getSyncStage()) {
-							syncStage = tapdataEvent.getSyncStage();
-						}
-						if (controlOrIgnoreEvent(tapdataEvent)) {
-							if (needInitialBatch()) {
-								while (isRunning()) {
-									try {
-										if (initialBatchProcessor.offer(new BatchEventWrapper(tapdataEvent, null))) {
-											break;
-										}
-									} catch (InterruptedException e) {
-										break;
-									}
-								}
-							} else {
-								// control tapdata event, skip the process consider process is done
-								processedEventList.add(tapdataEvent);
-								if (null != processorNodeProcessAspect) {
-									AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), tapdataEvent);
-								}
-							}
-							return;
-						}
-						// Update memory from ddl event info map
-						updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()));
-						AtomicReference<TapValueTransform> tapValueTransform = new AtomicReference<>();
-						if (tapdataEvent.isDML()) {
-							tapValueTransform.set(transformFromTapValue(tapdataEvent));
-						}
+			try {
+				AspectUtils.executeProcessorFuncAspect(ProcessorNodeProcessAspect.class, () -> new ProcessorNodeProcessAspect()
+						.processorBaseContext(getProcessorBaseContext())
+						.inputEvent(tapdataEvent)
+						.start(), (processorNodeProcessAspect) -> {
+					if (null != tapdataEvent.getSyncStage()) {
+						syncStage = tapdataEvent.getSyncStage();
+					}
+					if (controlOrIgnoreEvent(tapdataEvent)) {
 						if (needInitialBatch()) {
-							if (initialBatchProcessor.status == InitialBatchProcessor.NOT_RUN) {
-								initialBatchProcessor.running();
-							}
 							while (isRunning()) {
 								try {
-									if (initialBatchProcessor.offer(new BatchEventWrapper(tapdataEvent, tapValueTransform.get()))) {
+									if (initialBatchProcessor.offer(new BatchEventWrapper(tapdataEvent, null))) {
 										break;
 									}
 								} catch (InterruptedException e) {
@@ -231,45 +202,70 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 								}
 							}
 						} else {
-							if (waitInitialBatchFinishIfNeed()) {
-								result.compareAndSet(true, false);
-								return;
-							} else {
-								result.compareAndSet(false, true);
+							// control tapdata event, skip the process consider process is done
+							processedEventList.add(tapdataEvent);
+							if (null != processorNodeProcessAspect) {
+								AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), tapdataEvent);
 							}
-							handleOriginalValueMapIfNeed(tapValueTransform);
-							tryProcess(tapdataEvent, (event, processResult) -> {
-								if (null == event) {
-									return;
-								}
-								if (tapdataEvent.isDML()) {
-									if (processResult == null) {
-										processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
-									}
-									if (null != processResult.getTableId()) {
-										transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId(), tapValueTransform.get());
-									} else {
-										transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId(), tapValueTransform.get());
-									}
-								}
-
-								// consider process is done
-								processedEventList.add(event);
-								if (null != processorNodeProcessAspect) {
-									AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), event);
-								}
-							});
 						}
-					});
-				} catch (Throwable throwable) {
-					if (throwable instanceof TapCodeException) {
-						throw (TapCodeException) throwable;
-					} else {
-						throw new TapEventException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable).addEvent(tapdataEvent.getTapEvent());
+						return;
 					}
+					// Update memory from ddl event info map
+					updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()));
+					AtomicReference<TapValueTransform> tapValueTransform = new AtomicReference<>();
+					if (tapdataEvent.isDML()) {
+						tapValueTransform.set(transformFromTapValue(tapdataEvent));
+					}
+					if (needInitialBatch()) {
+						if (initialBatchProcessor.status == InitialBatchProcessor.NOT_RUN) {
+							initialBatchProcessor.running();
+						}
+						while (isRunning()) {
+							try {
+								if (initialBatchProcessor.offer(new BatchEventWrapper(tapdataEvent, tapValueTransform.get()))) {
+									break;
+								}
+							} catch (InterruptedException e) {
+								break;
+							}
+						}
+					} else {
+						if (waitInitialBatchFinishIfNeed()) {
+							result.compareAndSet(true, false);
+							return;
+						} else {
+							result.compareAndSet(false, true);
+						}
+						handleOriginalValueMapIfNeed(tapValueTransform);
+						tryProcess(tapdataEvent, (event, processResult) -> {
+							if (null == event) {
+								return;
+							}
+							if (tapdataEvent.isDML()) {
+								if (processResult == null) {
+									processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
+								}
+								if (null != processResult.getTableId()) {
+									transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId(), tapValueTransform.get());
+								} else {
+									transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId(), tapValueTransform.get());
+								}
+							}
+
+							// consider process is done
+							processedEventList.add(event);
+							if (null != processorNodeProcessAspect) {
+								AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), event);
+							}
+						});
+					}
+				});
+			} catch (Throwable throwable) {
+				if (throwable instanceof TapCodeException) {
+					throw (TapCodeException) throwable;
+				} else {
+					throw new TapEventException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable).addEvent(tapdataEvent.getTapEvent());
 				}
-			} else {
-				processedEventList.add(tapdataEvent);
 			}
 
 			if (CollectionUtils.isNotEmpty(processedEventList)) {

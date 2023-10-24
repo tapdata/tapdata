@@ -73,8 +73,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		byte[] bytes = GZIPUtil.unGzip(decode);
 		String json = new String(bytes, StandardCharsets.UTF_8);
 		DeduceSchemaRequest request = JsonUtil.parseJsonUseJackson(json, DeduceSchemaRequest.class);
-		DAG dagAgo = request.getTaskDto().getDag();
-		request.getTaskDto().setDag(dagAgo);
+
 		DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(
 				request.getMetadataInstancesDtoList(),
 				request.getDataSourceMap(),
@@ -156,8 +155,9 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		UpdateTaskDagDto updateTaskDagDto = new UpdateTaskDagDto();
 		updateTaskDagDto.setId(request.getTaskDto().getId());
 		updateTaskDagDto.setDag(request.getTaskDto().getDag());
-		if (dagAgo != null) {
-			List<Node> nodes = dagAgo.getNodes();
+		DAG dag = request.getTaskDto().getDag();
+		if (dag != null) {
+			List<Node> nodes = dag.getNodes();
 			if (CollectionUtils.isNotEmpty(nodes)) {
 				nodes.forEach(f -> {
 					f.setOutputSchema(null);
@@ -166,7 +166,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 			}
 		}
 
-		wsMessageResult.setDag(dagAgo);
+		wsMessageResult.setDag(dag);
 
 		String jsonResult = JsonUtil.toJsonUseJackson(wsMessageResult);
 		byte[] gzip = GZIPUtil.gzip(jsonResult.getBytes());
