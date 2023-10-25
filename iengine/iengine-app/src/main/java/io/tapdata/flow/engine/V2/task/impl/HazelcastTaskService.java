@@ -605,6 +605,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 						ProcessorBaseContext.newBuilder()
 								.withTaskDto(taskDto)
 								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
 								.withNodeSchemas(nodeSchemas)
 								.withTapTableMap(tapTableMap)
 								.withTaskConfig(taskConfig)
