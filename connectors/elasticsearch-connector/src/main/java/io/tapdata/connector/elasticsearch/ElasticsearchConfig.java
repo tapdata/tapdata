@@ -13,9 +13,9 @@ public class ElasticsearchConfig {
     private int port;
     private String user;
     private String password;
-    private String dateFormat;
-    private String datetimeFormat;
-    private String timeFormat;
+    private String dateFormat = "yyyy-MM-dd";
+    private String datetimeFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
+    private String timeFormat = "HH:mm:ss";
     public String getDatetimeFormat() {
         return datetimeFormat;
     }

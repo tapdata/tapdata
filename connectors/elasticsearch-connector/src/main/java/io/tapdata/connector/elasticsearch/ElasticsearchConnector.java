@@ -129,8 +129,8 @@ public class ElasticsearchConnector extends ConnectorBase {
 //            return "null";
 //        });
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), elasticsearchConfig.getTimeFormat()));
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> formatTapDateTime(tapDateTimeValue.getValue(), elasticsearchConfig.getDateFormat()));
-        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), elasticsearchConfig.getDatetimeFormat()));
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> formatTapDateTime(tapDateTimeValue.getValue(), elasticsearchConfig.getDatetimeFormat()));
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), elasticsearchConfig.getDateFormat()));
     }
 
     @Override
