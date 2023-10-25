@@ -7,6 +7,7 @@ import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
@@ -216,10 +217,12 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		try {
 			if (currentNode instanceof JoinProcessorNode) {
 				JoinProcessorNode joinNode = (JoinProcessorNode) currentNode;
-				LinkedList<Node<?>> preNodes = joinNode.getPreNodes(verifyNodeId);
-				Node<?> lastPreNodes = preNodes.getLast();
-				if (null != lastPreNodes && lastPreNodes.disabledNode()) {
-					return true;
+				DAG dag = joinNode.getDag();
+				if (null != dag) {
+					Node<?> preNode = dag.getNode(verifyNodeId);
+					if (null != preNode && preNode.disabledNode()) {
+						return true;
+					}
 				}
 			}
 		} catch (Exception e) {
