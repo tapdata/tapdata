@@ -208,6 +208,9 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	private int checkTableStartPointValid(int step) throws ShareCdcUnsupportedException {
 		logger.info(logWrapper(++step, "Check tables start point valid"));
 		for (String tableName : tableNames) {
+			if (!isRunning()) {
+				break;
+			}
 			if (Arrays.binarySearch(NOT_CHECK_POINT_TABLES, tableName) >= 0) {
 				continue;
 			}
@@ -612,19 +615,19 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		switch (operationType) {
 			case INSERT:
 				tapEvent = new TapInsertRecordEvent().init();
-				handleData(logContent.getAfter());
+				ShareCdcUtil.iterateAndHandleSpecialType(logContent.getAfter(), this::handleData);
 				((TapInsertRecordEvent) tapEvent).setAfter(logContent.getAfter());
 				break;
 			case UPDATE:
 				tapEvent = new TapUpdateRecordEvent().init();
-				handleData(logContent.getBefore());
+				ShareCdcUtil.iterateAndHandleSpecialType(logContent.getBefore(), this::handleData);
 				((TapUpdateRecordEvent) tapEvent).setBefore(logContent.getBefore());
-				handleData(logContent.getAfter());
+				ShareCdcUtil.iterateAndHandleSpecialType(logContent.getAfter(), this::handleData);
 				((TapUpdateRecordEvent) tapEvent).setAfter(logContent.getAfter());
 				break;
 			case DELETE:
 				tapEvent = new TapDeleteRecordEvent().init();
-				handleData(logContent.getBefore());
+				ShareCdcUtil.iterateAndHandleSpecialType(logContent.getBefore(), this::handleData);
 				((TapDeleteRecordEvent) tapEvent).setBefore(logContent.getBefore());
 				break;
 			case DDL:
@@ -681,30 +684,26 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		}
 	}
 
-	private static void handleData(Map<String, Object> data) {
-		if (null == data) {
-			return;
+	private Object handleData(Object data) {
+		byte[] bytes = null;
+		if (data instanceof Binary) {
+			bytes = ((Binary) data).getData();
+		} else if (data instanceof byte[]) {
+			bytes = (byte[]) data;
 		}
-		data.forEach((k, v) -> {
-			byte[] bytes = null;
-			if (v instanceof Binary) {
-				bytes = ((Binary) v).getData();
-			} else if (v instanceof byte[]) {
-				bytes = (byte[]) v;
+		if (null != bytes && bytes.length > 0) {
+			if (bytes.length == 26 && bytes[0] == 99 && bytes[bytes.length - 1] == 23) {
+				byte[] dest = new byte[bytes.length - 2];
+				System.arraycopy(bytes, 1, dest, 0, dest.length);
+				TapStringValue tapStringValue = new TapStringValue();
+				tapStringValue.setOriginValue(bytes);
+				tapStringValue.setTapType(new TapString(24L, true));
+				tapStringValue.setOriginType(BsonType.OBJECT_ID.name());
+				tapStringValue.setValue(new String(dest));
+				return tapStringValue;
 			}
-			if (null != bytes && bytes.length > 0) {
-				if (bytes.length == 26 && bytes[0] == 99 && bytes[bytes.length - 1] == 23) {
-					byte[] dest = new byte[bytes.length - 2];
-					System.arraycopy(bytes, 1, dest, 0, dest.length);
-					TapStringValue tapStringValue = new TapStringValue();
-					tapStringValue.setOriginValue(bytes);
-					tapStringValue.setTapType(new TapString(24L, true));
-					tapStringValue.setOriginType(BsonType.OBJECT_ID.name());
-					tapStringValue.setValue(new String(dest));
-					data.put(k, tapStringValue);
-				}
-			}
-		});
+		}
+		return data;
 	}
 
 	@Override
