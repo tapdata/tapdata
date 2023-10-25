@@ -86,13 +86,8 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 				TaskDto task = clientMongoOperator.findOne(
 						new Query(Criteria.where("_id").is(new ObjectId(taskId))), ConnectorConstant.TASK_COLLECTION, TaskDto.class
 				);
-				if (Objects.isNull(task)) {
-					TaskLogger taskLogger = taskLoggersMap.remove(taskId);
-					if (taskLogger != null) {
-						taskLogger.close();
-					}
-					continue;
-				}
+				if (Objects.isNull(task)) continue;
+
 				taskLoggersMap.computeIfPresent(taskId, (id, taskLogger) -> {
 					taskLogger.withTaskLogSetting(getLogSettingLogLevel(task),
 							getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
@@ -144,37 +139,51 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 
 	public void removeTaskLoggerMarkRemove(TaskDto task) {
 		String taskId = task.getId().toHexString();
+		logger.info("Add mark with call remove task logger, task id: {}", taskId);
 		loggerToBeRemoved.putIfAbsent(taskId, System.currentTimeMillis());
+	}
+
+	public void removeTaskLoggerClearMark(TaskDto task) {
+		synchronized (loggerToBeRemoved) {
+			String taskId = task.getId().toHexString();
+			loggerToBeRemoved.computeIfPresent(taskId, (s, markTimes) -> {
+				logger.info("Clear mark with start task, task id: {}", taskId);
+				return null;
+			});
+		}
 	}
 
 	public void removeTaskLogger() {
 		Thread.currentThread().setName("Remove-Task-Logger-Scheduler");
-		try {
-			List<String> removed = new ArrayList<>();
-			for (Map.Entry<String, Long> entry : loggerToBeRemoved.entrySet()) {
-				if (System.currentTimeMillis() - entry.getValue() < LOGGER_REMOVE_WAIT_AFTER_MILLIS) continue;
+		synchronized (loggerToBeRemoved) {
+			try {
+				List<String> removed = new ArrayList<>();
+				for (Map.Entry<String, Long> entry : loggerToBeRemoved.entrySet()) {
+					if (System.currentTimeMillis() - entry.getValue() < LOGGER_REMOVE_WAIT_AFTER_MILLIS) continue;
 
-				String taskId = entry.getKey();
-				try {
-					taskLoggerNodeProxyMap.remove(taskId);
-					taskLoggersMap.computeIfPresent(taskId, (key, taskLogger) -> {
-						try {
-							taskLogger.close();
-						} catch (Exception e) {
-							throw new RuntimeException(String.format("Close task %s[%s] logger failed, error message: %s", taskLogger.getTaskName(), taskLogger.getTaskId(), e.getMessage()), e);
-						}
-						return null;
-					});
-					removed.add(taskId);
-				} catch (Throwable throwable) {
-					logger.error("Failed when remove the task logger or logger proxy for task node", throwable);
+					String taskId = entry.getKey();
+					try {
+						taskLoggerNodeProxyMap.remove(taskId);
+						taskLoggersMap.computeIfPresent(taskId, (key, taskLogger) -> {
+							try {
+								logger.info("Remove task logger, task id: {}", key);
+								taskLogger.close();
+							} catch (Exception e) {
+								throw new RuntimeException(String.format("Close task %s[%s] logger failed, error message: %s", taskLogger.getTaskName(), taskLogger.getTaskId(), e.getMessage()), e);
+							}
+							return null;
+						});
+						removed.add(taskId);
+					} catch (Throwable throwable) {
+						logger.error("Failed when remove the task logger or logger proxy for task node", throwable);
+					}
 				}
+				for (String taskId : removed) {
+					loggerToBeRemoved.remove(taskId);
+				}
+			} catch (Throwable e) {
+				logger.error("Failed to remove task logger", e);
 			}
-			for (String taskId : removed) {
-				loggerToBeRemoved.remove(taskId);
-			}
-		} catch (Throwable e) {
-			logger.error("Failed to remove task logger", e);
 		}
 	}
 
