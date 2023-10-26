@@ -105,6 +105,9 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		obsLogger.info("Init share log storage, table count: " + tableNames.size());
 		List<CompletableFuture<?>> completableFutures = new ArrayList<>();
 		for (String tableName : tableNames) {
+			if (!isRunning()) {
+				break;
+			}
 			completableFutures.add(CompletableFuture.runAsync(() -> {
 				try {
 					HazelcastConstruct<Document> construct = getConstruct(tableName);
@@ -383,9 +386,9 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		String op = TapEventUtil.getOp(tapEvent);
 		if (tapdataShareLogEvent.isDML()) {
 			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
-			handleData(before);
+			ShareCdcUtil.iterateAndHandleSpecialType(before, this::handleData);
 			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-			handleData(after);
+			ShareCdcUtil.iterateAndHandleSpecialType(after, this::handleData);
 			verifyDML(tapEvent, tableId, op, timestamp, before, after, offsetStr);
 			logContent = LogContent.createDMLLogContent(
 					tableId,
@@ -555,22 +558,20 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	private void handleData(Map<String, Object> data) {
-		if (MapUtils.isEmpty(data)) return;
-		data.forEach((k, v) -> {
-			if (null == v) {
-				return;
-			}
-			String valueClassName = v.getClass().getName();
-			if (valueClassName.equals("org.bson.types.ObjectId")) {
-				byte[] bytes = v.toString().getBytes();
-				byte[] dest = new byte[bytes.length + 2];
-				dest[0] = 99;
-				dest[dest.length - 1] = 23;
-				System.arraycopy(bytes, 0, dest, 1, bytes.length);
-				data.put(k, dest);
-			}
-		});
+	private Object handleData(Object data) {
+		if (null == data) {
+			return null;
+		}
+		String valueClassName = data.getClass().getName();
+		if (valueClassName.equals("org.bson.types.ObjectId")) {
+			byte[] bytes = data.toString().getBytes();
+			byte[] dest = new byte[bytes.length + 2];
+			dest[0] = 99;
+			dest[dest.length - 1] = 23;
+			System.arraycopy(bytes, 0, dest, 1, bytes.length);
+			return dest;
+		}
+		return data;
 	}
 
 	private void verifyDML(TapEvent tapEvent, String tableId, String op, Long timestamp, Map<String, Object> before, Map<String, Object> after, String offsetStr) {

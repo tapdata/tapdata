@@ -4,13 +4,13 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.*;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.*;
+import io.tapdata.exception.DatetimeFormatException;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.TapConnector;
@@ -21,6 +21,7 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.utils.TypeConverter;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -226,16 +227,18 @@ public abstract class ConnectorBase implements TapConnector {
     }
 
     public static String formatTapDateTime(DateTime dateTime, String pattern) {
+        if(null == dateTime) throw new IllegalArgumentException("Date time value cannot be null");
+		if (StringUtils.isBlank(pattern)) {
+			throw new IllegalArgumentException("Format pattern cannot be blank");
+		}
         try {
             DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(pattern);
             final ZoneId zoneId = dateTime.getTimeZone() != null ? dateTime.getTimeZone().toZoneId() : ZoneId.of("GMT");
             LocalDateTime localDateTime = LocalDateTime.ofInstant(dateTime.toInstant(), zoneId);
             return dateTimeFormatter.format(localDateTime);
-        } catch (Throwable e) {
-            e.printStackTrace();
-            TapLogger.error(TAG, "Parse date time {} pattern {}, failed, {}", dateTime, pattern, e.getMessage());
+        } catch (Exception e) {
+            throw new DatetimeFormatException(dateTime, pattern, e);
         }
-        return null;
     }
 
     public static Object convertDateTimeToDate(DateTime dateTime) {
