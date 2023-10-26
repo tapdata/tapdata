@@ -296,6 +296,7 @@ public class TapdataTaskScheduler {
 	}
 
 	private void startTask(TaskDto taskDto) {
+		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		final String taskId = taskDto.getId().toHexString();
 		if (taskClientMap.containsKey(taskId)) {
 			TaskClient<TaskDto> taskClient = taskClientMap.get(taskId);
@@ -625,6 +626,7 @@ public class TapdataTaskScheduler {
 		if (stopTaskCallAssignApi(taskDtoTaskClient, stopped)) {
 			clearTaskCacheAfterStopped(taskDtoTaskClient);
 			clearTaskRetryCache(taskId);
+			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDtoTaskClient.getTask());
 		}
 	}
 
