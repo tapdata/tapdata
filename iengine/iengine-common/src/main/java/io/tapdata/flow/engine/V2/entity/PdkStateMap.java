@@ -109,6 +109,7 @@ public class PdkStateMap implements KVMap<Object> {
 		} else {
 			ExternalStorageDto tapdataOrDefaultExternalStorage = ExternalStorageUtil.getTapdataOrDefaultExternalStorage();
 			tapdataOrDefaultExternalStorage.setTable(STATEMAP_TABLE);
+			tapdataOrDefaultExternalStorage.setTtlDay(0); // No time to live
 			constructIMap = new DocumentIMap<>(hazelcastInstance, TAG, mapName, tapdataOrDefaultExternalStorage);
 		}
 	}
