@@ -14,6 +14,7 @@ import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.entity.Capability;
+import net.sf.jsqlparser.statement.alter.Alter;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -54,6 +55,10 @@ public class DDLFactory {
     }
 
     public static <E> void ddlToTapDDLEvent(DDLParserType ddlParserType, String ddl, DDLWrapperConfig config, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) throws Throwable {
+        ddlToTapDDLEvent(ddlParserType, ddl, config, tableMap, consumer, null);
+    }
+
+    public static <E> void ddlToTapDDLEvent(DDLParserType ddlParserType, String ddl, DDLWrapperConfig config, KVReadOnlyMap<TapTable> tableMap,  Consumer<TapDDLEvent> consumer, TapDDLEventFilter tapDDLEventFilter) throws Throwable {
         if (EmptyKit.isBlank(ddl)) {
             return;
         }
@@ -73,7 +78,13 @@ public class DDLFactory {
         for (Class<? extends DDLWrapper<E>> ddlWrapper : ddlWrappers) {
             DDLWrapper<E> ddlWrapperBean = InstanceFactory.bean(ddlWrapper);
             ddlWrapperBean.init(config);
-            ddlWrapperBean.wrap(parseResult, tableMap, consumer);
+            if (null == tapDDLEventFilter || tapDDLEventFilter.filter((Alter)parseResult, ddlWrapperBean)) {
+                ddlWrapperBean.wrap(parseResult, tableMap, consumer);
+            }
         }
+    }
+
+    public interface TapDDLEventFilter {
+        boolean filter(Alter parseResult, DDLWrapper<?> wrapper);
     }
 }
