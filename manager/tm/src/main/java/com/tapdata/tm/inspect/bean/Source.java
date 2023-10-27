@@ -7,6 +7,7 @@ import io.tapdata.pdk.apis.entity.QueryOperator;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class Source {
@@ -29,4 +30,7 @@ public class Source {
     private String databaseType;
     private Boolean isFilter;
     List<QueryOperator> conditions;
+    private boolean enableCustomCommand;
+    private Map<String, Object> customCommand;
+
 }
