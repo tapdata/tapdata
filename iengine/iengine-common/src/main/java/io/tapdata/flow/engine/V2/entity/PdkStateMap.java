@@ -163,7 +163,6 @@ public class PdkStateMap implements KVMap<Object> {
 				if (globalStateMap == null) {
 					synchronized (GLOBAL_MAP_NAME) {
 						globalStateMap = new PdkStateMap(hazelcastInstance, GLOBAL_MAP_NAME);
-						PersistenceStorage.getInstance().setImapTTL(globalStateMap.getConstructIMap().getiMap(), GLOBAL_MAP_TTL_SECONDS);
 					}
 				}
 			}
