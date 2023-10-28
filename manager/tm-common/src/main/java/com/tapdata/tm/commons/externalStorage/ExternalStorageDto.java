@@ -20,7 +20,6 @@ public class ExternalStorageDto extends BaseDto {
 	private String name;
 	private String type;
 	private String uri;
-	@Deprecated
 	private String table;
 	private Integer ttlDay;
 	private Boolean canEdit = true;
