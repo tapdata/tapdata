@@ -42,7 +42,6 @@ public class PdkStateMap implements KVMap<Object> {
 	public static final int READ_TIMEOUT_MS = 60 * 1000;
 	//	private IMap<String, Document> imap;
 	private static final String KEY = PdkStateMap.class.getSimpleName();
-	public static final long GLOBAL_MAP_TTL_SECONDS = TimeUnit.DAYS.toSeconds(7L);
 	public static final String STATEMAP_TABLE = "HazelcastPersistence";
 	private Logger logger = LogManager.getLogger(PdkStateMap.class);
 	private static volatile PdkStateMap globalStateMap;
@@ -109,6 +108,7 @@ public class PdkStateMap implements KVMap<Object> {
 		} else {
 			ExternalStorageDto tapdataOrDefaultExternalStorage = ExternalStorageUtil.getTapdataOrDefaultExternalStorage();
 			tapdataOrDefaultExternalStorage.setTable(STATEMAP_TABLE);
+			tapdataOrDefaultExternalStorage.setTtlDay(0); // No time to live
 			constructIMap = new DocumentIMap<>(hazelcastInstance, TAG, mapName, tapdataOrDefaultExternalStorage);
 		}
 	}
@@ -162,7 +162,6 @@ public class PdkStateMap implements KVMap<Object> {
 				if (globalStateMap == null) {
 					synchronized (GLOBAL_MAP_NAME) {
 						globalStateMap = new PdkStateMap(hazelcastInstance, GLOBAL_MAP_NAME);
-						PersistenceStorage.getInstance().setImapTTL(globalStateMap.getConstructIMap().getiMap(), GLOBAL_MAP_TTL_SECONDS);
 					}
 				}
 			}
