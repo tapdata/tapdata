@@ -275,6 +275,7 @@ public class MongodbWriter {
 			if (info != null && info.get("$op") != null) {
 				pkFilter = new Document("_id", info.get("_id"));
 				u.putAll((Map<String, Object>) info.get("$op"));
+				u.remove("$v"); // Exists '$v' in update operation of MongoDB(v3.6), remove it because can't apply in write model.
 				boolean isUpdate = u.keySet().stream().anyMatch(k -> k.startsWith("$"));
 				if (isUpdate) {
 					writeModel = new UpdateManyModel<>(pkFilter, u, options);
