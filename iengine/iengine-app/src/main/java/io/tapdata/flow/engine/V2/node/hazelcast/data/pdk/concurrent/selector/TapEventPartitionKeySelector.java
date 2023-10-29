@@ -3,12 +3,10 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector;
 import com.tapdata.constant.MapUtil;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.value.TapValue;
-import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -22,7 +20,6 @@ import java.util.stream.Collectors;
 public class TapEventPartitionKeySelector implements PartitionKeySelector<TapEvent, Object, Map<String, Object>> {
 
 	private Function<TapEvent, List<String>> keyFunction;
-	private Map<String, List<String>> tableKeys = new HashMap<>();
 
 	public TapEventPartitionKeySelector(Function<TapEvent, List<String>> keyFunction) {
 		this.keyFunction = keyFunction;
@@ -32,7 +29,7 @@ public class TapEventPartitionKeySelector implements PartitionKeySelector<TapEve
 	public List<Object> select(TapEvent tapEvent, Map<String, Object> row) {
 
 		List<Object> partitionValue = null;
-		final List<String> keys = tableKeys.computeIfAbsent(TapEventUtil.getTableId(tapEvent), tableId -> keyFunction.apply(tapEvent));
+		final List<String> keys = keyFunction.apply(tapEvent);
 		if (CollectionUtils.isNotEmpty(keys) && MapUtils.isNotEmpty(row)) {
 			partitionValue = new ArrayList<>(keys.size());
 			getPartitionValue(partitionValue, keys, row);
