@@ -74,6 +74,8 @@ public abstract class DataParentNode<S> extends Node<S> {
 	private Boolean cdcConcurrent;
 	/** 增量写入线程数*/
 	private Integer cdcConcurrentWriteNum;
+    /** 并发写入的分区字段配置，格式: {"tableName":["fieldName"]} */
+    private Map<String, List<String>> concurrentWritePartitionMap;
     /** 目标节点配置字段修改规则 */
     private List<FieldChangeRule> fieldChangeRules;
 
