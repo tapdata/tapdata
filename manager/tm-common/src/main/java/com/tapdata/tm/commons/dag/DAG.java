@@ -5,6 +5,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.tapdata.tm.commons.dag.check.DAGCheckUtil;
+import com.tapdata.tm.commons.dag.check.DAGNodeCheckItem;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
@@ -141,22 +143,38 @@ public class DAG implements Serializable, Cloneable {
      * @return
      */
     public static DAG build(Dag taskDag) {
+        return ignoreDisabledNode(taskDag, false);
+    }
+
+    /**
+     * 根据 Dag实体 列表构建 DAG
+     * @see Dag
+     * @param beforeDAG
+     * @param ignore 是否将已禁用的节点不加入DAG中
+     * @return DAG
+     */
+    private static DAG ignoreDisabledNode(Dag beforeDAG, boolean ignore) {
         Graph<Node, Edge> graph = new Graph<>();
         DAG dag = new DAG(graph);
 
-        List<Edge> edges = taskDag.getEdges();
+        List<Edge> edges = beforeDAG.getEdges();
         ConcurrentHashMap<String, String> edgeMap = new ConcurrentHashMap<>();
+        List<Node> nodes = beforeDAG.getNodes();
+        Set<String> nodeIds = ignore ? new HashSet<>() : null;
+        if (ignore && CollectionUtils.isNotEmpty(nodes)) {
+            nodes = filterDisabledNode(nodes, nodeIds);
+        }
         if (CollectionUtils.isNotEmpty(edges)) {
             for (Edge edge : edges) {
-                graph.setEdge(edge.getSource(), edge.getTarget(), edge);
-
-                edgeMap.put(edge.getTarget(), edge.getSource());
+                String from = edge.getSource();
+                String target = edge.getTarget();
+                if (ignore && (!nodeIds.contains(from) || !nodeIds.contains(target))) continue;
+                graph.setEdge(from, target, edge);
+                edgeMap.put(target, from);
                 edge.setDag(dag);
                 edge.setGraph(graph);
             }
         }
-
-        List<Node> nodes = taskDag.getNodes();
         if (CollectionUtils.isNotEmpty(nodes)) {
             List<String> tableNamesList = Lists.newArrayList();
             Set<String> targetIdList = graph.getSinks();
@@ -168,8 +186,7 @@ public class DAG implements Serializable, Cloneable {
 
             ArrayList<String> objectNames = Lists.newArrayList(tableNamesList);
             LinkedHashMap<String, String> tableNameRelation = Maps.newLinkedHashMap();
-
-            LinkedList<Node> nodeLists = parseLinkedNode(taskDag);
+            LinkedList<Node> nodeLists = parseLinkedNode(beforeDAG);
 
             if (CollectionUtils.isNotEmpty(nodeLists)) {
                 Map<String, TableRenameTableInfo> originalMap = new LinkedHashMap<>();
@@ -223,6 +240,19 @@ public class DAG implements Serializable, Cloneable {
         return dag;
     }
 
+    private static List<Node> filterDisabledNode(List<Node> nodes, Set<String> nodeIds) {
+        return nodes.stream().filter(next -> {
+            Map<String, Object> attrs = next.getAttrs();
+            if (null != attrs && !attrs.isEmpty()) {
+                Object disable = attrs.get("disabled");
+                return !((disable instanceof Boolean) && (Boolean)disable);
+            }
+            return true;
+        }).filter(next -> {
+            nodeIds.add(next.getId());
+            return true;
+        }).collect(Collectors.toList());
+    }
 
     public static LinkedList<Node> parseLinkedNode(Dag dag) {
         List<Edge> edges = dag.getEdges();
@@ -638,14 +668,17 @@ public class DAG implements Serializable, Cloneable {
     public Map<String, List<Message>> validate() {
         Map<String, List<Message>> messages = new HashMap<>();
 
+        //检查DAG前去除被disabled的节点
+        DAG ignoreDisabledDAG = ignoreDisabledNode(this.toDag(), true);
+
         //校验dag
-        Map<String, List<Message>> checkDagMessage = checkDag();
+        Map<String, List<Message>> checkDagMessage = ignoreDisabledDAG.checkDag();
         if (!checkDagMessage.isEmpty()) {
             return checkDagMessage;
         }
 
-        graph.getNodes().forEach(nodeId -> {
-            Node node = graph.getNode(nodeId);
+        ignoreDisabledDAG.graph.getNodes().forEach(nodeId -> {
+            Node<?> node = ignoreDisabledDAG.graph.getNode(nodeId);
             boolean result = node.validate();
             if (!result) {
                 messages.put(nodeId, node.getMessages());
@@ -803,10 +836,7 @@ public class DAG implements Serializable, Cloneable {
 
         if (CollectionUtils.isEmpty(nodes)) {
             logger.warn("the number of node is zero");
-            Message message = new Message();
-            message.setCode("DAG.NotNodes");
-            message.setMsg("dag nodes not found");
-            messageList.add(message);
+            DAGCheckUtil.messageToList(messageList, DAGNodeCheckItem.DAG_NOT_NODES, "dag nodes not found");
             returnMap.put("nullNode", messageList);
             return returnMap;
         }
@@ -824,10 +854,7 @@ public class DAG implements Serializable, Cloneable {
         List<Edge> edges = this.getEdges();
         if (CollectionUtils.isEmpty(edges)) {
             logger.warn("the number of edges is zero");
-            Message message = new Message();
-            message.setCode("DAG.NotEdges");
-            message.setMsg("dag edges not found");
-            messageList.add(message);
+            DAGCheckUtil.messageToList(messageList, DAGNodeCheckItem.DAG_NOT_EDGES, "dag edges not found");
             return returnMap;
         }
 
@@ -837,10 +864,7 @@ public class DAG implements Serializable, Cloneable {
         int dataNodeCount = dataNodeCountOp.orElse(0);
         logger.debug("The number of nodes of the data type is {}", dataNodeCount);
         if (dataNodeCount < 2) {
-            Message message = new Message();
-            message.setCode("DAG.NodeTooFew");
-            message.setMsg("The number of nodes of the data type is less than two");
-            messageList.add(message);
+            DAGCheckUtil.messageToList(messageList, DAGNodeCheckItem.DAG_NODE_TOO_FEW, "The number of nodes of the data type is less than two");
         }
 
         //判断每个节点是否都存在连线, 不能有孤立的节点
@@ -850,12 +874,14 @@ public class DAG implements Serializable, Cloneable {
             edgeNodeIds.add(edge.getTarget());
         }
 
-        for (Node node : nodes) {
+        for (Node<?> node : nodes) {
             if (!edgeNodeIds.contains(node.getId())) {
-                Message message = new Message();
-                message.setCode("DAG.NodeIsolated");
-                message.setMsg("this node not connect other, name = " + node.getName());
-                messageList.add(message);
+                DAGCheckUtil.messageToList(messageList, DAGNodeCheckItem.DAG_NODE_ISOLATED, String.format("this node not connect other, name = %s", node.getName()));
+            }
+
+            //检查Join节点
+            if (node instanceof JoinProcessorNode) {
+                DAGCheckUtil.checkJoinNode((JoinProcessorNode) node, this.getEdges(), messageList);
             }
         }
 
@@ -863,20 +889,14 @@ public class DAG implements Serializable, Cloneable {
         Set<String> nodeIds = nodes.stream().map(Node::getId).collect(Collectors.toSet());
         for (String nodeId : edgeNodeIds) {
             if (!nodeIds.contains(nodeId)) {
-                Message message = new Message();
-                message.setCode("DAG.EdgeNotLink");
-                message.setMsg("edge node is not found");
-                messageList.add(message);
+                DAGCheckUtil.messageToList(messageList, DAGNodeCheckItem.DAG_EDGE_NOT_LINK, "edge node is not found");
             }
         }
 
         //判断dag是否存在环
         List<List<String>> cycles = this.graph.findCycles();
         if (CollectionUtils.isNotEmpty(cycles)) {
-            Message message = new Message();
-            message.setCode("DAG.IsCyclic");
-            message.setMsg("dag is cyclic");
-            messageList.add(message);
+            DAGCheckUtil.messageToList(messageList, DAGNodeCheckItem.DAG_IS_CYCLIC, "dag is cyclic");
         }
 
         //TODO: 校验所有的源节点和所有的目标节点都是数据节点
@@ -884,20 +904,14 @@ public class DAG implements Serializable, Cloneable {
         for (String source : sources) {
             Node node = nodeMap.get(source);
             if (!node.isDataNode()) {
-                Message message = new Message();
-                message.setCode("DAG.SourceIsNotData");
-                message.setMsg("source is not data node, source =" + source);
-                messageList.add(message);
+                DAGCheckUtil.messageToList(messageList, DAGNodeCheckItem.DAG_SOURCE_IS_NOT_DATA, String.format("source is not data node, source = %s", source));
             }
 
             if (node instanceof DatabaseNode) {
                 DatabaseNode databaseNode = (DatabaseNode) node;
                 List<String> tableNames = databaseNode.getTableNames();
                 if (CollectionUtils.isEmpty(tableNames) && !"expression".equals(databaseNode.getMigrateTableSelectType())) {
-                    Message message = new Message();
-                    message.setCode("DAG.MigrateTaskNotContainsTable");
-                    message.setMsg("task not contains tables");
-                    messageList.add(message);
+                    DAGCheckUtil.messageToList(messageList, DAGNodeCheckItem.DAG_MIGRATE_TASK_NOT_CONTAINS_TABLE, "task not contains tables");
                 }
             }
         }
@@ -906,10 +920,7 @@ public class DAG implements Serializable, Cloneable {
         for (String sink : sinks) {
             Node node = nodeMap.get(sink);
             if (!node.isDataNode()) {
-                Message message = new Message();
-                message.setCode("DAG.TailIsNotData");
-                message.setMsg("tail is not data node, sink =" + sink);
-                messageList.add(message);
+                DAGCheckUtil.messageToList(messageList, DAGNodeCheckItem.DAG_TAIL_IS_NOT_DATA, String.format("tail is not data node, sink = %s", sink));
             }
         }
         if (CollectionUtils.isEmpty(messageList)) {
