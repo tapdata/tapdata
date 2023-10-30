@@ -6,7 +6,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.check.DAGCheckUtil;
-import com.tapdata.tm.commons.dag.check.DAGNodeCheckItem;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
