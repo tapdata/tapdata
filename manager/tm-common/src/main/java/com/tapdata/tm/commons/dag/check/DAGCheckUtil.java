@@ -21,20 +21,6 @@ public class DAGCheckUtil {
     /**
      * @author gavin
      * @date 2023/10/26 下午4:50
-     * @description DAG 检查： 保存检查结果到列表
-     */
-    public static void messageToList(List<Message> messageList, DAGNodeCheckItem code, String message) {
-        if (null == messageList) return;
-        if (null == code) return;
-        Message msg = new Message();
-        msg.setCode(code.getCode());
-        msg.setMsg(message);
-        messageList.add(msg);
-    }
-
-    /**
-     * @author gavin
-     * @date 2023/10/26 下午4:50
      * @description DAG 检查： 设置节点为禁用状态
      */
     public static void setNodeToDisabled(Node<?> node) {
@@ -65,20 +51,30 @@ public class DAGCheckUtil {
         if (null == edges) return;
         Map<String, Set<String>> sourceNodes = edges.stream().collect(Collectors.groupingBy(Edge::getTarget, Collectors.mapping(Edge::getSource, Collectors.toSet())));
         Set<String> currentNodeSourceNodeIds = sourceNodes.get(currentNodeId);
+        final String joinNodeTag = "DAG.JonNode";
         if (null == currentNodeSourceNodeIds || currentNodeSourceNodeIds.size() != 2 ) {
-            DAGCheckUtil.messageToList(messageList, DAGNodeCheckItem.CHECK_JOIN_NODE, String.format("An not disabled join node [%s] not contain tow source nodes both should be not disabled", joinNodeName));
+            Message message = new Message();
+            message.setCode(joinNodeTag);
+            message.setMsg(String.format("An not disabled join node [%s] not contain tow source nodes both should be not disabled", joinNodeName));
+            messageList.add(message);
             DAGCheckUtil.setNodeToDisabled(joinNode);
             return;
         }
         for (String currentNodeSourceNodeId : currentNodeSourceNodeIds) {
             Node<?> currentNodeSourceNode = joinNode.getDag().getNode(currentNodeSourceNodeId);
             if (null == currentNodeSourceNode) {
-                DAGCheckUtil.messageToList(messageList, DAGNodeCheckItem.CHECK_JOIN_NODE, String.format("An not disabled join node [%s] contain an source node which is empty, source node id is %s", joinNodeName, currentNodeSourceNodeId));
+                Message message = new Message();
+                message.setCode(joinNodeTag);
+                message.setMsg(String.format("An not disabled join node [%s] contain an source node which is empty, source node id is %s", joinNodeName, currentNodeSourceNode.getName()));
+                messageList.add(message);
                 DAGCheckUtil.setNodeToDisabled(joinNode);
                 continue;
             }
             if (currentNodeSourceNode.disabledNode()) {
-                DAGCheckUtil.messageToList(messageList, DAGNodeCheckItem.CHECK_JOIN_NODE, String.format("An not disabled join node [%s] contain an source node which is disabled, source node name is %s", joinNodeName, currentNodeSourceNode.getName()));
+                Message message = new Message();
+                message.setCode(joinNodeTag);
+                message.setMsg(String.format("An not disabled join node [%s] contain an source node which is disabled, source node name is %s", joinNodeName, currentNodeSourceNode.getName()));
+                messageList.add(message);
                 DAGCheckUtil.setNodeToDisabled(joinNode);
             }
         }
