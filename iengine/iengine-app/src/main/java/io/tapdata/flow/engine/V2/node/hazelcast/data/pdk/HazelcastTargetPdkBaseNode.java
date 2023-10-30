@@ -856,6 +856,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (null != tapdataEvent.getStreamOffset()) {
 				syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
 			}
+			if (null != tapdataEvent.getBatchOffset()) {
+				syncProgress.setBatchOffsetObj(tapdataEvent.getBatchOffset());
+			}
 			syncProgress.setSourceTime(tapdataEvent.getSourceTime());
 			syncProgress.setEventTime(tapdataEvent.getSourceTime());
 			flushOffset.set(true);
