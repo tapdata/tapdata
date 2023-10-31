@@ -357,8 +357,14 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 								} else if ("i".equalsIgnoreCase(event.getString("op"))) {
 										tapBaseEvent = insertRecordEvent(o, collectionName);
 								} else if ("d".equalsIgnoreCase(event.getString("op"))) {
+									if (mongodbConfig.isEnableFillingModifiedData()) {
+										// Queries take a long time and are disabled when not needed, QPS went down from 4000 to 400.
+										// If you need other field data in delete event can't be disabled.
 										final Map lookupData = MongodbLookupUtil.findDeleteCacheByOid(connectionString, collectionName, o.get("_id"), globalStateMap);
 										tapBaseEvent = deleteDMLEvent(lookupData != null ? (Map)lookupData.get("data") : o, collectionName);
+									} else {
+										tapBaseEvent = deleteDMLEvent(o, collectionName);
+									}
 								}
 //								try {
 //										factory.recordEvent(event, clock.currentTimeInMillis(), true);
