@@ -143,6 +143,8 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     private Long scheduleDate;
     private Long stopedDate;
 
+    private Boolean needFilterEventData;
+
     /**
      * js 试运行id
      */
