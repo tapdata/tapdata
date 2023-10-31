@@ -131,9 +131,18 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 						if (event.getDocumentKey() != null) {
 							final Document documentKey = new DocumentCodec().decode(new BsonDocumentReader(event.getDocumentKey()), DecoderContext.builder().build());
 							before.put("_id", documentKey.get("_id"));
-							final Map lookupData = MongodbLookupUtil.findDeleteCacheByOid(connectionString, collectionName, documentKey.get("_id"), globalStateMap);
-							TapDeleteRecordEvent recordEvent = deleteDMLEvent(MapUtils.isNotEmpty(lookupData) && lookupData.containsKey("data") && lookupData.get("data") instanceof Map
-									? (Map<String, Object>) lookupData.get("data") : before, collectionName);
+
+							// Queries take a long time and are disabled when not needed, QPS went down from 4000 to 400.
+							// If you need other field data in delete event can't be disabled.
+							TapDeleteRecordEvent recordEvent;
+							if (mongodbConfig.isEnableFillingModifiedData()) {
+								final Map lookupData = MongodbLookupUtil.findDeleteCacheByOid(connectionString, collectionName, documentKey.get("_id"), globalStateMap);
+								recordEvent = deleteDMLEvent(MapUtils.isNotEmpty(lookupData) && lookupData.containsKey("data") && lookupData.get("data") instanceof Map
+										? (Map<String, Object>) lookupData.get("data") : before, collectionName);
+							} else {
+								recordEvent = deleteDMLEvent(before, collectionName);
+							}
+
 							recordEvent.setReferenceTime((long) (event.getClusterTime().getTime()) * 1000);
 							tapEvents.add(recordEvent);
 						} else {
