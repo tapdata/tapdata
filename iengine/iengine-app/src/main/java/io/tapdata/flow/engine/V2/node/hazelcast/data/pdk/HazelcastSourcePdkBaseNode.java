@@ -65,10 +65,13 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import lombok.SneakyThrows;
@@ -164,6 +167,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
+		initTapEventFilter();
 		if (needCdcDelay()) {
 			this.cdcDelayCalculation = new CdcDelay();
 		} else {
@@ -206,7 +210,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			} catch (Throwable e) {
 				throw new NodeException(e).context(getProcessorBaseContext());
 			}
-
 			initSourceReadBatchSize();
 			initSourceEventQueue();
 			initSyncProgress();
@@ -215,6 +218,17 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initDynamicAdjustMemory();
 			initAndStartSourceRunner();
 		});
+	}
+
+	private void initTapEventFilter() {
+		if (processorBaseContext instanceof DataProcessorContext) {
+			Connections sourceConn = ((DataProcessorContext) processorBaseContext).getSourceConn();
+			List<String> tags = sourceConn.getDefinitionTags();
+			TaskDto taskDto = processorBaseContext.getTaskDto();
+			if (null == taskDto.getNeedFilterEventData() || Boolean.TRUE.equals(taskDto.getNeedFilterEventData())) {
+				taskDto.setNeedFilterEventData(null != tags && !tags.contains("schema-free"));
+			}
+		}
 	}
 
 	private void initSyncProgress() throws JsonProcessingException {

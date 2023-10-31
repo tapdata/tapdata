@@ -25,6 +25,7 @@ import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -45,6 +46,8 @@ import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleaner;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleanerEntity;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.filter.TapEventFilter;
+import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
@@ -63,11 +66,14 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.*;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.schema.TapTableMap;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -127,6 +133,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected int targetBatch;
 	protected long targetBatchIntervalMs;
 	private TargetTapEventFilter targetTapEventFilter;
+	private TargetTableDataEventFilter tapEventFilter;
 	protected final List<String> exactlyOnceWriteTables = new ArrayList<>();
 	protected final ConcurrentHashMap<String, List<String>> exactlyOnceWriteNeedLookupTables = new ConcurrentHashMap<>();
 	protected CheckExactlyOnceWriteEnableResult checkExactlyOnceWriteEnableResult;
@@ -351,6 +358,69 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private void initTapEventFilter() {
 		this.targetTapEventFilter = TargetTapEventFilter.create();
 		//this.targetTapEventFilter.addFilter(new DeleteConditionFieldFilter());
+
+		this.tapEventFilter = TargetTableDataEventFilter.create();
+		ConnectorNode node = getConnectorNode();
+		TapNodeInfo tapNodeInfo = node.getTapNodeInfo();
+		TapNodeSpecification specification = tapNodeInfo.getTapNodeSpecification();
+		List<String> tags = specification.getTags();
+
+		if (Boolean.TRUE.equals(processorBaseContext.getTaskDto().getNeedFilterEventData()) && !tags.contains("schema-free")) {
+			tapEventFilter.addFilter(event -> {
+				TapEvent e = event.getTapEvent();
+				try{
+					if (e instanceof TapRecordEvent) {
+						String tableId = TapEventUtil.getTableId(e);
+						if (null == processorBaseContext) {
+							obsLogger.debug("Processor base context is empty");
+							return event;
+						}
+						TaskDto taskDto = processorBaseContext.getTaskDto();
+						if (null == taskDto) {
+							obsLogger.debug("TaskDto is empty");
+							return event;
+						}
+						TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
+						if (null == tapTableMap) {
+							obsLogger.debug("Tap table map is empty");
+							return event;
+						}
+						TapTable tapTable = null;
+						try {
+							tapTable = tapTableMap.get(tableId);
+						} catch (Exception exception) {
+							obsLogger.debug("Can not get table from TapTableMap, table name is: {}, error message: {}", tableId, exception.getMessage());
+							return event;
+						}
+						if (null != tapTable && null != tapTable.getNameFieldMap() && !tapTable.getNameFieldMap().isEmpty()) {
+							Set<String> fieldNames = tapTable.getNameFieldMap().keySet();
+							Map<String, Object> after = TapEventUtil.getAfter(e);
+							Map<String, Object> before = TapEventUtil.getBefore(e);
+							TapEventUtil.setAfter(e, processTableFields(after, fieldNames));
+							TapEventUtil.setBefore(e, processTableFields(before, fieldNames));
+						}
+					}
+				} catch (Exception exception) {
+					obsLogger.warn("Fail to automatically block new fields, message: {}", exception.getMessage(), exception.getCause());
+				}
+				return event;
+			});
+			obsLogger.info("Target will automatically block new fields");
+		}
+	}
+
+
+	/**
+	 * 源端发生新增字段任务会报错，希望能够按照字段编辑节点自动屏蔽新字段，不要影响任务运行
+	 * tip: 自动屏蔽新字段
+	 * */
+	private Map<String, Object> processTableFields(Map<String, Object> data, Set<String> fieldNames) {
+		if (null == data || data.isEmpty()) return data;
+		Map<String, Object> finalData = new HashMap<>();
+		for (String fieldName : fieldNames) {
+			finalData.put(fieldName, data.get(fieldName));
+		}
+		return finalData;
 	}
 
 	@Override
@@ -371,7 +441,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						}
 						while (isRunning()) {
 							try {
-								if (tapEventQueue.offer(tapdataEvent, 1L, TimeUnit.SECONDS)) {
+								TapdataEvent event = this.tapEventFilter.test(tapdataEvent);
+								if (tapEventQueue.offer(event, 1L, TimeUnit.SECONDS)) {
 									break;
 								}
 							} catch (InterruptedException ignored) {

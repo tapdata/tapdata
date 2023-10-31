@@ -114,6 +114,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -283,7 +284,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				ObsLoggerFactory.getInstance().getObsLogger(taskDtoAtomicReference.get()).warn(e.getMessage());
 			}
 
+			AtomicBoolean needFilterEvent = new AtomicBoolean(true);
 			for (Node node : nodes) {
+				taskDtoAtomicReference.get().setNeedFilterEventData(needFilterEvent.get());
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
 				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node);
@@ -328,8 +331,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				TapTableMap<String, TapTable> finalTapTableMap = tapTableMap;
 				Vertex vertex = new Vertex(NodeUtil.getVertexName(node), () -> {
 					try {
-						return createNode(
-								taskDtoAtomicReference.get(),
+						TaskDto dto = taskDtoAtomicReference.get();
+						HazelcastBaseNode hazelcastBaseNode = createNode(
+								dto,
 								nodes,
 								edges,
 								node,
@@ -342,6 +346,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								finalTapTableMap,
 								taskConfig
 						);
+						needFilterEvent.set(dto.getNeedFilterEventData());
+						return hazelcastBaseNode;
 					} catch (Exception e) {
 						throw new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED,
 								String.format("Failed to create processor based on node information, node: %s[%s], error msg: %s", node.getName(), node.getId(), e.getMessage()), e);
