@@ -454,18 +454,20 @@ public class TransformSchemaService {
         }
 
 
-        if (!saveHistory) {
-            if (StringUtils.isNotBlank(result.getTransformUuid()) && StringUtils.isNotBlank(result.getTaskId())) {
-                Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(result.getTaskId()))
-                        .and("transformUuid").lte(result.getTransformUuid());
-
-                Update set = Update.update("transformed", true).set("transformUuid", result.getTransformUuid());
-                if (result.getDag() != null) {
-                    set.set("dag", result.getDag());
-                }
-                taskService.update(new Query(criteria),
-                        set, user);
+        if (StringUtils.isNotBlank(result.getTaskId())) {
+            Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(result.getTaskId()));
+            Update set = null;
+            if (result.getDag() != null) {
+                set = Update.update("dag", result.getDag());
             }
+
+            if (StringUtils.isNotBlank(result.getTransformUuid())) {
+                criteria = criteria.and("transformUuid").lte(result.getTransformUuid());
+                set = (null == set) ? Update.update("transformed", true) : set.set("transformed", true);
+                set.set("transformUuid", result.getTransformUuid());
+            }
+
+            taskService.update(new Query(criteria), set, user);
         }
 
         ldpService.afterLdpTask(taskId, user);

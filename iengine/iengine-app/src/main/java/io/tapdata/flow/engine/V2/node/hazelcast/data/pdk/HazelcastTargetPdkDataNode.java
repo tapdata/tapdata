@@ -452,9 +452,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	private List<String> executeAlterFieldNameFunction(List<String> fields, ValueChange<String> nameChange) {
-		if(null != fields && fields.contains(nameChange.getBefore())){
-			fields.removeIf(s -> nameChange.getBefore().equals(s));
-			fields.add(nameChange.getAfter());
+		if (null != fields) {
+			int idx = fields.indexOf(nameChange.getBefore());
+			if (-1 != idx) {
+				fields.set(idx, nameChange.getAfter());
+			}
 		}
 		return fields;
 	}
@@ -469,28 +471,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			// 修改自定义并发写入分区字段
 			Optional.ofNullable(concurrentWritePartitionMap)
 					.ifPresent(partitionFieldsMap-> partitionFieldsMap.computeIfPresent(tapAlterFieldNameEvent.getTableId(), (tableId, fields) -> executeAlterFieldNameFunction(fields, nameChange)));
-
-			// 更新任务配置
-			Optional.ofNullable(dataProcessorContext.getTaskDto()
-			).map(TaskDto::getDag
-			).map(dag -> dag.getNode(getNode().getId())
-			).ifPresent(node -> {
-				if (node instanceof DataParentNode) {
-					Map<String, List<String>> concurrentWritePartitionMap = ((DataParentNode<?>) node).getConcurrentWritePartitionMap();
-					if (null != concurrentWritePartitionMap) {
-						concurrentWritePartitionMap.computeIfPresent(tapAlterFieldNameEvent.getTableId(), (s, fields) -> executeAlterFieldNameFunction(fields, nameChange));
-					}
-				}
-
-				if (node instanceof DatabaseNode) {
-					Map<String, List<String>> updateConditionFieldMap = ((DatabaseNode) node).getUpdateConditionFieldMap();
-					if (null != updateConditionFieldMap) {
-						updateConditionFieldMap.computeIfPresent(tapAlterFieldNameEvent.getTableId(), (s, fields) -> executeAlterFieldNameFunction(fields, nameChange));
-					}
-				} else if (node instanceof TableNode) {
-					executeAlterFieldNameFunction(((TableNode) node).getUpdateConditionFields(), nameChange);
-				}
-			});
 		});
 
 		ConnectorNode connectorNode = getConnectorNode();
@@ -879,43 +859,28 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
-	protected void updateNodeConfig(TapdataEvent tapdataEvent) {
-		super.updateNodeConfig(tapdataEvent);
+	protected void updateDAG(TapdataEvent tapdataEvent) {
 		final TapEvent tapEvent = tapdataEvent.getTapEvent();
 		if (tapEvent instanceof TapAlterFieldNameEvent) {
 			TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapEvent;
-			// 修改关联字段配置
-			Optional.ofNullable(updateConditionFieldsMap
-			).map(m -> m.get(tapAlterFieldNameEvent.getTableId())
-			).map(updateConditionFields -> {
-				ValueChange<String> nameChange = tapAlterFieldNameEvent.getNameChange();
-				if (null != nameChange) {
-					if (updateConditionFields.contains(nameChange.getBefore())) {
-						updateConditionFields.removeIf(s -> nameChange.getBefore().equals(s));
-						updateConditionFields.add(nameChange.getAfter());
-					}
-					Optional.ofNullable(dataProcessorContext.getTaskDto()
-					).map(TaskDto::getDag
-					).map(dag -> dag.getNode(getNode().getId())
-					).map(node -> {
-						if (node instanceof DatabaseNode) {
-							Map<String, List<String>> updateConditionFieldMap = ((DatabaseNode) node).getUpdateConditionFieldMap();
-							if (null != updateConditionFieldMap) {
-								return updateConditionFieldMap.get(tapAlterFieldNameEvent.getTableId());
-							}
-						} else if (node instanceof TableNode) {
-							return ((TableNode) node).getUpdateConditionFields();
-						}
-						return null;
-					}).map(fields -> {
-						if (fields.contains(nameChange.getBefore())) {
-							fields.removeIf(s -> nameChange.getBefore().equals(s));
-							fields.add(nameChange.getAfter());
-						}
-						return null;
-					});
+			String tableName = (getNode() instanceof TableNode)
+					? ((TableNode) getNode()).getTableName()
+					: tapAlterFieldNameEvent.getTableId();
+
+			// 更新任务配置
+			Optional.ofNullable(dataProcessorContext.getTaskDto()
+			).map(TaskDto::getDag
+			).map(dag -> dag.getNode(getNode().getId())
+			).ifPresent(node -> {
+				if (node instanceof DataParentNode) {
+					((DataParentNode<?>) node).setConcurrentWritePartitionMap(concurrentWritePartitionMap);
 				}
-				return null;
+
+				if (node instanceof DatabaseNode) {
+					((DatabaseNode) node).setUpdateConditionFieldMap(updateConditionFieldsMap);
+				} else if (node instanceof TableNode) {
+					((TableNode) node).setUpdateConditionFields(updateConditionFieldsMap.get(tableName));
+				}
 			});
 		}
 
