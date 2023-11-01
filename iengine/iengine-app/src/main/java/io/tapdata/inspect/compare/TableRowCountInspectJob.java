@@ -78,7 +78,10 @@ public class TableRowCountInspectJob extends InspectJob {
 						TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
 								.command((String) customCountCommand.get("command")).params((Map<String, Object>) customCountCommand.get("params"));
 						List<Map<String, Object>> maps = executeCommand(executeCommandFunction, tapExecuteCommand,this.sourceNode);
-						long count = maps.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
+						long count = 0l;
+						if (CollectionUtils.isNotEmpty(maps)) {
+							count = maps.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
+						}
 						sourceCount.set(count);
 
 					} else {
@@ -113,7 +116,10 @@ public class TableRowCountInspectJob extends InspectJob {
 						TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
 								.command((String) customCountCommand.get("command")).params((Map<String, Object>) customCountCommand.get("params"));
 						List<Map<String, Object>> maps = executeCommand(executeCommandFunction, tapExecuteCommand,this.targetNode);
-						long count = maps.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
+						long count = 0l;
+						if (CollectionUtils.isNotEmpty(maps)) {
+							count = maps.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
+						}
 						targetCount.set(count);
 					}else {
 						BatchCountFunction tgtBatchCountFunction = this.targetNode.getConnectorFunctions().getBatchCountFunction();
@@ -238,7 +244,7 @@ public class TableRowCountInspectJob extends InspectJob {
 		return copyCustomCommand;
 	}
 
-	private static String getCountSql(String customSql) {
+	public static String getCountSql(String customSql) {
 		String sql = customSql.trim().replaceAll("[\t\n\r]", "");
 		// remove order by
 		sql = sql.replaceAll("\\s+[Oo][Rr][Dd][Ee][Rr]\\s[Bb][Yy].+", "");
