@@ -166,15 +166,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		}
 	}
 
-	private void singleTaskFilterEventDataIfNeed() {
-		if (processorBaseContext instanceof DataProcessorContext) {
-			Connections sourceConn = ((DataProcessorContext) processorBaseContext).getSourceConn();
-			List<String> tags = sourceConn.getDefinitionTags();
-			TaskDto taskDto = processorBaseContext.getTaskDto();
-			if (null == taskDto.getNeedFilterEventData() || Boolean.TRUE.equals(taskDto.getNeedFilterEventData())) {
-				taskDto.setNeedFilterEventData(null != tags && !tags.contains("schema-free"));
-			}
-		}
+	protected void singleTaskFilterEventDataIfNeed() {
+
 	}
 
 

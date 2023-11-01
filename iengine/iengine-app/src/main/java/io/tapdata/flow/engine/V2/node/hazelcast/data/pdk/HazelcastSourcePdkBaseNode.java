@@ -161,6 +161,20 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		} else {
 			this.cdcDelayCalculation = new CdcDelayDisable();
 		}
+		this.tapEventFilter = TargetTableDataEventFilter.create();
+	}
+
+	@Override
+	protected void singleTaskFilterEventDataIfNeed() {
+		super.singleTaskFilterEventDataIfNeed();
+		if (processorBaseContext instanceof DataProcessorContext) {
+			Connections sourceConn = ((DataProcessorContext) processorBaseContext).getSourceConn();
+			List<String> tags = sourceConn.getDefinitionTags();
+			TaskDto taskDto = processorBaseContext.getTaskDto();
+			if (null == taskDto.getNeedFilterEventData() || Boolean.TRUE.equals(taskDto.getNeedFilterEventData())) {
+				taskDto.setNeedFilterEventData(null != tags && !tags.contains("schema-free"));
+			}
+		}
 	}
 
 	private boolean needCdcDelay() {
@@ -211,7 +225,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void initTapEventFilter() {
 		TaskDto taskDto = processorBaseContext.getTaskDto();
-		this.tapEventFilter = TargetTableDataEventFilter.create();
 		if (Boolean.TRUE.equals(processorBaseContext.getTaskDto().getNeedFilterEventData())) {
 			tapEventFilter.addFilter(event -> {
 				TapEvent e = event.getTapEvent();
