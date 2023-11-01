@@ -107,7 +107,9 @@ public class PdkStateMap implements KVMap<Object> {
 			initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), mapName);
 		} else {
 			ExternalStorageDto tapdataOrDefaultExternalStorage = ExternalStorageUtil.getTapdataOrDefaultExternalStorage();
-			tapdataOrDefaultExternalStorage.setTable(STATEMAP_TABLE);
+			if (mapName.equals(GLOBAL_MAP_NAME)) {
+				tapdataOrDefaultExternalStorage.setTable(STATEMAP_TABLE);
+			}
 			tapdataOrDefaultExternalStorage.setTtlDay(0); // No time to live
 			constructIMap = new DocumentIMap<>(hazelcastInstance, TAG, mapName, tapdataOrDefaultExternalStorage);
 		}
