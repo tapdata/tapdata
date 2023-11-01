@@ -4,6 +4,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
+import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
@@ -77,6 +78,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
+		singleTaskFilterEventDataIfNeed();
 		logListener = new TapLogger.LogListener() {
 			@Override
 			public void debug(String log) {
@@ -163,6 +165,19 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			throw new RuntimeException("Failed to init pdk connector, database type: " + dataProcessorContext.getDatabaseType() + ", message: " + e.getMessage(), e);
 		}
 	}
+
+	private void singleTaskFilterEventDataIfNeed() {
+		if (processorBaseContext instanceof DataProcessorContext) {
+			Connections sourceConn = ((DataProcessorContext) processorBaseContext).getSourceConn();
+			List<String> tags = sourceConn.getDefinitionTags();
+			TaskDto taskDto = processorBaseContext.getTaskDto();
+			if (null == taskDto.getNeedFilterEventData() || Boolean.TRUE.equals(taskDto.getNeedFilterEventData())) {
+				taskDto.setNeedFilterEventData(null != tags && !tags.contains("schema-free"));
+			}
+		}
+	}
+
+
 
 	protected void createPdkConnectorNode(DataProcessorContext dataProcessorContext, HazelcastInstance hazelcastInstance) {
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
