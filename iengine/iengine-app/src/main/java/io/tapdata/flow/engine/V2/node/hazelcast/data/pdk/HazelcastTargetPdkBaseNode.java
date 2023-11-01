@@ -172,6 +172,19 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 	}
 
+	@Override
+	protected void singleTaskFilterEventDataIfNeed() {
+		super.singleTaskFilterEventDataIfNeed();
+		if (processorBaseContext instanceof DataProcessorContext) {
+			Connections targetConn = ((DataProcessorContext) processorBaseContext).getTargetConn();
+			List<String> tags = targetConn.getDefinitionTags();
+			TaskDto taskDto = processorBaseContext.getTaskDto();
+			if (null == taskDto.getNeedFilterEventData() || Boolean.TRUE.equals(taskDto.getNeedFilterEventData())) {
+				taskDto.setNeedFilterEventData(null != tags && !tags.contains("schema-free"));
+			}
+		}
+	}
+
 	private void initExactlyOnceWriteIfNeed() {
 		checkExactlyOnceWriteEnableResult = enableExactlyOnceWrite();
 		if (!checkExactlyOnceWriteEnableResult.getEnable()) {
