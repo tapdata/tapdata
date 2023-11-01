@@ -160,8 +160,11 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 				TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
 						.command((String) customCountCommand.get("command")).params((Map<String, Object>) customCountCommand.get("params"));
 				List<Map<String, Object>> maps = TableRowCountInspectJob.executeCommand(executeCommandFunction,tapExecuteCommand,connectorNode);
-				total = maps.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
-
+				if (CollectionUtils.isNotEmpty(maps)) {
+					total = maps.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
+				}else {
+					total =0L;
+				}
 			}else if (null != countByPartitionFilterFunction) {
 				TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
 				tapAdvanceFilter.setOperators(conditions);
@@ -181,16 +184,17 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 		}
 	}
 
-	public void setCommandQueryParam(Map<String, Object> customCommand,ConnectorNode connectorNode,TapTable tgtTable) {
+	public static void setCommandQueryParam(Map<String, Object> customCommand,ConnectorNode connectorNode,TapTable table,
+									 List<SortOn> sortOnList,Projection projection) {
 		Map<String, Object> params = (Map<String, Object>) customCommand.get("params");
 		if(!connectorNode.getTapNodeInfo().getTapNodeSpecification().getId().contains("mongodb")) {
 			Object value = params.get("sql");
 			if (value != null) {
-				String sql = getSelectSql(value.toString());
+				String sql = getSelectSql(value.toString(),sortOnList);
 				params.put("sql", sql);
 			}
 		}else {
-			params.put("collection",tgtTable.getId());
+			params.put("collection",table.getId());
 			params.put("projection",projection);
 			Map<String, Object> sortMap = new LinkedHashMap<>();
 			sortOnList.forEach(sortOn->{
@@ -199,7 +203,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 			params.put("sort",sortMap);
 		}
 	}
-	private String getSelectSql(String customSql) {
+	private static String getSelectSql(String customSql,List<SortOn> sortOnList) {
 		String sql = customSql.trim().replaceAll("[\t\n\r]", "");
 		Pattern orderByPattern = Pattern.compile(".+[Oo][Rr][Dd][Ee][Rr]\\s[Bb][Yy].+");
 		if (!orderByPattern.matcher(sql).matches()) {
@@ -295,31 +299,10 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 							logger.info("Inspect job[{}] read data from table '{}' by filter: {}", connections.getName(), tableName, tapAdvanceFilter);
 						}
 						if(enableCustomCommand && MapUtil.isNotEmpty(customCommand)){
-							setCommandQueryParam(customCommand,connectorNode,tapTable);
+							setCommandQueryParam(customCommand,connectorNode,tapTable,sortOnList,projection);
 							TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
 									.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params"));
-							PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-									() -> executeCommandFunction.execute(connectorNode.getConnectorContext(), tapExecuteCommand, executeResult -> {
-										Throwable error = executeResult.getError();
-										if (null != error) throwable = error;
-
-										List<Map<String, Object>> results = (List<Map<String, Object>>) executeResult.getResult();
-										if (CollectionUtils.isEmpty(results)) {
-											return;
-										}
-										for (Map<String, Object> result : results) {
-											if (!isRunning()) break;
-											while (isRunning()) {
-												try {
-													if (queue.offer(result, 100L, TimeUnit.MILLISECONDS)) {
-														break;
-													}
-												} catch (InterruptedException e) {
-													return;
-												}
-											}
-										}
-									}), TAG);
+							executeQueryCommand(tapExecuteCommand);
 						}else {
 							PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
 									() -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
@@ -358,7 +341,38 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 		}
 	}
 
+	public void executeQueryCommand(TapExecuteCommand tapExecuteCommand) {
+		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
+				() -> executeCommandFunction.execute(connectorNode.getConnectorContext(), tapExecuteCommand, executeResult -> {
+					if (executeResult.getError() != null) {
+						throw new NodeException("Execute error: " + executeResult.getError().getMessage(), executeResult.getError());
+					}
+
+					List<Map<String, Object>> results = (List<Map<String, Object>>) executeResult.getResult();
+					if (CollectionUtils.isEmpty(results)) {
+						return;
+					}
+					for (Map<String, Object> result : results) {
+						if (!isRunning()) break;
+						while (isRunning()) {
+							try {
+								if (queue.offer(result, 100L, TimeUnit.MILLISECONDS)) {
+									break;
+								}
+							} catch (InterruptedException e) {
+								return;
+							}
+						}
+					}
+				}), TAG);
+	}
+
+
 	private boolean isRunning() {
 		return running.get() && !Thread.currentThread().isInterrupted();
+	}
+
+	public LinkedBlockingQueue<Map<String, Object>> getQueue() {
+		return queue;
 	}
 }
