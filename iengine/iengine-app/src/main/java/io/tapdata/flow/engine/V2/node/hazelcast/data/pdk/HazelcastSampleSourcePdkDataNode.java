@@ -93,6 +93,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 				TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
 
 				boolean isCache = true;
+				boolean needMock = false;
 				if (CollectionUtils.isEmpty(tapEventList) || tapEventList.size() < rows) {
 					tapEventList.clear();
 					isCache = false;
@@ -126,7 +127,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 						}
 						TaskDto taskDto = processorBaseContext.getTaskDto();
 						if (null != taskDto && taskDto.isTestTask() && tapEventList.isEmpty()) {
-							AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(new CoreException("Data not found")));
+							needMock = true;
 						}
 					} catch (Exception e) {
 						logger.warn("Error getting sample data, will try to simulate: {}", e.getMessage());
@@ -150,7 +151,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 				List<TapdataEvent> tapdataEvents = wrapTapdataEvent(cloneList);
 				if (CollectionUtils.isEmpty(tapdataEvents)) {
 					//mock
-					if (processorBaseContext.getTaskDto().isDeduceSchemaTask()) {
+					if (processorBaseContext.getTaskDto().isDeduceSchemaTask() || needMock) {
 						tapdataEvents = SampleMockUtil.mock(tapTable, rows);
 					}
 				}

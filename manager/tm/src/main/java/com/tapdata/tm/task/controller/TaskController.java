@@ -1193,10 +1193,8 @@ public class TaskController extends BaseController {
         try {
             data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser(), jsType);
             result = (Map<String, Object>)Optional.ofNullable(data.get("data")).orElse(data);
-            String code = String.valueOf(result.get("code"));
-            String message = String.valueOf(result.get("message"));
-            if ("error".equals(code)) {
-                throw new CoreException("Can not get data from source, {}", message);
+            if (null == result || result.isEmpty()) {
+                throw new CoreException("Can not get data from source,  Please ensure if source connection is valid");
             }
         }catch (Exception e){
             responseMessage.setCode("error");
