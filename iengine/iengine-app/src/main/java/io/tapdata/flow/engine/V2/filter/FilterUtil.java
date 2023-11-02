@@ -1,11 +1,11 @@
 package io.tapdata.flow.engine.V2.filter;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -16,8 +16,8 @@ public class FilterUtil {
      * tip: 自动屏蔽新字段
      * */
     public static Map<String, Object> processTableFields(Map<String, Object> data, Set<String> fieldNames) {
+        if (null == fieldNames || fieldNames.isEmpty()) return data;
         if (null == data) data = new HashMap<>();
-        if (null == fieldNames) fieldNames = new HashSet<>();
         Map<String, Object> finalData = new HashMap<>();
         for (String fieldName : fieldNames) {
             finalData.put(fieldName, data.get(fieldName));

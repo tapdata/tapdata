@@ -4,7 +4,7 @@ import com.tapdata.entity.TapdataEvent;
 
 public interface TapEventFilter<T, V> {
 
-    public void addFilter(T tapEventPredicate);
+    public void addHandler(T tapEventPredicate);
 
-    public <E extends TapdataEvent> V test(E event);
+    public <E extends TapdataEvent> V handle(E event);
 }

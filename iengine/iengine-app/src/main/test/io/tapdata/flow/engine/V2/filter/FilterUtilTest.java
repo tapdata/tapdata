@@ -92,7 +92,7 @@ public class FilterUtilTest {
         eventData.put(key1, value1);
         Set<String> fields = null;
         eventData = FilterUtil.processTableFields(eventData, fields);
-        Assert.assertEquals(0, eventData.size());
+        Assert.assertEquals(1, eventData.size());
     }
 
     @Test
@@ -103,8 +103,8 @@ public class FilterUtilTest {
         eventData.put(key1, value1);
         Set<String> fields = new HashSet<>();
         eventData = FilterUtil.processTableFields(eventData, fields);
-        Assert.assertEquals(fields.size(), eventData.size());
-        Assert.assertFalse(eventData.containsKey(key1));
+        Assert.assertEquals(1, eventData.size());
+        Assert.assertTrue(eventData.containsKey(key1));
     }
 
     @Test

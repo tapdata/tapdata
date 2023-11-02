@@ -11,25 +11,25 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public class TargetTableDataEventFilter implements TapEventFilter<TargetTableDataEventFilter.TapEventHandel, TapdataEvent> {
     private static final Logger logger = LogManager.getLogger(TargetTableDataEventFilter.class);
-    List<TapEventHandel> handelList = new CopyOnWriteArrayList<>();
+    List<TapEventHandel> handleList = new CopyOnWriteArrayList<>();
     public static TargetTableDataEventFilter create() {
         TargetTableDataEventFilter tapEventFilter = new TargetTableDataEventFilter();
         return tapEventFilter;
     }
 
     @Override
-    public void addFilter(TapEventHandel tapEventPredicate) {
-        handelList.add(tapEventPredicate);
+    public void addHandler(TapEventHandel tapEventPredicate) {
+        handleList.add(tapEventPredicate);
     }
 
 
     @Override
-    public <E extends TapdataEvent> TapdataEvent test(E event) {
-        if (CollectionUtils.isEmpty(handelList)) {
+    public <E extends TapdataEvent> TapdataEvent handle(E event) {
+        if (CollectionUtils.isEmpty(handleList)) {
             return event;
         }
-        for (TapEventHandel handel : handelList) {
-            event = (E) handel.handler(event);
+        for (TapEventHandel handle : handleList) {
+            event = (E) handle.handler(event);
         }
         return event;
     }

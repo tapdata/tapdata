@@ -338,6 +338,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				Vertex vertex = new Vertex(NodeUtil.getVertexName(node), () -> {
 					try {
 						TaskDto dto = taskDtoAtomicReference.get();
+						dto.setNeedFilterEventData(needFilterEvent.get());
 						HazelcastBaseNode hazelcastBaseNode = createNode(
 								dto,
 								nodes,
@@ -352,7 +353,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								finalTapTableMap,
 								taskConfig
 						);
-						needFilterEvent.set(dto.getNeedFilterEventData());
 						return hazelcastBaseNode;
 					} catch (Exception e) {
 						throw new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED,
@@ -363,12 +363,21 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 				vertex.localParallelism(1);
 				dag.vertex(vertex);
+				this.singleTaskFilterEventDataIfNeed(connection, needFilterEvent);
 			}
 
 			handleEdge(dag, edges, nodeMap, vertexMap);
 		}
 
 		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
+	}
+
+	private void singleTaskFilterEventDataIfNeed(Connections conn, AtomicBoolean needFilterEvent) {
+		if (null == conn || null == needFilterEvent) return;
+		List<String> tags = conn.getDefinitionTags();
+		if (Boolean.TRUE.equals(needFilterEvent.get())) {
+			needFilterEvent.set(null == tags || !tags.contains("schema-free"));
+		}
 	}
 
 	private static void initSnapshotOrder(AtomicReference<TaskDto> taskDtoAtomicReference) {

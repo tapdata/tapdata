@@ -78,7 +78,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		singleTaskFilterEventDataIfNeed();
 		logListener = new TapLogger.LogListener() {
 			@Override
 			public void debug(String log) {
@@ -165,13 +164,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			throw new RuntimeException("Failed to init pdk connector, database type: " + dataProcessorContext.getDatabaseType() + ", message: " + e.getMessage(), e);
 		}
 	}
-
-	protected void singleTaskFilterEventDataIfNeed() {
-
-	}
-
-
-
 	protected void createPdkConnectorNode(DataProcessorContext dataProcessorContext, HazelcastInstance hazelcastInstance) {
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		Map<String, Object> connectionConfig = dataProcessorContext.getConnectionConfig();
