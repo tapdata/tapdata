@@ -292,7 +292,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 			AtomicBoolean needFilterEvent = new AtomicBoolean(true);
 			for (Node node : nodes) {
-				taskDtoAtomicReference.get().setNeedFilterEventData(needFilterEvent.get());
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
 				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node);
