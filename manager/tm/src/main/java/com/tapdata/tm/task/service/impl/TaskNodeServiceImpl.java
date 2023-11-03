@@ -662,6 +662,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         String script = dto.getScript();
         Long version = dto.getVersion();
         int logOutputCount = dto.getLogOutputCount();
+        StringJoiner nodeIds = new StringJoiner(",");
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
         String testTaskId = taskDto.getTestTaskId();
@@ -708,6 +709,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
             DAG temp = DAG.build(build);
             taskDtoCopy.setDag(temp);
+            for (Node<?> n : nodes) {
+                nodeIds.add(n.getId());
+            }
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
             final List<String> predIds = new ArrayList<>();
             Node<?> node = dtoDag.getNode(nodeId);
@@ -750,12 +754,15 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
             DAG build = DAG.build(dag);
             taskDtoCopy.setDag(build);
+            for (Node<?> n : nodes) {
+                nodeIds.add(n.getId());
+            }
         }
 
         taskDtoCopy.setName(taskDto.getName() + "(101)");
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
-        return jsType == 1 ? rpcTestRun(testTaskId, taskDtoCopy, logOutputCount, nodeId) : wsTestRun(userDetail, taskDto, taskDtoCopy);
+        return jsType == 1 ? rpcTestRun(testTaskId, taskDtoCopy, logOutputCount, nodeIds.toString()) : wsTestRun(userDetail, taskDto, taskDtoCopy);
     }
 
     private Map<String, Object> rpcTestRun(String testTaskId, TaskDto taskDtoCopy, int logOutputCount, String nodeId){
