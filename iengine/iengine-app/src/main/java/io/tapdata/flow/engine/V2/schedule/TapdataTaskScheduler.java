@@ -8,6 +8,7 @@ import com.tapdata.entity.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.TaskOpRespDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -579,7 +580,10 @@ public class TapdataTaskScheduler {
 			try {
 				try {
 					logger.info("Call {} api to modify task [{}] status", resource, taskClient.getTask().getName());
-					clientMongoOperator.updateById(new Update(), resource, taskId, TaskDto.class);
+					TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), resource, taskId, TaskOpRespDto.class);
+					if(CollectionUtils.isEmpty(taskOpRespDto.getSuccessIds())){
+						return false;
+					}
 				} catch (Exception e) {
 					if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
 						// 违反TM状态机，不再进行修改任务状态的重试
