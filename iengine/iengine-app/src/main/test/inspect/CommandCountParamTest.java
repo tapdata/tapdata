@@ -1,137 +1,109 @@
 package inspect;
 
-import io.tapdata.entity.schema.TapTable;
+import ConnectorNode.ConnectorNodeBase;
 import io.tapdata.inspect.compare.TableRowCountInspectJob;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
-import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class CommandCountParamTest {
+public class CommandCountParamTest extends ConnectorNodeBase {
 
-    private  static ConnectorNode mysqlConnectorNode = null;
-    private  static TapTable myTapTable = null;
-
-    private  static ConnectorNode mongoConnectorNode = null;
-    @Before
-    public void getMysqlConnectorNode() throws NoSuchFieldException, IllegalAccessException {
-        ConnectorNode connectorNode = new ConnectorNode();
-        TapNodeInfo tapNodeInfo = new TapNodeInfo();
-        TapNodeSpecification tapNodeSpecification = new TapNodeSpecification();
-        tapNodeSpecification.setId("mysql");
-        tapNodeInfo.setTapNodeSpecification(tapNodeSpecification);
-        Class clazz = ConnectorNode.class;
-        Class<?> superClass = clazz.getSuperclass();
-        Field field_name = superClass.getDeclaredField("tapNodeInfo");
-        field_name.setAccessible(true);
-        field_name.set(connectorNode, tapNodeInfo);
-        mysqlConnectorNode = connectorNode;
-
-        TapTable table = new TapTable();
-        table.setId("testID");
-        myTapTable = table;
-    }
-
-    @Before
-    public void getMongodbConnectorNode() throws NoSuchFieldException, IllegalAccessException {
-        ConnectorNode connectorNode = new ConnectorNode();
-        TapNodeInfo tapNodeInfo = new TapNodeInfo();
-        TapNodeSpecification tapNodeSpecification = new TapNodeSpecification();
-        tapNodeSpecification.setId("mongodb");
-        tapNodeInfo.setTapNodeSpecification(tapNodeSpecification);
-        Class clazz = ConnectorNode.class;
-        Class<?> superClass = clazz.getSuperclass();
-        Field field_name = superClass.getDeclaredField("tapNodeInfo");
-        field_name.setAccessible(true);
-        field_name.set(connectorNode, tapNodeInfo);
-        mongoConnectorNode = connectorNode;
-    }
 
     /**
-     * 检查替换查询输入语句关系型数据库
-     * select *     from  test  where id>2
+     * 检查替换查询输入语句关系型数据库,查询所有字段
+     * select *  from  test  where id>2
      */
     @Test
-    public void  querySqlTest(){
+    public void queryCountBySelectAll() {
         Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam= new LinkedHashMap<>();
-        customParam.put("sql","select *     from  test  where id>2");
-        customCommand.put("params",customParam);
-        Map<String, Object> copyCustomCommand =  TableRowCountInspectJob.setCommandCountParam(customCommand,mysqlConnectorNode,myTapTable);
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        String querySql = "select *     from";
+        String whereSql = " test  where id>2";
+        customParam.put("sql", querySql + whereSql);
+        customCommand.put("params", customParam);
+        Map<String, Object> copyCustomCommand = TableRowCountInspectJob.setCommandCountParam(customCommand, sqlConnectorNode, myTapTable);
         Map<String, Object> params = (Map<String, Object>) copyCustomCommand.get("params");
         String sql = (String) params.get("sql");
-        Assert.assertTrue(sql.contains("SELECT COUNT(1) FROM"));
-    }
-
-    @Test
-    public void  querySqlTest1(){
-        Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam= new LinkedHashMap<>();
-        customParam.put("sql","select id,name     from  test  where id>2");
-        customCommand.put("params",customParam);
-        Map<String, Object> copyCustomCommand =  TableRowCountInspectJob.setCommandCountParam(customCommand,mysqlConnectorNode,myTapTable);
-        Map<String, Object> params = (Map<String, Object>) copyCustomCommand.get("params");
-        String sql = (String) params.get("sql");
-        Assert.assertTrue(sql.contains("SELECT COUNT(1) FROM"));
+        Assert.assertEquals("SELECT COUNT(1) FROM" + whereSql, sql);
     }
 
     /**
-     * 检查替换查询输入语句关系型数据库
+     * 检查替换查询输入语句关系型数据库查询部分字段
+     * select id,name from  test  where id>2
+     */
+    @Test
+    public void queryCountBySelectPart() {
+        Map<String, Object> customCommand = new LinkedHashMap<>();
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        String querySql = "select id,name     from";
+        String whereSql = "test  where id>2";
+        customParam.put("sql", querySql + whereSql);
+        customCommand.put("params", customParam);
+        Map<String, Object> copyCustomCommand = TableRowCountInspectJob.setCommandCountParam(customCommand, sqlConnectorNode, myTapTable);
+        Map<String, Object> params = (Map<String, Object>) copyCustomCommand.get("params");
+        String sql = (String) params.get("sql");
+        Assert.assertEquals("SELECT COUNT(1) FROM" + whereSql, sql);
+    }
+
+    /**
+     * 检查替换查询输入语句关系型数据库 排序查询
      * select *     from  test  where id>2 order by id desc
      */
     @Test
-    public void  querySqlOrderByTest() {
+    public void queryCountSqlByOrder() {
         Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam= new LinkedHashMap<>();
-        customParam.put("sql","select *     from  test  where id>2 order by id desc");
-        customCommand.put("params",customParam);
-        Map<String, Object> copyCustomCommand =  TableRowCountInspectJob.setCommandCountParam(customCommand,mysqlConnectorNode,myTapTable);
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        String querySql = "select *     from";
+        String whereSql = " test where id>2";
+        String orderSql = " order by id desc";
+        customParam.put("sql", querySql + whereSql + orderSql);
+        customCommand.put("params", customParam);
+        Map<String, Object> copyCustomCommand = TableRowCountInspectJob.setCommandCountParam(customCommand, sqlConnectorNode, myTapTable);
         Map<String, Object> params = (Map<String, Object>) copyCustomCommand.get("params");
         String sql = (String) params.get("sql");
-        Assert.assertTrue(!sql.contains("order by id") && sql.contains("SELECT COUNT(1) FROM"));
+        Assert.assertEquals("SELECT COUNT(1) FROM" + whereSql, sql);
     }
 
 
     /**
-     * 检查替换查询输入语句关系型数据库
-     * select *     from  test  where id>2 order by id desc
+     * 检查替换查询输入语句关系型数据库 聚合查询
+     * select * from  test  where id>2 group by id
      */
     @Test
-    public void  querySqlGroupByTest(){
+    public void queryCountSqlByGroup() {
         Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam= new LinkedHashMap<>();
-        customParam.put("sql","select  id     from  test  where id>2 group by id");
-        customCommand.put("params",customParam);
-        Map<String, Object> copyCustomCommand =  TableRowCountInspectJob.setCommandCountParam(customCommand,mysqlConnectorNode,myTapTable);
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        String querySql = "select *     from";
+        String whereSql = " test where id>2";
+        String orderSql = " group by id";
+        customParam.put("sql", querySql + whereSql + orderSql);
+        customCommand.put("params", customParam);
+        Map<String, Object> copyCustomCommand = TableRowCountInspectJob.setCommandCountParam(customCommand, sqlConnectorNode, myTapTable);
         Map<String, Object> params = (Map<String, Object>) copyCustomCommand.get("params");
         String sql = (String) params.get("sql");
-        Assert.assertTrue(sql.contains("SELECT COUNT(1) FROM"));
+        Assert.assertEquals("SELECT COUNT(1) FROM " + "(" + querySql + whereSql + orderSql + ")", sql);
     }
 
 
-
-
+    /**
+     * 测试mongodb count
+     */
     @Test
-    public void  queryMongoCountTest() {
+    public void queryMongoCountTest() {
         Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam= new LinkedHashMap<>();
-        customCommand.put("command","executeQuery");
-        customParam.put("op","find");
-        customParam.put("filter","{id:2}");
-        customCommand.put("params",customParam);
-        Map<String, Object> copyCustomCommand =  TableRowCountInspectJob.setCommandCountParam(customCommand,mongoConnectorNode,myTapTable);
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        customCommand.put("command", "executeQuery");
+        customParam.put("op", "find");
+        customParam.put("filter", "{id:2}");
+        customCommand.put("params", customParam);
+        Map<String, Object> copyCustomCommand = TableRowCountInspectJob.setCommandCountParam(customCommand, mongoConnectorNode, myTapTable);
         Map<String, Object> params = (Map<String, Object>) copyCustomCommand.get("params");
         String collection = (String) params.get("collection");
         Assert.assertTrue(collection.equals(myTapTable.getId()) &&
                 copyCustomCommand.get("command").equals("count"));
     }
-
 
 
 }
