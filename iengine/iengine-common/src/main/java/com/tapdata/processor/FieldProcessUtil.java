@@ -495,8 +495,12 @@ public class FieldProcessUtil {
 				value = convertNumber(value, s -> new BigDecimal(s).longValue());
 				break;
 			case "DATE":
-				DateTime dateTime = AnyTimeToDateTime.toDateTime(value);
-				value = dateTime.toDate();
+				if (value instanceof String) {
+					value = AnyTimeToDateTime.withDateStr((String) value).toDate();
+				} else {
+					DateTime dateTime = AnyTimeToDateTime.toDateTime(value);
+					value = dateTime.toDate();
+				}
 				break;
 			case "BOOLEAN":
 				if (value instanceof String) {
