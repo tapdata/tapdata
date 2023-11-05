@@ -55,6 +55,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 /**
@@ -73,6 +74,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkShareCDCNode.class);
 	/*private final Map<String, ConstructRingBuffer<Document>> constructMap = new ConcurrentHashMap<>();*/
 	private final Map<String, HazelcastConstruct<Document>> constructMap = new ConcurrentHashMap<>();
+
+	private final ReentrantLock externalStorageTableNameLock = new ReentrantLock();
 	private final AtomicReference<String> constructReferenceId = new AtomicReference<>();
 	private List<LogCollecotrConnConfig> logCollecotrConnConfigs;
 	private Map<String, Map<String, List<Document>>> batchCacheData;
@@ -472,14 +475,20 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				throw new RuntimeException("Share cdc table mapping not found, sign: " + sign);
 			}
 			obsLogger.info("[{}] Found table mapping: {}", TAG, shareCdcTableMappingDto);
-			externalStorageDto.setTable(shareCdcTableMappingDto.getExternalStorageTableName());
-			return new ConstructRingBuffer<>(
-					jetContext.hazelcastInstance(),
-					constructReferenceId.get(),
-					ShareCdcUtil.getConstructName(processorBaseContext.getTaskDto(), fullTableName),
-					externalStorageDto,
-					PersistenceStorage.SequenceMode.HAZELCAST
-			);
+			externalStorageTableNameLock.lock();
+			try{
+				externalStorageDto.setTable(shareCdcTableMappingDto.getExternalStorageTableName());
+				return new ConstructRingBuffer<>(
+						jetContext.hazelcastInstance(),
+						constructReferenceId.get(),
+						ShareCdcUtil.getConstructName(processorBaseContext.getTaskDto(), fullTableName),
+						externalStorageDto,
+						PersistenceStorage.SequenceMode.HAZELCAST
+				);
+			}finally {
+				externalStorageTableNameLock.unlock();
+			}
+
 		});
 	}
 
