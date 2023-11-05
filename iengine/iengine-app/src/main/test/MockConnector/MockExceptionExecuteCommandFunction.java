@@ -13,16 +13,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-public class MockExecuteCommandFunction implements ExecuteCommandFunction {
-
-    protected Object data;
+public class MockExceptionExecuteCommandFunction extends MockExecuteCommandFunction implements ExecuteCommandFunction {
 
 
     @Override
     public void execute(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> consumer) throws Throwable {
+        consumer.accept(new ExecuteResult<>().error((Throwable) data));
     }
 
-    public void setData(Object data) {
-        this.data = data;
-    }
+
 }
