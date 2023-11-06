@@ -29,63 +29,92 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
     /**
      * 检查替换查询输入语句关系型数据库
      * select * from  test  where id>2
+     * test SetCommandQueryParam function
      */
     @Test
-    public void queryListSql() {
+    public void testSetCommandQueryParamQueryListSql() {
+        // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam = new LinkedHashMap<>();
         String querySql = "select *     from";
         String whereSql = " test  where id>2";
-        customParam.put("sql", querySql + whereSql);
-        customCommand.put("params", customParam);
+        CommandCountParamTest.setCustomCommandParam(customCommand, querySql, whereSql, "", "");
+
+       // execution method
         PdkResult.setCommandQueryParam(customCommand, sqlConnectorNode, myTapTable, sortOnList, projection);
+
+        // actual data
         Map<String, Object> params = (Map<String, Object>) customCommand.get("params");
-        String sql = (String) params.get("sql");
+        String actualData = (String) params.get("sql");
+
+        // expected data
         char escapeChar = '"';
         StringBuilder builder = new StringBuilder();
         builder.append("  ORDER BY ");
         builder.append(sortOnList.stream().map(v -> v.toString(String.valueOf(escapeChar))).collect(Collectors.joining(", "))).append(' ');
-        Assert.assertEquals(querySql + whereSql + builder, sql);
+        String expectedData = querySql + whereSql + builder;
+
+        // output results
+        Assert.assertEquals(expectedData, actualData);
     }
 
     /**
      * 检查替换查询输入语句关系型数据库 order by 排序
      * select * from  test  where id>2   order by id desc
+     * test SetCommandQueryParam function
      */
     @Test
-    public void queryListSqlByOrder() {
+    public void testSetCommandQueryParamQueryListSqlByOrder() {
+        // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam = new LinkedHashMap<>();
         String querySql = "select *     from";
         String whereSql = " test  where id>2";
         String orderSql = "  order by id desc";
-        customParam.put("sql", querySql + whereSql + orderSql);
-        customCommand.put("params", customParam);
+        CommandCountParamTest.setCustomCommandParam(customCommand, querySql, whereSql, orderSql, "");
+
+        // execution method
         PdkResult.setCommandQueryParam(customCommand, sqlConnectorNode, myTapTable, sortOnList, projection);
+
+        // actual data
         Map<String, Object> params = (Map<String, Object>) customCommand.get("params");
-        String sql = (String) params.get("sql");
-        Assert.assertEquals(querySql + whereSql + orderSql, sql);
+        String actualData = (String) params.get("sql");
+
+        // expected data
+        String expectedData =querySql + whereSql + orderSql;
+
+        // output results
+        Assert.assertEquals(expectedData, actualData);
     }
 
 
     /**
      * 查询mongodb数据库
      * select * from  test  where id>2   order by id desc
+     * test SetCommandQueryParam function
      */
     @Test
-    public void queryMongoQueryTest() {
+    public void testSetCommandQueryParamQueryMongoQueryTest() {
+        // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
         Map<String, Object> customParam = new LinkedHashMap<>();
         customCommand.put("command", "executeQuery");
         customParam.put("op", "find");
         customParam.put("filter", "{id:2}");
         customCommand.put("params", customParam);
+
+        // execution method
         PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, sortOnList, projection);
+
+        // actual data
         Map<String, Object> params = (Map<String, Object>) customCommand.get("params");
-        String collection = (String) params.get("collection");
-        Map<String, Object> sortMap = (Map<String, Object>) params.get("sort");
-        Assert.assertEquals(myTapTable.getId(), collection);
-        Assert.assertTrue(sortMap.containsKey("id"));
+        String actualCollection = (String) params.get("collection");
+        Map<String, Object> actualSortMap = (Map<String, Object>) params.get("sort");
+
+        // expected data
+        String expectedCollection = myTapTable.getId();
+
+        // output results
+        Assert.assertEquals(expectedCollection, actualCollection);
+        Assert.assertTrue(actualSortMap.containsKey("id"));
     }
 
 }
