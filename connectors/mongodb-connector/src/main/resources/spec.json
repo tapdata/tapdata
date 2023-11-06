@@ -313,26 +313,6 @@
             }
           }, "x-index": 2
         },
-        "enableFillingModifiedData": {
-          "title": "${FillingModifiedData}",
-          "type": "boolean",
-          "x-decorator": "FormItem",
-          "x-component": "Switch",
-          "x-decorator-props": {
-            "layout": "horizontal"
-          },
-          "default": true,
-          "x-reactions": {
-            "dependencies": [
-              "$inputs"
-            ],
-            "fulfill": {
-              "state": {
-                "visible": "{{!$deps[0].length}}"
-              }
-            }
-          }, "x-index": 3
-        },
         "noCursorTimeout": {
           "title": "${noCursorTimeout}",
           "type": "boolean",
@@ -349,6 +329,26 @@
             "fulfill": {
               "state": {
                 "visible": "{{$deps[0].length>0}}"
+              }
+            }
+          }, "x-index": 3
+        },
+        "enableFillingModifiedData": {
+          "title": "${FillingModifiedData}",
+          "type": "boolean",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-decorator-props": {
+            "layout": "horizontal"
+          },
+          "default": true,
+          "x-reactions": {
+            "dependencies": [
+              "$inputs"
+            ],
+            "fulfill": {
+              "state": {
+                "visible": "{{!$deps[0].length}}"
               }
             }
           }, "x-index": 4
