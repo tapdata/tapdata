@@ -22,11 +22,7 @@ public class ConnectorNodeBase {
         TapNodeSpecification tapNodeSpecification = new TapNodeSpecification();
         tapNodeSpecification.setId("mysql");
         tapNodeInfo.setTapNodeSpecification(tapNodeSpecification);
-        Class clazz = ConnectorNode.class;
-        Class<?> superClass = clazz.getSuperclass();
-        Field field_name = superClass.getDeclaredField("tapNodeInfo");
-        field_name.setAccessible(true);
-        field_name.set(connectorNode, tapNodeInfo);
+        invokeValueForFiled(ConnectorNode.class,"tapNodeInfo",connectorNode,tapNodeInfo,true);
         sqlConnectorNode = connectorNode;
 
         TapTable table = new TapTable();
@@ -42,11 +38,20 @@ public class ConnectorNodeBase {
         TapNodeSpecification tapNodeSpecification = new TapNodeSpecification();
         tapNodeSpecification.setId("mongodb");
         tapNodeInfo.setTapNodeSpecification(tapNodeSpecification);
-        Class clazz = ConnectorNode.class;
-        Class<?> superClass = clazz.getSuperclass();
-        Field field_name = superClass.getDeclaredField("tapNodeInfo");
-        field_name.setAccessible(true);
-        field_name.set(connectorNode, tapNodeInfo);
+        invokeValueForFiled(ConnectorNode.class,"tapNodeInfo",connectorNode,tapNodeInfo,true);
         mongoConnectorNode = connectorNode;
+    }
+
+
+    public void invokeValueForFiled(Class clazz, String filedName, ConnectorNode connectorNode, Object object, boolean superClass) throws NoSuchFieldException, IllegalAccessException {
+        Class<?> superClassTemp;
+        if (superClass) {
+            superClassTemp = clazz.getSuperclass();
+        } else {
+            superClassTemp = clazz;
+        }
+        Field field_name = superClassTemp.getDeclaredField(filedName);
+        field_name.setAccessible(true);
+        field_name.set(connectorNode, object);
     }
 }

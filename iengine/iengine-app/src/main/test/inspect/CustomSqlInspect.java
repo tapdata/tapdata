@@ -21,7 +21,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.lang.reflect.Field;
 import java.sql.SQLException;
 import java.sql.SQLSyntaxErrorException;
 import java.util.*;
@@ -29,15 +28,13 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 public class CustomSqlInspect extends ConnectorNodeBase {
 
-
+    public final String querySql = "select *  from  test  where id>2";
 
     public void initConnectorNode(ExecuteCommandFunction ExecuteCommandFunction) throws IllegalAccessException, NoSuchFieldException {
-        Class clazz = ConnectorNode.class;
         ConnectorFunctions connectorFunction = new ConnectorFunctions();
         connectorFunction.supportExecuteCommandFunction(ExecuteCommandFunction);
-        Field connectorFunctions = clazz.getDeclaredField("connectorFunctions");
-        connectorFunctions.setAccessible(true);
-        connectorFunctions.set(sqlConnectorNode, connectorFunction);
+        invokeValueForFiled(ConnectorNode.class,"connectorFunctions",sqlConnectorNode,connectorFunction,false);
+
 
         TapNodeSpecification specification = sqlConnectorNode.getTapNodeInfo().getTapNodeSpecification();
         TapConnectorContext connectorContext = new TapConnectorContext(specification,
@@ -45,195 +42,224 @@ public class CustomSqlInspect extends ConnectorNodeBase {
         TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("test", myTapTable);
         PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
         connectorContext.setTableMap(pdkTableMap);
+        invokeValueForFiled(ConnectorNode.class,"connectorContext",sqlConnectorNode,connectorContext,false);
 
-        Field connector = clazz.getDeclaredField("connectorContext");
-        connector.setAccessible(true);
-        connector.set(sqlConnectorNode, connectorContext);
     }
 
 
     /**
-     * mysql count正确返回值
+     * 检查关系型数据库count返回
+     * select *  from  test  where id>2
+     * test executeCommand function
      */
     @Test
-    public void customCountNormalQuery() throws NoSuchFieldException, IllegalAccessException {
-        Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam = new LinkedHashMap<>();
-        customParam.put("sql", "select *     from  test  where id>2");
-        customCommand.put("params", customParam);
-        customCommand.put("command", "executeQuery");
-        TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
-                .command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params"));
+    public void testExecuteCommandQueryCountNormal() throws NoSuchFieldException, IllegalAccessException {
+        // input param
+        TapExecuteCommand tapExecuteCommand =
+                CommandCountParamTest.setCustomCommandParam(new LinkedHashMap<>(), querySql, "", "", "");
 
+        // input query data
         MockExecuteCommandFunction executeCommandFunction = new MockCountNormalExecuteCommandFunction();
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("COUNT(1)", 100);
         List<Map<String, Object>> listData = new ArrayList<>();
         listData.add(map);
-        executeCommandFunction.setData(listData);
-        initConnectorNode(executeCommandFunction);
+        handleMockExecuteCommandFunction(executeCommandFunction, listData, null, false);
 
+
+        // execution method
         List<Map<String, Object>> list =
                 TableRowCountInspectJob.executeCommand(executeCommandFunction, tapExecuteCommand, sqlConnectorNode);
-        long count = list.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
-        Assert.assertEquals(100, count);
+
+        // actual data
+        long actualData = list.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
+
+        // expected data
+        long expectedData = 100;
+
+        // output results
+        Assert.assertEquals(expectedData, actualData);
     }
 
 
     /**
-     * 查询count返回值为instanceof 为long mongodb
+     * 查询count返回值为instanceof 为long mongodb会返回long
+     * select *  from  test  where id>2
+     * test executeCommand function
      */
     @Test
-    public void customCountNormalLongQuery() throws NoSuchFieldException, IllegalAccessException {
-        Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam = new LinkedHashMap<>();
-        customParam.put("sql", "select *     from  test  where id>2");
-        customCommand.put("params", customParam);
-        customCommand.put("command", "executeQuery");
-        TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
-                .command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params"));
+    public void testExecuteCommandQueryCountLongQuery() throws NoSuchFieldException, IllegalAccessException {
+        // input param
+        TapExecuteCommand tapExecuteCommand =
+                CommandCountParamTest.setCustomCommandParam(new LinkedHashMap<>(), querySql, "", "", "");
 
+        // input query data
         MockExecuteCommandFunction executeCommandFunction = new MockCountNormalLongExecuteCommandFunction();
-        Long countData = 100L;
-        executeCommandFunction.setData(countData);
-        initConnectorNode(executeCommandFunction);
+        handleMockExecuteCommandFunction(executeCommandFunction, 100L, null, false);
 
+        // execution method
         List<Map<String, Object>> list =
                 TableRowCountInspectJob.executeCommand(executeCommandFunction, tapExecuteCommand, sqlConnectorNode);
-        long count = list.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
-        Assert.assertEquals(100, count);
+        // actual data
+        long actualData = list.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
+
+        // expected data
+        long expectedData = 100;
+
+        // output results
+        Assert.assertEquals(expectedData, actualData);
     }
 
     /**
-     * 查询count为null
+     * 查询count返回值为null
+     * select *  from  test  where id>2
+     * test executeCommand function
      */
     @Test
-    public void CustomCountResultNullQuery() throws NoSuchFieldException, IllegalAccessException {
-        Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam = new LinkedHashMap<>();
-        customParam.put("sql", "select *     from  test  where id>2");
-        customCommand.put("params", customParam);
-        customCommand.put("command", "executeQuery");
-        TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
-                .command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params"));
+    public void testExecuteCommandQueryCountResultNull() throws NoSuchFieldException, IllegalAccessException {
+        // input param
+        TapExecuteCommand tapExecuteCommand =
+                CommandCountParamTest.setCustomCommandParam(new LinkedHashMap<>(), querySql, "", "", "");
 
+
+        // input query data
         MockExecuteCommandFunction executeCommandFunction = new MockCountResultNullExecuteCommandFunction();
-        executeCommandFunction.setData(null);
-        initConnectorNode(executeCommandFunction);
+        handleMockExecuteCommandFunction(executeCommandFunction, null, null, false);
 
+        // execution method
         List<Map<String, Object>> list =
                 TableRowCountInspectJob.executeCommand(executeCommandFunction, tapExecuteCommand, sqlConnectorNode);
+
+        // output results
         Assert.assertTrue(CollectionUtils.isEmpty(list));
     }
 
     /**
-     * 查询count异常
+     * 查询count抛异常
+     * select *  from  test  where id>2
+     * test executeCommand function
      */
-    @Test(expected = TapPdkRunnerUnknownException.class)
-    public void CustomCountResultException() throws NoSuchFieldException, IllegalAccessException {
-        Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam = new LinkedHashMap<>();
-        customParam.put("sql", "select *     from  test  where id>2");
-        customCommand.put("params", customParam);
-        customCommand.put("command", "executeQuery");
-        TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
-                .command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params"));
+    @Test
+    public void testExecuteCommandQueryCountException() throws NoSuchFieldException, IllegalAccessException {
+        // input param
+        TapExecuteCommand tapExecuteCommand =
+                CommandCountParamTest.setCustomCommandParam(new LinkedHashMap<>(), querySql, "", "", "");
 
+        // input query data
         MockExecuteCommandFunction executeCommandFunction = new MockExceptionExecuteCommandFunction();
         SQLException sqlException = new SQLSyntaxErrorException("Table 'mydb.test' doesn't exist",
                 "42S02", 1146);
-        executeCommandFunction.setData(sqlException);
-        initConnectorNode(executeCommandFunction);
+        handleMockExecuteCommandFunction(new MockExceptionExecuteCommandFunction(), sqlException, null, false);
 
-        List<Map<String, Object>> list =
-                TableRowCountInspectJob.executeCommand(executeCommandFunction, tapExecuteCommand, sqlConnectorNode);
+        // execution method
+        try {
+            // execution method
+            TableRowCountInspectJob.executeCommand(executeCommandFunction, tapExecuteCommand, sqlConnectorNode);
+        }catch (Exception e){
+            Assert.assertTrue(e instanceof TapPdkRunnerUnknownException);
+        }
     }
 
 
     /**
-     * 查询list正常返回值
+     * 查询llist数据集合正常返回
+     * select *  from  test  where id>2
+     * test executeQueryCommand function
      */
     @Test
-    public void customAndQueryListNormal() throws NoSuchFieldException, IllegalAccessException {
+    public void testExecuteQueryCommandQueryListNormal() throws NoSuchFieldException, IllegalAccessException {
+        // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam = new LinkedHashMap<>();
-        customParam.put("sql", "select *     from  test  where id>2");
-        customCommand.put("params", customParam);
-        customCommand.put("command", "executeQuery");
-        MockExecuteCommandFunction executeCommandFunction = new MockListNormalExecuteCommandFunction();
+        TapExecuteCommand tapExecuteCommand =
+                CommandCountParamTest.setCustomCommandParam(customCommand, querySql, "", "", "");
 
+        // input query data
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("id", "100");
         List<Map<String, Object>> list = new ArrayList<>();
         list.add(map);
-        executeCommandFunction.setData(list);
-        initConnectorNode(executeCommandFunction);
+        PdkResult pdkResult = handleMockExecuteCommandFunction(new MockListNormalExecuteCommandFunction(), list, customCommand, true);
 
-        PdkResult pdkResult = new PdkResult(new ArrayList<>(), new Connections(), myTapTable.getId(),
-                new HashSet<>(), sqlConnectorNode, true, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                true, customCommand);
-        TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
-                .command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params"));
+        // execution method
         pdkResult.executeQueryCommand(tapExecuteCommand);
+
+        // actual data
         LinkedBlockingQueue<Map<String, Object>> linkedBlockingQueue = pdkResult.getQueue();
-        Map<String, Object> mapData = linkedBlockingQueue.poll();
-        Assert.assertEquals(mapData.get("id").toString(), "100");
+        Map<String, Object> actualData = linkedBlockingQueue.poll();
+
+        // expected data
+        String expectedData = "100";
+
+        // output results
+        assert actualData != null;
+        Assert.assertEquals(expectedData, actualData.get("id"));
 
     }
 
 
     /**
-     * 查询list为空
+     * 查询llist数据集合返回为空
+     * select *  from  test  where id>2
+     * test executeQueryCommand function
      */
     @Test
-    public void customAndQueryListEmpty() throws NoSuchFieldException, IllegalAccessException {
+    public void testExecuteQueryCommandQueryListEmpty() throws NoSuchFieldException, IllegalAccessException {
+        // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam = new LinkedHashMap<>();
-        customParam.put("sql", "select *     from  test  where id>2");
-        customCommand.put("params", customParam);
-        customCommand.put("command", "executeQuery");
+        TapExecuteCommand tapExecuteCommand =
+                CommandCountParamTest.setCustomCommandParam(customCommand, querySql, "", "", "");
+
+        // input query data
+        PdkResult pdkResult = handleMockExecuteCommandFunction(new MockListNormalExecuteCommandFunction(), new ArrayList<>(), customCommand, true);
 
 
-        MockExecuteCommandFunction executeCommandFunction = new MockListNormalExecuteCommandFunction();
-        List<Map<String, Object>> list = new ArrayList<>();
-        executeCommandFunction.setData(list);
-        initConnectorNode(executeCommandFunction);
-
-        PdkResult pdkResult = new PdkResult(new ArrayList<>(), new Connections(), myTapTable.getId(),
-                new HashSet<>(), sqlConnectorNode, true, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                true, customCommand);
-        TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
-                .command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params"));
+        // execution method
         pdkResult.executeQueryCommand(tapExecuteCommand);
-        LinkedBlockingQueue<Map<String, Object>> linkedBlockingQueue = pdkResult.getQueue();
-        Assert.assertTrue(linkedBlockingQueue.isEmpty());
+
+        // actual data
+        LinkedBlockingQueue<Map<String, Object>> ActualLinkedBlockingQueue = pdkResult.getQueue();
+
+        // output results
+        Assert.assertTrue(ActualLinkedBlockingQueue.isEmpty());
     }
 
 
     /**
-     * 查询list异常
+     * 查询list数据集合返回异常
+     * select *  from  test  where id>2
+     * test executeQueryCommand function
      */
-    @Test(expected = TapPdkRunnerUnknownException.class)
-    public void customAndQueryListException() throws NoSuchFieldException, IllegalAccessException {
+    @Test
+    public void testExecuteQueryCommandQueryListException() throws NoSuchFieldException, IllegalAccessException {
+        // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam = new LinkedHashMap<>();
-        customParam.put("sql", "select *     from  test  where id>2");
-        customCommand.put("params", customParam);
-        customCommand.put("command", "executeQuery");
+        TapExecuteCommand tapExecuteCommand =
+                CommandCountParamTest.setCustomCommandParam(customCommand, querySql, "", "", "");
 
-        MockExecuteCommandFunction executeCommandFunction = new MockExceptionExecuteCommandFunction();
-        SQLException sqlException = new SQLSyntaxErrorException("Table 'mydb.test' doesn't exist",
+        // input query data
+        SQLException sqlException = new SQLSyntaxErrorException("Table 'mydb.test1' doesn't exist",
                 "42S02", 1146);
-        executeCommandFunction.setData(sqlException);
+        PdkResult pdkResult = handleMockExecuteCommandFunction(new MockExceptionExecuteCommandFunction(), sqlException, customCommand, true);
+
+        try {
+            // execution method
+            pdkResult.executeQueryCommand(tapExecuteCommand);
+        }catch (Exception e){
+            Assert.assertTrue(e instanceof TapPdkRunnerUnknownException);
+        }
+    }
+
+
+    public PdkResult handleMockExecuteCommandFunction(MockExecuteCommandFunction executeCommandFunction, Object data, Map<String, Object> customCommand, boolean init) throws NoSuchFieldException, IllegalAccessException {
+        executeCommandFunction.setData(data);
         initConnectorNode(executeCommandFunction);
-
-
-        PdkResult pdkResult = new PdkResult(new ArrayList<>(), new Connections(), myTapTable.getId(),
-                new HashSet<>(), sqlConnectorNode, true, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                true, customCommand);
-        TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
-                .command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params"));
-        pdkResult.executeQueryCommand(tapExecuteCommand);
+        PdkResult pdkResult = null;
+        if (init) {
+            pdkResult = new PdkResult(new ArrayList<>(), new Connections(), myTapTable.getId(),
+                    new HashSet<>(), sqlConnectorNode, true, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                    true, customCommand);
+        }
+        return pdkResult;
     }
 
 
