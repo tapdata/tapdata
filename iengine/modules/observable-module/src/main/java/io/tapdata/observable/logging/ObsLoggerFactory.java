@@ -180,6 +180,17 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 		}
 	}
 
+	public void removeTaskLogger(TaskDto task) {
+		String taskId = task.getId().toHexString();
+		removeTaskLoggerClearMark(task);
+		synchronized (taskLoggersMap) {
+			taskLoggersMap.computeIfPresent(taskId, (s, markTimes) -> {
+				logger.info("Clear mark with start task, task id: {}", taskId);
+				return null;
+			});
+		}
+	}
+
 	public void removeTaskLogger() {
 		Thread.currentThread().setName("Remove-Task-Logger-Scheduler");
 		synchronized (loggerToBeRemoved) {
