@@ -37,6 +37,7 @@ import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
@@ -51,6 +52,8 @@ import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.filter.FilterUtil;
+import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryContext;
@@ -65,11 +68,15 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.schema.TapTableMap;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
@@ -117,6 +124,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected SnapshotProgressManager snapshotProgressManager;
 	protected int sourceQueueCapacity;
 	protected int originalSourceQueueCapacity;
+	private TargetTableDataEventFilter tapEventFilter;
+
 	/**
 	 * This is added as an async control center because pdk and jet have two different thread model. pdk thread is
 	 * blocked when reading data from data source while jet using async when passing the event to next node.
@@ -153,6 +162,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		} else {
 			this.cdcDelayCalculation = new CdcDelayDisable();
 		}
+		this.tapEventFilter = TargetTableDataEventFilter.create();
 	}
 
 	private boolean needCdcDelay() {
@@ -194,10 +204,47 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initSourceEventQueue();
 			initSyncProgress();
 			initDDLFilter();
+			initTapEventFilter();
 			initTableMonitor();
 			initDynamicAdjustMemory();
 			initAndStartSourceRunner();
 		});
+	}
+
+	private void initTapEventFilter() {
+		if (null == processorBaseContext) {
+			throw new CoreException("ProcessorBaseContext can not be empty");
+		}
+		TaskDto taskDto = processorBaseContext.getTaskDto();
+		if (null == taskDto) {
+			throw new CoreException("TaskDto can not be empty");
+		}
+		if (Boolean.TRUE.equals(processorBaseContext.getTaskDto().getNeedFilterEventData())) {
+			TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
+			if (null == tapTableMap) {
+				throw new CoreException("TapTableMap can not be empty");
+			}
+			tapEventFilter.addHandler(event -> {
+				TapEvent e = event.getTapEvent();
+				try {
+					if (e instanceof TapRecordEvent) {
+						String tableId = TapEventUtil.getTableId(e);
+						TapTable tapTable = null;
+						try {
+							tapTable = tapTableMap.get(tableId);
+						} catch (Exception exception) {
+							obsLogger.warn("Can not get table from TapTableMap, table name is: {}, error message: {}", tableId, exception.getMessage());
+							return event;
+						}
+						FilterUtil.filterEventData(tapTable, e);
+					}
+				} catch (Exception exception) {
+					throw new  CoreException("Fail to automatically block new fields, message: {}", exception.getMessage(), exception.getCause());
+				}
+				return event;
+			});
+			obsLogger.info("Before the event is output to the target from source, it will automatically block field changes");
+		}
 	}
 
 	@Override
@@ -1008,7 +1055,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 
 			while (isRunning()) {
-				if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
+				TapdataEvent event = this.tapEventFilter.handle(tapdataEvent);
+				if (eventQueue.offer(event, 3, TimeUnit.SECONDS)) {
 					break;
 				}
 			}
