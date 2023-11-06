@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.hazelcast.persistence.PersistenceStorage;
 import com.hazelcast.ringbuffer.Ringbuffer;
+import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.TapdataEvent;
@@ -11,6 +12,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.shareCdcTableMapping.ShareCdcTableMappingDto;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
@@ -48,6 +50,7 @@ import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -75,7 +78,6 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	/*private final Map<String, ConstructRingBuffer<Document>> constructMap = new ConcurrentHashMap<>();*/
 	private final Map<String, HazelcastConstruct<Document>> constructMap = new ConcurrentHashMap<>();
 
-	private final ReentrantLock externalStorageTableNameLock = new ReentrantLock();
 	private final AtomicReference<String> constructReferenceId = new AtomicReference<>();
 	private List<LogCollecotrConnConfig> logCollecotrConnConfigs;
 	private Map<String, Map<String, List<Document>>> batchCacheData;
@@ -475,20 +477,16 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				throw new RuntimeException("Share cdc table mapping not found, sign: " + sign);
 			}
 			obsLogger.info("[{}] Found table mapping: {}", TAG, shareCdcTableMappingDto);
-			externalStorageTableNameLock.lock();
-			try{
-				externalStorageDto.setTable(shareCdcTableMappingDto.getExternalStorageTableName());
-				return new ConstructRingBuffer<>(
-						jetContext.hazelcastInstance(),
-						constructReferenceId.get(),
-						ShareCdcUtil.getConstructName(processorBaseContext.getTaskDto(), fullTableName),
-						externalStorageDto,
-						PersistenceStorage.SequenceMode.HAZELCAST
-				);
-			}finally {
-				externalStorageTableNameLock.unlock();
-			}
-
+			ExternalStorageDto constructExternalStorageDto = new ExternalStorageDto();
+			BeanUtils.copyProperties(externalStorageDto, constructExternalStorageDto);
+			constructExternalStorageDto.setTable(shareCdcTableMappingDto.getExternalStorageTableName());
+			return new ConstructRingBuffer<>(
+					jetContext.hazelcastInstance(),
+					constructReferenceId.get(),
+					ShareCdcUtil.getConstructName(processorBaseContext.getTaskDto(), fullTableName),
+					constructExternalStorageDto,
+					PersistenceStorage.SequenceMode.HAZELCAST
+			);
 		});
 	}
 
