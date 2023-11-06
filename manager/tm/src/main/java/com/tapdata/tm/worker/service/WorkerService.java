@@ -395,6 +395,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 calculationEngineVo.setAvailable(availableNum);
                 calculationEngineVo.setTaskLimit(taskLimit);
                 calculationEngineVo.setRunningNum(runningNum);
+                calculationEngineVo.setTotalLimit(taskLimit);
                 return calculationEngineVo;
             }
         }
