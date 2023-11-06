@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.tapdata.tm.commons.dag.check.DAGCheckUtil;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
@@ -141,22 +142,38 @@ public class DAG implements Serializable, Cloneable {
      * @return
      */
     public static DAG build(Dag taskDag) {
+        return ignoreDisabledNode(taskDag, false);
+    }
+
+    /**
+     * 根据 Dag实体 列表构建 DAG
+     * @see Dag
+     * @param beforeDAG
+     * @param ignore 是否将已禁用的节点不加入DAG中
+     * @return DAG
+     */
+    private static DAG ignoreDisabledNode(Dag beforeDAG, boolean ignore) {
         Graph<Node, Edge> graph = new Graph<>();
         DAG dag = new DAG(graph);
 
-        List<Edge> edges = taskDag.getEdges();
+        List<Edge> edges = beforeDAG.getEdges();
         ConcurrentHashMap<String, String> edgeMap = new ConcurrentHashMap<>();
+        List<Node> nodes = beforeDAG.getNodes();
+        Set<String> nodeIds = ignore ? new HashSet<>() : null;
+        if (ignore && CollectionUtils.isNotEmpty(nodes)) {
+            nodes = filterDisabledNode(nodes, nodeIds);
+        }
         if (CollectionUtils.isNotEmpty(edges)) {
             for (Edge edge : edges) {
-                graph.setEdge(edge.getSource(), edge.getTarget(), edge);
-
-                edgeMap.put(edge.getTarget(), edge.getSource());
+                String from = edge.getSource();
+                String target = edge.getTarget();
+                if (ignore && (!nodeIds.contains(from) || !nodeIds.contains(target))) continue;
+                graph.setEdge(from, target, edge);
+                edgeMap.put(target, from);
                 edge.setDag(dag);
                 edge.setGraph(graph);
             }
         }
-
-        List<Node> nodes = taskDag.getNodes();
         if (CollectionUtils.isNotEmpty(nodes)) {
             List<String> tableNamesList = Lists.newArrayList();
             Set<String> targetIdList = graph.getSinks();
@@ -168,8 +185,7 @@ public class DAG implements Serializable, Cloneable {
 
             ArrayList<String> objectNames = Lists.newArrayList(tableNamesList);
             LinkedHashMap<String, String> tableNameRelation = Maps.newLinkedHashMap();
-
-            LinkedList<Node> nodeLists = parseLinkedNode(taskDag);
+            LinkedList<Node> nodeLists = parseLinkedNode(beforeDAG);
 
             if (CollectionUtils.isNotEmpty(nodeLists)) {
                 Map<String, TableRenameTableInfo> originalMap = new LinkedHashMap<>();
@@ -223,6 +239,19 @@ public class DAG implements Serializable, Cloneable {
         return dag;
     }
 
+    private static List<Node> filterDisabledNode(List<Node> nodes, Set<String> nodeIds) {
+        return nodes.stream().filter(next -> {
+            Map<String, Object> attrs = next.getAttrs();
+            if (null != attrs && !attrs.isEmpty()) {
+                Object disable = attrs.get("disabled");
+                return !((disable instanceof Boolean) && (Boolean)disable);
+            }
+            return true;
+        }).filter(next -> {
+            nodeIds.add(next.getId());
+            return true;
+        }).collect(Collectors.toList());
+    }
 
     public static LinkedList<Node> parseLinkedNode(Dag dag) {
         List<Edge> edges = dag.getEdges();
@@ -638,14 +667,16 @@ public class DAG implements Serializable, Cloneable {
     public Map<String, List<Message>> validate() {
         Map<String, List<Message>> messages = new HashMap<>();
 
+        //检查DAG前去除被disabled的节点
+        DAG ignoreDisabledDAG = ignoreDisabledNode(this.toDag(), true);
         //校验dag
-        Map<String, List<Message>> checkDagMessage = checkDag();
+        Map<String, List<Message>> checkDagMessage = ignoreDisabledDAG.checkDag();
         if (!checkDagMessage.isEmpty()) {
             return checkDagMessage;
         }
 
-        graph.getNodes().forEach(nodeId -> {
-            Node node = graph.getNode(nodeId);
+        ignoreDisabledDAG.graph.getNodes().forEach(nodeId -> {
+            Node node = ignoreDisabledDAG.graph.getNode(nodeId);
             boolean result = node.validate();
             if (!result) {
                 messages.put(nodeId, node.getMessages());
@@ -856,6 +887,11 @@ public class DAG implements Serializable, Cloneable {
                 message.setCode("DAG.NodeIsolated");
                 message.setMsg("this node not connect other, name = " + node.getName());
                 messageList.add(message);
+            }
+
+            //检查Join节点
+            if (node instanceof JoinProcessorNode) {
+                DAGCheckUtil.checkJoinNode((JoinProcessorNode) node, this.getEdges(), messageList);
             }
         }
 
@@ -1161,7 +1197,6 @@ public class DAG implements Serializable, Cloneable {
         String json = JsonUtil.toJsonUseJackson(dag);
         Dag dag1 = JsonUtil.parseJsonUseJackson(json, new TypeReference<Dag>() {
         });
-
         return DAG.build(dag1);
     }
 }

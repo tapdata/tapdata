@@ -115,6 +115,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -289,6 +290,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				ObsLoggerFactory.getInstance().getObsLogger(taskDtoAtomicReference.get()).warn(e.getMessage());
 			}
 
+			AtomicBoolean needFilterEvent = new AtomicBoolean(true);
 			for (Node node : nodes) {
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
@@ -334,8 +336,10 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				TapTableMap<String, TapTable> finalTapTableMap = tapTableMap;
 				Vertex vertex = new Vertex(NodeUtil.getVertexName(node), () -> {
 					try {
-						return createNode(
-								taskDtoAtomicReference.get(),
+						TaskDto dto = taskDtoAtomicReference.get();
+						dto.setNeedFilterEventData(needFilterEvent.get());
+						HazelcastBaseNode hazelcastBaseNode = createNode(
+								dto,
 								nodes,
 								edges,
 								node,
@@ -348,6 +352,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								finalTapTableMap,
 								taskConfig
 						);
+						return hazelcastBaseNode;
 					} catch (Exception e) {
 						throw new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED,
 								String.format("Failed to create processor based on node information, node: %s[%s], error msg: %s", node.getName(), node.getId(), e.getMessage()), e);
@@ -357,12 +362,21 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 				vertex.localParallelism(1);
 				dag.vertex(vertex);
+				this.singleTaskFilterEventDataIfNeed(connection, needFilterEvent);
 			}
 
 			handleEdge(dag, edges, nodeMap, vertexMap);
 		}
 
 		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
+	}
+
+	private void singleTaskFilterEventDataIfNeed(Connections conn, AtomicBoolean needFilterEvent) {
+		if (null == conn || null == needFilterEvent) return;
+		List<String> tags = conn.getDefinitionTags();
+		if (Boolean.TRUE.equals(needFilterEvent.get())) {
+			needFilterEvent.set(null == tags || !tags.contains("schema-free"));
+		}
 	}
 
 	private static void initSnapshotOrder(AtomicReference<TaskDto> taskDtoAtomicReference) {
@@ -605,6 +619,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 						ProcessorBaseContext.newBuilder()
 								.withTaskDto(taskDto)
 								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
 								.withNodeSchemas(nodeSchemas)
 								.withTapTableMap(tapTableMap)
 								.withTaskConfig(taskConfig)
