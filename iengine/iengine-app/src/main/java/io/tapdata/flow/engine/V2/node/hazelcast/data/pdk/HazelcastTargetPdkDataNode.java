@@ -702,7 +702,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 														return null;
 													}));
 											if (!pdkMethodInvoker.isEnableSkipErrorEvent()) {
-												writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
+												try {
+													writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
+												} catch (Exception e) {
+													obsLogger.warn("Write record failed with tableName: {}", tapTable.getId());
+													throw e;
+												}
 											}
 										}
 								)
