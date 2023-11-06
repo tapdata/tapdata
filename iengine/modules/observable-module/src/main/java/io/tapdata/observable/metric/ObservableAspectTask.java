@@ -507,7 +507,7 @@ public class ObservableAspectTask extends AspectTask {
 
 		switch (aspect.getState()) {
 			case ProcessorNodeProcessAspect.STATE_START:
-				HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapdataEvent(Collections.singletonList(aspect.getInputEvent()));
+				HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapdataEvent(aspect.getInputEvents());
 				Optional.ofNullable(processorNodeSampleHandlers.get(nodeId)).ifPresent(
 						handler -> handler.handleProcessStart(recorder)
 				);
