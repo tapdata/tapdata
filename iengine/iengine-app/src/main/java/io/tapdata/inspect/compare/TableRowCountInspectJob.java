@@ -227,19 +227,24 @@ public class TableRowCountInspectJob extends InspectJob {
 	}
 
 
-	public static Map<String, Object> setCommandCountParam(Map<String, Object> customCommand,ConnectorNode node,TapTable tgtTable) {
+	public static Map<String, Object> setCommandCountParam(Map<String, Object> customCommand, ConnectorNode node, TapTable tgtTable) {
 		Map<String, Object> copyCustomCommand = new LinkedHashMap<>();
-		com.tapdata.constant.MapUtil.copyToNewMap(customCommand,copyCustomCommand);
-		Map<String, Object> params = (Map<String, Object>) copyCustomCommand.get("params");
-		if(!node.getTapNodeInfo().getTapNodeSpecification().getId().contains("mongodb")) {
-			Object value = params.get("sql");
-			if (value != null) {
-				String sql = getCountSql(value.toString());
-				params.put("sql", sql);
+		try {
+			com.tapdata.constant.MapUtil.copyToNewMap(customCommand, copyCustomCommand);
+			Map<String, Object> params = (Map<String, Object>) copyCustomCommand.get("params");
+			if (!node.getTapNodeInfo().getTapNodeSpecification().getId().contains("mongodb")) {
+				Object value = params.get("sql");
+				if (value != null) {
+					String sql = getCountSql(value.toString());
+					params.put("sql", sql);
+				}
+			} else {
+				copyCustomCommand.put("command", "count");
+				params.put("collection", tgtTable.getId());
 			}
-		}else {
-			copyCustomCommand.put("command","count");
-			params.put("collection",tgtTable.getId());
+		} catch (Exception e) {
+			throw new RuntimeException("setCommandCountParam error: " + e.getMessage()
+					+ " customCommand : " + customCommand);
 		}
 		return copyCustomCommand;
 	}

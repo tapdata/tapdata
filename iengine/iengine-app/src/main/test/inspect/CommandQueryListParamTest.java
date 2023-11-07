@@ -1,114 +1,198 @@
 package inspect;
 
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.inspect.compare.PdkResult;
-import io.tapdata.inspect.compare.TableRowCountInspectJob;
 import io.tapdata.pdk.apis.entity.Projection;
 import io.tapdata.pdk.apis.entity.SortOn;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
-import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-public class CommandQueryListParamTest {
+public class CommandQueryListParamTest extends ConnectorNodeBase {
+    private List<SortOn> sortOnList = new LinkedList<>();
 
-    private  static ConnectorNode mysqlConnectorNode = null;
-    private  static TapTable myTapTable = null;
-    private  List<SortOn> sortOnList = new LinkedList<>();
+    private static Projection projection = null;
 
-    private  static ConnectorNode mongoConnectorNode = null;
-
-    private static Projection projection =null;
+    @Rule
+    public ExpectedException exception = ExpectedException.none();
 
 
     @Before
-    public void getMysqlConnectorNode() throws NoSuchFieldException, IllegalAccessException, InstantiationException {
-        ConnectorNode connectorNode = new ConnectorNode();
-        TapNodeInfo tapNodeInfo = new TapNodeInfo();
-        TapNodeSpecification tapNodeSpecification = new TapNodeSpecification();
-        tapNodeSpecification.setId("mysql");
-        tapNodeInfo.setTapNodeSpecification(tapNodeSpecification);
-        Class clazz = ConnectorNode.class;
-        Class<?> superClass = clazz.getSuperclass();
-        Field field_name = superClass.getDeclaredField("tapNodeInfo");
-        field_name.setAccessible(true);
-        field_name.set(connectorNode, tapNodeInfo);
-        mysqlConnectorNode = connectorNode;
-
-        TapTable table = new TapTable();
-        table.setId("testID");
-        myTapTable = table;
+    public void initSort(){
         sortOnList.add(SortOn.ascending("id"));
-
     }
 
-    @Before
-    public void getMongodbConnectorNode() throws NoSuchFieldException, IllegalAccessException {
-        ConnectorNode connectorNode = new ConnectorNode();
-        TapNodeInfo tapNodeInfo = new TapNodeInfo();
-        TapNodeSpecification tapNodeSpecification = new TapNodeSpecification();
-        tapNodeSpecification.setId("mongodb");
-        tapNodeInfo.setTapNodeSpecification(tapNodeSpecification);
-        Class clazz = ConnectorNode.class;
-        Class<?> superClass = clazz.getSuperclass();
-        Field field_name = superClass.getDeclaredField("tapNodeInfo");
-        field_name.setAccessible(true);
-        field_name.set(connectorNode, tapNodeInfo);
-        mongoConnectorNode = connectorNode;
-    }
 
     /**
      * 检查替换查询输入语句关系型数据库
-     * select *     from  test  where id>2
+     * select * from  test  where id>2
+     * test SetCommandQueryParam function
      */
     @Test
-    public void  querySqlTest(){
+    public void testSetCommandQueryParamQueryListSql() {
+        // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam= new LinkedHashMap<>();
-        customParam.put("sql","select *     from  test  where id>2");
-        customCommand.put("params",customParam);
-        PdkResult.setCommandQueryParam(customCommand,mysqlConnectorNode,myTapTable,sortOnList,projection);
+        String querySql = "select *     from";
+        String whereSql = " test  where id>2";
+        CommandCountParamTest.setCustomCommandParam(customCommand, querySql, whereSql, "", "");
+
+       // execution method
+        PdkResult.setCommandQueryParam(customCommand, sqlConnectorNode, myTapTable, sortOnList, projection);
+
+        // actual data
         Map<String, Object> params = (Map<String, Object>) customCommand.get("params");
-        String sql = (String) params.get("sql");
-        Assert.assertTrue(sql.contains("ORDER BY"));
+        String actualData = (String) params.get("sql");
+
+        // expected data
+        char escapeChar = '"';
+        StringBuilder builder = new StringBuilder();
+        builder.append("  ORDER BY ");
+        builder.append(sortOnList.stream().map(v -> v.toString(String.valueOf(escapeChar))).collect(Collectors.joining(", "))).append(' ');
+        String expectedData = querySql + whereSql + builder;
+
+        // output results
+        Assert.assertEquals(expectedData, actualData);
     }
 
+    /**
+     * 检查替换查询输入语句关系型数据库 order by 排序
+     * select * from  test  where id>2   order by id desc
+     * test SetCommandQueryParam function
+     */
     @Test
-    public void  querySqlTest1(){
+    public void testSetCommandQueryParamQueryListSqlByOrder() {
+        // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam= new LinkedHashMap<>();
-        customParam.put("sql","select *     from  test  where id >2  order by id desc");
-        customCommand.put("params",customParam);
-        PdkResult.setCommandQueryParam(customCommand,mysqlConnectorNode,myTapTable,sortOnList,projection);
+        String querySql = "select *     from";
+        String whereSql = " test  where id>2";
+        String orderSql = "  order by id desc";
+        CommandCountParamTest.setCustomCommandParam(customCommand, querySql, whereSql, orderSql, "");
+
+        // execution method
+        PdkResult.setCommandQueryParam(customCommand, sqlConnectorNode, myTapTable, sortOnList, projection);
+
+        // actual data
         Map<String, Object> params = (Map<String, Object>) customCommand.get("params");
-        String sql = (String) params.get("sql");
-        Assert.assertTrue(sql.contains("order by id desc"));
+        String actualData = (String) params.get("sql");
+
+        // expected data
+        String expectedData =querySql + whereSql + orderSql;
+
+        // output results
+        Assert.assertEquals(expectedData, actualData);
     }
 
 
+    /**
+     * 查询mongodb数据库
+     * select * from  test  where id>2   order by id desc
+     * test SetCommandQueryParam function
+     */
+    @Test
+    public void testSetCommandQueryParamQueryMongoQueryTest() {
+        // input param
+        Map<String, Object> customCommand = new LinkedHashMap<>();
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        customCommand.put("command", "executeQuery");
+        customParam.put("op", "find");
+        customParam.put("filter", "{id:2}");
+        customCommand.put("params", customParam);
+
+        // execution method
+        PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, sortOnList, projection);
+
+        // actual data
+        Map<String, Object> params = (Map<String, Object>) customCommand.get("params");
+        String actualCollection = (String) params.get("collection");
+        Map<String, Object> actualSortMap = (Map<String, Object>) params.get("sort");
+
+        // expected data
+        String expectedCollection = myTapTable.getId();
+
+        // output results
+        Assert.assertEquals(expectedCollection, actualCollection);
+<<<<<<< HEAD
+        Assert.assertTrue(actualSortMap.containsKey("id"));
+=======
+        Assert.assertTrue(actualSortMap.containsKey(sortOnList.get(0).getKey()));
+    }
+
 
     @Test
-    public void  queryMongoQueryTest() {
+    public void testSetCommandQueryParamQuerySortEmpty() {
+        // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam= new LinkedHashMap<>();
-        customCommand.put("command","executeQuery");
-        customParam.put("op","find");
-        customParam.put("filter","{id:2}");
-        customCommand.put("params",customParam);
-        PdkResult.setCommandQueryParam(customCommand,mongoConnectorNode,myTapTable,sortOnList,projection);
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        customCommand.put("command", "executeQuery");
+        customParam.put("op", "find");
+        customParam.put("filter", "{id:2}");
+        customCommand.put("params", customParam);
+
+
+        // execution method
+        PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, new LinkedList<>(), projection);
+
+        // actual data
         Map<String, Object> params = (Map<String, Object>) customCommand.get("params");
-        String collection = (String) params.get("collection");
-        Map<String, Object> sortMap = (Map<String, Object>) params.get("sort");
-        Assert.assertTrue(collection.equals(myTapTable.getId()));
-        Assert.assertTrue(sortMap.containsKey("id"));
+        String actualCollection = (String) params.get("collection");
+        Map<String, Object> actualSortMap = (Map<String, Object>) params.get("sort");
+
+        // expected data
+        String expectedCollection = myTapTable.getId();
+
+        // output results
+        Assert.assertEquals(expectedCollection, actualCollection);
+        Assert.assertTrue(MapUtil.isEmpty(actualSortMap));
+    }
+
+
+    /**
+     * params 为null
+     * {id:2}
+     * test SetCommandQueryParam function
+     */
+    @Test(expected = RuntimeException.class)
+    public void testSetCommandQueryParamParamNull() {
+        // input param
+        Map<String, Object> customCommand = new LinkedHashMap<>();
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        customCommand.put("command", "executeQuery");
+        customParam.put("op", "find");
+        customParam.put("filter", "{id:2}");
+        customCommand.put("params", null);
+
+        // execution method
+        PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, sortOnList, projection);
+
+    }
+
+    /**
+     * params 为""
+     * {id:2}
+     * test SetCommandQueryParam function
+     */
+    @Test(expected = RuntimeException.class)
+    public void testSetCommandQueryParamParamEmpty() {
+        // input param
+        Map<String, Object> customCommand = new LinkedHashMap<>();
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        customCommand.put("command", "executeQuery");
+        customParam.put("op", "find");
+        customParam.put("filter", "{id:2}");
+        customCommand.put("params", "");
+
+        // execution method
+        PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, sortOnList, projection);
+        exception.expect(ClassCastException.class);
+
+>>>>>>> 499c90939 (fix test  exception scene)
     }
 
 }
