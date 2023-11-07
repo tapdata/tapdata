@@ -4,7 +4,6 @@ on:
   push:
     branches: [ "main", "develop", "release-v*.*" ]
   pull_request:
-    types: ["opened", "reopened"]
     branches: [ "main", "develop", "release-v*.*" ]
 
 jobs:
@@ -116,6 +115,9 @@ jobs:
   MRCI:
     runs-on: aws-ubuntu-20
     timeout-minutes: 60
+    concurrency:
+      group: ${{ github.event.pull_request.head.ref || github.event.pull_request.head.ref }}
+      cancel-in-progress: true
     needs:
       - Build-And-Deploy
     steps:
