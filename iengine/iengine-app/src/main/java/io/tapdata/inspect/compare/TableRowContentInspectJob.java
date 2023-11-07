@@ -251,7 +251,11 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 							if (uniqueFieldLimit > 0) {
 								uniqueFieldLimit--;
 								InspectDetail detail = new InspectDetail();
-								detail.setSource(diffRecordTypeConvert(sourceRecord, inspectTask.getSource().getColumns()));
+								if(sourceVal == null){
+									detail.setTarget(diffRecordTypeConvert(targetRecord, inspectTask.getTarget().getColumns()));
+								}else {
+									detail.setSource(diffRecordTypeConvert(sourceRecord, inspectTask.getSource().getColumns()));
+								}
 								detail.setType("uniqueField");
 
 								inspectDetails.add(detail);
@@ -265,6 +269,11 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 								if (uniqueFieldLimit > 0) {
 									uniqueFieldLimit--;
 									InspectDetail detail = new InspectDetail();
+									if(targetVal == null){
+										detail.setSource(diffRecordTypeConvert(sourceRecord, inspectTask.getSource().getColumns()));
+									}else {
+										detail.setTarget(diffRecordTypeConvert(targetRecord, inspectTask.getTarget().getColumns()));
+									}
 									detail.setTarget(diffRecordTypeConvert(targetRecord, inspectTask.getTarget().getColumns()));
 									detail.setType("uniqueField");
 									inspectDetails.add(detail);
@@ -366,7 +375,8 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 				fullMatch,
 				dataKeys,
 				diffKeyValues,
-				null != inspectDataSource.getIsFilter() && inspectDataSource.getIsFilter() ? inspectDataSource.getConditions() : null
+				null != inspectDataSource.getIsFilter() && inspectDataSource.getIsFilter() ? inspectDataSource.getConditions() : null,
+				inspectDataSource.isEnableCustomCommand(),inspectDataSource.getCustomCommand()
 		);
 	}
 

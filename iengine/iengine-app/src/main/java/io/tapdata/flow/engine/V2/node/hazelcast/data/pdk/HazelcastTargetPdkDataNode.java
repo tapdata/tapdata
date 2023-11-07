@@ -702,7 +702,16 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 														return null;
 													}));
 											if (!pdkMethodInvoker.isEnableSkipErrorEvent()) {
-												writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
+												try {
+													writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
+												} catch (Exception e) {
+													Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
+													if (null != matched) {
+														throw matched;
+													}else {
+														throw new TapCodeException(TaskTargetProcessorExCode_15.WRITE_RECORD_COMMON_FAILED, String.format("Execute PDK method: %s, tableName: %s", PDKMethod.TARGET_WRITE_RECORD, tapTable.getId()), e);
+													}
+												}
 											}
 										}
 								)
