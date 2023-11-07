@@ -1,7 +1,6 @@
 package io.tapdata.observable.metric.py;
 
 import io.tapdata.entity.logger.Log;
-import io.tapdata.entity.logger.TapLogger;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 
@@ -20,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,32 +30,26 @@ import static io.tapdata.entity.simplify.TapSimplify.fromJson;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 public class PythonUtils {
-    public static final String DEFAULT_PY_SCRIPT_START = "import json, random, time, datetime, uuid, types, yaml\n" +
-            "import urllib, urllib2, requests\n" +
-            "import math, hashlib, base64\n" +
-            "def process(record, context):\n";
-    public static final String DEFAULT_PY_SCRIPT = DEFAULT_PY_SCRIPT_START + "\treturn record;\n";
+
+    private PythonUtils() {
+
+    }
 
     private static final String PACKAGE_COMPILATION_COMMAND = "cd %s; java -jar %s setup.py install";
     private static final String PACKAGE_COMPILATION_FILE = "setup.py";
-
     public static final String PYTHON_THREAD_PACKAGE_PATH = "py-lib";
     public static final String PYTHON_THREAD_SITE_PACKAGES_PATH = "site-packages";
     public static final String PYTHON_THREAD_JAR = "jython-standalone-2.7.3.jar";
     public static final String PYTHON_SITE_PACKAGES_VERSION_CONFIG = "install.json";
-
-    public static File getThreadPackagePath(){
-        File file = new File(concat(PYTHON_THREAD_PACKAGE_PATH, "Lib", PYTHON_THREAD_SITE_PACKAGES_PATH));
-        if (!file.exists() || null == file.list() || file.list().length <= 0) {
-            return null;
-        }
-        return file;
-    }
-
+    private static final String AGENT_TAG = "agent";
+    private static final String BOOT_INF_TAG = "BOOT-INF";
+    private static final String LIB_TAG = "lib";
+    private static final String LIB_U_TAG = "Lib";
     public static final String TAG = PythonUtils.class.getSimpleName();
+
     public static void flow(Log logger) {
         try {
-            if (!unzipIeJar(logger)){
+            if (!unzipIeJar()){
                 execute(PythonUtils.PYTHON_THREAD_JAR, PythonUtils.PYTHON_THREAD_PACKAGE_PATH, logger);
                 return;
             }
@@ -63,15 +57,15 @@ public class PythonUtils {
             setPackagesResources(logger,
                     concat(PYTHON_THREAD_PACKAGE_PATH, PYTHON_THREAD_JAR),
                     PythonUtils.PYTHON_THREAD_PACKAGE_PATH,
-                    concat(PYTHON_THREAD_PACKAGE_PATH, "agent", "BOOT-INF", "lib", PYTHON_THREAD_JAR),
+                    concat(PYTHON_THREAD_PACKAGE_PATH, AGENT_TAG, BOOT_INF_TAG, LIB_TAG, PYTHON_THREAD_JAR),
                     PYTHON_THREAD_JAR);
         } finally {
-            deleteFile(new File(concat(PYTHON_THREAD_PACKAGE_PATH, "agent")));
-            deleteFile(new File(concat(PYTHON_THREAD_PACKAGE_PATH, PYTHON_THREAD_SITE_PACKAGES_PATH, PYTHON_THREAD_SITE_PACKAGES_PATH)));
+            deleteFile(new File(concat(PYTHON_THREAD_PACKAGE_PATH, AGENT_TAG)), logger);
+            deleteFile(new File(concat(PYTHON_THREAD_PACKAGE_PATH, PYTHON_THREAD_SITE_PACKAGES_PATH, PYTHON_THREAD_SITE_PACKAGES_PATH)), logger);
         }
     }
 
-    private static void deleteFile(File file) {
+    private static void deleteFile(File file, Log logger) {
         if (file.exists()) {
             try {
                 if (file.isDirectory()) {
@@ -79,22 +73,24 @@ public class PythonUtils {
                 } else {
                     FileUtils.delete(file);
                 }
-            } catch (Exception e){}
+            } catch (Exception e){
+                logger.info("file not be delete, file: {}, message: {}", file.getAbsolutePath(), e.getMessage());
+            }
         }
     }
 
-    private static boolean unzipIeJar(Log logger) {
-        final String tapdataAgentPath = "components/tapdata-agent.jar";
-        final String unzipTapdataAgentPath = concat(PYTHON_THREAD_PACKAGE_PATH,"agent");
-        if (new File(tapdataAgentPath).exists()) {
-            ZipUtils.unzip(tapdataAgentPath, unzipTapdataAgentPath);
+    private static boolean unzipIeJar() {
+        final String tapAgentPath = "components/tapdata-agent.jar";
+        final String unzipTapAgentPath = concat(PYTHON_THREAD_PACKAGE_PATH,AGENT_TAG);
+        if (new File(tapAgentPath).exists()) {
+            ZipUtils.unzip(tapAgentPath, unzipTapAgentPath);
             return true;
         }
         return false;
     }
 
     private static void unzipPythonStandalone(Log logger) {
-        final String pythonStandalone = concat(PYTHON_THREAD_PACKAGE_PATH, "agent", "BOOT-INF", "lib", PYTHON_THREAD_JAR);
+        final String pythonStandalone = concat(PYTHON_THREAD_PACKAGE_PATH, AGENT_TAG, BOOT_INF_TAG, LIB_TAG, PYTHON_THREAD_JAR);
         try {
             copyFile(new File(pythonStandalone), new File(PythonUtils.PYTHON_THREAD_PACKAGE_PATH));
         } catch (Exception e) {
@@ -107,22 +103,22 @@ public class PythonUtils {
         if (config.exists() && config.isFile()) {
             //按照配置文件来编译第三方Python包
             Map<String, Object> configMap = getPythonConfig(config);
-            if (null != configMap) {
-                Object sitePackages = configMap.get(PYTHON_THREAD_SITE_PACKAGES_PATH);
-                if (null != sitePackages && sitePackages instanceof Collection) {
-                    Collection<String> packages = null;
-                    try {
-                        packages = (Collection<String>) sitePackages;
-                    } catch (Exception e) {}
-                    if (null != packages && !packages.isEmpty()) {
-                        logger.info("Configuration files will be used for package compilation： {}", toJson(configMap));
-                        List<File> path = new ArrayList<>();
-                        for (String name : packages) {
-                            path.add(new File(concat(loopPath, name)));
-                        }
-                        loopFiles(path, logger, pythonJarPath);
-                        return;
+            Object sitePackages = configMap.get(PYTHON_THREAD_SITE_PACKAGES_PATH);
+            if (sitePackages instanceof Collection) {
+                Collection<?> packages = null;
+                try {
+                    packages = (Collection<?>) sitePackages;
+                } catch (Exception e) {
+                    logger.info(e.getMessage());
+                }
+                if (!packages.isEmpty()) {
+                    logger.info("Configuration files will be used for package compilation： {}", toJson(configMap));
+                    List<File> path = new ArrayList<>();
+                    for (Object name : packages) {
+                        path.add(new File(concat(loopPath, String.valueOf(name))));
                     }
+                    loopFiles(path, logger, pythonJarPath);
+                    return;
                 }
             }
         }
@@ -135,66 +131,58 @@ public class PythonUtils {
     private static void loopFiles(List<File> files, Log logger, final String pythonJarPath) {
         if (null == files || files.isEmpty()) return;
         for (File file : files) {
-            String name = file.getName();
-            File afterUnzipFile = null;
-            if (file.exists() && file.isDirectory()) {
-                afterUnzipFile = file;
-            } else if (name.endsWith(".zip")){
-                ZipUtils.unzip(file.getAbsolutePath(), file.getParentFile().getAbsolutePath());
-                String afterZipFileName = name.substring(0, name.lastIndexOf(".zip"));
-                afterUnzipFile = new File(file.getParentFile().getAbsolutePath() + File.separator + afterZipFileName);
-            } else if (name.endsWith(".tar.gz")){
-                ZipUtils.unzip(file.getAbsolutePath(), file.getParentFile().getAbsolutePath());
-                String afterZipFileName = name.substring(0, name.lastIndexOf(".tar.gz"));
-                afterUnzipFile = new File(file.getParentFile().getAbsolutePath() + File.separator + afterZipFileName);
-            } else if (name.endsWith(".gz")){
-                ZipUtils.unzip(file.getAbsolutePath(), file.getParentFile().getAbsolutePath());
-                String afterZipFileName = name.substring(0, name.lastIndexOf(".gz"));
-                afterUnzipFile = new File(file.getParentFile().getAbsolutePath() + File.separator + afterZipFileName);
-            } else if (name.endsWith(".jar")) {
-                ZipUtils.unzip(file.getAbsolutePath(), file.getParentFile().getAbsolutePath());
-                String afterZipFileName = name.substring(0, name.lastIndexOf(".jar"));
-                afterUnzipFile = new File(file.getParentFile().getAbsolutePath() + File.separator + afterZipFileName);
+            File afterUnzipFile = FixFileUtil.fixFile(file);
+            File[] fs = null;
+            if (null != afterUnzipFile) {
+                fs = afterUnzipFile.listFiles();
             }
-            File[] fs = null == afterUnzipFile ? null : afterUnzipFile.listFiles();
-            if (null != fs && fs.length > 0) {
-                for (File f : fs) {
-                    if (f.exists() && f.isFile() && f.getName().contains(PACKAGE_COMPILATION_FILE)) {
-                        Process start = null;
-                        try {
-                            logger.info("{}'s resource package is being generated, please wait.", afterUnzipFile.getName());
-                            ProcessBuilder command = new ProcessBuilder().command(
-                                    "/bin/sh",
-                                    "-c",
-                                    String.format(PACKAGE_COMPILATION_COMMAND,
-                                            f.getParentFile().getAbsolutePath(),
-                                            new File(pythonJarPath).getAbsolutePath()));
-                            start = command.start();
-                            start.waitFor();
-                            logger.info("{}'s resource package is being generated", afterUnzipFile.getName());
-                        } catch (InterruptedException | IOException e){
-                            StringJoiner errorMsg = new StringJoiner(System.lineSeparator());
-                            if (null != start && !start.isAlive()) {
-                                try (InputStream errorStream = start.getErrorStream();
-                                     BufferedReader br = new BufferedReader(new InputStreamReader(errorStream))){
-                                    String line = null;
-                                    while ((line = br.readLine()) != null) {
-                                        errorMsg.add(line);
-                                    }
-                                } catch (Exception ignore) {}
-                            }
-                            logger.warn("{}'s resource package is generated failed, msg: {}, Compilation information: {}", e.getMessage(), errorMsg.toString());
-                        } finally {
-                            Optional.ofNullable(start).ifPresent(Process::destroy);
-                        }
-                        break;
-                    }
-                }
+            if (null == fs || fs.length <= 0) {
+                continue;
+            }
+            for (File f : fs) {
+                if (f.exists() && f.isFile() && f.getName().contains(PACKAGE_COMPILATION_FILE)) continue;
+                unPackageFile(f, afterUnzipFile, pythonJarPath, logger);
             }
         }
     }
 
-    private static InputStream getLibPath(String jarName, Log log, AtomicReference<String> ato) throws IOException {
+    private static void unPackageFile(File f, File afterUnzipFile, final String pythonJarPath, Log logger) {
+        Process start = null;
+        try {
+            logger.info("{}'s resource package is being generated, please wait.", afterUnzipFile.getName());
+            ProcessBuilder command = new ProcessBuilder().command(
+                    "/bin/sh",
+                    "-c",
+                    String.format(PACKAGE_COMPILATION_COMMAND,
+                            f.getParentFile().getAbsolutePath(),
+                            new File(pythonJarPath).getAbsolutePath()));
+            start = command.start();
+            start.waitFor();
+            logger.info("{}'s resource package is being generated", afterUnzipFile.getName());
+        } catch (IOException e) {
+            logger.warn("{}'s resource package is generated failed, msg: {},", e.getMessage());
+        } catch (InterruptedException e) {
+            logger.warn(e.getMessage());
+            Thread.currentThread().interrupt();
+        } finally {
+            Optional.ofNullable(start).ifPresent(Process::destroy);
+        }
+
+        StringJoiner errorMsg = new StringJoiner(System.lineSeparator());
+        if (null != start && !start.isAlive()) {
+            try (InputStream errorStream = start.getErrorStream();
+                 BufferedReader br = new BufferedReader(new InputStreamReader(errorStream))) {
+                String line = null;
+                while ((line = br.readLine()) != null) {
+                    errorMsg.add(line);
+                }
+            } catch (Exception msgException) {
+                logger.warn("Can't show execute message when execute release packages process, message: {}, Compilation information: {}", msgException.getMessage(), errorMsg.toString());
+            }
+        }
+    }
+
+    private static InputStream getLibPath(String jarName, AtomicReference<String> ato) throws IOException {
         InputStream pyJarPath = null;
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         if (classLoader instanceof URLClassLoader) {
@@ -213,14 +201,11 @@ public class PythonUtils {
 
     private static Integer execute(String jarName, String unzipPath, Log log) {
         AtomicReference<String> pyJarPathAto = new AtomicReference<>();
-        try(InputStream inputStream = getLibPath(jarName, log, pyJarPathAto)) {
+        try(InputStream inputStream = getLibPath(jarName, pyJarPathAto)) {
             String pyJarPath = pyJarPathAto.get();
             if (null == inputStream || null == pyJarPath) {
                 return -1;
             }
-//            System.out.println(jarName);
-//            System.out.println(pyJarPath);
-//            System.out.println(unzipPath);
             File f = new File(PYTHON_THREAD_PACKAGE_PATH);
             if (!f.exists()) f.mkdirs();
             final String zipFileTempPath = concat(PYTHON_THREAD_PACKAGE_PATH, PYTHON_THREAD_JAR);
@@ -236,57 +221,55 @@ public class PythonUtils {
         File file = new File(zipFileTempPath);
         final String libPathName = "temp_engine";
         try {
-            try {
-                try {
-                    log.info("[1]: Start to unzip {}>>>", zipFileTempPath);
-                    ZipUtils.unzip(file.getAbsolutePath(), libPathName);
-                    log.info("[2]: Unzip {} succeed >>>", zipFileTempPath);
-                } catch (Exception e) {
-                    //TapLogger.error(TAG, "Can not zip from " + jarPath + " to " + libPathName);
-                    log.info("[2]: Unzip {} fail, {}", zipFileTempPath, e.getMessage());
-                    return -3;
-                }
-                copyFile(new File("temp_engine/jython.jar"), new File(PythonUtils.PYTHON_THREAD_PACKAGE_PATH));
-                File libFiles = new File(concat(libPathName, "Lib", PYTHON_THREAD_SITE_PACKAGES_PATH));
-                if (!libFiles.exists()) {
-                    log.info("[3]: Can not fund Lib path: {}, create file now >>>", libPathName);
-                    libFiles.mkdirs();
-                    log.info("[4]: create file {} succeed >>>", zipFileTempPath);
-                } else {
-                    log.info("[3]: Lib path is exists: {} >>>[4]: Copy after>>>", libPathName);
-                }
-                log.info("[5]: Start to copy {} from Lib: {} to : {} >>>", PYTHON_THREAD_SITE_PACKAGES_PATH, libFiles, unzipPath);
-                FileUtils.copyToDirectory(libFiles, new File(unzipPath));
+            log.info("[1]: Start to unzip {}>>>", zipFileTempPath);
+            ZipUtils.unzip(file.getAbsolutePath(), libPathName);
+            log.info("[2]: Unzip {} succeed >>>", zipFileTempPath);
+        } catch (Exception e) {
+            log.info("[2]: Unzip {} fail, {}", zipFileTempPath, e.getMessage());
+            return -3;
+        }
 
-                File jarLib = new File(concat(libPathName, "Lib"));
-                File toPath = new File(concat(PYTHON_THREAD_PACKAGE_PATH, "Lib", PYTHON_THREAD_SITE_PACKAGES_PATH));
-                if (!toPath.exists()) toPath.mkdirs();
+        try {
+            copyFile(new File("temp_engine/jython.jar"), new File(PythonUtils.PYTHON_THREAD_PACKAGE_PATH));
+            File libFiles = new File(concat(libPathName, LIB_U_TAG, PYTHON_THREAD_SITE_PACKAGES_PATH));
+            if (!libFiles.exists()) {
+                log.info("[3]: Can not fund Lib path: {}, create file now >>>", libPathName);
+                boolean mkDirs = libFiles.mkdirs();
+                log.info("[4]: create file {} succeed: {} >>>", zipFileTempPath, mkDirs);
+            } else {
+                log.info("[3]: Lib path is exists: {} >>>[4]: Copy after>>>", libPathName);
+            }
+            log.info("[5]: Start to copy {} from Lib: {} to : {} >>>", PYTHON_THREAD_SITE_PACKAGES_PATH, libFiles, unzipPath);
+            FileUtils.copyToDirectory(libFiles, new File(unzipPath));
+
+            File jarLib = new File(concat(libPathName, LIB_U_TAG));
+            File toPath = new File(concat(PYTHON_THREAD_PACKAGE_PATH, LIB_U_TAG, PYTHON_THREAD_SITE_PACKAGES_PATH));
+            if (!toPath.exists() && toPath.mkdirs()) {
                 copyFile(jarLib, toPath);
                 copyFile(new File(concat(libPathName, PYTHON_SITE_PACKAGES_VERSION_CONFIG)), new File(PYTHON_THREAD_PACKAGE_PATH));
-                File needDelete = new File(concat(PYTHON_THREAD_PACKAGE_PATH, "Lib", "ite-packages", PYTHON_THREAD_SITE_PACKAGES_PATH));
+                File needDelete = new File(concat(PYTHON_THREAD_PACKAGE_PATH, LIB_U_TAG, "ite-packages", PYTHON_THREAD_SITE_PACKAGES_PATH));
                 if (needDelete.exists()) {
                     FileUtils.deleteDirectory(needDelete);
                 }
                 log.info("[6]: Copy {} to {}, successfully", PYTHON_THREAD_SITE_PACKAGES_PATH, unzipPath);
-            } finally {
-                File temp1 = new File(libPathName);
-                if (temp1.exists()) {
-                    log.info("[*]: Start to clean temp files in {}", libPathName);
-                    FileUtils.deleteQuietly(temp1);
-                    log.info("[*]: Temp file cleaned successfully");
-                }
             }
-
-            loopPackagesList(log, concat(PYTHON_THREAD_PACKAGE_PATH,PYTHON_THREAD_SITE_PACKAGES_PATH), zipFileTempPath);
-        } catch (Throwable throwable) {
+        }catch (Exception e) {
             log.info("[x]: can not prepare Lib for {}, Please manually extract {} and place {}/Lib/ in the {} folder",
                     PYTHON_THREAD_SITE_PACKAGES_PATH,
                     zipFileTempPath,
                     zipFileTempPath,
                     (pyJarPath.endsWith(jarName) ? pyJarPath.replace(jarName, "") : pyJarPath));
-            log.warn("Init python resources failed: {}", throwable.getMessage());
+            log.warn("Init python resources failed: {}", e.getMessage());
             return -1;
+        } finally {
+            File temp1 = new File(libPathName);
+            if (temp1.exists()) {
+                log.info("[*]: Start to clean temp files in {}", libPathName);
+                FileUtils.deleteQuietly(temp1);
+                log.info("[*]: Temp file cleaned successfully");
+            }
         }
+        loopPackagesList(log, concat(PYTHON_THREAD_PACKAGE_PATH,PYTHON_THREAD_SITE_PACKAGES_PATH), zipFileTempPath);
         return 1;
     }
 
@@ -298,11 +281,9 @@ public class PythonUtils {
     }
 
     private static void saveTempZipFile(InputStream inputStream, String savePath, Log log){
-        OutputStream outputStream = null;
-        try {
+        try (OutputStream outputStream = new FileOutputStream(savePath)) {
             RandomAccessFile file = new RandomAccessFile(new File(savePath), "rw");
             file.close();
-            outputStream = new FileOutputStream(savePath);
             byte[] buffer = new byte[1024];
             int bytesRead;
             while ((bytesRead = inputStream.read(buffer)) != -1) {
@@ -312,35 +293,13 @@ public class PythonUtils {
             log.info(e.getMessage());
         } finally {
             try {
-                if (null != outputStream) {
-                    outputStream.close();
-                }
-            } catch (IOException ignore) {}
-            try {
                 if (null != inputStream) {
                     inputStream.close();
                 }
-            } catch (IOException ignore) {}
-        }
-    }
-
-    private static int copyTo(String fromPath, String toPath) {
-        try {
-            File to = new File(toPath);
-            File sourceDir = new File(fromPath);
-            File[] from = sourceDir.listFiles();
-            if (null == from) return -1;
-            if (!to.exists()) {
-                to.mkdirs();
+            } catch (IOException e) {
+                log.info(e.getMessage());
             }
-            for (File file : from) {
-                copyFile(file, new File(to, file.getName()));
-            }
-        } catch (Exception e) {
-            TapLogger.warn(TAG, "Can not get python packages resources when load python engine, msg: {}", e.getMessage());
-            return  -1;
         }
-        return 1;
     }
 
     public static void copyFile(File file, File target) throws Exception {
@@ -362,7 +321,7 @@ public class PythonUtils {
         }
     }
 
-    private static void copy(File from, File to) throws Exception{
+    private static void copy(File from, File to) throws IOException {
         try (FileInputStream fis = new FileInputStream(from.getAbsolutePath());
              FileOutputStream fos = new FileOutputStream(to.getAbsolutePath())) {
             byte[] buffer = new byte[4096];
@@ -373,30 +332,12 @@ public class PythonUtils {
         }
     }
 
-    public static void supportThirdPartyPackageList(File file, Log logger) {
-        if (null != file && file.exists()) {
-            File[] files = file.listFiles();
-            if (null != files && files.length > 0) {
-                StringJoiner joiner = new StringJoiner(", ");
-                for (File f : files) {
-                    String name = f.getName();
-                    if (f.isFile() && name.contains("-py2.7.egg")) {
-                        joiner.add(name.substring(0, name.lastIndexOf("-py2.7.egg")));
-                    }
-                }
-                if (joiner.length() > 0) {
-                    logger.info("The sources of third-party packages supported by Python node are as follows: {}", joiner.toString());
-                }
-            }
-        }
-    }
-
     private static Map<String, Object> getPythonConfig(File configFile){
-        if (null == configFile || !configFile.exists() || !configFile.isFile()) return null;
+        if (null == configFile || !configFile.exists() || !configFile.isFile()) return new HashMap<>();
         try {
             return (Map<String, Object>) fromJson(FileUtils.readFileToString(configFile, StandardCharsets.UTF_8));
         } catch (Exception e) {
-            return null;
+            return new HashMap<>();
         }
     }
 }
