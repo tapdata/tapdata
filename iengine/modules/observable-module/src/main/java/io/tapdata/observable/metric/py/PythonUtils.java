@@ -65,7 +65,7 @@ public class PythonUtils {
         }
     }
 
-    private static void deleteFile(File file, Log logger) {
+    public static void deleteFile(File file, Log logger) {
         if (file.exists()) {
             try {
                 if (file.isDirectory()) {
@@ -332,7 +332,7 @@ public class PythonUtils {
         }
     }
 
-    private static Map<String, Object> getPythonConfig(File configFile){
+    public static Map<String, Object> getPythonConfig(File configFile){
         if (null == configFile || !configFile.exists() || !configFile.isFile()) return new HashMap<>();
         try {
             return (Map<String, Object>) fromJson(FileUtils.readFileToString(configFile, StandardCharsets.UTF_8));
