@@ -26,11 +26,22 @@ import java.sql.SQLSyntaxErrorException;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class CustomSqlInspect extends ConnectorNodeBase {
+public class CustomSqlInspectTest extends ConnectorNodeBase {
 
     public final String querySql = "select *  from  test  where id>2";
 
     public void initConnectorNode(ExecuteCommandFunction ExecuteCommandFunction) throws IllegalAccessException, NoSuchFieldException {
+
+        sqlConnectorNode = new ConnectorNode();
+        TapNodeSpecification tapNodeSpecificationSql = new TapNodeSpecification();
+        tapNodeSpecificationSql.setId("mysql");
+        initConnectorNode(sqlConnectorNode, tapNodeSpecificationSql);
+
+        TapTable table = new TapTable();
+        table.setId("testID");
+        table.setName("testID");
+        myTapTable = table;
+
         ConnectorFunctions connectorFunction = new ConnectorFunctions();
         connectorFunction.supportExecuteCommandFunction(ExecuteCommandFunction);
         invokeValueForFiled(ConnectorNode.class,"connectorFunctions",sqlConnectorNode,connectorFunction,false);
@@ -43,6 +54,8 @@ public class CustomSqlInspect extends ConnectorNodeBase {
         PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
         connectorContext.setTableMap(pdkTableMap);
         invokeValueForFiled(ConnectorNode.class,"connectorContext",sqlConnectorNode,connectorContext,false);
+
+
 
     }
 

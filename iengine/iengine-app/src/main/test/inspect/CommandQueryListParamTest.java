@@ -1,9 +1,13 @@
 package inspect;
 
 import ConnectorNode.ConnectorNodeBase;
+import cn.hutool.core.map.MapUtil;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.inspect.compare.PdkResult;
 import io.tapdata.pdk.apis.entity.Projection;
 import io.tapdata.pdk.apis.entity.SortOn;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -21,8 +25,21 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
 
 
     @Before
-    public void initSort(){
+    public void initSort() throws NoSuchFieldException, IllegalAccessException {
         sortOnList.add(SortOn.ascending("id"));
+        sqlConnectorNode = new ConnectorNode();
+        TapNodeSpecification tapNodeSpecificationSql = new TapNodeSpecification();
+        tapNodeSpecificationSql.setId("mysql");
+        initConnectorNode(sqlConnectorNode, tapNodeSpecificationSql);
+
+        mongoConnectorNode = new ConnectorNode();
+        TapNodeSpecification tapNodeSpecificationMongo = new TapNodeSpecification();
+        tapNodeSpecificationMongo.setId("mongodb");
+        initConnectorNode(mongoConnectorNode, tapNodeSpecificationMongo);
+
+        TapTable table = new TapTable();
+        table.setId("testID");
+        myTapTable = table;
     }
 
 
@@ -92,7 +109,7 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
      * test SetCommandQueryParam function
      */
     @Test
-    public void testSetCommandQueryParamQueryMongoQueryTest() {
+    public void testSetCommandQueryParamQueryMongoQuery() {
         // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
         Map<String, Object> customParam = new LinkedHashMap<>();
@@ -114,7 +131,106 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
 
         // output results
         Assert.assertEquals(expectedCollection, actualCollection);
-        Assert.assertTrue(actualSortMap.containsKey("id"));
+        Assert.assertTrue(actualSortMap.containsKey(sortOnList.get(0)));
+    }
+
+
+    @Test
+    public void testSetCommandQueryParamQuerySortEmpty() {
+        // input param
+        Map<String, Object> customCommand = new LinkedHashMap<>();
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        customCommand.put("command", "executeQuery");
+        customParam.put("op", "find");
+        customParam.put("filter", "{id:2}");
+        customCommand.put("params", customParam);
+
+
+        // execution method
+        PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, new LinkedList<>(), projection);
+
+        // actual data
+        Map<String, Object> params = (Map<String, Object>) customCommand.get("params");
+        String actualCollection = (String) params.get("collection");
+        Map<String, Object> actualSortMap = (Map<String, Object>) params.get("sort");
+
+        // expected data
+        String expectedCollection = myTapTable.getId();
+
+        // output results
+        Assert.assertEquals(expectedCollection, actualCollection);
+        Assert.assertTrue(MapUtil.isEmpty(actualSortMap));
+    }
+
+    /**
+     * command 为null
+     * {id:2}
+     * test SetCommandQueryParam function
+     */
+    @Test
+    public void testSetCommandQueryParamCommandNull() {
+        // input param
+        Map<String, Object> customCommand = new LinkedHashMap<>();
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        customCommand.put("command", null);
+        customParam.put("op", "find");
+        customParam.put("filter", "{id:2}");
+        customCommand.put("params", customParam);
+
+        try {
+            // execution method
+            PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, sortOnList, projection);
+        }catch (Exception e){
+            Assert.assertTrue(e instanceof NullPointerException);
+        }
+
+    }
+
+
+    /**
+     * params 为null
+     * {id:2}
+     * test SetCommandQueryParam function
+     */
+    @Test
+    public void testSetCommandQueryParamParamNull() {
+        // input param
+        Map<String, Object> customCommand = new LinkedHashMap<>();
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        customCommand.put("command", "executeQuery");
+        customParam.put("op", "find");
+        customParam.put("filter", "{id:2}");
+        customCommand.put("params", null);
+
+        try {
+            // execution method
+            PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, sortOnList, projection);
+        } catch (Exception e) {
+            Assert.assertTrue(e instanceof NullPointerException);
+        }
+    }
+
+    /**
+     * params 为""
+     * {id:2}
+     * test SetCommandQueryParam function
+     */
+    @Test
+    public void testSetCommandQueryParamParamEmpty() {
+        // input param
+        Map<String, Object> customCommand = new LinkedHashMap<>();
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        customCommand.put("command", "executeQuery");
+        customParam.put("op", "find");
+        customParam.put("filter", "{id:2}");
+        customCommand.put("params", "");
+
+        try {
+            // execution method
+            PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, sortOnList, projection);
+        } catch (Exception e) {
+            Assert.assertTrue(e instanceof ClassCastException);
+        }
     }
 
 }
