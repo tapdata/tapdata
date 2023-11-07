@@ -172,7 +172,7 @@ public class PythonUtils {
                             start = command.start();
                             start.waitFor();
                             logger.info("{}'s resource package is being generated", afterUnzipFile.getName());
-                        } catch (Exception e){
+                        } catch (InterruptedException | IOException e){
                             StringJoiner errorMsg = new StringJoiner(System.lineSeparator());
                             if (null != start && !start.isAlive()) {
                                 try (InputStream errorStream = start.getErrorStream();
@@ -181,7 +181,7 @@ public class PythonUtils {
                                     while ((line = br.readLine()) != null) {
                                         errorMsg.add(line);
                                     }
-                                } catch (Exception exception) {}
+                                } catch (Exception ignore) {}
                             }
                             logger.warn("{}'s resource package is generated failed, msg: {}, Compilation information: {}", e.getMessage(), errorMsg.toString());
                         } finally {
