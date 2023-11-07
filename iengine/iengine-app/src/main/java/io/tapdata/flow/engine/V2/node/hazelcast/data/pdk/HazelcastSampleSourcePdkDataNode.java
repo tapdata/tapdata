@@ -158,7 +158,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 							tapdataEvents = SampleMockUtil.mock(tapTable, rows);
 						}
 					}catch (Exception e){
-						obsLogger.warn("mock data failed");
+						obsLogger.warn("mock data failed, {}, {}", e.getStackTrace(), e.getMessage());
 					}
 				}
 				for (TapdataEvent tapdataEvent : tapdataEvents) {
