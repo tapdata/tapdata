@@ -112,10 +112,7 @@ public class TestRunAspectTask extends AspectTask {
     paramMap.put("ts", new Date().getTime());
 
     paramMap.put("before", Optional.ofNullable(resultMap.get("before")).orElse(new ArrayList<>()));
-    if (((paramMap.get("before")) instanceof Collection) && ((Collection<?>)paramMap.get("before")).isEmpty()){
-      stopAspect.setError(new CoreException("Can not get data from source,  Please ensure if source connection is valid"));
-      paramMap.put("after", Optional.ofNullable(resultMap.get("after")).orElse(new ArrayList<>()));
-    }
+    paramMap.put("after", Optional.ofNullable(resultMap.get("after")).orElse(new ArrayList<>()));
     if (stopAspect.getError() != null) {
       //run task error
       paramMap.put("code", "error");

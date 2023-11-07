@@ -11,6 +11,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.shareCdcTableMapping.ShareCdcTableMappingDto;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
@@ -48,6 +49,7 @@ import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -73,6 +75,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkShareCDCNode.class);
 	/*private final Map<String, ConstructRingBuffer<Document>> constructMap = new ConcurrentHashMap<>();*/
 	private final Map<String, HazelcastConstruct<Document>> constructMap = new ConcurrentHashMap<>();
+
 	private final AtomicReference<String> constructReferenceId = new AtomicReference<>();
 	private List<LogCollecotrConnConfig> logCollecotrConnConfigs;
 	private Map<String, Map<String, List<Document>>> batchCacheData;
@@ -109,12 +112,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 					break;
 				}
 				completableFutures.add(CompletableFuture.runAsync(() -> {
-					HazelcastConstruct<Document> construct;
-					if (null != tableNamePrefix.get()) {
-						construct = getConstruct(ShareCdcUtil.joinNamespaces(Arrays.asList(tableNamePrefix.get(), tableName)), logCollecotrConnConfig.getConnectionId());
-					} else {
-						construct = getConstruct(tableName, logCollecotrConnConfig.getConnectionId());
-					}
+					String fullTableName = tableNamePrefix.get() != null ? ShareCdcUtil.joinNamespaces(Arrays.asList(tableNamePrefix.get(), tableName)) : tableName;
+					HazelcastConstruct<Document> construct = getConstruct(fullTableName, tableName, logCollecotrConnConfig.getConnectionId());
 					if (construct.isEmpty()) {
 						try {
 							construct.insert(document);
@@ -322,9 +321,10 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		if (null == logContent) {
 			return;
 		}
-		String tableId = logContent.getFromTable();
+		String fromTable = logContent.getFromTable();
+		String fullTableName = ShareCdcUtil.joinNamespaces(logContent.getTableNamespaces());
 		Document document = logContent2Document(logContent);
-		HazelcastConstruct<Document> construct = getConstruct(tableId, document.getString("connectionId"));
+		HazelcastConstruct<Document> construct = getConstruct(fullTableName, fromTable, document.getString("connectionId"));
 		try {
 			construct.insert(document);
 		} catch (Exception e) {
@@ -465,23 +465,24 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		return shareCdcTtlDay;
 	}
 
-	private HazelcastConstruct<Document> getConstruct(String tableName, String connectionId) {
-		return constructMap.computeIfAbsent(tableName, k -> {
+	private HazelcastConstruct<Document> getConstruct(String fullTableName, String tableName, String connectionId) {
+		return constructMap.computeIfAbsent(fullTableName, k -> {
 			String taskId = processorBaseContext.getTaskDto().getId().toHexString();
-			String[] split = tableName.split("\\.");
-			String sign = ShareCdcTableMappingDto.genSign(connectionId, split[split.length - 1]);
+			String sign = ShareCdcTableMappingDto.genSign(connectionId, tableName);
 			Query query = Query.query(Criteria.where("sign").is(sign));
 			ShareCdcTableMappingDto shareCdcTableMappingDto = clientMongoOperator.findOne(query, ConnectorConstant.SHARE_CDC_TABLE_MAPPING_COLLECTION, ShareCdcTableMappingDto.class);
 			if (null == shareCdcTableMappingDto) {
 				throw new RuntimeException("Share cdc table mapping not found, sign: " + sign);
 			}
 			obsLogger.info("[{}] Found table mapping: {}", TAG, shareCdcTableMappingDto);
-			externalStorageDto.setTable(shareCdcTableMappingDto.getExternalStorageTableName());
+			ExternalStorageDto constructExternalStorageDto = new ExternalStorageDto();
+			BeanUtils.copyProperties(externalStorageDto, constructExternalStorageDto);
+			constructExternalStorageDto.setTable(shareCdcTableMappingDto.getExternalStorageTableName());
 			return new ConstructRingBuffer<>(
 					jetContext.hazelcastInstance(),
 					constructReferenceId.get(),
-					ShareCdcUtil.getConstructName(processorBaseContext.getTaskDto(), tableName),
-					externalStorageDto,
+					ShareCdcUtil.getConstructName(processorBaseContext.getTaskDto(), fullTableName),
+					constructExternalStorageDto,
 					PersistenceStorage.SequenceMode.HAZELCAST
 			);
 		});
@@ -565,7 +566,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				return;
 			}
 			String connectionId = documents.get(0).getString("connectionId");
-			HazelcastConstruct<Document> construct = getConstruct(tableId, connectionId);
+			String fromTable = documents.get(0).getString("fromTable");
+			HazelcastConstruct<Document> construct = getConstruct(tableId, fromTable, connectionId);
 			construct.insertMany(documents, unused -> !isRunning());
 			if (logger.isDebugEnabled()) {
 				Ringbuffer ringbuffer = ((ConstructRingBuffer) construct).getRingbuffer();
