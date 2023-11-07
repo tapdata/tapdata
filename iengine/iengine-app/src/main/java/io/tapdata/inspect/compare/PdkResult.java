@@ -184,23 +184,28 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 		}
 	}
 
-	public static void setCommandQueryParam(Map<String, Object> customCommand,ConnectorNode connectorNode,TapTable table,
-									 List<SortOn> sortOnList,Projection projection) {
-		Map<String, Object> params = (Map<String, Object>) customCommand.get("params");
-		if(!connectorNode.getTapNodeInfo().getTapNodeSpecification().getId().contains("mongodb")) {
-			Object value = params.get("sql");
-			if (value != null) {
-				String sql = getSelectSql(value.toString(),sortOnList);
-				params.put("sql", sql);
+	public static void setCommandQueryParam(Map<String, Object> customCommand, ConnectorNode connectorNode, TapTable table,
+											List<SortOn> sortOnList, Projection projection) {
+		try {
+			Map<String, Object> params = (Map<String, Object>) customCommand.get("params");
+			if (!connectorNode.getTapNodeInfo().getTapNodeSpecification().getId().contains("mongodb")) {
+				Object value = params.get("sql");
+				if (value != null) {
+					String sql = getSelectSql(value.toString(), sortOnList);
+					params.put("sql", sql);
+				}
+			} else {
+				params.put("collection", table.getId());
+				params.put("projection", projection);
+				Map<String, Object> sortMap = new LinkedHashMap<>();
+				sortOnList.forEach(sortOn -> {
+					sortMap.put(sortOn.getKey(), 1);
+				});
+				params.put("sort", sortMap);
 			}
-		}else {
-			params.put("collection",table.getId());
-			params.put("projection",projection);
-			Map<String, Object> sortMap = new LinkedHashMap<>();
-			sortOnList.forEach(sortOn->{
-                sortMap.put(sortOn.getKey(),1);
-			});
-			params.put("sort",sortMap);
+		} catch (Exception e) {
+			throw new RuntimeException("SetCommandQueryParam error: " + e.getMessage()+" customCommand : "+
+					customCommand);
 		}
 	}
 	private static String getSelectSql(String customSql,List<SortOn> sortOnList) {

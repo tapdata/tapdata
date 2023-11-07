@@ -179,61 +179,47 @@ public class CommandCountParamTest extends ConnectorNodeBase {
      * test SetCommandCountParam function
      * 检查params为空
      */
-    @Test
+    @Test(expected = RuntimeException.class)
     public void testSetCommandCountParamParamsEmpty() {
         // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
         customCommand.put("command", "executeQuery");
         customCommand.put("params", "");
 
-        try {
-            // execution method
-            TableRowCountInspectJob.setCommandCountParam(customCommand, mongoConnectorNode, myTapTable);
+        // execution method
+        TableRowCountInspectJob.setCommandCountParam(customCommand, mongoConnectorNode, myTapTable);
 
-        } catch (Exception e) {
-            Assert.assertTrue(e instanceof ClassCastException);
-
-        }
     }
 
     /**
      * test SetCommandCountParam function
      * 检查params为null
      */
-    @Test
+    @Test(expected = RuntimeException.class)
     public void testSetCommandCountParamParamsNull() {
         // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
         customCommand.put("command", "executeQuery");
         customCommand.put("params", null);
 
-        try {
-            // execution method
-            TableRowCountInspectJob.setCommandCountParam(customCommand, mongoConnectorNode, myTapTable);
+        // execution method
+        TableRowCountInspectJob.setCommandCountParam(customCommand, mongoConnectorNode, myTapTable);
 
-        } catch (Exception e) {
-            Assert.assertTrue(e instanceof NullPointerException);
-        }
     }
 
     /**
      * test SetCommandCountParam function
      * 检查command为null
      */
-    @Test
+    @Test(expected = RuntimeException.class)
     public void testSetCommandCountParamCommandNull() {
         // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
         customCommand.put("command", "executeQuery");
         customCommand.put("params", null);
 
-        try {
-            // execution method
-            TableRowCountInspectJob.setCommandCountParam(customCommand, mongoConnectorNode, myTapTable);
-
-        } catch (Exception e) {
-            Assert.assertTrue(e instanceof NullPointerException);
-        }
+        // execution method
+        TableRowCountInspectJob.setCommandCountParam(customCommand, mongoConnectorNode, myTapTable);
     }
 
     public static TapExecuteCommand setCustomCommandParam(Map<String, Object> customCommand, String querySql,

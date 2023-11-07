@@ -10,7 +10,9 @@ import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -22,6 +24,9 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
     private List<SortOn> sortOnList = new LinkedList<>();
 
     private static Projection projection = null;
+
+    @Rule
+    public ExpectedException exception = ExpectedException.none();
 
 
     @Before
@@ -131,7 +136,7 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
 
         // output results
         Assert.assertEquals(expectedCollection, actualCollection);
-        Assert.assertTrue(actualSortMap.containsKey(sortOnList.get(0)));
+        Assert.assertTrue(actualSortMap.containsKey(sortOnList.get(0).getKey()));
     }
 
 
@@ -162,37 +167,13 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
         Assert.assertTrue(MapUtil.isEmpty(actualSortMap));
     }
 
-    /**
-     * command 为null
-     * {id:2}
-     * test SetCommandQueryParam function
-     */
-    @Test
-    public void testSetCommandQueryParamCommandNull() {
-        // input param
-        Map<String, Object> customCommand = new LinkedHashMap<>();
-        Map<String, Object> customParam = new LinkedHashMap<>();
-        customCommand.put("command", null);
-        customParam.put("op", "find");
-        customParam.put("filter", "{id:2}");
-        customCommand.put("params", customParam);
-
-        try {
-            // execution method
-            PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, sortOnList, projection);
-        }catch (Exception e){
-            Assert.assertTrue(e instanceof NullPointerException);
-        }
-
-    }
-
 
     /**
      * params 为null
      * {id:2}
      * test SetCommandQueryParam function
      */
-    @Test
+    @Test(expected = RuntimeException.class)
     public void testSetCommandQueryParamParamNull() {
         // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
@@ -202,12 +183,9 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
         customParam.put("filter", "{id:2}");
         customCommand.put("params", null);
 
-        try {
-            // execution method
-            PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, sortOnList, projection);
-        } catch (Exception e) {
-            Assert.assertTrue(e instanceof NullPointerException);
-        }
+        // execution method
+        PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, sortOnList, projection);
+
     }
 
     /**
@@ -215,7 +193,7 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
      * {id:2}
      * test SetCommandQueryParam function
      */
-    @Test
+    @Test(expected = RuntimeException.class)
     public void testSetCommandQueryParamParamEmpty() {
         // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
@@ -225,12 +203,10 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
         customParam.put("filter", "{id:2}");
         customCommand.put("params", "");
 
-        try {
-            // execution method
-            PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, sortOnList, projection);
-        } catch (Exception e) {
-            Assert.assertTrue(e instanceof ClassCastException);
-        }
+        // execution method
+        PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, sortOnList, projection);
+        exception.expect(ClassCastException.class);
+
     }
 
 }

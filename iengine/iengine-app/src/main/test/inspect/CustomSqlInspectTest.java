@@ -152,7 +152,7 @@ public class CustomSqlInspectTest extends ConnectorNodeBase {
      * select *  from  test  where id>2
      * test executeCommand function
      */
-    @Test
+    @Test(expected = TapPdkRunnerUnknownException.class)
     public void testExecuteCommandQueryCountException() throws NoSuchFieldException, IllegalAccessException {
         // input param
         TapExecuteCommand tapExecuteCommand =
@@ -162,15 +162,10 @@ public class CustomSqlInspectTest extends ConnectorNodeBase {
         MockExecuteCommandFunction executeCommandFunction = new MockExceptionExecuteCommandFunction();
         SQLException sqlException = new SQLSyntaxErrorException("Table 'mydb.test' doesn't exist",
                 "42S02", 1146);
-        handleMockExecuteCommandFunction(new MockExceptionExecuteCommandFunction(), sqlException, null, false);
+        handleMockExecuteCommandFunction(executeCommandFunction, sqlException, null, false);
 
         // execution method
-        try {
-            // execution method
-            TableRowCountInspectJob.executeCommand(executeCommandFunction, tapExecuteCommand, sqlConnectorNode);
-        }catch (Exception e){
-            Assert.assertTrue(e instanceof TapPdkRunnerUnknownException);
-        }
+        TableRowCountInspectJob.executeCommand(executeCommandFunction, tapExecuteCommand, sqlConnectorNode);
     }
 
 
@@ -242,7 +237,7 @@ public class CustomSqlInspectTest extends ConnectorNodeBase {
      * select *  from  test  where id>2
      * test executeQueryCommand function
      */
-    @Test
+    @Test(expected = TapPdkRunnerUnknownException.class)
     public void testExecuteQueryCommandQueryListException() throws NoSuchFieldException, IllegalAccessException {
         // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
@@ -254,12 +249,8 @@ public class CustomSqlInspectTest extends ConnectorNodeBase {
                 "42S02", 1146);
         PdkResult pdkResult = handleMockExecuteCommandFunction(new MockExceptionExecuteCommandFunction(), sqlException, customCommand, true);
 
-        try {
-            // execution method
-            pdkResult.executeQueryCommand(tapExecuteCommand);
-        }catch (Exception e){
-            Assert.assertTrue(e instanceof TapPdkRunnerUnknownException);
-        }
+        // execution method
+        pdkResult.executeQueryCommand(tapExecuteCommand);
     }
 
 
