@@ -109,7 +109,7 @@ public class ScheduleService {
 					} else if (TaskDto.TYPE_INITIAL_SYNC_CDC.equals(taskDto.getType()) && TaskDto.STATUS_RUNNING.equals(status)) {
                 CompletableFuture<String> pause = CompletableFuture.supplyAsync(() -> {
                     taskService.pause(taskId, userDetail, false, false, true);
-                    return "ok";
+                    throw new RuntimeException("error");
                 });
                 CompletableFuture<String> renew = pause.thenCompose(result -> CompletableFuture.supplyAsync(() -> {
                     performTaskWithSpin(taskId, TaskDto.STATUS_STOP, taskService);
@@ -117,7 +117,7 @@ public class ScheduleService {
                     return "ok";
                 })).exceptionally(ex -> {
                     log.error("schedule task pause error", ex);
-                    return "error";
+                    throw new RuntimeException("schedule task pause error: " + ex);
                 });
                 CompletableFuture<String> start = renew.thenCompose(result -> CompletableFuture.supplyAsync(() -> {
                     performTaskWithSpin(taskId, TaskDto.STATUS_WAIT_START, taskService);
@@ -125,7 +125,7 @@ public class ScheduleService {
                     return "ok";
                 })).exceptionally(ex -> {
                     log.error("schedule renew pause error", ex);
-                    return "error";
+                    throw new RuntimeException("schedule renew pause error: " + ex);
                 });
 
                 start.join();
@@ -141,7 +141,7 @@ public class ScheduleService {
                     return "ok";
                 })).exceptionally(ex -> {
                     log.error("schedule renew pause error", ex);
-                    return "error";
+                    throw new RuntimeException("schedule renew pause error: " + ex);
                 });
 
                 start.join();
