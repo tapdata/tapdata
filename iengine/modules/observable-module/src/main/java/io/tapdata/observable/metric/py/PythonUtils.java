@@ -224,7 +224,7 @@ public class PythonUtils {
             File f = new File(PYTHON_THREAD_PACKAGE_PATH);
             if (!f.exists()) f.mkdirs();
             final String zipFileTempPath = concat(PYTHON_THREAD_PACKAGE_PATH, PYTHON_THREAD_JAR);
-            saveTempZipFile(inputStream, zipFileTempPath);
+            saveTempZipFile(inputStream, zipFileTempPath, log);
             return setPackagesResources(log, zipFileTempPath, unzipPath, pyJarPath, jarName);
         } catch (IOException e) {
             log.warn(e.getMessage());
@@ -297,21 +297,30 @@ public class PythonUtils {
         return path;
     }
 
-    private static void saveTempZipFile(InputStream inputStream, String savePath){
+    private static void saveTempZipFile(InputStream inputStream, String savePath, Log log){
+        OutputStream outputStream = null;
         try {
             RandomAccessFile file = new RandomAccessFile(new File(savePath), "rw");
             file.close();
-            OutputStream outputStream = new FileOutputStream(savePath);
+            outputStream = new FileOutputStream(savePath);
             byte[] buffer = new byte[1024];
             int bytesRead;
             while ((bytesRead = inputStream.read(buffer)) != -1) {
                 outputStream.write(buffer, 0, bytesRead);
             }
-            // 关闭流
-            inputStream.close();
-            outputStream.close();
         } catch (IOException e) {
-            e.printStackTrace();
+            log.info(e.getMessage());
+        } finally {
+            try {
+                if (null != outputStream) {
+                    outputStream.close();
+                }
+            } catch (IOException ignore) {}
+            try {
+                if (null != inputStream) {
+                    inputStream.close();
+                }
+            } catch (IOException ignore) {}
         }
     }
 
