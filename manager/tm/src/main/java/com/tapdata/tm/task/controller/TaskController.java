@@ -1204,26 +1204,37 @@ public class TaskController extends BaseController {
             responseMessage.setTs(System.currentTimeMillis());
             return responseMessage;
         }
-        JSONArray filteredLogs = new JSONArray();
-        String jsNodeId = dto.getJsNodeId();
-        Object logs = result.get("logs");
-        if (logs instanceof JSONArray){
-            for (Object o : (JSONArray) ((JSONArray) logs)) {
-                if (o instanceof JSONObject){
-                    String level = ((JSONObject) o).get("level").toString();
-                    String nodeId = ((JSONObject) o).get("nodeId").toString();
-                    if ("WARN".equals(level) || "ERROR".equals(level) || (null != jsNodeId && jsNodeId.equals(nodeId))){
-                        filteredLogs.add(o);
-                    }
-                }
-            }
-        }
+        JSONArray filteredLogs = buildFilteredLogs(dto, result);
         result.put("logs",filteredLogs);
         responseMessage.setCode((String) Optional.ofNullable(result.get("code")).orElse("ok"));
         responseMessage.setData(result);
         responseMessage.setMessage((String) Optional.ofNullable(result.get("message")).orElse("ok"));
         responseMessage.setTs((Long) Optional.ofNullable(result.get("ts")).orElse(System.currentTimeMillis()));
         return responseMessage;
+    }
+
+    public JSONArray buildFilteredLogs(TestRunDto dto, Map<String, Object> result){
+        JSONArray filteredLogs = new JSONArray();
+        String jsNodeId = null;
+        if (null != dto){
+            jsNodeId = dto.getJsNodeId();
+        }
+        if (null == result) return filteredLogs;
+        Object logs = result.get("logs");
+        if (!(logs instanceof JSONArray)) {
+            return filteredLogs;
+        }
+        for (Object o : ((JSONArray) logs)) {
+            if (!(o instanceof JSONObject)) continue;
+            if (null == ((JSONObject) o).get("level")) continue;
+            if (null == ((JSONObject) o).get("nodeId")) continue;
+            String level = ((JSONObject) o).get("level").toString();
+            String nodeId = ((JSONObject) o).get("nodeId").toString();
+            if ("WARN".equals(level) || "ERROR".equals(level) || (null != jsNodeId && jsNodeId.equals(nodeId))){
+                filteredLogs.add(o);
+            }
+        }
+        return filteredLogs;
     }
 
     @PostMapping("migrate-js/save-result")
