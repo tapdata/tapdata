@@ -174,25 +174,37 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
     }
 
     /**
-     * params 为""
+     * projection 不为空 在mongodb是需要转换map结构
      * {id:2}
      * test SetCommandQueryParam function
      */
-    @Test(expected = RuntimeException.class)
-    public void testSetCommandQueryParamParamEmpty() {
+    @Test
+    public void testSetCommandQueryParamProjectionIncludeColumn() {
         // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
         Map<String, Object> customParam = new LinkedHashMap<>();
         customCommand.put("command", "executeQuery");
         customParam.put("op", "find");
         customParam.put("filter", "{id:2}");
-        customCommand.put("params", "");
+        customCommand.put("params", customParam);
+        projection =new Projection().include("id");
 
         // execution method
         PdkResult.setCommandQueryParam(customCommand, mongoConnectorNode, myTapTable, sortOnList, projection);
-        exception.expect(ClassCastException.class);
+
+        // actual data
+        Map<String, Object> params = (Map<String, Object>) customCommand.get("params");
+        Map actualData = (Map<String, Object>) params.get("projection");
+
+
+        // output results
+        Assert.assertTrue(actualData.keySet().contains(projection.getIncludeFields().get(0)));
+
 
 >>>>>>> 499c90939 (fix test  exception scene)
     }
+
+
+
 
 }

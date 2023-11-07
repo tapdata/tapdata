@@ -196,7 +196,15 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 				}
 			} else {
 				params.put("collection", table.getId());
-				params.put("projection", projection);
+				if (projection == null) {
+					params.put("projection", null);
+				}else {
+					Map<String, Object> projectInclude = new LinkedHashMap<>();
+					projection.getIncludeFields().forEach(include->{
+						projectInclude.put(include,1);
+					});
+					params.put("projection", projectInclude);
+				}
 				Map<String, Object> sortMap = new LinkedHashMap<>();
 				sortOnList.forEach(sortOn -> {
 					sortMap.put(sortOn.getKey(), 1);
