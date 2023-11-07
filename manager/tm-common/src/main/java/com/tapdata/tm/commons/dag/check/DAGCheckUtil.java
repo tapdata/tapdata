@@ -65,7 +65,7 @@ public class DAGCheckUtil {
             if (null == currentNodeSourceNode) {
                 Message message = new Message();
                 message.setCode(joinNodeTag);
-                message.setMsg(String.format("An not disabled join node [%s] contain an source node which is empty, source node id is %s", joinNodeName, currentNodeSourceNode.getName()));
+                message.setMsg(String.format("An not disabled join node [%s] contain an source node which is empty, source node id is %s", joinNodeName, currentNodeSourceNodeId));
                 messageList.add(message);
                 DAGCheckUtil.setNodeToDisabled(joinNode);
                 continue;
