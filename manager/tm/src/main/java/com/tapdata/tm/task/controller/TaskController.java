@@ -2,6 +2,8 @@ package com.tapdata.tm.task.controller;
 
 import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
@@ -1193,15 +1195,27 @@ public class TaskController extends BaseController {
         try {
             data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser(), jsType);
             result = (Map<String, Object>)Optional.ofNullable(data.get("data")).orElse(data);
-            if (null == result || result.isEmpty()) {
-                throw new CoreException("Can not get data from source,  Please ensure if source connection is valid");
-            }
         }catch (Exception e){
             responseMessage.setCode("error");
             responseMessage.setMessage(e.getMessage());
             responseMessage.setTs(System.currentTimeMillis());
             return responseMessage;
         }
+        JSONArray filteredLogs = new JSONArray();
+        String jsNodeId = dto.getJsNodeId();
+        Object logs = result.get("logs");
+        if (logs instanceof JSONArray){
+            for (Object o : (JSONArray) ((JSONArray) logs)) {
+                if (o instanceof JSONObject){
+                    String level = ((JSONObject) o).get("level").toString();
+                    String nodeId = ((JSONObject) o).get("nodeId").toString();
+                    if ("WARN".equals(level) || "ERROR".equals(level) || (null != jsNodeId && jsNodeId.equals(nodeId))){
+                        filteredLogs.add(o);
+                    }
+                }
+            }
+        }
+        result.put("logs",filteredLogs);
         responseMessage.setCode((String) Optional.ofNullable(result.get("code")).orElse("ok"));
         responseMessage.setData(result);
         responseMessage.setMessage((String) Optional.ofNullable(result.get("message")).orElse("ok"));

@@ -85,6 +85,7 @@ public class JSProcessNodeTestRunService {
             resultMap.put("code", "error");
             resultMap.put("message", throwable.getMessage());
         } finally {
+            ObsLoggerFactory.getInstance().removeTaskLogger(taskDto);
             taskDtoMap.remove(taskId);
             logger.info("test run task {} {}, cost {}ms", taskId, null == taskClient ? "error" : taskClient.getStatus(), (System.currentTimeMillis() - startTs));
         }
