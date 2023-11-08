@@ -137,9 +137,6 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             criteria.and("timestamp").gte(start);
         }
 
-        if (StringUtils.isNotEmpty(param.getNodeId())) {
-            criteria.and("nodeId").is(param.getNodeId());
-        }
 
         // keyword search filter
         if (StringUtils.isNotEmpty(param.getSearch())) {
@@ -158,7 +155,9 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         // log level filter
         List<String> levels = param.getLevels();
         if (null == levels) {
-            levels = param.getFullLevels();
+            levels = new ArrayList<>();
+            levels.add("WARN");
+            levels.add("ERROR");
         }
         criteria.and("level").in(levels);
 
@@ -172,8 +171,16 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
                 sort = sort.descending();
                 break;
         }
-
-        Query query = new Query(criteria);
+        Criteria newCriteria = new Criteria();
+        if (StringUtils.isNotEmpty(param.getNodeId())) {
+            newCriteria.orOperator(criteria,Criteria.where("taskId").is(taskId).and("nodeId").is(param.getNodeId()).and("level").is("INFO").and("timestamp").gte(start));
+        }
+        Query query = new Query();
+        if ("testRun".equals(type)) {
+            query.addCriteria(newCriteria);
+        } else {
+            query.addCriteria(criteria);
+        }
         query.with(sort);
 
         long total = mongoOperations.count(query, MonitoringLogsEntity.class);

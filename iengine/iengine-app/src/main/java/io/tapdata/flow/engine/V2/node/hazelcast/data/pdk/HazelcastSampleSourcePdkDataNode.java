@@ -128,7 +128,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 						TaskDto taskDto = processorBaseContext.getTaskDto();
 						if (null != taskDto && taskDto.isTestTask() && tapEventList.isEmpty()) {
 							needMock = true;
-							obsLogger.info("Source table is empty, trying to mock data");
+							obsLogger.warn("Source table is empty, trying to mock data");
 						}
 					} catch (Exception e) {
 						logger.warn("Error getting sample data, will try to simulate: {}", e.getMessage());
@@ -158,7 +158,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 							tapdataEvents = SampleMockUtil.mock(tapTable, rows);
 						}
 					}catch (Exception e){
-						obsLogger.info("mock data failed");
+						obsLogger.warn("mock data failed, {}, {}", e.getStackTrace(), e.getMessage());
 					}
 				}
 				for (TapdataEvent tapdataEvent : tapdataEvents) {
