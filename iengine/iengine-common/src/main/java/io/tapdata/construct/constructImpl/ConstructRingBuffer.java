@@ -3,6 +3,7 @@ package io.tapdata.construct.constructImpl;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
+import com.hazelcast.persistence.store.StoreLogger;
 import com.hazelcast.ringbuffer.OverflowPolicy;
 import com.hazelcast.ringbuffer.Ringbuffer;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
@@ -49,9 +50,9 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> im
 		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(genMemoryKey(name), this), TAG);
 	}
 
-	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto) {
+	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto, StoreLogger storeLogger) {
 		super(referenceId, name, externalStorageDto);
-		ExternalStorageUtil.initHZRingBufferStorage(externalStorageDto, referenceId, name, hazelcastInstance.getConfig());
+		ExternalStorageUtil.initHZRingBufferStorage(externalStorageDto, referenceId, name, hazelcastInstance.getConfig(), storeLogger);
 		this.ringbuffer = hazelcastInstance.getRingbuffer(name);
 		Integer ttlDay = externalStorageDto.getTtlDay();
 		if (ttlDay != null && ttlDay > 0) {
@@ -61,9 +62,9 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> im
 		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(genMemoryKey(name), this), TAG);
 	}
 
-	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto, PersistenceStorage.SequenceMode sequenceMode) {
+	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto, PersistenceStorage.SequenceMode sequenceMode, StoreLogger storeLogger) {
 		super(referenceId, name, externalStorageDto);
-		ExternalStorageUtil.initHZRingBufferStorage(externalStorageDto, referenceId, name, hazelcastInstance.getConfig(), sequenceMode);
+		ExternalStorageUtil.initHZRingBufferStorage(externalStorageDto, referenceId, name, hazelcastInstance.getConfig(), sequenceMode, storeLogger);
 		this.ringbuffer = hazelcastInstance.getRingbuffer(name);
 		Integer ttlDay = externalStorageDto.getTtlDay();
 		if (ttlDay != null && ttlDay > 0) {
