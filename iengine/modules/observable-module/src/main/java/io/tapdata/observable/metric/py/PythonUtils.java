@@ -280,7 +280,7 @@ public class PythonUtils {
         return path;
     }
 
-    private static void saveTempZipFile(InputStream inputStream, String savePath, Log log){
+    public static void saveTempZipFile(InputStream inputStream, String savePath, Log log){
         try (OutputStream outputStream = new FileOutputStream(savePath)) {
             RandomAccessFile file = new RandomAccessFile(new File(savePath), "rw");
             file.close();
