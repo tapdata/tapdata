@@ -233,7 +233,7 @@ public abstract class TaskCleaner {
 		PdkStateMap pdkStateMap = new PdkStateMap(node.getId(), HazelcastTaskService.getHazelcastInstance(), taskDto, node, clientMongoOperator, "processor");
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(HazelcastTaskService.getHazelcastInstance());
 		PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator,
-				databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
+				databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid(),null);
 		TapTableMap<String, TapTable> tapTableMapByNodeId = TapTableUtil.getTapTableMapByNodeId(node.getId());
 		PdkTableMap pdkTableMap = new PdkTableMap(tapTableMapByNodeId);
 		String associateId = this.getClass().getSimpleName() + "-" + node.getId();

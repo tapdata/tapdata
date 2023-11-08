@@ -49,14 +49,12 @@ import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -475,8 +473,30 @@ public class RestTemplateOperator {
 			}
 		}, stop);
 	}
+	public void downloadFileByProgress(RestTemplateOperator.Callback callback,InputStream source,File file,long fileSize) throws IOException {
+			byte[] buffer = new byte[10 * 1024 * 1024];
+			int numberOfBytesRead;
+			long totalNumberOfBytesRead = 0;
+			Date startTime = new Date();
+		    try (FileOutputStream fos = new FileOutputStream(file)) {
+				while ((numberOfBytesRead = source.read(buffer)) != -1) {
+					fos.write(buffer, 0, numberOfBytesRead);
+					totalNumberOfBytesRead += numberOfBytesRead;
+					callback.onProgress(fileSize,totalNumberOfBytesRead * 100 / fileSize);
+				}
+			} catch (IOException ex) {
+				callback.onError(ex);
+			}finally {
+			    source.close();
+		    }
+			Date endTime = new Date();
+			long elapsedTime = endTime.getTime() - startTime.getTime();
+			double downloadSpeed = (totalNumberOfBytesRead / 1024.0) / (elapsedTime / 1000.0);
+			String downloadSpeedString= String.format("%.2f",downloadSpeed);
+			callback.onFinish(downloadSpeedString+"kb/s");
+	}
 
-	public File downloadFile(Map<String, Object> params, String resource, String path, String cookies, String region) {
+	public File downloadFile(Map<String, Object> params, String resource, String path, String cookies, String region,RestTemplateOperator.Callback callback) {
 		return retryWrap(retryInfo -> {
 			HttpEntity<String> httpEntity = null;
 			if (StringUtils.isNotBlank(cookies)) {
@@ -506,7 +526,11 @@ public class RestTemplateOperator {
 				if (responseEntity.getBody() == null) {
 					return null;
 				}
-				FileUtils.copyInputStreamToFile(responseEntity.getBody().getInputStream(), file);
+				if(null == callback){
+					FileUtils.copyInputStreamToFile(responseEntity.getBody().getInputStream(), file);
+				}else{
+					downloadFileByProgress(callback,responseEntity.getBody().getInputStream(),file,responseEntity.getBody().contentLength());
+				}
 				File realFile = new File(path);
 				if (realFile.exists()) {
 					FileUtils.deleteQuietly(realFile);
@@ -738,6 +762,14 @@ public class RestTemplateOperator {
 
 	interface TryFunc<T> {
 		T tryFunc(RetryInfo retryInfo) throws Exception;
+	}
+	public interface Callback {
+        void needDownloadPdkFile(boolean flag) throws IOException;
+		void onProgress(long fileSize,long progress) throws IOException;
+
+		void onFinish(String downloadSpeed) throws IOException;
+
+		void onError(IOException ex) throws IOException;
 	}
 
 	enum ResponseCode {

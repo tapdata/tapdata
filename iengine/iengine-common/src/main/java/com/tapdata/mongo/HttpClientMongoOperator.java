@@ -602,7 +602,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 		return null;
 	}
 
-	public File downloadFile(Map<String, Object> params, String resource, String filePath, boolean replace) {
+	public File downloadFile(Map<String, Object> params, String resource, String filePath, boolean replace,RestTemplateOperator.Callback callback) {
 		if (!replace) {
 			File file = new File(filePath);
 			if (file.exists()) {
@@ -615,7 +615,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 		}
 		addToken(params);
 
-		return restTemplateOperator.downloadFile(params, resource, filePath, cookies(), cloudRegion);
+		return restTemplateOperator.downloadFile(params, resource, filePath, cookies(), cloudRegion, callback);
 	}
 
 	public RestTemplateOperator getRestTemplateOperator() {

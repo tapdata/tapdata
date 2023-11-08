@@ -145,7 +145,7 @@ public class QueryDataBaseDataService {
 	private ConnectorNode createConnectorNode(String associateId, HttpClientMongoOperator clientMongoOperator, DatabaseTypeEnum.DatabaseType databaseType, Map<String, Object> connectionConfig) {
 		try {
 			PdkUtil.downloadPdkFileIfNeed(clientMongoOperator,
-					databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
+					databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid(),null);
 			PDKIntegration.ConnectorBuilder<ConnectorNode> connectorBuilder = PDKIntegration.createConnectorBuilder()
 					.withDagId(associateId)
 					.withAssociateId(associateId)

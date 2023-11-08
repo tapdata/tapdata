@@ -99,7 +99,7 @@ public class DropTableHandler implements WebSocketEventHandler {
 		String associateId = connections.getName() + "_" + ts;
 		try {
 			PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator,
-					databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
+					databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid(),null);
 			String TAG = DropTableHandler.class.getSimpleName();
 			ConnectorNode connectorNode = PdkUtil.createNode(
 					connections.getId(),
