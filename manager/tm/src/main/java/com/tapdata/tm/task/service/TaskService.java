@@ -7,7 +7,6 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
-import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
@@ -78,6 +77,7 @@ import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
+import com.tapdata.tm.task.utils.TaskServiceUtils;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.constant.*;
 import com.tapdata.tm.task.entity.TaskEntity;
@@ -1516,11 +1516,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                             total += dto.getTotal();
                             finished += dto.getFinished();
                         }
-                        double process = finished / (total * 1d);
-                        if (process > 1) {
-                            process = 1;
-                        }
-                        item.setTransformProcess(((int) (process * 100)) / 100d);
+                        item.setTransformProcess(TaskServiceUtils.getTransformProcess(total, finished));
                     }
                     //产品认为不把STATUS_SCHEDULE_FAILED  展现到页面上，STATUS_SCHEDULE_FAILED就直接转为error状态
                     item.setStatus(TaskStatusEnum.getMapStatus(item.getStatus()));
