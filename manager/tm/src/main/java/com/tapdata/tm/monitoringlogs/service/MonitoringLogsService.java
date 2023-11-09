@@ -326,7 +326,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         ;
         String msg;
         if (e instanceof BizException) {
-            msg = MessageUtil.getMessage(((BizException) e).getErrorCode());
+            msg = ((BizException) e).getMessage();
             if(((BizException) e).getErrorCode()!=null){
                 builder.fullErrorCode(((BizException) e).getErrorCode());
             }
