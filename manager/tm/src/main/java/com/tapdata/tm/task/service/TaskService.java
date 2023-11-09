@@ -3313,6 +3313,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             attrs = node.getAttrs();
             databaseType = ((TableNode) node).getDatabaseType();
         }
+        if (null == attrs) {
+            attrs = new HashMap<>();
+        }
 
         if ("PostgreSQL".equalsIgnoreCase(databaseType) &&
                 DataSyncMq.OP_TYPE_DELETE.equals(opType) && MapUtils.isNotEmpty(taskDto.getAttrs())) {
