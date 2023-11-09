@@ -180,7 +180,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                 if (!limitNum) {
                     StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
                     if (stateMachineResult.isOk()) {
-                        throw new BizException("Task.ScheduleLimit");
+                        handleScheduleLimit(workerDto,finalUser);
                     }
                 } else {
                     handleScheduleLimit(workerDto,finalUser);
