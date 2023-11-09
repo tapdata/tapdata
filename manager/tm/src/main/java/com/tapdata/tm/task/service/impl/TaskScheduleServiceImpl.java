@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
@@ -215,9 +216,11 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         workerList.stream().forEach(worker -> {
             if (!worker.getProcessId().equals(workerDto.getProcessId())) {
                 int runningTaskNum = taskService.runningTaskNum(worker.getProcessId(), finalUser);
-                int limitTaskNumTemp = workerService.getLimitTaskNum(workerDto, finalUser);
+                WorkerDto workerDtoTemp = new WorkerDto();
+                BeanUtil.copyProperties(worker, workerDtoTemp);
+                int limitTaskNumTemp = workerService.getLimitTaskNum(workerDtoTemp, finalUser);
                 if (runningTaskNum < limitTaskNumTemp) {
-                    availableAgent.add(worker.getHostname());
+                    availableAgent.add(worker.getTcmInfo().getAgentName());
                 }
             }
         });
