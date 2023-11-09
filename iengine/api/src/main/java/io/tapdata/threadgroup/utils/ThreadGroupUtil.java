@@ -1,10 +1,5 @@
 package io.tapdata.threadgroup.utils;
 
-import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.pdk.core.async.AsyncUtils;
-import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import io.tapdata.threadgroup.DisposableThreadGroup;
 import io.tapdata.threadgroup.ProcessorOnTaskThreadGroup;
@@ -21,20 +16,12 @@ public class ThreadGroupUtil {
     private final Class<? extends ThreadGroup>[] subClass;
 
 
-    private static ThreadGroup getSystemGroup(Thread thread){
-        ThreadGroup group = thread.getThreadGroup();
-        while (null != group && !"system".equals(group.getName())){
-            group = group.getParent();
-        }
-        return group;
-    }
-
     private boolean isFather(ThreadGroup target) {
         return null != target && target.getClass().isAssignableFrom(fatherClass);
     }
 
     private boolean isSub(ThreadGroup target) {
-        return this.content(target,subClass);
+        return ThreadGroupUtil.content(target,subClass);
     }
 
     public static ThreadGroupUtil create(Class<? extends ThreadGroup> fatherClass, Class<? extends ThreadGroup>[] subClass) {
@@ -62,7 +49,6 @@ public class ThreadGroupUtil {
 
     public Map<ThreadGroup, Set<ThreadGroup>> groupAll() {
         ThreadGroup group = systemThreadGroup();
-        //Thread[] threads = groupThreads(group);
         ThreadGroup[] threadGroups = threadGroups(group);
         Map<ThreadGroup, Set<ThreadGroup>> groupMap = new HashMap<>();
         for (ThreadGroup threadGroup : threadGroups) {
@@ -125,7 +111,6 @@ public class ThreadGroupUtil {
         try {
             Class<ThreadGroup> groupClass = ThreadGroup.class;
             Field threads = groupClass.getDeclaredField("threads");
-            threads.setAccessible(Boolean.TRUE);
             return (Thread[]) Optional.ofNullable(threads.get(threadGroup)).orElse(new Thread[0]);
         } catch (Exception e) {
             return new Thread[0];
@@ -136,7 +121,6 @@ public class ThreadGroupUtil {
         try {
             Class<ThreadGroup> groupClass = ThreadGroup.class;
             Field threads = groupClass.getDeclaredField("groups");
-            threads.setAccessible(Boolean.TRUE);
             return (ThreadGroup[]) Optional.ofNullable(threads.get(threadGroup)).orElse(new ThreadGroup[0]);
         } catch (Exception e) {
             return new ThreadGroup[0];
@@ -160,126 +144,5 @@ public class ThreadGroupUtil {
             }
         }
         return Boolean.FALSE;
-    }
-
-    //for test thread
-    public static void main(String[] args) {
-        ThreadGroupUtil util = ThreadGroupUtil.create(TaskThreadGroup.class,new Class[]{ConnectorOnTaskThreadGroup.class, ProcessorOnTaskThreadGroup.class});
-        final Object lock = new Object();
-        TaskDto taskDto = new TaskDto();
-        taskDto.setName("main-sub");
-        ThreadGroup group = new TaskThreadGroup(taskDto);
-        Thread td = new Thread(() -> {
-//            while (true) {
-//                synchronized (lock) {
-//                    try {
-//                        lock.wait(500);
-//                    } catch (Exception e) {
-//
-//                    }
-//                }
-//            }
-        }, "main-thread-1");
-        td.start();
-
-
-        Thread td_sub = new Thread(group, () -> {
-//            synchronized (lock) {
-//                try {
-//                    lock.wait(500);
-//                } catch (Exception e) {
-//
-//                }
-//            }
-            TaskDto taskDto1 = new TaskDto();
-            taskDto1.setName("main-sub-sub");
-            DatabaseNode node = new DatabaseNode();
-            node.setName("Mysql-target");
-            DataProcessorContext context = new DataProcessorContext.DataProcessorContextBuilder().withTaskDto(taskDto1).withNode(node).build();
-            ThreadGroup groupSub = new ConnectorOnTaskThreadGroup(context);
-            Thread td_sub_sub = new Thread(groupSub,() -> {
-//                synchronized (lock) {
-//                    try {
-                        System.out.println("Node:"+ node.getName());
-//                        Map<ThreadGroup, Set<ThreadGroup>> taskThreadGroupSetMap = util.groupAll();
-//                        lock.wait(5000);
-//                    } catch (Exception e) {
-//
-//                    }
-//                }
-            }, "main-sub-sub-thread");
-            td_sub_sub.start();
-        }, "main-thread-2");
-        td_sub.start();
-
-        group.destroy();
-        td_sub.isAlive();
-//        synchronized (lock) {
-//            try {
-//                lock.wait(500);
-//            } catch (Exception e) {
-//
-//            }
-//        }
-
-    }
-
-    //for test thread pool
-    public static void main1(String[] args) {
-        ThreadGroupUtil util = ThreadGroupUtil.create(TaskThreadGroup.class,new Class[]{ConnectorOnTaskThreadGroup.class, ProcessorOnTaskThreadGroup.class});
-        final Object lock = new Object();
-        TaskDto taskDto = new TaskDto();
-        taskDto.setName("main-sub");
-        ThreadGroup group = new TaskThreadGroup(taskDto);
-
-        ThreadPoolExecutorEx threadPoolExecutor = AsyncUtils.createThreadPoolExecutor("RootTask-" + taskDto.getName(), 1, group, "TAG");
-//        threadPoolExecutor.submitSync(() -> {
-//            while (true) {
-//                synchronized (lock) {
-//                    try {
-//                        lock.wait(500);
-//                    } catch (Exception e) {
-//
-//                    }
-//                }
-//            }
-//        });
-
-
-        threadPoolExecutor.submitSync(() -> {
-            synchronized (lock) {
-                try {
-                    lock.wait(500);
-                } catch (Exception e) {
-
-                }
-            }
-            TaskDto taskDto1 = new TaskDto();
-            taskDto1.setName("main-sub-sub");
-            DataProcessorContext context = new DataProcessorContext.DataProcessorContextBuilder().withTaskDto(taskDto1).build();
-            ThreadGroup groupSub = new ConnectorOnTaskThreadGroup(context);
-            ThreadPoolExecutorEx tag = AsyncUtils.createThreadPoolExecutor("RootTask-" + taskDto1.getName(), 1, groupSub, "TAG");
-            tag.submitSync(() -> {
-                synchronized (lock) {
-                    try {
-                        Map<ThreadGroup, Set<ThreadGroup>> taskThreadGroupSetMap = util.groupAll();
-                        lock.wait(500);
-                    } catch (Exception e) {
-
-                    }
-                }
-            });
-
-        });
-
-
-        synchronized (lock) {
-            try {
-                lock.wait(500);
-            } catch (Exception e) {
-
-            }
-        }
-
     }
 }
