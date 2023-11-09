@@ -770,6 +770,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Boolean changed = false;
 
         DatabaseNode existedSourceDataNode = (DatabaseNode) getSourceNode(existedTask);
+        if (null == existedSourceDataNode) {
+            throw new CoreException("Can not get existed source data node");
+        }
         DatabaseNode existedTargetDataNode = (DatabaseNode) getTargetNode(existedTask);
 
 
