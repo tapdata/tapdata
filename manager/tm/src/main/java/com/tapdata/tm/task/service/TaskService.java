@@ -1149,9 +1149,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         TaskDto taskDto = checkExistById(id, user);
         boolean needCreateRecord = !Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_WAIT_START).contains(taskDto.getStatus());
         //boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
-        TaskEntity taskSnapshot = null;
+        TaskEntity taskSnapshot = new TaskEntity();
         if (needCreateRecord) {
-            taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
         }
 //        String status = taskDto.getStatus();
