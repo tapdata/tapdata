@@ -162,7 +162,6 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                 }
             }
         });
-        log.info("***********8888***********");
 
         if (needCalculateAgent.get()) {
             if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
@@ -207,14 +206,10 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     public void handleScheduleLimit(WorkerDto workerDto, UserDetail user) {
         UserDetail finalUser = user;
         List<Worker> workerList = workerService.findAvailableAgent(finalUser);
-        log.info("workerList :"+JSON.toJSONString(workerList));
-        log.info("workerDto processId:"+workerDto.getProcessId());
         if (workerList.size() == 1) {
             if (workerList.get(0).getProcessId().equals(workerDto.getProcessId())) {
-                log.info("*************2*******");
                 throw new BizException("Task.ScheduleLimit");
             } else {
-                log.info("*************3*******");
                 throw new BizException("Task.ManuallyScheduleLimit", workerList.get(0).getProcessId());
             }
         }
