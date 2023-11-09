@@ -1853,6 +1853,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             throw new CoreException("Can not get share cache by id: {}, source node is not DataNode", id);
         }
         CacheNode targetNode = (CacheNode) getTargetNode(taskDto);
+        if (null == targetNode) {
+            throw new CoreException("Can not get share cache by id: {}, target node is empty", id);
+        }
         ShareCacheDetailVo shareCacheDetailVo = new ShareCacheDetailVo();
         shareCacheDetailVo.setId(id);
         shareCacheDetailVo.setName(taskDto.getName());
