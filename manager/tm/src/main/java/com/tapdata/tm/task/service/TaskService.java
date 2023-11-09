@@ -781,11 +781,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         DatabaseNode newSourceDataNode = (DatabaseNode) getSourceNode(newTask);
         if (null == newSourceDataNode) {
-            throw new CoreException("Can not get source data node");
+            throw new CoreException("Can not get new source data node");
         }
         DatabaseNode newTargetDataNode = (DatabaseNode) getTargetNode(newTask);
         if (null == newTargetDataNode) {
-
+            throw new CoreException("Can not get new target data node");
         }
 
         if (!existedSourceDataNode.getName().equals(newSourceDataNode.getName()) ||
