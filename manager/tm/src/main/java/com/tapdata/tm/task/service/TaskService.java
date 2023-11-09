@@ -1849,6 +1849,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public ShareCacheDetailVo findShareCacheById(String id) {
         TaskDto taskDto = findById(MongoUtils.toObjectId(id));
         Node sourceNode = getSourceNode(taskDto);
+        if (!(sourceNode instanceof DataNode)) {
+            throw new CoreException("Can not get share cache by id: {}, source node is not DataNode", id);
+        }
         CacheNode targetNode = (CacheNode) getTargetNode(taskDto);
         ShareCacheDetailVo shareCacheDetailVo = new ShareCacheDetailVo();
         shareCacheDetailVo.setId(id);
