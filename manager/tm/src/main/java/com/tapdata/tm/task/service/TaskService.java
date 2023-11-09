@@ -1926,9 +1926,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             String connectionName = Optional.ofNullable(tableNode.getConnectionId())
                     .map(ObjectId::new)
                     .map(connId -> {
-                        return dataSourceService.findById(connId, new Field() {{
-                            put("name", true);
-                        }});
+                        Field field = new Field();
+                        field.put("name", true);
+                        return dataSourceService.findById(connId,  field);
                     }).map(DataSourceConnectionDto::getName).orElse(null);
             if (null == connectionName) {
                 throw new BizException("Datasource.NotFound");
