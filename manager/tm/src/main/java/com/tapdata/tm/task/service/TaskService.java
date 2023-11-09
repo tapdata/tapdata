@@ -3478,8 +3478,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             if (settingsService.isCloud()) {
                 CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(taskDto, user, true);
                 if (calculationEngineVo.getRunningNum() >= calculationEngineVo.getTaskLimit()) {
-
-                    log.info("************");
                     throw new BizException("Task.ScheduleLimit");
                 }
             }
