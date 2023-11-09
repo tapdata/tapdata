@@ -4413,6 +4413,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     try {
                         Thread.sleep(500);
                     } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
                         throw new RuntimeException("Delete heartbeat task failed");
                     }
                     statusDto = findByTaskId(dto.getId(), "status");
