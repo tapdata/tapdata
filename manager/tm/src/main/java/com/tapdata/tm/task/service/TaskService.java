@@ -100,6 +100,7 @@ import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
 import io.tapdata.common.sample.request.Sample;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.exception.TapCodeException;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
@@ -773,7 +774,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
         DatabaseNode newSourceDataNode = (DatabaseNode) getSourceNode(newTask);
+        if (null == newSourceDataNode) {
+            throw new CoreException("Can not get source data node");
+        }
         DatabaseNode newTargetDataNode = (DatabaseNode) getTargetNode(newTask);
+        if (null == newTargetDataNode) {
+
+        }
 
         if (!existedSourceDataNode.getName().equals(newSourceDataNode.getName()) ||
                 !existedTargetDataNode.getName().equals(newTargetDataNode.getName())
