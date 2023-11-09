@@ -144,6 +144,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         TaskDto userId = taskService.findByTaskId(taskDto.getId(), "user_id");
         Assert.notNull(userId, "task not found");
         user = userService.loadUserById(new ObjectId(userId.getUserId()));
+        log.info("***********7777***********");
 
         AtomicBoolean needCalculateAgent = new AtomicBoolean(true);
         String agentId = taskDto.getAgentId();
@@ -161,6 +162,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                 }
             }
         });
+        log.info("***********8888***********");
 
         if (needCalculateAgent.get()) {
             if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
