@@ -30,7 +30,7 @@ public class ThreadGroupUtil {
     }
 
     private boolean isFather(ThreadGroup target) {
-        return (Objects.nonNull(target)) && target.getClass().getName().equals(fatherClass.getName());
+        return null != target && target.getClass().isAssignableFrom(fatherClass);
     }
 
     private boolean isSub(ThreadGroup target) {
