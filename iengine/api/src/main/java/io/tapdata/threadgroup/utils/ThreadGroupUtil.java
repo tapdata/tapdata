@@ -155,7 +155,7 @@ public class ThreadGroupUtil {
     private static boolean content(ThreadGroup thread,Class<? extends ThreadGroup>[] fatherGroups){
         if (Objects.isNull(thread)) return Boolean.FALSE;
         for (Class<? extends ThreadGroup> aClass : fatherGroups) {
-            if (thread.getClass().getName().equals(aClass.getName())) {
+            if (thread.getClass().isAssignableFrom(aClass)) {
                 return Boolean.TRUE;
             }
         }
