@@ -3472,6 +3472,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     sleepTime = sleepTime * 1000;
                     Thread.sleep(sleepTime);
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     throw new BizException("SystemError", "Wait transformed schema timeout");
                 }
             }
