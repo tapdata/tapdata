@@ -62,48 +62,57 @@ public class DownLoadConnectorHandler implements WebSocketEventHandler {
         DisposableThreadGroup threadGroup = new DisposableThreadGroup(DisposableType.DOWNLOAD_CONNECTOR, threadName);
         DatabaseTypeEnum.DatabaseType databaseDefinition = ConnectionUtil.getDatabaseType(clientMongoOperator, pskHash);
         Runnable runnable = AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(connectionId, threadGroup, entity), () -> {
-            PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseDefinition.getPdkHash(), databaseDefinition.getJarFile(), databaseDefinition.getJarRid(), new RestTemplateOperator.Callback() {
-                @Override
-                public void needDownloadPdkFile(boolean flag) throws IOException {
-                    logger.info("Whether to start downloading the pdk file {}",flag);
-                    sendMessage.send(WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.DOWNLOAD_PDK_FILE_FLAG,flag));
-                }
+            try{
+                PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseDefinition.getPdkHash(), databaseDefinition.getJarFile(), databaseDefinition.getJarRid(), new RestTemplateOperator.Callback() {
+                    @Override
+                    public void needDownloadPdkFile(boolean flag) throws IOException {
+                        logger.info("Whether to start downloading the pdk file {}",flag);
+                        sendMessage.send(WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.DOWNLOAD_PDK_FILE_FLAG,flag));
+                    }
 
-                @Override
-                public void onProgress(long fileSize,long progress) throws IOException {
-                    logger.info("Downloading pdk file, progress {}",progress);
-                    Map<String, Object> map = new HashMap<>();
-                    map.put("fileSize",fileSize);
-                    map.put("progress", progress);
-                    map.put("status","downloading");
-                    sendMessage.send(WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.PROGRESS_REPORTING,map));
-                }
+                    @Override
+                    public void onProgress(long fileSize,long progress) throws IOException {
+                        Map<String, Object> map = new HashMap<>();
+                        map.put("fileSize",fileSize);
+                        map.put("progress", progress);
+                        map.put("status","downloading");
+                        sendMessage.send(WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.PROGRESS_REPORTING,map));
+                    }
 
-                @Override
-                public void onFinish(String downloadSpeed){
-                    logger.info("Downloading the pdk file is completed at a speed of {}.",downloadSpeed);
-                    uploadConnectorRecord(databaseDefinition.getPdkHash(), ConnectorRecordDto.statusEnum.FINISH,downloadSpeed,message->{
-                        try {
-                            sendMessage.send(message);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
-                }
+                    @Override
+                    public void onFinish(String downloadSpeed){
+                        logger.info("Downloading the pdk file is completed at a speed of {}.",downloadSpeed);
+                        uploadConnectorRecord(databaseDefinition.getPdkHash(), ConnectorRecordDto.statusEnum.FINISH,downloadSpeed,message->{
+                            try {
+                                sendMessage.send(message);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
+                    }
 
-                @Override
-                public void onError(IOException ex){
-                    logger.error("The reason why downloading the pdk file failed is {}.",ex.getMessage());
-                    uploadConnectorRecord(databaseDefinition.getPdkHash(), ConnectorRecordDto.statusEnum.FAIL,ex.getMessage(),message->{
-                        try {
-                            sendMessage.send(message);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
-                    throw new RuntimeException("Download connector failed",ex);
+                    @Override
+                    public void onError(IOException ex){
+                        logger.error("The reason why downloading the pdk file failed is {}.",ex.getMessage());
+                        uploadConnectorRecord(databaseDefinition.getPdkHash(), ConnectorRecordDto.statusEnum.FAIL,ex.getMessage(),message->{
+                            try {
+                                sendMessage.send(message);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
+                        throw new RuntimeException("Download connector failed",ex);
+                    }
+                });
+            } catch (Exception e){
+                String errMsg = String.format("Download connector %s failed, data: %s, err: %s", connName, event, e.getMessage());
+                logger.error(errMsg, e);
+                try {
+                    sendMessage.send(WebSocketEventResult.handleFailed(WebSocketEventResult.Type.PROGRESS_REPORTING, errMsg, e));
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
                 }
-            });
+            }
         });
         Thread thread = new Thread(threadGroup, runnable, threadName);
         thread.start();

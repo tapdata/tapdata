@@ -44,6 +44,8 @@ import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.ResourceHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RequestCallback;
+import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
@@ -477,26 +479,73 @@ public class RestTemplateOperator {
 			byte[] buffer = new byte[10 * 1024 * 1024];
 			int numberOfBytesRead;
 			long totalNumberOfBytesRead = 0;
-			Date startTime = new Date();
+			Date senDate = new Date();
 		    try (FileOutputStream fos = new FileOutputStream(file)) {
 				while ((numberOfBytesRead = source.read(buffer)) != -1) {
 					fos.write(buffer, 0, numberOfBytesRead);
 					totalNumberOfBytesRead += numberOfBytesRead;
-					callback.onProgress(fileSize,totalNumberOfBytesRead * 100 / fileSize);
+					long progress = totalNumberOfBytesRead * 100 / fileSize;
+					long elapsedTime = new Date().getTime() - senDate.getTime();
+					if(elapsedTime >= 500 || progress == 100){
+						callback.onProgress(fileSize,progress);
+						senDate = new Date();
+					}
 				}
 			} catch (IOException ex) {
 				callback.onError(ex);
 			}finally {
 			    source.close();
 		    }
-			Date endTime = new Date();
-			long elapsedTime = endTime.getTime() - startTime.getTime();
-			double downloadSpeed = (totalNumberOfBytesRead / 1024.0) / (elapsedTime / 1000.0);
-			String downloadSpeedString= String.format("%.2f",downloadSpeed);
-			callback.onFinish(downloadSpeedString+"kb/s");
 	}
-
 	public File downloadFile(Map<String, Object> params, String resource, String path, String cookies, String region,RestTemplateOperator.Callback callback) {
+		return retryWrap(retryInfo -> {
+			RequestCallback requestCallback = request -> {
+				if (StringUtils.isNotBlank(cookies)) {
+					if (StringUtils.isNotBlank(cookies)) {
+						request.getHeaders().add("Cookie", cookies);
+					}
+					if (StringUtils.isNotBlank(region)) {
+						request.getHeaders().add("jobTags", region);
+					}
+					request.getHeaders().setAccept(
+							ImmutableList.of(
+									MediaType.APPLICATION_OCTET_STREAM,
+									new MediaType("application", "*+json")
+							)
+					);
+				}
+			};
+			    URI uri = retryInfo.getURI(resource, params);
+				File file = new File(path + ".bak");
+				if (file.exists()) {
+					FileUtils.deleteQuietly(file);
+				}
+				Date startTime = new Date();
+				AtomicLong totalNumberOfBytesRead = new AtomicLong();
+				ResponseExtractor<Boolean> responseExtractor = clientHttpResponse -> {
+					HttpHeaders headers = clientHttpResponse.getHeaders();
+					totalNumberOfBytesRead.set(headers.getContentLength());
+					downloadFileByProgress(callback,clientHttpResponse.getBody(),file,headers.getContentLength());
+					return true;
+				};
+				Boolean execute =restTemplate.execute(uri, HttpMethod.GET, requestCallback, responseExtractor);
+				if(Boolean.TRUE.equals(execute)){
+					Date endTime = new Date();
+					long elapsedTime = endTime.getTime() - startTime.getTime();
+					double downloadSpeed = (totalNumberOfBytesRead.get() / 1024.0) / (elapsedTime / 1000.0);
+					String downloadSpeedString= String.format("%.2f",downloadSpeed);
+					callback.onFinish(downloadSpeedString+"kb/s");
+					File realFile = new File(path);
+					if (realFile.exists()) {
+						FileUtils.deleteQuietly(realFile);
+					}
+					FileUtils.moveFile(file, realFile);
+					return file;
+				}
+			return null;
+		}, null);
+	}
+	public File downloadFile(Map<String, Object> params, String resource, String path, String cookies, String region) {
 		return retryWrap(retryInfo -> {
 			HttpEntity<String> httpEntity = null;
 			if (StringUtils.isNotBlank(cookies)) {
@@ -526,11 +575,7 @@ public class RestTemplateOperator {
 				if (responseEntity.getBody() == null) {
 					return null;
 				}
-				if(null == callback){
-					FileUtils.copyInputStreamToFile(responseEntity.getBody().getInputStream(), file);
-				}else{
-					downloadFileByProgress(callback,responseEntity.getBody().getInputStream(),file,responseEntity.getBody().contentLength());
-				}
+				FileUtils.copyInputStreamToFile(responseEntity.getBody().getInputStream(), file);
 				File realFile = new File(path);
 				if (realFile.exists()) {
 					FileUtils.deleteQuietly(realFile);
