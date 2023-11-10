@@ -614,8 +614,11 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 			params = new HashMap<>();
 		}
 		addToken(params);
-
-		return restTemplateOperator.downloadFile(params, resource, filePath, cookies(), cloudRegion, callback);
+		if(callback == null){
+			return restTemplateOperator.downloadFile(params, resource, filePath, cookies(), cloudRegion);
+		}else{
+			return restTemplateOperator.downloadFile(params, resource, filePath, cookies(), cloudRegion, callback);
+		}
 	}
 
 	public RestTemplateOperator getRestTemplateOperator() {
