@@ -101,6 +101,9 @@ jobs:
             -Dsonar.login=admin -Dsonar.password=Gotapd8! \
             -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }} \
             -T1C -Dmaven.compile.fork=true -P idaas
+      - name: Install Dependens
+        run: |
+          apt install -y jq
       - name: SonarQube Quality Gate check
         uses: sonarsource/sonarqube-quality-gate-action@master
         env:
