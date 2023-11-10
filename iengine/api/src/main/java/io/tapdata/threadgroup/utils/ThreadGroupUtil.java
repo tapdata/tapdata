@@ -9,20 +9,12 @@ import java.lang.reflect.Field;
 import java.util.*;
 
 public class ThreadGroupUtil {
-    public static final Class<? extends ThreadGroup>[] DEFAULT_TASK_THREAD = new Class[]{TaskThreadGroup.class};
-    public static final Class<? extends ThreadGroup>[] DEFAULT_NODE_THREAD = new Class[]{ProcessorOnTaskThreadGroup.class, ConnectorOnTaskThreadGroup.class, DisposableThreadGroup.class};
-    public static final ThreadGroupUtil THREAD_GROUP_TASK = ThreadGroupUtil.create(DEFAULT_TASK_THREAD[0],DEFAULT_NODE_THREAD);
+    private static final Class<? extends ThreadGroup>[] DEFAULT_TASK_THREAD = new Class[]{TaskThreadGroup.class};
+    private static final Class<? extends ThreadGroup>[] DEFAULT_NODE_THREAD = new Class[]{ProcessorOnTaskThreadGroup.class, ConnectorOnTaskThreadGroup.class, DisposableThreadGroup.class};
     private final Class<? extends ThreadGroup> fatherClass;
     private final Class<? extends ThreadGroup>[] subClass;
 
-
-    private boolean isFather(ThreadGroup target) {
-        return null != target && target.getClass().isAssignableFrom(fatherClass);
-    }
-
-    private boolean isSub(ThreadGroup target) {
-        return ThreadGroupUtil.content(target,subClass);
-    }
+    public static final ThreadGroupUtil THREAD_GROUP_TASK = ThreadGroupUtil.create(DEFAULT_TASK_THREAD[0],DEFAULT_NODE_THREAD);
 
     public static ThreadGroupUtil create(Class<? extends ThreadGroup> fatherClass, Class<? extends ThreadGroup>[] subClass) {
         return new ThreadGroupUtil(fatherClass, subClass);
@@ -31,6 +23,14 @@ public class ThreadGroupUtil {
     private ThreadGroupUtil(Class<? extends ThreadGroup> fatherClass, Class<? extends ThreadGroup>[] subClass) {
         this.fatherClass = fatherClass;
         this.subClass = subClass;
+    }
+
+    private boolean equalsWithFatherClass(ThreadGroup target) {
+        return null != target && target.getClass().equals(fatherClass);
+    }
+
+    private boolean containsInSubClass(ThreadGroup target) {
+        return ThreadGroupUtil.containsInThreadGroups(target, subClass);
     }
 
     public Map<ThreadGroup, Set<ThreadGroup>> group(Thread current) {
@@ -75,9 +75,9 @@ public class ThreadGroupUtil {
 
     private void parentGroups(Map<ThreadGroup, Set<ThreadGroup>> groupMap, ThreadGroup target) {
         if (null == target) return;
-        if (this.isFather(target)) {
+        if (this.equalsWithFatherClass(target)) {
             groupMap.computeIfAbsent(target, g -> new HashSet<>());
-        } else if (this.isSub(target)) {
+        } else if (this.containsInSubClass(target)) {
             Optional.ofNullable(getFatherThreadGroup(target)).ifPresent(g -> {
                         Set<ThreadGroup> groups = groupMap.computeIfAbsent(g, g1 -> new HashSet<>());
                         groups.add(target);
@@ -86,10 +86,10 @@ public class ThreadGroupUtil {
         }
     }
 
-    private TaskThreadGroup getFatherThreadGroup(ThreadGroup threadGroup) {
+    private ThreadGroup getFatherThreadGroup(ThreadGroup threadGroup) {
         if (null == threadGroup) return null;
-        if (this.isFather(threadGroup)) {
-            return (TaskThreadGroup) threadGroup;
+        if (this.equalsWithFatherClass(threadGroup)) {
+            return fatherClass.cast(threadGroup);
         } else {
             return getFatherThreadGroup(threadGroup.getParent());
         }
@@ -127,22 +127,30 @@ public class ThreadGroupUtil {
         }
     }
 
-    public ThreadGroup currentThreadGroup(Thread thread,Class<? extends ThreadGroup>[] fatherGroups){
+    public ThreadGroup currentThreadGroup(Thread thread,Class<? extends ThreadGroup>[] groups){
         ThreadGroup threadGroup = thread.getThreadGroup();
-        while (!content(threadGroup, fatherGroups)) {
+        while (!containsInThreadGroups(threadGroup, groups)) {
             if (null == threadGroup.getParent()) break;
             threadGroup = threadGroup.getParent();
         }
         return threadGroup;
     }
 
-    private static boolean content(ThreadGroup thread,Class<? extends ThreadGroup>[] fatherGroups){
+    private static boolean containsInThreadGroups(ThreadGroup thread, Class<? extends ThreadGroup>[] groups){
         if (Objects.isNull(thread)) return Boolean.FALSE;
-        for (Class<? extends ThreadGroup> aClass : fatherGroups) {
-            if (thread.getClass().isAssignableFrom(aClass)) {
+        for (Class<? extends ThreadGroup> aClass : groups) {
+            if (thread.getClass().equals(aClass)) {
                 return Boolean.TRUE;
             }
         }
         return Boolean.FALSE;
+    }
+
+    public static Class<? extends ThreadGroup>[] getDefaultTaskThreadGroupClass() {
+        return DEFAULT_TASK_THREAD;
+    }
+
+    public static Class<? extends ThreadGroup>[] getDefaultNodeThreadGroupClass() {
+        return DEFAULT_NODE_THREAD;
     }
 }
