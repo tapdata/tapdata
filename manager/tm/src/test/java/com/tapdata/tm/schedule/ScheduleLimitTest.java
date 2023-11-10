@@ -8,6 +8,7 @@ import com.tapdata.tm.worker.dto.TcmInfo;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.BeanUtils;
@@ -22,18 +23,26 @@ import static org.mockito.Mockito.mock;
 public class ScheduleLimitTest {
 
 
+    public static WorkerService workerService;
+
+    public static TaskService taskService;
+
+    public static UserDetail mockUserDetail;
+
+    @BeforeAll
+    protected  static void init() {
+        workerService = mock(WorkerService.class);
+        taskService = mock(TaskService.class);
+        mockUserDetail = mock(UserDetail.class);
+
+    }
     /**
      * test handleScheduleLimit function
      * 测试调度数量限制抛出异常
      */
     @Test
-    public void testHandleScheduleLimitThrowScheduleLimitException(){
+    public void testHandleScheduleLimitThrowScheduleLimitException() {
         // input param
-
-        // use Mockito mock data
-        WorkerService workerService = mock(WorkerService.class);
-        TaskService taskService = mock(TaskService.class);
-        UserDetail mockUserDetail = mock(UserDetail.class);
 
         // mock data
         Worker worker = getWorker("worker1");
@@ -45,24 +54,24 @@ public class ScheduleLimitTest {
 
         // input function  param
         TaskScheduleServiceImpl taskScheduleService = new TaskScheduleServiceImpl();
-        setParamForObject(taskScheduleService,taskService,workerService);
+        setParamForObject(taskScheduleService, taskService, workerService);
 
         WorkerDto workerDto = new WorkerDto();
-        BeanUtils.copyProperties(worker,workerDto);
+        BeanUtils.copyProperties(worker, workerDto);
 
         // execution method
         Exception exception = assertThrows(BizException.class, () -> {
-            taskScheduleService.handleScheduleLimit(workerDto,mockUserDetail);
+            taskScheduleService.handleScheduleLimit(workerDto, mockUserDetail);
         });
 
         // actual data
-        String actualData =  ((BizException) exception).getErrorCode();
+        String actualData = ((BizException) exception).getErrorCode();
 
         // expected data
         String expectedData = "Task.ScheduleLimit";
 
         // output results
-        assertEquals(expectedData,actualData);
+        assertEquals(expectedData, actualData);
     }
 
 
@@ -73,11 +82,6 @@ public class ScheduleLimitTest {
     @Test
     public void testHandleScheduleLimitThrowManuallyScheduleLimitExceptionWithOneEngine() throws BizException {
         // input param
-
-        // use Mockito mock data
-        WorkerService workerService = mock(WorkerService.class);
-        TaskService taskService = mock(TaskService.class);
-        UserDetail mockUserDetail = mock(UserDetail.class);
 
         // mock data
         Worker worker = getWorker("worker1");
@@ -120,16 +124,11 @@ public class ScheduleLimitTest {
     public void testHandleScheduleLimitThrowScheduleLimitExceptionWithManyEngine() throws BizException {
         // input param
 
-        // use Mockito mock data
-        WorkerService workerService = mock(WorkerService.class);
-        TaskService taskService = mock(TaskService.class);
-        UserDetail mockUserDetail = mock(UserDetail.class);
-
         // mock data
-        Worker worker =getWorker("worker1");
-        Worker workerTemp =getWorker("worker2");
+        Worker worker = getWorker("worker1");
+        Worker workerTemp = getWorker("worker2");
         workerTemp.setProcessId("worker2");
-        TcmInfo tcmInfo =  mock(TcmInfo.class);
+        TcmInfo tcmInfo = mock(TcmInfo.class);
         List<Worker> listWorker = new ArrayList<>();
         listWorker.add(worker);
         listWorker.add(workerTemp);
@@ -140,23 +139,25 @@ public class ScheduleLimitTest {
 
         // input function  param
         TaskScheduleServiceImpl taskScheduleService = new TaskScheduleServiceImpl();
-        setParamForObject(taskScheduleService,taskService,workerService);
+        setParamForObject(taskScheduleService, taskService, workerService);
         WorkerDto workerDto = new WorkerDto();
-        BeanUtils.copyProperties(workerTemp,workerDto);
+        BeanUtils.copyProperties(workerTemp, workerDto);
+        Mockito.when(workerService.getLimitTaskNum(workerDto,mockUserDetail)).thenReturn(5);
+        Mockito.when(taskService.runningTaskNum(workerTemp.getProcessId(),mockUserDetail)).thenReturn(2);
 
         // execution method
         Exception exception = assertThrows(BizException.class, () -> {
-            taskScheduleService.handleScheduleLimit(workerDto,mockUserDetail);
+            taskScheduleService.handleScheduleLimit(workerDto, mockUserDetail);
         });
 
         // actual data
-        String actualData =  ((BizException) exception).getErrorCode();
+        String actualData = ((BizException) exception).getErrorCode();
 
         // expected data
         String expectedData = "Task.ManuallyScheduleLimit";
 
         // output results
-        assertEquals(expectedData,actualData);
+        assertEquals(expectedData, actualData);
     }
 
 
