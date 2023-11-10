@@ -37,8 +37,6 @@ public class ThreadGroupUtilTest {
                         groupSub);
                 Assert.assertNotNull(fatherThreadGroup);
                 Assert.assertEquals(TaskThreadGroup.class, fatherThreadGroup.getClass());
-            } catch (InstantiationException | InvocationTargetException | NoSuchMethodException | IllegalAccessException e) {
-                throw new RuntimeException(e);
             } finally {
                 count.set(-1);
             }
@@ -65,8 +63,6 @@ public class ThreadGroupUtilTest {
                         getArray((Class<?>)ThreadGroup.class),
                         groupSub);
                 Assert.assertNull(fatherThreadGroup);
-            } catch (InstantiationException | InvocationTargetException | NoSuchMethodException | IllegalAccessException e) {
-                throw new RuntimeException(e);
             } finally {
                 count.set(-1);
             }
@@ -82,17 +78,13 @@ public class ThreadGroupUtilTest {
     @Test
     public void testGetFatherThreadGroup1() {
         ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;//指定了TaskThreadGroup为父类型
-        try {
-            ThreadGroup groupSub = new ThreadGroup("mock-group");
-            Object fatherThreadGroup = invokerPrivateMethod(
-                    util,
-                    "getFatherThreadGroup",
-                    getArray((Class<?>)ThreadGroup.class),
-                    groupSub);
-            Assert.assertNull(fatherThreadGroup);
-        } catch (InstantiationException | InvocationTargetException | NoSuchMethodException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
+        ThreadGroup groupSub = new ThreadGroup("mock-group");
+        Object fatherThreadGroup = invokerPrivateMethod(
+                util,
+                "getFatherThreadGroup",
+                getArray((Class<?>)ThreadGroup.class),
+                groupSub);
+        Assert.assertNull(fatherThreadGroup);
     }
 
     /**
@@ -182,7 +174,7 @@ public class ThreadGroupUtilTest {
      *  验证ProcessorOnTaskThreadGroup, 符合预期情况
      * */
     @Test
-    public void testContainsInSubClass1() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException {
+    public void testContainsInSubClass1() {
         ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
         Object containsInSubClass = invokerPrivateMethod(
                 util,
@@ -201,16 +193,12 @@ public class ThreadGroupUtilTest {
     public void testContainsInSubClass2() {
         ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
         ThreadGroup groupSub = new DisposableThreadGroup("type", "name");
-        try {
-            Object containsInSubClass = invokerPrivateMethod(
-                    util,
-                    "containsInSubClass",
-                    getArray((Class<?>)ThreadGroup.class),
-                    groupSub);
-            Assert.assertEquals(Boolean.TRUE, containsInSubClass);
-        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException | InstantiationException e) {
-
-        }
+        Object containsInSubClass = invokerPrivateMethod(
+                util,
+                "containsInSubClass",
+                getArray((Class<?>)ThreadGroup.class),
+                groupSub);
+        Assert.assertEquals(Boolean.TRUE, containsInSubClass);
     }
 
     /**
@@ -222,16 +210,12 @@ public class ThreadGroupUtilTest {
     public void testContainsInSubClass3() {
         ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
         ThreadGroup groupSub = mockConnectorOnTaskThreadGroup();
-        try {
-            Object containsInSubClass = invokerPrivateMethod(
-                    util,
-                    "containsInSubClass",
-                    getArray((Class<?>)ThreadGroup.class),
-                    groupSub);
-            Assert.assertEquals(Boolean.TRUE, containsInSubClass);
-        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException | InstantiationException e) {
-
-        }
+        Object containsInSubClass = invokerPrivateMethod(
+                util,
+                "containsInSubClass",
+                getArray((Class<?>)ThreadGroup.class),
+                groupSub);
+        Assert.assertEquals(Boolean.TRUE, containsInSubClass);
     }
 
 
@@ -240,7 +224,7 @@ public class ThreadGroupUtilTest {
      *  验证ProcessorOnTaskThreadGroup，边界状态：ThreadGroup 为 null
      * */
     @Test
-    public void testContainsInSubClass4() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException  {
+    public void testContainsInSubClass4() {
         ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
         ThreadGroup groupSub = null;
         Object containsInSubClass = invokerPrivateMethod(
@@ -256,7 +240,7 @@ public class ThreadGroupUtilTest {
      *  验证ProcessorOnTaskThreadGroup，边界状态：ThreadGroup 为 其他ThreadGroup类型
      * */
     @Test
-    public void testContainsInSubClass5() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException  {
+    public void testContainsInSubClass5() {
         ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
         ThreadGroup groupSub = mockTaskThreadGroup();
         Object containsInSubClass = invokerPrivateMethod(
@@ -270,10 +254,14 @@ public class ThreadGroupUtilTest {
 
 
 
-    public Object invokerPrivateMethod(Object clazzObj, String methodName, Class<?>[] paramsTypes, Object... params) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException {
-        Method privateMethod = clazzObj.getClass().getDeclaredMethod(methodName, paramsTypes);
-        privateMethod.setAccessible(true);
-        return privateMethod.invoke(clazzObj, params);
+    public Object invokerPrivateMethod(Object clazzObj, String methodName, Class<?>[] paramsTypes, Object... params){
+        try {
+            Method privateMethod = clazzObj.getClass().getDeclaredMethod(methodName, paramsTypes);
+            privateMethod.setAccessible(true);
+            return privateMethod.invoke(clazzObj, params);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static <T>T[] getArray(T ... classes) {
