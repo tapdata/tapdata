@@ -57,12 +57,48 @@ jobs:
         run: |
           cd tapdata-application
           OPENSOURCE_BRANCH=${{github.event.pull_request.head.ref}}
-          ENTERPRISE_BRANCH="main"
+          ENTERPRISE_BRANCH="fix-ci"
           FRONTEND_BRANCH="main"
           echo "::set-output name=OPENSOURCE_BRANCH::${OPENSOURCE_BRANCH}"
           echo "::set-output name=ENTERPRISE_BRANCH::${ENTERPRISE_BRANCH}"
           echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
           echo "::set-output name=TAG_NAME::${TAG_NAME}"
+
+  Scan-Tapdata:
+    runs-on: aws-ubuntu-20
+    needs: Get-Stable-Branch
+    timeout-minutes: 20
+    steps:
+      - name: Clean Directory
+        run: |
+          rm -rf ./*
+      - name: Checkout Tapdata Code
+        uses: actions/checkout@v3
+        with:
+          repository: 'tapdata/tapdata'
+          ref: ${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}
+          path: tapdata
+          fetch-depth: 0
+      - name: Patch Maven Dependens
+        run: |
+          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@172.17.0.3:873/data/enterprise-temp/tapdata/ /root/.m2/
+      - name: Build Tapdata - And Analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+            -Dsonar.projectKey=tapdata -Dsonar.host.url=http://18.166.223.192:9000 \
+            -Dsonar.login=admin -Dsonar.password=Gotapd8! \
+            -Dsonar.branch.name=${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }} \
+            -T1C -Dmaven.compile.fork=true -P idaas
+      - name: SonarQube Quality Gate check
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scanMetadataReportFile: tapdata/target/sonar/report-task.txt
 
   Build-And-Deploy:
     runs-on: ubuntu-latest
