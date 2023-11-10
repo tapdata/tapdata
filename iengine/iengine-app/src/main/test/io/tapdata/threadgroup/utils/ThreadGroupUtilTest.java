@@ -1,42 +1,40 @@
 package io.tapdata.threadgroup.utils;
 
-import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
-import io.tapdata.threadgroup.DisposableThreadGroup;
-import io.tapdata.threadgroup.ProcessorOnTaskThreadGroup;
-import io.tapdata.threadgroup.TaskThreadGroup;
+import io.tapdata.threadgroup.utils.entity.MockFatherThreadGroup;
+import io.tapdata.threadgroup.utils.entity.MockSubThreadGroup;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ThreadGroupUtilTest {
-
+    ThreadGroupUtil util;
+    @Before
+    public void init() {
+        util = ThreadGroupUtil.create(MockFatherThreadGroup.class, new Class[]{MockSubThreadGroup.class});
+    }
     /**
      * 测试 ThreadGroupUtil.getFatherThreadGroup 方法
      *  根据子ThreadGroup获取父ThreadGroup
      * */
     @Test
     public void testGetFatherThreadGroup() {
-        ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
         AtomicInteger count = new AtomicInteger(0);
-        ThreadGroup group = mockTaskThreadGroup();
+        ThreadGroup group = new MockFatherThreadGroup();
         new Thread(group, () -> {
             try {
-                ThreadGroup groupSub = mockProcessorOnTaskThreadGroup();
+                ThreadGroup groupSub = new MockSubThreadGroup();
                 Object fatherThreadGroup = invokerPrivateMethod(
                         util,
                         "getFatherThreadGroup",
                         getArray((Class<?>)ThreadGroup.class),
                         groupSub);
                 Assert.assertNotNull(fatherThreadGroup);
-                Assert.assertEquals(TaskThreadGroup.class, fatherThreadGroup.getClass());
+                Assert.assertEquals(MockFatherThreadGroup.class, fatherThreadGroup.getClass());
             } finally {
                 count.set(-1);
             }
@@ -51,9 +49,8 @@ public class ThreadGroupUtilTest {
      * */
     @Test
     public void testGetFatherThreadGroup0() {
-        ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
         AtomicInteger count = new AtomicInteger(0);
-        ThreadGroup group = mockTaskThreadGroup();
+        ThreadGroup group = new MockFatherThreadGroup();
         new Thread(group, () -> {
             try {
                 ThreadGroup groupSub = null;
@@ -77,7 +74,6 @@ public class ThreadGroupUtilTest {
      * */
     @Test
     public void testGetFatherThreadGroup1() {
-        ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;//指定了TaskThreadGroup为父类型
         ThreadGroup groupSub = new ThreadGroup("mock-group");
         Object fatherThreadGroup = invokerPrivateMethod(
                 util,
@@ -89,16 +85,15 @@ public class ThreadGroupUtilTest {
 
     /**
      * 测试 ThreadGroupUtil.groupThread 方法
-     *  执行线程，父线程绑定TaskThreadGroup后启动后再启动ProcessorOnTaskThreadGroup绑定的子线程, 根据子ThreadGroup来找到父子关系, 符合预期情况
+     *  执行线程，父线程绑定MockFatherThreadGroup后启动后再启动MockSubThreadGroup绑定的子线程, 根据子ThreadGroup来找到父子关系, 符合预期情况
      * */
     @Test
     public void testGroupThreadGroup0() {
-        ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
         AtomicInteger count = new AtomicInteger(0);
-        ThreadGroup group = mockTaskThreadGroup();
+        ThreadGroup group = new MockFatherThreadGroup();
         new Thread(group, () -> {
             try {
-                ThreadGroup groupSub = mockProcessorOnTaskThreadGroup();
+                ThreadGroup groupSub = new MockSubThreadGroup();
                 new Thread(groupSub, () -> {
                     count.incrementAndGet();
                     while (count.get() >= 0) { }
@@ -118,17 +113,16 @@ public class ThreadGroupUtilTest {
 
     /**
      * 测试 ThreadGroupUtil.groupThread 方法
-     *  执行线程，父线程绑定TaskThreadGroup后启动后
-     *    通过启动新新线程再启动ProcessorOnTaskThreadGroup绑定的子线程, 根据子ThreadGroup来找到父子关系, 符合预期情况
+     *  执行线程，父线程绑定MockFatherThreadGroup后启动后
+     *    通过启动新新线程再启动MockSubThreadGroup绑定的子线程, 根据子ThreadGroup来找到父子关系, 符合预期情况
      * */
     @Test
     public void testGroupThreadGroup1() {
-        ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
         AtomicInteger count = new AtomicInteger(0);
-        ThreadGroup group = mockTaskThreadGroup();
+        ThreadGroup group = new MockFatherThreadGroup();
         new Thread(group, () -> {
             try {
-                ThreadGroup groupSub = mockProcessorOnTaskThreadGroup();
+                ThreadGroup groupSub = new MockSubThreadGroup();
                 new Thread(() -> {
                     count.incrementAndGet();
                     new Thread(groupSub, () -> {
@@ -153,63 +147,27 @@ public class ThreadGroupUtilTest {
     /**
      * 测试 ThreadGroupUtil.groupThread 方法,
      * 边界条件
-     *  执行线程，父线程绑定TaskThreadGroup后启动后
+     *  执行线程，父线程绑定MockFatherThreadGroup后启动后
      *     根据子ThreadGroup来找到父子关系, 使用未绑定线程的ThreadGroup来获取其ThreadGroup的父子关系，预期是获取不到任务关系的
      * */
     @Test
     public void testGroupThreadGroup2() {
-        ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
-        AtomicInteger count = new AtomicInteger(0);
-        ThreadGroup group = mockTaskThreadGroup();
-        ThreadGroup groupSub = mockProcessorOnTaskThreadGroup();
+        ThreadGroup group = new MockFatherThreadGroup();
+        ThreadGroup groupSub = new MockSubThreadGroup();
         new Thread(group, () -> {
             Map<ThreadGroup, Set<ThreadGroup>> groupRes = util.group(groupSub);
             Assert.assertTrue(groupRes.isEmpty());
         }, "main-sub").start();
     }
 
-
-    /**
-     * 测试 ThreadGroupUtil.containsInSubClass 方法
-     *  验证ProcessorOnTaskThreadGroup, 符合预期情况
-     * */
-    @Test
-    public void testContainsInSubClass1() {
-        ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
-        Object containsInSubClass = invokerPrivateMethod(
-                util,
-                "containsInSubClass",
-                getArray((Class<?>) ThreadGroup.class),
-                mockProcessorOnTaskThreadGroup());
-        Assert.assertEquals(Boolean.TRUE, containsInSubClass);
-    }
-
     /**
      *
      * 测试 ThreadGroupUtil.containsInSubClass 方法
-     *  验证 DisposableThreadGroup, 符合预期情况
-     * */
-    @Test
-    public void testContainsInSubClass2() {
-        ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
-        ThreadGroup groupSub = new DisposableThreadGroup("type", "name");
-        Object containsInSubClass = invokerPrivateMethod(
-                util,
-                "containsInSubClass",
-                getArray((Class<?>)ThreadGroup.class),
-                groupSub);
-        Assert.assertEquals(Boolean.TRUE, containsInSubClass);
-    }
-
-    /**
-     *
-     * 测试 ThreadGroupUtil.containsInSubClass 方法
-     *  验证 ConnectorOnTaskThreadGroup, 符合预期情况
+     *  验证 MockSubThreadGroup, 符合预期情况
      * */
     @Test
     public void testContainsInSubClass3() {
-        ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
-        ThreadGroup groupSub = mockConnectorOnTaskThreadGroup();
+        ThreadGroup groupSub = new MockSubThreadGroup();
         Object containsInSubClass = invokerPrivateMethod(
                 util,
                 "containsInSubClass",
@@ -221,11 +179,10 @@ public class ThreadGroupUtilTest {
 
     /**
      * 测试 ThreadGroupUtil.containsInSubClass 方法
-     *  验证ProcessorOnTaskThreadGroup，边界状态：ThreadGroup 为 null
+     *  验证MockSubThreadGroup，边界状态：ThreadGroup 为 null
      * */
     @Test
     public void testContainsInSubClass4() {
-        ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
         ThreadGroup groupSub = null;
         Object containsInSubClass = invokerPrivateMethod(
                 util,
@@ -237,12 +194,11 @@ public class ThreadGroupUtilTest {
 
     /**
      * 测试 ThreadGroupUtil.containsInSubClass 方法
-     *  验证ProcessorOnTaskThreadGroup，边界状态：ThreadGroup 为 其他ThreadGroup类型
+     *  验证MockFatherThreadGroup，边界状态：ThreadGroup 为 其他ThreadGroup类型
      * */
     @Test
     public void testContainsInSubClass5() {
-        ThreadGroupUtil util = ThreadGroupUtil.THREAD_GROUP_TASK;
-        ThreadGroup groupSub = mockTaskThreadGroup();
+        ThreadGroup groupSub = new MockFatherThreadGroup();
         Object containsInSubClass = invokerPrivateMethod(
                 util,
                 "containsInSubClass",
@@ -266,25 +222,5 @@ public class ThreadGroupUtilTest {
 
     public static <T>T[] getArray(T ... classes) {
         return classes;
-    }
-
-    public ConnectorOnTaskThreadGroup mockConnectorOnTaskThreadGroup(){
-        return new ConnectorOnTaskThreadGroup(mockDataProcessorContext());
-    }
-
-    public ProcessorOnTaskThreadGroup mockProcessorOnTaskThreadGroup() {
-        return new ProcessorOnTaskThreadGroup(mockDataProcessorContext());
-    }
-
-    private DataProcessorContext mockDataProcessorContext() {
-        DatabaseNode node = new DatabaseNode();
-        node.setName("test-node");
-        return new DataProcessorContext.DataProcessorContextBuilder().withNode(node).build();
-    }
-
-    private TaskThreadGroup mockTaskThreadGroup() {
-        TaskDto taskDto = new TaskDto();
-        taskDto.setName("task-test");
-        return new TaskThreadGroup(taskDto);
     }
 }

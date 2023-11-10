@@ -1,20 +1,15 @@
 package io.tapdata.threadgroup.utils;
 
-import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
-import io.tapdata.threadgroup.DisposableThreadGroup;
-import io.tapdata.threadgroup.ProcessorOnTaskThreadGroup;
-import io.tapdata.threadgroup.TaskThreadGroup;
-
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 public class ThreadGroupUtil {
-    private static final Class<? extends ThreadGroup>[] DEFAULT_TASK_THREAD = new Class[]{TaskThreadGroup.class};
-    private static final Class<? extends ThreadGroup>[] DEFAULT_NODE_THREAD = new Class[]{ProcessorOnTaskThreadGroup.class, ConnectorOnTaskThreadGroup.class, DisposableThreadGroup.class};
     private final Class<? extends ThreadGroup> fatherClass;
     private final Class<? extends ThreadGroup>[] subClass;
-
-    public static final ThreadGroupUtil THREAD_GROUP_TASK = ThreadGroupUtil.create(DEFAULT_TASK_THREAD[0],DEFAULT_NODE_THREAD);
 
     public static ThreadGroupUtil create(Class<? extends ThreadGroup> fatherClass, Class<? extends ThreadGroup>[] subClass) {
         return new ThreadGroupUtil(fatherClass, subClass);
@@ -137,20 +132,12 @@ public class ThreadGroupUtil {
     }
 
     private static boolean containsInThreadGroups(ThreadGroup thread, Class<? extends ThreadGroup>[] groups){
-        if (Objects.isNull(thread)) return Boolean.FALSE;
+        if (null == thread) return Boolean.FALSE;
         for (Class<? extends ThreadGroup> aClass : groups) {
             if (thread.getClass().equals(aClass)) {
                 return Boolean.TRUE;
             }
         }
         return Boolean.FALSE;
-    }
-
-    public static Class<? extends ThreadGroup>[] getDefaultTaskThreadGroupClass() {
-        return DEFAULT_TASK_THREAD;
-    }
-
-    public static Class<? extends ThreadGroup>[] getDefaultNodeThreadGroupClass() {
-        return DEFAULT_NODE_THREAD;
     }
 }
