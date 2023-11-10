@@ -96,8 +96,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-            -Dsonar.projectKey=tapdata -Dsonar.host.url=http://18.166.223.192:9000 \
+          cd tapdata && mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+            -Dsonar.projectKey=tapdata -Dsonar.host.url=http://16.162.191.231:9000 \
             -Dsonar.login=admin -Dsonar.password=Gotapd8! \
             -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }} \
             -T1C -Dmaven.compile.fork=true -P idaas
