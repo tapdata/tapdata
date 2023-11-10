@@ -83,6 +83,14 @@ jobs:
         run: |
           echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
           rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@172.17.0.3:873/data/enterprise-temp/tapdata/ /root/.m2/
+      - name: Get OpenSource Branch Name -- Common
+        run: |
+          echo "OPENSOURCE_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Set OpenSource Branch Name -- Pull Request
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          branch_name="${{ github.event.pull_request.head.ref }}"
+          echo "OPENSOURCE_BRANCH=$branch_name" >> $GITHUB_ENV
       - name: Build Tapdata - And Analyze
         env:
           GITHUB_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
@@ -91,7 +99,7 @@ jobs:
           mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
             -Dsonar.projectKey=tapdata -Dsonar.host.url=http://18.166.223.192:9000 \
             -Dsonar.login=admin -Dsonar.password=Gotapd8! \
-            -Dsonar.branch.name=${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }} \
+            -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }} \
             -T1C -Dmaven.compile.fork=true -P idaas
       - name: SonarQube Quality Gate check
         uses: sonarsource/sonarqube-quality-gate-action@master
