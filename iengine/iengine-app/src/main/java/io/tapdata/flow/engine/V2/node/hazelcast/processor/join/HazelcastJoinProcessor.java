@@ -19,6 +19,8 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
@@ -101,7 +103,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	public void doInit(@Nonnull Context context) throws Exception {
+	public void doInit(@Nonnull Context context) throws TapCodeException {
 		super.doInit(context);
 		this.context = context;
 		initNode();
@@ -149,7 +151,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		});
 	}
 
-	private void initNode() throws Exception {
+	private void initNode() throws TapCodeException {
 		Node<?> node = processorBaseContext.getNode();
 		if (verifyJoinNode(node)) {
 			vatidate(node);
@@ -191,8 +193,12 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 				externalStorageDto
 		);
 		if (!taskHasBeenRun()) {
-			leftJoinCache.clear();
-			rightJoinCache.clear();
+			try {
+				leftJoinCache.clear();
+				rightJoinCache.clear();
+			} catch (Exception e) {
+				throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, "Clear join cache failed", e);
+			}
 		}
 	}
 
@@ -300,7 +306,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		CommonUtils.handleAnyError(
 				() -> rightJoinCache.destroy(),
 				throwable -> logger.warn("Destroy right join cache [" + rightJoinCache.getName() + "] failed. Message: " + throwable.getMessage() + "\n Stack: " + Log4jUtil.getStackString(throwable))

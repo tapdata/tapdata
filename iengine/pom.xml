@@ -168,6 +168,7 @@
         <pdk-error-code.version>1.0-SNAPSHOT</pdk-error-code.version>
         <error-code-scanner.version>1.0-SNAPSHOT</error-code-scanner.version>
         <lucene-core.version>8.11.2</lucene-core.version>
+        <junit-jupiter.version>5.8.1</junit-jupiter.version>
     </properties>
 
     <modules>
@@ -424,6 +425,18 @@
                 <groupId>org.easytesting</groupId>
                 <artifactId>fest-assert</artifactId>
                 <version>${version.fest}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>${junit-jupiter.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>${junit-jupiter.version}</version>
                 <scope>test</scope>
             </dependency>
 

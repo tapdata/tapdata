@@ -4,7 +4,10 @@ import com.hazelcast.jet.core.Inbox;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import io.tapdata.error.TapProcessorUnknownException;
+import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.SourceException;
+import io.tapdata.exception.TapCodeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -54,10 +57,14 @@ public class HazelcastTaskSourceAndTarget extends HazelcastDataBaseNode {
 	}
 
 	@Override
-	protected void doInit(@Nonnull Context context) throws Exception {
+	protected void doInit(@Nonnull Context context) throws TapCodeException {
 		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
-		source.init(context);
-		target.init(context);
+		try {
+			source.init(context);
+			target.init(context);
+		} catch (Exception e) {
+			throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
+		}
 		sourceThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
 
 		startSourceWorker();
@@ -85,10 +92,14 @@ public class HazelcastTaskSourceAndTarget extends HazelcastDataBaseNode {
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
-		source.close();
-		target.close();
+		try {
+			source.close();
+			target.close();
+		} catch (Exception e) {
+			throw new TapProcessorUnknownException(e);
+		}
 	}
 
 	@Override

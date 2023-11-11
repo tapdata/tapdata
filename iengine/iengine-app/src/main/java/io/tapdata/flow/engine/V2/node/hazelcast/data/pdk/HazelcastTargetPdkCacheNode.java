@@ -17,6 +17,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.error.ShareCacheExCode_20;
 import io.tapdata.error.TapEventException;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections4.MapUtils;
@@ -56,7 +57,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
 		ICacheService cacheService = this.dataProcessorContext.getCacheService();
 		this.dataFlowCacheConfig = cacheService.getConfig(cacheName);
@@ -110,7 +111,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		if (dataMap != null) {
 			PersistenceStorage.getInstance().destroy(dataMap.getName());
 		}

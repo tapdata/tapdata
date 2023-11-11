@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.unwind.EventHandel;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import lombok.SneakyThrows;
@@ -33,7 +34,7 @@ public class HazelcastUnwindProcessNode extends HazelcastProcessorBaseNode {
     }
 
     @Override
-    protected void doInit(@NotNull Context context) throws Exception {
+    protected void doInit(@NotNull Context context) throws TapCodeException {
         super.doInit(context);
         Node<?> node = getNode();
         if (node instanceof UnwindProcessNode) {
@@ -67,7 +68,7 @@ public class HazelcastUnwindProcessNode extends HazelcastProcessorBaseNode {
     }
 
     @Override
-    protected void doClose() throws Exception {
+    protected void doClose() throws TapCodeException {
         super.doClose();
         EventHandel.close();
     }
