@@ -1,7 +1,10 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.tapdata.constant.*;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.MapUtilV2;
+import com.tapdata.constant.NotExistsNode;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.SyncStage;
@@ -23,7 +26,6 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskMergeProcessorExCode_16;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -1007,9 +1009,13 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				Set<String> keySet = findData.keySet();
 				keySet.remove("_ts");
 				if (keySet.size() > 1) {
-					logger.warn("Update write merge lookup, find more than one row by join key: " + joinValueKey + ", will use first row: " + data);
+					logger.warn("Update write merge lookup, find more than one row by join key: {}, will use first row: {}", joinValueKey, data);
 				}
-				String firstKey = findData.keySet().iterator().next();
+				if (keySet.isEmpty()) {
+					// All cache data in the join key have been deleted
+					continue;
+				}
+				String firstKey = keySet.iterator().next();
 				Map<String, Object> lookupMap = (Map<String, Object>) findData.get(firstKey);
 				MergeLookupResult mergeLookupResult = new MergeLookupResult();
 				mergeLookupResult.setProperty(pdkMergeTableProperty);
