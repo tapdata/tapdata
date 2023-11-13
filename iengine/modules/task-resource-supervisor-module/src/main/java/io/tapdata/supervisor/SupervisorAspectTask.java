@@ -12,6 +12,7 @@ import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.supervisor.util.TapTaskThreadGroupUtil;
 import io.tapdata.threadgroup.utils.ThreadGroupUtil;
 
 import java.util.*;
@@ -158,7 +159,7 @@ public class SupervisorAspectTask extends AbstractAspectTask {
     }
 
     private void group(){
-        ThreadGroupUtil.THREAD_GROUP_TASK.groupAll();
+        TapTaskThreadGroupUtil.getDefaultThreadUtil().groupAll();
     }
 
 }
