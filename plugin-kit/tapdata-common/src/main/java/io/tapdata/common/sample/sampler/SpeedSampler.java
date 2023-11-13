@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.LongAdder;
  * Calculate speed by using current time minus last upload time and update last upload time when upload.
  */
 public class SpeedSampler implements Sampler {
+    public static final int LIST_LIMIT = 1000;
     private Long lastCalculateTime;
     private LongAdder totalValue = new LongAdder();
     private Double maxValue;
@@ -36,6 +37,9 @@ public class SpeedSampler implements Sampler {
                 if (Objects.isNull(valueList)) {
                     valueList = Lists.newArrayList(v);
                 } else {
+                    if (valueList.size() >= LIST_LIMIT) {
+                        valueList.clear();
+                    }
                     valueList.add(v);
                 }
 

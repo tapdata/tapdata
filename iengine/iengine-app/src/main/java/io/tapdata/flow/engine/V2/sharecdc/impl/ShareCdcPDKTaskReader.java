@@ -30,6 +30,7 @@ import io.tapdata.entity.schema.value.TapStringValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
+import io.tapdata.flow.engine.V2.common.StoreLoggerImpl;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcContext;
@@ -294,7 +295,8 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				hazelcastInstance,
 				constructReferenceId,
 				constructName,
-				logCollectorExternalStorage
+				logCollectorExternalStorage,
+				new StoreLoggerImpl(obsLogger)
 		);
 	}
 
@@ -358,7 +360,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			return;
 		}
 		try {
-			ConstructRingBuffer<Document> ringBuffer = new ConstructRingBuffer<>(hazelcastInstance, constructReferenceId, ShareCdcUtil.getConstructName(this.logCollectorTaskDto), logCollectorExternalStorage);
+			ConstructRingBuffer<Document> ringBuffer = new ConstructRingBuffer<>(hazelcastInstance, constructReferenceId, ShareCdcUtil.getConstructName(this.logCollectorTaskDto), logCollectorExternalStorage, new StoreLoggerImpl(obsLogger));
 			if (ringBuffer.isEmpty()) {
 				return;
 			}
