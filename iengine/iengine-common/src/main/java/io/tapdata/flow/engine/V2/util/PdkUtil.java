@@ -52,55 +52,27 @@ public class PdkUtil {
 	public static boolean pdkDownloadUnlock(String pdkHash, Object lock) {
 		return pdkHashDownloadLockMap.remove(pdkHash, lock);
 	}
-
-	private static StringBuilder checkPdkFile(String fileName, String resourceId){
-		// create the dir used for storing the pdk jar file if the dir not exists
-		String dir = System.getProperty("user.dir") + File.separator + "dist";
-		File folder = new File(dir);
-		if (!folder.exists()) {
-			folder.mkdirs();
-		}
-
-		String filePrefix = fileName.split("\\.jar")[0];
-		StringBuilder filePath = new StringBuilder(dir)
-				.append(File.separator)
-				.append(filePrefix)
-				.append("__").append(resourceId).append("__");
-		filePath.append(".jar");
-		return filePath;
-	}
-
 	public static void downloadPdkFileIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, String resourceId) {
-		final Object lock = pdkDownloadLock(pdkHash);
-		synchronized (lock) {
-			try {
-				StringBuilder filePath = checkPdkFile(fileName,resourceId);
-				File theFilePath = new File(filePath.toString());
-				if (!theFilePath.isFile()) {
-					httpClientMongoOperator.downloadFile(
-							new HashMap<String, Object>(1) {{
-								put("pdkHash", pdkHash);
-								put("pdkBuildNumber", CommonUtils.getPdkBuildNumer());
-							}},
-							"pdk/jar/v2",
-							filePath.toString(),
-							false
-					);
-					PDKIntegration.refreshJars(filePath.toString());
-				} else if (!PDKIntegration.hasJar(theFilePath.getName())) {
-					PDKIntegration.refreshJars(filePath.toString());
-				}
-			}finally {
-				pdkDownloadUnlock(pdkHash, lock);
-			}
-		}
+		downloadPdkFileIfNeed(httpClientMongoOperator,pdkHash,fileName,resourceId,null);
 	}
-
 	public static void downloadPdkFileIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, String resourceId, RestTemplateOperator.Callback callback) {
 		final Object lock = pdkDownloadLock(pdkHash);
 		synchronized (lock) {
 			try {
-				StringBuilder filePath = checkPdkFile(fileName,resourceId);
+				// create the dir used for storing the pdk jar file if the dir not exists
+				String dir = System.getProperty("user.dir") + File.separator + "dist";
+				File folder = new File(dir);
+				if (!folder.exists()) {
+					folder.mkdirs();
+				}
+
+				String filePrefix = fileName.split("\\.jar")[0];
+				StringBuilder filePath = new StringBuilder(dir)
+						.append(File.separator)
+						.append(filePrefix)
+						.append("__").append(resourceId).append("__");
+
+				filePath.append(".jar");
 				File theFilePath = new File(filePath.toString());
 				if(callback != null)callback.needDownloadPdkFile(!theFilePath.isFile());
 				if (!theFilePath.isFile()) {
