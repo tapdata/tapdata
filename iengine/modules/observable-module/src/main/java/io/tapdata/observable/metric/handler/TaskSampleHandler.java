@@ -36,6 +36,8 @@ public class TaskSampleHandler extends AbstractHandler {
     static final String CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL  = "currentSnapshotTableInsertRowTotal";
     static final String OUTPUT_QPS_MAX                        = "outputQpsMax";
     static final String OUTPUT_QPS_AVG                        = "outputQpsAvg";
+    static final String OUTPUT_SIZE_QPS_MAX                   = "outputSizeQpsMax";
+    static final String OUTPUT_SIZE_QPS_AVG                   = "outputSizeQpsAvg";
 
 
     CounterSampler inputInsertCounter;
@@ -52,6 +54,8 @@ public class TaskSampleHandler extends AbstractHandler {
 
     SpeedSampler inputSpeed;
     SpeedSampler outputSpeed;
+    SpeedSampler inputSizeSpeed;
+    SpeedSampler outputSizeSpeed;
     AverageSampler timeCostAverage;
 
     private CounterSampler createTableTotal;
@@ -67,6 +71,8 @@ public class TaskSampleHandler extends AbstractHandler {
     private Long currentSnapshotTableRowTotal = null;
     private Double outputQpsMax;
     private Double outputQpsAvg;
+    private Double outputSizeQpsMax;
+    private Double outputSizeQpsAvg;
 
     private final Set<String> taskTables = new HashSet<>();
 
@@ -102,9 +108,12 @@ public class TaskSampleHandler extends AbstractHandler {
                 Constants.OUTPUT_OTHERS_TOTAL,
                 Constants.INPUT_QPS,
                 Constants.OUTPUT_QPS,
+                Constants.INPUT_SIZE_QPS,
+                Constants.OUTPUT_SIZE_QPS,
                 Constants.TIME_COST_AVG,
                 Constants.REPLICATE_LAG,
                 Constants.CURR_EVENT_TS,
+                Constants.QPS_TYPE,
                 CREATE_TABLE_TOTAL,
                 SNAPSHOT_TABLE_TOTAL,
                 SNAPSHOT_ROW_TOTAL,
@@ -117,6 +126,8 @@ public class TaskSampleHandler extends AbstractHandler {
                 CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL,
                 OUTPUT_QPS_MAX,
                 OUTPUT_QPS_AVG,
+                OUTPUT_SIZE_QPS_MAX,
+                OUTPUT_SIZE_QPS_AVG,
                 TABLE_TOTAL
         );
     }
@@ -144,6 +155,8 @@ public class TaskSampleHandler extends AbstractHandler {
 
         inputSpeed = collector.getSpeedSampler(Constants.INPUT_QPS);
         outputSpeed = collector.getSpeedSampler(Constants.OUTPUT_QPS);
+        inputSizeSpeed = collector.getSpeedSampler(Constants.INPUT_SIZE_QPS);
+        outputSizeSpeed = collector.getSpeedSampler(Constants.OUTPUT_SIZE_QPS);
         timeCostAverage = collector.getAverageSampler(Constants.TIME_COST_AVG);
 
         collector.addSampler(Constants.CURR_EVENT_TS, () -> {
@@ -244,6 +257,21 @@ public class TaskSampleHandler extends AbstractHandler {
             });
             return outputQpsAvg;
         });
+        collector.addSampler(OUTPUT_SIZE_QPS_MAX, () -> {
+            Optional.ofNullable(outputSizeSpeed).ifPresent(speed -> {
+                outputSizeQpsMax = speed.getMaxValue();
+            });
+            return outputSizeQpsMax;
+        });
+        collector.addSampler(OUTPUT_SIZE_QPS_AVG, () -> {
+            Optional.ofNullable(outputSizeSpeed).ifPresent(speed -> {
+                outputSizeQpsAvg = speed.getAvgValue();
+            });
+            return outputSizeQpsAvg;
+        });
+        collector.addSampler(Constants.QPS_TYPE, () -> qpsType);
+        collector.addSampler(Constants.INPUT_SIZE_QPS, () -> inputSizeSpeed.value());
+        collector.addSampler(Constants.OUTPUT_SIZE_QPS, () -> outputSizeSpeed.value());
     }
 
     public void close() {
@@ -318,6 +346,7 @@ public class TaskSampleHandler extends AbstractHandler {
         inputOthersCounter.inc(recorder.getOthersTotal());
 
         inputSpeed.add(recorder.getTotal());
+        inputSizeSpeed.add(recorder.getMemorySize());
     }
 
     public void addTargetNodeHandler(String nodeId, DataNodeSampleHandler handler) {
@@ -335,11 +364,14 @@ public class TaskSampleHandler extends AbstractHandler {
         long updated = result.getModifiedCount();
         long deleted = result.getRemovedCount();
         long total = inserted + updated + deleted;
+        HandlerUtil.EventTypeRecorder eventTypeRecorder = HandlerUtil.countTapEvent(events);
+        long totalSize = eventTypeRecorder.getMemorySize();
 
         outputInsertCounter.inc(inserted);
         outputUpdateCounter.inc(updated);
         outputDeleteCounter.inc(deleted);
         outputSpeed.add(total);
+        outputSizeSpeed.add(totalSize);
 
         snapshotInsertRowTotal.inc(total);
         if (Objects.isNull(currentSnapshotTableInsertRowTotal)) {

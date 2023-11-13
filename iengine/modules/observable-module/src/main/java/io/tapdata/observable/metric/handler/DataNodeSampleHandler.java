@@ -177,11 +177,13 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 //		}
 	}
 
-	public void handleBatchReadReadComplete(Long readCompleteAt, long size) {
+	public void handleBatchReadReadComplete(Long readCompleteAt, HandlerUtil.EventTypeRecorder recorder) {
 		// batch read only has insert events
+		long size = recorder.getTotal();
 		currentSnapshotTableInsertRowTotal += size;
 		Optional.ofNullable(inputInsertCounter).ifPresent(counter -> counter.inc(size));
 		Optional.ofNullable(inputSpeed).ifPresent(speed -> speed.add(size));
+		Optional.ofNullable(inputSizeSpeed).ifPresent(speed -> speed.add(recorder.getMemorySize()));
 		Optional.ofNullable(snapshotSourceReadTimeCostAvg).ifPresent(
 				avg -> avg.add(size, readCompleteAt - batchAcceptLastTs));
 
@@ -192,6 +194,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		long size = recorder.getInsertTotal();
 		Optional.ofNullable(outputInsertCounter).ifPresent(counter -> counter.inc(size));
 		Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(size));
+		Optional.ofNullable(outputSizeSpeed).ifPresent(speed -> speed.add(recorder.getMemorySize()));
 
 		if (null != recorder.getNewestEventTimestamp()) {
 			Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
@@ -235,6 +238,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Optional.ofNullable(inputDeleteCounter).ifPresent(counter -> counter.inc(recorder.getDeleteTotal()));
 		Optional.ofNullable(inputOthersCounter).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
 		Optional.ofNullable(inputSpeed).ifPresent(speed -> speed.add(total));
+		Optional.ofNullable(inputSizeSpeed).ifPresent(speed -> speed.add(recorder.getMemorySize()));
 		Optional.ofNullable(incrementalSourceReadTimeCostAvg).ifPresent(
 				avg -> {
 					if (null == recorder.getOldestEventTimestamp() || null == recorder.getNewestEventTimestamp()) {
@@ -325,6 +329,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Optional.ofNullable(outputDeleteCounter).ifPresent(counter -> counter.inc(recorder.getDeleteTotal()));
 		Optional.ofNullable(outputOthersCounter).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
 		Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(total));
+		Optional.ofNullable(outputSizeSpeed).ifPresent(speed -> speed.add(recorder.getMemorySize()));
 
 		Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
 		Optional.ofNullable(replicateLag).ifPresent(speed -> speed.setValue(recorder.getReplicateLagTotal()));
@@ -347,6 +352,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Optional.ofNullable(inputDeleteCounter).ifPresent(counter -> counter.inc(recorder.getDeleteTotal()));
 		Optional.ofNullable(inputOthersCounter).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
 		Optional.ofNullable(inputSpeed).ifPresent(speed -> speed.add(recorder.getTotal()));
+		Optional.ofNullable(inputSizeSpeed).ifPresent(speed -> speed.add(recorder.getMemorySize()));
 	}
 
 	public void handleCDCHeartbeatWriteAspect(List<TapdataEvent> tapdataEvents) {
@@ -389,6 +395,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Optional.ofNullable(outputUpdateCounter).ifPresent(counter -> counter.inc(updated));
 		Optional.ofNullable(outputDeleteCounter).ifPresent(counter -> counter.inc(deleted));
 		Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(total));
+		Optional.ofNullable(outputSizeSpeed).ifPresent(speed -> speed.add(recorder.getMemorySize()));
 
 		Optional.ofNullable(targetWriteTimeCostAvg).ifPresent(average -> average.add(total, acceptTime));
 	}

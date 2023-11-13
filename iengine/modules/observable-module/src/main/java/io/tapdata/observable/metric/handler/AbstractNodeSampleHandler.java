@@ -31,6 +31,8 @@ public abstract class AbstractNodeSampleHandler extends AbstractHandler {
 
     SpeedSampler inputSpeed;
     SpeedSampler outputSpeed;
+    SpeedSampler inputSizeSpeed;
+    SpeedSampler outputSizeSpeed;
     AverageSampler timeCostAverage;
     @Getter
     ResetSampler replicateLag;
@@ -71,6 +73,9 @@ public abstract class AbstractNodeSampleHandler extends AbstractHandler {
                 Constants.OUTPUT_OTHERS_TOTAL,
                 Constants.INPUT_QPS,
                 Constants.OUTPUT_QPS,
+                Constants.INPUT_SIZE_QPS,
+                Constants.OUTPUT_SIZE_QPS,
+                Constants.QPS_TYPE,
                 Constants.TIME_COST_AVG,
                 Constants.REPLICATE_LAG,
                 Constants.CURR_EVENT_TS
@@ -92,11 +97,16 @@ public abstract class AbstractNodeSampleHandler extends AbstractHandler {
 
         inputSpeed = collector.getSpeedSampler(Constants.INPUT_QPS);
         outputSpeed = collector.getSpeedSampler(Constants.OUTPUT_QPS);
+        inputSizeSpeed = collector.getSpeedSampler(Constants.INPUT_SIZE_QPS);
+        outputSizeSpeed = collector.getSpeedSampler(Constants.OUTPUT_SIZE_QPS);
         timeCostAverage = collector.getAverageSampler(Constants.TIME_COST_AVG);
 
         Number currentEventTimestampInitial = values.getOrDefault(Constants.CURR_EVENT_TS, null);
         currentEventTimestamp = collector.getNumberCollector(Constants.CURR_EVENT_TS, Long.class,
                 null == currentEventTimestampInitial ? null : currentEventTimestampInitial.longValue());
         replicateLag = collector.getResetSampler(Constants.REPLICATE_LAG);
+        collector.addSampler(Constants.QPS_TYPE, () -> qpsType);
+        collector.addSampler(Constants.INPUT_SIZE_QPS, () -> inputSizeSpeed.value());
+        collector.addSampler(Constants.OUTPUT_SIZE_QPS, () -> outputSizeSpeed.value());
     }
 }

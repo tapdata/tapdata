@@ -16,10 +16,16 @@ import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
+import io.tapdata.pdk.core.async.AsyncUtils;
+import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR,TaskDto.SYNC_TYPE_MEM_CACHE})
@@ -30,6 +36,20 @@ public class ObservableAspectTask extends AspectTask {
 	private Map<String, TableSampleHandler> tableSampleHandlers;
 	private Map<String, DataNodeSampleHandler> dataNodeSampleHandlers;
 	private Map<String, ProcessorNodeSampleHandler> processorNodeSampleHandlers;
+	private static final String TAG = ObservableAspectTask.class.getSimpleName();
+
+	private ThreadPoolExecutorEx aspectRunner;
+	private final LinkedBlockingQueue<StreamReadFuncAspect> streamReadQueue = new LinkedBlockingQueue<>(100);
+	ObservableAspectTaskHandler<StreamReadFuncAspect> streamReadHandler;
+
+	private final LinkedBlockingQueue<BatchReadFuncAspect> batchReadQueue = new LinkedBlockingQueue<>(100);
+	ObservableAspectTaskHandler<BatchReadFuncAspect> batchReadHandler;
+
+	private final LinkedBlockingQueue<ProcessorNodeProcessAspect> processNodeQueue = new LinkedBlockingQueue<>(100);
+	ObservableAspectTaskHandler<ProcessorNodeProcessAspect> processNodeHandler;
+
+	private final LinkedBlockingQueue<WriteRecordFuncAspect> writeRecordQueue = new LinkedBlockingQueue<>(100);
+	ObservableAspectTaskHandler<WriteRecordFuncAspect> writeRecordHandler;
 
 	public ObservableAspectTask() {
 		// data node aspects
@@ -39,13 +59,13 @@ public class ObservableAspectTask extends AspectTask {
 		// source data node aspects
 		observerClassHandlers.register(SourceJoinHeartbeatAspect.class, this::handleSourceJoinHeartbeat);
 		observerClassHandlers.register(TableCountFuncAspect.class, this::handleTableCount);
-		observerClassHandlers.register(BatchReadFuncAspect.class, this::handleBatchReadFunc);
-		observerClassHandlers.register(StreamReadFuncAspect.class, this::handleStreamReadFunc);
+		observerClassHandlers.register(BatchReadFuncAspect.class, this::handleBatchReadFuncStart);
+		observerClassHandlers.register(StreamReadFuncAspect.class, this::handleStreamReadFuncStart);
 		observerClassHandlers.register(SourceStateAspect.class, this::handleSourceState);
 		observerClassHandlers.register(SourceDynamicTableAspect.class, this::handleSourceDynamicTable);
 		// target data node aspects
 		observerClassHandlers.register(CDCHeartbeatWriteAspect.class, this::handleCDCHeartbeatWriteAspect);
-		observerClassHandlers.register(WriteRecordFuncAspect.class, this::handleWriteRecordFunc);
+		observerClassHandlers.register(WriteRecordFuncAspect.class, this::handleWriteRecordFuncStart);
 		observerClassHandlers.register(SnapshotWriteTableCompleteAspect.class, this::handleSnapshotWriteTableCompleteFunc);
 		observerClassHandlers.register(NewFieldFuncAspect.class, this::handleNewFieldFun);
 		observerClassHandlers.register(AlterFieldNameFuncAspect.class, this::handleAlterFieldNameFunc);
@@ -57,17 +77,40 @@ public class ObservableAspectTask extends AspectTask {
 		// processor node aspects
 		observerClassHandlers.register(ProcessorNodeInitAspect.class, this::handleProcessorNodeInit);
 		observerClassHandlers.register(ProcessorNodeCloseAspect.class, this::handleProcessorNodeClose);
-		observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::handleProcessorNodeProcess);
+		observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::handleProcessorNodeProcessFuncStart);
 	}
 
 
+	AtomicBoolean alive = new AtomicBoolean(false);
 	/**
 	 * The task started
 	 */
 	@Override
 	public void onStart(TaskStartAspect startAspect) {
+		alive.set(true);
 		taskSampleHandler = new TaskSampleHandler(task);
 		taskSampleHandler.init();
+
+		this.aspectRunner = AsyncUtils.createThreadPoolExecutor("Aspect-Runner", 8, TAG);
+		batchReadHandler = new ObservableAspectTaskHandler<>(alive);
+		this.aspectRunner.submitSync(() -> {
+			batchReadHandler.aspectHandle(batchReadQueue, this::handleBatchReadFunc);
+		});
+
+		streamReadHandler = new ObservableAspectTaskHandler<>(alive);
+		this.aspectRunner.submitSync(() -> {
+			streamReadHandler.aspectHandle(streamReadQueue, this::handleStreamReadFunc);
+		});
+
+		processNodeHandler = new ObservableAspectTaskHandler<>(alive);
+		this.aspectRunner.submitSync(() -> {
+			processNodeHandler.aspectHandle(processNodeQueue, this::handleProcessorNodeProcess);
+		});
+
+		writeRecordHandler = new ObservableAspectTaskHandler<>(alive);
+		this.aspectRunner.submitSync(() -> {
+			writeRecordHandler.aspectHandle(writeRecordQueue, this::handleWriteRecordFunc);
+		});
 	}
 
 	/**
@@ -75,6 +118,7 @@ public class ObservableAspectTask extends AspectTask {
 	 */
 	@Override
 	public void onStop(TaskStopAspect stopAspect) {
+		alive.set(false);
 		pipelineDelay.clear(stopAspect.getTask().getId().toHexString());
 		if (null != tableSampleHandlers) {
 			for (TableSampleHandler handler : tableSampleHandlers.values()) {
@@ -87,7 +131,15 @@ public class ObservableAspectTask extends AspectTask {
 				handler.close();
 			}
 		}
-
+		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(aspectRunner).ifPresent(ExecutorService::shutdownNow), TAG);
+		streamReadQueue.clear();
+		batchReadQueue.clear();
+		processNodeQueue.clear();
+		writeRecordQueue.clear();
+		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(streamReadHandler).ifPresent(ObservableAspectTaskHandler::close), TAG);
+		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(batchReadHandler).ifPresent(ObservableAspectTaskHandler::close), TAG);
+		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(processNodeHandler).ifPresent(ObservableAspectTaskHandler::close), TAG);
+		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(writeRecordHandler).ifPresent(ObservableAspectTaskHandler::close), TAG);
 		taskSampleHandler.close();
 	}
 
@@ -190,10 +242,10 @@ public class ObservableAspectTask extends AspectTask {
 					if (null == events || events.size() == 0) {
 						return;
 					}
-
+					HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapEvent(events);
 					int size = events.size();
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler ->
-							handler.handleBatchReadReadComplete(System.currentTimeMillis(), size));
+							handler.handleBatchReadReadComplete(System.currentTimeMillis(), recorder));
 					taskSampleHandler.handleBatchReadAccept(size);
 				});
 				aspect.processCompleteConsumer(events -> {
@@ -216,6 +268,9 @@ public class ObservableAspectTask extends AspectTask {
 		}
 
 		return null;
+	}
+	public Void handleBatchReadFuncStart(BatchReadFuncAspect aspect) {
+		return batchReadHandler.handleAspectStart(batchReadQueue, aspect, "Batch read aspect");
 	}
 
 	public Void handleStreamReadFunc(StreamReadFuncAspect aspect) {
@@ -272,6 +327,10 @@ public class ObservableAspectTask extends AspectTask {
 		}
 
 		return null;
+	}
+
+	public Void handleStreamReadFuncStart(StreamReadFuncAspect aspect) {
+		return streamReadHandler.handleAspectStart(streamReadQueue, aspect, "Stream read aspect");
 	}
 
 	public Void handleSourceState(SourceStateAspect aspect) {
@@ -471,7 +530,9 @@ public class ObservableAspectTask extends AspectTask {
 
 		return null;
 	}
-
+	public Void handleWriteRecordFuncStart(WriteRecordFuncAspect aspect) {
+		return writeRecordHandler.handleAspectStart(writeRecordQueue, aspect, "Write record");
+	}
 	public Void handleSnapshotWriteTableCompleteFunc(SnapshotWriteTableCompleteAspect aspect) {
 		String nodeId = aspect.getSourceNodeId();
 		Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
@@ -531,6 +592,9 @@ public class ObservableAspectTask extends AspectTask {
 		return null;
 	}
 
+	public Void handleProcessorNodeProcessFuncStart(ProcessorNodeProcessAspect aspect) {
+		return processNodeHandler.handleAspectStart(processNodeQueue, aspect, "Process Node");
+	}
 	@Override
 	public List<Class<? extends Aspect>> observeAspects() {
 		List<Class<? extends Aspect>> aspects = new ArrayList<>();
