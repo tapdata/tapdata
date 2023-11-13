@@ -311,7 +311,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			recursiveGetLookupList(child);
 		}
 		String preNodeId = mergeTableProperties.getId();
-		Node<?> preNode = Optional.ofNullable(preNodeMap.get(preNodeId)).orElse((Node)getPreNode(preNodeId));
+		Node<?> preNode = Optional.ofNullable(preNodeMap.get(preNodeId)).orElse((Node) getPreNode(preNodeId));
 		if (!preNode.disabledNode()) {
 			this.lookupMap.put(preNodeId, lookupList);
 			this.needCacheIdList.addAll(lookupList.stream().map(MergeTableProperties::getId).collect(Collectors.toList()));
@@ -682,7 +682,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		List<Map<String, String>> joinKeys = mergeProperty.getJoinKeys();
 		List<String> joinKeyList = getJoinKeys(joinKeys, JoinConditionType.SOURCE);
 		if (CollectionUtils.isEmpty(joinKeyList)) {
-			throw new TapCodeException(TaskMergeProcessorExCode_16.MISSING_SOURCE_JOIN_KEY_CONFIG, String.format("Map name: %s, Merge property: %s", hazelcastConstruct.getName(), mergeProperty));		}
+			throw new TapCodeException(TaskMergeProcessorExCode_16.MISSING_SOURCE_JOIN_KEY_CONFIG, String.format("Map name: %s, Merge property: %s", hazelcastConstruct.getName(), mergeProperty));
+		}
 		if (MapUtils.isEmpty(data)) {
 			return "";
 		}
@@ -701,7 +702,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		List<Map<String, String>> joinKeys = mergeProperty.getJoinKeys();
 		List<String> joinKeyList = getJoinKeys(joinKeys, JoinConditionType.TARGET);
 		if (CollectionUtils.isEmpty(joinKeyList)) {
-			throw new TapCodeException(TaskMergeProcessorExCode_16.MISSING_TARGET_JOIN_KEY_CONFIG, String.format("Map name: %s, Merge property: %s", hazelcastConstruct, mergeProperty));		}
+			throw new TapCodeException(TaskMergeProcessorExCode_16.MISSING_TARGET_JOIN_KEY_CONFIG, String.format("Map name: %s, Merge property: %s", hazelcastConstruct, mergeProperty));
+		}
 		if (MapUtils.isEmpty(data)) {
 			return "";
 		}
@@ -849,9 +851,13 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				Set<String> keySet = findData.keySet();
 				keySet.remove("_ts");
 				if (keySet.size() > 1) {
-					logger.warn("Update write merge lookup, find more than one row by join key: " + joinValueKey + ", will use first row: " + data);
+					logger.warn("Update write merge lookup, find more than one row by join key: {}, will use first row: {}", joinValueKey, data);
 				}
-				String firstKey = findData.keySet().iterator().next();
+				if (keySet.isEmpty()) {
+					// All cache data in the join key have been deleted
+					continue;
+				}
+				String firstKey = keySet.iterator().next();
 				Map<String, Object> lookupMap = (Map<String, Object>) findData.get(firstKey);
 				MergeLookupResult mergeLookupResult = new MergeLookupResult();
 				mergeLookupResult.setProperty(pdkMergeTableProperty);
