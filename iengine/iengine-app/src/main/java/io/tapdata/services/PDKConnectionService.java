@@ -111,7 +111,7 @@ public class PDKConnectionService {
             throw new CoreException("DatabaseType is null for pdkHash {}, by connection which id is {}.", connectionId, connections.getPdkHash());
 
         try {
-            PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid(),null);
+            PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
             PDKIntegration.ConnectionBuilder<ConnectionNode> connectorBuilder = PDKIntegration.createConnectionConnectorBuilder()
                     .withAssociateId(associateId)
                     .withGroup(databaseType.getGroup())

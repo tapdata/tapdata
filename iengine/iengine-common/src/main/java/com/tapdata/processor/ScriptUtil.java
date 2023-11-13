@@ -361,7 +361,7 @@ public class ScriptUtil {
 						final Path filePath = Paths.get(System.getenv("TAPDATA_WORK_DIR"), "lib", fileId);
 						if (Files.notExists(filePath)) {
 							if (clientMongoOperator instanceof HttpClientMongoOperator) {
-								File file = ((HttpClientMongoOperator) clientMongoOperator).downloadFile(null, "file/" + fileId, filePath.toString(), true,null);
+								File file = ((HttpClientMongoOperator) clientMongoOperator).downloadFile(null, "file/" + fileId, filePath.toString(), true);
 								if (null == file) {
 									throw new RuntimeException("not found");
 								}
@@ -526,7 +526,7 @@ public class ScriptUtil {
 						final Path filePath = Paths.get(System.getenv("TAPDATA_WORK_DIR"), "lib", fileId);
 						if (Files.notExists(filePath)) {
 							if (clientMongoOperator instanceof HttpClientMongoOperator) {
-								File file = ((HttpClientMongoOperator) clientMongoOperator).downloadFile(null, "file/" + fileId, filePath.toString(), true,null);
+								File file = ((HttpClientMongoOperator) clientMongoOperator).downloadFile(null, "file/" + fileId, filePath.toString(), true);
 								if (null == file) {
 									throw new RuntimeException("not found");
 								}

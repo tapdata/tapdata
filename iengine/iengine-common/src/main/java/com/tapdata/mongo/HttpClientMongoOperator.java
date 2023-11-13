@@ -602,6 +602,21 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 		return null;
 	}
 
+	public File downloadFile(Map<String, Object> params, String resource, String filePath, boolean replace) {
+		if (!replace) {
+			File file = new File(filePath);
+			if (file.exists()) {
+				return file;
+			}
+		}
+
+		if (params == null) {
+			params = new HashMap<>();
+		}
+		addToken(params);
+		return restTemplateOperator.downloadFile(params, resource, filePath, cookies(), cloudRegion);
+	}
+
 	public File downloadFile(Map<String, Object> params, String resource, String filePath, boolean replace,RestTemplateOperator.Callback callback) {
 		if (!replace) {
 			File file = new File(filePath);
@@ -614,11 +629,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 			params = new HashMap<>();
 		}
 		addToken(params);
-		if(callback == null){
-			return restTemplateOperator.downloadFile(params, resource, filePath, cookies(), cloudRegion);
-		}else{
-			return restTemplateOperator.downloadFile(params, resource, filePath, cookies(), cloudRegion, callback);
-		}
+		return restTemplateOperator.downloadFile(params, resource, filePath, cookies(), cloudRegion, callback);
 	}
 
 	public RestTemplateOperator getRestTemplateOperator() {
