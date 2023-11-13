@@ -254,7 +254,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		this.sourceRunnerFirstTime = new AtomicBoolean(true);
 		this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
 
-		this.sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunnerAndSetLastStreamOffset);
+		this.sourceRunnerFuture = this.sourceRunner.submit(this::beforeStartSourceRunner);
 	}
 
 	private void initSourceEventQueue() {
@@ -722,7 +722,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		return false;
 	}
 
-    private void startSourceRunnerAndSetLastStreamOffset() {
+    private void beforeStartSourceRunner() {
         lastStreamOffset.set(syncProgress.getStreamOffset());
         startSourceRunner();
     }
@@ -748,7 +748,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		this.sourceRunner.shutdownNow();
 		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
-		sourceRunner.submit(this::startSourceRunnerAndSetLastStreamOffset);
+		sourceRunner.submit(this::beforeStartSourceRunner);
 	}
 
 	@NotNull
@@ -786,10 +786,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 // Fixed #149167 in 2023-10-29: CDC batch events not full consumed cause loss data
                 //todo: Remove lastStreamOffset if need add transaction in streamReadConsumer.
                 if (isLast) lastStreamOffset.set(offsetObj);
+                return wrapSingleTapdataEvent(tapEvent, syncStage, lastStreamOffset.get(), isLast);
             } else {
-                lastStreamOffset.set(offsetObj);
+                return wrapSingleTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
             }
-			return wrapSingleTapdataEvent(tapEvent, syncStage, lastStreamOffset.get(), isLast);
 		} catch (Throwable throwable) {
 			throw new NodeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable
 					.getMessage(), throwable)
