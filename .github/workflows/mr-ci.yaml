@@ -57,7 +57,7 @@ jobs:
         run: |
           cd tapdata-application
           OPENSOURCE_BRANCH=${{github.event.pull_request.head.ref}}
-          ENTERPRISE_BRANCH="fix-ci"
+          ENTERPRISE_BRANCH="main"
           FRONTEND_BRANCH="main"
           echo "::set-output name=OPENSOURCE_BRANCH::${OPENSOURCE_BRANCH}"
           echo "::set-output name=ENTERPRISE_BRANCH::${ENTERPRISE_BRANCH}"
