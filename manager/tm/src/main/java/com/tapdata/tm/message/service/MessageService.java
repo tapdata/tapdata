@@ -232,6 +232,14 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 
         NotificationDto notificationDto = needInform(SystemEnum.MIGRATION, msgTypeEnum);
         Notification userNotification = userDetail.getNotification();
+        if (null != notificationDto) {
+            saveMessage = addMessage(serverName, sourceId, SystemEnum.MIGRATION, msgTypeEnum, "", level, userDetail, notificationDto.getNotice());
+
+            if (notificationDto.getEmail()) {
+                SendStatus sendStatus = new SendStatus("false", "");
+                eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
+            }
+        }
         if (null != userNotification) {
             //用户设置优先
             if (userNotification.getStoppedByError().getEmail()) {
@@ -250,14 +258,6 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                 log.info("dataflow出错，sms 通知");
                 informUserSms(msgTypeEnum, SystemEnum.MIGRATION, serverName, sourceId, saveMessage.getId().toString(), userDetail);
 
-            }
-        }
-        if (null != notificationDto) {
-            saveMessage = addMessage(serverName, sourceId, SystemEnum.MIGRATION, msgTypeEnum, "", level, userDetail, notificationDto.getNotice());
-
-            if (notificationDto.getEmail()) {
-                SendStatus sendStatus = new SendStatus("false", "");
-                eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
             }
         }
     }
@@ -354,8 +354,11 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 
         if (notificationDto.getEmail()) {
             FunctionUtils.isTureOrFalse(settingsService.isCloud()).trueOrFalseHandle(() -> {
-                SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), userDetail.getUsername(), serverName, SystemEnum.SYNC, msgTypeEnum, sourceId);
-                eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
+                if(checkMessageLimit(userDetail) <= MailUtils.CLOUD_MAIL_LIMIT){
+                    SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), userDetail.getUsername(), serverName, SystemEnum.SYNC, msgTypeEnum, sourceId);
+                    eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
+                    update(Query.query(Criteria.where("_id").is(saveMessage.getId())),Update.update("isSend",true));
+                }
             }, () -> {
                 MailAccountDto mailAccount = alarmService.getMailAccount(userDetail.getUserId());
                 String mailTitle = getMailTitle(msgTypeEnum);
@@ -505,9 +508,11 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 
 //        Object hostUrl = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_HREF);
         String clickHref = mailUtils.getHrefClick(sourceId, systemEnum, msgType);
-
-        SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), username, serverName, clickHref, systemEnum, msgType);
-        eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
+        if(!settingsService.isCloud() || checkMessageLimit(userDetail) <= MailUtils.CLOUD_MAIL_LIMIT){
+            SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), username, serverName, clickHref, systemEnum, msgType);
+            eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
+            update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
+        }
     }
 
     /**
@@ -611,9 +616,11 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 
             Object hostUrl = settingsService.getByCategoryAndKey("SMTP", "emailHref");
             String clickHref = hostUrl + "monitor?id=" + sourceId + "{sourceId}&isMoniting=true&mapping=cluster-clone";
-
-            SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), username, metadataName, clickHref, systemEnum, msgType);
-            eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
+            if(!settingsService.isCloud() || checkMessageLimit(userDetail) <= MailUtils.CLOUD_MAIL_LIMIT){
+                SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), username, metadataName, clickHref, systemEnum, msgType);
+                eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
+                update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
+            }
 
         }
 
@@ -703,7 +710,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             map.put("content", content);
             map.put("color", "red");
             map.put("groupId","oc_d6bc5fe48d56453264ec73a2fb3eec70");
-           HttpUtils.sendPostData(FEISHU_ADDRESS,JSONObject.toJSONString(map));
+            HttpUtils.sendPostData(FEISHU_ADDRESS,JSONObject.toJSONString(map));
         }else{
             if(CollectionUtils.isNotEmpty(messageDtoList)){
                 messageDtoList.forEach(this::informUser);
@@ -799,9 +806,10 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 //            String clickHref = hostUrl + "monitor?id=" + sourceId + "{sourceId}&isMoniting=true&mapping=cluster-clone";
             MsgTypeEnum msgTypeEnum = MsgTypeEnum.getEnumByValue(msgType);
             String clickHref = mailUtils.getAgentClick(metadataName, msgTypeEnum);
-            SendStatus sendStatus = mailUtils.sendHtmlMail(MAIL_SUBJECT, userDetail.getEmail(), username, metadataName, clickHref, emailTip);
-            eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
-
+            if(!settingsService.isCloud() || checkMessageLimit(userDetail) <= MailUtils.CLOUD_MAIL_LIMIT){
+                SendStatus sendStatus = mailUtils.sendHtmlMail(MAIL_SUBJECT, userDetail.getEmail(), username, metadataName, clickHref, emailTip);
+                eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
+            }
         }
 
         //发送短信
@@ -952,6 +960,19 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             }
         });
         return query;
+    }
+
+    public Long checkMessageLimit(UserDetail userDetail){
+        Date date = new Date();
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(date);
+        int year = calendar.get(Calendar.YEAR);
+        int month = calendar.get(Calendar.MONTH) + 1;
+        int day = calendar.get(Calendar.DAY_OF_MONTH);
+        Calendar newCalendar = Calendar.getInstance();
+        newCalendar.set(year, month - 1, day, 0, 0, 0);  // 将时分秒设置为0
+        Date newDate = newCalendar.getTime();
+        return repository.count(Query.query(Criteria.where("user_id").is(userDetail.getUserId()).and("createTime").gte(newDate)));
     }
 
 

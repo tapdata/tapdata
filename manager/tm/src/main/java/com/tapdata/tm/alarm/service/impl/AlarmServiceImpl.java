@@ -324,15 +324,13 @@ public class AlarmServiceImpl implements AlarmService {
 					}
 
             FunctionUtils.ignoreAnyError(() -> {
-                boolean reuslt = sendMessage(info, alarmMessageDto, userDetail,null);
-                if (!reuslt) {
+                MessageEntity reusltMessage = sendMessage(info, alarmMessageDto, userDetail,null);
+                if (reusltMessage == null) {
                     DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(),30);
                     info.setLastNotifyTime(dateTime);
                     save(info);
                 }
-            });
-            FunctionUtils.ignoreAnyError(() -> {
-                boolean reuslt = sendMail(info, alarmMessageDto, userDetail, null);
+                boolean reuslt = sendMail(info, alarmMessageDto, userDetail, null,reusltMessage.getId().toString());
                 if (!reuslt) {
                     DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
                     info.setLastNotifyTime(dateTime);
@@ -363,14 +361,14 @@ public class AlarmServiceImpl implements AlarmService {
 
     }
 
-    private boolean sendMessage(AlarmInfo info, AlarmMessageDto alarmMessageDto, UserDetail userDetail, MessageDto messageDto) {
+    private MessageEntity sendMessage(AlarmInfo info, AlarmMessageDto alarmMessageDto, UserDetail userDetail, MessageDto messageDto) {
         try {
             MessageEntity messageEntity = new MessageEntity();
             Date date = DateUtil.date();
             if (messageDto == null) {
                 if (!alarmMessageDto.isSystemOpen()) {
                     log.info("Current user ({}, {}) can't open system notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return true;
+                    return messageEntity;
                 }
                 ExpressionParser parser = new SpelExpressionParser();
                 TemplateParserContext parserContext = new TemplateParserContext();
@@ -401,7 +399,7 @@ public class AlarmServiceImpl implements AlarmService {
                 }
                 if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.SYSTEM)) {
                     log.info("Current user ({}, {}) can't open system notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return true;
+                    return messageEntity;
                 }
                 messageEntity.setLevel(Level.EMERGENCY.name());
                 messageEntity.setAgentId(messageDto.getAgentId());
@@ -433,14 +431,14 @@ public class AlarmServiceImpl implements AlarmService {
             messageEntity.setLastUpdAt(date);
             messageEntity.setRead(false);
             messageService.addMessage(messageEntity, userDetail);
+            return messageEntity;
         } catch (Exception e) {
             log.error("sendMessage error: {}", ThrowableUtils.getStackTraceByPn(e));
-            return true;
+            return new MessageEntity();
         }
-        return true;
     }
 
-    private boolean sendMail(AlarmInfo info, AlarmMessageDto alarmMessageDto, UserDetail userDetail, MessageDto messageDto) {
+    private boolean sendMail(AlarmInfo info, AlarmMessageDto alarmMessageDto, UserDetail userDetail, MessageDto messageDto,String messageId) {
         try {
             String title = null;
             String content = null;
@@ -494,7 +492,10 @@ public class AlarmServiceImpl implements AlarmService {
                 Settings prefix = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
                 AtomicReference<String> mailTitle = new AtomicReference<>(title);
                 Optional.ofNullable(prefix).ifPresent(pre -> mailTitle.updateAndGet(v -> pre.getValue() + v));
-                MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle.get(), content);
+                if(!settingsService.isCloud() || messageService.checkMessageLimit(userDetail) <= MailUtils.CLOUD_MAIL_LIMIT){
+                    MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle.get(), content);
+                    if(StringUtils.isNotBlank(messageId)) messageService.update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
+                }
             }
         } catch (Exception e) {
             log.error("sendMail error: {}", ThrowableUtils.getStackTraceByPn(e));
@@ -1029,8 +1030,8 @@ public class AlarmServiceImpl implements AlarmService {
     public MessageDto add(MessageDto messageDto, UserDetail userDetail) {
         try {
             log.info("informUser");
-            sendMessage(null, null, userDetail, messageDto);
-            sendMail(null, null, userDetail, messageDto);
+            MessageEntity messageEntity = sendMessage(null, null, userDetail, messageDto);
+            sendMail(null, null, userDetail, messageDto,messageEntity.getId().toString());
             sendSms(null, null, userDetail, messageDto);
             sendWeChat(null, null, userDetail, messageDto);
         } catch (Exception e) {
