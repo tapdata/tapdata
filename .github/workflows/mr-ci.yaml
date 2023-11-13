@@ -64,6 +64,53 @@ jobs:
           echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
           echo "::set-output name=TAG_NAME::${TAG_NAME}"
 
+  Scan-Tapdata:
+    runs-on: aws-ubuntu-20
+    needs: Get-Stable-Branch
+    timeout-minutes: 20
+    steps:
+      - name: Clean Directory
+        run: |
+          rm -rf ./*
+      - name: Checkout Tapdata Code
+        uses: actions/checkout@v3
+        with:
+          repository: 'tapdata/tapdata'
+          ref: ${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}
+          path: tapdata
+          fetch-depth: 0
+      - name: Patch Maven Dependens
+        run: |
+          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@172.17.0.3:873/data/enterprise-temp/tapdata/ /root/.m2/
+      - name: Get OpenSource Branch Name -- Common
+        run: |
+          echo "OPENSOURCE_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Set OpenSource Branch Name -- Pull Request
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          branch_name="${{ github.event.pull_request.head.ref }}"
+          echo "OPENSOURCE_BRANCH=$branch_name" >> $GITHUB_ENV
+      - name: Build Tapdata - And Analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          cd tapdata && mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+            -Dsonar.projectKey=tapdata -Dsonar.host.url=http://16.162.191.231:9000 \
+            -Dsonar.login=admin -Dsonar.password=Gotapd8! \
+            -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }} \
+            -T1C -Dmaven.compile.fork=true -P idaas
+      - name: Install Dependens
+        run: |
+          apt install -y jq
+      - name: SonarQube Quality Gate check
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scanMetadataReportFile: tapdata/target/sonar/report-task.txt
+
   Build-And-Deploy:
     runs-on: ubuntu-latest
     needs:
