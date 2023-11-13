@@ -305,8 +305,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				TransformerWsMessageDto.class);
 		this.sourceRunnerFirstTime = new AtomicBoolean(true);
 		this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
-
-		this.sourceRunnerFuture = this.sourceRunner.submit(this::beforeStartSourceRunner);
+		this.lastStreamOffset.set(syncProgress.getStreamOffset());
+		this.sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
 	}
 
 	private void initSourceEventQueue() {
@@ -779,11 +779,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		return false;
 	}
 
-    private void beforeStartSourceRunner() {
-        lastStreamOffset.set(syncProgress.getStreamOffset());
-        startSourceRunner();
-    }
-
 	abstract void startSourceRunner();
 
 	synchronized void restartPdkConnector() {
@@ -805,7 +800,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		this.sourceRunner.shutdownNow();
 		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
-		sourceRunner.submit(this::beforeStartSourceRunner);
+		sourceRunner.submit(this::startSourceRunner);
 	}
 
 	@NotNull
