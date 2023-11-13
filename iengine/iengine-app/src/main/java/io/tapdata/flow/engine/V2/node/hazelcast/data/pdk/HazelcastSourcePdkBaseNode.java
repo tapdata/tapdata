@@ -905,7 +905,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				}
 			} else if (SyncStage.CDC == syncStage) {
 				// Fixed #149167 in 2023-10-29: CDC batch events not full consumed cause loss data
-//				tapdataEvent.setStreamOffset(offsetObj);
+                if (isLast) tapdataEvent.setStreamOffset(offsetObj);
 				if (null == ((TapRecordEvent) tapEvent).getReferenceTime())
 					throw new RuntimeException("Tap CDC event's reference time is null");
 				tapdataEvent.setSourceTime(((TapRecordEvent) tapEvent).getReferenceTime());
