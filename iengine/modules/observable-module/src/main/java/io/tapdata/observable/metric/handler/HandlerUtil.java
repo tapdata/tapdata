@@ -23,6 +23,13 @@ import java.util.Objects;
  * @author Dexter
  */
 public class HandlerUtil {
+    private final static RandomSampleEventHandler randomSampleEventHandler = new RandomSampleEventHandler(1);
+    private final static RandomSampleEventHandler.HandleEvent covertTapDataEvent = data -> {
+        TapdataEvent tapdataEvent = (TapdataEvent) data;
+        return tapdataEvent.getTapEvent();
+    };
+    private final static RandomSampleEventHandler.HandleEvent covertTapEvent = data -> (TapEvent)data;
+
     public static EventTypeRecorder countTapdataEvent(List<TapdataEvent> events) {
         long now = System.currentTimeMillis();
 
@@ -39,13 +46,8 @@ public class HandlerUtil {
             }
             referenceTimeList.add(countEventTypeAndGetReferenceTime(tapdataEvent.getTapEvent(), recorder));
         }
-        RandomSampleEventHandler randomSampleEventHandler = new RandomSampleEventHandler(1);
-        randomSampleEventHandler.simpleMemoryTapEvent(recorder, events, data -> {
-            TapdataEvent tapdataEvent = (TapdataEvent) data;
-            return tapdataEvent.getTapEvent();
-        });
+        randomSampleEventHandler.simpleMemoryTapEvent(recorder, events, covertTapDataEvent);
         recorder.calculateMaxReplicateLag(now, referenceTimeList);
-
         return recorder;
     }
 
@@ -58,8 +60,7 @@ public class HandlerUtil {
             referenceTimeList.add(countEventTypeAndGetReferenceTime(tapEvent, recorder));
             recorder.incrProcessTimeTotal(now, tapEvent.getTime());
         }
-        RandomSampleEventHandler randomSampleEventHandler = new RandomSampleEventHandler(1);
-        randomSampleEventHandler.simpleMemoryTapEvent(recorder, events, data -> (TapEvent)data);
+        randomSampleEventHandler.simpleMemoryTapEvent(recorder, events, covertTapEvent);
         CommonUtils.ignoreAnyError(() -> recorder.calculateMaxReplicateLag(now, referenceTimeList), "HandlerUtil-countTapEvent");
         return recorder;
     }

@@ -357,14 +357,13 @@ public class TaskSampleHandler extends AbstractHandler {
         sourceNodeHandlers.putIfAbsent(nodeId, handler);
     }
 
-    public void handleWriteRecordAccept(WriteListResult<TapRecordEvent> result, List<TapRecordEvent> events) {
+    public void handleWriteRecordAccept(WriteListResult<TapRecordEvent> result, List<TapRecordEvent> events, HandlerUtil.EventTypeRecorder eventTypeRecorder) {
         long current = System.currentTimeMillis();
 
         long inserted = result.getInsertedCount();
         long updated = result.getModifiedCount();
         long deleted = result.getRemovedCount();
         long total = inserted + updated + deleted;
-        HandlerUtil.EventTypeRecorder eventTypeRecorder = HandlerUtil.countTapEvent(events);
         long totalSize = eventTypeRecorder.getMemorySize();
 
         outputInsertCounter.inc(inserted);
