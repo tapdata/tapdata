@@ -109,6 +109,14 @@ jobs:
         run: |
           cd tapdata-connectors
           mvn install -T1C -Dmaven.compile.fork=true
+      - name: Build Docker Image
+        run: |
+          mkdir -p output/connectors output/manager output/iengine
+          cd tapdata-connectors/connectors && tar czf dist.tar.gz dist && cd -
+          cp tapdata-connectors/connectors/dist.tar.gz output/connectors/
+          cp tapdata/manager/tm/target/tm-*-exec.jar output/manager/tm.jar
+          cp tapdata/iengine/ie.jar output/iengine/ie.jar
+          cp tapdata/tapdata-cli/target/pdk.jar output/pdk.jar
 
   Integration-Testing:
     runs-on: ubuntu-latest
