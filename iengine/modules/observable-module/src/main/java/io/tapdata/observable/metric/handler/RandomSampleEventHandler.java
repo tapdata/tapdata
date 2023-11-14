@@ -29,10 +29,12 @@ public class RandomSampleEventHandler {
         for (Object item : simples) {
             if (null == item) continue;
             TapEvent tapEvent = handle.handel(item);
-            if (null == tableId) {
-                tableId = ((TapRecordEvent) tapEvent).getTableId();
+            if (tapEvent instanceof TapRecordEvent) {
+                if (null == tableId) {
+                    tableId = ((TapRecordEvent) tapEvent).getTableId();
+                }
+                sizeOfSampleListByte += sizeOfTapEvent(tapEvent);
             }
-            sizeOfSampleListByte += sizeOfTapEvent(tapEvent);
         }
         unitConversion(recorder, sizeOfSampleListByte);
     }
