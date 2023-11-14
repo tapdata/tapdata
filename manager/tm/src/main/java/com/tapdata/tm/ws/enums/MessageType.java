@@ -12,6 +12,8 @@ public enum MessageType {
 	PONG("pong"),
 	TEST_CONNECTION("testConnection"),
 
+	DOWNLOAD_CONNECTOR("downLoadConnector"),
+
 	PIPE("pipe"),
 
 	LOGS("logs"),

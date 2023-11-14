@@ -133,6 +133,7 @@ public class ConnectorConstant {
 	public static final String TASK_RESET_LOGS_COLLECTION = "TaskResetLogs";
 	public static final String SHARE_CDC_TABLE_METRICS_COLLECTION = "ShareCdcTableMetrics";
 
+	public static final String CONNECTORRECORD_COLLECTION = "ConnectorRecord";
 	public static final String SUBTASK_PROGRESS = "TaskProgress";
 	public static final String OFFSET_MONGO_SERVER_URI = "offset.mongo.server.uri";
 
