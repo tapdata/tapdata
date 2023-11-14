@@ -99,7 +99,7 @@ jobs:
           cd tapdata && mvn clean test -T1C -Dmaven.compile.fork=true -P idaas && mvn sonar:sonar \
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
-            -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }} -DskipTests
+            -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }}
       - name: Install Dependens
         run: |
           apt install -y jq
