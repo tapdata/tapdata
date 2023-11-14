@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.util;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
+import com.tapdata.mongo.RestTemplateOperator;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
@@ -22,6 +23,7 @@ import org.apache.commons.net.util.Base64;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,8 +52,10 @@ public class PdkUtil {
 	public static boolean pdkDownloadUnlock(String pdkHash, Object lock) {
 		return pdkHashDownloadLockMap.remove(pdkHash, lock);
 	}
-
 	public static void downloadPdkFileIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, String resourceId) {
+		downloadPdkFileIfNeed(httpClientMongoOperator,pdkHash,fileName,resourceId,null);
+	}
+	public static void downloadPdkFileIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, String resourceId, RestTemplateOperator.Callback callback) {
 		final Object lock = pdkDownloadLock(pdkHash);
 		synchronized (lock) {
 			try {
@@ -70,6 +74,7 @@ public class PdkUtil {
 
 				filePath.append(".jar");
 				File theFilePath = new File(filePath.toString());
+				if(callback != null)callback.needDownloadPdkFile(!theFilePath.isFile());
 				if (!theFilePath.isFile()) {
 					httpClientMongoOperator.downloadFile(
 							new HashMap<String, Object>(1) {{
@@ -78,13 +83,16 @@ public class PdkUtil {
 							}},
 							"pdk/jar/v2",
 							filePath.toString(),
-							false
+							false,
+							callback
 					);
 
 					PDKIntegration.refreshJars(filePath.toString());
 				} else if (!PDKIntegration.hasJar(theFilePath.getName())) {
 					PDKIntegration.refreshJars(filePath.toString());
 				}
+			} catch (IOException e) {
+				throw new RuntimeException(e);
 			} finally {
 				pdkDownloadUnlock(pdkHash, lock);
 			}

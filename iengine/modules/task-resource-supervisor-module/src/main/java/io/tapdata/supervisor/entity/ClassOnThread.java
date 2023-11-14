@@ -1,6 +1,6 @@
 package io.tapdata.supervisor.entity;
 
-import io.tapdata.threadgroup.utils.ThreadGroupUtil;
+import io.tapdata.supervisor.util.TapTaskThreadGroupUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +27,7 @@ public class ClassOnThread {
     public ClassOnThread thread(Thread thread) {
         this.threadId = thread.getId();
         this.threadName = thread.getName();
-        this.threadGroup = ThreadGroupUtil.THREAD_GROUP_TASK.currentThreadGroup(thread,ThreadGroupUtil.DEFAULT_NODE_THREAD);
+        this.threadGroup = TapTaskThreadGroupUtil.getDefaultThreadUtil().currentThreadGroup(thread, TapTaskThreadGroupUtil.getDefaultNodeThreadGroupClass());
         return this;
     }
 

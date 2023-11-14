@@ -809,20 +809,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@NotNull
 	protected List<TapdataEvent> wrapTapdataEvent(List<TapEvent> events, SyncStage syncStage, Object offsetObj) {
-		TapdataHeartbeatEvent heartbeatEvent = new TapdataHeartbeatEvent();
-		switch (syncStage) {
-			case INITIAL_SYNC:
-				heartbeatEvent.setSyncStage(syncStage);
-				heartbeatEvent.setBatchOffset(offsetObj);
-				break;
-			case CDC:
-				heartbeatEvent.setSyncStage(syncStage);
-				heartbeatEvent.setStreamOffset(offsetObj);
-				break;
-			default:
-				break;
-		}
-
 		int size = events.size();
 		List<TapdataEvent> tapdataEvents = new ArrayList<>(size + 1);
 		List<TapEvent> eventCache = new ArrayList<>();
@@ -841,16 +827,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				continue;
 			}
 			tapdataEvents.add(tapdataEvent);
-			if (tapEventCache instanceof TapRecordEvent) {
-				heartbeatEvent.setSourceTime(((TapRecordEvent) tapEventCache).getReferenceTime());
-			}
-		}
-
-		// Fixed #149167 in 2023-10-29:
-		// Because jet node does not consume the entire batch of data, task restarts may lose data
-		// Ignore the offset in record event, add heartbeat event to the end, used to update offset
-		if (null != heartbeatEvent.getSourceTime()) {
-			tapdataEvents.add(heartbeatEvent);
 		}
 		return tapdataEvents;
 	}
@@ -929,7 +905,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				}
 			} else if (SyncStage.CDC == syncStage) {
 				// Fixed #149167 in 2023-10-29: CDC batch events not full consumed cause loss data
-//				tapdataEvent.setStreamOffset(offsetObj);
+                if (isLast) tapdataEvent.setStreamOffset(offsetObj);
 				if (null == ((TapRecordEvent) tapEvent).getReferenceTime())
 					throw new RuntimeException("Tap CDC event's reference time is null");
 				tapdataEvent.setSourceTime(((TapRecordEvent) tapEvent).getReferenceTime());
