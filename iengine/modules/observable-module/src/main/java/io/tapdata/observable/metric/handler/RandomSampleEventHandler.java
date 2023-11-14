@@ -23,7 +23,7 @@ public class RandomSampleEventHandler {
 
     public void simpleMemoryTapEvent(HandlerUtil.EventTypeRecorder recorder, List<?> events, HandleEvent handle) {
         List<Object> simples = randomSampleList(events, sampleRate);
-        if (null == simples || simples.isEmpty()) return;
+        if (simples.isEmpty()) return;
         long sizeOfSampleListByte = 0L;
         String tableId = null;
         for (Object item : simples) {
@@ -45,6 +45,7 @@ public class RandomSampleEventHandler {
     }
 
     private long sizeOfDataMap(Map<?, ?> map, long sizeOfSampleListByte) {
+        if (sizeOfSampleListByte < 0) sizeOfSampleListByte = 0;
         if (MapUtils.isEmpty(map)) {
             return sizeOfSampleListByte;
         }
@@ -52,19 +53,19 @@ public class RandomSampleEventHandler {
     }
 
     private List<Object> randomSampleList(List<?> events, Double sampleRate) {
-        if (CollectionUtils.isEmpty(events)) {
-            return null;
-        }
-        if (sampleRate <= 0) return null;
-        if (sampleRate >= 1) return (List<Object>) events;
-        List<Object> copyList = new ArrayList<>(events);
-        int size = copyList.size();
         List<Object> randomSampleList = new ArrayList<>();
+        if (CollectionUtils.isEmpty(events)) {
+            return randomSampleList;
+        }
+        if (sampleRate <= 0 || sampleRate >= 1) return (List<Object>)events;
+        List<Object> copyList = new ArrayList<>();
+        copyList.addAll(events);
+        int size = copyList.size();
         int sampleSize = Math.max(MIN_SAMPLE_SIZE, (int) (size * sampleRate));
         sampleSize = Math.min(MAX_SAMPLE_SIZE, sampleSize);
         sampleSize = Math.min(size, sampleSize);
         for (int i = 0; i < sampleSize; i++) {
-            int randomIndex = RandomUtils.nextInt(0, size);
+            int randomIndex = RandomUtils.nextInt(0, copyList.size());
             randomSampleList.add(copyList.get(randomIndex));
             copyList.remove(randomIndex);
         }
