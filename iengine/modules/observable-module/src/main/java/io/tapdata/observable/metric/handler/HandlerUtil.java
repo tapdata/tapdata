@@ -23,12 +23,18 @@ import java.util.Objects;
  * @author Dexter
  */
 public class HandlerUtil {
-    private final static RandomSampleEventHandler randomSampleEventHandler = new RandomSampleEventHandler(1);
-    private final static RandomSampleEventHandler.HandleEvent covertTapDataEvent = data -> {
-        TapdataEvent tapdataEvent = (TapdataEvent) data;
-        return tapdataEvent.getTapEvent();
+    private HandlerUtil() {
+
+    }
+    private static final RandomSampleEventHandler randomSampleEventHandler = new RandomSampleEventHandler(1);
+    private static final RandomSampleEventHandler.HandleEvent covertTapDataEvent = data -> {
+        if (data instanceof TapdataEvent) {
+            TapdataEvent tapdataEvent = (TapdataEvent) data;
+            return tapdataEvent.getTapEvent();
+        }
+        return null;
     };
-    private final static RandomSampleEventHandler.HandleEvent covertTapEvent = data -> (TapEvent)data;
+    private static final RandomSampleEventHandler.HandleEvent covertTapEvent = TapEvent.class::cast;
 
     public static EventTypeRecorder countTapdataEvent(List<TapdataEvent> events) {
         long now = System.currentTimeMillis();

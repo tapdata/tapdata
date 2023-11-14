@@ -5,10 +5,10 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
-import org.apache.commons.lang3.RandomUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -64,10 +64,12 @@ public class RandomSampleEventHandler {
         int sampleSize = Math.max(MIN_SAMPLE_SIZE, (int) (size * sampleRate));
         sampleSize = Math.min(MAX_SAMPLE_SIZE, sampleSize);
         sampleSize = Math.min(size, sampleSize);
+        HashSet<Integer> indexSet = new HashSet<>();
         for (int i = 0; i < sampleSize; i++) {
-            int randomIndex = RandomUtils.nextInt(0, copyList.size());
+            indexSet.add(i);
+        }
+        for (Integer randomIndex : indexSet) {
             randomSampleList.add(copyList.get(randomIndex));
-            copyList.remove(randomIndex);
         }
         return randomSampleList;
     }
