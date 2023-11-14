@@ -138,6 +138,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	 * blocked when reading data from data source while jet using async when passing the event to next node.
 	 */
 	protected LinkedBlockingQueue<TapdataEvent> eventQueue;
+    private final AtomicReference<Object> lastStreamOffset = new AtomicReference<>();
 	protected StreamReadFuncAspect streamReadFuncAspect;
 	protected TapdataEvent pendingEvent;
 	protected SourceMode sourceMode = SourceMode.NORMAL;
@@ -213,6 +214,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initDDLFilter();
 			initTableMonitor();
 			initDynamicAdjustMemory();
+            initSourceRunnerOnce();
 			initAndStartSourceRunner();
 		});
 	}
@@ -244,19 +246,22 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
+    private void initSourceRunnerOnce() {
+        this.sourceRunnerLock = new ReentrantLock(true);
+        this.endSnapshotLoop = new AtomicBoolean(false);
+        this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
+                ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
+                TransformerWsMessageDto.class);
+        this.sourceRunnerFirstTime = new AtomicBoolean(true);
+        this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
+    }
+
 	private void initAndStartSourceRunner() {
-		this.sourceRunnerLock = new ReentrantLock(true);
-		this.endSnapshotLoop = new AtomicBoolean(false);
-		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-				ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
-				TransformerWsMessageDto.class);
-		this.sourceRunnerFirstTime = new AtomicBoolean(true);
-		this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
+        this.lastStreamOffset.set(syncProgress.getStreamOffset());
+        this.sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
+    }
 
-		this.sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
-	}
-
-	private void initSourceEventQueue() {
+    private void initSourceEventQueue() {
 		this.sourceQueueCapacity = readBatchSize * SOURCE_QUEUE_FACTOR;
 		this.originalSourceQueueCapacity = sourceQueueCapacity;
 		this.eventQueue = new LinkedBlockingQueue<>(sourceQueueCapacity);
@@ -742,8 +747,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		this.sourceRunner.shutdownNow();
 		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
-		sourceRunner.submit(this::startSourceRunner);
-	}
+        initAndStartSourceRunner();
+    }
 
 	@NotNull
 	public List<TapdataEvent> wrapTapdataEvent(List<TapEvent> events) {
@@ -776,7 +781,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected TapdataEvent wrapTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
 		try {
-			return wrapSingleTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
+            if (SyncStage.CDC == syncStage) {
+                // Fixed #149167 in 2023-10-29: CDC batch events not full consumed cause loss data
+                //todo: Remove lastStreamOffset if need add transaction in streamReadConsumer.
+                if (isLast) lastStreamOffset.set(offsetObj);
+                return wrapSingleTapdataEvent(tapEvent, syncStage, lastStreamOffset.get(), isLast);
+            } else {
+                return wrapSingleTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
+            }
 		} catch (Throwable throwable) {
 			throw new NodeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable
 					.getMessage(), throwable)
@@ -847,8 +859,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					tapdataEvent.setSourceTime(syncProgress.getSourceTime());
 				}
 			} else if (SyncStage.CDC == syncStage) {
-				// Fixed #149167 in 2023-10-29: CDC batch events not full consumed cause loss data
-                if (isLast) tapdataEvent.setStreamOffset(offsetObj);
+                tapdataEvent.setStreamOffset(offsetObj);
 				if (null == ((TapRecordEvent) tapEvent).getReferenceTime())
 					throw new RuntimeException("Tap CDC event's reference time is null");
 				tapdataEvent.setSourceTime(((TapRecordEvent) tapEvent).getReferenceTime());
