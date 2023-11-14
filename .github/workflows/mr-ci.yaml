@@ -82,7 +82,7 @@ jobs:
       - name: Patch Maven Dependens
         run: |
           echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
-          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@172.17.0.3:873/data/enterprise-temp/tapdata/ /root/.m2/
+          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@172.31.16.203:873/data/enterprise-temp/tapdata/ /root/.m2/
       - name: Get OpenSource Branch Name -- Common
         run: |
           echo "OPENSOURCE_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
