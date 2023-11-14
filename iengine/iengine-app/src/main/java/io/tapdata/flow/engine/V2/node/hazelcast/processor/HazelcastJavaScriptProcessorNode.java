@@ -156,7 +156,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
 					node.getTaskId(), node.getId(),
 					StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-							TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA));
+							TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA),null);
 			((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
 			List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
 			List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);

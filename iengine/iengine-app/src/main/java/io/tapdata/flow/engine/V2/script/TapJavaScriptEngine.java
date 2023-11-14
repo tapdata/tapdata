@@ -58,7 +58,7 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 		}
 		this.scriptEngine = initScriptEngine(scriptOptions.getEngineName(), log);
 		invocable = (Invocable) scriptEngine;
-		this.scriptExecutorsManager = new ScriptExecutorsManager(log, clientMongoOperator, HazelcastUtil.getInstance(), contextTaskId, "");
+		this.scriptExecutorsManager = new ScriptExecutorsManager(log, clientMongoOperator, HazelcastUtil.getInstance(), contextTaskId, "",scriptOptions.getCollectionName());
 		scriptEngine.put("ScriptExecutorsManager", scriptExecutorsManager);
 	}
 

@@ -25,6 +25,7 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
+import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 import org.voovan.tools.collection.CacheMap;
@@ -49,19 +50,17 @@ public class ScriptExecutorsManager {
 
 	private final boolean trialRun;
 
-	public ScriptExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId) {
-		this(scriptLogger, clientMongoOperator, hazelcastInstance, taskId, nodeId, false);
+	public ScriptExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId,String connectionId) {
+		this(scriptLogger, clientMongoOperator, hazelcastInstance, taskId, nodeId, false,connectionId);
 	}
 
-	public ScriptExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId, boolean trialRun) {
-
+	public ScriptExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId, boolean trialRun,String connectionId) {
 		this.taskId = taskId;
 		this.nodeId = nodeId;
 		this.scriptLogger = scriptLogger;
 		this.clientMongoOperator = clientMongoOperator;
 		this.hazelcastInstance = hazelcastInstance;
 		this.cacheMap = new CacheMap<String, ScriptExecutor>()
-				.supplier(this::create)
 				.maxSize(10)
 				.autoRemove(true)
 				.expire(600)
@@ -70,6 +69,10 @@ public class ScriptExecutorsManager {
 					return -1L;
 				})
 				.create();
+		Connections connections = clientMongoOperator.findOne(new Query(where("_id").is(new ObjectId(connectionId))),
+				ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+		ScriptExecutor scriptExecutor = create(connectionId);
+		this.cacheMap.put(connections.getName(),scriptExecutor);
 		this.trialRun = trialRun;
 	}
 
@@ -82,9 +85,8 @@ public class ScriptExecutorsManager {
 	}
 
 	private ScriptExecutor create(String connectionName) {
-		Connections connections = clientMongoOperator.findOne(new Query(where("name").is(connectionName)),
+		Connections connections = clientMongoOperator.findOne(new Query(where("_id").is(new ObjectId(connectionName))),
 				ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-
 		if (connections == null) {
 			throw new IllegalArgumentException("The specified connection source [" + connectionName + "] does not exist, please check");
 		}
@@ -157,7 +159,7 @@ public class ScriptExecutorsManager {
 			);
 
 			try {
-				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
+//				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
 			} catch (Exception e) {
 				throw new RuntimeException("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
 			}

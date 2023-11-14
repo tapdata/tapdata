@@ -11,4 +11,8 @@ public class Main {
         ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class);
         ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
     }
+    @Test
+    public void test1(){
+
+    }
 }

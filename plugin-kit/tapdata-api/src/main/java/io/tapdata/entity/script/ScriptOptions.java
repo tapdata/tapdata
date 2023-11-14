@@ -13,6 +13,16 @@ public class ScriptOptions {
 	private Log log;
 	private ClassLoader classLoader;
 
+	public String getCollectionName() {
+		return collectionName;
+	}
+
+	public void setCollectionName(String collectionName) {
+		this.collectionName = collectionName;
+	}
+
+	private String collectionName;
+
 	public ScriptOptions classLoader(ClassLoader classLoader){
 		this.classLoader = classLoader;
 		return this;
@@ -49,6 +59,11 @@ public class ScriptOptions {
 
 	public ScriptOptions engineName(String engineName) {
 		this.engineName = engineName;
+		return this;
+	}
+
+	public ScriptOptions connectionName(String connectionName){
+		this.collectionName = connectionName;
 		return this;
 	}
 
