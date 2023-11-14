@@ -27,4 +27,15 @@ public class TestUtil {
             throw new RuntimeException(e);
         }
     }
+
+    public static Object setAndGetPrivateField(Object obj, Class<?> clazz, String filedName, Object newValue) {
+        try {
+            Field modifiersField = clazz.getDeclaredField(filedName);
+            modifiersField.setAccessible(true);
+            modifiersField.set(obj, newValue);
+            return modifiersField.get(obj);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

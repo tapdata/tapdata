@@ -76,9 +76,9 @@ public class TestHandlerUtil {
     /**测试randomSampleEventHandler属性*/
     @Test
     public void testRandomSampleEventHandler() {
-        RandomSampleEventHandler randomSampleEventHandler = HandlerUtil.randomSampleEventHandler;//TestUtil.getStaticField(HandlerUtil.class, "randomSampleEventHandler");
+        Object randomSampleEventHandler = TestUtil.getStaticField(HandlerUtil.class, "randomSampleEventHandler");
         Assert.assertNotNull(randomSampleEventHandler);
-        //Assert.assertTrue(randomSampleEventHandler instanceof RandomSampleEventHandler);
+        Assert.assertTrue(randomSampleEventHandler instanceof RandomSampleEventHandler);
     }
 
     /**测试covertTapDataEvent属性， 预期结果*/
@@ -114,10 +114,10 @@ public class TestHandlerUtil {
     }
 
     public TapEvent testCovertTapDataEvent(Object handleObject){
-        RandomSampleEventHandler.HandleEvent handler = HandlerUtil.covertTapDataEvent;// TestUtil.getStaticField(HandlerUtil.class, "covertTapDataEvent");
+        Object handler = TestUtil.getStaticField(HandlerUtil.class, "covertTapDataEvent");
         Assert.assertNotNull(handler);
-        //Assert.assertTrue(handler instanceof RandomSampleEventHandler.HandleEvent);
-        //RandomSampleEventHandler.HandleEvent h = (RandomSampleEventHandler.HandleEvent)handler;
-        return handler.handel(handleObject);
+        Assert.assertTrue(handler instanceof RandomSampleEventHandler.HandleEvent);
+        RandomSampleEventHandler.HandleEvent h = (RandomSampleEventHandler.HandleEvent)handler;
+        return h.handel(handleObject);
     }
 }

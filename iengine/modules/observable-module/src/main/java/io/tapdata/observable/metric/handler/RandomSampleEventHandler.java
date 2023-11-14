@@ -46,7 +46,7 @@ public class RandomSampleEventHandler {
         return sizeOfDataMap(TapEventUtil.getAfter(tapEvent), sizeOfDataMap(TapEventUtil.getBefore(tapEvent), 0));
     }
 
-    public long sizeOfDataMap(Map<?, ?> map, long sizeOfSampleListByte) {
+    private long sizeOfDataMap(Map<?, ?> map, long sizeOfSampleListByte) {
         if (sizeOfSampleListByte < 0) sizeOfSampleListByte = 0;
         if (MapUtils.isEmpty(map)) {
             return sizeOfSampleListByte;
@@ -54,7 +54,7 @@ public class RandomSampleEventHandler {
         return RamUsageEstimator.sizeOfMap(map) + sizeOfSampleListByte;
     }
 
-    public List<Object> randomSampleList(List<?> events, Double sampleRate) {
+    private List<Object> randomSampleList(List<?> events, Double sampleRate) {
         List<Object> randomSampleList = new ArrayList<>();
         if (CollectionUtils.isEmpty(events)) {
             return randomSampleList;
