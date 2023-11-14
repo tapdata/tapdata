@@ -63,13 +63,11 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 
-	AtomicBoolean alive = new AtomicBoolean(false);
 	/**
 	 * The task started
 	 */
 	@Override
 	public void onStart(TaskStartAspect startAspect) {
-		alive.set(true);
 		taskSampleHandler = new TaskSampleHandler(task);
 		taskSampleHandler.init();
 	}
@@ -79,7 +77,6 @@ public class ObservableAspectTask extends AspectTask {
 	 */
 	@Override
 	public void onStop(TaskStopAspect stopAspect) {
-		alive.set(false);
 		pipelineDelay.clear(stopAspect.getTask().getId().toHexString());
 		if (null != tableSampleHandlers) {
 			for (TableSampleHandler handler : tableSampleHandlers.values()) {
@@ -438,7 +435,7 @@ public class ObservableAspectTask extends AspectTask {
 						}
 				);
 				aspect.consumer((events, result) -> {
-					if (null == events || events.isEmpty()) {
+					if (null == events || events.size() == 0) {
 						return;
 					}
 
