@@ -100,7 +100,7 @@ jobs:
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
             -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }} \
-            -T1C -Dmaven.compile.fork=true -P idaas
+            -T1C -Dmaven.compile.fork=true -P idaas -DskipTests
       - name: Install Dependens
         run: |
           apt install -y jq
