@@ -20,7 +20,6 @@ import io.tapdata.observable.metric.handler.*;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR,TaskDto.SYNC_TYPE_MEM_CACHE})
@@ -31,7 +30,6 @@ public class ObservableAspectTask extends AspectTask {
 	private Map<String, TableSampleHandler> tableSampleHandlers;
 	private Map<String, DataNodeSampleHandler> dataNodeSampleHandlers;
 	private Map<String, ProcessorNodeSampleHandler> processorNodeSampleHandlers;
-	private static final String TAG = ObservableAspectTask.class.getSimpleName();
 
 	public ObservableAspectTask() {
 		// data node aspects
