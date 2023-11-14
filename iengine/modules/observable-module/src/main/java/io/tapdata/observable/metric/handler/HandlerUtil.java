@@ -31,10 +31,11 @@ public class HandlerUtil {
         if (data instanceof TapdataEvent) {
             TapdataEvent tapdataEvent = (TapdataEvent) data;
             return tapdataEvent.getTapEvent();
+        } else if (data instanceof TapEvent) {
+            return (TapEvent) data;
         }
         return null;
     };
-    private static final RandomSampleEventHandler.HandleEvent covertTapEvent = TapEvent.class::cast;
 
     public static EventTypeRecorder countTapdataEvent(List<TapdataEvent> events) {
         long now = System.currentTimeMillis();
@@ -66,7 +67,7 @@ public class HandlerUtil {
             referenceTimeList.add(countEventTypeAndGetReferenceTime(tapEvent, recorder));
             recorder.incrProcessTimeTotal(now, tapEvent.getTime());
         }
-        randomSampleEventHandler.simpleMemoryTapEvent(recorder, events, covertTapEvent);
+        randomSampleEventHandler.simpleMemoryTapEvent(recorder, events, covertTapDataEvent);
         CommonUtils.ignoreAnyError(() -> recorder.calculateMaxReplicateLag(now, referenceTimeList), "HandlerUtil-countTapEvent");
         return recorder;
     }

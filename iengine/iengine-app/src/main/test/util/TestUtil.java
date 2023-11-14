@@ -1,5 +1,6 @@
 package util;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 public class TestUtil {
@@ -15,5 +16,15 @@ public class TestUtil {
 
     public static <T>T[] getArray(T ... classes) {
         return classes;
+    }
+
+    public static Object getStaticField(Class<?> clazz, String filedName) {
+        try {
+            Field modifiersField = clazz.getDeclaredField(filedName);
+            modifiersField.setAccessible(true);
+            return modifiersField.get(null);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }
