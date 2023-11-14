@@ -60,14 +60,18 @@ public class RandomSampleEventHandlerTest {
     private void testRandomSampleCase(int arrayCount, double range, int expected) {
         RandomSampleEventHandler handler = new RandomSampleEventHandler(range);
         List<Integer> array = arrayCount < 0 ? null : (List<Integer>) simpleList(arrayCount, this::simpleInteger);
-        Object randomSampleList = TestUtil.invokerPrivateMethod(
-                handler,
-                "randomSampleList",
-                TestUtil.getArray(List.class, Double.class),
-                array, range
-        );
+
+
+//        Object randomSampleList = TestUtil.invokerPrivateMethod(
+//                handler,
+//                "randomSampleList",
+//                TestUtil.getArray(List.class, Double.class),
+//                array, range
+//        );
+        List<Object> randomSampleList = handler.randomSampleList(array, range);
+
         Assert.assertNotNull(randomSampleList);
-        Assert.assertTrue(randomSampleList instanceof Collection);
+        //Assert.assertTrue(randomSampleList instanceof Collection);
         Assert.assertEquals(expected, ((Collection<?>)randomSampleList).size());
     }
 
@@ -107,14 +111,16 @@ public class RandomSampleEventHandlerTest {
     private void testSizeOfDataMap(int mapLength, long initSize, long expectedStart) {
         RandomSampleEventHandler handler = new RandomSampleEventHandler(1);
         Map<String, Object> map = simpleMap(mapLength, new Object());
-        Object sizeOfMap = TestUtil.invokerPrivateMethod(
-                handler,
-                "sizeOfDataMap",
-                TestUtil.getArray(Map.class, long.class),
-                map, initSize
-        );
+//        Object sizeOfMap = TestUtil.invokerPrivateMethod(
+//                handler,
+//                "sizeOfDataMap",
+//                TestUtil.getArray(Map.class, long.class),
+//                map, initSize
+//        );
+        Long sizeOfMap = handler.sizeOfDataMap(map, initSize);
+
         Assert.assertNotNull(sizeOfMap);
-        Assert.assertTrue(sizeOfMap instanceof Number);
+//        Assert.assertTrue(sizeOfMap instanceof Number);
         Assert.assertTrue(((Number)sizeOfMap).longValue() > expectedStart);
     }
 

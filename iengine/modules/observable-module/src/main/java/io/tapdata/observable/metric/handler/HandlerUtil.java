@@ -26,8 +26,8 @@ public class HandlerUtil {
     private HandlerUtil() {
 
     }
-    private static final RandomSampleEventHandler randomSampleEventHandler = new RandomSampleEventHandler(1);
-    private static final RandomSampleEventHandler.HandleEvent covertTapDataEvent = data -> {
+    public static final RandomSampleEventHandler randomSampleEventHandler = new RandomSampleEventHandler(1);
+    public static final RandomSampleEventHandler.HandleEvent covertTapDataEvent = data -> {
         if (data instanceof TapdataEvent) {
             TapdataEvent tapdataEvent = (TapdataEvent) data;
             return tapdataEvent.getTapEvent();
