@@ -67,7 +67,7 @@ jobs:
   Scan-Tapdata:
     runs-on: aws-ubuntu-20
     needs: Get-Stable-Branch
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Clean Directory
         run: |
