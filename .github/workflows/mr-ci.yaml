@@ -96,11 +96,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          cd tapdata && mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+          cd tapdata && mvn clean test && mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
             -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }} \
-            -T1C -Dmaven.compile.fork=true -P idaas
+            -T1C -Dmaven.compile.fork=true -P idaas -DskipTests
       - name: Install Dependens
         run: |
           apt install -y jq
