@@ -208,6 +208,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initTapEventFilter();
 			initTableMonitor();
 			initDynamicAdjustMemory();
+            initSourceRunnerOnce();
 			initAndStartSourceRunner();
 		});
 	}
@@ -297,19 +298,22 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private void initAndStartSourceRunner() {
-		this.sourceRunnerLock = new ReentrantLock(true);
-		this.endSnapshotLoop = new AtomicBoolean(false);
-		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-				ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
-				TransformerWsMessageDto.class);
-		this.sourceRunnerFirstTime = new AtomicBoolean(true);
-		this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
-		this.lastStreamOffset.set(syncProgress.getStreamOffset());
-		this.sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
-	}
+    private void initSourceRunnerOnce() {
+        this.sourceRunnerLock = new ReentrantLock(true);
+        this.endSnapshotLoop = new AtomicBoolean(false);
+        this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
+                ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
+                TransformerWsMessageDto.class);
+        this.sourceRunnerFirstTime = new AtomicBoolean(true);
+        this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
+    }
 
-	private void initSourceEventQueue() {
+	private void initAndStartSourceRunner() {
+        this.lastStreamOffset.set(syncProgress.getStreamOffset());
+        this.sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
+    }
+
+    private void initSourceEventQueue() {
 		this.sourceQueueCapacity = readBatchSize * SOURCE_QUEUE_FACTOR;
 		this.originalSourceQueueCapacity = sourceQueueCapacity;
 		this.eventQueue = new LinkedBlockingQueue<>(sourceQueueCapacity);
@@ -800,8 +804,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		this.sourceRunner.shutdownNow();
 		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
-		sourceRunner.submit(this::startSourceRunner);
-	}
+        initAndStartSourceRunner();
+    }
 
 	@NotNull
 	public List<TapdataEvent> wrapTapdataEvent(List<TapEvent> events) {
