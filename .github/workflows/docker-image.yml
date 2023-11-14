@@ -2,9 +2,9 @@ name: LDP Continuous Integration With TEST
 
 on:
   push:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
+    branches: [ "main", "develop", "release-v*" ]
   pull_request:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
+    branches: [ "main", "develop", "release-v*" ]
   schedule:
     - cron: "30 17 * * *"
     - cron: "30 20 * * *"
@@ -48,6 +48,68 @@ jobs:
           echo ${{ env.COMMIT_MESSAGE }}
           echo "error=true" >>$GITHUB_OUTPUT
 
+  Env-Set:
+    runs-on: ubuntu-latest
+    needs: Code-Style-Check
+    if: ${{ needs.Code-Style-Check.outputs.check-style == 'true' }}
+    outputs:
+      CURRENT_BRANCH: ${{ steps.Env-Set.outputs.CURRENT_BRANCH }}
+      CONNECTOR_BRANCH: ${{ steps.Env-Set.outputs.CONNECTOR_BRANCH }}
+    steps:
+      - name: If Push
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          echo "CURRENT_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+          echo "CONNECTOR_BRANCH=main" >> $GITHUB_ENV
+      - name: If Pull Request
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
+          echo "CONNECTOR_BRANCH=main" >> $GITHUB_ENV
+      - name: If Cron Job
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          echo "CURRENT_BRANCH=develop" >> $GITHUB_ENV
+          echo "CONNECTOR_BRANCH=main" >> $GITHUB_ENV
+      - name: Set Outputs
+        id: Env-Set
+        run: |
+          echo "::set-output name=CURRENT_BRANCH::${{ env.CURRENT_BRANCH }}"
+          echo "::set-output name=CONNECTOR_BRANCH::${{ env.CONNECTOR_BRANCH }}"
+
+  Build-Tapdata:
+    runs-on: aws-docker
+    needs: Env-Set
+    timeout-minutes: 15
+    steps:
+      - name: Patch Mvn Dependence
+        run: |
+          echo "${{ secrets.RSYNC_PASSWORD }}" > ~/.rsync_pass
+          chmod 600 ~/.rsync_pass
+          rsync --delete --password-file=~/.rsync_pass -avz ${{ secrets.RSYNC_URI }} /root/.m2/
+      - name : Checkout Tapdata Code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.Env-Set.outputs.CURRENT_BRANCH }}
+          path: tapdata
+      - name: Build Tapdata
+        run: |
+          cd tapdata
+          mvn install -T1C -Dmaven.compile.fork=true -P idaas
+      - name: Checkout Connectors Code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          repository: 'tapdata/tapdata-connectors'
+          ref: ${{ needs.Env-Set.outputs.CONNECTOR_BRANCH }}
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-connectors
+      - name: Build Connector
+        run: |
+          cd tapdata-connectors
+          mvn install -T1C -Dmaven.compile.fork=true
+
   Integration-Testing:
     runs-on: ubuntu-latest
     needs: Code-Style-Check
@@ -66,11 +128,6 @@ jobs:
           echo "TAG_BRANCH=${{ github.base_ref }}" >> $GITHUB_ENV
           echo "server_url=${{ github.server_url }}" >> $GITHUB_ENV
           echo "repository=${{ github.repository }}" >> $GITHUB_ENV
-          echo "run_id=${{ github.run_id }}" >> $GITHUB_ENV
-          echo "FEISHU_APP_ID=${{ env.FEISHU_APP_ID }}" >> $GITHUB_ENV
-          echo "FEISHU_PERSON_IN_CHARGE=${{ env.FEISHU_PERSON_IN_CHARGE }}" >> $GITHUB_ENV
-          echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
-          echo "FEISHU_APP_SECRET=${{ env.FEISHU_APP_SECRET }}" >> $GITHUB_ENV
       - name: Checkout Enterprise Repo to Set Env if Cron Job
         if: ${{ github.event_name == 'schedule' }}
         uses: actions/checkout@v3
@@ -79,8 +136,7 @@ jobs:
       - name: Set Env if Cron Job
         if: ${{ github.event_name == 'schedule' }}
         run: |
-          current_branch="`git branch -r | cut -d "/" -f 2 | grep '^develop-v[0-9]*.[0-9]*.[0-9]*$' | sort -rV | head -n 1`"
-          echo "CURRENT_BRANCH=$current_branch" >> $GITHUB_ENV
+          echo "CURRENT_BRANCH=develop" >> $GITHUB_ENV
           echo "TAG_BRANCH=$current_branch" >> $GITHUB_ENV
       - uses: actions/checkout@v3
         with:
