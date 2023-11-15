@@ -161,6 +161,8 @@ jobs:
 
   MRCI:
     runs-on: aws-ubuntu-20
+    concurrency:
+      group: staging_environment
     timeout-minutes: 60
     needs:
       - Build-And-Deploy
