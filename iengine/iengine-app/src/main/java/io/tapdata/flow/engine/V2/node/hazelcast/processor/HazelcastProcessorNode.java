@@ -23,6 +23,8 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.JavaTypesToTapTypes;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.schema.TapTableMap;
@@ -52,7 +54,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
 		initDataFlowProcessor();
 	}
@@ -67,7 +69,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		}
 	}
 
-	private void initDataFlowProcessor() throws Exception {
+	private void initDataFlowProcessor() throws TapCodeException {
 		final Stage stage = HazelcastUtil.node2CommonStage(processorBaseContext.getNode());
 		dataFlowProcessor = createDataFlowProcessor(processorBaseContext.getNode(), stage);
 		Job job = new Job();
@@ -90,7 +92,11 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				null,
 				((DataProcessorContext) processorBaseContext).getCacheService()
 		);
-		dataFlowProcessor.initialize(processorContext, stage);
+		try {
+			dataFlowProcessor.initialize(processorContext, stage);
+		} catch (Exception e) {
+			throw new TapCodeException(TaskProcessorExCode_11.INIT_DATA_FLOW_PROCESSOR_FAILED, "Init data flow processor failed", e);
+		}
 	}
 
 	@Override
@@ -269,7 +275,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		if (dataFlowProcessor != null) {
 			dataFlowProcessor.stop();
 		}

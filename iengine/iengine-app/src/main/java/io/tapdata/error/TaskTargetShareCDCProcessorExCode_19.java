@@ -22,4 +22,16 @@ public interface TaskTargetShareCDCProcessorExCode_19 {
 			describeCN = "将日志内容转换为文档失败"
 	)
 	String CONVERT_LOG_CONTENT_TO_DOCUMENT_FAILED = "19003";
+
+	@TapExCode(
+			describe = "Failed to convert start time sign object to document",
+			describeCN = "将开始时间标记对象转换为文档失败"
+	)
+	String CONVERT_START_TIME_SIGN_OBJ_TO_DOCUMENT_FAILED = "19004";
+
+	@TapExCode(
+			describe = "Failed to write start time sign",
+			describeCN = "写入开始时间标记失败"
+	)
+	String WRITE_START_TIME_SIGN_FAILED = "19005";
 }

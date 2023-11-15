@@ -38,6 +38,8 @@ import io.tapdata.common.ClassScanner;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.TargetContext;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.schema.SchemaList;
@@ -110,9 +112,8 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 	}
 
 	@Override
-	protected void doInit(@Nonnull Context context) throws Exception {
+	protected void doInit(@Nonnull Context context) throws TapCodeException {
 		try {
-			Thread.currentThread().setName(threadName);
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Node<?> node = dataProcessorContext.getNode();
 			ConfigurationCenter configurationCenter = dataProcessorContext.getConfigurationCenter();
@@ -158,8 +159,7 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 				}
 			}
 		} catch (Exception e) {
-			// Milestone-INIT_TRANSFORMER-ERROR
-			throw e;
+			throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
 		}
 	}
 
@@ -171,7 +171,6 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 	@Override
 	public void process(int ordinal, Inbox inbox) {
 		try {
-			Thread.currentThread().setName(threadName);
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Node<?> node = dataProcessorContext.getNode();
 			Log4jUtil.setThreadContext(taskDto);
@@ -359,7 +358,7 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		running.compareAndSet(true, false);
 		Optional.ofNullable(targetContext).ifPresent(context -> context.getJob().setStatus(ConnectorConstant.STOPPING));
 		if (target != null) {

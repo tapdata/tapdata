@@ -118,7 +118,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
 		selfCheckNode(getNode());
 
@@ -980,7 +980,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	protected void doClose() throws Exception {
+	protected void doClose() throws TapCodeException {
 		try {
 			if (MapUtils.isNotEmpty(mergeCacheMap)) {
 				for (ConstructIMap<Document> constructIMap : mergeCacheMap.values()) {
