@@ -22,9 +22,9 @@ import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.user.entity.Connected;
 import com.tapdata.tm.user.entity.Notification;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.CloudMailLimitUtils;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.SendStatus;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,8 +32,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -281,7 +279,7 @@ class MessageServiceTest {
             return message;
         });
         //More than 10 times
-        when(mockRepository.count(any(Query.class))).thenReturn(Long.valueOf(MailUtils.CLOUD_MAIL_LIMIT));
+        when(mockRepository.count(any(Query.class))).thenReturn(Long.valueOf(CloudMailLimitUtils.getCloudMailLimit()));
         // Run the test
         messageServiceUnderTest.addSync("serverName", "sourceId", MsgTypeEnum.STARTED, "title", Level.RECOVERY,
                 userDetail);
@@ -360,7 +358,7 @@ class MessageServiceTest {
     void testInformUserEmail_SendingEmailBoundary() throws InvocationTargetException, IllegalAccessException {
         when(mockSettingsService.isCloud()).thenReturn(true);
         //More than 10 times
-        when(mockRepository.count(any(Query.class))).thenReturn(Long.valueOf(MailUtils.CLOUD_MAIL_LIMIT));
+        when(mockRepository.count(any(Query.class))).thenReturn(Long.valueOf(CloudMailLimitUtils.getCloudMailLimit()));
         privateMethod.invoke(messageServiceUnderTest,MsgTypeEnum.STARTED,SystemEnum.SYNC,"serverName","sourceId","messageId",userDetail);
         verify(mockMailUtils,times(0)).sendHtmlMail("test@test.com","Hi, username: ", "serverName", null,SystemEnum.SYNC, MsgTypeEnum.STARTED);
     }
@@ -407,7 +405,7 @@ class MessageServiceTest {
         notification.setConnected(new Connected(true,false,false));
         userDetail.setNotification(notification);
         when(mockSettingsService.isCloud()).thenReturn(true);
-        when(mockRepository.count(any(Query.class))).thenReturn(Long.valueOf(MailUtils.CLOUD_MAIL_LIMIT));
+        when(mockRepository.count(any(Query.class))).thenReturn(Long.valueOf(CloudMailLimitUtils.getCloudMailLimit()));
         informUser.invoke(messageServiceUnderTest,MsgTypeEnum.CONNECTED,SystemEnum.SYNC,new MessageMetadata("name","id"),"sourceId","messageId",userDetail);
         String resultClickHref = null + "monitor?id=" + "sourceId" + "{sourceId}&isMoniting=true&mapping=cluster-clone";
         //More than 10 times
@@ -475,8 +473,37 @@ class MessageServiceTest {
         messageDto.setUserId("62bc5008d4958d013d97c7a6");
         messageDto.setSourceModule("agent");
         when(mockUserService.loadUserById(new ObjectId("62bc5008d4958d013d97c7a6"))).thenReturn(userDetail);
-        when(mockRepository.count(any(Query.class))).thenReturn(Long.valueOf(MailUtils.CLOUD_MAIL_LIMIT));
+        when(mockRepository.count(any(Query.class))).thenReturn(Long.valueOf(CloudMailLimitUtils.getCloudMailLimit()));
         informUser2.invoke(messageServiceUnderTest,messageDto);
         verify(mockMailUtils,times(0)).sendHtmlMail("【Tapdata】","test@test.com", "Hi, : ", "name",null,"Instance online");
+    }
+    @Test
+    void testCheckSending(){
+        when(mockSettingsService.isCloud()).thenReturn(false);
+        boolean result = messageServiceUnderTest.checkSending(userDetail);
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void testCheckSending_Sending(){
+        when(mockSettingsService.isCloud()).thenReturn(true);
+        boolean result = messageServiceUnderTest.checkSending(userDetail);
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void testCheckSending_SendingLimit(){
+        when(mockSettingsService.isCloud()).thenReturn(true);
+        when(mockRepository.count(any(Query.class))).thenReturn(11L);
+        boolean result = messageServiceUnderTest.checkSending(userDetail);
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    void testCheckSending_SendingBoundary(){
+        when(mockSettingsService.isCloud()).thenReturn(true);
+        when(mockRepository.count(any(Query.class))).thenReturn(Long.valueOf(CloudMailLimitUtils.getCloudMailLimit()));
+        boolean result = messageServiceUnderTest.checkSending(userDetail);
+        assertThat(result).isFalse();
     }
 }

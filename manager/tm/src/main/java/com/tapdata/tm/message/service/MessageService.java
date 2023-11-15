@@ -354,7 +354,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 
         if (notificationDto.getEmail()) {
             FunctionUtils.isTureOrFalse(settingsService.isCloud()).trueOrFalseHandle(() -> {
-                if(checkMessageLimit(userDetail) < MailUtils.CLOUD_MAIL_LIMIT){
+                if(checkSending(userDetail)){
                     SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), userDetail.getUsername(), serverName, SystemEnum.SYNC, msgTypeEnum, sourceId);
                     eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
                     update(Query.query(Criteria.where("_id").is(saveMessage.getId())),Update.update("isSend",true));
@@ -508,7 +508,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 
 //        Object hostUrl = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_HREF);
         String clickHref = mailUtils.getHrefClick(sourceId, systemEnum, msgType);
-        if(!settingsService.isCloud() || checkMessageLimit(userDetail) < MailUtils.CLOUD_MAIL_LIMIT){
+        if(checkSending(userDetail)){
             SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), username, serverName, clickHref, systemEnum, msgType);
             eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
             update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
@@ -616,7 +616,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 
             Object hostUrl = settingsService.getByCategoryAndKey("SMTP", "emailHref");
             String clickHref = hostUrl + "monitor?id=" + sourceId + "{sourceId}&isMoniting=true&mapping=cluster-clone";
-            if(!settingsService.isCloud() || checkMessageLimit(userDetail) < MailUtils.CLOUD_MAIL_LIMIT){
+            if(checkSending(userDetail)){
                 SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), username, metadataName, clickHref, systemEnum, msgType);
                 eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
                 update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
@@ -806,7 +806,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 //            String clickHref = hostUrl + "monitor?id=" + sourceId + "{sourceId}&isMoniting=true&mapping=cluster-clone";
             MsgTypeEnum msgTypeEnum = MsgTypeEnum.getEnumByValue(msgType);
             String clickHref = mailUtils.getAgentClick(metadataName, msgTypeEnum);
-            if(!settingsService.isCloud() || checkMessageLimit(userDetail) < MailUtils.CLOUD_MAIL_LIMIT){
+            if(checkSending(userDetail)){
                 SendStatus sendStatus = mailUtils.sendHtmlMail(MAIL_SUBJECT, userDetail.getEmail(), username, metadataName, clickHref, emailTip);
                 eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
             }
@@ -971,6 +971,10 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         Date today = calendar.getTime();
         return repository.count(Query.query(Criteria.where("user_id").is(userDetail.getUserId())
                 .and("isSend").is(true).and("createTime").gte(today)));
+    }
+
+    public boolean checkSending(UserDetail userDetail){
+        return !settingsService.isCloud() || checkMessageLimit(userDetail) < CloudMailLimitUtils.getCloudMailLimit();
     }
 
 

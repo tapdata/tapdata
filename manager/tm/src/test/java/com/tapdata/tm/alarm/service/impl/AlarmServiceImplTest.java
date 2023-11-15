@@ -17,6 +17,7 @@ import com.tapdata.tm.mp.service.MpService;
 import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.CloudMailLimitUtils;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -148,7 +149,7 @@ class AlarmServiceImplTest {
 
         when(mockSettingsService.isCloud()).thenReturn(true);
         when(mockAlarmSettingService.findAllAlarmSetting(any(UserDetail.class))).thenReturn(all);
-        when(mockMessageService.checkMessageLimit(userDetail)).thenReturn(Long.valueOf(MailUtils.CLOUD_MAIL_LIMIT));
+        when(mockMessageService.checkMessageLimit(userDetail)).thenReturn(Long.valueOf(CloudMailLimitUtils.getCloudMailLimit()));
         sendMail.invoke(alarmServiceImplUnderTest,alarmInfo,AlarmMessageDto.builder().agentId("agentId").taskId("taskId").name("name").emailOpen(true).build(),userDetail,messageDto,"messageId");
         verify(mockMessageService,times(0)).update(Query.query(Criteria.where("_id").is(null)), Update.update("isSend",true));
     }
