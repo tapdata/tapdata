@@ -53,7 +53,7 @@ public class HandlerUtil {
             }
             referenceTimeList.add(countEventTypeAndGetReferenceTime(tapdataEvent.getTapEvent(), recorder));
         }
-        randomSampleEventHandler.simpleMemoryTapEvent(recorder, events, covertTapDataEvent);
+        randomSampleEventHandler.sampleMemoryTapEvent(recorder, events, covertTapDataEvent);
         recorder.calculateMaxReplicateLag(now, referenceTimeList);
         return recorder;
     }
@@ -67,7 +67,7 @@ public class HandlerUtil {
             referenceTimeList.add(countEventTypeAndGetReferenceTime(tapEvent, recorder));
             recorder.incrProcessTimeTotal(now, tapEvent.getTime());
         }
-        randomSampleEventHandler.simpleMemoryTapEvent(recorder, events, covertTapDataEvent);
+        randomSampleEventHandler.sampleMemoryTapEvent(recorder, events, covertTapDataEvent);
         CommonUtils.ignoreAnyError(() -> recorder.calculateMaxReplicateLag(now, referenceTimeList), "HandlerUtil-countTapEvent");
         return recorder;
     }

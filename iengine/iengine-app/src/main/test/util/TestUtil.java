@@ -48,7 +48,7 @@ public class TestUtil {
             Field modifiers = modifiersField.getClass().getDeclaredField("modifiers");
             modifiers.setAccessible(true);
             modifiers.setInt(modifiersField, modifiersField.getModifiers() & ~Modifier.FINAL);
-            modifiersField.set(null, newValue);
+            modifiersField.set(obj, newValue);
             return modifiersField.get(obj);
         } catch (Exception e) {
             throw new RuntimeException(e);

@@ -21,12 +21,12 @@ public class RandomSampleEventHandler {
         this.sampleRate = sampleRate;
     }
 
-    public void simpleMemoryTapEvent(HandlerUtil.EventTypeRecorder recorder, List<?> events, HandleEvent handle) {
-        List<Object> simples = randomSampleList(events, sampleRate);
-        if (simples.isEmpty()) return;
+    public void sampleMemoryTapEvent(HandlerUtil.EventTypeRecorder recorder, List<?> events, HandleEvent handle) {
+        List<Object> samples = randomSampleList(events, sampleRate);
+        if (samples.isEmpty()) return;
         long sizeOfSampleListByte = 0L;
         String tableId = null;
-        for (Object item : simples) {
+        for (Object item : samples) {
             if (null == item) continue;
             TapEvent tapEvent = handle.handel(item);
             if (tapEvent instanceof TapRecordEvent) {

@@ -194,7 +194,7 @@ public class RandomSampleEventHandlerTest {
         HandlerUtil.EventTypeRecorder recorder = new HandlerUtil.EventTypeRecorder();
         List<?> events = tapCount < 0 ? null : simpleList(tapCount, this::simpleTapEvent);
         RandomSampleEventHandler.HandleEvent handle = (e) -> (TapEvent) e;
-        handler.simpleMemoryTapEvent(recorder, events, handle);
+        handler.sampleMemoryTapEvent(recorder, events, handle);
         return recorder;
     }
 
