@@ -63,7 +63,7 @@ public class MailUtils {
 
     private String password;
 
-
+    public final static Integer CLOUD_MAIL_LIMIT = 10;
     @Autowired
     SettingsService settingsService;
 

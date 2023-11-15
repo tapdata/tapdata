@@ -46,6 +46,7 @@ import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -492,7 +493,7 @@ public class AlarmServiceImpl implements AlarmService {
                 Settings prefix = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
                 AtomicReference<String> mailTitle = new AtomicReference<>(title);
                 Optional.ofNullable(prefix).ifPresent(pre -> mailTitle.updateAndGet(v -> pre.getValue() + v));
-                if(!settingsService.isCloud() || messageService.checkMessageLimit(userDetail) < CloudMailLimitUtils.getCloudMailLimit()){
+                if(!settingsService.isCloud() || messageService.checkMessageLimit(userDetail) < CommonUtils.getPropertyInt("cloud_mail_limit",MailUtils.CLOUD_MAIL_LIMIT)){
                     MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle.get(), content);
                     if(StringUtils.isNotBlank(messageId)) messageService.update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
                 }

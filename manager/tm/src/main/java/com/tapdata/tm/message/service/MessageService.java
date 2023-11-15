@@ -35,6 +35,7 @@ import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.user.entity.Notification;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -974,7 +975,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     }
 
     public boolean checkSending(UserDetail userDetail){
-        return !settingsService.isCloud() || checkMessageLimit(userDetail) < CloudMailLimitUtils.getCloudMailLimit();
+        return !settingsService.isCloud() || checkMessageLimit(userDetail) < CommonUtils.getPropertyInt("cloud_mail_limit",MailUtils.CLOUD_MAIL_LIMIT);
     }
 
 
