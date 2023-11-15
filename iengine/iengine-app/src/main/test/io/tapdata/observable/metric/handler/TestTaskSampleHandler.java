@@ -1,12 +1,13 @@
 package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SampleCollector;
 import org.bson.types.ObjectId;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.Marker;
 import util.TestUtil;
 
 import java.util.Date;
@@ -19,6 +20,313 @@ public class TestTaskSampleHandler {
     SampleCollector collector;
     @Before
     public void init() {
+        TestUtil.setAndGetPrivateFinalStaticField(null, SampleCollector.class, "logger", new Logger(){
+
+            @Override
+            public String getName() {
+                return "mock-logger";
+            }
+
+            @Override
+            public boolean isTraceEnabled() {
+                return false;
+            }
+
+            @Override
+            public void trace(String s) {
+
+            }
+
+            @Override
+            public void trace(String s, Object o) {
+
+            }
+
+            @Override
+            public void trace(String s, Object o, Object o1) {
+
+            }
+
+            @Override
+            public void trace(String s, Object... objects) {
+
+            }
+
+            @Override
+            public void trace(String s, Throwable throwable) {
+
+            }
+
+            @Override
+            public boolean isTraceEnabled(Marker marker) {
+                return false;
+            }
+
+            @Override
+            public void trace(Marker marker, String s) {
+
+            }
+
+            @Override
+            public void trace(Marker marker, String s, Object o) {
+
+            }
+
+            @Override
+            public void trace(Marker marker, String s, Object o, Object o1) {
+
+            }
+
+            @Override
+            public void trace(Marker marker, String s, Object... objects) {
+
+            }
+
+            @Override
+            public void trace(Marker marker, String s, Throwable throwable) {
+
+            }
+
+            @Override
+            public boolean isDebugEnabled() {
+                return false;
+            }
+
+            @Override
+            public void debug(String s) {
+
+            }
+
+            @Override
+            public void debug(String s, Object o) {
+
+            }
+
+            @Override
+            public void debug(String s, Object o, Object o1) {
+
+            }
+
+            @Override
+            public void debug(String s, Object... objects) {
+
+            }
+
+            @Override
+            public void debug(String s, Throwable throwable) {
+
+            }
+
+            @Override
+            public boolean isDebugEnabled(Marker marker) {
+                return false;
+            }
+
+            @Override
+            public void debug(Marker marker, String s) {
+
+            }
+
+            @Override
+            public void debug(Marker marker, String s, Object o) {
+
+            }
+
+            @Override
+            public void debug(Marker marker, String s, Object o, Object o1) {
+
+            }
+
+            @Override
+            public void debug(Marker marker, String s, Object... objects) {
+
+            }
+
+            @Override
+            public void debug(Marker marker, String s, Throwable throwable) {
+
+            }
+
+            @Override
+            public boolean isInfoEnabled() {
+                return false;
+            }
+
+            @Override
+            public void info(String s) {
+
+            }
+
+            @Override
+            public void info(String s, Object o) {
+
+            }
+
+            @Override
+            public void info(String s, Object o, Object o1) {
+
+            }
+
+            @Override
+            public void info(String s, Object... objects) {
+
+            }
+
+            @Override
+            public void info(String s, Throwable throwable) {
+
+            }
+
+            @Override
+            public boolean isInfoEnabled(Marker marker) {
+                return false;
+            }
+
+            @Override
+            public void info(Marker marker, String s) {
+
+            }
+
+            @Override
+            public void info(Marker marker, String s, Object o) {
+
+            }
+
+            @Override
+            public void info(Marker marker, String s, Object o, Object o1) {
+
+            }
+
+            @Override
+            public void info(Marker marker, String s, Object... objects) {
+
+            }
+
+            @Override
+            public void info(Marker marker, String s, Throwable throwable) {
+
+            }
+
+            @Override
+            public boolean isWarnEnabled() {
+                return false;
+            }
+
+            @Override
+            public void warn(String s) {
+
+            }
+
+            @Override
+            public void warn(String s, Object o) {
+
+            }
+
+            @Override
+            public void warn(String s, Object... objects) {
+
+            }
+
+            @Override
+            public void warn(String s, Object o, Object o1) {
+
+            }
+
+            @Override
+            public void warn(String s, Throwable throwable) {
+
+            }
+
+            @Override
+            public boolean isWarnEnabled(Marker marker) {
+                return false;
+            }
+
+            @Override
+            public void warn(Marker marker, String s) {
+
+            }
+
+            @Override
+            public void warn(Marker marker, String s, Object o) {
+
+            }
+
+            @Override
+            public void warn(Marker marker, String s, Object o, Object o1) {
+
+            }
+
+            @Override
+            public void warn(Marker marker, String s, Object... objects) {
+
+            }
+
+            @Override
+            public void warn(Marker marker, String s, Throwable throwable) {
+
+            }
+
+            @Override
+            public boolean isErrorEnabled() {
+                return false;
+            }
+
+            @Override
+            public void error(String s) {
+
+            }
+
+            @Override
+            public void error(String s, Object o) {
+
+            }
+
+            @Override
+            public void error(String s, Object o, Object o1) {
+
+            }
+
+            @Override
+            public void error(String s, Object... objects) {
+
+            }
+
+            @Override
+            public void error(String s, Throwable throwable) {
+
+            }
+
+            @Override
+            public boolean isErrorEnabled(Marker marker) {
+                return false;
+            }
+
+            @Override
+            public void error(Marker marker, String s) {
+
+            }
+
+            @Override
+            public void error(Marker marker, String s, Object o) {
+
+            }
+
+            @Override
+            public void error(Marker marker, String s, Object o, Object o1) {
+
+            }
+
+            @Override
+            public void error(Marker marker, String s, Object... objects) {
+
+            }
+
+            @Override
+            public void error(Marker marker, String s, Throwable throwable) {
+
+            }
+        });
         TaskDto taskDto = new TaskDto();
         taskDto.setId(new ObjectId());
         taskDto.setTestTaskId(UUID.randomUUID().toString());
@@ -118,23 +426,11 @@ public class TestTaskSampleHandler {
         Assert.assertNotNull(collector.getSpeedSampler(Constants.INPUT_SIZE_QPS));
         Assert.assertNotNull(collector.getSpeedSampler(Constants.OUTPUT_SIZE_QPS));
         Assert.assertNotNull(collector.getAverageSampler(Constants.TIME_COST_AVG));
-        //Assert.assertNotNull(collector.getSpeedSampler(Constants.CURR_EVENT_TS));
-        //Assert.assertNotNull(collector.getSpeedSampler(Constants.REPLICATE_LAG));
         Assert.assertNotNull(collector.getCounterSampler("createTableTotal"));
         Assert.assertNotNull(collector.getCounterSampler("snapshotTableTotal"));
         Assert.assertNotNull(collector.getCounterSampler("snapshotRowTotal"));
         Assert.assertNotNull(collector.getCounterSampler("snapshotInsertRowTotal"));
-        //Assert.assertNotNull(collector.getSpeedSampler("snapshotStartAt"));
-        //Assert.assertNotNull(collector.getSpeedSampler("snapshotDoneAt"));
-        //Assert.assertNotNull(collector.getSpeedSampler("snapshotDoneCost"));
         Assert.assertNotNull(collector.getSpeedSampler("currentSnapshotTable"));
-        //Assert.assertNotNull(collector.getCounterSampler("currentSnapshotTableRowTotal"));
-        //Assert.assertNotNull(collector.getCounterSampler("currentSnapshotTableInsertRowTotal"));
-        //Assert.assertNotNull(collector.getSpeedSampler("outputQpsMax"));
-        //Assert.assertNotNull(collector.getSpeedSampler("outputQpsAvg"));
-        //Assert.assertNotNull(collector.getSpeedSampler("tableTotal"));
-        //Assert.assertNotNull(collector.getSpeedSampler("outputSizeQpsMax"));
-        //Assert.assertNotNull(collector.getSpeedSampler("outputSizeQpsAvg"));
     }
 
 }
