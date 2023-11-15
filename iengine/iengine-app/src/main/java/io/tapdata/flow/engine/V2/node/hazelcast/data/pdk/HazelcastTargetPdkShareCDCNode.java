@@ -36,6 +36,7 @@ import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.error.TaskTargetShareCDCProcessorExCode_19;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.common.StoreLoggerImpl;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -493,7 +494,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 					constructReferenceId.get(),
 					ShareCdcUtil.getConstructName(processorBaseContext.getTaskDto(), fullTableName),
 					constructExternalStorageDto,
-					PersistenceStorage.SequenceMode.HAZELCAST
+					PersistenceStorage.SequenceMode.HAZELCAST,
+					new StoreLoggerImpl(obsLogger)
 			);
 		});
 	}
