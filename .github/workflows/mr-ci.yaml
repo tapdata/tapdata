@@ -67,7 +67,7 @@ jobs:
   Scan-Tapdata:
     runs-on: aws-ubuntu-20
     needs: Get-Stable-Branch
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Clean Directory
         run: |
@@ -82,7 +82,7 @@ jobs:
       - name: Patch Maven Dependens
         run: |
           echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
-          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@172.17.0.3:873/data/enterprise-temp/tapdata/ /root/.m2/
+          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@172.31.16.203:873/data/enterprise-temp/tapdata/ /root/.m2/
       - name: Get OpenSource Branch Name -- Common
         run: |
           echo "OPENSOURCE_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
@@ -96,11 +96,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          cd tapdata && mvn clean test && mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+          cd tapdata && mvn clean test -T1C -Dmaven.compile.fork=true -P idaas && mvn sonar:sonar \
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
-            -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }} \
-            -T1C -Dmaven.compile.fork=true -P idaas -DskipTests
+            -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }}
       - name: Install Dependens
         run: |
           apt install -y jq
