@@ -4,6 +4,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
+import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
@@ -163,7 +164,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			throw new RuntimeException("Failed to init pdk connector, database type: " + dataProcessorContext.getDatabaseType() + ", message: " + e.getMessage(), e);
 		}
 	}
-
 	protected void createPdkConnectorNode(DataProcessorContext dataProcessorContext, HazelcastInstance hazelcastInstance) {
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		Map<String, Object> connectionConfig = dataProcessorContext.getConnectionConfig();

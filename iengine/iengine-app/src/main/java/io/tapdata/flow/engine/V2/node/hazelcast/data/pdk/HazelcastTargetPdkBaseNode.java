@@ -63,11 +63,14 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.*;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.schema.TapTableMap;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -86,6 +89,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
@@ -116,6 +120,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private int initialConcurrentWriteNum;
 	private boolean cdcConcurrent;
 	private int cdcConcurrentWriteNum;
+	protected Map<String, List<String>> concurrentWritePartitionMap;
 	private PartitionConcurrentProcessor initialPartitionConcurrentProcessor;
 	private PartitionConcurrentProcessor cdcPartitionConcurrentProcessor;
 	private LinkedBlockingQueue<TapdataEvent> tapEventQueue;
@@ -279,13 +284,43 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void initTargetConcurrentProcessorIfNeed() {
 		if (getNode() instanceof DataParentNode) {
-			DataParentNode dataParentNode = (DataParentNode) getNode();
+			DataParentNode<?> dataParentNode = (DataParentNode<?>) getNode();
 			final Boolean initialConcurrent = dataParentNode.getInitialConcurrent();
+			this.concurrentWritePartitionMap = dataParentNode.getConcurrentWritePartitionMap();
+			Function<TapEvent, List<String>> partitionKeyFunction = new Function<TapEvent, List<String>>() {
+				private final Set<String> warnTag = new HashSet<>();
+				@Override
+				public List<String> apply(TapEvent tapEvent) {
+					final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
+					if(null != concurrentWritePartitionMap) {
+						List<String> fields = concurrentWritePartitionMap.get(tgtTableName);
+						if (null != fields && !fields.isEmpty()) {
+							return new ArrayList<>(fields);
+						}
+//						fields = updateConditionFieldsMap.get(tgtTableName);
+//						if (null != fields && !fields.isEmpty()) {
+//							if (!warnTag.contains(tgtTableName)) {
+//								warnTag.add(tgtTableName);
+//								obsLogger.warn("Not found partition fields of table '{}', use conditions.", tgtTableName);
+//							}
+//							return new ArrayList<>(fields);
+//						}
+						if (!warnTag.contains(tgtTableName)) {
+							warnTag.add(tgtTableName);
+							obsLogger.warn("Not found partition fields of table '{}', use logic primary key.", tgtTableName);
+						}
+					}
+					TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
+					handleTapTablePrimaryKeys(tapTable);
+					return new ArrayList<>(tapTable.primaryKeys(true));
+				}
+			};
+
 			if (initialConcurrent != null) {
 				this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
 				this.initialConcurrent = initialConcurrent && initialConcurrentWriteNum > 1;
 				if (initialConcurrent) {
-					this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum);
+					this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum, partitionKeyFunction);
 					this.initialPartitionConcurrentProcessor.start();
 				}
 			}
@@ -294,7 +329,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this.cdcConcurrentWriteNum = dataParentNode.getCdcConcurrentWriteNum() != null ? dataParentNode.getCdcConcurrentWriteNum() : 4;
 				this.cdcConcurrent = cdcConcurrent && cdcConcurrentWriteNum > 1;
 				if (cdcConcurrent) {
-					this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum);
+					this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum, partitionKeyFunction);
 					this.cdcPartitionConcurrentProcessor.start();
 				}
 			}
@@ -847,6 +882,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (null != tapdataEvent.getStreamOffset()) {
 				syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
 			}
+			if (null != tapdataEvent.getBatchOffset()) {
+				syncProgress.setBatchOffsetObj(tapdataEvent.getBatchOffset());
+			}
 			syncProgress.setSourceTime(tapdataEvent.getSourceTime());
 			syncProgress.setEventTime(tapdataEvent.getSourceTime());
 			flushOffset.set(true);
@@ -1061,18 +1099,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@NotNull
-	private PartitionConcurrentProcessor initConcurrentProcessor(int cdcConcurrentWriteNum) {
+	private PartitionConcurrentProcessor initConcurrentProcessor(int cdcConcurrentWriteNum, Function<TapEvent, List<String>> partitionKeyFunction) {
 		int batchSize = Math.max(this.targetBatch / cdcConcurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
 		return new PartitionConcurrentProcessor(
 				cdcConcurrentWriteNum,
 				batchSize,
 				new KeysPartitioner(),
-				new TapEventPartitionKeySelector(tapEvent -> {
-					final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
-					TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
-					handleTapTablePrimaryKeys(tapTable);
-					return new ArrayList<>(tapTable.primaryKeys(true));
-				}),
+				new TapEventPartitionKeySelector(partitionKeyFunction),
 				this::handleTapdataEvents,
 				this::flushSyncProgressMap,
 				this::errorHandle,

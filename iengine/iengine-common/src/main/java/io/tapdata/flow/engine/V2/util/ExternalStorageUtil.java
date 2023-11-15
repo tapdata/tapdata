@@ -4,6 +4,7 @@ import com.hazelcast.config.Config;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.hazelcast.persistence.config.*;
+import com.hazelcast.persistence.store.StoreLogger;
 import com.mongodb.MongoClientURI;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MongodbUtil;
@@ -62,8 +63,8 @@ public class ExternalStorageUtil {
 		}
 	}
 
-	public synchronized static void initHZRingBufferStorage(ExternalStorageDto externalStorageDto, String referenceId, String name, Config config) {
-		addConfig(externalStorageDto, ConstructType.RINGBUFFER, name);
+	public synchronized static void initHZRingBufferStorage(ExternalStorageDto externalStorageDto, String referenceId, String name, Config config, StoreLogger storeLogger) {
+		addConfig(externalStorageDto, ConstructType.RINGBUFFER, name, storeLogger);
 		try {
 			PersistenceStorage.getInstance().initRingBufferConfig(referenceId, config, name);
 			logger.info("Init RingBuffer store config succeed, name: " + name);
@@ -72,8 +73,8 @@ public class ExternalStorageUtil {
 		}
 	}
 
-	public synchronized static void initHZRingBufferStorage(ExternalStorageDto externalStorageDto, String referenceId, String name, Config config, PersistenceStorage.SequenceMode sequenceMode) {
-		addConfig(externalStorageDto, ConstructType.RINGBUFFER, name);
+	public synchronized static void initHZRingBufferStorage(ExternalStorageDto externalStorageDto, String referenceId, String name, Config config, PersistenceStorage.SequenceMode sequenceMode, StoreLogger storeLogger) {
+		addConfig(externalStorageDto, ConstructType.RINGBUFFER, name, storeLogger);
 		try {
 			PersistenceStorage.getInstance().initRingBufferConfig(referenceId, config, name, sequenceMode);
 			logger.info("Init RingBuffer store config succeed, name: " + name);
@@ -93,10 +94,14 @@ public class ExternalStorageUtil {
 	}
 
 	private static void addConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
+		addConfig(externalStorageDto, constructType, constructName, null);
+	}
+
+	private static void addConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName, StoreLogger storeLogger) {
 		if (null == externalStorageDto) throw new IllegalArgumentException("External storage dto cannot be null");
 		PersistenceStorageAbstractConfig persistenceConfig = getPersistenceConfig(externalStorageDto, constructType, constructName);
-		if (null == persistenceConfig) {
-			return;
+		if (null != storeLogger) {
+			persistenceConfig.setLogger(storeLogger);
 		}
 		checkConfigOverrideAndLogger(persistenceConfig);
 		PersistenceStorage.getInstance().addConfig(persistenceConfig);

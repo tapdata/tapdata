@@ -495,8 +495,7 @@ public class FieldProcessUtil {
 				value = convertNumber(value, s -> new BigDecimal(s).longValue());
 				break;
 			case "DATE":
-				DateTime dateTime = AnyTimeToDateTime.toDateTime(value);
-				value = dateTime.toDate();
+				value = convert2Date(value);
 				break;
 			case "BOOLEAN":
 				if (value instanceof String) {
@@ -545,6 +544,24 @@ public class FieldProcessUtil {
 		}
 
 		return value;
+	}
+
+	public static Date convert2Date(Object value) {
+		if (value == null) {
+			return null;
+		}
+		Date result = null;
+		try {
+			if (value instanceof String) {
+				result = AnyTimeToDateTime.withDateStr((String) value).toDate();
+			} else {
+				DateTime dateTime = AnyTimeToDateTime.toDateTime(value);
+				result = dateTime.toDate();
+			}
+		} catch (Throwable e) {
+			throw new RuntimeException(String.format("Convert value %s to Date failed , error message: %s ", value, e.getMessage()), e);
+		}
+		return result;
 	}
 
 	private static  <T> T convertNumber(Object value, Function<String, T> fn) {

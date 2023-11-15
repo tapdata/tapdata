@@ -174,4 +174,40 @@ public class ShareCdcUtil {
 	public static List<Connections> getConnectionIds(Node<?> node, Function<Collection<String>, List<Connections>> findConnections) {
 		return getConnectionIds(node, findConnections, null);
 	}
+
+	public static void iterateAndHandleSpecialType(Map<String, Object> map, Function<Object, Object> handleFunc) {
+		if(null == map) return;
+		if(null == handleFunc) return;
+		iterateAndHandleMap(map, handleFunc);
+	}
+
+	private static void iterateAndHandleMap(Map<String, Object> map, Function<Object, Object> handleFunc) {
+		if(null == map) return;
+		for (Map.Entry<String, Object> entry : map.entrySet()) {
+			Object value = entry.getValue();
+
+			if (value instanceof Map) {
+				iterateAndHandleMap((Map<String, Object>) value, handleFunc);
+			} else if (value instanceof Collection) {
+				iterateAndHandleCollection((Collection<?>) value, handleFunc);
+			}else{
+				map.put(entry.getKey(), handleFunc.apply(value));
+			}
+		}
+	}
+
+	private static void iterateAndHandleCollection(Collection<?> _collection, Function<Object, Object> handleFunc) {
+		if(null == _collection) return;
+		for (Object obj : _collection) {
+			if (obj instanceof Map) {
+				iterateAndHandleMap((Map<String, Object>) obj, handleFunc);
+			} else if (obj instanceof Collection) {
+				iterateAndHandleCollection((Collection<?>) obj, handleFunc);
+			} else {
+				// This situation will not be processed temporarily
+				// 1. Replacing elements in collection has performance issues
+				// 2. The probability of this scenario occurring is very low
+			}
+		}
+	}
 }

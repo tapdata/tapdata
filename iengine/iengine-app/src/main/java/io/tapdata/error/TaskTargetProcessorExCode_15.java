@@ -103,4 +103,10 @@ public interface TaskTargetProcessorExCode_15 {
 			describeCN = "处理事件失败"
 	)
 	String HANDLE_EVENTS_FAILED = "15018";
+	@TapExCode(
+			describe = "Failed to write data",
+			describeCN = "数据源写入失败",
+			recoverable = true
+	)
+	String WRITE_RECORD_COMMON_FAILED = "15019";
 }

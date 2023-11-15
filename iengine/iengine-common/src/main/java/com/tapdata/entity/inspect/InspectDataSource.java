@@ -9,6 +9,7 @@ import lombok.ToString;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -40,4 +41,7 @@ public class InspectDataSource implements Serializable {
 	private Boolean isFilter;
 	@EqField
 	private List<QueryOperator> conditions;
+
+	private boolean enableCustomCommand;
+	private Map<String, Object> customCommand;
 }
