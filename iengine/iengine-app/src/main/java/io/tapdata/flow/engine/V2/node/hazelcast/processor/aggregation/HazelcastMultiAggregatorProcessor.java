@@ -20,6 +20,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -140,7 +141,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 	}
 
 	@Override
-	public void doInit(@NotNull Context context) throws Exception {
+	public void doInit(@NotNull Context context) throws TapCodeException {
 		// 判空
 		logger.info("init aggregator processor, nodeId:{}", nodeId);
 		if (rules != null && !rules.isEmpty()) {
@@ -156,7 +157,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		for (Aggregator aggregator : aggregators) {
 			aggregator.close();
 		}

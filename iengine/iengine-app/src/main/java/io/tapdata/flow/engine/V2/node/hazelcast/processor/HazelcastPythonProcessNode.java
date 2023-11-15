@@ -98,7 +98,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
     }
 
     @Override
-    protected void doInit(@NotNull Context context) throws Exception {
+    protected void doInit(@NotNull Context context) throws TapCodeException {
         super.doInit(context);
         Node<?> node = getNode();
         this.scriptExecutorsManager = new ScriptExecutorsManager(
@@ -229,7 +229,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
     }
 
     @Override
-    protected void doClose() throws Exception {
+    protected void doClose() throws TapCodeException {
         try {
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.source).ifPresent(ScriptExecutorsManager.ScriptExecutor::close), TAG);
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.target).ifPresent(ScriptExecutorsManager.ScriptExecutor::close), TAG);

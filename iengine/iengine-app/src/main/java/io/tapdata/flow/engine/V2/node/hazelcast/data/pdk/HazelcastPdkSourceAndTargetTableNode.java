@@ -3,6 +3,8 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.hazelcast.jet.core.Inbox;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -34,10 +36,14 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	public void doInit(@NotNull Context context) throws Exception {
+	public void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
-		this.target.init(context);
-		this.source.init(context);
+		try {
+			this.target.init(context);
+			this.source.init(context);
+		} catch (Exception e) {
+			throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
+		}
 		this.sourceConsumer.execute(this::startSourceConsumer);
 	}
 
@@ -46,10 +52,18 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	public void doClose() throws Exception {
-		this.source.close();
+	public void doClose() throws TapCodeException {
+		try {
+			this.source.close();
+		} catch (Exception e) {
+			throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
+		}
 		Optional.ofNullable(this.sourceConsumer).ifPresent(ExecutorService::shutdownNow);
-		this.target.close();
+		try {
+			this.target.close();
+		} catch (Exception e) {
+			throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
+		}
 		super.doClose();
 	}
 

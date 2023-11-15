@@ -20,7 +20,9 @@ import io.tapdata.common.ClassScanner;
 import io.tapdata.entity.SourceContext;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.SourceException;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import org.apache.commons.lang3.StringUtils;
@@ -98,12 +100,9 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 	}
 
 	@Override
-	protected void doInit(@Nonnull Context context) throws Exception {
+	protected void doInit(@Nonnull Context context) throws TapCodeException {
 		try {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
-			Node<?> node = dataProcessorContext.getNode();
-			ConfigurationCenter configurationCenter = dataProcessorContext.getConfigurationCenter();
-
 			Log4jUtil.setThreadContext(taskDto);
 
 			running.compareAndSet(false, true);
@@ -113,7 +112,6 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 			this.sourceThreadPool = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
 			Class<?> sourceClazz = getSourceClazz();
 			source = (Source) sourceClazz.newInstance();
-//      initTimeZone();
 			initJobOffset();
 			source.sourceInit(sourceContext);
 			monitorManager.startMonitor(MonitorManager.MonitorType.SOURCE_TS_MONITOR, taskDto, dataProcessorContext.getSourceConn());
@@ -124,11 +122,9 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 			connectorContext.setJobTargetConn(sourceContext.getTargetConn());
 
 			// 启动同步线程
-//      startWorker();
 			sourceContext.getJob().setJobErrorNotifier(this::errorHandle);
 		} catch (Exception e) {
-			logger.error("An internal error occurred: " + e.getMessage(), e);
-			throw e;
+			throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
 		}
 	}
 

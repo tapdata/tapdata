@@ -58,7 +58,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
 		initEnableInitialBatch();
 		initInitialBatchProcessorIfNeed();
@@ -90,19 +90,13 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 							continue;
 						}
 						if (controlOrIgnoreEvent(tapdataEvent)) {
-							if (CollectionUtils.isNotEmpty(cacheBatchEvents)) {
-								tapdataEvents.addAll(batchProcess(cacheBatchEvents));
-								cacheBatchEvents.clear();
-							}
+							batchProcess(cacheBatchEvents, tapdataEvents);
 							tapdataEvents.add(tapdataEvent);
 						} else {
 							cacheBatchEvents.add(batchEventWrapper);
 						}
 					}
-					if (CollectionUtils.isNotEmpty(cacheBatchEvents)) {
-						tapdataEvents.addAll(batchProcess(cacheBatchEvents));
-						cacheBatchEvents.clear();
-					}
+					batchProcess(cacheBatchEvents, tapdataEvents);
 
 					for (TapdataEvent tapdataEvent : tapdataEvents) {
 						while (isRunning()) {
@@ -127,6 +121,18 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			}
 		});
 		obsLogger.info("Node %s(%s) enable initial batch", getNode().getId(), getNode().getName());
+	}
+
+	private void batchProcess(List<BatchEventWrapper> cacheBatchEvents, List<TapdataEvent> tapdataEvents) {
+		if (CollectionUtils.isNotEmpty(cacheBatchEvents)) {
+			tapdataEvents.addAll(batchProcess(cacheBatchEvents));
+			cacheBatchEvents.forEach(cbe -> {
+				if (null != cbe.getProcessAspect()) {
+					AspectUtils.accept(cbe.getProcessAspect().state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), cbe.getTapdataEvent());
+				}
+			});
+			cacheBatchEvents.clear();
+		}
 	}
 
 	private List<TapdataEvent> batchProcess(List<BatchEventWrapper> batchEventWrappers) {
@@ -187,7 +193,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					AspectUtils.executeProcessorFuncAspect(ProcessorNodeProcessAspect.class, () -> new ProcessorNodeProcessAspect()
 							.processorBaseContext(getProcessorBaseContext())
 							.inputEvent(tapdataEvent)
-							.start(), (processorNodeProcessAspect) -> {
+							.start(), processorNodeProcessAspect -> {
 						if (null != tapdataEvent.getSyncStage()) {
 							syncStage = tapdataEvent.getSyncStage();
 						}
@@ -195,7 +201,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 							if (needInitialBatch()) {
 								while (isRunning()) {
 									try {
-										if (initialBatchProcessor.offer(new BatchEventWrapper(tapdataEvent, null))) {
+										if (initialBatchProcessor.offer(new BatchEventWrapper(tapdataEvent, null, processorNodeProcessAspect))) {
 											break;
 										}
 									} catch (InterruptedException e) {
@@ -212,7 +218,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 							return;
 						}
 						// Update memory from ddl event info map
-						updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()));
+						updateMemoryFromDDLInfoMap(tapdataEvent);
 						AtomicReference<TapValueTransform> tapValueTransform = new AtomicReference<>();
 						if (tapdataEvent.isDML()) {
 							tapValueTransform.set(transformFromTapValue(tapdataEvent));
@@ -223,7 +229,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 							}
 							while (isRunning()) {
 								try {
-									if (initialBatchProcessor.offer(new BatchEventWrapper(tapdataEvent, tapValueTransform.get()))) {
+									if (initialBatchProcessor.offer(new BatchEventWrapper(tapdataEvent, tapValueTransform.get(), processorNodeProcessAspect))) {
 										break;
 									}
 								} catch (InterruptedException e) {
@@ -304,7 +310,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	}
 
 	@Override
-	protected void doClose() throws Exception {
+	protected void doClose() throws TapCodeException {
 		try {
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialBatchProcessor).ifPresent(InitialBatchProcessor::shutdown), TAG);
 		} finally {
@@ -452,10 +458,16 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	protected static class BatchEventWrapper {
 		private TapdataEvent tapdataEvent;
 		private TapValueTransform tapValueTransform;
+		private ProcessorNodeProcessAspect processAspect;
 
-		public BatchEventWrapper(TapdataEvent tapdataEvent, TapValueTransform tapValueTransform) {
+		public BatchEventWrapper(TapdataEvent tapdataEvent) {
+			this.tapdataEvent = tapdataEvent;
+		}
+
+		public BatchEventWrapper(TapdataEvent tapdataEvent, TapValueTransform tapValueTransform, ProcessorNodeProcessAspect processAspect) {
 			this.tapdataEvent = tapdataEvent;
 			this.tapValueTransform = tapValueTransform;
+			this.processAspect = processAspect;
 		}
 
 		public TapdataEvent getTapdataEvent() {
@@ -468,6 +480,10 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 		public void setTapdataEvent(TapdataEvent tapdataEvent) {
 			this.tapdataEvent = tapdataEvent;
+		}
+
+		public ProcessorNodeProcessAspect getProcessAspect() {
+			return processAspect;
 		}
 	}
 }

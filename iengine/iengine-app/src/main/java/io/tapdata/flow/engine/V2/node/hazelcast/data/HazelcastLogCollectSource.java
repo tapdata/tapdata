@@ -9,6 +9,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.schema.SchemaList;
 import org.apache.logging.log4j.LogManager;
@@ -38,7 +39,7 @@ public class HazelcastLogCollectSource extends HazelcastTaskSource {
 	}
 
 	@Override
-	protected void doInit(@NotNull Processor.Context context) throws Exception {
+	protected void doInit(@NotNull Processor.Context context) throws TapCodeException {
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		Node<?> node = dataProcessorContext.getNode();
 		if (!(node instanceof LogCollectorNode)) {

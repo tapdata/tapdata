@@ -36,6 +36,7 @@ import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.error.TaskTargetShareCDCProcessorExCode_19;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.common.StoreLoggerImpl;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -92,7 +93,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
 		this.targetBatch = 10000;
 		this.targetBatchIntervalMs = 1000;
@@ -100,7 +101,12 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		Integer shareCdcTtlDay = getShareCdcTtlDay();
 		externalStorageDto.setTtlDay(shareCdcTtlDay);
 		LogContent startTimeSign = LogContent.createStartTimeSign();
-		Document document = MapUtil.obj2Document(startTimeSign);
+		Document document;
+		try {
+			document = MapUtil.obj2Document(startTimeSign);
+		} catch (IllegalAccessException e) {
+			throw new TapCodeException(TaskTargetShareCDCProcessorExCode_19.CONVERT_START_TIME_SIGN_OBJ_TO_DOCUMENT_FAILED, String.format("Object to be converted: %s", startTimeSign), e);
+		}
 		List<CompletableFuture<?>> completableFutures = new ArrayList<>();
 		for (LogCollecotrConnConfig logCollecotrConnConfig : logCollecotrConnConfigs) {
 			AtomicReference<String> tableNamePrefix = new AtomicReference<>();
@@ -118,12 +124,17 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 						try {
 							construct.insert(document);
 						} catch (Exception e) {
-							throw new RuntimeException(e);
+							throw new TapCodeException(TaskTargetShareCDCProcessorExCode_19.WRITE_START_TIME_SIGN_FAILED, String.format("Document: %s", document), e);
 						}
 					}
 				}));
 			}
 		}
+		CompletableFuture.allOf(completableFutures.toArray(new CompletableFuture<?>[0])).whenComplete((v, e) -> {
+			if (null != e) {
+				throw new RuntimeException(e);
+			}
+		}).join();
 		this.batchCacheData = new ConcurrentHashMap<>();
 		this.flushShareCdcTableMetricsThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>(),
 				r -> new Thread(r, "Flush-Share-Cdc-Table-Metrics-Consumer-"
@@ -483,7 +494,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 					constructReferenceId.get(),
 					ShareCdcUtil.getConstructName(processorBaseContext.getTaskDto(), fullTableName),
 					constructExternalStorageDto,
-					PersistenceStorage.SequenceMode.HAZELCAST
+					PersistenceStorage.SequenceMode.HAZELCAST,
+					new StoreLoggerImpl(obsLogger)
 			);
 		});
 	}
@@ -639,7 +651,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		if (null != flushShareCdcTableMetricsThreadPool) {
 			flushShareCdcTableMetricsThreadPool.shutdownNow();
 		}
