@@ -68,7 +68,7 @@ jobs:
           echo "::set-output name=TAG_NAME::${TAG_NAME}"
 
   Scan-Tapdata:
-    runs-on: aws-ubuntu-20
+    runs-on: aws-scan
     needs: Get-Stable-Branch
     timeout-minutes: 30
     steps:
