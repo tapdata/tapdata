@@ -1,5 +1,8 @@
 name: Merge Request CI
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
 on:
   push:
     branches: [ "main", "develop", "release-v*.*" ]
