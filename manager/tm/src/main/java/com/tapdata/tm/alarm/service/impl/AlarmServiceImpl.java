@@ -492,7 +492,7 @@ public class AlarmServiceImpl implements AlarmService {
                 Settings prefix = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
                 AtomicReference<String> mailTitle = new AtomicReference<>(title);
                 Optional.ofNullable(prefix).ifPresent(pre -> mailTitle.updateAndGet(v -> pre.getValue() + v));
-                if(!settingsService.isCloud() || messageService.checkMessageLimit(userDetail) <= MailUtils.CLOUD_MAIL_LIMIT){
+                if(!settingsService.isCloud() || messageService.checkMessageLimit(userDetail) < MailUtils.CLOUD_MAIL_LIMIT){
                     MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle.get(), content);
                     if(StringUtils.isNotBlank(messageId)) messageService.update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
                 }
