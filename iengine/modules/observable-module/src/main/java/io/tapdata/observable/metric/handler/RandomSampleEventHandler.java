@@ -81,7 +81,7 @@ public class RandomSampleEventHandler {
         recorder.setMemoryUtil("B");
     }
 
-    interface HandleEvent {
+    public interface HandleEvent {
         TapEvent handel(Object eventObject);
     }
 }

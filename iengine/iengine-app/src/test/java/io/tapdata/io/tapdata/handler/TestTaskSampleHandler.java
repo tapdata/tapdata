@@ -1,8 +1,9 @@
-package io.tapdata.observable.metric.handler;
+package io.tapdata.io.tapdata.handler;
 
+import io.tapdata.observable.metric.handler.TaskSampleHandler;
 import org.junit.Assert;
 import org.junit.Test;
-import util.TestUtil;
+import io.tapdata.util.TestUtil;
 
 public class TestTaskSampleHandler {
     @Test

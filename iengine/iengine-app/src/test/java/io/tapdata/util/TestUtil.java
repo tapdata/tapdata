@@ -1,4 +1,4 @@
-package util;
+package io.tapdata.util;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;

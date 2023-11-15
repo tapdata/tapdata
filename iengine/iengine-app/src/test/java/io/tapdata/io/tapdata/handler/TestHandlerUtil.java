@@ -1,12 +1,14 @@
-package io.tapdata.observable.metric.handler;
+package io.tapdata.io.tapdata.handler;
 
 import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.observable.metric.handler.HandlerUtil;
+import io.tapdata.observable.metric.handler.RandomSampleEventHandler;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import util.TestUtil;
+import io.tapdata.util.TestUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
