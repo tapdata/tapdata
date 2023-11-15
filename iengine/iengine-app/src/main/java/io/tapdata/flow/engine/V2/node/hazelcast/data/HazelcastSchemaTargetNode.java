@@ -111,7 +111,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		super(dataProcessorContext);
 		this.schemaKey = dataProcessorContext.getTaskDto().getId().toHexString() + "-" + dataProcessorContext.getNode().getId();
 
-		List<Node<Schema>> preNodes = getNode().predecessors();
+		List<? extends Node<?>> preNodes = getNode().predecessors();
 		if (preNodes.size() != 1) {
 			throw new IllegalArgumentException("HazelcastSchemaTargetNode only allows one predecessor node");
 		}
@@ -234,7 +234,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	}
 
 	@Override
-	protected void doClose() throws Exception {
+	protected void doClose() throws TapCodeException {
 		super.doClose();
 		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.oldTapTableMap).ifPresent(TapTableMap::reset), HazelcastSchemaTargetNode.class.getSimpleName());
 	}

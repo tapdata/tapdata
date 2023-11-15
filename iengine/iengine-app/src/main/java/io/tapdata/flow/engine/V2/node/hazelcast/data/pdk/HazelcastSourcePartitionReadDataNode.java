@@ -28,6 +28,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapIndexEx;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
@@ -119,7 +120,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
 		try {
 			FileUtils.deleteQuietly(new File("./partition_storage/" + getNode().getId()));
 			Node<?> node = dataProcessorContext.getNode();
@@ -133,12 +134,8 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			}
 			super.doInit(context);
 			this.eventQueue = new LinkedBlockingQueue<>(sourceQueueCapacity >> 1);
-			//this.eventQueue0 = new LinkedBlockingQueue<>(sourceQueueCapacity);
-		} catch (Throwable e) {
-			//Notify error for task.
-			if (isRunning()) {
-				throw errorHandle(e, "init failed");
-			}
+		} catch (Exception e) {
+			throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
 		}
 	}
 
@@ -681,7 +678,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 //    }
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		try {
 			FileUtils.deleteQuietly(new File("./partition_storage/" + getNode().getId()));
 

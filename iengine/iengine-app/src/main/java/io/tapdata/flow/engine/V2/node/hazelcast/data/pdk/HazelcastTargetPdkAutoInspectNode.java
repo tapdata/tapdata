@@ -25,6 +25,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.NonNull;
@@ -120,7 +121,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
 	}
 
 	@Override
-	protected void doInit(@NonNull Processor.Context context) throws Exception {
+	protected void doInit(@NonNull Processor.Context context) throws TapCodeException {
 		super.doInit(context);
 
 		TaskDto task = dataProcessorContext.getTaskDto();
@@ -277,7 +278,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		try {
 			CommonUtils.ignoreAnyError(() -> {
 				if (status.compareAndSet(STATUS.Init, STATUS.Stopping)) return;
