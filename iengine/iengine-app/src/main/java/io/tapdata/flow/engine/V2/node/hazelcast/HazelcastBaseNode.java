@@ -1,48 +1,29 @@
 package io.tapdata.flow.engine.V2.node.hazelcast;
 
 import cn.hutool.core.date.StopWatch;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.DataFlowStageUtil;
-import com.tapdata.constant.DataFlowUtil;
-import com.tapdata.constant.HazelcastUtil;
-import com.tapdata.entity.Job;
-import com.tapdata.entity.JoinTable;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
-import com.tapdata.entity.RuntimeInfo;
 import com.tapdata.entity.Stats;
 import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.dataflow.DataFlow;
-import com.tapdata.entity.dataflow.DataFlowSetting;
 import com.tapdata.entity.dataflow.RuntimeThroughput;
-import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.entity.dataflow.StageRuntimeStats;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
-import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.DataFunctionAspect;
-import io.tapdata.aspect.DataNodeCloseAspect;
-import io.tapdata.aspect.DataNodeInitAspect;
-import io.tapdata.aspect.ProcessorNodeCloseAspect;
-import io.tapdata.aspect.ProcessorNodeInitAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
@@ -60,22 +41,19 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.error.TapProcessorUnknownException;
+import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
-import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
-import io.tapdata.flow.engine.V2.util.GraphUtil;
-import io.tapdata.flow.engine.V2.util.NodeUtil;
 import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -89,16 +67,13 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 /**
  * @author jackin
@@ -110,7 +85,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	/**
 	 * [sub task id]-[node id]
 	 */
-	private final static String THREAD_NAME_TEMPLATE = "[%s-%s]";
 	protected static final String NEW_DAG_INFO_KEY = "NEW_DAG";
 	protected static final String DAG_DATA_SERVICE_INFO_KEY = "DAG_DATA_SERVICE";
 	protected static final String TRANSFORM_SCHEMA_ERROR_MESSAGE_INFO_KEY = "TRANSFORM_SCHEMA_ERROR_MESSAGE";
@@ -120,9 +94,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected static final String QUALIFIED_NAME_ID_MAP_INFO_KEY = "QUALIFIED_NAME_ID_MAP";
 	private static final String TAG = HazelcastBaseNode.class.getSimpleName();
 
-	//  protected BaseMetrics taskNodeMetrics;
-//  protected ScheduledExecutorService metricsThreadPool;
-//  protected ScheduledFuture<?> metricsThreadPoolFuture;
 	protected ClientMongoOperator clientMongoOperator;
 	protected Context jetContext;
 	protected SettingService settingService;
@@ -131,7 +102,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected TapCodeException error;
 	protected String errorMessage;
 	protected ProcessorBaseContext processorBaseContext;
-	protected String threadName;
 
 	public AtomicBoolean running = new AtomicBoolean(false);
 	protected TapCodecsFilterManager codecsFilterManager;
@@ -147,14 +117,35 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected String lastTableName;
 	protected ExternalStorageDto externalStorageDto;
 
-	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
+	protected HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
-		this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
-				processorBaseContext.getTaskDto(),
-				processorBaseContext.getNode().getId(),
-				processorBaseContext.getNode().getName()
-		);
+	}
+
+	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
+		return AspectUtils.executeDataFuncAspect(aspectClass, aspectCallable, anyErrorConsumer);
+	}
+
+	public <T extends Aspect> AspectInterceptResult executeAspect(Class<T> aspectClass, Callable<T> aspectCallable) {
+		return AspectUtils.executeAspect(aspectClass, aspectCallable);
+	}
+
+	public <T extends Aspect> AspectInterceptResult executeAspect(T aspect) {
+		return AspectUtils.executeAspect(aspect);
+	}
+
+	protected void doInit(@NotNull Processor.Context context) throws TapCodeException {
+	}
+
+	protected void doInitWithDisableNode(@NotNull Context context) throws TapCodeException {
+	}
+
+	@Override
+	public final void init(@NotNull Processor.Context context) throws Exception {
 		try {
+			this.jetContext = context;
+			super.init(context);
+			running.compareAndSet(false, true);
+			this.obsLogger = initObsLogger();
 			if (null != processorBaseContext.getConfigurationCenter()) {
 				this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 
@@ -166,8 +157,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				_DAG.setTaskId(processorBaseContext.getTaskDto().getId());
 				processorBaseContext.getTaskDto().setDag(_DAG);
 			}
-
-			threadName = String.format(THREAD_NAME_TEMPLATE, processorBaseContext.getTaskDto().getId().toHexString(), processorBaseContext.getNode() != null ? processorBaseContext.getNode().getName() : null);
 
 			// 如果为迁移任务、且源节点为数据库类型
 			this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
@@ -184,37 +173,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					processorBaseContext.getNodes(),
 					(processorBaseContext instanceof DataProcessorContext ? ((DataProcessorContext) processorBaseContext).getConnections() : null)
 			);
-		} catch (Exception e) {
-			errorHandle(e, String.format("Init node[%s] failed", getNode().getName()));
-		}
-	}
-
-	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
-		return AspectUtils.executeDataFuncAspect(aspectClass, aspectCallable, anyErrorConsumer);
-	}
-
-	public <T extends Aspect> AspectInterceptResult executeAspect(Class<T> aspectClass, Callable<T> aspectCallable) {
-		return AspectUtils.executeAspect(aspectClass, aspectCallable);
-	}
-
-	public <T extends Aspect> AspectInterceptResult executeAspect(T aspect) {
-		return AspectUtils.executeAspect(aspect);
-	}
-
-	protected void doInit(@NotNull Processor.Context context) throws Exception {
-	}
-
-	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
-	}
-
-	@Override
-	public final void init(@NotNull Processor.Context context) throws Exception {
-		try {
-			this.jetContext = context;
-			super.init(context);
-			running.compareAndSet(false, true);
 			codecsFilterManager = initFilterCodec();
-			// execute ProcessorNodeInitAspect before doInit since we need to init the aspect first;
+			// Execute ProcessorNodeInitAspect before doInit since we need to init the aspect first
 			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 				AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
 			} else {
@@ -230,15 +190,23 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			} else {
 				doInitWithDisableNode(context);
 			}
-		} catch (Throwable e) {
-			errorHandle(e, "Node init failed: " + e.getMessage());
+		} catch (Exception e) {
+			errorHandle(e);
 		}
+	}
+
+	private ObsLogger initObsLogger() {
+		return ObsLoggerFactory.getInstance().getObsLogger(
+				processorBaseContext.getTaskDto(),
+				processorBaseContext.getNode().getId(),
+				processorBaseContext.getNode().getName()
+		);
 	}
 
 	private void setThreadName() {
 		TaskDto taskDto = processorBaseContext.getTaskDto();
-		Node node = getNode();
-		Thread.currentThread().setName(String.format("%s-%s(%s)-%s(%s)", this.getClass().getSimpleName(), taskDto.getName(), taskDto.getId().toHexString(), node.getName(), node.getId()));
+		Node<?> node = getNode();
+		Thread.currentThread().setName(String.format("%s-%s(%s)-%s(%s)", TAG, taskDto.getName(), taskDto.getId().toHexString(), node.getName(), node.getId()));
 	}
 
 
@@ -248,30 +216,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected TapCodecsFilterManager initFilterCodec() {
 		return TapCodecUtil.genericCodecsFilterManager();
-	}
-
-	protected Job convert2Job(DataFlow dataFlow, Node node, ClientMongoOperator clientMongoOperator) {
-		final List<Job> jobs = DataFlowUtil.convertDataFlowToJobs(dataFlow, clientMongoOperator);
-		if (CollectionUtils.isNotEmpty(jobs)) {
-			for (Job job : jobs) {
-				final RuntimeInfo runtimeInfo = new RuntimeInfo();
-				runtimeInfo.setUnSupportedDDLS(new ArrayList<>());
-				job.setRuntimeInfo(runtimeInfo);
-				final List<Stage> stages = job.getStages();
-				if (CollectionUtils.isNotEmpty(stages)
-						&& stages.stream().anyMatch(s -> s.getId().equals(node.getId()))) {
-					job.setId(node.getId());
-					job.setStatus(ConnectorConstant.SCHEDULED);
-					job.setStatus(ConnectorConstant.RUNNING);
-					job.setTaskId(dataFlow.getTaskId());
-					job.setSubTaskId(dataFlow.getSubTaskId());
-					job.setClientMongoOperator(clientMongoOperator);
-					return job;
-				}
-			}
-		}
-
-		return null;
 	}
 
 	protected TapValueTransform transformFromTapValue(TapdataEvent tapdataEvent) {
@@ -383,186 +327,52 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected int bucketIndex = 0;
 
 	protected boolean offer(TapdataEvent dataEvent) {
-
 		if (dataEvent != null) {
 			if (processorBaseContext.getNode() != null) {
 				dataEvent.addNodeId(processorBaseContext.getNode().getId());
 			}
-			Outbox outbox = getOutbox();
-			if (null != outbox) {
-				final int bucketCount = outbox.bucketCount();
-				if (bucketCount > 1) {
-					for (bucketIndex = Math.min(bucketIndex, bucketCount); bucketIndex < bucketCount; bucketIndex++) {
-						final TapdataEvent cloneEvent = (TapdataEvent) dataEvent.clone();
-						if (!tryEmit(bucketIndex, cloneEvent)) {
-							return false;
-						}
-					}
-				} else if (!tryEmit(dataEvent)) {
-					return false;
-				}
-			}
+			Outbox outbox = getOutboxAndCheckNullable();
+			int bucketCount = outbox.bucketCount();
+			if (!tryEmit(dataEvent, bucketCount)) return false;
 		}
 		bucketIndex = 0; // reset to 0 of return true
 		return true;
 	}
 
-	protected DataFlow convertTask2DataFlow(ProcessorBaseContext processorBaseContext) {
-		TaskDto taskDto = processorBaseContext.getTaskDto();
-		Node<?> node = processorBaseContext.getNode();
-		List<Node> nodes = processorBaseContext.getNodes();
-		List<Edge> edges = processorBaseContext.getEdges();
-		DataFlow dataFlow = new DataFlow();
-		dataFlow.setId(taskDto.getId().toHexString());
-		dataFlow.setName(taskDto.getName());
-		dataFlow.setStatus(taskDto.getStatus());
-		dataFlow.setTaskId(taskDto.getId().toHexString());
-		dataFlow.setSubTaskId(taskDto.getId().toHexString());
-		dataFlow.setUser_id(taskDto.getUserId());
-		if (node instanceof DatabaseNode) {
-			dataFlow.setMappingTemplate(ConnectorConstant.MAPPING_TEMPLATE_CLUSTER_CLONE);
+	private boolean tryEmit(TapdataEvent dataEvent, int bucketCount) {
+		if (bucketCount > 1) {
+			for (bucketIndex = Math.min(bucketIndex, bucketCount); bucketIndex < bucketCount; bucketIndex++) {
+				TapdataEvent cloneEvent = (TapdataEvent) dataEvent.clone();
+				if (!tryEmit(bucketIndex, cloneEvent)) {
+					return false;
+				}
+			}
 		} else {
-			dataFlow.setMappingTemplate(ConnectorConstant.MAPPING_TEMPLATE_CUSTOM);
+			return tryEmit(dataEvent);
 		}
-
-		DataFlowSetting setting = new DataFlowSetting();
-		setting.setCdcConcurrency(taskDto.getIncreSyncConcurrency());
-		setting.setIsOpenAutoDDL(taskDto.getIsOpenAutoDDL());
-		setting.setIsSchedule(taskDto.getIsSchedule());
-		setting.setStopOnError(taskDto.getIsStopOnError());
-		setting.setTransformerConcurrency(8);
-		setting.setReadCdcInterval(500);
-
-		setting.setCdcFetchSize(taskDto.getIncreaseReadSize());
-		setting.setCdcShareFilterOnServer(!taskDto.getIsFilter());
-		setting.setCronExpression(taskDto.getCrontabExpression());
-		setting.setDistinctWriteType("force".equals(taskDto.getDeduplicWriteMode()) ? ConnectorConstant.DISTINCT_WRITE_TYPE_COMPEL : ConnectorConstant.DISTINCT_WRITE_TYPE_INTELLECT);
-
-		// For data write idempotent, used force de-duplicate mode when source has join node
-		final List<Node> allPreNodes = NodeUtil.findAllPreNodes(node);
-		if (CollectionUtils.isNotEmpty(allPreNodes)) {
-			final boolean hasJoinNode = allPreNodes.stream().anyMatch(n -> NodeTypeEnum.JOIN.type.equals(n.getType()));
-			if (hasJoinNode) {
-				setting.setDistinctWriteType(ConnectorConstant.DISTINCT_WRITE_TYPE_COMPEL);
-			}
-		}
-		if (node instanceof TableNode) {
-			setting.setMaxTransactionLength(Double.valueOf(((TableNode) node).getMaxTransactionDuration()));
-		}
-		setting.setNeedToCreateIndex(taskDto.getIsAutoCreateIndex());
-		//todo
-		setting.setProcessorConcurrency(1);
-		setting.setReadBatchSize(100);
-		setting.setSync_type(taskDto.getType());
-		dataFlow.setSetting(setting);
-		setting.setNoPrimaryKey(true);
-
-		if (CollectionUtils.isNotEmpty(nodes)) {
-			List<Stage> stages = new ArrayList<>();
-			Map<String, Stage> stageMap = new HashMap<>();
-			for (Node tmpNode : nodes) {
-				final Stage stage = HazelcastUtil.node2CommonStage(tmpNode);
-				if (stage != null) {
-					stageMap.put(tmpNode.getId(), stage);
-					stages.add(stage);
-				}
-			}
-
-			if (CollectionUtils.isNotEmpty(edges)) {
-				// Set input/output lanes
-				for (Edge edge : edges) {
-					String source = edge.getSource();
-					String target = edge.getTarget();
-					Stage srcStage = stageMap.get(source);
-					srcStage.getOutputLanes().add(target);
-					Stage tgtStage = stageMap.get(target);
-					tgtStage.getInputLanes().add(source);
-				}
-				// Set join tables
-				for (Edge edge : edges) {
-					final String target = edge.getTarget();
-					final Stage tgtStage = stageMap.get(target);
-					if (DataFlowStageUtil.isDataStage(tgtStage.getType())) {
-						if (ConnectorConstant.MAPPING_TEMPLATE_CUSTOM.equals(dataFlow.getMappingTemplate())) {
-							final List<String> inputLanes = tgtStage.getInputLanes();
-							for (String inputLane : inputLanes) {
-								final Set<String> sourceDataStages = DataFlowUtil.findSourceDataStagesByInputLane(stages, inputLane);
-								for (String sourceDataStage : sourceDataStages) {
-									final Stage stage = stageMap.get(sourceDataStage);
-									JoinTable joinTable = getJoinTable(node);
-									if (joinTable != null) {
-										joinTable.setStageId(stage.getId());
-										if (CollectionUtils.isEmpty(tgtStage.getJoinTables())) {
-											tgtStage.setJoinTables(new ArrayList<>());
-										}
-										tgtStage.getJoinTables().add(joinTable);
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-
-			final List<Stage> reachableStage = DataFlowStageUtil.findReachableStageEndByDataStage(node.getId(), stages);
-			if (reachableStage != null) {
-				stages = stages.stream().filter(s -> reachableStage.contains(s) || s.getId().equals(node.getId())).collect(Collectors.toCollection(ArrayList::new));
-			}
-			dataFlow.setStages(stages);
-		}
-
-		return dataFlow;
+		return true;
 	}
 
-	private JoinTable getJoinTable(Node node) {
-		JoinTable joinTable = null;
-		if (node instanceof TableNode) {
-			TableNode tableNode = (TableNode) node;
-			final List<String> updateConditionFields = tableNode.getUpdateConditionFields();
-			List<Map<String, String>> joinKeys = new ArrayList<>();
-			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
-				for (String updateConditionField : updateConditionFields) {
-					Map<String, String> nodeMap = new HashMap<>();
-					nodeMap.put(SOURCE_TAG, updateConditionField);
-					nodeMap.put(TARGET_TAG, updateConditionField);
-					joinKeys.add(nodeMap);
-				}
-			}
-			joinTable = new JoinTable();
-			joinTable.setJoinKeys(joinKeys);
-			joinTable.setJoinType("upsert");
+	@NotNull
+	private Outbox getOutboxAndCheckNullable() {
+		Outbox outbox = getOutbox();
+		if (null == outbox) {
+			throw new TapCodeException(TaskProcessorExCode_11.OUTBOX_IS_NULL_WHEN_OFFER);
 		}
-
-		// todo
-//    switch (tableNode.getWriteStrategy()) {
-//      case "updateOrInsert":
-//        joinTable.setJoinType("upsert");
-//        break;
-//      case "appendWrite":
-//        joinTable.setJoinType("append");
-//        break;
-//      case "updateWrite":
-//        joinTable.setJoinType("update");
-//        break;
-//    }
-		return joinTable;
+		return outbox;
 	}
 
-	protected void doClose() throws Exception {
+	protected void doClose() throws TapCodeException {
 		CommonUtils.handleAnyError(() -> {
 			Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset);
 			obsLogger.info(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
-		}, err -> {
-			obsLogger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
-		});
+		}, err -> obsLogger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage())));
 		CommonUtils.handleAnyError(() -> {
 			if (this.monitorManager != null) {
 				this.monitorManager.close();
 				obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
 			}
-		}, err -> {
-			obsLogger.warn("Close monitor failed: " + err.getMessage());
-		});
+		}, err -> obsLogger.warn("Close monitor failed: " + err.getMessage()));
 	}
 
 	@Override
@@ -579,9 +389,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				}
 			}, TAG);
 			obsLogger.info(String.format("Node %s[%s] running status set to false", getNode().getName(), getNode().getId()));
-			CommonUtils.handleAnyError(this::doClose, err -> {
-				obsLogger.warn(String.format("Close node failed: %s | Node: %s[%s] | Type: %s", err.getMessage(), getNode().getName(), getNode().getId(), this.getClass().getName()));
-			});
+			CommonUtils.handleAnyError(this::doClose, err -> obsLogger.warn(String.format("Close node failed: %s | Node: %s[%s] | Type: %s", err.getMessage(), getNode().getName(), getNode().getId(), this.getClass().getName())));
 			CommonUtils.ignoreAnyError(() -> {
 				if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 					AspectUtils.executeAspect(ProcessorNodeCloseAspect.class, () -> new ProcessorNodeCloseAspect().processorBaseContext(processorBaseContext));
@@ -628,13 +436,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 		List<StageRuntimeStats> stageRuntimeStats = stats.getStageRuntimeStats();
 
-    /*Map<String, List<String>> inputMap = new HashMap<>();
-    for (Stage stage : context.getJob().getStages()) {
-      if (stage.getInputLanes().size() != 0) {
-        inputMap.put(stage.getId(), stage.getInputLanes());
-      }
-    }*/
-
 		for (StageRuntimeStats stageRuntimeStat : stageRuntimeStats) {
 			String stageId = stageRuntimeStat.getStageId();
 			if (onData.getInsertStage().containsKey(stageId)) {
@@ -650,63 +451,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				stageRuntimeStat.incrementDelete(runtimeThroughput);
 			}
 		}
-
-		// metrics.updateMetrics(onData);
-
-    /*List<MessageEntity> msgs = onData.getMsgs();
-    List<InitialStat> initialStats = context.getTapdataShareContext().getInitialStats();
-    if (CollectionUtils.isNotEmpty(msgs) && initialStats != null) {
-      Map<String, Long> map = new HashMap<>();
-      for (MessageEntity msg : msgs) {
-        if (msg.getMapping() == null || !Objects.equals(OperationType.fromOp(msg.getOp()).getType(), "dml")) {
-          continue;
-        }
-
-        String key = context.getJobSourceConn().getId() + "_" + msg.getMapping().getFrom_table() + "_" + context.getJobTargetConn().getId() + "_" + msg.getMapping().getTo_table();
-
-        if (map.containsKey(key)) {
-          Long value = map.get(key);
-          map.put(key, ++value);
-        } else {
-          map.put(key, 1L);
-        }
-      }
-
-      // let gc work
-      onData.setMsgs(null);
-
-      for (Map.Entry<String, Long> entry : map.entrySet()) {
-        String key = entry.getKey();
-        Long count = entry.getValue();
-
-        initialStats.stream().filter(countStat -> (countStat.getSourceConnectionId() + "_" + countStat.getSourceTableName() + "_" + countStat.getTargetConnectionId() + "_" + countStat.getTargetTableName()).equals(key))
-          .findFirst().ifPresent(cs -> cs.setTargetRowNum(cs.getTargetRowNum() + count));
-      }
-    }*/
 	}
 
-	public Node getNode() {
+	public Node<?> getNode() {
 		return processorBaseContext.getNode();
-	}
-
-	protected void initMilestoneService(MilestoneContext.VertexType vertexType) {
-		Node<?> node = processorBaseContext.getNode();
-		List<Node<?>> nextOrPreDataNodes;
-		switch (vertexType) {
-			case SOURCE:
-				nextOrPreDataNodes = GraphUtil.successors(node, Node::isDataNode);
-				break;
-			case DEST:
-				nextOrPreDataNodes = GraphUtil.predecessors(node, Node::isDataNode);
-				break;
-			default:
-				nextOrPreDataNodes = new ArrayList<>();
-				break;
-		}
-
-		List<String> vertexNames = nextOrPreDataNodes.stream().map(NodeUtil::getVertexName).collect(Collectors.toList());
-
-		HttpClientMongoOperator httpClientMongoOperator = (HttpClientMongoOperator) clientMongoOperator;
 	}
 
 	public synchronized TapCodeException errorHandle(Throwable throwable) {
@@ -714,55 +462,23 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	public synchronized TapCodeException errorHandle(Throwable throwable, String errorMessage) {
-		TapCodeException currentEx;
-		Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
-		if (null != matchThrowable) {
-			currentEx = (TapCodeException) matchThrowable;
-		} else {
-			currentEx = new TapProcessorUnknownException(throwable);
-		}
+		TapCodeException currentEx = wrapTapCodeException(throwable);
 		TaskDto taskDto = processorBaseContext.getTaskDto();
-		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN)) {
-			TestRunTaskHandler.setError(taskDto.getId().toHexString(), currentEx);
-		}
+		handleWhenTestRun(taskDto, currentEx);
 
 		try {
-			if (null == error) {
+			if (globalErrorIsNull()) {
 				this.error = currentEx;
-				if (null != errorMessage) {
-					this.errorMessage = errorMessage;
-				} else {
-					this.errorMessage = currentEx.getMessage();
-				}
+				getErrorMessage(errorMessage, currentEx);
 				obsLogger.error(errorMessage, currentEx);
 				this.running.set(false);
 
 				// jetContext async injection, Attempt 5 times to get the instance every 500ms
-				com.hazelcast.jet.Job hazelcastJob = null;
-				for (int i = 5; i > 0; i--) {
-					if (null != jetContext) {
-						hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());
-					}
-
-					if (null != hazelcastJob) break;
-					try {
-						Thread.sleep(500);
-					} catch (InterruptedException ignored) {
-						break;
-					}
-				}
+				com.hazelcast.jet.Job hazelcastJob = getJetJob(taskDto);
 
 				if (hazelcastJob != null) {
 					JobStatus status = hazelcastJob.getStatus();
-					if (JobStatus.RUNNING == status) {
-						obsLogger.info("Job suspend in error handle");
-						TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(taskDto.getId().toHexString());
-						if (null != taskDtoTaskClient) {
-							taskDtoTaskClient.terminalMode(TerminalMode.ERROR);
-							taskDtoTaskClient.error(error);
-						}
-						hazelcastJob.suspend();
-					}
+					stopJetJobIfStatusIsRunning(status, taskDto, hazelcastJob);
 				} else {
 					throw currentEx;
 				}
@@ -773,6 +489,68 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			obsLogger.warn("Error handler failed: " + e.getMessage(), e);
 		}
 
+		return currentEx;
+	}
+
+	private void stopJetJobIfStatusIsRunning(JobStatus status, TaskDto taskDto, com.hazelcast.jet.Job hazelcastJob) {
+		if (JobStatus.RUNNING == status) {
+			obsLogger.info("Job suspend in error handle");
+			TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(taskDto.getId().toHexString());
+			if (null != taskDtoTaskClient) {
+				taskDtoTaskClient.terminalMode(TerminalMode.ERROR);
+				taskDtoTaskClient.error(error);
+			}
+			hazelcastJob.suspend();
+		}
+	}
+
+	@Nullable
+	private com.hazelcast.jet.Job getJetJob(TaskDto taskDto) {
+		com.hazelcast.jet.Job hazelcastJob = null;
+		for (int i = 5; i > 0; i--) {
+			if (null != jetContext) {
+				hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());
+			}
+
+			if (null != hazelcastJob) break;
+			try {
+				TimeUnit.MILLISECONDS.sleep(500L);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				break;
+			}
+		}
+		return hazelcastJob;
+	}
+
+	private void getErrorMessage(String errorMessage, TapCodeException currentEx) {
+		if (null != errorMessage) {
+			this.errorMessage = errorMessage;
+		} else {
+			this.errorMessage = currentEx.getMessage();
+		}
+	}
+
+	private boolean globalErrorIsNull() {
+		return null == error;
+	}
+
+	private void handleWhenTestRun(TaskDto taskDto, TapCodeException currentEx) {
+		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN)) {
+			TestRunTaskHandler.setError(taskDto.getId().toHexString(), currentEx);
+		}
+	}
+
+	@NotNull
+	private static TapCodeException wrapTapCodeException(Throwable throwable) {
+		TapCodeException currentEx;
+		if (null == throwable) throw new IllegalArgumentException("Input exception cannot be null");
+		Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
+		if (null != matchThrowable) {
+			currentEx = (TapCodeException) matchThrowable;
+		} else {
+			currentEx = new TapProcessorUnknownException(throwable);
+		}
 		return currentEx;
 	}
 
@@ -799,7 +577,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 
-	protected void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent, String tableName) {
+	protected void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent) {
 		if (null == tapdataEvent) {
 			return;
 		}
@@ -809,12 +587,12 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		try {
 			updateDAG(tapdataEvent);
 		} catch (Exception e) {
-			throw new RuntimeException("Update memory DAG failed, error: " + e.getMessage(), e);
+			throw new TapCodeException(TaskProcessorExCode_11.UPDATE_MEMORY_DAG_FAILED, e);
 		}
 		try {
 			updateNode(tapdataEvent);
 		} catch (Exception e) {
-			throw new RuntimeException("Update memory node failed, error: " + e.getMessage(), e);
+			throw new TapCodeException(TaskProcessorExCode_11.UPDATE_MEMORY_NODE_CONFIG_FAILED, e);
 		}
 		try {
 			if (getNode() instanceof MergeTableNode) {
@@ -825,7 +603,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				updateTapTable(tapdataEvent, tgtTableNameFromTapEvent);
 			}
 		} catch (Exception e) {
-			throw new RuntimeException("Update memory TapTable failed, error: " + e.getMessage(), e);
+			throw new TapCodeException(TaskProcessorExCode_11.UPDATE_MEMORY_TAP_TABLE_FAILED, e);
 		}
 	}
 
@@ -846,7 +624,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			return;
 		}
 		String nodeId = getNode().getId();
-		Node<?> newNode = ((DAG)newDAG).getNode(nodeId);
+		Node<?> newNode = ((DAG) newDAG).getNode(nodeId);
 		processorBaseContext.setNode(newNode);
 		updateNodeConfig(tapdataEvent);
 	}
@@ -867,53 +645,59 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 		String qualifiedName = tapTableMap.getQualifiedName(tableName);
 		if (tapEvent instanceof TapCreateTableEvent) {
-			Object insertMetadata = tapEvent.getInfo(INSERT_METADATA_INFO_KEY);
-			if (insertMetadata instanceof List) {
-//				String finalTableName = tableName;
-//				MetadataInstancesDto metadata = ((DAGDataServiceImpl) dagDataService).getBatchInsertMetaDataList().stream().filter(m -> m.getOriginalName().equals(finalTableName))
-//						.findFirst().orElse(null);
-				MetadataInstancesDto metadata = ((DAGDataServiceImpl) dagDataService).getSchemaByNodeAndTableName(getNode().getId(), tableName);
-				if (null != metadata) {
-					qualifiedName = metadata.getQualifiedName();
-					if (null == metadata.getId()) {
-						metadata.setId(new ObjectId());
-					}
-					((DAGDataServiceImpl) dagDataService).setMetaDataMap(metadata);
-					((List<MetadataInstancesDto>) insertMetadata).add(metadata);
-					TapTable tapTable = ((DAGDataServiceImpl) dagDataService).getTapTable(qualifiedName);
-					if (tapTableMap.containsKey(tableName)) {
-						tapTableMap.put(tableName, tapTable);
-					} else {
-						tapTableMap.putNew(tableName, tapTable, qualifiedName);
-					}
-				} else {
-					throw new RuntimeException("Cannot found metadata from insert metadata list, table name: " + tableName);
-				}
-			}
+			updateTapTableWhenCreateTableEvent(tableName, tapEvent, (DAGDataServiceImpl) dagDataService, tapTableMap);
 		} else if (tapEvent instanceof TapDropTableEvent) {
 			// do nothing
 		} else {
-			if (StringUtils.isBlank(qualifiedName)) {
-				throw new RuntimeException("Get metadata qualified name failed, cannot found by table name: " + tableName);
-			}
-			TapTable tapTable = ((DAGDataServiceImpl) dagDataService).getTapTable(qualifiedName);
-			tapTableMap.put(tableName, tapTable);
-			Object updateMetadataObj = tapEvent.getInfo(UPDATE_METADATA_INFO_KEY);
-			if (updateMetadataObj instanceof Map) {
-				MetadataInstancesDto metadata = ((DAGDataServiceImpl) dagDataService).getMetadata(qualifiedName);
-				if (null == metadata.getId()) {
-					Object qualifiedNameIdMap = tapEvent.getInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY);
-					if (qualifiedNameIdMap instanceof Map) {
-						Object id = ((Map<?, ?>) qualifiedNameIdMap).get(qualifiedName);
-						if (id instanceof String && StringUtils.isNotBlank((String) id)) {
-							metadata.setId(new ObjectId((String) id));
-						}
-					}
-					if (null == metadata.getId()) {
-						throw new RuntimeException("Transform result metadata is invalid, id is null");
+			updateTapTableWhenDDLEvent(tableName, qualifiedName, (DAGDataServiceImpl) dagDataService, tapTableMap, tapEvent);
+		}
+	}
+
+	private static void updateTapTableWhenDDLEvent(String tableName, String qualifiedName, DAGDataServiceImpl dagDataService, TapTableMap<String, TapTable> tapTableMap, TapEvent tapEvent) {
+		if (StringUtils.isBlank(qualifiedName)) {
+			throw new TapCodeException(TaskProcessorExCode_11.UPDATE_TAP_TABLE_QUALIFIED_NAME_EMPTY, String.format("Table name: %s", tableName));
+		}
+		TapTable tapTable = dagDataService.getTapTable(qualifiedName);
+		tapTableMap.put(tableName, tapTable);
+		Object updateMetadataObj = tapEvent.getInfo(UPDATE_METADATA_INFO_KEY);
+		if (updateMetadataObj instanceof Map) {
+			MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
+			if (null == metadata.getId()) {
+				Object qualifiedNameIdMap = tapEvent.getInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY);
+				if (qualifiedNameIdMap instanceof Map) {
+					Object id = ((Map<?, ?>) qualifiedNameIdMap).get(qualifiedName);
+					if (id instanceof String && StringUtils.isNotBlank((String) id)) {
+						metadata.setId(new ObjectId((String) id));
 					}
 				}
-				((Map<String, MetadataInstancesDto>) updateMetadataObj).put(metadata.getId().toHexString(), metadata);
+				if (null == metadata.getId()) {
+					throw new TapCodeException(TaskProcessorExCode_11.TRANSFORM_METADATA_ID_NULL);
+				}
+			}
+			((Map<String, MetadataInstancesDto>) updateMetadataObj).put(metadata.getId().toHexString(), metadata);
+		}
+	}
+
+	private void updateTapTableWhenCreateTableEvent(String tableName, TapEvent tapEvent, DAGDataServiceImpl dagDataService, TapTableMap<String, TapTable> tapTableMap) {
+		String qualifiedName;
+		Object insertMetadata = tapEvent.getInfo(INSERT_METADATA_INFO_KEY);
+		if (insertMetadata instanceof List) {
+			MetadataInstancesDto metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), tableName);
+			if (null != metadata) {
+				qualifiedName = metadata.getQualifiedName();
+				if (null == metadata.getId()) {
+					metadata.setId(new ObjectId());
+				}
+				dagDataService.setMetaDataMap(metadata);
+				((List<MetadataInstancesDto>) insertMetadata).add(metadata);
+				TapTable tapTable = dagDataService.getTapTable(qualifiedName);
+				if (tapTableMap.containsKey(tableName)) {
+					tapTableMap.put(tableName, tapTable);
+				} else {
+					tapTableMap.putNew(tableName, tapTable, qualifiedName);
+				}
+			} else {
+				throw new TapCodeException(TaskProcessorExCode_11.GET_NODE_METADATA_BY_TABLE_NAME_FAILED, String.format("Node: %s(%s), table name: %s", getNode().getName(), getNode().getId(), tableName));
 			}
 		}
 	}
@@ -934,9 +718,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	public static class TapValueTransform {
 		private Map<String, TapValue<?, ?>> before;
 		private Map<String, TapValue<?, ?>> after;
-
-		public TapValueTransform() {
-		}
 
 		public static TapValueTransform create() {
 			return new TapValueTransform();

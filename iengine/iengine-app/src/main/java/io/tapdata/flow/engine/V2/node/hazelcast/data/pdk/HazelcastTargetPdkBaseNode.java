@@ -158,7 +158,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
 		queueConsumerThreadPool.submitSync(() -> {
 			super.doInit(context);
 			createPdkAndInit(context);
@@ -173,7 +173,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
+	protected void doInitWithDisableNode(@NotNull Context context) throws TapCodeException {
 		queueConsumerThreadPool.submitSync(() -> {
 			super.doInitWithDisableNode(context);
 			createPdkAndInit(context);
@@ -844,7 +844,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (tapdataEvent.getTapEvent() instanceof TapCreateTableEvent) {
 			updateNode(tapdataEvent);
 		}
-		updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapDDLEvent));
+		updateMemoryFromDDLInfoMap(tapdataEvent);
 		Object updateMetadata = tapDDLEvent.getInfo(UPDATE_METADATA_INFO_KEY);
 		if (updateMetadata instanceof Map && MapUtils.isNotEmpty((Map<?, ?>) updateMetadata)) {
 			this.updateMetadata.putAll((Map<? extends String, ? extends MetadataInstancesDto>) updateMetadata);
@@ -1115,7 +1115,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		try {
 			if (CollectionUtils.isNotEmpty(exactlyOnceWriteCleanerEntities)) {
 				CommonUtils.ignoreAnyError(() -> {

@@ -124,18 +124,17 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
 		try {
 			super.doInit(context);
 			checkPollingCDCIfNeed();
 		} catch (Throwable e) {
-			//Notify error for task.
-			throw errorHandle(e, "init failed");
+			throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
 		}
 	}
 
 	@Override
-	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
+	protected void doInitWithDisableNode(@NotNull Context context) throws TapCodeException {
 		super.doInitWithDisableNode(context);
 		if (getNode().disabledNode() && isRunning()) {
 			Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
@@ -1146,7 +1145,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		try {
 			CommonUtils.handleAnyError(() -> {
 				if (null != shareCdcReader) {

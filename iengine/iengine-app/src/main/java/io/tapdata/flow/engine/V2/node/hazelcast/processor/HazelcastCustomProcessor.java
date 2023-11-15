@@ -16,6 +16,8 @@ import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
@@ -59,7 +61,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
 		Node<?> node = processorBaseContext.getNode();
 		if (NodeTypeEnum.get(node.getType()).equals(NodeTypeEnum.CUSTOM_PROCESSOR)) {
@@ -68,7 +70,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 			CustomNodeTempDto customNodeTempDto = clientMongoOperator.findOne(query, ConnectorConstant.CUSTOMNODETEMP_COLLECTION, CustomNodeTempDto.class,
 					n -> !running.get());
 			if (null == customNodeTempDto) {
-				throw new RuntimeException("Init script engine failed, cannot find custom node template by id: " + customNodeId);
+				throw new TapCodeException(TaskProcessorExCode_11.CUSTOM_NODE_NOT_FOUND, "Cannot find custom node template by id: " + customNodeId);
 			}
 			List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))),
 					ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class, n -> !running.get());
@@ -82,7 +84,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 				stateMap = getStateMap(context.hazelcastInstance(), node.getId());
 				((ScriptEngine) engine).put("state", stateMap);
 			} catch (ScriptException e) {
-				throw new NodeException("Init script engine error: " + e.getMessage(), e).context(getProcessorBaseContext());
+				throw new TapCodeException(TaskProcessorExCode_11.SCRIPT_INIT_FAILED, "Init script engine failed", e);
 			}
 		}
 	}
@@ -175,7 +177,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	protected void doClose() throws Exception {
+	protected void doClose() throws TapCodeException {
 		CommonUtils.ignoreAnyError(() -> {
 			if (this.engine instanceof GraalJSScriptEngine) {
 				((GraalJSScriptEngine) this.engine).close();
