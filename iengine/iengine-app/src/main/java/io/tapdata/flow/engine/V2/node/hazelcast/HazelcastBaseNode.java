@@ -85,7 +85,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	/**
 	 * [sub task id]-[node id]
 	 */
-	private final static String THREAD_NAME_TEMPLATE = "[%s-%s]";
 	protected static final String NEW_DAG_INFO_KEY = "NEW_DAG";
 	protected static final String DAG_DATA_SERVICE_INFO_KEY = "DAG_DATA_SERVICE";
 	protected static final String TRANSFORM_SCHEMA_ERROR_MESSAGE_INFO_KEY = "TRANSFORM_SCHEMA_ERROR_MESSAGE";
@@ -103,7 +102,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected TapCodeException error;
 	protected String errorMessage;
 	protected ProcessorBaseContext processorBaseContext;
-	protected String threadName;
 
 	public AtomicBoolean running = new AtomicBoolean(false);
 	protected TapCodecsFilterManager codecsFilterManager;
@@ -147,11 +145,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			this.jetContext = context;
 			super.init(context);
 			running.compareAndSet(false, true);
-			this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
-					processorBaseContext.getTaskDto(),
-					processorBaseContext.getNode().getId(),
-					processorBaseContext.getNode().getName()
-			);
+			this.obsLogger = initObsLogger();
 			if (null != processorBaseContext.getConfigurationCenter()) {
 				this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 
@@ -163,8 +157,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				_DAG.setTaskId(processorBaseContext.getTaskDto().getId());
 				processorBaseContext.getTaskDto().setDag(_DAG);
 			}
-
-			threadName = String.format(THREAD_NAME_TEMPLATE, processorBaseContext.getTaskDto().getId().toHexString(), processorBaseContext.getNode() != null ? processorBaseContext.getNode().getName() : null);
 
 			// 如果为迁移任务、且源节点为数据库类型
 			this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
@@ -201,6 +193,14 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} catch (Exception e) {
 			errorHandle(e);
 		}
+	}
+
+	private ObsLogger initObsLogger() {
+		return ObsLoggerFactory.getInstance().getObsLogger(
+				processorBaseContext.getTaskDto(),
+				processorBaseContext.getNode().getId(),
+				processorBaseContext.getNode().getName()
+		);
 	}
 
 	private void setThreadName() {

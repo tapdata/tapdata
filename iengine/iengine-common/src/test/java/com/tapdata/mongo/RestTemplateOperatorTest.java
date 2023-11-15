@@ -88,7 +88,7 @@ public class RestTemplateOperatorTest {
                 any(RequestCallback.class), any(ResponseExtractor.class))).thenAnswer(invocationOnMock -> {
             //Simulate http to obtain file stream and write to local file
             MockClientHttpResponse mockClientHttpResponse = new MockClientHttpResponse(new byte[0], HttpStatus.OK);
-            ResponseExtractor responseExtractor = invocationOnMock.getArgumentAt(3,ResponseExtractor.class);
+            ResponseExtractor responseExtractor = invocationOnMock.getArgument(3);
             responseExtractor.extractData(mockClientHttpResponse);
             return true;
         });
@@ -114,7 +114,7 @@ public class RestTemplateOperatorTest {
         when(mockRestTemplate.execute(any(URI.class), any(HttpMethod.class),
                 any(RequestCallback.class), any(ResponseExtractor.class))).thenAnswer(invocationOnMock -> {
             //Simulate http to obtain file stream and write to local file
-            RequestCallback requestCallback = invocationOnMock.getArgumentAt(2,RequestCallback.class);
+            RequestCallback requestCallback = invocationOnMock.getArgument(2);
             requestCallback.doWithRequest(mockClientHttpRequest);
             return false;
         });
@@ -151,7 +151,7 @@ public class RestTemplateOperatorTest {
         when(mockRestTemplate.execute(any(URI.class), any(HttpMethod.class),
                 any(RequestCallback.class), any(ResponseExtractor.class))).thenAnswer(invocationOnMock -> {
             //Simulate http to obtain file stream and write to local file
-            RequestCallback requestCallback = invocationOnMock.getArgumentAt(2,RequestCallback.class);
+            RequestCallback requestCallback = invocationOnMock.getArgument(2);
             requestCallback.doWithRequest(mockClientHttpRequest);
             return false;
         });
@@ -188,7 +188,7 @@ public class RestTemplateOperatorTest {
         when(mockRestTemplate.execute(any(URI.class), any(HttpMethod.class),
                 any(RequestCallback.class), any(ResponseExtractor.class))).thenAnswer(invocationOnMock -> {
             //Simulate http to obtain file stream and write to local file
-            RequestCallback requestCallback = invocationOnMock.getArgumentAt(2,RequestCallback.class);
+            RequestCallback requestCallback = invocationOnMock.getArgument(2);
             requestCallback.doWithRequest(mockClientHttpRequest);
             return false;
         });

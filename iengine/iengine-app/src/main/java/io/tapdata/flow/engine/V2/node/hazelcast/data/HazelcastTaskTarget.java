@@ -114,7 +114,6 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 	@Override
 	protected void doInit(@Nonnull Context context) throws TapCodeException {
 		try {
-			Thread.currentThread().setName(threadName);
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Node<?> node = dataProcessorContext.getNode();
 			ConfigurationCenter configurationCenter = dataProcessorContext.getConfigurationCenter();
@@ -172,7 +171,6 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 	@Override
 	public void process(int ordinal, Inbox inbox) {
 		try {
-			Thread.currentThread().setName(threadName);
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Node<?> node = dataProcessorContext.getNode();
 			Log4jUtil.setThreadContext(taskDto);
