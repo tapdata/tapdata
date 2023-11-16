@@ -18,6 +18,7 @@ public abstract class AbstractHandler {
     final TaskDto task;
     @Getter
     SampleCollector collector;
+    protected int qpsType = Constants.QPS_TYPE_MEMORY;//memory(内存) / count(数量)
 
     AbstractHandler(TaskDto task) {
         this.task = task;

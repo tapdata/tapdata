@@ -36,6 +36,8 @@ public class TaskSampleHandler extends AbstractHandler {
     static final String CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL  = "currentSnapshotTableInsertRowTotal";
     static final String OUTPUT_QPS_MAX                        = "outputQpsMax";
     static final String OUTPUT_QPS_AVG                        = "outputQpsAvg";
+    static final String OUTPUT_SIZE_QPS_MAX                   = "outputSizeQpsMax";
+    static final String OUTPUT_SIZE_QPS_AVG                   = "outputSizeQpsAvg";
 
 
     CounterSampler inputInsertCounter;
@@ -53,6 +55,10 @@ public class TaskSampleHandler extends AbstractHandler {
     SpeedSampler inputSpeed;
     SpeedSampler outputSpeed;
     AverageSampler timeCostAverage;
+    SpeedSampler inputSizeSpeed;
+    SpeedSampler outputSizeSpeed;
+    private Double outputSizeQpsMax;
+    private Double outputSizeQpsAvg;
 
     private CounterSampler createTableTotal;
     private CounterSampler snapshotTableTotal;
@@ -117,7 +123,12 @@ public class TaskSampleHandler extends AbstractHandler {
                 CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL,
                 OUTPUT_QPS_MAX,
                 OUTPUT_QPS_AVG,
-                TABLE_TOTAL
+                TABLE_TOTAL,
+                Constants.INPUT_SIZE_QPS,
+                Constants.OUTPUT_SIZE_QPS,
+                Constants.QPS_TYPE,
+                OUTPUT_SIZE_QPS_MAX,
+                OUTPUT_SIZE_QPS_AVG
         );
     }
 
@@ -244,6 +255,23 @@ public class TaskSampleHandler extends AbstractHandler {
             });
             return outputQpsAvg;
         });
+        inputSizeSpeed = collector.getSpeedSampler(Constants.INPUT_SIZE_QPS);
+        outputSizeSpeed = collector.getSpeedSampler(Constants.OUTPUT_SIZE_QPS);
+        collector.addSampler(OUTPUT_SIZE_QPS_MAX, () -> {
+            Optional.ofNullable(outputSizeSpeed).ifPresent(speed -> {
+                outputSizeQpsMax = speed.getMaxValue();
+            });
+            return outputSizeQpsMax;
+        });
+        collector.addSampler(OUTPUT_SIZE_QPS_AVG, () -> {
+            Optional.ofNullable(outputSizeSpeed).ifPresent(speed -> {
+                outputSizeQpsAvg = speed.getAvgValue();
+            });
+            return outputSizeQpsAvg;
+        });
+        collector.addSampler(Constants.QPS_TYPE, () -> qpsType);
+        collector.addSampler(Constants.INPUT_SIZE_QPS, () -> inputSizeSpeed.value());
+        collector.addSampler(Constants.OUTPUT_SIZE_QPS, () -> outputSizeSpeed.value());
     }
 
     public void close() {
@@ -292,7 +320,9 @@ public class TaskSampleHandler extends AbstractHandler {
 //        }
     }
 
-    public void handleBatchReadAccept(long size) {
+    public void handleBatchReadAccept(HandlerUtil.EventTypeRecorder recorder) {
+        long size = recorder.getInsertTotal();
+        inputSizeSpeed.add(recorder.getMemorySize());
         inputInsertCounter.inc(size);
         inputSpeed.add(size);
 //        currentSnapshotTableInsertRowTotal += size;
@@ -316,7 +346,7 @@ public class TaskSampleHandler extends AbstractHandler {
         inputDeleteCounter.inc(recorder.getDeleteTotal());
         inputDdlCounter.inc(recorder.getDdlTotal());
         inputOthersCounter.inc(recorder.getOthersTotal());
-
+        inputSizeSpeed.add(recorder.getMemorySize());
         inputSpeed.add(recorder.getTotal());
     }
 
@@ -328,7 +358,7 @@ public class TaskSampleHandler extends AbstractHandler {
         sourceNodeHandlers.putIfAbsent(nodeId, handler);
     }
 
-    public void handleWriteRecordAccept(WriteListResult<TapRecordEvent> result, List<TapRecordEvent> events) {
+    public void handleWriteRecordAccept(WriteListResult<TapRecordEvent> result, List<TapRecordEvent> events, HandlerUtil.EventTypeRecorder eventTypeRecorder) {
         long current = System.currentTimeMillis();
 
         long inserted = result.getInsertedCount();
@@ -358,6 +388,7 @@ public class TaskSampleHandler extends AbstractHandler {
             timeCostTotal += (current - time);
         }
         timeCostAverage.add(total, timeCostTotal);
+        outputSizeSpeed.add(eventTypeRecorder.getMemorySize());
     }
 
     public void handleSnapshotStart(Long time) {
