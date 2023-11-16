@@ -78,7 +78,7 @@ public class InstantSamplesTest {
      * 本方法是测试task。期望是存在限制
      */
     @Test
-    public void testGetInstantSamplesForTask() throws ExecutionException, InterruptedException, NoSuchMethodException {
+    public void testGetInstantSamplesForTask(){
 
         // exec function
         boolean actualData = execFunction("task");
