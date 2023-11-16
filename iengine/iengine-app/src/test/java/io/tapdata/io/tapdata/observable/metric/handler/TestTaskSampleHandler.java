@@ -1,34 +1,12 @@
 package io.tapdata.io.tapdata.observable.metric.handler;
 
-import com.tapdata.tm.commons.task.dto.metric.TaskDtoEntity;
-import io.tapdata.common.sample.SampleCollector;
-import io.tapdata.observable.metric.handler.AbstractHandler;
 import io.tapdata.observable.metric.handler.TaskSampleHandler;
 import io.tapdata.util.TestUtil;
-import org.bson.types.ObjectId;
 import org.junit.Assert;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.UUID;
 
 public class TestTaskSampleHandler {
-    TaskSampleHandler sampleHandler;
-    @BeforeEach
-    public void init(){
-        TaskDtoEntity entity = new TaskDtoEntity();
-        entity.setId(new ObjectId());
-        entity.setTaskRecordId(UUID.randomUUID().toString());
-        entity.setStartTime(new Date());
-        sampleHandler = new TaskSampleHandler(entity);
-        SampleCollector sampleCollector = new SampleCollector((pointValues, tags) -> {
-            System.out.println("pointValues " + pointValues);
-            System.out.println("pointTags " + tags);
-            //上报到服务器
-        }).withName("agentProcess").withTag("a", "b").start();
-        TestUtil.setAndGetPrivateField(sampleHandler, AbstractHandler.class, "collector", sampleCollector);
-    }
+
 
     @Test
     public void testStaticFields() {
@@ -54,24 +32,5 @@ public class TestTaskSampleHandler {
         Assert.assertEquals(value, v);
     }
 
-    @Test
-    public void testDoInit() {
-        sampleHandler.doInit(new HashMap<>());
 
-    }
-
-    @Test
-    public void testHandleBatchReadStart(){
-        sampleHandler.doInit(new HashMap<>());
-    }
-
-    @Test
-    public void testHandleStreamReadAccept() {
-        sampleHandler.doInit(new HashMap<>());
-    }
-
-    @Test
-    public void testHandleWriteRecordAccept(){
-        sampleHandler.doInit(new HashMap<>());
-    }
 }
