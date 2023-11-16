@@ -115,6 +115,28 @@ public class TestHandlerUtil {
         Assert.assertNull(handel);
     }
 
+    /**测试sampleMemoryTapEvent属性， 预期：sizeOfMemory = null时重新计算sizeOfMemory*/
+    @Test
+    public void testSampleMemoryTapEvent() {
+        List<TapEvent> events = new ArrayList<>();
+        events.add(tapEvent);
+        HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapEvent(events);
+        recorder.setMemorySize(-1);
+        HandlerUtil.sampleMemoryTapEvent(recorder, events, null);
+        Assert.assertTrue(recorder.getMemorySize() > 0);
+    }
+
+    /**测试sampleMemoryTapEvent属性， 预期：sizeOfMemory != null时不重新计算sizeOfMemory*/
+    @Test
+    public void testSampleMemoryTapEvent0() {
+        List<TapEvent> events = new ArrayList<>();
+        events.add(tapEvent);
+        HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapEvent(events);
+        long size = recorder.getMemorySize();
+        HandlerUtil.sampleMemoryTapEvent(recorder, events, size);
+        Assert.assertEquals(size, recorder.getMemorySize());
+    }
+
     public TapEvent testCovertTapDataEvent(Object handleObject){
         Object handler = TestUtil.getStaticField(HandlerUtil.class, "covertTapDataEvent");
         Assert.assertNotNull(handler);
