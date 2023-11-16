@@ -37,8 +37,9 @@ public class HandlerUtil {
         return null;
     };
 
-    public static EventTypeRecorder countTapDataEvent(List<TapdataEvent> events, Long sizeOfMemory){
+    public static EventTypeRecorder countTapdataEvent(List<TapdataEvent> events) {
         long now = System.currentTimeMillis();
+
         List<Long> referenceTimeList = Lists.newArrayList();
         EventTypeRecorder recorder = new EventTypeRecorder();
         for (TapdataEvent tapdataEvent : events) {
@@ -52,16 +53,12 @@ public class HandlerUtil {
             }
             referenceTimeList.add(countEventTypeAndGetReferenceTime(tapdataEvent.getTapEvent(), recorder));
         }
-        sampleMemoryTapEvent(recorder, events, sizeOfMemory);
+        randomSampleEventHandler.sampleMemoryTapEvent(recorder, events, covertTapDataEvent);
         recorder.calculateMaxReplicateLag(now, referenceTimeList);
         return recorder;
     }
 
-    public static EventTypeRecorder countTapdataEvent(List<TapdataEvent> events) {
-        return countTapDataEvent(events, null);
-    }
-
-    public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events, Long sizeOfMemory) {
+    public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events) {
         long now = System.currentTimeMillis();
 
         List<Long> referenceTimeList = Lists.newArrayList();
@@ -70,22 +67,9 @@ public class HandlerUtil {
             referenceTimeList.add(countEventTypeAndGetReferenceTime(tapEvent, recorder));
             recorder.incrProcessTimeTotal(now, tapEvent.getTime());
         }
-        sampleMemoryTapEvent(recorder, events, sizeOfMemory);
+        randomSampleEventHandler.sampleMemoryTapEvent(recorder, events, covertTapDataEvent);
         CommonUtils.ignoreAnyError(() -> recorder.calculateMaxReplicateLag(now, referenceTimeList), "HandlerUtil-countTapEvent");
         return recorder;
-    }
-
-    public static void sampleMemoryTapEvent(EventTypeRecorder recorder, List<?> events, Long sizeOfMemory) {
-        if (null == recorder) return;
-        if (null == sizeOfMemory) {
-            randomSampleEventHandler.sampleMemoryTapEvent(recorder, events, covertTapDataEvent);
-        } else {
-            recorder.setMemorySize(sizeOfMemory);
-        }
-    }
-
-    public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events) {
-        return countTapEvent(events, null);
     }
 
     private static Long countEventTypeAndGetReferenceTime(TapEvent event, EventTypeRecorder recorder) {
