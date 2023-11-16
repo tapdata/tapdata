@@ -1,9 +1,10 @@
-package io.tapdata.observable.metric.util;
+package io.tapdata.io.tapdata.observable.metric.util;
 
 import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.observable.metric.handler.HandlerUtil;
+import io.tapdata.observable.metric.util.SyncGetMemorySizeHandler;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;

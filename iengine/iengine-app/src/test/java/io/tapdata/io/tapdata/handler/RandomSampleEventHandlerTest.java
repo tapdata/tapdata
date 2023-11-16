@@ -1,4 +1,4 @@
-package io.tapdata.handler;
+package io.tapdata.io.tapdata.handler;
 
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
