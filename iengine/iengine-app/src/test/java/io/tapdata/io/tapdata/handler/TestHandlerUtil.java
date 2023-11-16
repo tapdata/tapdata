@@ -24,8 +24,8 @@ import io.tapdata.observable.metric.handler.HandlerUtil;
 import io.tapdata.observable.metric.handler.RandomSampleEventHandler;
 import io.tapdata.util.TestUtil;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,7 +36,7 @@ public class TestHandlerUtil {
     TapEvent tapEvent;
 
     /**造数据*/
-    @Before
+    @BeforeEach
     public void init() {
         TapUpdateRecordEvent event = new TapUpdateRecordEvent();
         event.referenceTime(System.currentTimeMillis());

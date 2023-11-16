@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.commons.task.dto.metric.Metric;
 import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 
@@ -23,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Task
  */
 @Data
-public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
+public class TaskDto extends ParentTaskDto implements IDataPermissionDto, Metric {
     /** migrate迁移  logColleshareCachector 挖掘任务*/
     public static final String SYNC_TYPE_SYNC = "sync";
     public static final String SYNC_TYPE_MIGRATE = "migrate";

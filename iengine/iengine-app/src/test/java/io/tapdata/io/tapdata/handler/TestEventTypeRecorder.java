@@ -2,15 +2,15 @@ package io.tapdata.io.tapdata.handler;
 
 import io.tapdata.observable.metric.handler.HandlerUtil;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class TestEventTypeRecorder {
     HandlerUtil.EventTypeRecorder recorder;
-    @Before
+    @BeforeEach
     public void init() {
         recorder = new HandlerUtil.EventTypeRecorder();
     }

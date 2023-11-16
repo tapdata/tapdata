@@ -7,7 +7,7 @@ import io.tapdata.observable.metric.handler.RandomSampleEventHandler;
 import io.tapdata.util.TestUtil;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;

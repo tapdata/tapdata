@@ -1,11 +1,12 @@
 package io.tapdata.io.tapdata.handler;
-
 import io.tapdata.observable.metric.handler.TaskSampleHandler;
 import io.tapdata.util.TestUtil;
 import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+
 
 public class TestTaskSampleHandler {
+
     @Test
     public void testStaticFields() {
         testStaticFields("SAMPLE_TYPE_TASK", "task");

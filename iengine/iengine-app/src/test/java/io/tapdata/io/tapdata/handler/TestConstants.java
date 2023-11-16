@@ -3,7 +3,7 @@ package io.tapdata.io.tapdata.handler;
 import io.tapdata.observable.metric.handler.Constants;
 import io.tapdata.util.TestUtil;
 import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestConstants {
     @Test

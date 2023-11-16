@@ -6,8 +6,8 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.observable.metric.handler.HandlerUtil;
 import io.tapdata.observable.metric.util.SyncGetMemorySizeHandler;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,7 +20,7 @@ public class TestSyncGetMemorySizeHandler {
     SyncGetMemorySizeHandler handler;
     AtomicLong atomicLong;
     /**造数据*/
-    @Before
+    @BeforeEach
     public void init() {
         atomicLong = new AtomicLong(-1);
         handler = new SyncGetMemorySizeHandler(atomicLong);
