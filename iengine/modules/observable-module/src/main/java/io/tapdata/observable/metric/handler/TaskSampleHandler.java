@@ -36,8 +36,6 @@ public class TaskSampleHandler extends AbstractHandler {
     static final String CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL  = "currentSnapshotTableInsertRowTotal";
     static final String OUTPUT_QPS_MAX                        = "outputQpsMax";
     static final String OUTPUT_QPS_AVG                        = "outputQpsAvg";
-    static final String OUTPUT_SIZE_QPS_MAX                   = "outputSizeQpsMax";
-    static final String OUTPUT_SIZE_QPS_AVG                   = "outputSizeQpsAvg";
 
 
     CounterSampler inputInsertCounter;
@@ -55,10 +53,6 @@ public class TaskSampleHandler extends AbstractHandler {
     SpeedSampler inputSpeed;
     SpeedSampler outputSpeed;
     AverageSampler timeCostAverage;
-    SpeedSampler inputSizeSpeed;
-    SpeedSampler outputSizeSpeed;
-    private Double outputSizeQpsMax;
-    private Double outputSizeQpsAvg;
 
     private CounterSampler createTableTotal;
     private CounterSampler snapshotTableTotal;
@@ -127,12 +121,13 @@ public class TaskSampleHandler extends AbstractHandler {
                 Constants.INPUT_SIZE_QPS,
                 Constants.OUTPUT_SIZE_QPS,
                 Constants.QPS_TYPE,
-                OUTPUT_SIZE_QPS_MAX,
-                OUTPUT_SIZE_QPS_AVG
+                Constants.OUTPUT_SIZE_QPS_MAX,
+                Constants.OUTPUT_SIZE_QPS_AVG
         );
     }
 
     public void doInit(Map<String, Number> values) {
+        super.doInit(values);
         collector.addSampler(TABLE_TOTAL, () -> {
             if (Objects.nonNull(snapshotTableTotal.value())) {
                 return Math.max(snapshotTableTotal.value().longValue(), taskTables.size());
@@ -255,23 +250,6 @@ public class TaskSampleHandler extends AbstractHandler {
             });
             return outputQpsAvg;
         });
-        inputSizeSpeed = collector.getSpeedSampler(Constants.INPUT_SIZE_QPS);
-        outputSizeSpeed = collector.getSpeedSampler(Constants.OUTPUT_SIZE_QPS);
-        collector.addSampler(OUTPUT_SIZE_QPS_MAX, () -> {
-            Optional.ofNullable(outputSizeSpeed).ifPresent(speed -> {
-                outputSizeQpsMax = speed.getMaxValue();
-            });
-            return outputSizeQpsMax;
-        });
-        collector.addSampler(OUTPUT_SIZE_QPS_AVG, () -> {
-            Optional.ofNullable(outputSizeSpeed).ifPresent(speed -> {
-                outputSizeQpsAvg = speed.getAvgValue();
-            });
-            return outputSizeQpsAvg;
-        });
-        collector.addSampler(Constants.QPS_TYPE, () -> qpsType);
-        collector.addSampler(Constants.INPUT_SIZE_QPS, () -> inputSizeSpeed.value());
-        collector.addSampler(Constants.OUTPUT_SIZE_QPS, () -> outputSizeSpeed.value());
     }
 
     public void close() {

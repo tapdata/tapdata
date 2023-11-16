@@ -27,4 +27,6 @@ public class Constants {
     static final int QPS_TYPE_COUNT         = 0;
     static final String INPUT_SIZE_QPS      = "inputSizeQps";
     static final String OUTPUT_SIZE_QPS     = "outputSizeQps";
+    static final String OUTPUT_SIZE_QPS_MAX = "outputSizeQpsMax";
+    static final String OUTPUT_SIZE_QPS_AVG = "outputSizeQpsAvg";
 }

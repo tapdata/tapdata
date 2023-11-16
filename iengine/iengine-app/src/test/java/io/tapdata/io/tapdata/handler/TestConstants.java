@@ -86,6 +86,14 @@ public class TestConstants {
     public void testQPS_TYPE_COUNT(){
         testItem("QPS_TYPE_COUNT", 0);
     }
+    @Test
+    public void testOUTPUT_SIZE_QPS_MAX(){
+        testItem("OUTPUT_SIZE_QPS_MAX", "outputSizeQpsMax");
+    }
+    @Test
+    public void testOUTPUT_SIZE_QPS_AVG(){
+        testItem("OUTPUT_SIZE_QPS_AVG", "outputSizeQpsAvg");
+    }
 
     private void testItem(String fieldName, Object expected){
         Object staticField = TestUtil.getStaticField(Constants.class, fieldName);

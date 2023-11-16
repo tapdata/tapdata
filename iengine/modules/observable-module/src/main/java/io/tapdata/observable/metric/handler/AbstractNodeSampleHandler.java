@@ -36,8 +36,6 @@ public abstract class AbstractNodeSampleHandler extends AbstractHandler {
     ResetSampler replicateLag;
     @Getter
     NumberSampler<Long> currentEventTimestamp;
-    SpeedSampler inputSizeSpeed;
-    SpeedSampler outputSizeSpeed;
 
     AbstractNodeSampleHandler(TaskDto task, Node<?> node) {
         super(task);
@@ -84,6 +82,7 @@ public abstract class AbstractNodeSampleHandler extends AbstractHandler {
     }
 
     void doInit(Map<String, Number> values) {
+        super.doInit(values);
         inputDdlCounter = getCounterSampler(values, Constants.INPUT_DDL_TOTAL);
         inputInsertCounter = getCounterSampler(values, Constants.INPUT_INSERT_TOTAL);
         inputUpdateCounter = getCounterSampler(values, Constants.INPUT_UPDATE_TOTAL);
@@ -104,10 +103,5 @@ public abstract class AbstractNodeSampleHandler extends AbstractHandler {
         currentEventTimestamp = collector.getNumberCollector(Constants.CURR_EVENT_TS, Long.class,
                 null == currentEventTimestampInitial ? null : currentEventTimestampInitial.longValue());
         replicateLag = collector.getResetSampler(Constants.REPLICATE_LAG);
-        inputSizeSpeed = collector.getSpeedSampler(Constants.INPUT_SIZE_QPS);
-        outputSizeSpeed = collector.getSpeedSampler(Constants.OUTPUT_SIZE_QPS);
-        collector.addSampler(Constants.QPS_TYPE, () -> qpsType);
-        collector.addSampler(Constants.INPUT_SIZE_QPS, () -> inputSizeSpeed.value());
-        collector.addSampler(Constants.OUTPUT_SIZE_QPS, () -> outputSizeSpeed.value());
     }
 }

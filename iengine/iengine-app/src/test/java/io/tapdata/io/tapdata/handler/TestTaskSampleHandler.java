@@ -22,8 +22,6 @@ public class TestTaskSampleHandler {
         testStaticFields("CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL", "currentSnapshotTableInsertRowTotal");
         testStaticFields("OUTPUT_QPS_MAX", "outputQpsMax");
         testStaticFields("OUTPUT_QPS_AVG", "outputQpsAvg");
-        testStaticFields("OUTPUT_SIZE_QPS_MAX", "outputSizeQpsMax");
-        testStaticFields("OUTPUT_SIZE_QPS_AVG", "outputSizeQpsAvg");
     }
 
     private void testStaticFields(String fieldName, String value) {
