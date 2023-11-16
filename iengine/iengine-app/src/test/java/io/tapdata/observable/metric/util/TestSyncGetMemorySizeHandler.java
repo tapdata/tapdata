@@ -60,7 +60,7 @@ public class TestSyncGetMemorySizeHandler {
     @Test
     public void testGetEventTypeRecorderSyncTapEvent2() {
         handler = new SyncGetMemorySizeHandler(null);
-        List<TapEvent> list = null;
+        List<TapEvent> list = new ArrayList<>();
         HandlerUtil.EventTypeRecorder recorder = handler.getEventTypeRecorderSyncTapEvent(list);
         Assert.assertNotNull(recorder);
         Assert.assertEquals(0, recorder.getMemorySize());
@@ -107,7 +107,7 @@ public class TestSyncGetMemorySizeHandler {
     @Test
     public void testGetEventTypeRecorderSyncTapDataEvent2() {
         handler = new SyncGetMemorySizeHandler(null);
-        List<TapdataEvent> list = null;
+        List<TapdataEvent> list = new ArrayList<>();
         HandlerUtil.EventTypeRecorder recorder = handler.getEventTypeRecorderSyncTapDataEvent(list);
         Assert.assertNotNull(recorder);
         Assert.assertEquals(0, recorder.getMemorySize());
