@@ -1,8 +1,9 @@
 name: Merge Request CI
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
 on:
-  push:
-    branches: [ "main", "develop", "release-v*.*" ]
   pull_request:
     branches: [ "main", "develop", "release-v*.*" ]
 
@@ -65,7 +66,7 @@ jobs:
           echo "::set-output name=TAG_NAME::${TAG_NAME}"
 
   Scan-Tapdata:
-    runs-on: aws-ubuntu-20
+    runs-on: aws-scan
     needs: Get-Stable-Branch
     timeout-minutes: 30
     steps:
@@ -160,6 +161,8 @@ jobs:
 
   MRCI:
     runs-on: aws-ubuntu-20
+    concurrency:
+      group: staging_environment
     timeout-minutes: 60
     needs:
       - Build-And-Deploy
