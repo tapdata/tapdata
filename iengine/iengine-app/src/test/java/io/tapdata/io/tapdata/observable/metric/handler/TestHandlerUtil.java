@@ -32,12 +32,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TestHandlerUtil {
+class TestHandlerUtil {
     TapEvent tapEvent;
 
     /**造数据*/
     @BeforeEach
-    public void init() {
+    void init() {
         TapUpdateRecordEvent event = new TapUpdateRecordEvent();
         event.referenceTime(System.currentTimeMillis());
         Map<String, Object> before = new HashMap<>();
@@ -51,7 +51,7 @@ public class TestHandlerUtil {
 
     /**测试countTapDataEvent方法， 预期结果*/
     @Test
-    public void testCountTapDataEvent() {
+    void testCountTapDataEvent() {
         List<TapdataEvent> events = new ArrayList<>();
         TapdataEvent e = new TapdataEvent();
         e.setTapEvent(tapEvent);
@@ -67,7 +67,7 @@ public class TestHandlerUtil {
 
     /**测试countTapEvent方法， 预期结果*/
     @Test
-    public void testCountTapEvent() {
+    void testCountTapEvent() {
         List<TapEvent> events = new ArrayList<>();
         events.add(tapEvent);
         HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapEvent(events);
