@@ -56,6 +56,25 @@ public class TestSyncGetMemorySizeHandler {
         Assert.assertNotNull(recorder);
         Assert.assertEquals(0, recorder.getMemorySize());
     }
+    /**测试getEventTypeRecorderSyncTapEvent属性, 边界条件，null AtomicLong*/
+    @Test
+    public void testGetEventTypeRecorderSyncTapEvent2() {
+        handler = new SyncGetMemorySizeHandler(null);
+        List<TapEvent> list = null;
+        HandlerUtil.EventTypeRecorder recorder = handler.getEventTypeRecorderSyncTapEvent(list);
+        Assert.assertNotNull(recorder);
+        Assert.assertEquals(0, recorder.getMemorySize());
+    }
+    /**测试getEventTypeRecorderSyncTapEvent属性, 边界条件, AtomicLong > 0*/
+    @Test
+    public void testGetEventTypeRecorderSyncTapEvent3() {
+        List<TapEvent> list = new ArrayList<>();
+        list.add(tapEvent);
+        handler = new SyncGetMemorySizeHandler(new AtomicLong(100));
+        HandlerUtil.EventTypeRecorder recorder = handler.getEventTypeRecorderSyncTapEvent(list);
+        Assert.assertNotNull(recorder);
+        Assert.assertEquals(100, recorder.getMemorySize());
+    }
     /**测试getEventTypeRecorderSyncTapEvent属性*/
     @Test
     public void testGetEventTypeRecorderSyncTapDataEvent() {
@@ -83,5 +102,27 @@ public class TestSyncGetMemorySizeHandler {
         HandlerUtil.EventTypeRecorder recorder = handler.getEventTypeRecorderSyncTapDataEvent(list);
         Assert.assertNotNull(recorder);
         Assert.assertEquals(0, recorder.getMemorySize());
+    }
+    /**测试getEventTypeRecorderSyncTapDataEvent属性, 边界条件，null AtomicLong*/
+    @Test
+    public void testGetEventTypeRecorderSyncTapDataEvent2() {
+        handler = new SyncGetMemorySizeHandler(null);
+        List<TapdataEvent> list = null;
+        HandlerUtil.EventTypeRecorder recorder = handler.getEventTypeRecorderSyncTapDataEvent(list);
+        Assert.assertNotNull(recorder);
+        Assert.assertEquals(0, recorder.getMemorySize());
+    }
+    /**测试getEventTypeRecorderSyncTapDataEvent属性, 边界条件, AtomicLong > 0*/
+    @Test
+    public void testGetEventTypeRecorderSyncTapDataEvent3() {
+        List<TapdataEvent> list = new ArrayList<>();
+        TapdataEvent event = new TapdataEvent();
+        event.setTapEvent(tapEvent);
+        event.setSourceTime(System.nanoTime());
+        list.add(event);
+        handler = new SyncGetMemorySizeHandler(new AtomicLong(100));
+        HandlerUtil.EventTypeRecorder recorder = handler.getEventTypeRecorderSyncTapDataEvent(list);
+        Assert.assertNotNull(recorder);
+        Assert.assertEquals(100, recorder.getMemorySize());
     }
 }
