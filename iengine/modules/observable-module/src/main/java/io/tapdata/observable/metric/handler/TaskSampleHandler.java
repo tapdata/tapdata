@@ -320,9 +320,11 @@ public class TaskSampleHandler extends AbstractHandler {
 //        }
     }
 
-    public void handleBatchReadAccept(long size) {
+    public void handleBatchReadAccept(HandlerUtil.EventTypeRecorder recorder) {
+        long size = recorder.getInsertTotal();
         inputInsertCounter.inc(size);
         inputSpeed.add(size);
+        inputSizeSpeed.add(recorder.getMemorySize());
 //        currentSnapshotTableInsertRowTotal += size;
 
 //        snapshotInsertRowTotal.inc(size);

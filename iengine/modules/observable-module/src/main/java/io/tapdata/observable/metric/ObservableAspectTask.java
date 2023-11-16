@@ -16,10 +16,13 @@ import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
+import io.tapdata.observable.metric.util.SyncGetMemorySizeHandler;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR,TaskDto.SYNC_TYPE_MEM_CACHE})
@@ -30,7 +33,10 @@ public class ObservableAspectTask extends AspectTask {
 	private Map<String, TableSampleHandler> tableSampleHandlers;
 	private Map<String, DataNodeSampleHandler> dataNodeSampleHandlers;
 	private Map<String, ProcessorNodeSampleHandler> processorNodeSampleHandlers;
-
+	CompletableFuture<Void> batchReadFuture;
+	CompletableFuture<Void> batchProcessFuture;
+	CompletableFuture<Void> streamReadFuture;
+	CompletableFuture<Void> streamProcessFuture;
 	public ObservableAspectTask() {
 		// data node aspects
 		observerClassHandlers.register(DataNodeInitAspect.class, this::handleDataNodeInit);
@@ -68,6 +74,10 @@ public class ObservableAspectTask extends AspectTask {
 	public void onStart(TaskStartAspect startAspect) {
 		taskSampleHandler = new TaskSampleHandler(task);
 		taskSampleHandler.init();
+		batchReadFuture = CompletableFuture.runAsync(()->{});
+		batchProcessFuture = CompletableFuture.runAsync(()->{});
+		streamReadFuture = CompletableFuture.runAsync(()->{});
+		streamProcessFuture = CompletableFuture.runAsync(()->{});
 	}
 
 	/**
@@ -88,6 +98,10 @@ public class ObservableAspectTask extends AspectTask {
 			}
 		}
 		taskSampleHandler.close();
+		if (null != batchReadFuture && !batchReadFuture.isCancelled()) batchReadFuture.cancel(true);
+		if (null != batchProcessFuture && !batchProcessFuture.isCancelled()) batchProcessFuture.cancel(true);
+		if (null != streamReadFuture && !streamReadFuture.isCancelled()) streamReadFuture.cancel(true);
+		if (null != streamProcessFuture && !streamProcessFuture.isCancelled()) streamProcessFuture.cancel(true);
 	}
 
 	// data node related
@@ -185,26 +199,27 @@ public class ObservableAspectTask extends AspectTask {
 						dataNodeSampleHandler -> dataNodeSampleHandler.addTable(table)
 				);
 				taskSampleHandler.handleBatchReadStart(table);
-				aspect.readCompleteConsumer(events -> {
+				final AtomicLong sizeMemory = new AtomicLong(-1);
+				final SyncGetMemorySizeHandler syncGetMemorySizeHandler = new SyncGetMemorySizeHandler(sizeMemory);
+				aspect.readCompleteConsumer(events -> { batchReadFuture.thenRun(() -> {
 					if (null == events || events.size() == 0) {
 						return;
 					}
-					HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapEvent(events);
-					int size = events.size();
+					HandlerUtil.EventTypeRecorder recorder = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler ->
 							handler.handleBatchReadReadComplete(System.currentTimeMillis(), recorder));
-					taskSampleHandler.handleBatchReadAccept(size);
-				});
-				aspect.processCompleteConsumer(events -> {
+					taskSampleHandler.handleBatchReadAccept(recorder);
+				});});
+				aspect.processCompleteConsumer(events -> {batchProcessFuture.thenRun(() -> {
 					if (null == events || events.isEmpty()) {
 						return;
 					}
 
-					HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapdataEvent(events);
+					HandlerUtil.EventTypeRecorder recorder = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapDataEvent(events);
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler ->
 							handler.handleBatchReadProcessComplete(System.currentTimeMillis(), recorder)
 					);
-				});
+				});});
 				aspect.enqueuedConsumer(events ->
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 							handler -> handler.handleBatchReadEnqueued(System.currentTimeMillis())
@@ -233,33 +248,35 @@ public class ObservableAspectTask extends AspectTask {
 						handler -> handler.handleStreamReadStreamStart(tables, aspect.getStreamStartedTime())
 				);
 
-				aspect.streamingReadCompleteConsumers(events -> {
+				final AtomicLong sizeMemory = new AtomicLong(-1);
+				final SyncGetMemorySizeHandler syncGetMemorySizeHandler = new SyncGetMemorySizeHandler(sizeMemory);
+				aspect.streamingReadCompleteConsumers(events -> {streamReadFuture.thenRun(() -> {
 					if (null == events || events.size() == 0) {
 						return;
 					}
 
-					HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapEvent(events);
+					HandlerUtil.EventTypeRecorder recorder = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 							handler -> {
 								handler.handleStreamReadReadComplete(System.currentTimeMillis(), recorder);
 							}
 					);
 					taskSampleHandler.handleStreamReadAccept(recorder);
-				});
+				});});
 
-				aspect.streamingProcessCompleteConsumers(events -> {
+				aspect.streamingProcessCompleteConsumers(events -> {streamProcessFuture.thenRun(() -> {
 					if (null == events || events.size() == 0) {
 						return;
 					}
 
-					HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapdataEvent(events);
+					HandlerUtil.EventTypeRecorder recorder = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapDataEvent(events);
 
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 							handler -> {
 								handler.handleStreamReadProcessComplete(System.currentTimeMillis(), recorder);
 							}
 					);
-				});
+				});});
 				aspect.streamingEnqueuedConsumers(events -> {
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 							handler -> handler.handleStreamReadEnqueued(System.currentTimeMillis())
