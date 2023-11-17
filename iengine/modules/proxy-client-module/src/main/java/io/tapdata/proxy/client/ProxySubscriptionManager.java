@@ -51,7 +51,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-@Bean
+@Bean(onTest = false)
 public class ProxySubscriptionManager implements MemoryFetcher {
 	private static final String TAG = ProxySubscriptionManager.class.getSimpleName();
 	private final ConcurrentHashSet<TaskSubscribeInfo> taskSubscribeInfos = new ConcurrentHashSet<>();

@@ -30,6 +30,7 @@ import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -144,12 +145,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		try {
 			this.jetContext = context;
 			super.init(context);
-			running.compareAndSet(false, true);
+			this.running.compareAndSet(false, true);
 			this.obsLogger = initObsLogger();
 			if (null != processorBaseContext.getConfigurationCenter()) {
-				this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-
-				this.settingService = new SettingService(clientMongoOperator);
+				this.clientMongoOperator = initClientMongoOperator();
+				this.settingService = initSettingService();
+			} else {
+				throw new TapCodeException(TaskProcessorExCode_11.INIT_CONFIGURATION_CENTER_CANNOT_BE_NULL);
 			}
 			if (null != processorBaseContext.getNode() && null == processorBaseContext.getNode().getGraph()) {
 				Dag dag = new Dag(processorBaseContext.getEdges(), processorBaseContext.getNodes());
@@ -160,30 +162,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 			// 如果为迁移任务、且源节点为数据库类型
 			this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
-			if (!StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-					TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-				this.monitorManager = new MonitorManager();
-			}
 
 			// Init external storage config
-			externalStorageDto = ExternalStorageUtil.getExternalStorage(
-					processorBaseContext.getTaskConfig().getExternalStorageDtoMap(),
-					processorBaseContext.getNode(),
-					clientMongoOperator,
-					processorBaseContext.getNodes(),
-					(processorBaseContext instanceof DataProcessorContext ? ((DataProcessorContext) processorBaseContext).getConnections() : null)
-			);
-			codecsFilterManager = initFilterCodec();
+			this.externalStorageDto = initExternalStorage();
+			this.codecsFilterManager = initFilterCodec();
 			// Execute ProcessorNodeInitAspect before doInit since we need to init the aspect first
-			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
-				AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
-			} else {
-				AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
-			}
-			if (monitorManager != null) {
-				monitorManager.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, context.hazelcastInstance().getJet().getJob(context.jobId()), processorBaseContext.getNode().getId());
-				jetJobStatusMonitor = (JetJobStatusMonitor) monitorManager.getMonitorByType(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR);
-			}
+			executeAspectOnInit();
+			initMonitorAndStartIfNeed(context);
 			setThreadName();
 			if (!getNode().disabledNode()) {
 				doInit(context);
@@ -195,7 +180,46 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 	}
 
-	private ObsLogger initObsLogger() {
+	protected void initMonitorAndStartIfNeed(@NotNull Context context) {
+		if (!StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
+			TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+			this.monitorManager = new MonitorManager();
+			try {
+				monitorManager.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, context.hazelcastInstance().getJet().getJob(context.jobId()), processorBaseContext.getNode().getId());
+			} catch (Exception e) {
+				throw new TapCodeException(TaskProcessorExCode_11.START_JET_JOB_STATUS_MONITOR_FAILED, e);
+			}
+			jetJobStatusMonitor = (JetJobStatusMonitor) monitorManager.getMonitorByType(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR);
+		}
+	}
+
+	protected void executeAspectOnInit() {
+		if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
+			AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
+		} else {
+			AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
+		}
+	}
+
+	protected ExternalStorageDto initExternalStorage() {
+		return ExternalStorageUtil.getExternalStorage(
+				processorBaseContext.getTaskConfig().getExternalStorageDtoMap(),
+				processorBaseContext.getNode(),
+				clientMongoOperator,
+				processorBaseContext.getNodes(),
+				(processorBaseContext instanceof DataProcessorContext ? ((DataProcessorContext) processorBaseContext).getConnections() : null)
+		);
+	}
+
+	protected SettingService initSettingService() {
+		return new SettingService(clientMongoOperator);
+	}
+
+	protected ClientMongoOperator initClientMongoOperator() {
+		return BeanUtil.getBean(ClientMongoOperator.class);
+	}
+
+	protected ObsLogger initObsLogger() {
 		return ObsLoggerFactory.getInstance().getObsLogger(
 				processorBaseContext.getTaskDto(),
 				processorBaseContext.getNode().getId(),
@@ -203,7 +227,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		);
 	}
 
-	private void setThreadName() {
+	protected void setThreadName() {
 		TaskDto taskDto = processorBaseContext.getTaskDto();
 		Node<?> node = getNode();
 		Thread.currentThread().setName(String.format("%s-%s(%s)-%s(%s)", TAG, taskDto.getName(), taskDto.getId().toHexString(), node.getName(), node.getId()));
@@ -219,6 +243,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected TapValueTransform transformFromTapValue(TapdataEvent tapdataEvent) {
+		if (null == tapdataEvent) return null;
 		if (null == tapdataEvent.getTapEvent()) return null;
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		TapValueTransform tapValueTransform = TapValueTransform.create();
@@ -263,6 +288,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected MessageEntity tapEvent2Message(TapRecordEvent dataEvent) {
+		if (null == dataEvent) return null;
 		MessageEntity messageEntity = new MessageEntity();
 		Map<String, Object> before = TapEventUtil.getBefore(dataEvent);
 		messageEntity.setBefore(before);
@@ -277,11 +303,12 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected TapRecordEvent message2TapEvent(MessageEntity messageEntity) {
+		if (null == messageEntity) return null;
 		TapRecordEvent tapRecordEvent;
 		String op = messageEntity.getOp();
 		OperationType operationType = OperationType.fromOp(op);
 		if (operationType == null) {
-			return null;
+			throw new IllegalArgumentException(String.format("Unrecognized op type: %s", op));
 		}
 		switch (operationType) {
 			case INSERT:
@@ -312,12 +339,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected String getTableName(TapdataEvent tapdataEvent) {
 		if (null == tapdataEvent) return "";
-		if (null != tapdataEvent.getMessageEntity()) {
-			return tapdataEvent.getMessageEntity().getTableName();
+		MessageEntity messageEntity = tapdataEvent.getMessageEntity();
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		if (null != messageEntity) {
+			return messageEntity.getTableName();
 		} else {
-			TapEvent tapEvent = tapdataEvent.getTapEvent();
-			if (tapEvent instanceof TapRecordEvent) {
-				return ((TapRecordEvent) tapEvent).getTableId();
+			if (tapEvent instanceof TapBaseEvent) {
+				return ((TapBaseEvent) tapEvent).getTableId();
 			} else {
 				return "";
 			}
@@ -339,7 +367,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		return true;
 	}
 
-	private boolean tryEmit(TapdataEvent dataEvent, int bucketCount) {
+	protected boolean tryEmit(TapdataEvent dataEvent, int bucketCount) {
 		if (bucketCount > 1) {
 			for (bucketIndex = Math.min(bucketIndex, bucketCount); bucketIndex < bucketCount; bucketIndex++) {
 				TapdataEvent cloneEvent = (TapdataEvent) dataEvent.clone();
@@ -354,7 +382,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	@NotNull
-	private Outbox getOutboxAndCheckNullable() {
+	protected Outbox getOutboxAndCheckNullable() {
 		Outbox outbox = getOutbox();
 		if (null == outbox) {
 			throw new TapCodeException(TaskProcessorExCode_11.OUTBOX_IS_NULL_WHEN_OFFER);
@@ -542,7 +570,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	@NotNull
-	private static TapCodeException wrapTapCodeException(Throwable throwable) {
+	protected static TapCodeException wrapTapCodeException(Throwable throwable) {
 		TapCodeException currentEx;
 		if (null == throwable) throw new IllegalArgumentException("Input exception cannot be null");
 		Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
