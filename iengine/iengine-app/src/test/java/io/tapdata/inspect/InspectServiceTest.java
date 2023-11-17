@@ -621,6 +621,22 @@ class InspectServiceTest {
             excepted.clear();
         }
         @Test
+        void testCheckFieldInspectWithNotScheduling() {
+            inspect.setStatus(null);
+            List<String> actual = inspectService.checkFieldInspect(inspect);
+            excepted.add("Inspect status must be scheduling");
+            Assertions.assertEquals(excepted,actual);
+            excepted.clear();
+        }
+        @Test
+        void testCheckFieldInspectWithTaskIsNull() {
+            inspect.setTasks(new ArrayList<>());
+            List<String> actual = inspectService.checkFieldInspect(inspect);
+            excepted.add("Inspect sub-task can not be empty.");
+            Assertions.assertEquals(excepted,actual);
+            excepted.clear();
+        }
+        @Test
         void testCheckFieldInspectWithDataSourceIsNull(){
             inspect.getTasks().get(0).setSource(null);
             excepted.add("Inspect.tasks[0].source.inspectDataSource can not be null.");
@@ -676,8 +692,7 @@ class InspectServiceTest {
         @Test
         void testInspectHeartBeatNormal() {
             String id = "1111";
-            inspectService = mock(InspectService.class);
-            doNothing().when(inspectService).inspectHeartBeat(id);
+            inspectService = spy(inspectService);
             inspectService.inspectHeartBeat(id);
             verify(inspectService).inspectHeartBeat(id);
         }
