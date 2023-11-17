@@ -2,10 +2,7 @@ package io.tapdata.inspect;
 
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Connections;
-import com.tapdata.entity.inspect.Inspect;
-import com.tapdata.entity.inspect.InspectDataSource;
-import com.tapdata.entity.inspect.InspectResult;
-import com.tapdata.entity.inspect.InspectStatus;
+import com.tapdata.entity.inspect.*;
 import com.tapdata.entity.inspect.InspectTask;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.common.SettingService;
@@ -15,15 +12,17 @@ import io.tapdata.inspect.compare.TableRowCountInspectJob;
 import io.tapdata.inspect.compare.TableRowScriptInspectJob;
 import org.junit.jupiter.api.*;
 import org.junit.runner.RunWith;
+import org.mockito.internal.verification.Times;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
 
 import static org.mockito.Mockito.*;
@@ -63,34 +62,35 @@ class InspectServiceTest {
     class UpdateStatusTest{
         @Test
         void testUpdateStatusNormal(){
-            inspectService = mock(InspectService.class);
+            inspectService = spy(inspectService);
             String id = "11111";
             InspectStatus status = InspectStatus.DONE;
             String msg = "test msg";
-            doNothing().when(inspectService).updateStatus(id,status,msg);
+            Map<String, Object> queryMap = new HashMap<>();
+            queryMap.put("id", id);
+            Map<String, Object> updateMap = new HashMap<>();
+            updateMap.put("status", status.getCode());
+            updateMap.put("errorMsg", msg);
             inspectService.updateStatus(id,status,msg);
-            verify(inspectService).updateStatus(id,status,msg);
+            verify(inspectService, new Times(1)).updateStatus(id,status,msg);
         }
     }
     @Nested
     class UpsertInspectResultTest{
         @Test
         void testUpsertInspectResultWithIdNotNull(){
-            inspectService = mock(InspectService.class);
-            InspectResult inspectResult = mock(InspectResult.class);
-            inspectResult.setInspect_id("1111");
+            inspectService = spy(inspectService);
+            InspectResult inspectResult = new InspectResult();
+            inspectResult.setId("1111");
             boolean excludeInspect = true;
-            doNothing().when(inspectService).upsertInspectResult(inspectResult,excludeInspect);
             inspectService.upsertInspectResult(inspectResult,excludeInspect);
             verify(inspectService).upsertInspectResult(inspectResult,excludeInspect);
         }
         @Test
         void testUpsertInspectResultWithIdIsNull(){
-            inspectService = mock(InspectService.class);
+            inspectService = spy(inspectService);
             InspectResult inspectResult = mock(InspectResult.class);
-            inspectResult.setInspect_id(null);
             boolean excludeInspect = true;
-            doNothing().when(inspectService).upsertInspectResult(inspectResult,excludeInspect);
             inspectService.upsertInspectResult(inspectResult,excludeInspect);
             verify(inspectService).upsertInspectResult(inspectResult,excludeInspect);
         }
@@ -204,11 +204,21 @@ class InspectServiceTest {
         }
     }
     @Nested
+    class InsertInspectDetailsTest{
+        @Test
+        void testInsertInspectDetailsNormal(){
+            inspectService = spy(inspectService);
+            List<InspectDetail> details = new ArrayList<>();
+            InspectDetail inspectDetail = mock(InspectDetail.class);
+            details.add(inspectDetail);
+            inspectService.insertInspectDetails(details);
+            verify(inspectService).insertInspectDetails(details);
+        }
+    }
+    @Nested
     class StartInspectTest{
         private final ConcurrentHashMap<String, io.tapdata.inspect.InspectTask> RUNNING_INSPECT
                 = new ConcurrentHashMap<String, io.tapdata.inspect.InspectTask>();
-        private final ThreadPoolExecutor executorService = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
-                60L, TimeUnit.SECONDS, new SynchronousQueue<>());
         private io.tapdata.inspect.InspectTask inspectTask;
         private Inspect inspect;
         @Test
@@ -239,41 +249,41 @@ class InspectServiceTest {
             inspect = new Inspect();
             inspect.setId("11111");
             inspect.setInspectMethod("field");
-            inspectService = spy(InspectService.getInstance(clientMongoOperator,settingService));
+            inspectService = spy(inspectService);
             inspectTask = mock(io.tapdata.inspect.InspectTask.class);
-            Future<?> submit = executorService.submit(inspectTask);
-            boolean done = false;
+            Future submit = mock(Future.class);
             doReturn(submit).when(inspectService).submitTask(inspectTask);
-            doNothing().when(inspectService).startInspect(inspect);
+            doReturn(inspectTask).when(inspectService).executeFieldInspect(inspect);
+            doReturn(new ArrayList()).when(inspectService).checkFieldInspect(inspect);
+            doCallRealMethod().when(inspectService).startInspect(inspect);
             inspectService.startInspect(inspect);
-            verify(inspectService).startInspect(inspect);
-            done = true;
-            Assertions.assertEquals(true,done);
+            verify(inspectService, new Times(1))
+                    .submitTask(any(io.tapdata.inspect.InspectTask.class));
         }
         @Test
-        void testStartInspectWithCountMethod() throws NoSuchFieldException, IllegalAccessException {
+        void testStartInspectWithCountMethod() {
             inspect = new Inspect();
             inspect.setId("11111");
             inspect.setInspectMethod("row_count");
-            inspectService = spy(InspectService.getInstance(clientMongoOperator,settingService));
+            inspectService = spy(inspectService);
             inspectTask = mock(io.tapdata.inspect.InspectTask.class);
-            Future<?> submit = executorService.submit(inspectTask);
-            boolean done = false;
+            Future submit = mock(Future.class);
             doReturn(submit).when(inspectService).submitTask(inspectTask);
-            doNothing().when(inspectService).startInspect(inspect);
+            doReturn(inspectTask).when(inspectService).executeRowCountInspect(inspect);
+            doReturn(new ArrayList()).when(inspectService).checkRowCountInspect(inspect);
             inspectService.startInspect(inspect);
-            verify(inspectService).startInspect(inspect);
-            done = true;
-            Assertions.assertEquals(true,done);
+            verify(inspectService, new Times(1))
+                    .submitTask(any(io.tapdata.inspect.InspectTask.class));
         }@Test
         void testStartInspectWithDefaultMethod(){
             inspect = new Inspect();
             inspect.setId("11111");
-            inspect.setInspectMethod("default");
-            inspectService = mock(InspectService.class);
+            inspect.setInspectMethod("junitTest");
+            inspectService = spy(inspectService);
             doNothing().when(inspectService).updateStatus(inspect.getId(), InspectStatus.ERROR, String.join(", ", "Unsupported comparison method"));
-            inspectService.updateStatus(inspect.getId(), InspectStatus.ERROR, String.join(", ", "Unsupported comparison method"));
-            verify(inspectService).updateStatus(inspect.getId(), InspectStatus.ERROR, String.join(", ", "Unsupported comparison method"));
+            inspectService.startInspect(inspect);
+            verify(inspectService, new Times(1))
+                    .updateStatus(inspect.getId(), InspectStatus.ERROR, String.join(", ", "Unsupported comparison method"));
         }
     }
     @Nested
@@ -298,8 +308,7 @@ class InspectServiceTest {
         @Test
         void testDoInspectStopNormal(){
             String inspectId = "11111";
-            inspectService = mock(InspectService.class);
-            doNothing().when(inspectService).doInspectStop(inspectId);
+            inspectService = spy(inspectService);
             inspectService.doInspectStop(inspectId);
             verify(inspectService).doInspectStop(inspectId);
         }
@@ -458,6 +467,24 @@ class InspectServiceTest {
             when(inspectService.executeFieldInspect(inspect)).thenReturn(inspectTask);
             io.tapdata.inspect.InspectTask actual = inspectService.executeFieldInspect(inspect);
             Assertions.assertEquals(inspectTask,actual);
+        }
+    }
+    @Nested
+    class SubmitTaskTest{
+        @Test
+        void testSubmitTaskNormal(){
+            inspectService = spy(inspectService);
+            ConcurrentHashMap map = mock(ConcurrentHashMap.class);
+            ReflectionTestUtils.setField(inspectService,"RUNNING_INSPECT",map);
+            io.tapdata.inspect.InspectTask inspectTask = mock(io.tapdata.inspect.InspectTask.class);
+            inspectService.submitTask(inspectTask);
+            verify(inspectService).submitTask(inspectTask);
+        }
+        @Test
+        void testSubmitTaskWithNullTask(){
+            io.tapdata.inspect.InspectTask inspectTask = null;
+            Future<?> actual = inspectService.submitTask(inspectTask);
+            Assertions.assertEquals(null,actual);
         }
     }
     @Nested
