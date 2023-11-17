@@ -1,8 +1,9 @@
 package io.tapdata.observable.metric.handler;
 
-import io.tapdata.util.TestUtil;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Field;
 
 public class TestConstants {
     @Test
@@ -95,7 +96,14 @@ public class TestConstants {
     }
 
     private void testItem(String fieldName, Object expected){
-        Object staticField = TestUtil.getStaticField(Constants.class, fieldName);
+        Object staticField = null;
+        try {
+            Field field = Constants.class.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            staticField = field.get(null);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
         Assert.assertNotNull(staticField);
         Assert.assertEquals(expected, staticField);
     }
