@@ -6,6 +6,8 @@ concurrency:
 on:
   pull_request:
     branches: [ "main", "develop", "release-v*.*" ]
+  schedule:
+    - cron: "30 22 * * *"
 
 jobs:
 
@@ -112,6 +114,7 @@ jobs:
           scanMetadataReportFile: tapdata/target/sonar/report-task.txt
 
   Build-And-Deploy:
+    if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     needs:
       - Get-Stable-Branch
@@ -161,6 +164,7 @@ jobs:
 
   MRCI:
     runs-on: aws-ubuntu-20
+    if: ${{ github.event_name == 'schedule' }}
     concurrency:
       group: staging_environment
     timeout-minutes: 60
@@ -208,8 +212,9 @@ jobs:
           echo "OK"
 
   CLOSE_ENV:
+    if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
-    if: ${{ always() }}
+#    if: ${{ always() }}
     needs:
       - MRCI
       - Get-Stable-Branch
