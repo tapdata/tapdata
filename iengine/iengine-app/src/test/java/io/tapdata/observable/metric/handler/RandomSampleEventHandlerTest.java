@@ -1,4 +1,4 @@
-package io.tapdata.io.tapdata.observable.metric.handler;
+package io.tapdata.observable.metric.handler;
 
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;

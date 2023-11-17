@@ -1,4 +1,4 @@
-package io.tapdata.io.tapdata.observable.metric.util;
+package io.tapdata.observable.metric.util;
 
 import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.event.TapEvent;

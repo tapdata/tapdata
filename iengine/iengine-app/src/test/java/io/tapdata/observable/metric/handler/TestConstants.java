@@ -1,4 +1,4 @@
-package io.tapdata.io.tapdata.observable.metric.handler;
+package io.tapdata.observable.metric.handler;
 
 import io.tapdata.observable.metric.handler.Constants;
 import io.tapdata.util.TestUtil;

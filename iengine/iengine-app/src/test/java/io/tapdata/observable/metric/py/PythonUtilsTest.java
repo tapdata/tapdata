@@ -1,4 +1,4 @@
-package io.tapdata.io.tapdata.observable.metric.py;
+package io.tapdata.observable.metric.py;
 
 import io.tapdata.entity.logger.TapLog;
 import io.tapdata.observable.metric.py.PythonUtils;

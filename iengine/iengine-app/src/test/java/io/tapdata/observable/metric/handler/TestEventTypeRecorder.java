@@ -1,4 +1,4 @@
-package io.tapdata.io.tapdata.observable.metric.handler;
+package io.tapdata.observable.metric.handler;
 
 import io.tapdata.observable.metric.handler.HandlerUtil;
 import org.junit.Assert;
