@@ -89,4 +89,11 @@ public interface TaskProcessorExCode_11 {
 			describeCN = "推演后的模型id是空"
 	)
 	String TRANSFORM_METADATA_ID_NULL = "11015";
+
+	@TapExCode
+	String START_JET_JOB_STATUS_MONITOR_FAILED = "11016";
+	@TapExCode(
+			describe = "Init base node failed, configuration center is null"
+	)
+	String INIT_CONFIGURATION_CENTER_CANNOT_BE_NULL = "11017";
 }
