@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class TestSyncGetMemorySizeHandler {
+public class SyncGetMemorySizeHandlerTest {
     TapEvent tapEvent;
     SyncGetMemorySizeHandler handler;
     AtomicLong atomicLong;

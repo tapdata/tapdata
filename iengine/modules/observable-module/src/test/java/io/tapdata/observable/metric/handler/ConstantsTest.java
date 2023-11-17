@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 
-public class TestConstants {
+public class ConstantsTest {
     @Test
     public void testInputINPUT_DDL_TOTAL(){
         testItem("INPUT_DDL_TOTAL", "inputDdlTotal");

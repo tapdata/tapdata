@@ -1,6 +1,7 @@
 package io.tapdata.observable.metric;
 
 import com.google.common.collect.HashBiMap;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -12,6 +13,7 @@ import io.tapdata.aspect.taskmilestones.CDCHeartbeatWriteAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotWriteTableCompleteAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
@@ -209,27 +211,8 @@ public class ObservableAspectTask extends AspectTask {
 				);
 				taskSampleHandler.handleBatchReadStart(table);
 				final SyncGetMemorySizeHandler syncGetMemorySizeHandler = prepareSyncGetMemorySizeHandler();
-				aspect.readCompleteConsumer(events -> { batchReadFuture.thenRun(() -> {
-					if (null == events || events.size() == 0) {
-						return;
-					}
-
-					int size = events.size();
-					HandlerUtil.EventTypeRecorder recorder = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
-					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler ->
-							handler.handleBatchReadReadComplete(System.currentTimeMillis(), recorder));
-					taskSampleHandler.handleBatchReadAccept(recorder);
-				});});
-				aspect.processCompleteConsumer(events -> {batchProcessFuture.thenRun(() -> {
-					if (null == events || events.isEmpty()) {
-						return;
-					}
-
-					HandlerUtil.EventTypeRecorder recorder = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapDataEvent(events);
-					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler ->
-							handler.handleBatchReadProcessComplete(System.currentTimeMillis(), recorder)
-					);
-				});});
+				aspect.readCompleteConsumer(e -> ObservableAspectTaskUtil.batchReadComplete(batchReadFuture, e, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers, taskSampleHandler));
+				aspect.processCompleteConsumer(e -> ObservableAspectTaskUtil.batchReadProcessComplete(batchProcessFuture, e, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers));
 				aspect.enqueuedConsumer(events ->
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 							handler -> handler.handleBatchReadEnqueued(System.currentTimeMillis())
@@ -258,33 +241,9 @@ public class ObservableAspectTask extends AspectTask {
 						handler -> handler.handleStreamReadStreamStart(tables, aspect.getStreamStartedTime())
 				);
 				final SyncGetMemorySizeHandler syncGetMemorySizeHandler = prepareSyncGetMemorySizeHandler();
-				aspect.streamingReadCompleteConsumers(events -> { streamReadFuture.thenRun(() -> {
-					if (null == events || events.size() == 0) {
-						return;
-					}
+				aspect.streamingReadCompleteConsumers(e -> ObservableAspectTaskUtil.streamReadComplete(streamReadFuture, e, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers, taskSampleHandler));
 
-					HandlerUtil.EventTypeRecorder recorder = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
-					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-							handler -> {
-								handler.handleStreamReadReadComplete(System.currentTimeMillis(), recorder);
-							}
-					);
-					taskSampleHandler.handleStreamReadAccept(recorder);
-				});});
-
-				aspect.streamingProcessCompleteConsumers(events -> { streamProcessFuture.thenRun(() -> {
-					if (null == events || events.size() == 0) {
-						return;
-					}
-
-					HandlerUtil.EventTypeRecorder recorder = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapDataEvent(events);
-
-					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-							handler -> {
-								handler.handleStreamReadProcessComplete(System.currentTimeMillis(), recorder);
-							}
-					);
-				});});
+				aspect.streamingProcessCompleteConsumers(e -> ObservableAspectTaskUtil.streamReadProcessComplete(streamProcessFuture, e, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers));
 				aspect.streamingEnqueuedConsumers(events -> {
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 							handler -> handler.handleStreamReadEnqueued(System.currentTimeMillis())

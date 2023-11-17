@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 
-public class TestTaskSampleHandler {
+public class TaskSampleHandlerTest {
 
     @Test
     public void testStaticFields() {

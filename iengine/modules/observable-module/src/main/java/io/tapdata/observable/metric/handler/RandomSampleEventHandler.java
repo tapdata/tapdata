@@ -15,7 +15,7 @@ import java.util.Map;
 public class RandomSampleEventHandler {
     public static final int MIN_SAMPLE_SIZE = 10;
     public static final int MAX_SAMPLE_SIZE = 100;
-    private final double sampleRate;
+    protected final double sampleRate;
     public RandomSampleEventHandler(double sampleRate) {
         if (sampleRate <= 0 || sampleRate > 1) sampleRate = 1;
         this.sampleRate = sampleRate;
