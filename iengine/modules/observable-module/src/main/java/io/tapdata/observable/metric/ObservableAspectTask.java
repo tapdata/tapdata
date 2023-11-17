@@ -74,10 +74,21 @@ public class ObservableAspectTask extends AspectTask {
 	public void onStart(TaskStartAspect startAspect) {
 		taskSampleHandler = new TaskSampleHandler(task);
 		taskSampleHandler.init();
+		initCompletableFuture();
+	}
+
+	protected void initCompletableFuture() {
 		batchReadFuture = CompletableFuture.runAsync(()->{});
 		batchProcessFuture = CompletableFuture.runAsync(()->{});
 		streamReadFuture = CompletableFuture.runAsync(()->{});
 		streamProcessFuture = CompletableFuture.runAsync(()->{});
+	}
+
+	protected void closeCompletableFuture() {
+		if (null != batchReadFuture && !batchReadFuture.isCancelled()) batchReadFuture.cancel(true);
+		if (null != batchProcessFuture && !batchProcessFuture.isCancelled()) batchProcessFuture.cancel(true);
+		if (null != streamReadFuture && !streamReadFuture.isCancelled()) streamReadFuture.cancel(true);
+		if (null != streamProcessFuture && !streamProcessFuture.isCancelled()) streamProcessFuture.cancel(true);
 	}
 
 	/**
@@ -99,10 +110,7 @@ public class ObservableAspectTask extends AspectTask {
 		}
 
 		taskSampleHandler.close();
-		if (null != batchReadFuture && !batchReadFuture.isCancelled()) batchReadFuture.cancel(true);
-		if (null != batchProcessFuture && !batchProcessFuture.isCancelled()) batchProcessFuture.cancel(true);
-		if (null != streamReadFuture && !streamReadFuture.isCancelled()) streamReadFuture.cancel(true);
-		if (null != streamProcessFuture && !streamProcessFuture.isCancelled()) streamProcessFuture.cancel(true);
+		closeCompletableFuture();
 	}
 
 	// data node related
@@ -200,8 +208,7 @@ public class ObservableAspectTask extends AspectTask {
 						dataNodeSampleHandler -> dataNodeSampleHandler.addTable(table)
 				);
 				taskSampleHandler.handleBatchReadStart(table);
-				final AtomicLong sizeMemory = new AtomicLong(-1);
-				final SyncGetMemorySizeHandler syncGetMemorySizeHandler = new SyncGetMemorySizeHandler(sizeMemory);
+				final SyncGetMemorySizeHandler syncGetMemorySizeHandler = prepareSyncGetMemorySizeHandler();
 				aspect.readCompleteConsumer(events -> { batchReadFuture.thenRun(() -> {
 					if (null == events || events.size() == 0) {
 						return;
@@ -250,8 +257,7 @@ public class ObservableAspectTask extends AspectTask {
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 						handler -> handler.handleStreamReadStreamStart(tables, aspect.getStreamStartedTime())
 				);
-				final AtomicLong sizeMemory = new AtomicLong(-1);
-				final SyncGetMemorySizeHandler syncGetMemorySizeHandler = new SyncGetMemorySizeHandler(sizeMemory);
+				final SyncGetMemorySizeHandler syncGetMemorySizeHandler = prepareSyncGetMemorySizeHandler();
 				aspect.streamingReadCompleteConsumers(events -> { streamReadFuture.thenRun(() -> {
 					if (null == events || events.size() == 0) {
 						return;
@@ -572,5 +578,9 @@ public class ObservableAspectTask extends AspectTask {
 	@Override
 	public AspectInterceptResult onInterceptAspect(Aspect aspect) {
 		return null;
+	}
+
+	protected SyncGetMemorySizeHandler prepareSyncGetMemorySizeHandler() {
+		return new SyncGetMemorySizeHandler(new AtomicLong(-1));
 	}
 }
