@@ -1,6 +1,5 @@
 package io.tapdata.observable.metric.handler;
 
-import io.tapdata.observable.metric.handler.HandlerUtil;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

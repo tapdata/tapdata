@@ -1,7 +1,6 @@
 package io.tapdata.observable.metric.py;
 
 import io.tapdata.entity.logger.TapLog;
-import io.tapdata.observable.metric.py.PythonUtils;
 import org.junit.Assert;
 import org.junit.Test;
 

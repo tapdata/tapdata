@@ -2,8 +2,6 @@ package io.tapdata.observable.metric.handler;
 
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.observable.metric.handler.HandlerUtil;
-import io.tapdata.observable.metric.handler.RandomSampleEventHandler;
 import io.tapdata.util.TestUtil;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.Assert;

@@ -1,4 +1,4 @@
-//package io.tapdata.io.tapdata.observable.metric.handler;
+//package io.tapdata.observable.metric.handler;
 //
 //import com.tapdata.tm.commons.task.dto.metric.TaskDtoEntity;
 //import io.tapdata.common.sample.SampleCollector;

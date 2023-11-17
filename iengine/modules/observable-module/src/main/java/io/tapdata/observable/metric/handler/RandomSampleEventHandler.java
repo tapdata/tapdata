@@ -54,7 +54,7 @@ public class RandomSampleEventHandler {
         return RamUsageEstimator.sizeOfMap(map) + sizeOfSampleListByte;
     }
 
-    private List<Object> randomSampleList(List<?> events, Double sampleRate) {
+    protected List<Object> randomSampleList(List<?> events, Double sampleRate) {
         List<Object> randomSampleList = new ArrayList<>();
         if (CollectionUtils.isEmpty(events)) {
             return randomSampleList;
