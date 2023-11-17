@@ -1,10 +1,13 @@
 name: Merge Request CI
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
 on:
-  push:
-    branches: [ "main", "develop", "release-v*.*" ]
   pull_request:
     branches: [ "main", "develop", "release-v*.*" ]
+  schedule:
+    - cron: "30 22 * * *"
 
 jobs:
 
@@ -65,7 +68,7 @@ jobs:
           echo "::set-output name=TAG_NAME::${TAG_NAME}"
 
   Scan-Tapdata:
-    runs-on: aws-ubuntu-20
+    runs-on: aws-scan
     needs: Get-Stable-Branch
     timeout-minutes: 30
     steps:
@@ -111,6 +114,7 @@ jobs:
           scanMetadataReportFile: tapdata/target/sonar/report-task.txt
 
   Build-And-Deploy:
+    if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     needs:
       - Get-Stable-Branch
@@ -160,6 +164,9 @@ jobs:
 
   MRCI:
     runs-on: aws-ubuntu-20
+    if: ${{ github.event_name == 'schedule' }}
+    concurrency:
+      group: staging_environment
     timeout-minutes: 60
     needs:
       - Build-And-Deploy
@@ -205,8 +212,9 @@ jobs:
           echo "OK"
 
   CLOSE_ENV:
+    if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
-    if: ${{ always() }}
+#    if: ${{ always() }}
     needs:
       - MRCI
       - Get-Stable-Branch
