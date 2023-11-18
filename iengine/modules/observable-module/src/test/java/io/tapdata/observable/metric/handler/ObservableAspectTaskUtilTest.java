@@ -1,9 +1,11 @@
 package io.tapdata.observable.metric.handler;
 
 import com.tapdata.entity.TapdataEvent;
+import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.observable.metric.util.SyncGetMemorySizeHandler;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -16,7 +18,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class ObservableAspectTaskUtilTest {
     CompletableFuture<Void> future;
@@ -27,6 +34,8 @@ public class ObservableAspectTaskUtilTest {
     TaskSampleHandler taskSampleHandler;
     List<TapdataEvent> es;
     DataNodeSampleHandler dataNodeSampleHandler;
+    long mockTimestamp = 1000L;
+    HandlerUtil.EventTypeRecorder event;
 
     @BeforeEach
     void init() {
@@ -44,9 +53,11 @@ public class ObservableAspectTaskUtilTest {
         void init() {
             events = new ArrayList<>();
             taskSampleHandler = mock(TaskSampleHandler.class);
+            doCallRealMethod().when(taskSampleHandler).handleStreamReadAccept(any(HandlerUtil.EventTypeRecorder.class));
+            doCallRealMethod().when(dataNodeSampleHandler).handleStreamReadReadComplete(anyLong(), any(HandlerUtil.EventTypeRecorder.class));
         }
         @Test
-        void testStreamReadCompleteNormal() {
+        void testStreamReadCompleteNormal() throws InterruptedException {
             TapUpdateRecordEvent tapEvent = new  TapUpdateRecordEvent();
             HashMap<String, Object> after = new HashMap<>();
             after.put("id", "ddd");
@@ -55,15 +66,39 @@ public class ObservableAspectTaskUtilTest {
             before.put("id", "ddd");
             tapEvent.before(before);
             events.add(tapEvent);
-            ObservableAspectTaskUtil.streamReadComplete(future, events, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers, taskSampleHandler);
+            event = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            ObservableAspectTaskUtil.streamReadComplete(future,
+                    events,
+                    event,
+                    nodeId,
+                    dataNodeSampleHandlers,
+                    taskSampleHandler,mockTimestamp);
+            verify(dataNodeSampleHandler, times(1)).handleStreamReadReadComplete(mockTimestamp, event);
+            verify(taskSampleHandler, times(1)).handleStreamReadAccept(event);
         }
         @Test
-        void testStreamReadCompleteEmptyEvent() {
-            ObservableAspectTaskUtil.streamReadComplete(future, events, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers, taskSampleHandler);
+        void testStreamReadCompleteEmptyEvent() throws InterruptedException {
+            event = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            ObservableAspectTaskUtil.streamReadComplete(future,
+                    events,
+                    event,
+                    nodeId,
+                    dataNodeSampleHandlers,
+                    taskSampleHandler,mockTimestamp);
+            verify(dataNodeSampleHandler, times(0)).handleStreamReadReadComplete(mockTimestamp, event);
+            verify(taskSampleHandler, times(0)).handleStreamReadAccept(event);
         }
         @Test
-        void testStreamReadCompleteNullEvent() {
-            ObservableAspectTaskUtil.streamReadComplete(future, null, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers, taskSampleHandler);
+        void testStreamReadCompleteNullEvent() throws InterruptedException {
+            event = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            ObservableAspectTaskUtil.streamReadComplete(future,
+                    null,
+                    event,
+                    nodeId,
+                    dataNodeSampleHandlers,
+                    taskSampleHandler,mockTimestamp);
+            verify(dataNodeSampleHandler, times(0)).handleStreamReadReadComplete(mockTimestamp, event);
+            verify(taskSampleHandler, times(0)).handleStreamReadAccept(event);
         }
     }
 
@@ -72,9 +107,11 @@ public class ObservableAspectTaskUtilTest {
         @BeforeEach
         void init() {
             es = new ArrayList<>();
+            taskSampleHandler = mock(TaskSampleHandler.class);
+            doCallRealMethod().when(dataNodeSampleHandler).handleStreamReadProcessComplete(anyLong(), any(HandlerUtil.EventTypeRecorder.class));
         }
         @Test
-        void testStreamReadProcessCompleteNormal() {
+        void testStreamReadProcessCompleteNormal() throws InterruptedException {
             TapdataEvent e = new TapdataEvent();
             TapUpdateRecordEvent tapEvent = new  TapUpdateRecordEvent();
             HashMap<String, Object> after = new HashMap<>();
@@ -85,15 +122,33 @@ public class ObservableAspectTaskUtilTest {
             tapEvent.before(before);
             e.setTapEvent(tapEvent);
             es.add(e);
-            ObservableAspectTaskUtil.streamReadProcessComplete(future, es, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers);
+            event = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            ObservableAspectTaskUtil.streamReadProcessComplete(future,
+                    es,
+                    event,
+                    nodeId,
+                    dataNodeSampleHandlers,mockTimestamp);
+            verify(dataNodeSampleHandler, times(1)).handleStreamReadProcessComplete(mockTimestamp, event);
         }
         @Test
-        void testStreamReadProcessCompleteEmptyEvent() {
-            ObservableAspectTaskUtil.streamReadProcessComplete(future, es, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers);
+        void testStreamReadProcessCompleteEmptyEvent() throws InterruptedException {
+            event = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            ObservableAspectTaskUtil.streamReadProcessComplete(future,
+                    es,
+                    event,
+                    nodeId,
+                    dataNodeSampleHandlers,mockTimestamp);
+            verify(dataNodeSampleHandler, times(0)).handleStreamReadProcessComplete(mockTimestamp, event);
         }
         @Test
-        void testStreamReadProcessCompleteNullEvent() {
-            ObservableAspectTaskUtil.streamReadProcessComplete(future, null, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers);
+        void testStreamReadProcessCompleteNullEvent() throws InterruptedException {
+            event = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            ObservableAspectTaskUtil.streamReadProcessComplete(future,
+                    null,
+                    event,
+                    nodeId,
+                    dataNodeSampleHandlers,mockTimestamp);
+            verify(dataNodeSampleHandler, times(0)).handleStreamReadProcessComplete(mockTimestamp, event);
         }
     }
 
@@ -103,9 +158,11 @@ public class ObservableAspectTaskUtilTest {
         void init() {
             events = new ArrayList<>();
             taskSampleHandler = mock(TaskSampleHandler.class);
+            doCallRealMethod().when(taskSampleHandler).handleBatchReadAccept(any(HandlerUtil.EventTypeRecorder.class));
+            doCallRealMethod().when(dataNodeSampleHandler).handleBatchReadReadComplete(anyLong(), any(HandlerUtil.EventTypeRecorder.class));
         }
         @Test
-        void testBatchReadCompleteNormal() {
+        void testBatchReadCompleteNormal() throws InterruptedException {
             TapUpdateRecordEvent tapEvent = new  TapUpdateRecordEvent();
             HashMap<String, Object> after = new HashMap<>();
             after.put("id", "ddd");
@@ -114,15 +171,39 @@ public class ObservableAspectTaskUtilTest {
             before.put("id", "ddd");
             tapEvent.before(before);
             events.add(tapEvent);
-            ObservableAspectTaskUtil.batchReadComplete(future, events, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers, taskSampleHandler);
+            event = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            ObservableAspectTaskUtil.batchReadComplete(future,
+                    events,
+                    event,
+                    nodeId,
+                    dataNodeSampleHandlers,
+                    taskSampleHandler,mockTimestamp);
+            verify(dataNodeSampleHandler, times(1)).handleBatchReadReadComplete(mockTimestamp, event);
+            verify(taskSampleHandler, times(0)).handleBatchReadAccept(event);
         }
         @Test
-        void testBatchReadCompleteEmptyEvent() {
-            ObservableAspectTaskUtil.batchReadComplete(future, events, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers, taskSampleHandler);
+        void testBatchReadCompleteEmptyEvent() throws InterruptedException {
+            event = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            ObservableAspectTaskUtil.batchReadComplete(future,
+                    events,
+                    event,
+                    nodeId,
+                    dataNodeSampleHandlers,
+                    taskSampleHandler,mockTimestamp);
+            verify(dataNodeSampleHandler, times(0)).handleBatchReadReadComplete(mockTimestamp, event);
+            verify(taskSampleHandler, times(0)).handleStreamReadAccept(event);
         }
         @Test
-        void testBatchReadCompleteNullEvent() {
-            ObservableAspectTaskUtil.batchReadComplete(future, null, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers, taskSampleHandler);
+        void testBatchReadCompleteNullEvent() throws InterruptedException {
+            event = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            ObservableAspectTaskUtil.batchReadComplete(future,
+                    null,
+                    event,
+                    nodeId,
+                    dataNodeSampleHandlers,
+                    taskSampleHandler,mockTimestamp);
+            verify(dataNodeSampleHandler, times(0)).handleBatchReadReadComplete(mockTimestamp, event);
+            verify(taskSampleHandler, times(0)).handleStreamReadAccept(event);
         }
     }
 
@@ -131,10 +212,12 @@ public class ObservableAspectTaskUtilTest {
         @BeforeEach
         void init() {
             es = new ArrayList<>();
+            taskSampleHandler = mock(TaskSampleHandler.class);
+            doCallRealMethod().when(dataNodeSampleHandler).handleBatchReadProcessComplete(anyLong(), any(HandlerUtil.EventTypeRecorder.class));
         }
 
         @Test
-        void testBatchReadProcessCompleteNormal(){
+        void testBatchReadProcessCompleteNormal() throws InterruptedException {
             TapdataEvent e = new TapdataEvent();
             TapUpdateRecordEvent tapEvent = new  TapUpdateRecordEvent();
             HashMap<String, Object> after = new HashMap<>();
@@ -145,15 +228,33 @@ public class ObservableAspectTaskUtilTest {
             tapEvent.before(before);
             e.setTapEvent(tapEvent);
             es.add(e);
-            ObservableAspectTaskUtil.batchReadProcessComplete(future, es, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers);
+            event = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            ObservableAspectTaskUtil.batchReadProcessComplete(future,
+                    es,
+                    event,
+                    nodeId,
+                    dataNodeSampleHandlers,mockTimestamp);
+            verify(dataNodeSampleHandler, times(1)).handleBatchReadProcessComplete(mockTimestamp, event);
         }
         @Test
-        void testBatchReadProcessCompleteEmptyEvent(){
-            ObservableAspectTaskUtil.batchReadProcessComplete(future, es, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers);
+        void testBatchReadProcessCompleteEmptyEvent() throws InterruptedException {
+            event = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            ObservableAspectTaskUtil.batchReadProcessComplete(future,
+                    es,
+                    event,
+                    nodeId,
+                    dataNodeSampleHandlers,mockTimestamp);
+            verify(dataNodeSampleHandler, times(0)).handleBatchReadProcessComplete(mockTimestamp, event);
         }
         @Test
-        void testBatchReadProcessCompleteNullEvent(){
-            ObservableAspectTaskUtil.batchReadProcessComplete(future, null, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers);
+        void testBatchReadProcessCompleteNullEvent() throws InterruptedException {
+            event = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            ObservableAspectTaskUtil.batchReadProcessComplete(future,
+                    null,
+                    event,
+                    nodeId,
+                    dataNodeSampleHandlers,mockTimestamp);
+            verify(dataNodeSampleHandler, times(0)).handleBatchReadProcessComplete(mockTimestamp, event);
         }
     }
 }

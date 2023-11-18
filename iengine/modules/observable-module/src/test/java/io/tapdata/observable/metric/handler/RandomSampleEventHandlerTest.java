@@ -7,9 +7,7 @@ import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.platform.commons.util.ReflectionUtils;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -99,8 +97,7 @@ public class RandomSampleEventHandlerTest {
         private void testRandomSampleCase(int arrayCount, double range, int expected) {
             RandomSampleEventHandler handler = new RandomSampleEventHandler(range);
             List<Integer> array = arrayCount < 0 ? null : (List<Integer>) simpleList(arrayCount, RandomSampleEventHandlerTest::simpleInteger);
-            Method method = ReflectionUtils.getRequiredMethod(handler.getClass(), "randomSampleList", List.class, Double.class);
-            Object randomSampleList = ReflectionUtils.invokeMethod(method, handler, array, range);
+            Object randomSampleList = handler.randomSampleList(array, range);
             Assert.assertNotNull(randomSampleList);
             Assert.assertEquals(ArrayList.class, randomSampleList.getClass());
             Assert.assertEquals(expected, ((Collection<?>)randomSampleList).size());
@@ -145,10 +142,7 @@ public class RandomSampleEventHandlerTest {
         private void testSizeOfDataMap(int mapLength, long initSize, long expectedStart) {
             RandomSampleEventHandler handler = new RandomSampleEventHandler(1);
             Map<String, Object> map = simpleMap(mapLength, new Object());
-            Method method = ReflectionUtils.getRequiredMethod(handler.getClass(), "sizeOfDataMap", Map.class, long.class);
-            Object sizeOfMap = ReflectionUtils.invokeMethod(method, handler, map, initSize);
-            Assert.assertNotNull(sizeOfMap);
-            Assert.assertEquals(Long.class, sizeOfMap.getClass());
+            long sizeOfMap = handler.sizeOfDataMap(map, initSize);
             Assert.assertTrue(((Number)sizeOfMap).longValue() > expectedStart);
         }
     }
@@ -186,10 +180,7 @@ public class RandomSampleEventHandlerTest {
         private long sizeOfTapEvent(int mapLength) {
             RandomSampleEventHandler handler = new RandomSampleEventHandler(1);
             TapEvent map = mapLength < 0 ? null : simpleTapEvent(mapLength);
-            Method method = ReflectionUtils.getRequiredMethod(handler.getClass(), "sizeOfTapEvent", TapEvent.class);
-            Object sizeOfMap = ReflectionUtils.invokeMethod(method, handler, map);
-            Assert.assertNotNull(sizeOfMap);
-            Assert.assertTrue(sizeOfMap instanceof Number);
+            long sizeOfMap = handler.sizeOfTapEvent(map);
             return ((Number)sizeOfMap).longValue();
         }
     }

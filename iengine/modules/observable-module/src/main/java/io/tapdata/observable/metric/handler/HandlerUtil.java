@@ -26,8 +26,8 @@ public class HandlerUtil {
     private HandlerUtil() {
 
     }
-    private static final RandomSampleEventHandler randomSampleEventHandler = new RandomSampleEventHandler(1);
-    private static final RandomSampleEventHandler.HandleEvent covertTapDataEvent = data -> {
+    protected static final RandomSampleEventHandler randomSampleEventHandler = new RandomSampleEventHandler(1);
+    protected static final RandomSampleEventHandler.HandleEvent covertTapDataEvent = data -> {
         if (data instanceof TapdataEvent) {
             TapdataEvent tapdataEvent = (TapdataEvent) data;
             return tapdataEvent.getTapEvent();
@@ -72,7 +72,7 @@ public class HandlerUtil {
         return recorder;
     }
 
-    private static Long countEventTypeAndGetReferenceTime(TapEvent event, EventTypeRecorder recorder) {
+    protected static Long countEventTypeAndGetReferenceTime(TapEvent event, EventTypeRecorder recorder) {
         Long ts;
         if (event instanceof HeartbeatEvent) {
             ts = ((HeartbeatEvent) event).getReferenceTime();
@@ -112,7 +112,7 @@ public class HandlerUtil {
         return ts;
     }
 
-    private static void setEventTimestamp(EventTypeRecorder recorder, Long ts) {
+    protected static void setEventTimestamp(EventTypeRecorder recorder, Long ts) {
         if (null != ts) {
             if (null == recorder.getNewestEventTimestamp() || ts > recorder.getNewestEventTimestamp()) {
                 recorder.setNewestEventTimestamp(ts);

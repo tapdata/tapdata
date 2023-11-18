@@ -39,14 +39,14 @@ public class RandomSampleEventHandler {
         unitConversion(recorder, sizeOfSampleListByte);
     }
 
-    private long sizeOfTapEvent(TapEvent tapEvent) {
+    protected long sizeOfTapEvent(TapEvent tapEvent) {
         if (!(tapEvent instanceof TapRecordEvent)) {
             return 0;
         }
         return sizeOfDataMap(TapEventUtil.getAfter(tapEvent), sizeOfDataMap(TapEventUtil.getBefore(tapEvent), 0));
     }
 
-    private long sizeOfDataMap(Map<?, ?> map, long sizeOfSampleListByte) {
+    protected long sizeOfDataMap(Map<?, ?> map, long sizeOfSampleListByte) {
         if (sizeOfSampleListByte < 0) sizeOfSampleListByte = 0;
         if (MapUtils.isEmpty(map)) {
             return sizeOfSampleListByte;
@@ -76,7 +76,7 @@ public class RandomSampleEventHandler {
         return randomSampleList;
     }
 
-    private void unitConversion(HandlerUtil.EventTypeRecorder recorder, long sizeOfSampleListByte) {
+    protected void unitConversion(HandlerUtil.EventTypeRecorder recorder, long sizeOfSampleListByte) {
         recorder.setMemorySize(sizeOfSampleListByte);
         recorder.setMemoryUtil("B");
     }

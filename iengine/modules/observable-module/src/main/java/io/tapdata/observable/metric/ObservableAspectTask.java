@@ -69,6 +69,7 @@ public class ObservableAspectTask extends AspectTask {
 	CompletableFuture<Void> batchProcessFuture;
 	CompletableFuture<Void> streamReadFuture;
 	CompletableFuture<Void> streamProcessFuture;
+	CompletableFuture<Void> writeRecordFuture;
 	/**
 	 * The task started
 	 */
@@ -84,13 +85,15 @@ public class ObservableAspectTask extends AspectTask {
 		batchProcessFuture = CompletableFuture.runAsync(()->{});
 		streamReadFuture = CompletableFuture.runAsync(()->{});
 		streamProcessFuture = CompletableFuture.runAsync(()->{});
+		writeRecordFuture = CompletableFuture.runAsync(()->{});
 	}
 
 	protected void closeCompletableFuture() {
-		if (null != batchReadFuture && !batchReadFuture.isCancelled()) batchReadFuture.cancel(true);
-		if (null != batchProcessFuture && !batchProcessFuture.isCancelled()) batchProcessFuture.cancel(true);
-		if (null != streamReadFuture && !streamReadFuture.isCancelled()) streamReadFuture.cancel(true);
-		if (null != streamProcessFuture && !streamProcessFuture.isCancelled()) streamProcessFuture.cancel(true);
+		if (null != batchReadFuture) batchReadFuture.cancel(true);
+		if (null != batchProcessFuture) batchProcessFuture.cancel(true);
+		if (null != streamReadFuture) streamReadFuture.cancel(true);
+		if (null != streamProcessFuture) streamProcessFuture.cancel(true);
+		if (null != writeRecordFuture) writeRecordFuture.cancel(true);
 	}
 
 	/**
@@ -211,8 +214,8 @@ public class ObservableAspectTask extends AspectTask {
 				);
 				taskSampleHandler.handleBatchReadStart(table);
 				final SyncGetMemorySizeHandler syncGetMemorySizeHandler = prepareSyncGetMemorySizeHandler();
-				aspect.readCompleteConsumer(e -> ObservableAspectTaskUtil.batchReadComplete(batchReadFuture, e, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers, taskSampleHandler));
-				aspect.processCompleteConsumer(e -> ObservableAspectTaskUtil.batchReadProcessComplete(batchProcessFuture, e, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers));
+				aspect.readCompleteConsumer(e -> ObservableAspectTaskUtil.batchReadComplete(batchReadFuture, e, syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(e), nodeId, dataNodeSampleHandlers, taskSampleHandler, System.currentTimeMillis()));
+				aspect.processCompleteConsumer(e -> ObservableAspectTaskUtil.batchReadProcessComplete(batchProcessFuture, e, syncGetMemorySizeHandler.getEventTypeRecorderSyncTapDataEvent(e), nodeId, dataNodeSampleHandlers, System.currentTimeMillis()));
 				aspect.enqueuedConsumer(events ->
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 							handler -> handler.handleBatchReadEnqueued(System.currentTimeMillis())
@@ -241,9 +244,9 @@ public class ObservableAspectTask extends AspectTask {
 						handler -> handler.handleStreamReadStreamStart(tables, aspect.getStreamStartedTime())
 				);
 				final SyncGetMemorySizeHandler syncGetMemorySizeHandler = prepareSyncGetMemorySizeHandler();
-				aspect.streamingReadCompleteConsumers(e -> ObservableAspectTaskUtil.streamReadComplete(streamReadFuture, e, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers, taskSampleHandler));
+				aspect.streamingReadCompleteConsumers(e -> ObservableAspectTaskUtil.streamReadComplete(streamReadFuture, e, syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(e), nodeId, dataNodeSampleHandlers, taskSampleHandler, System.currentTimeMillis()));
 
-				aspect.streamingProcessCompleteConsumers(e -> ObservableAspectTaskUtil.streamReadProcessComplete(streamProcessFuture, e, syncGetMemorySizeHandler, nodeId, dataNodeSampleHandlers));
+				aspect.streamingProcessCompleteConsumers(e -> ObservableAspectTaskUtil.streamReadProcessComplete(streamProcessFuture, e, syncGetMemorySizeHandler.getEventTypeRecorderSyncTapDataEvent(e), nodeId, dataNodeSampleHandlers, System.currentTimeMillis()));
 				aspect.streamingEnqueuedConsumers(events -> {
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 							handler -> handler.handleStreamReadEnqueued(System.currentTimeMillis())
@@ -417,6 +420,7 @@ public class ObservableAspectTask extends AspectTask {
 						}
 				);
 				aspect.consumer((events, result) -> {
+					writeRecordFuture.thenRunAsync(() -> {
 					if (null == events || events.size() == 0) {
 						return;
 					}
@@ -446,6 +450,7 @@ public class ObservableAspectTask extends AspectTask {
 							.ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
 
 					pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, inner.getProcessTimeTotal() / inner.getTotal(), inner.getNewestEventTimestamp());
+					});
 				});
 				break;
 			case WriteRecordFuncAspect.STATE_END:

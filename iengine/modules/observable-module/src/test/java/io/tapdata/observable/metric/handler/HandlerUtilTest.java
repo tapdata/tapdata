@@ -20,15 +20,12 @@ import io.tapdata.entity.event.ddl.table.TapRenameTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.platform.commons.util.ReflectionUtils;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -416,8 +413,7 @@ class HandlerUtilTest {
     }
 
     private void executeCountEventTypeAndGetReferenceTime(TapEvent event, HandlerUtil.EventTypeRecorder recorder, Long expected) {
-        Method method = ReflectionUtils.getRequiredMethod(HandlerUtil.class, "countEventTypeAndGetReferenceTime", TapEvent.class, HandlerUtil.EventTypeRecorder.class);
-        Object value = ReflectionUtils.invokeMethod(method, null, event, recorder);
+        Long value = HandlerUtil.countEventTypeAndGetReferenceTime(event, recorder);
         Assertions.assertNotNull(value);
         Assertions.assertEquals(expected, value);
     }
@@ -488,8 +484,7 @@ class HandlerUtilTest {
         }
 
         private void invokerSetEventTimestamp(HandlerUtil.EventTypeRecorder recorder, Long ts){
-            Method method = ReflectionUtils.getRequiredMethod(HandlerUtil.class, "setEventTimestamp", HandlerUtil.EventTypeRecorder.class, Long.class);
-            ReflectionUtils.invokeMethod(method, null, recorder, ts);
+            HandlerUtil.setEventTimestamp(recorder, ts);
         }
     }
 
