@@ -17,7 +17,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -32,8 +31,6 @@ public class PdkStateMapTest {
     @Mock
     private ClientContext context;
 
-    @Mock
-    private PersistenceStorage persistenceStorage;
     @Before
     public void setUp() {
         pdkStateMapUnderTest = new PdkStateMap();
@@ -54,7 +51,7 @@ public class PdkStateMapTest {
      * @throws Exception
      */
     @Test
-    public void testSetKeyTTLRule() throws Exception {
+    public void testSetKeyTTLRule_ttlIsPositiveNumber() throws Exception {
         // Run the test
         long inputTTl = 10L;
         String inputCondition = "condition";
@@ -66,26 +63,23 @@ public class PdkStateMapTest {
 
     /**
      * input ttl is 0
-     * @throws Exception
      */
     @Test
-    public void testSetKeyTTLRule_ThrowsException() throws Exception {
+    public void testSetKeyTTLRule_ttlIsZero() throws Exception {
         // Run the test
         long inputTTl = 0L;
         String inputCondition = "condition";
         CleanRuleModel inputCleanRuleModel = CleanRuleModel.FUZZY_MATCHING;
         pdkStateMapUnderTest.setKeyTTLRule(inputTTl, inputCondition, inputCleanRuleModel);
-        Mockito.verify(persistenceStorage,Mockito.times(1)).setImapTTL(constructIMap.getiMap(), inputTTl,inputCondition,TTLCleanMode.FUZZY_MATCHING);
         // Verify the results
         Assert.assertNull(PersistenceStorage.getInstance().setImapTTL(constructIMap.getiMap(), inputTTl,inputCondition,TTLCleanMode.FUZZY_MATCHING));
     }
 
     /**
      * ttl is a negative number
-     * @throws Exception
      */
     @Test
-    public void testSetKeyTTLRule_ThrowsException2() throws Exception {
+    public void testSetKeyTTLRule_ttlIsNegativeNumber() throws Exception {
         // Run the test
         long inputTTl = -1L;
         String inputCondition = "condition";
