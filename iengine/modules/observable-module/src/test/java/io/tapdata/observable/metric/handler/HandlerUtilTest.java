@@ -2,6 +2,7 @@ package io.tapdata.observable.metric.handler;
 
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
+import com.tapdata.entity.TapdataShareLogEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -83,6 +84,23 @@ class HandlerUtilTest {
             Assertions.assertEquals(0, recorder.getTotal());
             Assertions.assertTrue(recorder.getReplicateLagTotal() > 4);
             Assertions.assertTrue(recorder.getReplicateLagTotal() > (System.currentTimeMillis() - time - 1 ));
+        }
+        /**测试countTapDataEvent方法，非TapdataHeartbeatEvent, 预期结果*/
+        @Test
+        void testCountTapDataEventOfNotTapDataHeartbeatEvent() {
+            List<TapdataEvent> events = new ArrayList<>();
+            TapdataShareLogEvent event = new TapdataShareLogEvent();
+            Long time = System.currentTimeMillis() - 5;
+            event.setSourceTime(time);
+            events.add(event);
+            HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapdataEvent(events);
+            Assertions.assertNotNull(recorder);
+            Assertions.assertEquals(0, recorder.getMemorySize());
+            Assertions.assertEquals(0, recorder.getUpdateTotal());
+            Assertions.assertEquals(0, recorder.getInsertTotal());
+            Assertions.assertEquals(0, recorder.getDdlTotal());
+            Assertions.assertEquals(0, recorder.getTotal());
+            Assertions.assertNull(recorder.getReplicateLagTotal());
         }
     }
 
@@ -227,6 +245,11 @@ class HandlerUtilTest {
             long size = recorder.getMemorySize();
             HandlerUtil.sampleMemoryTapEvent(recorder, events, size);
             Assertions.assertEquals(size, recorder.getMemorySize());
+        }
+        /**测试sampleMemoryTapEvent属性， 预期：Record = null时不报错*/
+        @Test
+        public void testSampleMemoryTapEventWithNullRecord() {
+            HandlerUtil.sampleMemoryTapEvent(null, null, 0L);
         }
     }
 
@@ -483,6 +506,29 @@ class HandlerUtilTest {
             Assertions.assertEquals(timestamp, recorder.getNewestEventTimestamp());
         }
 
+
+        /**测试 setEventTimestamp 方法, 边界：recorder中包含NewestEventTimestamp时间为null*/
+        @Test
+        public void testSetEventTimestamp5() {
+            Long timestamp = System.currentTimeMillis();
+            HandlerUtil.EventTypeRecorder recorder = new HandlerUtil.EventTypeRecorder();
+            recorder.setNewestEventTimestamp(null);
+            recorder.setOldestEventTimestamp(timestamp + 1);
+            invokerSetEventTimestamp(recorder, timestamp);
+            Assertions.assertEquals(timestamp, recorder.getNewestEventTimestamp());
+        }
+
+        /**测试 setEventTimestamp 方法, 边界：recorder中包含NewestEventTimestamp时间为null*/
+        @Test
+        public void testSetEventTimestamp6() {
+            Long timestamp = System.currentTimeMillis();
+            HandlerUtil.EventTypeRecorder recorder = new HandlerUtil.EventTypeRecorder();
+            recorder.setNewestEventTimestamp(timestamp);
+            recorder.setOldestEventTimestamp(timestamp + 1);
+            invokerSetEventTimestamp(recorder, timestamp);
+            Assertions.assertEquals(timestamp, recorder.getNewestEventTimestamp());
+        }
+
         private void invokerSetEventTimestamp(HandlerUtil.EventTypeRecorder recorder, Long ts){
             HandlerUtil.setEventTimestamp(recorder, ts);
         }
@@ -534,63 +580,95 @@ class HandlerUtilTest {
             Assertions.assertEquals(all, recorder.getTotal());
         }
 
-        @Test
-        public void testIncrProcessTimeTotal() {
-            Long now = System.currentTimeMillis();
-            Long time = System.currentTimeMillis() - 10;
-            recorder.incrProcessTimeTotal(now, time);
-            Assertions.assertNotNull(recorder.getProcessTimeTotal());
-            Assertions.assertEquals(new Long(now-time), recorder.getProcessTimeTotal());
-        }
-        @Test
-        public void testIncrProcessTimeTotal0() {
-            recorder.incrProcessTimeTotal(System.currentTimeMillis(), null);
-            Assertions.assertNull(recorder.getProcessTimeTotal());
-        }
-        
-        @Test
-        public void testIncrProcessTimeTotal1() {
-            recorder.setProcessTimeTotal(null);
-            Long now = System.currentTimeMillis();
-            Long time = System.currentTimeMillis() - 10;
-            recorder.incrProcessTimeTotal(now, time);
-            Assertions.assertNotNull(recorder.getProcessTimeTotal());
-            Assertions.assertEquals(new Long(now-time), recorder.getProcessTimeTotal());
+        @Nested
+        class IncrProcessTimeTotalTest {
+            @Test
+            public void testIncrProcessTimeTotal() {
+                Long now = System.currentTimeMillis();
+                Long time = System.currentTimeMillis() - 10;
+                recorder.incrProcessTimeTotal(now, time);
+                Assertions.assertNotNull(recorder.getProcessTimeTotal());
+                Assertions.assertEquals(new Long(now - time), recorder.getProcessTimeTotal());
+            }
+
+            @Test
+            public void testIncrProcessTimeTotal0() {
+                recorder.incrProcessTimeTotal(System.currentTimeMillis(), null);
+                Assertions.assertNull(recorder.getProcessTimeTotal());
+            }
+
+            @Test
+            public void testIncrProcessTimeTotal1() {
+                recorder.setProcessTimeTotal(null);
+                Long now = System.currentTimeMillis();
+                Long time = System.currentTimeMillis() - 10;
+                recorder.incrProcessTimeTotal(now, time);
+                Assertions.assertNotNull(recorder.getProcessTimeTotal());
+                Assertions.assertEquals(new Long(now - time), recorder.getProcessTimeTotal());
+            }
+
+            @Test
+            public void testIncrProcessTimeTotal2() {
+                recorder.setProcessTimeTotal(0L);
+                Long now = System.currentTimeMillis();
+                Long time = System.currentTimeMillis() - 10;
+                recorder.incrProcessTimeTotal(now, time);
+                Assertions.assertNotNull(recorder.getProcessTimeTotal());
+                Assertions.assertEquals(new Long(now - time), recorder.getProcessTimeTotal());
+            }
         }
 
-        @Test
-        public void testCalculateMaxReplicateLag(){
-            Long time = System.currentTimeMillis();
-            List<Long> list = new ArrayList<>();
-            list.add(System.currentTimeMillis() - 10);
-            recorder.calculateMaxReplicateLag(time, list);
-            Assertions.assertNotNull(recorder.getReplicateLagTotal());
-            Assertions.assertEquals(new Long(10), recorder.getReplicateLagTotal());
-        }
-        @Test
-        public void testCalculateMaxReplicateLag0(){
-            Long time = System.currentTimeMillis();
-            List<Long> list = null;
-            recorder.calculateMaxReplicateLag(time, list);
-            Assertions.assertNull(recorder.getReplicateLagTotal());
-        }
-        @Test
-        public void testCalculateMaxReplicateLag1(){
-            Long time = System.currentTimeMillis();
-            List<Long> list = new ArrayList<>();
-            recorder.calculateMaxReplicateLag(time, list);
-            Assertions.assertNull(recorder.getReplicateLagTotal());
-        }
-        @Test
-        public void testCalculateMaxReplicateLag2(){
-            Long time = System.currentTimeMillis();
-            List<Long> list = new ArrayList<>();
-            list.add(time - 10);
-            list.add(null);
-            list.add(time -1);
-            recorder.calculateMaxReplicateLag(time, list);
-            Assertions.assertNotNull(recorder.getReplicateLagTotal());
-            Assertions.assertEquals(new Long(10), recorder.getReplicateLagTotal());
+        @Nested
+        class CalculateMaxReplicateLagTest {
+
+            @Test
+            public void testCalculateMaxReplicateLag() {
+                Long time = System.currentTimeMillis();
+                List<Long> list = new ArrayList<>();
+                list.add(System.currentTimeMillis() - 10);
+                recorder.calculateMaxReplicateLag(time, list);
+                Assertions.assertNotNull(recorder.getReplicateLagTotal());
+                Assertions.assertEquals(new Long(10), recorder.getReplicateLagTotal());
+            }
+
+            @Test
+            public void testCalculateMaxReplicateLagNotNullOfReplicateLagTotal() {
+                recorder.setReplicateLagTotal(0L);
+                Long time = System.currentTimeMillis();
+                List<Long> list = new ArrayList<>();
+                list.add(System.currentTimeMillis() - 10);
+                recorder.calculateMaxReplicateLag(time, list);
+                Assertions.assertNotNull(recorder.getReplicateLagTotal());
+                Assertions.assertEquals(new Long(10), recorder.getReplicateLagTotal());
+            }
+
+            @Test
+            public void testCalculateMaxReplicateLag0() {
+                Long time = System.currentTimeMillis();
+                List<Long> list = null;
+                recorder.calculateMaxReplicateLag(time, list);
+                Assertions.assertNull(recorder.getReplicateLagTotal());
+            }
+
+            @Test
+            public void testCalculateMaxReplicateLag1() {
+                Long time = System.currentTimeMillis();
+                List<Long> list = new ArrayList<>();
+                recorder.calculateMaxReplicateLag(time, list);
+                Assertions.assertNull(recorder.getReplicateLagTotal());
+            }
+
+            @Test
+            public void testCalculateMaxReplicateLag2() {
+                Long time = System.currentTimeMillis();
+                List<Long> list = new ArrayList<>();
+                list.add(time - 10);
+                list.add(null);
+                list.add(time - 1);
+                recorder.calculateMaxReplicateLag(time, list);
+                Assertions.assertNotNull(recorder.getReplicateLagTotal());
+                Assertions.assertEquals(new Long(10), recorder.getReplicateLagTotal());
+            }
         }
     }
 }
