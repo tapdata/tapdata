@@ -6,6 +6,8 @@ concurrency:
 on:
   pull_request:
     branches: [ "main", "develop", "release-v*.*" ]
+  schedule:
+    - cron: "30 22 * * *"
 
 jobs:
 
@@ -101,6 +103,11 @@ jobs:
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
             -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }}
+      - name: Prevent Skip Unittest
+        run: |
+          cd tapdata
+          find ./ -name jacoco | grep iengine
+          find ./ -name jacoco | grep manager
       - name: Install Dependens
         run: |
           apt install -y jq
@@ -112,6 +119,7 @@ jobs:
           scanMetadataReportFile: tapdata/target/sonar/report-task.txt
 
   Build-And-Deploy:
+    if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     needs:
       - Get-Stable-Branch
@@ -161,6 +169,7 @@ jobs:
 
   MRCI:
     runs-on: aws-ubuntu-20
+    if: ${{ github.event_name == 'schedule' }}
     concurrency:
       group: staging_environment
     timeout-minutes: 60
@@ -208,8 +217,9 @@ jobs:
           echo "OK"
 
   CLOSE_ENV:
+    if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
-    if: ${{ always() }}
+#    if: ${{ always() }}
     needs:
       - MRCI
       - Get-Stable-Branch
