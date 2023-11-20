@@ -1,11 +1,14 @@
 package io.tapdata.flow.engine.V2.entity;
 
+import com.hazelcast.client.impl.proxy.ClientMapProxy;
+import com.hazelcast.client.impl.spi.ClientContext;
 import com.hazelcast.config.Config;
 import com.hazelcast.config.JoinConfig;
 import com.hazelcast.config.NetworkConfig;
 import com.hazelcast.config.TcpIpConfig;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.map.impl.proxy.MapProxyImpl;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.hazelcast.persistence.config.PersistenceMongoDBConfig;
@@ -19,6 +22,7 @@ import io.tapdata.pdk.core.api.CleanRuleModel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,13 +39,21 @@ public class PdkStateMapTest {
     private PdkStateMap pdkStateMapUnderTest;
     private DocumentIMap<Document> constructIMap;
     @Mock
-    private ExternalStorageDto tapdataOrDefaultExternalStorage;
-    @Mock
-    private static PersistenceStorage persistenceStorage;
     private HazelcastInstance hazelcastInstance;
-
+    @Mock
+    private ClientContext context;
     @Before
     public void setUp() {
+        pdkStateMapUnderTest = new PdkStateMap();
+        PersistenceMongoDBConfig imapMongoDBConfig = PersistenceMongoDBConfig.create(ConstructType.IMAP, "test")
+                .uri("mongodb://test.com")
+                .database("hazelcast")
+                .collection("imap_default_config");
+        Logger logger = LogManager.getLogger(this);
+        PersistenceStorage.getInstance().logger(logger).addConfig(imapMongoDBConfig);
+        constructIMap = new DocumentIMap<>(hazelcastInstance,"123","test");
+        ReflectionTestUtils.setField(constructIMap,"iMap",new ClientMapProxy("test","test",context));
+        ReflectionTestUtils.setField(pdkStateMapUnderTest,"constructIMap",constructIMap);
 
     }
 
@@ -53,25 +65,13 @@ public class PdkStateMapTest {
     public void testSetKeyTTLRule() throws Exception {
         // Setup
         // Run the test
-        Config config = new Config();
-        config.getJetConfig().setEnabled(true);
-        JoinConfig joinConfig = new JoinConfig();
-        joinConfig.setTcpIpConfig(new TcpIpConfig().setEnabled(true));
-        NetworkConfig networkConfig = new NetworkConfig();
-        networkConfig.setJoin(joinConfig);
-        config.setNetworkConfig(networkConfig);
-        config.setInstanceName("test");
-        hazelcastInstance = Hazelcast.newHazelcastInstance(config);
-        pdkStateMapUnderTest = new PdkStateMap();
-        constructIMap = new DocumentIMap<>(hazelcastInstance,"","test");
-        ReflectionTestUtils.setField(pdkStateMapUnderTest,"constructIMap",constructIMap);
-        PersistenceMongoDBConfig imapMongoDBConfig = PersistenceMongoDBConfig.create(ConstructType.IMAP, "test")
-                .uri("mongodb://root:Gotapd8!@139.198.127.204:32550/qa?authSource=admin")
-                .database("hazelcast")
-                .collection("imap_default_config");
-        Logger logger = LogManager.getLogger(this);
-        persistenceStorage = PersistenceStorage.getInstance().logger(logger).addConfig(imapMongoDBConfig);
-        pdkStateMapUnderTest.setKeyTTLRule(10L, "condition", CleanRuleModel.FUZZY_MATCHING);
+        //hazelcastInstance = Hazelcast.newHazelcastInstance(config);
+        long inputTTl = 10L;
+        String inputCondition = "condition";
+        CleanRuleModel inputCleanRuleModel = CleanRuleModel.FUZZY_MATCHING;
+        pdkStateMapUnderTest.setKeyTTLRule(inputTTl, inputCondition, inputCleanRuleModel);
+        Assert.assertNotNull(PersistenceStorage.getInstance().setImapTTL(constructIMap.getiMap(), inputTTl,inputCondition,TTLCleanMode.FUZZY_MATCHING));
+
 
         // Verify the results
     }
@@ -80,22 +80,30 @@ public class PdkStateMapTest {
      * input ttl is 0
      * @throws Exception
      */
-    @Test(expected = NullPointerException.class)
+    @Test
     public void testSetKeyTTLRule_ThrowsException() throws Exception {
         // Setup
         // Run the test
-        pdkStateMapUnderTest.setKeyTTLRule(0L, "condition", CleanRuleModel.FUZZY_MATCHING);
+        long inputTTl = 0L;
+        String inputCondition = "condition";
+        CleanRuleModel inputCleanRuleModel = CleanRuleModel.FUZZY_MATCHING;
+        pdkStateMapUnderTest.setKeyTTLRule(inputTTl, inputCondition, inputCleanRuleModel);
+        Assert.assertNull(PersistenceStorage.getInstance().setImapTTL(constructIMap.getiMap(), inputTTl,inputCondition,TTLCleanMode.FUZZY_MATCHING));
     }
 
     /**
      * ttl is a negative number
      * @throws Exception
      */
-    @Test(expected = NullPointerException.class)
+    @Test
     public void testSetKeyTTLRule_ThrowsException2() throws Exception {
         // Setup
         // Run the test
-        pdkStateMapUnderTest.setKeyTTLRule(-1L, "condition", CleanRuleModel.FUZZY_MATCHING);
+        long inputTTl = -1L;
+        String inputCondition = "condition";
+        CleanRuleModel inputCleanRuleModel = CleanRuleModel.FUZZY_MATCHING;
+        pdkStateMapUnderTest.setKeyTTLRule(inputTTl, inputCondition, inputCleanRuleModel);
+        Assert.assertNull(PersistenceStorage.getInstance().setImapTTL(constructIMap.getiMap(), inputTTl,inputCondition,TTLCleanMode.FUZZY_MATCHING));
     }
 
 }
