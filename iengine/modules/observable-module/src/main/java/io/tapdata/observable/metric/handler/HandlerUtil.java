@@ -23,7 +23,20 @@ import java.util.Objects;
  * @author Dexter
  */
 public class HandlerUtil {
-    public static EventTypeRecorder countTapdataEvent(List<TapdataEvent> events) {
+    private HandlerUtil() {
+
+    }
+    protected static final RandomSampleEventHandler randomSampleEventHandler = new RandomSampleEventHandler(1);
+    protected static final RandomSampleEventHandler.HandleEvent covertTapDataEvent = data -> {
+        if (data instanceof TapdataEvent) {
+            TapdataEvent tapdataEvent = (TapdataEvent) data;
+            return tapdataEvent.getTapEvent();
+        } else if (data instanceof TapEvent) {
+            return (TapEvent) data;
+        }
+        return null;
+    };
+    public static EventTypeRecorder countTapDataEvent(List<TapdataEvent> events, Long sizeOfMemory) {
         long now = System.currentTimeMillis();
 
         List<Long> referenceTimeList = Lists.newArrayList();
@@ -39,12 +52,13 @@ public class HandlerUtil {
             }
             referenceTimeList.add(countEventTypeAndGetReferenceTime(tapdataEvent.getTapEvent(), recorder));
         }
+        sampleMemoryTapEvent(recorder, events, sizeOfMemory);
         recorder.calculateMaxReplicateLag(now, referenceTimeList);
 
         return recorder;
     }
 
-    public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events) {
+    public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events, Long sizeOfMemory) {
         long now = System.currentTimeMillis();
 
         List<Long> referenceTimeList = Lists.newArrayList();
@@ -53,12 +67,12 @@ public class HandlerUtil {
             referenceTimeList.add(countEventTypeAndGetReferenceTime(tapEvent, recorder));
             recorder.incrProcessTimeTotal(now, tapEvent.getTime());
         }
-
+        sampleMemoryTapEvent(recorder, events, sizeOfMemory);
         CommonUtils.ignoreAnyError(() -> recorder.calculateMaxReplicateLag(now, referenceTimeList), "HandlerUtil-countTapEvent");
         return recorder;
     }
 
-    private static Long countEventTypeAndGetReferenceTime(TapEvent event, EventTypeRecorder recorder) {
+    protected static Long countEventTypeAndGetReferenceTime(TapEvent event, EventTypeRecorder recorder) {
         Long ts;
         if (event instanceof HeartbeatEvent) {
             ts = ((HeartbeatEvent) event).getReferenceTime();
@@ -98,7 +112,7 @@ public class HandlerUtil {
         return ts;
     }
 
-    private static void setEventTimestamp(EventTypeRecorder recorder, Long ts) {
+    protected static void setEventTimestamp(EventTypeRecorder recorder, Long ts) {
         if (null != ts) {
             if (null == recorder.getNewestEventTimestamp() || ts > recorder.getNewestEventTimestamp()) {
                 recorder.setNewestEventTimestamp(ts);
@@ -120,6 +134,8 @@ public class HandlerUtil {
         private Long replicateLagTotal;
         private Long oldestEventTimestamp;
         private Long newestEventTimestamp;
+        private long memorySize;
+        private String memoryUtil = "B";
 
         public void incrDdlTotal() {
             this.ddlTotal += 1;
@@ -163,5 +179,22 @@ public class HandlerUtil {
         public long getTotal() {
             return ddlTotal + insertTotal + updateTotal + deleteTotal + othersTotal;
         }
+    }
+
+    public static void sampleMemoryTapEvent(EventTypeRecorder recorder, List<?> events, Long sizeOfMemory) {
+        if (null == recorder) return;
+        if (null == sizeOfMemory) {
+            randomSampleEventHandler.sampleMemoryTapEvent(recorder, events, covertTapDataEvent);
+        } else {
+            recorder.setMemorySize(sizeOfMemory);
+        }
+    }
+
+    public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events) {
+        return countTapEvent(events, null);
+    }
+
+    public static EventTypeRecorder countTapdataEvent(List<TapdataEvent> events) {
+        return countTapDataEvent(events, null);
     }
 }
