@@ -4,7 +4,9 @@ import com.google.common.collect.ImmutableList;
 import io.tapdata.exception.ManagementException;
 import org.apache.commons.io.input.BrokenInputStream;
 import org.apache.commons.io.input.NullInputStream;
+import org.assertj.core.util.Files;
 import org.assertj.core.util.Lists;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -50,6 +52,11 @@ public class RestTemplateOperatorTest {
         restTemplateOperatorUnderTest = (RestTemplateOperator) constructor.newInstance(); // 创建对象
         ReflectionTestUtils.setField(restTemplateOperatorUnderTest, "baseURLs", Lists.newArrayList("test1","test2"));
         ReflectionTestUtils.setField(restTemplateOperatorUnderTest,"restTemplate",mockRestTemplate);
+    }
+    @After
+    public void after(){
+        Files.delete(new File("filename"));
+        Files.delete(new File("filename.txt"));
     }
 
     /**
