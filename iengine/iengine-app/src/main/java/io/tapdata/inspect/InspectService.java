@@ -1,6 +1,5 @@
 package io.tapdata.inspect;
 
-import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.constant.MongodbUtil;
@@ -18,6 +17,7 @@ import io.tapdata.inspect.cdc.compare.RowCountInspectCdcJob;
 import io.tapdata.inspect.compare.TableRowContentInspectJob;
 import io.tapdata.inspect.compare.TableRowCountInspectJob;
 import io.tapdata.inspect.compare.TableRowScriptInspectJob;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Sort;
@@ -42,10 +42,15 @@ public class InspectService {
 
 	private static final ThreadPoolExecutor executorService = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
 			60L, TimeUnit.SECONDS, new SynchronousQueue<>());
-	private ClientMongoOperator clientMongoOperator;
+	public static final String STATUS_FIELD = "status";
+	public static final String INSPECT_TASKS_PREFIX_SOURCE = "Inspect.tasks[%d].source";
+	public static final String INSPECT_TASKS_PREFIX_TARGET = "Inspect.tasks[%d].target";
+	public static final String INSPECT_TASKS_CANNOT_BE_EMPTY = "Inspect.tasks[%d].taskId can not be empty";
+	public static final String INSPECT_CAN_NOT_BE_EMPTY = "inspect can not be empty.";
+	private volatile ClientMongoOperator clientMongoOperator;
 	private Logger logger = LogManager.getLogger(InspectService.class);
 	private final ConcurrentHashMap<String, InspectTask> RUNNING_INSPECT = new ConcurrentHashMap<>();
-	private SettingService settingService;
+	private volatile SettingService settingService;
 
 	private InspectService() {
 	}
@@ -101,6 +106,7 @@ public class InspectService {
 	 * @return
 	 */
 	public Inspect getInspectById(String id) {
+		if (null == id || "".equals(id.trim())) throw new IllegalArgumentException("inspect task id can not be empty.");
 		Query query = Query.query(Criteria.where("_id").is(id));
 		query.fields().exclude("tasks.source.fields").exclude("tasks.target.fields");
 		return clientMongoOperator.findOne(query, ConnectorConstant.INSPECT_COLLECTION, Inspect.class);
@@ -112,7 +118,7 @@ public class InspectService {
 		queryMap.put("id", id);
 
 		Map<String, Object> updateMap = new HashMap<>();
-		updateMap.put("status", status.getCode());
+		updateMap.put(STATUS_FIELD, status.getCode());
 		updateMap.put("errorMsg", msg);
 
 		clientMongoOperator.upsert(queryMap, updateMap, ConnectorConstant.INSPECT_COLLECTION);
@@ -157,7 +163,7 @@ public class InspectService {
 	public InspectResult getLastDifferenceInspectResult(String firstCheckId) {
 		Query query = Query.query(Criteria
 				.where("firstCheckId").regex("^" + firstCheckId + "$")
-				.and("status").is(InspectStatus.DONE.getCode())
+				.and(STATUS_FIELD).is(InspectStatus.DONE.getCode())
 				.and("stats.status").is(InspectStatus.DONE.getCode())
 				.and("stats.result").is("failed")
 		).with(Sort.by(Sort.Order.desc("ttlTime"))).limit(1);
@@ -173,7 +179,7 @@ public class InspectService {
 	public InspectResult getLastInspectResult(String inspectId) {
 		Query query = Query.query(Criteria
 				.where("inspect_id").regex("^" + inspectId + "$")
-				.and("status").in(InspectStatus.DONE.getCode(), InspectStatus.PAUSE.getCode(), InspectStatus.ERROR.getCode())
+				.and(STATUS_FIELD).in(InspectStatus.DONE.getCode(), InspectStatus.PAUSE.getCode(), InspectStatus.ERROR.getCode())
 		).with(Sort.by(Sort.Order.desc("ttlTime"))).limit(1);
 		return clientMongoOperator.findOne(query, ConnectorConstant.INSPECT_RESULT_COLLECTION, InspectResult.class);
 	}
@@ -190,9 +196,7 @@ public class InspectService {
 	}
 
 	public List<Connections> getInspectConnectionsById(Inspect inspect) {
-		/*String idArray = "\"" + String.join("\",\"", ids) + "\"";
-		String query = "{\"id\": {\"inq\": " + idArray + "}}";*/
-
+		if (null == inspect || null == inspect.getTasks()) throw new IllegalArgumentException(INSPECT_CAN_NOT_BE_EMPTY);
 		Set<String> connectionIds = new HashSet<>();
 		inspect.getTasks().forEach(task -> {
 			connectionIds.add(task.getSource().getConnectionId());
@@ -206,7 +210,7 @@ public class InspectService {
 	}
 
 	public void insertInspectDetails(List<InspectDetail> details) {
-		if (!CollectionUtil.isEmpty(details)) {
+		if (!CollectionUtils.isEmpty(details)) {
 			clientMongoOperator.insertList(details, ConnectorConstant.INSPECT_DETAILS_COLLECTION);
 		}
 	}
@@ -218,16 +222,19 @@ public class InspectService {
 	 */
 	public void startInspect(Inspect inspect) {
 		if (inspect == null) {
-			throw new IllegalArgumentException("inspect can not be empty.");
+			throw new IllegalArgumentException(INSPECT_CAN_NOT_BE_EMPTY);
 		}
-		logger.info(String.format("Start up data verification %s(%s, %s) ", inspect.getName(), inspect.getId(), inspect.getInspectMethod()));
+		if (logger.isInfoEnabled()){
+			logger.info(String.format("Start up data verification %s(%s, %s) ", inspect.getName(), inspect.getId(), inspect.getInspectMethod()));
+		}
 
 		synchronized (RUNNING_INSPECT) {
-			if (RUNNING_INSPECT.containsKey(inspect.getId())) {
+			if (null != inspect.getId() && RUNNING_INSPECT.containsKey(inspect.getId())) {
 				logger.warn("Data verification is running {}({}, {}) ", inspect.getName(), inspect.getId(), inspect.getInspectMethod());
 				return;
 			}
 
+			if (null == inspect.getInspectMethod()) throw new IllegalArgumentException("inspect method can not be empty.");
 			InspectMethod inspectMethod = InspectMethod.get(inspect.getInspectMethod());
 			switch (inspectMethod) {
 				case FIELD:
@@ -248,10 +255,14 @@ public class InspectService {
 	}
 
 	public void onInspectStopped(Inspect inspect) {
+		if (inspect == null) {
+			throw new IllegalArgumentException(INSPECT_CAN_NOT_BE_EMPTY);
+		}
 		RUNNING_INSPECT.remove(inspect.getId());
 	}
 
 	public void doInspectStop(String inspectId) {
+		if (null == inspectId || "".equals(inspectId.trim())) throw new IllegalArgumentException("inspectId can not be empty");
 		RUNNING_INSPECT.compute(inspectId, (s, inspectTask) -> {
 			if (null == inspectTask) {
 				updateStatus(inspectId, InspectStatus.ERROR, "Inspect is stopped, can not be stop");
@@ -267,9 +278,10 @@ public class InspectService {
 	 *
 	 * @param inspect
 	 */
-	private InspectTask executeRowCountInspect(Inspect inspect) {
+	protected InspectTask executeRowCountInspect(Inspect inspect) {
 		List<String> errorMsg = checkRowCountInspect(inspect);
 		if (errorMsg.size() > 0) {
+			if (null == inspect) return null;
 			updateStatus(inspect.getId(), InspectStatus.ERROR, String.join(", ", errorMsg));
 			return null;
 		}
@@ -292,9 +304,10 @@ public class InspectService {
 	 *
 	 * @param inspect
 	 */
-	private InspectTask executeFieldInspect(Inspect inspect) {
+	protected InspectTask executeFieldInspect(Inspect inspect) {
 		List<String> errorMsg = checkFieldInspect(inspect);
 		if (errorMsg.size() > 0) {
+			if (null == inspect) return null;
 			updateStatus(inspect.getId(), InspectStatus.ERROR, String.join(", ", errorMsg));
 			return null;
 		}
@@ -314,7 +327,7 @@ public class InspectService {
 		};
 	}
 
-	private Future<?> submitTask(InspectTask task) {
+	protected Future<?> submitTask(InspectTask task) {
 		if (null != task) {
 			RUNNING_INSPECT.put(task.getInspectId(), task);
 			return executorService.submit(task);
@@ -328,7 +341,7 @@ public class InspectService {
 	 * @param inspect
 	 * @return
 	 */
-	private List<String> checkRowCountInspect(Inspect inspect) {
+	protected List<String> checkRowCountInspect(Inspect inspect) {
 		/*
 		 * 1. Status must be scheduling
 		 * 2. tasks size must gt 0
@@ -348,25 +361,32 @@ public class InspectService {
 
 		if (inspect.getTasks() == null || inspect.getTasks().size() == 0) {
 			errorMsg.add("Inspect sub-task can not be empty.");
+			return errorMsg;
 		}
 
 		for (int i = 0; i < inspect.getTasks().size(); i++) {
 			com.tapdata.entity.inspect.InspectTask task = inspect.getTasks().get(i);
 			if (task == null) {
-				logger.warn("Inspect.tasks[" + i + "] is empty.");
+				logger.warn("Inspect.tasks[{}] is empty.",i);
 				continue;
 			}
 			if (StringUtils.isEmpty(task.getTaskId())) {
-				errorMsg.add("Inspect.tasks[" + i + "].taskId can not be empty");
+				errorMsg.add(String.format(INSPECT_TASKS_CANNOT_BE_EMPTY,i));
 			}
-			checkRowCountInspectTaskDataSource("Inspect.tasks[" + i + "].source", task.getSource());
-			checkRowCountInspectTaskDataSource("Inspect.tasks[" + i + "].target", task.getTarget());
+			List<String> sourceErrorMsg = checkRowCountInspectTaskDataSource(String.format(INSPECT_TASKS_PREFIX_SOURCE, i), task.getSource());
+			errorMsg.addAll(sourceErrorMsg);
+			List<String> targetErrorMsg = checkRowCountInspectTaskDataSource(String.format(INSPECT_TASKS_PREFIX_TARGET, i), task.getTarget());
+			errorMsg.addAll(targetErrorMsg);
 		}
 		return errorMsg;
 	}
 
-	private List<String> checkRowCountInspectTaskDataSource(String prefix, InspectDataSource dataSource) {
+	protected List<String> checkRowCountInspectTaskDataSource(String prefix, InspectDataSource dataSource) {
 		List<String> errorMsg = new ArrayList<>();
+		if (null == dataSource){
+			errorMsg.add(prefix + ".inspectDataSource can not be null.");
+			return errorMsg;
+		}
 		if (StringUtils.isEmpty(dataSource.getConnectionId())) {
 			errorMsg.add(prefix + ".connectionId can not be empty.");
 		}
@@ -381,7 +401,7 @@ public class InspectService {
 	 *
 	 * @param inspect
 	 */
-	private List<String> checkFieldInspect(Inspect inspect) {
+	protected List<String> checkFieldInspect(Inspect inspect) {
 
 		/*
 		 * 1. Status must be scheduling
@@ -414,22 +434,28 @@ public class InspectService {
 		for (int i = 0; i < inspect.getTasks().size(); i++) {
 			com.tapdata.entity.inspect.InspectTask task = inspect.getTasks().get(i);
 			if (task == null) {
-				logger.warn("Inspect.tasks[" + i + "] is empty.");
+				logger.warn("Inspect.tasks[{}] is empty.",i);
 				continue;
 			}
 			if (StringUtils.isEmpty(task.getTaskId())) {
-				errorMsg.add("Inspect.tasks[" + i + "].taskId can not be empty");
+				errorMsg.add(String.format(INSPECT_TASKS_CANNOT_BE_EMPTY,i));
 			}
-			checkFieldInspectTaskDataSource("Inspect.tasks[" + i + "].source", task.getSource());
-			checkFieldInspectTaskDataSource("Inspect.tasks[" + i + "].target", task.getTarget());
+			List<String> sourceErrorMsg = checkFieldInspectTaskDataSource(String.format(INSPECT_TASKS_PREFIX_SOURCE, i), task.getSource());
+			errorMsg.addAll(sourceErrorMsg);
+			List<String> targetErrorMsg = checkFieldInspectTaskDataSource(String.format(INSPECT_TASKS_PREFIX_TARGET, i), task.getTarget());
+			errorMsg.addAll(targetErrorMsg);
 		}
 
 		return errorMsg;
 
 	}
 
-	private List<String> checkFieldInspectTaskDataSource(String prefix, InspectDataSource dataSource) {
+	protected List<String> checkFieldInspectTaskDataSource(String prefix, InspectDataSource dataSource) {
 		List<String> errorMsg = new ArrayList<>();
+		if (null == dataSource){
+			errorMsg.add(prefix + ".inspectDataSource can not be null.");
+			return errorMsg;
+		}
 		if (StringUtils.isEmpty(dataSource.getConnectionId())) {
 			errorMsg.add(prefix + ".connectionId can not be empty.");
 		}
@@ -446,6 +472,7 @@ public class InspectService {
 	}
 
 	public void inspectHeartBeat(String id) {
+		if (null == id || "".equals(id.trim())) throw new IllegalArgumentException("inspect task id can not be empty.");
 		Query query = new Query(Criteria.where("_id").is(id));
 		Update update = new Update();
 		update.set("ping_time", System.currentTimeMillis());
