@@ -22,11 +22,7 @@ public class ObservableAspectTaskUtil {
             if (null == events || events.isEmpty()) {
                 return;
             }
-            Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-                    handler -> {
-                        handler.handleStreamReadReadComplete(timestamp, recorder);
-                    }
-            );
+            Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleStreamReadReadComplete(timestamp, recorder));
             taskSampleHandler.handleStreamReadAccept(recorder);
         });
     }
@@ -43,11 +39,7 @@ public class ObservableAspectTaskUtil {
             if (null == events || events.isEmpty()) {
                 return;
             }
-            Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-                    handler -> {
-                        handler.handleStreamReadProcessComplete(timestamp, recorder);
-                    }
-            );
+            Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleStreamReadProcessComplete(timestamp, recorder));
         });
     }
 
@@ -64,8 +56,7 @@ public class ObservableAspectTaskUtil {
             if (null == events || events.isEmpty()) {
                 return;
             }
-            Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler ->
-                    handler.handleBatchReadReadComplete(timestamp, recorder));
+            Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadReadComplete(timestamp, recorder));
             taskSampleHandler.handleBatchReadAccept(recorder);
         });
     }
@@ -82,9 +73,7 @@ public class ObservableAspectTaskUtil {
             if (null == events || events.isEmpty()) {
                 return;
             }
-            Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler ->
-                    handler.handleBatchReadProcessComplete(timestamp, recorder)
-            );
+            Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadProcessComplete(timestamp, recorder));
         });
     }
 }
