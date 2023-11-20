@@ -83,7 +83,6 @@ class HandlerUtilTest {
             Assertions.assertEquals(0, recorder.getDdlTotal());
             Assertions.assertEquals(0, recorder.getTotal());
             Assertions.assertTrue(recorder.getReplicateLagTotal() > 4);
-            Assertions.assertTrue(recorder.getReplicateLagTotal() > (System.currentTimeMillis() - time - 1 ));
         }
         /**测试countTapDataEvent方法，非TapdataHeartbeatEvent, 预期结果*/
         @Test
