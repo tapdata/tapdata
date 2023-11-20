@@ -329,7 +329,7 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 
 	private double getProgress() {
 		return new BigDecimal(current)
-				.divide(new BigDecimal(current > max ? current + 1 : max), 4, BigDecimal.ROUND_HALF_UP).doubleValue();
+				.divide(new BigDecimal(current > max ? current + 1 : max), 4, BigDecimal.ROUND_DOWN).doubleValue();
 	}
 
 	private String compareRecord(long index, String sourceId, String targetId, Map<String, Object> sourceRecord, Map<String, Object> targetRecord, CompareFunction<Map<String, Object>, String> compareFn) {
