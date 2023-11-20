@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.entity;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.persistence.PersistenceStorage;
+import com.hazelcast.persistence.store.ttl.TTLCleanMode;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.AppType;
@@ -15,6 +16,9 @@ import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.error.ExternalStorageExCode_26;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
+import io.tapdata.pdk.core.api.CleanRuleKVMap;
+import io.tapdata.pdk.core.api.CleanRuleModel;
+import io.tapdata.pdk.core.utils.CleanRuleKVMapUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -35,7 +39,7 @@ import java.util.concurrent.TimeUnit;
  * @Description
  * @create 2022-05-21 16:05
  **/
-public class PdkStateMap implements KVMap<Object> {
+public class PdkStateMap extends CleanRuleKVMap {
 	private static final String TAG = PdkStateMap.class.getSimpleName();
 	private static final String GLOBAL_MAP_NAME = "GlobalStateMap";
 	public static final int CONNECT_TIMEOUT_MS = 60 * 1000;
@@ -212,6 +216,12 @@ public class PdkStateMap implements KVMap<Object> {
 		if (null == document) return null;
 		return document.get(KEY);
 	}
+
+	@Override
+	public void setKeyTTLRule(long keyTTlSeconds, String condition, CleanRuleModel cleanRuleModel) throws Exception{
+		PersistenceStorage.getInstance().setImapTTL(constructIMap.getiMap(),keyTTlSeconds,condition,TTLCleanMode.getTTLCleanMode(cleanRuleModel.getName()));
+	}
+
 
 	public enum StateMapMode {
 		DEFAULT,
