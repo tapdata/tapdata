@@ -337,7 +337,6 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 			average.add(total, processCompleteAt - streamProcessStartTs);
 		});
 		Optional.ofNullable(outputSizeSpeed).ifPresent(speed -> speed.add(recorder.getMemorySize()));
-		Optional.ofNullable(inputSizeSpeed).ifPresent(speed -> speed.add(recorder.getMemorySize()));
 	}
 
 
@@ -353,7 +352,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Optional.ofNullable(inputDeleteCounter).ifPresent(counter -> counter.inc(recorder.getDeleteTotal()));
 		Optional.ofNullable(inputOthersCounter).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
 		Optional.ofNullable(inputSpeed).ifPresent(speed -> speed.add(recorder.getTotal()));
-		Optional.ofNullable(outputSizeSpeed).ifPresent(speed -> speed.add(recorder.getMemorySize()));
+		Optional.ofNullable(inputSizeSpeed).ifPresent(speed -> speed.add(recorder.getMemorySize()));
 	}
 
 	public void handleCDCHeartbeatWriteAspect(List<TapdataEvent> tapdataEvents) {
@@ -398,6 +397,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(total));
 
 		Optional.ofNullable(targetWriteTimeCostAvg).ifPresent(average -> average.add(total, acceptTime));
+		Optional.ofNullable(outputSizeSpeed).ifPresent(speed -> speed.add(recorder.getMemorySize()));
 	}
 
 	AtomicBoolean firstTableCount = new AtomicBoolean(true);
