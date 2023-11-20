@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
@@ -175,11 +176,16 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             int num = taskService.runningTaskNum(taskDto.getAgentId(), user);
             WorkerDto workerDto = workerService.findByProcessId(taskDto.getAgentId(), user, "user_id", "agentTags", "process_id");
             int limitTaskNum = workerService.getLimitTaskNum(workerDto, user);
-            if (num > limitTaskNum && !limitNum) {
-                StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
-                if (stateMachineResult.isOk()) {
-                    throw new BizException("Task.ScheduleLimit");
+            if (num >= limitTaskNum) {
+                if (!limitNum) {
+                    StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
+                    if (stateMachineResult.isOk()) {
+                        handleScheduleLimit(workerDto,finalUser);
+                    }
+                } else {
+                    handleScheduleLimit(workerDto,finalUser);
                 }
+
             }
         }
 
@@ -193,6 +199,31 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             }
         }
         return calculationEngineVo;
+    }
+
+    public void handleScheduleLimit(WorkerDto workerDto, UserDetail user) {
+        UserDetail finalUser = user;
+        List<Worker> workerList = workerService.findAvailableAgent(finalUser);
+        if (workerList.size() == 1) {
+            if (workerList.get(0).getProcessId().equals(workerDto.getProcessId())) {
+                throw new BizException("Task.ScheduleLimit");
+            } else {
+                throw new BizException("Task.ManuallyScheduleLimit", workerList.get(0).getProcessId());
+            }
+        }
+        List<String> availableAgent = new ArrayList();
+        workerList.stream().forEach(worker -> {
+            if (!worker.getProcessId().equals(workerDto.getProcessId())) {
+                int runningTaskNum = taskService.runningTaskNum(worker.getProcessId(), finalUser);
+                WorkerDto workerDtoTemp = new WorkerDto();
+                BeanUtil.copyProperties(worker, workerDtoTemp);
+                int limitTaskNumTemp = workerService.getLimitTaskNum(workerDtoTemp, finalUser);
+                if (runningTaskNum < limitTaskNumTemp) {
+                    availableAgent.add(worker.getTcmInfo().getAgentName());
+                }
+            }
+        });
+        throw new BizException("Task.ManuallyScheduleLimit", JSON.toJSONString(availableAgent));
     }
 
 }

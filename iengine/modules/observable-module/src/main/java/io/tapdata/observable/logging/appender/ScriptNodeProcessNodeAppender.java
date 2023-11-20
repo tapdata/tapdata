@@ -5,8 +5,7 @@ import io.tapdata.observable.logging.with.FixedSizeBlockingDeque;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -23,7 +22,7 @@ public class ScriptNodeProcessNodeAppender extends BaseTaskAppender<MonitoringLo
     //日志输出默认100条
     public int defaultLogLength = 100;
     private final Logger logger;
-    private String jsNodeId;
+    private Set<String> nodeIds;
 
     public FixedSizeBlockingDeque<MonitoringLogsDto> logList ;//= new FixedSizeBlockingDeque<>(defaultLogLength);//new FixSizeLinkedList<>(defaultLogLength);
     AtomicReference<Object> logCollector;
@@ -38,8 +37,11 @@ public class ScriptNodeProcessNodeAppender extends BaseTaskAppender<MonitoringLo
             Optional.ofNullable(logCollector.get()).ifPresent(list -> logList = (FixedSizeBlockingDeque<MonitoringLogsDto>) list);
     }
 
-    public ScriptNodeProcessNodeAppender nodeID(String jsNodeId) {
-        this.jsNodeId = jsNodeId;
+    public ScriptNodeProcessNodeAppender nodeID(String nodes) {
+        if (nodeIds == null) {
+            nodeIds = new HashSet<>();
+        }
+        nodeIds.addAll(Arrays.asList(nodes.split(",")));
         return this;
     }
 
@@ -61,14 +63,14 @@ public class ScriptNodeProcessNodeAppender extends BaseTaskAppender<MonitoringLo
 
     @Override
     public void append(MonitoringLogsDto log) {
-        if (null != log && null != logList && null != jsNodeId && jsNodeId.equals(log.getNodeId())) {
+        if (null != log && null != logList && null != nodeIds && nodeIds.contains(log.getNodeId())) {
             logList.add(log);
         }
     }
 
     @Override
     public void append(List<MonitoringLogsDto> logs) {
-        logs.stream().filter(log -> null != log && null != logList && null != jsNodeId && jsNodeId.equals(log.getNodeId())).forEach(log -> logList.add(log));
+        logs.stream().filter(log -> null != log && null != logList && null != nodeIds && nodeIds.contains(log.getNodeId())).forEach(log -> logList.add(log));
     }
 
     @Override

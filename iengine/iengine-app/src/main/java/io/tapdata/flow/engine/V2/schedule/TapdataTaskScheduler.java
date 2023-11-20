@@ -8,6 +8,7 @@ import com.tapdata.entity.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.TaskOpRespDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -298,6 +299,7 @@ public class TapdataTaskScheduler {
 	}
 
 	private void startTask(TaskDto taskDto) {
+		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		final String taskId = taskDto.getId().toHexString();
 		if (taskClientMap.containsKey(taskId)) {
 			TaskClient<TaskDto> taskClient = taskClientMap.get(taskId);
@@ -410,9 +412,10 @@ public class TapdataTaskScheduler {
 										clearTaskCacheAfterStopped(taskClient);
 										TaskDto taskDto = clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
+										long retryStartTime = System.currentTimeMillis();
 										sendStartTask(taskDto);
-										taskRetryTimeMap.put(taskId, System.currentTimeMillis());
-										signTaskRetry(taskId);
+										taskRetryTimeMap.put(taskId,retryStartTime);
+										signTaskRetry(taskId, retryStartTime);
 									}
 								} else {
 									stopTaskResource = StopTaskResource.RUN_ERROR;
@@ -439,15 +442,19 @@ public class TapdataTaskScheduler {
 		}
 	}
 
-	private void signTaskRetry(String taskId) {
+	private void signTaskRetry(String taskId, long retryStartTime) {
 		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_RUNNING),
+				clientMongoOperator.update(
+						Query.query(Criteria.where("_id").is(new ObjectId(taskId))),
+						new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_RUNNING).set("taskRetryStartTime", retryStartTime),
 						ConnectorConstant.TASK_COLLECTION), "Failed to sign task retry status");
 	}
 
 	public void clearTaskRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_NONE),
+				clientMongoOperator.update(
+						Query.query(Criteria.where("_id").is(new ObjectId(taskId))),
+						new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_NONE).set("taskRetryStartTime", 0),
 						ConnectorConstant.TASK_COLLECTION), "Failed to clear task retry status");
 	}
 
@@ -573,7 +580,10 @@ public class TapdataTaskScheduler {
 			try {
 				try {
 					logger.info("Call {} api to modify task [{}] status", resource, taskClient.getTask().getName());
-					clientMongoOperator.updateById(new Update(), resource, taskId, TaskDto.class);
+					TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), resource, taskId, TaskOpRespDto.class);
+					if(CollectionUtils.isEmpty(taskOpRespDto.getSuccessIds())){
+						return false;
+					}
 				} catch (Exception e) {
 					if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
 						// 违反TM状态机，不再进行修改任务状态的重试
@@ -643,6 +653,7 @@ public class TapdataTaskScheduler {
 			clearTaskCacheAfterStopped(taskDtoTaskClient);
 			clearTaskRetryCache(taskId);
 			clearTaskRetry(taskId);
+			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDtoTaskClient.getTask());
 		}
 	}
 

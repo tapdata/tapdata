@@ -69,6 +69,8 @@ public class Connections implements Serializable {
 
 	private Long nextRetry;
 
+	private List<String> definitionTags;
+
 	/**
 	 * @Author liuke5
 	 * @Description key : tables
@@ -2235,6 +2237,7 @@ public class Connections implements Serializable {
 				", redoLogParserPort=" + redoLogParserPort +
 				", multiConnectionInstanceId='" + multiConnectionInstanceId + '\'' +
 				", namespace='" + namespace + '\'' +
+				", definitionTags=" + definitionTags +
 				'}';
 	}
 
@@ -2333,6 +2336,14 @@ public class Connections implements Serializable {
 
 	public void setNamespace(List<String> namespace) {
 		this.namespace = namespace;
+	}
+
+	public List<String> getDefinitionTags() {
+		return definitionTags;
+	}
+
+	public void setDefinitionTags(List<String> definitionTags) {
+		this.definitionTags = definitionTags;
 	}
 }
 

@@ -105,11 +105,10 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
     private AlarmSettingService alarmSettingService;
     @Autowired
     private AlarmService alarmService;
-    private final MetadataInstancesService metadataInstancesService;
-
-    public InspectService(@NonNull InspectRepository repository, MetadataInstancesService metadataInstancesService) {
+    @Autowired
+    private MetadataInstancesService metadataInstancesService;
+    public InspectService(@NonNull InspectRepository repository) {
         super(repository, InspectDto.class, InspectEntity.class);
-        this.metadataInstancesService = metadataInstancesService;
     }
 
     protected void beforeSave(InspectDto inspect, UserDetail user) {

@@ -2,6 +2,8 @@ package com.tapdata.tm.task.controller;
 
 import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
@@ -699,7 +701,7 @@ public class TaskController extends BaseController {
 
         String successId = taskService.running(MongoUtils.toObjectId(id), userDetail);
         TaskOpResp taskOpResp = new TaskOpResp();
-        if (StringUtils.isBlank(successId)) {
+        if (StringUtils.isNotBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
         }
 
@@ -714,13 +716,14 @@ public class TaskController extends BaseController {
     @PostMapping("runError/{id}")
     public ResponseMessage<TaskOpResp> runError(@PathVariable("id") String id, @RequestParam(value = "errMsg", required = false) String errMsg,
                                                 @RequestParam(value = "errStack", required = false) String errStack) {
+        log.info("subTask error status report by http, id = {}", id);
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
         Assert.notNull(taskDto, "task is empty");
         UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
 
         String successId = taskService.runError(MongoUtils.toObjectId(id), userDetail, errMsg, errStack);
         TaskOpResp taskOpResp = new TaskOpResp();
-        if (StringUtils.isBlank(successId)) {
+        if (StringUtils.isNotBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
         }
 
@@ -735,13 +738,14 @@ public class TaskController extends BaseController {
     @Operation(summary = "任务执行完成回调接口")
     @PostMapping("complete/{id}")
     public ResponseMessage<TaskOpResp> complete(@PathVariable("id") String id) {
+        log.info("subTask complete status report by http, id = {}", id);
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
         Assert.notNull(taskDto, "task is empty");
         UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
 
         String successId = taskService.complete(MongoUtils.toObjectId(id), userDetail);
         TaskOpResp taskOpResp = new TaskOpResp();
-        if (StringUtils.isBlank(successId)) {
+        if (StringUtils.isNotBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
         }
 
@@ -756,13 +760,14 @@ public class TaskController extends BaseController {
     @Operation(summary = "停止成功回调接口")
     @PostMapping("stopped/{id}")
     public ResponseMessage<TaskOpResp> stopped(@PathVariable("id") String id) {
+        log.info("subTask stopped status report by http, id = {}", id);
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id));
         Assert.notNull(taskDto, "task is empty");
         UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
 
         String successId = taskService.stopped(MongoUtils.toObjectId(id), userDetail);
         TaskOpResp taskOpResp = new TaskOpResp();
-        if (StringUtils.isBlank(successId)) {
+        if (StringUtils.isNotBlank(successId)) {
             taskOpResp = new TaskOpResp(successId);
         }
 
@@ -1193,20 +1198,43 @@ public class TaskController extends BaseController {
         try {
             data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser(), jsType);
             result = (Map<String, Object>)Optional.ofNullable(data.get("data")).orElse(data);
-            if (null == result || result.isEmpty()) {
-                throw new CoreException("Can not get data from source,  Please ensure if source connection is valid");
-            }
         }catch (Exception e){
             responseMessage.setCode("error");
             responseMessage.setMessage(e.getMessage());
             responseMessage.setTs(System.currentTimeMillis());
             return responseMessage;
         }
+        JSONArray filteredLogs = buildFilteredLogs(dto, result);
+        result.put("logs",filteredLogs);
         responseMessage.setCode((String) Optional.ofNullable(result.get("code")).orElse("ok"));
         responseMessage.setData(result);
         responseMessage.setMessage((String) Optional.ofNullable(result.get("message")).orElse("ok"));
         responseMessage.setTs((Long) Optional.ofNullable(result.get("ts")).orElse(System.currentTimeMillis()));
         return responseMessage;
+    }
+
+    public JSONArray buildFilteredLogs(TestRunDto dto, Map<String, Object> result){
+        JSONArray filteredLogs = new JSONArray();
+        String jsNodeId = null;
+        if (null != dto){
+            jsNodeId = dto.getJsNodeId();
+        }
+        if (null == result) return filteredLogs;
+        Object logs = result.get("logs");
+        if (!(logs instanceof JSONArray)) {
+            return filteredLogs;
+        }
+        for (Object o : ((JSONArray) logs)) {
+            if (!(o instanceof JSONObject)) continue;
+            if (null == ((JSONObject) o).get("level")) continue;
+            if (null == ((JSONObject) o).get("nodeId")) continue;
+            String level = ((JSONObject) o).get("level").toString();
+            String nodeId = ((JSONObject) o).get("nodeId").toString();
+            if ("WARN".equals(level) || "ERROR".equals(level) || (null != jsNodeId && jsNodeId.equals(nodeId))){
+                filteredLogs.add(o);
+            }
+        }
+        return filteredLogs;
     }
 
     @PostMapping("migrate-js/save-result")

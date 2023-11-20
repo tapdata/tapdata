@@ -3,8 +3,9 @@ package io.tapdata.aspect;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.logger.TapLogger;
-import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.LongAdder;
@@ -20,8 +21,8 @@ public class ProcessorNodeProcessAspect extends ProcessorFunctionAspect<Processo
 			try {
 				listConsumer.accept(tapdataEvent);
 				counter.increment();
-			} catch(Throwable throwable) {
-				TapLogger.warn(TAG, "Consume outputEvent {} for inputEvent {} failed on consumer {}, {}", tapdataEvent, inputEvent, listConsumer, Log4jUtil.getStackString(throwable));
+			} catch(Exception e) {
+				TapLogger.warn(TAG, "Consume outputEvent {} for inputEvent {} failed on consumer {}, {}", tapdataEvent, inputEvent, listConsumer, Log4jUtil.getStackString(e));
 			}
 		});
 		return this;
@@ -31,8 +32,14 @@ public class ProcessorNodeProcessAspect extends ProcessorFunctionAspect<Processo
 		return counter.longValue();
 	}
 	private TapdataEvent inputEvent;
+	private List<TapdataEvent> inputEvents;
 	public ProcessorNodeProcessAspect inputEvent(TapdataEvent inputEvent) {
 		this.inputEvent = inputEvent;
+		return this;
+	}
+
+	public ProcessorNodeProcessAspect inputEvents(List<TapdataEvent> inputEvents) {
+		this.inputEvents = inputEvents;
 		return this;
 	}
 
@@ -54,5 +61,17 @@ public class ProcessorNodeProcessAspect extends ProcessorFunctionAspect<Processo
 
 	public void setConsumers(List<Consumer<TapdataEvent>> consumers) {
 		this.consumers = consumers;
+	}
+
+	public List<TapdataEvent> getInputEvents() {
+		if (CollectionUtils.isNotEmpty(inputEvents)) {
+			return inputEvents;
+		} else {
+			return Collections.singletonList(inputEvent);
+		}
+	}
+
+	public void setInputEvents(List<TapdataEvent> inputEvents) {
+		this.inputEvents = inputEvents;
 	}
 }
