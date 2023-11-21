@@ -44,7 +44,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	 */
 	private boolean ignore;
 
-	private final DelayHandler delayHandler;
+	private DelayHandler delayHandler;
 
 	protected SyncStage syncStage;
 	private boolean enableInitialBatch = false;
@@ -52,14 +52,14 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	public HazelcastProcessorBaseNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
-		Node<?> node = processorBaseContext.getNode();
-		String tag = node.getId() + "-" + node.getName();
-		this.delayHandler = new DelayHandler(obsLogger, tag);
 	}
 
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
+		Node<?> node = processorBaseContext.getNode();
+		String tag = node.getId() + "-" + node.getName();
+		this.delayHandler = new DelayHandler(obsLogger, tag);
 		initEnableInitialBatch();
 		initInitialBatchProcessorIfNeed();
 	}
