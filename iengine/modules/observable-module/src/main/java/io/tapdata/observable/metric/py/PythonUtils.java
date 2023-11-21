@@ -140,10 +140,16 @@ public class PythonUtils {
                 continue;
             }
             for (File f : fs) {
-                if (!f.exists() || !f.isFile() || !f.getName().contains(PACKAGE_COMPILATION_FILE)) continue;
+                if (needSkip(f)) continue;
                 unPackageFile(f, afterUnzipFile, pythonJarPath, logger);
             }
         }
+    }
+    public static boolean needSkip(File f) {
+        if (!f.exists()) return true;
+        if (!f.isFile()) return true;
+        if (!f.getName().contains(PACKAGE_COMPILATION_FILE)) return true;
+        return false;
     }
 
     private static void unPackageFile(File f, File afterUnzipFile, final String pythonJarPath, Log logger) {
@@ -177,7 +183,7 @@ public class PythonUtils {
                     errorMsg.add(line);
                 }
             } catch (Exception msgException) {
-                logger.debug("Can't show execute message when execute release packages process, message: {}, Compilation information: {}", msgException.getMessage(), errorMsg.toString());
+                logger.warn("Can't show execute message when execute release packages process, message: {}, Compilation information: {}", msgException.getMessage(), errorMsg.toString());
             }
         }
     }
