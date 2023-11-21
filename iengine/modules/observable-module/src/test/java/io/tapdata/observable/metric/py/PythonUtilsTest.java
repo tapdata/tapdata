@@ -1,11 +1,15 @@
 package io.tapdata.observable.metric.py;
 
 import io.tapdata.entity.logger.TapLog;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 
 import java.io.*;
 import java.util.Map;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PythonUtilsTest {
 
@@ -13,7 +17,7 @@ public class PythonUtilsTest {
     public void testConcat() {
         String path = "/user/tip";
         String p = PythonUtils.concat(path, "s", "s1");
-        Assert.assertEquals("/user/tip/s/s1", p);
+        Assertions.assertEquals("/user/tip/s/s1", p);
     }
 
     @Test
@@ -22,7 +26,7 @@ public class PythonUtilsTest {
         if (file.mkdir() && file.exists()) {
             PythonUtils.deleteFile(file, new TapLog());
         }
-        Assert.assertFalse(file.exists());
+        Assertions.assertFalse(file.exists());
     }
 
     @Test
@@ -31,7 +35,7 @@ public class PythonUtilsTest {
         try {
             if (file.createNewFile() && file.exists()) {
                 PythonUtils.deleteFile(file, new TapLog());
-                Assert.assertFalse(file.exists());
+                Assertions.assertFalse(file.exists());
             }
         } catch (IOException ignore) { }
     }
@@ -42,11 +46,11 @@ public class PythonUtilsTest {
         createFile(file);
         try {
             Map<String, Object> pythonConfig = PythonUtils.getPythonConfig(file);
-            Assert.assertEquals(2, pythonConfig.size());
-            Assert.assertTrue(pythonConfig.containsKey("key1"));
-            Assert.assertTrue(pythonConfig.containsKey("key2"));
-            Assert.assertEquals("name", pythonConfig.get("key1"));
-            Assert.assertEquals("id", pythonConfig.get("key2"));
+            Assertions.assertEquals(2, pythonConfig.size());
+            Assertions.assertTrue(pythonConfig.containsKey("key1"));
+            Assertions.assertTrue(pythonConfig.containsKey("key2"));
+            Assertions.assertEquals("name", pythonConfig.get("key1"));
+            Assertions.assertEquals("id", pythonConfig.get("key2"));
         } finally {
             PythonUtils.deleteFile(file, new TapLog());
         }
@@ -70,8 +74,8 @@ public class PythonUtilsTest {
                     try {
                         PythonUtils.copyFile(file, fileTargetPath);
                     } catch (Exception ignore) {}
-                    Assert.assertTrue(fileTargetPath.exists());
-                    Assert.assertTrue(fileTargetPath.isDirectory());
+                    Assertions.assertTrue(fileTargetPath.exists());
+                    Assertions.assertTrue(fileTargetPath.isDirectory());
                 } finally {
                     PythonUtils.deleteFile(fileTargetPath, new TapLog());
                 }
@@ -92,8 +96,8 @@ public class PythonUtilsTest {
                     try {
                         PythonUtils.saveTempZipFile(inputStream, "temp_1.json", new TapLog());
                     } catch (Exception ignore) {}
-                    Assert.assertTrue(fileTarget.exists());
-                    Assert.assertTrue(fileTarget.isFile());
+                    Assertions.assertTrue(fileTarget.exists());
+                    Assertions.assertTrue(fileTarget.isFile());
                 } catch (IOException e) {
 
                 } finally {
@@ -102,6 +106,51 @@ public class PythonUtilsTest {
             }
         } finally {
             PythonUtils.deleteFile(file, new TapLog());
+        }
+    }
+
+    @Nested
+    class NeedSkipTest {
+        @Test
+        void testNeedSkipNormalNormal() {
+            File f = mock(File.class);
+            when(f.exists()).thenReturn(true);
+            when(f.isFile()).thenReturn(true);
+            when(f.getName()).thenReturn("setup.py");
+            boolean needSkip = PythonUtils.needSkip(f);
+            Assertions.assertFalse(needSkip);
+        }
+        @Test
+        void testNeedSkipNormalNotExist() {
+            File f = mock(File.class);
+            when(f.exists()).thenReturn(false);
+            when(f.isFile()).thenReturn(true);
+            when(f.getName()).thenReturn("setup.py");
+            boolean needSkip = PythonUtils.needSkip(f);
+            Assertions.assertTrue(needSkip);
+        }
+        @Test
+        void testNeedSkipNormalNotFile() {
+            File f = mock(File.class);
+            when(f.exists()).thenReturn(true);
+            when(f.isFile()).thenReturn(false);
+            when(f.getName()).thenReturn("setup.py");
+            boolean needSkip = PythonUtils.needSkip(f);
+            Assertions.assertTrue(needSkip);
+        }
+        @Test
+        void testNeedSkipNormalNotName() {
+            File f = mock(File.class);
+            when(f.exists()).thenReturn(true);
+            when(f.isFile()).thenReturn(true);
+            when(f.getName()).thenReturn("install.py");
+            boolean needSkip = PythonUtils.needSkip(f);
+            Assertions.assertTrue(needSkip);
+        }
+        @Test
+        void testNeedSkipNormalNullFile() {
+            boolean needSkip = PythonUtils.needSkip(null);
+            Assertions.assertTrue(needSkip);
         }
     }
 }
