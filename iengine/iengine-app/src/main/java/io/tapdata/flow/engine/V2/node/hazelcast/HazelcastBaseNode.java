@@ -168,7 +168,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			this.codecsFilterManager = initFilterCodec();
 			// Execute ProcessorNodeInitAspect before doInit since we need to init the aspect first
 			executeAspectOnInit();
-			initMonitorAndStartIfNeed(context);
+			this.monitorManager = initMonitor();
+			startMonitorIfNeed(context);
 			setThreadName();
 			if (!getNode().disabledNode()) {
 				doInit(context);
@@ -180,10 +181,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 	}
 
-	protected void initMonitorAndStartIfNeed(@NotNull Context context) {
+	protected MonitorManager initMonitor() {
+		return MonitorManager.create();
+	}
+
+	protected void startMonitorIfNeed(@NotNull Context context) {
 		if (!StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-			TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-			this.monitorManager = new MonitorManager();
+				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			try {
 				monitorManager.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, context.hazelcastInstance().getJet().getJob(context.jobId()), processorBaseContext.getNode().getId());
 			} catch (Exception e) {
@@ -212,6 +216,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected SettingService initSettingService() {
+		if (null == clientMongoOperator) {
+			throw new TapCodeException(TaskProcessorExCode_11.INIT_SETTING_SERVICE_FAILED_CLIENT_MONGO_OPERATOR_IS_NULL);
+		}
 		return new SettingService(clientMongoOperator);
 	}
 
@@ -368,6 +375,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected boolean tryEmit(TapdataEvent dataEvent, int bucketCount) {
+		if (null == dataEvent) {
+			return true;
+		}
 		if (bucketCount > 1) {
 			for (bucketIndex = Math.min(bucketIndex, bucketCount); bucketIndex < bucketCount; bucketIndex++) {
 				TapdataEvent cloneEvent = (TapdataEvent) dataEvent.clone();
@@ -385,7 +395,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected Outbox getOutboxAndCheckNullable() {
 		Outbox outbox = getOutbox();
 		if (null == outbox) {
-			throw new TapCodeException(TaskProcessorExCode_11.OUTBOX_IS_NULL_WHEN_OFFER);
+			throw new TapCodeException(TaskProcessorExCode_11.OUTBOX_IS_NULL_WHEN_OFFER, "Get outbox failed, outbox is null");
 		}
 		return outbox;
 	}
@@ -398,8 +408,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		CommonUtils.handleAnyError(() -> {
 			if (this.monitorManager != null) {
 				this.monitorManager.close();
-				obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
 			}
+			obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
 		}, err -> obsLogger.warn("Close monitor failed: " + err.getMessage()));
 	}
 
@@ -533,7 +543,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	@Nullable
-	private com.hazelcast.jet.Job getJetJob(TaskDto taskDto) {
+	protected com.hazelcast.jet.Job getJetJob(TaskDto taskDto) {
 		com.hazelcast.jet.Job hazelcastJob = null;
 		for (int i = 5; i > 0; i--) {
 			if (null != jetContext) {

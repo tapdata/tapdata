@@ -96,4 +96,10 @@ public interface TaskProcessorExCode_11 {
 			describe = "Init base node failed, configuration center is null"
 	)
 	String INIT_CONFIGURATION_CENTER_CANNOT_BE_NULL = "11017";
+	@TapExCode(
+			describe = "Init setting service failed, because client mongo operator is null"
+	)
+	String INIT_SETTING_SERVICE_FAILED_CLIENT_MONGO_OPERATOR_IS_NULL = "11018";
+	@TapExCode
+	String INIT_SCRIPT_ENGINE_FAILED = "11019";
 }

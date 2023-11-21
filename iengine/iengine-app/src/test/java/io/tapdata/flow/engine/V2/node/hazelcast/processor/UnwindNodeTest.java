@@ -1,4 +1,4 @@
-package io.tapdata.io.tapdata.flow.engine.V2.node.hazelcast.processor;
+package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
@@ -16,7 +16,7 @@ import java.util.*;
 import static com.tapdata.tm.sdk.util.JacksonUtil.toJson;
 
 
-public class TestUnwindNode {
+public class UnwindNodeTest {
 
     /**
      * 依次测试节点的各个属性值

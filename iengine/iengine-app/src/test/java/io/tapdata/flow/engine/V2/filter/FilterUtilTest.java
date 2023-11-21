@@ -1,6 +1,5 @@
-package io.tapdata.io.tapdata.flow.engine.V2.filter;
+package io.tapdata.flow.engine.V2.filter;
 
-import io.tapdata.flow.engine.V2.filter.FilterUtil;
 import org.junit.Assert;
 import org.junit.Test;
 

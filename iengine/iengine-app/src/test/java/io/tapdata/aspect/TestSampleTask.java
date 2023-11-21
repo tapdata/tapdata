@@ -1,8 +1,5 @@
-package io.tapdata.io.tapdata.aspect;
+package io.tapdata.aspect;
 
-import io.tapdata.aspect.ProcessorNodeProcessAspect;
-import io.tapdata.aspect.TaskStartAspect;
-import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.aspect.Aspect;
 

@@ -1,17 +1,27 @@
 package io.tapdata.flow.engine.V2.node.hazelcast;
 
+import base.BaseTest;
+import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.jet.JetService;
+import com.hazelcast.jet.Job;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
+import com.tapdata.constant.BeanUtil;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.task.config.TaskConfig;
+import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.BaseTest;
 import io.tapdata.MockTaskUtil;
+import io.tapdata.aspect.DataNodeInitAspect;
+import io.tapdata.aspect.ProcessorNodeInitAspect;
+import io.tapdata.common.SettingService;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
@@ -30,8 +40,15 @@ import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapProcessorUnknownException;
+import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
+import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
@@ -41,14 +58,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.runner.RunWith;
+import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -61,21 +77,23 @@ import static org.mockito.Mockito.*;
  **/
 @RunWith(MockitoJUnitRunner.class)
 class HazelcastBaseNodeTest extends BaseTest {
-	protected ProcessorBaseContext processorBaseContext;
-	protected TableNode tableNode;
-	protected TaskDto taskDto;
+	private ProcessorBaseContext processorBaseContext;
+	private TableNode tableNode;
+	private TaskDto taskDto;
 	private HazelcastBaseNode hazelcastBaseNode;
 	private HazelcastBaseNode mockHazelcastBaseNode;
 
 	@BeforeEach
 	void beforeEach() {
-		// Mock some common object
-		processorBaseContext = mock(ProcessorBaseContext.class);
-		mockHazelcastBaseNode = mock(HazelcastBaseNode.class);
-
 		// Mock task and node data
 		taskDto = MockTaskUtil.setUpTaskDtoByJsonFile();
 		tableNode = (TableNode) taskDto.getDag().getNodes().get(0);
+
+		// Mock some common object
+		processorBaseContext = mock(ProcessorBaseContext.class);
+		when(processorBaseContext.getTaskDto()).thenReturn(taskDto);
+		when(processorBaseContext.getNode()).thenReturn((Node) tableNode);
+		mockHazelcastBaseNode = mock(HazelcastBaseNode.class);
 
 		ReflectionTestUtils.setField(mockHazelcastBaseNode, "processorBaseContext", processorBaseContext);
 		hazelcastBaseNode = new HazelcastBaseNode(processorBaseContext) {
@@ -89,7 +107,6 @@ class HazelcastBaseNodeTest extends BaseTest {
 		ExternalStorageDto externalStorageDto;
 		AtomicBoolean doInit = new AtomicBoolean(false);
 		AtomicBoolean doInitWithDisableNode = new AtomicBoolean(false);
-		MonitorManager monitorManager;
 
 		@BeforeEach
 		void beforeEach() {
@@ -104,14 +121,14 @@ class HazelcastBaseNodeTest extends BaseTest {
 			when(mockHazelcastBaseNode.initSettingService()).thenReturn(mockSettingService);
 			when(mockHazelcastBaseNode.initObsLogger()).thenReturn(mockObsLogger);
 			when(mockHazelcastBaseNode.initExternalStorage()).thenReturn(externalStorageDto);
+
 			ReflectionTestUtils.setField(mockHazelcastBaseNode, "running", new AtomicBoolean(false));
 			when(processorBaseContext.getConfigurationCenter()).thenReturn(mockConfigurationCenter);
 			doNothing().when(mockHazelcastBaseNode).executeAspectOnInit();
-			doNothing().when(mockHazelcastBaseNode).initMonitorAndStartIfNeed(context);
+			doNothing().when(mockHazelcastBaseNode).startMonitorIfNeed(context);
 			when(mockHazelcastBaseNode.initFilterCodec()).thenCallRealMethod();
 			when(mockHazelcastBaseNode.getNode()).thenReturn((Node) tableNode);
-			monitorManager = mock(MonitorManager.class);
-			ReflectionTestUtils.setField(mockHazelcastBaseNode, "monitorManager", monitorManager);
+			when(mockHazelcastBaseNode.initMonitor()).thenCallRealMethod();
 			doAnswer(invocationOnMock -> doInit.compareAndSet(false, true)).when(mockHazelcastBaseNode).doInit(context);
 			doAnswer(invocationOnMock -> doInitWithDisableNode.compareAndSet(false, true)).when(mockHazelcastBaseNode).doInitWithDisableNode(context);
 			doAnswer(invocationOnMock -> {
@@ -145,27 +162,29 @@ class HazelcastBaseNodeTest extends BaseTest {
 		@SneakyThrows
 		void testInit() {
 			doCallRealMethod().when(mockHazelcastBaseNode).init(context);
+			mockHazelcastBaseNode.init(context);
 
 			assertEquals(context, ReflectionTestUtils.getField(mockHazelcastBaseNode, "jetContext"));
 			Object runningObj = ReflectionTestUtils.getField(mockHazelcastBaseNode, "running");
 			assertNotNull(runningObj);
 			assertEquals(AtomicBoolean.class, runningObj.getClass());
 			assertTrue(((AtomicBoolean) runningObj).get());
-//			assertEquals(mockObsLogger, mockHazelcastBaseNode.obsLogger);
+			assertEquals(mockObsLogger, mockHazelcastBaseNode.obsLogger);
 			assertEquals(mockClientMongoOperator, mockHazelcastBaseNode.clientMongoOperator);
 			assertEquals(mockSettingService, mockHazelcastBaseNode.settingService);
 			assertEquals(externalStorageDto, mockHazelcastBaseNode.externalStorageDto);
 			assertNotNull(mockHazelcastBaseNode.codecsFilterManager);
-			assertEquals(monitorManager, mockHazelcastBaseNode.monitorManager);
+			assertNotNull(mockHazelcastBaseNode.monitorManager);
 			assertTrue(doInit.get());
 			assertFalse(doInitWithDisableNode.get());
 		}
 
 		@Test
+		@SneakyThrows
 		void testInitWithOutConfigureCenter() {
 			when(processorBaseContext.getConfigurationCenter()).thenReturn(null);
-			HazelcastBaseNode when = doCallRealMethod().when(mockHazelcastBaseNode);
-			assertThrows(TapCodeException.class, () -> when.init(context));
+			doCallRealMethod().when(mockHazelcastBaseNode).init(context);
+			assertThrows(TapCodeException.class, () -> mockHazelcastBaseNode.init(context));
 		}
 
 		@Test
@@ -176,6 +195,7 @@ class HazelcastBaseNodeTest extends BaseTest {
 			taskDto1.setDag(null);
 			when(processorBaseContext.getTaskDto()).thenReturn(taskDto1);
 			doCallRealMethod().when(mockHazelcastBaseNode).init(context);
+			mockHazelcastBaseNode.init(context);
 			assertNotNull(processorBaseContext.getTaskDto().getDag());
 		}
 
@@ -186,8 +206,22 @@ class HazelcastBaseNodeTest extends BaseTest {
 			attrs.put("disabled", true);
 			tableNode.setAttrs(attrs);
 			doCallRealMethod().when(mockHazelcastBaseNode).init(context);
+			mockHazelcastBaseNode.init(context);
 			assertFalse(doInit.get());
 			assertTrue(doInitWithDisableNode.get());
+		}
+
+		@Test
+		@SneakyThrows
+		void testInitHaveError() {
+			TapCodeException mockTapEx = new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR);
+			when(mockHazelcastBaseNode.initObsLogger()).thenThrow(mockTapEx);
+			when(mockHazelcastBaseNode.errorHandle(any(RuntimeException.class))).thenCallRealMethod();
+			ReflectionTestUtils.setField(mockHazelcastBaseNode, "error", mockTapEx);
+			// Execute init function
+			doCallRealMethod().when(mockHazelcastBaseNode).init(any(Processor.Context.class));
+			mockHazelcastBaseNode.init(context);
+			verify(mockHazelcastBaseNode, new Times(1)).errorHandle(mockTapEx);
 		}
 	}
 
@@ -737,13 +771,12 @@ class HazelcastBaseNodeTest extends BaseTest {
 			MessageEntity actual = hazelcastBaseNode.tapEvent2Message(tapInsertRecordEvent);
 			assertNotNull(actual);
 			assertEquals(MessageEntity.class, actual.getClass());
-			MessageEntity messageEntity = (MessageEntity) actual;
-			assertEquals(MOCK_DATA, messageEntity.getAfter());
-			assertEquals(TABLE_NAME, messageEntity.getTableName());
-			assertEquals(TIME, messageEntity.getTimestamp());
-			assertEquals("i", messageEntity.getOp());
-			assertEquals(INFO_MAP, messageEntity.getInfo());
-			assertEquals(TIME, messageEntity.getTime());
+			assertEquals(MOCK_DATA, actual.getAfter());
+			assertEquals(TABLE_NAME, actual.getTableName());
+			assertEquals(TIME, actual.getTimestamp());
+			assertEquals("i", actual.getOp());
+			assertEquals(INFO_MAP, actual.getInfo());
+			assertEquals(TIME, actual.getTime());
 		}
 
 		@Test
@@ -896,7 +929,7 @@ class HazelcastBaseNodeTest extends BaseTest {
 		@BeforeEach
 		void beforeEach() {
 			CommonUtils.setProperty("test_prop", "false");
-			tapdataEvent = mock(TapdataEvent.class);
+			tapdataEvent = new TapdataEvent();
 			outbox = mock(Outbox.class);
 			when(outbox.bucketCount()).thenReturn(1);
 			when(mockHazelcastBaseNode.getOutboxAndCheckNullable()).thenReturn(outbox);
@@ -921,6 +954,311 @@ class HazelcastBaseNodeTest extends BaseTest {
 		void testOfferWhenTapdataEventIsNull() {
 			boolean actual = mockHazelcastBaseNode.offer(null);
 			assertTrue(actual);
+		}
+	}
+
+	@Nested
+	class InitMonitorTest {
+		@Test
+		void testInitMonitor() {
+			MonitorManager monitorManager = hazelcastBaseNode.initMonitor();
+			assertNotNull(monitorManager);
+		}
+	}
+
+	@Nested
+	class StartMonitorIfNeedTest {
+		MonitorManager monitorManager;
+		Processor.Context context;
+		HazelcastInstance hazelcastInstance;
+		JetService jetService;
+		Job job;
+		private Object[] startMonitorArgs;
+		Monitor jetJobStatusMonitor;
+
+		@BeforeEach
+		@SneakyThrows
+		void beforeEach() {
+			job = mock(Job.class);
+			jetService = mock(JetService.class);
+			when(jetService.getJob(anyLong())).thenReturn(job);
+			hazelcastInstance = mock(HazelcastInstance.class);
+			when(hazelcastInstance.getJet()).thenReturn(jetService);
+			context = mock(Processor.Context.class);
+			when(context.hazelcastInstance()).thenReturn(hazelcastInstance);
+			when(context.jobId()).thenReturn(1L);
+			monitorManager = mock(MonitorManager.class);
+			startMonitorArgs = new Object[]{job, tableNode.getId()};
+			doAnswer(invocationOnMock -> null).when(monitorManager)
+					.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, startMonitorArgs);
+			jetJobStatusMonitor = mock(JetJobStatusMonitor.class);
+			when(monitorManager.getMonitorByType(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR)).thenReturn(jetJobStatusMonitor);
+			ReflectionTestUtils.setField(hazelcastBaseNode, "monitorManager", monitorManager);
+		}
+
+		@Test
+		@SneakyThrows
+		void testStartMonitorIfNeedWhenNotTestTask() {
+			hazelcastBaseNode.startMonitorIfNeed(context);
+			verify(monitorManager, new Times(1)).startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, startMonitorArgs);
+			assertEquals(jetJobStatusMonitor, ReflectionTestUtils.getField(hazelcastBaseNode, "jetJobStatusMonitor"));
+		}
+
+		@Test
+		@SneakyThrows
+		void testStartMonitorIfNeedWhenTestTask() {
+			taskDto.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
+			hazelcastBaseNode.startMonitorIfNeed(context);
+			verify(monitorManager, new Times(0)).startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, startMonitorArgs);
+			assertNull(ReflectionTestUtils.getField(hazelcastBaseNode, "jetJobStatusMonitor"));
+		}
+
+		@Test
+		@SneakyThrows
+		void testStartMonitorIfNeedWhenDeduceSchemaTask() {
+			taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
+			hazelcastBaseNode.startMonitorIfNeed(context);
+			verify(monitorManager, new Times(0)).startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, startMonitorArgs);
+			assertNull(ReflectionTestUtils.getField(hazelcastBaseNode, "jetJobStatusMonitor"));
+		}
+
+		@Test
+		@SneakyThrows
+		void testStartMonitorIfNeedError() {
+			NullPointerException nullPointerException = new NullPointerException();
+			doThrow(nullPointerException).when(monitorManager)
+					.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, startMonitorArgs);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> hazelcastBaseNode.startMonitorIfNeed(context));
+			assertEquals(TaskProcessorExCode_11.START_JET_JOB_STATUS_MONITOR_FAILED, tapCodeException.getCode());
+			assertEquals(nullPointerException, tapCodeException.getCause());
+		}
+	}
+
+	@Nested
+	class ExecuteAspectOnInitTest {
+		AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
+		private AtomicBoolean observe;
+
+		@BeforeEach
+		void beforeEach() {
+			observe = new AtomicBoolean(false);
+		}
+
+		@Test
+		void testExecuteAspectOnInit() {
+			aspectManager.registerAspectObserver(DataNodeInitAspect.class, 1, aspect -> observe.compareAndSet(false, true));
+			DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
+			when(dataProcessorContext.getNode()).thenReturn((Node) tableNode);
+			ReflectionTestUtils.setField(hazelcastBaseNode, "processorBaseContext", dataProcessorContext);
+			assertDoesNotThrow(hazelcastBaseNode::executeAspectOnInit);
+			assertTrue(observe.get());
+		}
+
+		@Test
+		void testExecuteAspectOnInitProcessorNode() {
+			aspectManager.registerAspectObserver(ProcessorNodeInitAspect.class, 1, aspect -> observe.compareAndSet(false, true));
+			MockProcessorNode mockProcessorNode = new MockProcessorNode(processorBaseContext);
+			assertDoesNotThrow(mockProcessorNode::executeAspectOnInit);
+			assertTrue(observe.get());
+		}
+
+		@Test
+		void testExecuteAspectOnInitMultiAggregatorProcessorNode() {
+			aspectManager.registerAspectObserver(ProcessorNodeInitAspect.class, 1, aspect -> observe.compareAndSet(false, true));
+			HazelcastMultiAggregatorProcessor hazelcastMultiAggregatorProcessor = mock(HazelcastMultiAggregatorProcessor.class);
+			doCallRealMethod().when(hazelcastMultiAggregatorProcessor).executeAspectOnInit();
+			ReflectionTestUtils.setField(hazelcastMultiAggregatorProcessor, "processorBaseContext", processorBaseContext);
+			assertDoesNotThrow(hazelcastMultiAggregatorProcessor::executeAspectOnInit);
+			assertTrue(observe.get());
+		}
+	}
+
+	@Nested
+	class InitExternalStorageTest {
+		@Test
+		void testInitExternalStorage() {
+			ReflectionTestUtils.setField(hazelcastBaseNode, "clientMongoOperator", mockClientMongoOperator);
+			ExternalStorageDto mockExternalStorage = new ExternalStorageDto();
+			mockExternalStorage.setId(new ObjectId());
+			TaskConfig taskConfig = TaskConfig.create();
+			Map<String, ExternalStorageDto> externalStorageDtoMap = new HashMap<>();
+			externalStorageDtoMap.put(mockExternalStorage.getId().toHexString(), mockExternalStorage);
+			taskConfig.externalStorageDtoMap(externalStorageDtoMap);
+			when(processorBaseContext.getTaskConfig()).thenReturn(taskConfig);
+			List<Node> nodes = mock(ArrayList.class);
+			when(processorBaseContext.getNodes()).thenReturn(nodes);
+			try (MockedStatic<ExternalStorageUtil> externalStorageUtilMockedStatic = mockStatic(ExternalStorageUtil.class)) {
+				externalStorageUtilMockedStatic.when(() -> ExternalStorageUtil.getExternalStorage(
+						externalStorageDtoMap, tableNode, mockClientMongoOperator, nodes, null
+				)).thenReturn(mockExternalStorage);
+				ExternalStorageDto externalStorageDto = hazelcastBaseNode.initExternalStorage();
+				assertEquals(mockExternalStorage, externalStorageDto);
+			}
+		}
+	}
+
+	@Nested
+	class InitSettingServiceTest {
+		@Test
+		void testInitSettingService() {
+			ReflectionTestUtils.setField(hazelcastBaseNode, "clientMongoOperator", mockClientMongoOperator);
+			SettingService actual = hazelcastBaseNode.initSettingService();
+			assertNotNull(actual);
+			assertEquals(mockClientMongoOperator, ReflectionTestUtils.getField(actual, "clientMongoOperator"));
+		}
+
+		@Test
+		void testInitSettingServiceClientMongoOperatorIsNull() {
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> hazelcastBaseNode.initSettingService());
+			assertEquals("11018", tapCodeException.getCode());
+		}
+	}
+
+	@Nested
+	class InitClientMongoOperatorTest {
+		@Test
+		void testInitClientMongoOperator() {
+			try (MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)) {
+				beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(mockClientMongoOperator);
+				ClientMongoOperator actual = hazelcastBaseNode.initClientMongoOperator();
+				assertEquals(mockClientMongoOperator, actual);
+			}
+		}
+	}
+
+	@Nested
+	class InitObsLoggerTest {
+		@Test
+		void testInitObsLogger() {
+			ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+			when(obsLoggerFactory.getObsLogger(processorBaseContext.getTaskDto(),
+					processorBaseContext.getNode().getId(),
+					processorBaseContext.getNode().getName())).thenReturn(mockObsLogger);
+			try (MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)) {
+				obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+				ObsLogger actual = hazelcastBaseNode.initObsLogger();
+				assertEquals(mockObsLogger, actual);
+			}
+		}
+	}
+
+	@Nested
+	class TryEmitTest {
+		TapdataEvent tapdataEvent;
+		Outbox mockOutBox;
+
+		@BeforeEach
+		void beforeEach() {
+			tapdataEvent = new TapdataEvent();
+			mockOutBox = mock(Outbox.class);
+			ReflectionTestUtils.setField(hazelcastBaseNode, "outbox", mockOutBox);
+			ReflectionTestUtils.setField(hazelcastBaseNode, "bucketIndex", 0);
+		}
+
+		@Test
+		void testTryEmit() {
+			when(mockOutBox.offer(any(TapdataEvent.class))).thenReturn(true);
+			boolean actual = hazelcastBaseNode.tryEmit(tapdataEvent, 1);
+			assertTrue(actual);
+		}
+
+		@Test
+		void testTryEmitTwoBucketSuccess() {
+			when(mockOutBox.offer(anyInt(), any(TapdataEvent.class))).thenReturn(true);
+			boolean actual = hazelcastBaseNode.tryEmit(tapdataEvent, 2);
+			assertTrue(actual);
+		}
+
+		@Test
+		void testTryEmitTwoBucketOneFail() {
+			TapdataEvent spyTapdataEvent = spy(tapdataEvent);
+			when(spyTapdataEvent.clone()).thenReturn(tapdataEvent);
+			when(mockOutBox.offer(0, tapdataEvent)).thenReturn(true);
+			when(mockOutBox.offer(1, tapdataEvent)).thenReturn(false);
+			boolean actual = hazelcastBaseNode.tryEmit(spyTapdataEvent, 2);
+			assertFalse(actual);
+		}
+
+		@Test
+		void testTryEmitEventIsNull() {
+			boolean actual = hazelcastBaseNode.tryEmit(null, 1);
+			assertTrue(actual);
+			verify(mockOutBox, new Times(0)).offer(tapdataEvent);
+		}
+	}
+
+	@Nested
+	class GetOutboxAndCheckNullableTest {
+		@Test
+		void testGetOutboxAndCheckNullable() {
+			Outbox mockOutbox = mock(Outbox.class);
+			ReflectionTestUtils.setField(hazelcastBaseNode, "outbox", mockOutbox);
+			Outbox actual = hazelcastBaseNode.getOutboxAndCheckNullable();
+			assertNotNull(actual);
+			assertEquals(mockOutbox, actual);
+		}
+
+		@Test
+		void testGetOutboxAndCheckNullableWhenOutboxIsNull() {
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> hazelcastBaseNode.getOutboxAndCheckNullable());
+			assertEquals(TaskProcessorExCode_11.OUTBOX_IS_NULL_WHEN_OFFER, tapCodeException.getCode());
+			assertNotNull(tapCodeException.getMessage());
+		}
+	}
+
+	@Nested
+	class DoCloseTest {
+
+		TapTableMap tapTableMap;
+		MonitorManager monitorManager;
+		ObsLogger mockObsLogger;
+
+		@BeforeEach
+		void beforeEach() {
+			mockObsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(hazelcastBaseNode, "obsLogger", mockObsLogger);
+			tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContext.getTapTableMap()).thenReturn(tapTableMap);
+			monitorManager = mock(MonitorManager.class);
+			ReflectionTestUtils.setField(hazelcastBaseNode, "monitorManager", monitorManager);
+		}
+
+		@Test
+		@SneakyThrows
+		void testDoClose() {
+			hazelcastBaseNode.doClose();
+			verify(tapTableMap, new Times(1)).reset();
+			verify(monitorManager, new Times(1)).close();
+			verify(mockObsLogger, new Times(2)).info(anyString());
+		}
+
+		@Test
+		void testDoCloseTapTableMapIsNull() {
+			when(processorBaseContext.getTapTableMap()).thenReturn(null);
+			assertDoesNotThrow(() -> hazelcastBaseNode.doClose());
+			verify(mockObsLogger, new Times(2)).info(anyString());
+		}
+
+		@Test
+		void testDoCloseResetTapTableMapError() {
+			doThrow(new RuntimeException("test")).when(tapTableMap).reset();
+			assertDoesNotThrow(() -> hazelcastBaseNode.doClose());
+			verify(mockObsLogger, new Times(1)).warn(anyString());
+		}
+
+		@Test
+		void testDoCloseResetMonitorManagerIsNull() {
+			ReflectionTestUtils.setField(hazelcastBaseNode, "monitorManager", null);
+			assertDoesNotThrow(() -> hazelcastBaseNode.doClose());
+			verify(mockObsLogger, new Times(2)).info(anyString());
+		}
+
+		@Test
+		@SneakyThrows
+		void testDoCloseResetCloseMonitorManagerError() {
+			doThrow(new RuntimeException("test")).when(monitorManager).close();
+			assertDoesNotThrow(() -> hazelcastBaseNode.doClose());
+			verify(mockObsLogger, new Times(1)).warn(anyString());
 		}
 	}
 }

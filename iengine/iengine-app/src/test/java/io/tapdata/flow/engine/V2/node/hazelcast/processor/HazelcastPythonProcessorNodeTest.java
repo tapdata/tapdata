@@ -1,4 +1,4 @@
-package io.tapdata.io.tapdata.flow.engine.V2.node.hazelcast.processor;
+package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.tapdata.processor.Log4jScriptLogger;
 import com.tapdata.processor.LoggingOutputStream;
