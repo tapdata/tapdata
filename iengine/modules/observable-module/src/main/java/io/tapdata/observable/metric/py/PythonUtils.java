@@ -146,14 +146,6 @@ public class PythonUtils {
         }
     }
 
-    public static boolean needSkip(File f) {
-        if (null == f) return true;
-        if (!f.exists()) return true;
-        if (!f.isFile()) return true;
-        if (!f.getName().contains(PACKAGE_COMPILATION_FILE)) return true;
-        return false;
-    }
-
     private static void unPackageFile(File f, File afterUnzipFile, final String pythonJarPath, Log logger) {
         Process start = null;
         try {
@@ -347,5 +339,13 @@ public class PythonUtils {
         } catch (Exception e) {
             return new HashMap<>();
         }
+    }
+
+    public static boolean needSkip(File f) {
+        if (null == f) return true;
+        if (!f.exists()) return true;
+        if (!f.isFile()) return true;
+        if (!f.getName().contains(PACKAGE_COMPILATION_FILE)) return true;
+        return false;
     }
 }
