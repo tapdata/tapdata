@@ -1,6 +1,5 @@
-package io.tapdata.io.tapdata.aspect;
+package io.tapdata.aspect;
 
-import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;

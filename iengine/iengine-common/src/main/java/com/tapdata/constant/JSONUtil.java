@@ -141,17 +141,6 @@ public class JSONUtil {
 		return pojo;
 	}
 
-	public static <T> T json2POJO(URL url, TypeReference<T> typeReference) throws IOException {
-		T pojo;
-		try {
-			pojo = mapper.readValue(url, typeReference);
-		} catch (Throwable e) {
-			throw new IOException("parse json to " + typeReference.getType().getTypeName() + " failed\n" + url, e);
-		}
-
-		return pojo;
-	}
-
 	public static <T> T map2POJO(Map map, Class<T> className) {
 
 		return mapper.convertValue(map, className);

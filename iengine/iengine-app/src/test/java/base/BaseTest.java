@@ -1,4 +1,4 @@
-package io.tapdata;
+package base;
 
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;

@@ -1,9 +1,8 @@
-package io.tapdata.io.tapdata.aspect;
+package io.tapdata.aspect;
 
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.entity.aspect.AspectManager;

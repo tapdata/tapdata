@@ -65,13 +65,18 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
     private ScriptExecutorsManager scriptExecutorsManager;
     private ScriptExecutorsManager.ScriptExecutor source;
     private ScriptExecutorsManager.ScriptExecutor target;
-    private final ThreadLocal<Map<String, Object>> processContextThreadLocal;
-    private final Map<String, Object> globalMap;
-    private final Invocable engine;
+    private ThreadLocal<Map<String, Object>> processContextThreadLocal;
+    private Map<String, Object> globalMap;
+    private Invocable engine;
 
     @SneakyThrows
     public HazelcastPythonProcessNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
+    }
+
+    @Override
+    protected void doInit(@NotNull Context context) throws TapCodeException {
+        super.doInit(context);
         Node<?> node = getNode();
         String script;
         if (node instanceof PyProcessNode) {
@@ -94,13 +99,6 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                 Application.class.getClassLoader());
         this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
         this.globalMap = new HashMap<>();
-
-    }
-
-    @Override
-    protected void doInit(@NotNull Context context) throws TapCodeException {
-        super.doInit(context);
-        Node<?> node = getNode();
         this.scriptExecutorsManager = new ScriptExecutorsManager(
             new ObsScriptLogger(obsLogger),
             clientMongoOperator,

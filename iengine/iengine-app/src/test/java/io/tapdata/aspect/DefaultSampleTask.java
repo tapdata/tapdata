@@ -1,4 +1,4 @@
-package io.tapdata.io.tapdata.aspect;
+package io.tapdata.aspect;
 
 import io.tapdata.aspect.task.AspectTaskSession;
 
