@@ -51,6 +51,11 @@ public class PythonUtilsTest {
              boolean needSkip = PythonUtils.needSkip(f);
              Assertions.assertTrue(needSkip);
          }
+         @Test
+         void testNeedSkipNormalNullFile() {
+             boolean needSkip = PythonUtils.needSkip(null);
+             Assertions.assertTrue(needSkip);
+         }
     }
 
 

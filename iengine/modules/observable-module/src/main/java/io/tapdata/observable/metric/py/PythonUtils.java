@@ -145,7 +145,9 @@ public class PythonUtils {
             }
         }
     }
+
     public static boolean needSkip(File f) {
+        if (null == f) return true;
         if (!f.exists()) return true;
         if (!f.isFile()) return true;
         if (!f.getName().contains(PACKAGE_COMPILATION_FILE)) return true;
