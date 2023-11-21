@@ -15,6 +15,7 @@ public enum InspectMethod {
 	FIELD("field"),
 	JOINTFIELD("jointField"),
 	CDC_COUNT("cdcCount"),
+	JUNIT_TEST("junitTest")
 	;
 
 	private final String name;

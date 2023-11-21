@@ -21,4 +21,12 @@ public class Constants {
     static final String TIME_COST_AVG       = "timeCostAvg";
     static final String REPLICATE_LAG       = "replicateLag";
     static final String CURR_EVENT_TS       = "currentEventTimestamp";
+
+    static final String QPS_TYPE            = "qpsType";
+    static final int QPS_TYPE_MEMORY        = 1;
+    static final int QPS_TYPE_COUNT         = 0;
+    static final String INPUT_SIZE_QPS      = "inputSizeQps";
+    static final String OUTPUT_SIZE_QPS     = "outputSizeQps";
+    static final String OUTPUT_SIZE_QPS_MAX = "outputSizeQpsMax";
+    static final String OUTPUT_SIZE_QPS_AVG = "outputSizeQpsAvg";
 }

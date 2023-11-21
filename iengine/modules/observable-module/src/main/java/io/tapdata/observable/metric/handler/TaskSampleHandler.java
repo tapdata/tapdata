@@ -117,11 +117,17 @@ public class TaskSampleHandler extends AbstractHandler {
                 CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL,
                 OUTPUT_QPS_MAX,
                 OUTPUT_QPS_AVG,
-                TABLE_TOTAL
+                TABLE_TOTAL,
+                Constants.INPUT_SIZE_QPS,
+                Constants.OUTPUT_SIZE_QPS,
+                Constants.QPS_TYPE,
+                Constants.OUTPUT_SIZE_QPS_MAX,
+                Constants.OUTPUT_SIZE_QPS_AVG
         );
     }
 
     public void doInit(Map<String, Number> values) {
+        super.doInit(values);
         collector.addSampler(TABLE_TOTAL, () -> {
             if (Objects.nonNull(snapshotTableTotal.value())) {
                 return Math.max(snapshotTableTotal.value().longValue(), taskTables.size());
@@ -292,7 +298,9 @@ public class TaskSampleHandler extends AbstractHandler {
 //        }
     }
 
-    public void handleBatchReadAccept(long size) {
+    public void handleBatchReadAccept(HandlerUtil.EventTypeRecorder recorder) {
+        long size = recorder.getInsertTotal();
+        inputSizeSpeed.add(recorder.getMemorySize());
         inputInsertCounter.inc(size);
         inputSpeed.add(size);
 //        currentSnapshotTableInsertRowTotal += size;
@@ -316,7 +324,7 @@ public class TaskSampleHandler extends AbstractHandler {
         inputDeleteCounter.inc(recorder.getDeleteTotal());
         inputDdlCounter.inc(recorder.getDdlTotal());
         inputOthersCounter.inc(recorder.getOthersTotal());
-
+        inputSizeSpeed.add(recorder.getMemorySize());
         inputSpeed.add(recorder.getTotal());
     }
 
@@ -328,8 +336,7 @@ public class TaskSampleHandler extends AbstractHandler {
         sourceNodeHandlers.putIfAbsent(nodeId, handler);
     }
 
-    public void handleWriteRecordAccept(WriteListResult<TapRecordEvent> result, List<TapRecordEvent> events) {
-        long current = System.currentTimeMillis();
+    public void handleWriteRecordAccept(WriteListResult<TapRecordEvent> result, List<TapRecordEvent> events, HandlerUtil.EventTypeRecorder eventTypeRecorder) {        long current = System.currentTimeMillis();
 
         long inserted = result.getInsertedCount();
         long updated = result.getModifiedCount();
@@ -358,6 +365,7 @@ public class TaskSampleHandler extends AbstractHandler {
             timeCostTotal += (current - time);
         }
         timeCostAverage.add(total, timeCostTotal);
+        outputSizeSpeed.add(eventTypeRecorder.getMemorySize());
     }
 
     public void handleSnapshotStart(Long time) {
