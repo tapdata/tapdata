@@ -80,6 +80,13 @@ public class TapDataTaskSchedulerUtilTest {
         }
 
         @Test
+        void testJudgeTaskRetryStartTimeEqualZeroRetryStartTimeInTaskDto() {
+            when(taskDto.getTaskRetryStartTime()).thenReturn(0L);
+            boolean needRetryStartTime = TapDataTaskSchedulerUtil.judgeTaskRetryStartTime(taskDto);
+            Assertions.assertTrue(needRetryStartTime);
+        }
+
+        @Test
         void testJudgeTaskRetryStartTimeNullTaskDto() {
             Assertions.assertTrue(TapDataTaskSchedulerUtil.judgeTaskRetryStartTime(null));
         }
