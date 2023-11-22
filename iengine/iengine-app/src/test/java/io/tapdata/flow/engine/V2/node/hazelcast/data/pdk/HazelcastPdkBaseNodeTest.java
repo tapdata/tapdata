@@ -30,20 +30,24 @@ public class HazelcastPdkBaseNodeTest {
             when(hazelcastPdkBaseNode.functionRetryQuery(anyLong(), anyBoolean())).thenCallRealMethod();
         }
 
-        /**normal*/
+        /**signFunction*/
         @Test
         void functionRetryQueryNormal() {
             Update update = hazelcastPdkBaseNode.functionRetryQuery(timestamp, true);
-            assertResult(update);
+            Document document = assertResult(update);
+            Assertions.assertTrue(document.containsKey("taskRetryStartTime"));
+            Assertions.assertEquals(timestamp, document.get("taskRetryStartTime"));
         }
 
-        /**normal*/
+        /**clearFunction*/
         @Test
         void functionRetryQueryNotSingle() {
             Update update = hazelcastPdkBaseNode.functionRetryQuery(timestamp, false);
             Document document = assertResult(update);
             Assertions.assertTrue(document.containsKey("functionRetryEx"));
             Assertions.assertEquals(timestamp + 5 * 60 * 1000L, document.get("functionRetryEx"));
+            Assertions.assertTrue(document.containsKey("taskRetryStartTime"));
+            Assertions.assertEquals(0, document.get("taskRetryStartTime"));
         }
 
         Document assertResult(Update update) {
@@ -56,8 +60,6 @@ public class HazelcastPdkBaseNodeTest {
             Document setMap = (Document) set;
             Assertions.assertTrue(setMap.containsKey("functionRetryStatus"));
             Assertions.assertEquals(TaskDto.RETRY_STATUS_RUNNING, setMap.get("functionRetryStatus"));
-            Assertions.assertTrue(setMap.containsKey("taskRetryStartTime"));
-            Assertions.assertEquals(timestamp, setMap.get("taskRetryStartTime"));
             return setMap;
         }
     }

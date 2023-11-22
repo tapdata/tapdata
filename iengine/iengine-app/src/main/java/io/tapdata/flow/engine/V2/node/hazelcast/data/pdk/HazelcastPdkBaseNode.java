@@ -154,10 +154,12 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	public Update functionRetryQuery(long timestamp, boolean isSign) {
 		Update update = new Update();
 		update.set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING);
-		update.set("taskRetryStartTime", timestamp);
 		if (!isSign) {
 			long functionRetryEx = timestamp + 5 * 60 * 1000L;
 			update.set("functionRetryEx", functionRetryEx);
+			update.set("taskRetryStartTime", 0);
+		} else {
+			update.set("taskRetryStartTime", timestamp);
 		}
 		return update;
 	}
