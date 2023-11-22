@@ -444,10 +444,7 @@ public class TapdataTaskScheduler {
 
 	private void signTaskRetry(String taskId, long retryStartTime) {
 		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.update(
-						Query.query(Criteria.where("_id").is(new ObjectId(taskId))),
-						new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_RUNNING).set("taskRetryStartTime", retryStartTime),
-						ConnectorConstant.TASK_COLLECTION), "Failed to sign task retry status");
+			clientMongoOperator.update(TapDataTaskSchedulerUtil.signTaskRetryQuery(taskId), TapDataTaskSchedulerUtil.signTaskRetryUpdate(TapDataTaskSchedulerUtil.signTaskRetryWithTimestamp(taskId, clientMongoOperator), retryStartTime), ConnectorConstant.TASK_COLLECTION), "Failed to sign task retry status");
 	}
 
 	public void clearTaskRetry(String taskId) {
