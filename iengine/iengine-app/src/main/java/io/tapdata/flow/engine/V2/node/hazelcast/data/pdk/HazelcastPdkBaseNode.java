@@ -141,16 +141,25 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public void signFunctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING),
+				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), functionRetryQuery(System.currentTimeMillis(), true),
 						ConnectorConstant.TASK_COLLECTION), "Failed to sign function retry status");
 	}
 
 	public void clearFunctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() -> {
-			Update update = new Update().set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING)
-					.set("functionRetryEx", System.currentTimeMillis() + 5 * 60 * 1000L);
-			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
+			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), functionRetryQuery(System.currentTimeMillis(), false), ConnectorConstant.TASK_COLLECTION);
 		}, "Failed to sign function retry status");
+	}
+
+	public Update functionRetryQuery(long timestamp, boolean isSign) {
+		Update update = new Update();
+		update.set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING);
+		update.set("taskRetryStartTime", timestamp);
+		if (!isSign) {
+			long functionRetryEx = timestamp + 5 * 60 * 1000L;
+			update.set("functionRetryEx", functionRetryEx);
+		}
+		return update;
 	}
 
 	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
