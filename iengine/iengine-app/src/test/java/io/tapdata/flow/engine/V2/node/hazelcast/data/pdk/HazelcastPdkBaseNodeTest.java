@@ -58,7 +58,7 @@ public class HazelcastPdkBaseNodeTest {
             Assertions.assertEquals(TaskDto.RETRY_STATUS_RUNNING, setMap.get("functionRetryStatus"));
             Assertions.assertTrue(setMap.containsKey("taskRetryStartTime"));
             Assertions.assertEquals(timestamp, setMap.get("taskRetryStartTime"));
-            return document;
+            return setMap;
         }
     }
 
