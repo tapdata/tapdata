@@ -63,7 +63,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	public static final String FUNCTION_NAME_DECLARE = "declare";
 
 	private final String schemaKey;
-	private final TapTableMap<String, TapTable> oldTapTableMap;
+	private TapTableMap<String, TapTable> oldTapTableMap;
 
 	private boolean needToDeclare;
 
@@ -104,13 +104,6 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	public HazelcastSchemaTargetNode(DataProcessorContext dataProcessorContext) throws Exception {
 		super(dataProcessorContext);
 		this.schemaKey = dataProcessorContext.getTaskDto().getId().toHexString() + "-" + dataProcessorContext.getNode().getId();
-
-		List<? extends Node<?>> preNodes = getNode().predecessors();
-		if (preNodes.size() != 1) {
-			throw new IllegalArgumentException("HazelcastSchemaTargetNode only allows one predecessor node");
-		}
-		Node<?> deductionSchemaNode = preNodes.get(0);
-		this.oldTapTableMap = TapTableUtil.getTapTableMap("predecessor_" + getNode().getId() + "_", deductionSchemaNode, null);
 	}
 
 	@Override
@@ -118,7 +111,11 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
 		List<? extends Node<?>> preNodes = getNode().predecessors();
+		if (preNodes.size() != 1) {
+			throw new IllegalArgumentException("HazelcastSchemaTargetNode only allows one predecessor node");
+		}
 		Node<?> deductionSchemaNode = preNodes.get(0);
+		this.oldTapTableMap = TapTableUtil.getTapTableMap("predecessor_" + getNode().getId() + "_", deductionSchemaNode, null);
 		if (deductionSchemaNode instanceof JsProcessorNode
 				|| deductionSchemaNode instanceof MigrateJsProcessorNode
 				|| deductionSchemaNode instanceof CustomProcessorNode
