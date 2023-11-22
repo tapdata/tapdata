@@ -89,4 +89,17 @@ public interface TaskProcessorExCode_11 {
 			describeCN = "推演后的模型id是空"
 	)
 	String TRANSFORM_METADATA_ID_NULL = "11015";
+
+	@TapExCode
+	String START_JET_JOB_STATUS_MONITOR_FAILED = "11016";
+	@TapExCode(
+			describe = "Init base node failed, configuration center is null"
+	)
+	String INIT_CONFIGURATION_CENTER_CANNOT_BE_NULL = "11017";
+	@TapExCode(
+			describe = "Init setting service failed, because client mongo operator is null"
+	)
+	String INIT_SETTING_SERVICE_FAILED_CLIENT_MONGO_OPERATOR_IS_NULL = "11018";
+	@TapExCode
+	String INIT_SCRIPT_ENGINE_FAILED = "11019";
 }
