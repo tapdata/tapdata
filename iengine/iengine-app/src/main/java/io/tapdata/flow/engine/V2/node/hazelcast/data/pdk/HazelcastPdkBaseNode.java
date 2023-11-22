@@ -30,6 +30,7 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
+import io.tapdata.flow.engine.V2.schedule.TapDataTaskSchedulerUtil;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -141,7 +142,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public void signFunctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), functionRetryQuery(System.currentTimeMillis(), true),
+				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), functionRetryQuery(System.currentTimeMillis(), TapDataTaskSchedulerUtil.signTaskRetryWithTimestamp(taskId, clientMongoOperator)),
 						ConnectorConstant.TASK_COLLECTION), "Failed to sign function retry status");
 	}
 
