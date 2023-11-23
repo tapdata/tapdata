@@ -1,0 +1,8 @@
+{
+  "intValue": 1,
+  "longValue": 1,
+  "strValue": "test",
+  "dateValue": "2023-01-01T15:59:59",
+  "doubleValue": 1.11,
+  "notExistsValue": 1
+}

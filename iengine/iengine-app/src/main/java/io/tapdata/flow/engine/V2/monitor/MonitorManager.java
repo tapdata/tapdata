@@ -18,6 +18,10 @@ public class MonitorManager implements Closeable {
 	public static final String TAG = MonitorManager.class.getSimpleName();
 	private List<Monitor<?>> monitors = new ArrayList<>();
 
+	public static MonitorManager create() {
+		return new MonitorManager();
+	}
+
 	public void startMonitor(MonitorType monitorType, Object... args) throws Exception {
 		if (null == monitorType) {
 			return;

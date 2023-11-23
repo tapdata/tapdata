@@ -1,6 +1,5 @@
 package io.tapdata.flow.engine.V2.schedule;
 
-import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
@@ -147,7 +146,6 @@ public class TapdataTaskScheduler {
 		});
 		initScheduleTask();
 		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::resetTaskRetryServiceIfNeed, 1L, 1L, TimeUnit.MINUTES);
-		PersistenceStorage.getInstance().logger(logger);
 	}
 
 	private void initScheduleTask() {

@@ -349,4 +349,6 @@ public class ConnectorConstant {
 
 	public static final String TARGET_MONGO_DB_EXTERNAL_STORAGE_NAME = "Target MongoDB External Storage";
 
+	public static final String JUNIT_TEST_PROP_KEY = "JUNIT_TEST";
+
 }
