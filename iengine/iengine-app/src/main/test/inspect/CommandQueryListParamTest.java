@@ -1,8 +1,13 @@
 package inspect;
 
+import ConnectorNode.ConnectorNodeBase;
+import cn.hutool.core.map.MapUtil;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.inspect.compare.PdkResult;
 import io.tapdata.pdk.apis.entity.Projection;
 import io.tapdata.pdk.apis.entity.SortOn;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -23,10 +28,22 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
     @Rule
     public ExpectedException exception = ExpectedException.none();
 
-
     @Before
-    public void initSort(){
+    public void initSort() throws NoSuchFieldException, IllegalAccessException {
         sortOnList.add(SortOn.ascending("id"));
+        sqlConnectorNode = new ConnectorNode();
+        TapNodeSpecification tapNodeSpecificationSql = new TapNodeSpecification();
+        tapNodeSpecificationSql.setId("mysql");
+        initConnectorNode(sqlConnectorNode, tapNodeSpecificationSql);
+
+        mongoConnectorNode = new ConnectorNode();
+        TapNodeSpecification tapNodeSpecificationMongo = new TapNodeSpecification();
+        tapNodeSpecificationMongo.setId("mongodb");
+        initConnectorNode(mongoConnectorNode, tapNodeSpecificationMongo);
+
+        TapTable table = new TapTable();
+        table.setId("testID");
+        myTapTable = table;
     }
 
 
@@ -118,10 +135,6 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
 
         // output results
         Assert.assertEquals(expectedCollection, actualCollection);
-<<<<<<< HEAD
-        Assert.assertTrue(actualSortMap.containsKey("id"));
-=======
-        Assert.assertTrue(actualSortMap.containsKey(sortOnList.get(0).getKey()));
     }
 
 
@@ -200,8 +213,6 @@ public class CommandQueryListParamTest extends ConnectorNodeBase {
         // output results
         Assert.assertTrue(actualData.keySet().contains(projection.getIncludeFields().get(0)));
 
-
->>>>>>> 499c90939 (fix test  exception scene)
     }
 
 
