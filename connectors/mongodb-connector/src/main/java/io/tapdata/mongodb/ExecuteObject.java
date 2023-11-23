@@ -2,7 +2,9 @@ package io.tapdata.mongodb;
 
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
+import org.bson.Document;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -23,13 +25,13 @@ public class ExecuteObject {
 
 	private String collection;
 
-	private Map<String, Object> filter;
+	private Document filter;
 
 	private Map<String, Object> opObject;
 
 	private Map<String, Object> sort;
 
-	private List<Map<String, Object>> pipeline;
+	private List<Document> pipeline;
 
 	private int limit;
 	private int skip;
@@ -59,12 +61,12 @@ public class ExecuteObject {
 		this.batchSize = executeObj.get("batchSize") == null ? 1000 : (int) executeObj.get("batchSize");
 	}
 
-	private Map<String, Object> getFilter(Object obj) {
+	private Document getFilter(Object obj) {
 		if (obj != null) {
 			if (obj instanceof Map) {
-				return (Map<String, Object>) obj;
+				return Document.parse(TapSimplify.toJson(obj));
 			} else if (obj instanceof String) {
-				return TapSimplify.fromJson((String) obj, Map.class);
+				return Document.parse((String) obj);
 			} else {
 				throw new NotSupportedException(obj.toString());
 			}
@@ -72,12 +74,20 @@ public class ExecuteObject {
 		return null;
 	}
 
-	private List<Map<String, Object>> getPipeline(Object obj) {
+	private List<Document> getPipeline(Object obj) {
 		if (obj != null) {
+			List<Document> pipeline = new ArrayList<>();
 			if (obj instanceof List) {
-				return (List<Map<String, Object>>) obj;
+				for (Map<String, Object> o : (List<Map<String, Object>>) obj) {
+					pipeline.add(Document.parse(TapSimplify.toJson(o)));
+				}
+				return pipeline;
 			} else if (obj instanceof String) {
-				return TapSimplify.fromJson((String) obj, List.class);
+				List<?> list = TapSimplify.fromJson((String) obj, List.class);
+				for (Object o : list) {
+					pipeline.add(Document.parse(TapSimplify.toJson(o)));
+				}
+				return pipeline;
 			} else {
 				throw new NotSupportedException(obj.toString());
 			}
@@ -117,11 +127,11 @@ public class ExecuteObject {
 		this.collection = collection;
 	}
 
-	public Map<String, Object> getFilter() {
+	public Document getFilter() {
 		return filter;
 	}
 
-	public void setFilter(Map<String, Object> filter) {
+	public void setFilter(Document filter) {
 		this.filter = filter;
 	}
 
@@ -181,11 +191,11 @@ public class ExecuteObject {
 		this.projection = projection;
 	}
 
-	public List<Map<String, Object>> getPipeline() {
+	public List<Document> getPipeline() {
 		return pipeline;
 	}
 
-	public void setPipeline(List<Map<String, Object>> pipeline) {
+	public void setPipeline(List<Document> pipeline) {
 		this.pipeline = pipeline;
 	}
 

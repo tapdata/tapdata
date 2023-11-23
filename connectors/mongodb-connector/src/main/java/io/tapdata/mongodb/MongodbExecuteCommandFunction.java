@@ -32,7 +32,7 @@ public class MongodbExecuteCommandFunction {
         throw new RuntimeException("Process failed, collection Name cannot be blank");
       }
       Map<String, Object> opObject = executeObject.getOpObject();
-      Map<String, Object> filter = executeObject.getFilter();
+      Document filter = executeObject.getFilter();
       try {
         switch (op) {
           case ExecuteObject.INSERT_OP:
@@ -45,11 +45,11 @@ public class MongodbExecuteCommandFunction {
             resultRows = 1;
             break;
           case ExecuteObject.DELETE_OP:
-            if (MapUtils.isEmpty(filter)) {
+            if (null == filter || filter.isEmpty()) {
               throw new RuntimeException("Process failed, filter cannot be empty for delete operation");
             }
 
-            DeleteResult deleteResult = mongoClient.getDatabase(database).getCollection(collection).deleteMany(new Document(filter));
+            DeleteResult deleteResult = mongoClient.getDatabase(database).getCollection(collection).deleteMany(filter);
             resultRows = deleteResult.getDeletedCount();
             break;
           case ExecuteObject.UPDATE_OP:
@@ -58,7 +58,7 @@ public class MongodbExecuteCommandFunction {
               throw new RuntimeException("Process failed, opObject cannot be empty for update operation");
             }
 
-            if (MapUtils.isEmpty(filter)) {
+            if (null == filter || filter.isEmpty()) {
               throw new RuntimeException("Process failed, filter cannot be empty for update operation");
             }
             UpdateResult updateResult;
@@ -71,9 +71,9 @@ public class MongodbExecuteCommandFunction {
               updateDoc.append("$set", new Document(opObject));
             }
             if (executeObject.isMulti()) {
-              updateResult = mongoClient.getDatabase(database).getCollection(collection).updateMany(new Document(filter), updateDoc, options);
+              updateResult = mongoClient.getDatabase(database).getCollection(collection).updateMany(filter, updateDoc, options);
             } else {
-              updateResult = mongoClient.getDatabase(database).getCollection(collection).updateOne(new Document(filter), updateDoc, options);
+              updateResult = mongoClient.getDatabase(database).getCollection(collection).updateOne(filter, updateDoc, options);
             }
             resultRows = updateResult.getModifiedCount();
             break;
@@ -122,12 +122,11 @@ public class MongodbExecuteCommandFunction {
     if (collection == null || "".equals(collection)) {
       throw new RuntimeException(String.format("Process execute %s failed, collection Name cannot be blank", executeObject));
     }
-    Map<String, Object> filter = executeObject.getFilter();
-    Document filterDocument = filter == null ? new Document() : new Document(filter);
+    Document filter = executeObject.getFilter();
 
     Map<String, Object> projection = executeObject.getProjection();
     Document projectionDocument = projection == null ? new Document() : new Document(projection);
-    FindIterable<Document> findIterable = mongoClient.getDatabase(database).getCollection(collection).find(filterDocument).projection(projectionDocument);
+    FindIterable<Document> findIterable = mongoClient.getDatabase(database).getCollection(collection).find(filter).projection(projectionDocument);
     Map<String, Object> sort = executeObject.getSort();
     if (MapUtils.isNotEmpty(sort)) {
       Document sortDocument = new Document(sort);
@@ -149,10 +148,8 @@ public class MongodbExecuteCommandFunction {
     if (collection == null || "".equals(collection)) {
       throw new RuntimeException(String.format("Process count %s failed, collection Name cannot be blank", executeObject));
     }
-    Map<String, Object> filter = executeObject.getFilter();
-    Document filterDocument = filter == null ? new Document() : new Document(filter);
-
-    return mongoClient.getDatabase(database).getCollection(collection).countDocuments(filterDocument);
+    Document filter = executeObject.getFilter();
+    return mongoClient.getDatabase(database).getCollection(collection).countDocuments(filter);
   }
 
   public void aggregate(Map<String, Object> executeObj, MongoClient mongoClient, Consumer<List<Map<String, Object>>> consumer, Supplier<Boolean> aliveSupplier) {
@@ -168,11 +165,7 @@ public class MongodbExecuteCommandFunction {
     if (collection == null || "".equals(collection)) {
       throw new RuntimeException(String.format("Process execute %s failed, collection Name cannot be blank", executeObject));
     }
-    List<Map<String, Object>> pipeline = executeObject.getPipeline();
-    List<Document> pipelines = new LinkedList<>();
-    for (Map<String, Object> map : pipeline) {
-      pipelines.add(new Document(map));
-    }
+    List<Document> pipelines = executeObject.getPipeline();
     if (pipelines.size() == 0) {
       throw new RuntimeException(String.format("Process execute %s failed, pipeline cannot be blank", executeObject));
     }
