@@ -1,6 +1,8 @@
 package io.tapdata.inspect.compare;
 
 import cn.hutool.core.map.MapUtil;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.inspect.InspectDataSource;
 import com.tapdata.entity.inspect.InspectStatus;
@@ -239,8 +241,15 @@ public class TableRowCountInspectJob extends InspectJob {
 					params.put("sql", sql);
 				}
 			} else {
-				copyCustomCommand.put("command", "count");
-				params.put("collection", tgtTable.getId());
+				if ("aggregate".equals(customCommand.get("command"))) {
+					JSONArray jsonArray = (JSONArray) JSONArray.parse(params.get("pipeline").toString());
+					JSONObject jsonObject = new JSONObject();
+					jsonObject.put("$count", "count");
+					jsonArray.add(jsonObject);
+					params.put("pipeline", jsonArray.toString());
+				} else {
+					copyCustomCommand.put("command", "count");
+				}				params.put("collection", tgtTable.getId());
 			}
 		} catch (Exception e) {
 			throw new RuntimeException("setCommandCountParam error: " + e.getMessage()
