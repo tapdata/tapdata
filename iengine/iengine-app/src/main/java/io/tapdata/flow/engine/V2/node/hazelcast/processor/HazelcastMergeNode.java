@@ -99,12 +99,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		this.cacheBatchSize = CommonUtils.getPropertyInt(MERGE_CACHE_BATCH_SIZE_PROP_KEY, DEFAULT_MERGE_CACHE_BATCH_SIZE);
-		if (AppType.init().isCloud())
-			externalStorageDto = ExternalStorageUtil.getTargetNodeExternalStorage(
-					processorBaseContext.getNode(),
-					processorBaseContext.getEdges(),
-					clientMongoOperator,
-					processorBaseContext.getNodes());
 	}
 
 	private void selfCheckNode(Node node) {
@@ -142,6 +136,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
+		if (AppType.init().isCloud())
+			externalStorageDto = ExternalStorageUtil.getTargetNodeExternalStorage(
+					processorBaseContext.getNode(),
+					processorBaseContext.getEdges(),
+					clientMongoOperator,
+					processorBaseContext.getNodes());
 		selfCheckNode(getNode());
 
 		initMergeTableProperties(null);
