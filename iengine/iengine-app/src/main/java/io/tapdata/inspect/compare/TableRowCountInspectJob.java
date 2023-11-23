@@ -249,7 +249,8 @@ public class TableRowCountInspectJob extends InspectJob {
 					params.put("pipeline", jsonArray.toString());
 				} else {
 					copyCustomCommand.put("command", "count");
-				}				params.put("collection", tgtTable.getId());
+				}
+				params.put("collection", tgtTable.getId());
 			}
 		} catch (Exception e) {
 			throw new RuntimeException("setCommandCountParam error: " + e.getMessage()
