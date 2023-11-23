@@ -2,7 +2,6 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 
 import com.hazelcast.jet.core.Inbox;
-import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.schema.SchemaApplyResult;
@@ -15,7 +14,6 @@ import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
-import com.tapdata.tm.commons.schema.Schema;
 import io.tapdata.Application;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -35,6 +33,7 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
+import lombok.SneakyThrows;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -45,12 +44,7 @@ import org.voovan.tools.collection.CacheMap;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import java.io.Closeable;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -69,7 +63,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	public static final String FUNCTION_NAME_DECLARE = "declare";
 
 	private final String schemaKey;
-	private final TapTableMap<String, TapTable> oldTapTableMap;
+	private TapTableMap<String, TapTable> oldTapTableMap;
 
 	private boolean needToDeclare;
 
@@ -107,22 +101,26 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	}
 
 
-	public HazelcastSchemaTargetNode(DataProcessorContext dataProcessorContext) throws Exception {
+	public HazelcastSchemaTargetNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		this.schemaKey = dataProcessorContext.getTaskDto().getId().toHexString() + "-" + dataProcessorContext.getNode().getId();
+	}
 
+	@Override
+	@SneakyThrows
+	protected void doInit(@NotNull Context context) throws TapCodeException {
+		super.doInit(context);
 		List<? extends Node<?>> preNodes = getNode().predecessors();
 		if (preNodes.size() != 1) {
 			throw new IllegalArgumentException("HazelcastSchemaTargetNode only allows one predecessor node");
 		}
 		Node<?> deductionSchemaNode = preNodes.get(0);
 		this.oldTapTableMap = TapTableUtil.getTapTableMap("predecessor_" + getNode().getId() + "_", deductionSchemaNode, null);
-
 		if (deductionSchemaNode instanceof JsProcessorNode
 				|| deductionSchemaNode instanceof MigrateJsProcessorNode
 				|| deductionSchemaNode instanceof CustomProcessorNode
 				|| deductionSchemaNode instanceof PyProcessNode
-				|| deductionSchemaNode instanceof MigratePyProcessNode ) {
+				|| deductionSchemaNode instanceof MigratePyProcessNode) {
 			final boolean isPythonNode = deductionSchemaNode instanceof PyProcessNode || deductionSchemaNode instanceof MigratePyProcessNode;
 			String declareScript = (String) ReflectionUtil.getFieldValue(deductionSchemaNode, "declareScript");
 			this.needToDeclare = StringUtils.isNotEmpty(declareScript);
@@ -131,15 +129,15 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 					Invocable engine = null;
 					try {
 						String realDeclareScript = multipleTables ? (
-							isPythonNode ? String.format("def declare(schemaApplyResultList):\n %s \n\treturn schemaApplyResultList\n", declareScript)
-							: String.format("function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}", declareScript)
+								isPythonNode ? String.format("def declare(schemaApplyResultList):\n %s \n\treturn schemaApplyResultList\n", declareScript)
+										: String.format("function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}", declareScript)
 						) : (
-							isPythonNode ? String.format("def declare(tapTable):\n%s\nreturn tapTable\n", declareScript)
-							: String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript)
+								isPythonNode ? String.format("def declare(tapTable):\n%s\nreturn tapTable\n", declareScript)
+										: String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript)
 						);
 						ObsScriptLogger scriptLogger = new ObsScriptLogger(obsLogger);
 						ICacheService cache = ((DataProcessorContext) processorBaseContext).getCacheService();
-						engine = isPythonNode ? ScriptUtil.getPyEngine(realDeclareScript,  cache, scriptLogger, Application.class.getClassLoader())
+						engine = isPythonNode ? ScriptUtil.getPyEngine(realDeclareScript, cache, scriptLogger, Application.class.getClassLoader())
 								: ScriptUtil.getScriptEngine(realDeclareScript, null, null, cache, scriptLogger
 						);
 						TapModelDeclare tapModelDeclare = new TapModelDeclare(scriptLogger);
@@ -152,7 +150,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 							if (engine instanceof Closeable) {
 								((Closeable) engine).close();
 							}
-						}catch (Exception e) {
+						} catch (Exception e) {
 							throw new CoreException("Resource cannot be released of {} Node, message: {}", isPythonNode ? "Python" : "JavaScript", e.getMessage());
 						}
 					}
