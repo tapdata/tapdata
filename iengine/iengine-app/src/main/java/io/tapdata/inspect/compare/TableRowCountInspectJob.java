@@ -1,29 +1,38 @@
 package io.tapdata.inspect.compare;
 
+import cn.hutool.core.map.MapUtil;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.inspect.InspectDataSource;
 import com.tapdata.entity.inspect.InspectStatus;
 import com.tapdata.tm.commons.util.MetaType;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.inspect.InspectJob;
 import io.tapdata.inspect.InspectTaskContext;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.entity.TapExecuteCommand;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.beans.BeanUtils;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -35,7 +44,7 @@ import java.util.stream.Collectors;
  */
 public class TableRowCountInspectJob extends InspectJob {
 	private static final String TAG = TableRowCountInspectJob.class.getSimpleName();
-	private Logger logger = LogManager.getLogger(TableRowCountInspectJob.class);
+	private static Logger logger = LogManager.getLogger(TableRowCountInspectJob.class);
 
 	public TableRowCountInspectJob(InspectTaskContext inspectTaskContext) {
 		super(inspectTaskContext);
@@ -61,6 +70,22 @@ public class TableRowCountInspectJob extends InspectJob {
 						TapAdvanceFilter tapAdvanceFilter = wrapFilter(srcConditions);
 						PDKInvocationMonitor.invoke(this.sourceNode, PDKMethod.COUNT_BY_PARTITION_FILTER,
 								() -> sourceCount.set(srcCountByPartitionFilterFunction.countByPartitionFilter(this.sourceNode.getConnectorContext(), srcTable, tapAdvanceFilter)), TAG);
+					} else if (inspectTask.getSource().isEnableCustomCommand() && MapUtil.isNotEmpty(inspectTask.getSource().getCustomCommand())) {
+						ExecuteCommandFunction executeCommandFunction = this.sourceNode.getConnectorFunctions().getExecuteCommandFunction();
+						if (null == executeCommandFunction) {
+							retry = 3;
+							throw new RuntimeException("Source node does not support execute command function: " + sourceNode.getConnectorContext().getSpecification().getId());
+						}
+						Map<String, Object> customCountCommand = setCommandCountParam(inspectTask.getSource().getCustomCommand(),this.sourceNode,srcTable);
+						TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
+								.command((String) customCountCommand.get("command")).params((Map<String, Object>) customCountCommand.get("params"));
+						List<Map<String, Object>> maps = executeCommand(executeCommandFunction, tapExecuteCommand,this.sourceNode);
+						long count = 0l;
+						if (CollectionUtils.isNotEmpty(maps)) {
+							count = maps.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
+						}
+						sourceCount.set(count);
+
 					} else {
 						BatchCountFunction srcBatchCountFunction = this.sourceNode.getConnectorFunctions().getBatchCountFunction();
 						if (null == srcBatchCountFunction) {
@@ -83,7 +108,22 @@ public class TableRowCountInspectJob extends InspectJob {
 						TapAdvanceFilter tapAdvanceFilter = wrapFilter(tgtConditions);
 						PDKInvocationMonitor.invoke(this.targetNode, PDKMethod.COUNT_BY_PARTITION_FILTER,
 								() -> targetCount.set(tgtCountByPartitionFilterFunction.countByPartitionFilter(this.targetNode.getConnectorContext(), tgtTable, tapAdvanceFilter)), TAG);
-					} else {
+					} else if (inspectTask.getTarget().isEnableCustomCommand() && MapUtil.isNotEmpty(inspectTask.getTarget().getCustomCommand())) {
+						ExecuteCommandFunction executeCommandFunction = this.targetNode.getConnectorFunctions().getExecuteCommandFunction();
+						if (null == executeCommandFunction) {
+							retry = 3;
+							throw new RuntimeException("Source node does not support execute command function: " + targetNode.getConnectorContext().getSpecification().getId());
+						}
+						Map<String, Object> customCountCommand = setCommandCountParam(inspectTask.getTarget().getCustomCommand(), this.targetNode, tgtTable);
+						TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
+								.command((String) customCountCommand.get("command")).params((Map<String, Object>) customCountCommand.get("params"));
+						List<Map<String, Object>> maps = executeCommand(executeCommandFunction, tapExecuteCommand,this.targetNode);
+						long count = 0l;
+						if (CollectionUtils.isNotEmpty(maps)) {
+							count = maps.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
+						}
+						targetCount.set(count);
+					}else {
 						BatchCountFunction tgtBatchCountFunction = this.targetNode.getConnectorFunctions().getBatchCountFunction();
 						if (null == tgtBatchCountFunction) {
 							retry = 3;
@@ -159,5 +199,77 @@ public class TableRowCountInspectJob extends InspectJob {
 			tapTable = new TapTable(inspectDataSource.getTable());
 		}
 		return tapTable;
+	}
+
+
+	public static List<Map<String, Object>> executeCommand(ExecuteCommandFunction executeCommandFunction, TapExecuteCommand tapExecuteCommand,
+														   ConnectorNode node) {
+		AtomicReference<List<Map<String, Object>>> maps = new AtomicReference<>();
+		PDKInvocationMonitor.invoke(node, PDKMethod.COUNT_BY_PARTITION_FILTER,
+				() -> executeCommandFunction.execute(node.getConnectorContext(), tapExecuteCommand, executeResult -> {
+					if (executeResult.getError() != null) {
+						throw new NodeException("Execute error: " + executeResult.getError().getMessage(), executeResult.getError());
+					}
+					if (executeResult.getResult() == null) {
+						logger.info("Execute result is null");
+					} else {
+						if (executeResult.getResult() instanceof Long) {
+							List<Map<String, Object>> countList = new ArrayList<>();
+							Map<String, Object> map = new LinkedHashMap<>();
+							map.put("count",executeResult.getResult());
+							countList.add(map);
+							maps.set(countList);
+						} else{
+							maps.set((List<Map<String, Object>>) executeResult.getResult());
+					}
+					}
+				}), TAG);
+
+		return maps.get();
+	}
+
+
+	public static Map<String, Object> setCommandCountParam(Map<String, Object> customCommand, ConnectorNode node, TapTable tgtTable) {
+		Map<String, Object> copyCustomCommand = new LinkedHashMap<>();
+		try {
+			com.tapdata.constant.MapUtil.copyToNewMap(customCommand, copyCustomCommand);
+			Map<String, Object> params = (Map<String, Object>) copyCustomCommand.get("params");
+			if (!node.getTapNodeInfo().getTapNodeSpecification().getId().contains("mongodb")) {
+				Object value = params.get("sql");
+				if (value != null) {
+					String sql = getCountSql(value.toString());
+					params.put("sql", sql);
+				}
+			} else {
+				if ("aggregate".equals(customCommand.get("command"))) {
+					JSONArray jsonArray = (JSONArray) JSONArray.parse(params.get("pipeline").toString());
+					JSONObject jsonObject = new JSONObject();
+					jsonObject.put("$count", "count");
+					jsonArray.add(jsonObject);
+					params.put("pipeline", jsonArray.toString());
+				} else {
+					copyCustomCommand.put("command", "count");
+				}
+				params.put("collection", tgtTable.getId());
+			}
+		} catch (Exception e) {
+			throw new RuntimeException("setCommandCountParam error: " + e.getMessage()
+					+ " customCommand : " + customCommand);
+		}
+		return copyCustomCommand;
+	}
+
+	public static String getCountSql(String customSql) {
+		String sql = customSql.trim().replaceAll("[\t\n\r]", "");
+		// remove order by
+		sql = sql.replaceAll("\\s+[Oo][Rr][Dd][Ee][Rr]\\s[Bb][Yy].+", "");
+		Pattern groupByPattern = Pattern.compile(".+[Gg][Rr][Oo][Uu][Pp]\\s[Bb][Yy].+");
+		if (groupByPattern.matcher(sql).matches()) {
+			// has group by
+			sql = "SELECT COUNT(1) FROM (" + sql + ")";
+		} else {
+			sql = sql.replaceAll("[Ss][Ee][Ll][Ee][Cc][Tt].+[Ff][Rr][Oo][Mm]", "SELECT COUNT(1) FROM");
+		}
+		return sql.trim();
 	}
 }
