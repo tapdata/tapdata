@@ -662,7 +662,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			return connectorNode.getConnectorFunctions().getStreamReadMultiConnectionFunction();
 		}).orElse(null);
 
-		int batchSize = 1;
 		String streamReadFunctionName = null;
 		CommonUtils.AnyError anyError = null;
 		List<String> tables = new ArrayList<>();
@@ -679,7 +678,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			streamReadFunctionName = streamReadMultiConnectionFunction.getClass().getSimpleName();
 			anyError = () -> {
 				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
-						syncProgress.getStreamOffsetObj(), batchSize, streamReadConsumer);
+						syncProgress.getStreamOffsetObj(), increaseReadSize, streamReadConsumer);
 			};
 		} else {
 			RawDataCallbackFilterFunction rawDataCallbackFilterFunction = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
@@ -715,7 +714,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
 					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
-							syncProgress.getStreamOffsetObj(), batchSize, streamReadConsumer);
+							syncProgress.getStreamOffsetObj(), increaseReadSize, streamReadConsumer);
 				};
 			}
 		}
@@ -730,7 +729,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							.dataProcessorContext(getDataProcessorContext())
 							.streamReadFunction(finalStreamReadFunctionName)
 							.tables(tables)
-							.eventBatchSize(batchSize)
+							.eventBatchSize(increaseReadSize)
 							.offsetState(syncProgress.getStreamOffsetObj())
 							.start(),
 					streamReadFuncAspect -> {

@@ -67,6 +67,7 @@ import java.util.concurrent.TimeUnit;
  **/
 public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	public static final int DEFAULT_READ_BATCH_SIZE = 2000;
+	public static final int DEFAULT_INCREASE_BATCH_SIZE = 1;
 	private final Logger logger = LogManager.getLogger(HazelcastPdkBaseNode.class);
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
 	protected static final String COMPLETED_INITIAL_SYNC_KEY_PREFIX = "COMPLETED-INITIAL-SYNC-";
@@ -76,6 +77,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	private final List<PDKMethodInvoker> pdkMethodInvokerList = new CopyOnWriteArrayList<>();
 
 	protected Integer readBatchSize;
+	protected Integer increaseReadSize;
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
