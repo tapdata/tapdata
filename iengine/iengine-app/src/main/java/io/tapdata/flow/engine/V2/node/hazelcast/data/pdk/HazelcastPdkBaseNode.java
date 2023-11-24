@@ -30,6 +30,7 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
+import io.tapdata.flow.engine.V2.schedule.TapDataTaskSchedulerUtil;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -49,6 +50,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -81,6 +83,11 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
+	}
+
+	@Override
+	protected void doInit(@NotNull Context context) throws TapCodeException {
+		super.doInit(context);
 		logListener = new TapLogger.LogListener() {
 			@Override
 			public void debug(String log) {
@@ -143,16 +150,27 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public void signFunctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING),
+				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), functionRetryQuery(System.currentTimeMillis(), TapDataTaskSchedulerUtil.signTaskRetryWithTimestamp(taskId, clientMongoOperator)),
 						ConnectorConstant.TASK_COLLECTION), "Failed to sign function retry status");
 	}
 
 	public void clearFunctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() -> {
-			Update update = new Update().set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING)
-					.set("functionRetryEx", System.currentTimeMillis() + 5 * 60 * 1000L);
-			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
+			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), functionRetryQuery(System.currentTimeMillis(), false), ConnectorConstant.TASK_COLLECTION);
 		}, "Failed to sign function retry status");
+	}
+
+	public Update functionRetryQuery(long timestamp, boolean isSign) {
+		Update update = new Update();
+		update.set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING);
+		if (!isSign) {
+			long functionRetryEx = timestamp + 5 * 60 * 1000L;
+			update.set("functionRetryEx", functionRetryEx);
+			update.set("taskRetryStartTime", 0);
+		} else {
+			update.set("taskRetryStartTime", timestamp);
+		}
+		return update;
 	}
 
 	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {

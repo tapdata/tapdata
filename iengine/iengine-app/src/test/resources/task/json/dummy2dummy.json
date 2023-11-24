@@ -1,0 +1,377 @@
+{
+  "id": "6555b257407e2d16ae88c5ad",
+  "dag": {
+    "edges": [
+      {
+        "disabled": false,
+        "source": "0c0bf03b-2800-48ed-befa-d10035ed2456",
+        "target": "2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4"
+      }
+    ],
+    "nodes": [
+      {
+        "tableName": "dummy_test",
+        "isFilter": false,
+        "increaseReadSize": 500,
+        "maxTransactionDuration": 12,
+        "existDataProcessMode": "keepData",
+        "updateConditionFields": [
+          "id"
+        ],
+        "xmlIncludeFile": false,
+        "esFragmentNum": 3,
+        "nodeConfig": {},
+        "cdcPollingInterval": 0,
+        "cdcPollingBatchSize": 0,
+        "enableCustomCommand": false,
+        "incrementExactlyOnceEnableTimeWindowDay": 3,
+        "connectionId": "653b53e777aa804abd916699",
+        "databaseType": "Dummy",
+        "dmlPolicy": {},
+        "initialConcurrent": true,
+        "initialConcurrentWriteNum": 8,
+        "readBatchSize": 500,
+        "writeBatchSize": 1000,
+        "writeBatchWaitMs": 500,
+        "writeStrategy": "updateOrInsert",
+        "type": "table",
+        "catalog": "data",
+        "isTransformed": true,
+        "alarmSettings": [
+          {
+            "type": "DATANODE",
+            "open": true,
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 4,
+            "notify": [
+              "SYSTEM"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "point": 12,
+            "equalsFlag": 1,
+            "ms": 5000
+          }
+        ],
+        "id": "2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4",
+        "name": "dummy_test",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            55,
+            84
+          ],
+          "connectionName": "T dummy",
+          "connectionType": "target",
+          "accessNodeProcessId": "",
+          "pdkType": "pdk",
+          "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
+          "capabilities": [
+            {
+              "type": 11,
+              "id": "batch_read_function"
+            },
+            {
+              "type": 11,
+              "id": "stream_read_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_count_function"
+            },
+            {
+              "type": 11,
+              "id": "timestamp_to_stream_offset_function"
+            },
+            {
+              "type": 11,
+              "id": "write_record_function"
+            },
+            {
+              "type": 11,
+              "id": "query_by_advance_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_attributes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_name_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_field_function"
+            },
+            {
+              "type": 11,
+              "id": "new_field_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_names_function"
+            },
+            {
+              "type": 11,
+              "id": "error_handle_function"
+            },
+            {
+              "type": 20,
+              "id": "master_slave_merge"
+            },
+            {
+              "type": 20,
+              "id": "dynamic_schema"
+            }
+          ],
+          "hasCreated": false
+        },
+        "disabled": false
+      },
+      {
+        "tableName": "dummy_test",
+        "isFilter": false,
+        "increaseReadSize": 500,
+        "maxTransactionDuration": 12,
+        "existDataProcessMode": "keepData",
+        "xmlIncludeFile": false,
+        "esFragmentNum": 3,
+        "nodeConfig": {},
+        "cdcMode": "logCdc",
+        "cdcPollingInterval": 0,
+        "cdcPollingBatchSize": 0,
+        "enableCustomCommand": false,
+        "incrementExactlyOnceEnableTimeWindowDay": 3,
+        "connectionId": "6555b245407e2d16ae88c596",
+        "databaseType": "Dummy",
+        "readPartitionOptions": {
+          "splitType": 10,
+          "enable": false,
+          "maxRecordInPartition": 200000,
+          "partitionThreadCount": 8,
+          "partitionBatchCount": 3000,
+          "minMaxSplitPieces": 100,
+          "hasKVStorage": true
+        },
+        "disabledEvents": [],
+        "readBatchSize": 100,
+        "writeStrategy": "updateOrInsert",
+        "type": "table",
+        "catalog": "data",
+        "isTransformed": true,
+        "alarmSettings": [
+          {
+            "type": "DATANODE",
+            "open": true,
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 4,
+            "notify": [
+              "SYSTEM"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "point": 12,
+            "equalsFlag": 1,
+            "ms": 5000
+          }
+        ],
+        "id": "0c0bf03b-2800-48ed-befa-d10035ed2456",
+        "name": "dummy_test",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            -271,
+            84
+          ],
+          "connectionName": "S dummy",
+          "connectionType": "source",
+          "accessNodeProcessId": "",
+          "pdkType": "pdk",
+          "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
+          "capabilities": [
+            {
+              "type": 11,
+              "id": "batch_read_function"
+            },
+            {
+              "type": 11,
+              "id": "stream_read_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_count_function"
+            },
+            {
+              "type": 11,
+              "id": "timestamp_to_stream_offset_function"
+            },
+            {
+              "type": 11,
+              "id": "write_record_function"
+            },
+            {
+              "type": 11,
+              "id": "query_by_advance_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_attributes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_name_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_field_function"
+            },
+            {
+              "type": 11,
+              "id": "new_field_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_names_function"
+            },
+            {
+              "type": 11,
+              "id": "error_handle_function"
+            },
+            {
+              "type": 20,
+              "id": "master_slave_merge"
+            },
+            {
+              "type": 20,
+              "id": "dynamic_schema"
+            }
+          ],
+          "hasCreated": false
+        },
+        "disabled": false
+      }
+    ]
+  },
+  "deduplicWriteMode": "intelligent",
+  "desc": "",
+  "increHysteresis": false,
+  "increOperationMode": false,
+  "increSyncConcurrency": false,
+  "processorThreadNum": 1,
+  "increaseReadSize": 1,
+  "readBatchSize": 500,
+  "writeBatchSize": 0,
+  "writeBatchWaitMs": 0,
+  "isAutoCreateIndex": true,
+  "isFilter": false,
+  "isOpenAutoDDL": false,
+  "isSchedule": false,
+  "isStopOnError": true,
+  "name": "dummy2dummy",
+  "shareCdcEnable": false,
+  "statuses": [],
+  "status": "wait_start",
+  "type": "initial_sync+cdc",
+  "writeThreadSize": 8,
+  "editVersion": "1700115069724",
+  "syncPoints": [
+    {
+      "nodeId": "0c0bf03b-2800-48ed-befa-d10035ed2456",
+      "nodeName": "dummy_test",
+      "connectionId": "6555b245407e2d16ae88c596",
+      "connectionName": "S dummy",
+      "pointType": "current",
+      "timeZone": "+8"
+    }
+  ],
+  "syncType": "sync",
+  "shareCache": false,
+  "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION",
+  "accessNodeProcessIdList": [],
+  "skipErrorEvent": {
+    "errorMode": "Disable",
+    "limitMode": "SkipByLimit"
+  },
+  "planStartDateFlag": false,
+  "crontabExpressionFlag": false,
+  "testTaskId": "6555b257407e2d16ae88c5ab",
+  "transformTaskId": "6555b257407e2d16ae88c5ac",
+  "stopRetryTimes": 0,
+  "enforceShareCdc": true,
+  "pageVersion": "1700115023137",
+  "createTime": "2023-11-16T06:10:31.230Z",
+  "last_updated": "2023-11-16T06:11:31.857Z",
+  "user_id": "62bc5008d4958d013d97c7a6",
+  "lastUpdBy": "62bc5008d4958d013d97c7a6",
+  "createUser": "admin@admin.com",
+  "transformUuid": "1700115069447",
+  "transformed": true,
+  "accessNodeProcessId": "",
+  "canOpenInspect": false,
+  "isAutoInspect": false,
+  "alarmRules": [
+    {
+      "key": "TASK_INCREMENT_DELAY",
+      "point": 60,
+      "equalsFlag": 1,
+      "ms": 60000
+    }
+  ],
+  "alarmSettings": [
+    {
+      "type": "TASK",
+      "open": true,
+      "key": "TASK_STATUS_ERROR",
+      "sort": 1,
+      "notify": [
+        "SYSTEM",
+        "EMAIL"
+      ],
+      "interval": 300,
+      "unit": "SECOND"
+    },
+    {
+      "type": "TASK",
+      "open": true,
+      "key": "TASK_FULL_COMPLETE",
+      "sort": 3,
+      "notify": [
+        "SYSTEM"
+      ],
+      "interval": 300,
+      "unit": "SECOND"
+    },
+    {
+      "type": "TASK",
+      "open": true,
+      "key": "TASK_INCREMENT_START",
+      "sort": 4,
+      "notify": [
+        "SYSTEM"
+      ],
+      "interval": 300,
+      "unit": "SECOND"
+    },
+    {
+      "type": "TASK",
+      "open": true,
+      "key": "TASK_INCREMENT_DELAY",
+      "sort": 6,
+      "notify": [
+        "SYSTEM"
+      ],
+      "interval": 300,
+      "unit": "SECOND"
+    }
+  ]
+}

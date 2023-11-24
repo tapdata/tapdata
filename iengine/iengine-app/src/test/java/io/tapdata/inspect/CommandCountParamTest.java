@@ -1,5 +1,7 @@
 package io.tapdata.inspect;
 
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import io.tapdata.ConnectorNode.ConnectorNodeBase;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.inspect.compare.TableRowCountInspectJob;
@@ -219,6 +221,54 @@ public class CommandCountParamTest extends ConnectorNodeBase {
 
         // execution method
         TableRowCountInspectJob.setCommandCountParam(customCommand, mongoConnectorNode, myTapTable);
+    }
+
+
+    /**
+     * test SetCommandCountParam function
+     * 检查command为aggregate
+     */
+    @Test
+    public void testSetCommandCountParamCommandIsAggregate() {
+        // input param
+        Map<String, Object> customCommand = new LinkedHashMap<>();
+        customCommand.put("command", "aggregate");
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        JSONArray jsonArray = new JSONArray();
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("$match", "{ \"name\": \"1112\"}");
+        jsonArray.add(jsonObject);
+        customParam.put("pipeline",jsonArray.toJSONString());
+        customCommand.put("params", customParam);
+        // execution method
+        Map<String, Object> copyCustomCommand = TableRowCountInspectJob.setCommandCountParam(customCommand, mongoConnectorNode, myTapTable);
+
+        // actual data
+        Map<String, Object> params = (Map<String, Object>) copyCustomCommand.get("params");
+        String actualData = (String) params.get("pipeline");
+
+        // expected data
+        String expectedData = "$count";
+
+        // output results
+        Assert.assertTrue(actualData.contains(expectedData));
+    }
+
+
+    /**
+     * test SetCommandCountParam function
+     * 检查command为aggregate pipeline为null
+     */
+    @Test(expected = RuntimeException.class)
+    public void testSetCommandCountParamCommandIsAggregatePipelineIsNull() {
+        // input param
+        Map<String, Object> customCommand = new LinkedHashMap<>();
+        customCommand.put("command", "aggregate");
+        Map<String, Object> customParam = new LinkedHashMap<>();
+        customCommand.put("params", customParam);
+        // execution method
+        TableRowCountInspectJob.setCommandCountParam(customCommand, mongoConnectorNode, myTapTable);
+
     }
 
     public static TapExecuteCommand setCustomCommandParam(Map<String, Object> customCommand, String querySql,
