@@ -60,7 +60,16 @@ public class HazelcastSourcePdkBaseNodeTest {
 		Mockito.when(mockPdkNode.getDataProcessorContext()).thenThrow(new RuntimeException("Exec exception test"));
 
 		Exception error = null;
+		// test thread exception if running
 		try (AutoCloseable autoCloseable = mockPdkNode.doAsyncTableCount(batchCountFunction, testTableName)) {
+		} catch (Exception e) {
+			error = e;
+		}
+		Assert.assertNotNull(error);
+
+		// test thread exception if not running
+		try (AutoCloseable autoCloseable = mockPdkNode.doAsyncTableCount(batchCountFunction, testTableName)) {
+			Mockito.when(mockPdkNode.isRunning()).thenReturn(false);
 		} catch (Exception e) {
 			error = e;
 		}
@@ -97,7 +106,7 @@ public class HazelcastSourcePdkBaseNodeTest {
 		Mockito.when(mockPdkNode.isRunning()).thenReturn(true);
 		Mockito.when(mockPdkNode.getDataProcessorContext()).thenReturn(mockDataProcessorContext);
 
-		// run testTable1
+		// test SnapshotRowSizeMap is null
 		try (AutoCloseable autoCloseable = mockPdkNode.doAsyncTableCount(batchCountFunction, testTable.getName())) {
 		} catch (Exception e) {
 			Assert.fail("failed: " + e.getMessage());
@@ -106,7 +115,7 @@ public class HazelcastSourcePdkBaseNodeTest {
 		Long countResult = mockPdkNode.snapshotRowSizeMap.get(testTable.getName());
 		Assert.assertEquals(tableSize, (long) countResult);
 
-		// run testSnapshotRowSizeMapNotNullTable
+		// test SnapshotRowSizeMap not null
 		try (AutoCloseable autoCloseable = mockPdkNode.doAsyncTableCount(batchCountFunction, testSnapshotRowSizeMapNotNullTable.getName())) {
 		} catch (Exception e) {
 			Assert.fail("failed: " + e.getMessage());
