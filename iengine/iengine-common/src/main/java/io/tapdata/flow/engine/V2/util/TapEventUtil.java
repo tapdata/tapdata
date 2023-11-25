@@ -67,10 +67,8 @@ public class TapEventUtil {
 	}
 
 	public static String getTableId(TapEvent tapEvent) {
-		if (tapEvent instanceof TapRecordEvent) {
-			return ((TapRecordEvent) tapEvent).getTableId();
-		} else if (tapEvent instanceof TapDDLEvent) {
-			return ((TapDDLEvent) tapEvent).getTableId();
+		if (tapEvent instanceof TapBaseEvent) {
+			return ((TapBaseEvent) tapEvent).getTableId();
 		}
 		return "";
 	}
