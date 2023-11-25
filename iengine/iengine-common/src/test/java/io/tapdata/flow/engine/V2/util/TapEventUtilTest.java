@@ -14,7 +14,7 @@ import static org.mockito.Mockito.when;
  * @Description
  * @create 2023-11-24 18:18
  **/
-public class TapEventUtilTest {
+class TapEventUtilTest {
 	@Test
 	@DisplayName("GetTableId method main process test")
 	void testGetTableId() {
