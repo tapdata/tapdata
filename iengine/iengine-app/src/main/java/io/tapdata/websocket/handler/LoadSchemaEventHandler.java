@@ -9,7 +9,6 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.RelateDataBaseTable;
 import com.tapdata.entity.Schema;
-import com.tapdata.validator.SchemaFactory;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.TapInterface;
 import io.tapdata.aspect.supervisor.AspectRunnableUtil;
@@ -159,9 +158,7 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 					Connections connection = entry.getValue();
 					Schema schema = null;
 
-					if (SchemaFactory.canLoad(connection)) {
-						schema = SchemaFactory.loadSchemaList(connection, true);
-					} else if (StringUtils.isBlank(connection.getPdkType())) {
+					if (StringUtils.isBlank(connection.getPdkType())) {
 						TapInterface tapInterface = TapInterfaceUtil.getTapInterface(connection.getDatabase_type(), null);
 						List<RelateDataBaseTable> relateDataBaseTables = new ArrayList<>();
 						connection.setTableConsumer(table -> {

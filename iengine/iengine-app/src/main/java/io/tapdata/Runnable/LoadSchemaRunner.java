@@ -10,7 +10,6 @@ import com.tapdata.entity.LoadSchemaProgress;
 import com.tapdata.entity.RelateDataBaseTable;
 import com.tapdata.entity.Schema;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.validator.SchemaFactory;
 import io.tapdata.TapInterface;
 import io.tapdata.common.ConverterUtil;
 import io.tapdata.common.TapInterfaceUtil;
@@ -125,17 +124,6 @@ public class LoadSchemaRunner implements Runnable {
 		updateConnections(update);
 
 		try {
-			if (SchemaFactory.canLoad(connections)) {
-				if (loadSchemaProgress.getTableCount() <= 0) {
-					Schema schemaOnlyTable = SchemaFactory.loadSchemaList(connections, false);
-					loadSchemaProgress.setTableCount(schemaOnlyTable.getTables().size());
-				}
-
-				if (loadSchemaProgress.getTableCount() > 0) {
-					SchemaFactory.loadSchemaList(connections, this::tableConsumer);
-				}
-				updateSchema(ConnectorConstant.LOAD_FIELD_STATUS_FINISHED, null);
-			} else {
 				if (StringUtils.isBlank(connections.getPdkType())) {
 					TapInterface tapInterface = TapInterfaceUtil.getTapInterface(connections.getDatabase_type(), null);
 					if (tapInterface != null) {
@@ -198,7 +186,6 @@ public class LoadSchemaRunner implements Runnable {
 				}
 
 				updateSchema(ConnectorConstant.LOAD_FIELD_STATUS_FINISHED, null);
-			}
 
 			// After load schema, clear schema proxy
 			SchemaProxy.getSchemaProxy().clear(connections.getId());
