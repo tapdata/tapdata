@@ -44,7 +44,7 @@ import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
@@ -517,20 +517,16 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				if (hazelcastJob != null) {
 					JobStatus status = hazelcastJob.getStatus();
 					stopJetJobIfStatusIsRunning(status, taskDto, hazelcastJob);
-				} else {
-					throw currentEx;
 				}
 			}
-		} catch (NodeException e) {
-			throw e;
 		} catch (Exception e) {
-			obsLogger.warn("Error handler failed: " + e.getMessage(), e);
+			throw new ErrorHandleException(e, throwable);
 		}
 
 		return currentEx;
 	}
 
-	private void stopJetJobIfStatusIsRunning(JobStatus status, TaskDto taskDto, com.hazelcast.jet.Job hazelcastJob) {
+	protected void stopJetJobIfStatusIsRunning(JobStatus status, TaskDto taskDto, com.hazelcast.jet.Job hazelcastJob) {
 		if (JobStatus.RUNNING == status) {
 			obsLogger.info("Job suspend in error handle");
 			TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(taskDto.getId().toHexString());
@@ -544,10 +540,15 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	@Nullable
 	protected com.hazelcast.jet.Job getJetJob(TaskDto taskDto) {
+		if (null == taskDto) {
+			throw new IllegalArgumentException("Input parameter [taskDto] cannot be null");
+		}
 		com.hazelcast.jet.Job hazelcastJob = null;
 		for (int i = 5; i > 0; i--) {
 			if (null != jetContext) {
 				hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());
+			} else {
+				break;
 			}
 
 			if (null != hazelcastJob) break;
@@ -593,7 +594,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected boolean taskHasBeenRun() {
-		final TaskDto taskDto = processorBaseContext.getTaskDto();
+		TaskDto taskDto = processorBaseContext.getTaskDto();
 		if (taskDto != null && MapUtils.isNotEmpty(taskDto.getAttrs())) {
 			return taskDto.getAttrs().containsKey("syncProgress");
 		}

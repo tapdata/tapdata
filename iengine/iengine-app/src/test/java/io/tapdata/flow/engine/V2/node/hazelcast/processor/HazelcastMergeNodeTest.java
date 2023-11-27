@@ -18,8 +18,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -47,15 +46,15 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 	class DoInitTest {
 		@Test
 		@DisplayName("Init external storage when cloud app type")
-		void testDoInitExternalStorage() {
-			AppType dfs = AppType.DFS;
+		void testDoInitExternalStorageCloudAppType() {
+			AppType appType = AppType.DFS;
 			ExternalStorageDto externalStorageDto = mock(ExternalStorageDto.class);
 			try (
 					MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class);
 					MockedStatic<ExternalStorageUtil> externalStorageUtilMockedStatic = mockStatic(ExternalStorageUtil.class);
 					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class)
 			) {
-				appTypeMockedStatic.when(AppType::init).thenReturn(dfs);
+				appTypeMockedStatic.when(AppType::init).thenReturn(appType);
 				externalStorageUtilMockedStatic.when(() -> ExternalStorageUtil.getTargetNodeExternalStorage(
 						dataProcessorContext.getNode(),
 						dataProcessorContext.getEdges(),
@@ -73,6 +72,36 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				Object actualObj = ReflectionTestUtils.getField(hazelcastMergeNode, "externalStorageDto");
 				assertNotNull(actualObj);
 				assertEquals(externalStorageDto, actualObj);
+			}
+		}
+
+		@Test
+		@DisplayName("Init external storage when daas app type")
+		void testDoInitExternalStorageDaasAppType() {
+			AppType appType = AppType.DAAS;
+			ExternalStorageDto externalStorageDto = mock(ExternalStorageDto.class);
+			try (
+					MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class);
+					MockedStatic<ExternalStorageUtil> externalStorageUtilMockedStatic = mockStatic(ExternalStorageUtil.class);
+					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class)
+			) {
+				appTypeMockedStatic.when(AppType::init).thenReturn(appType);
+				externalStorageUtilMockedStatic.when(() -> ExternalStorageUtil.getTargetNodeExternalStorage(
+						dataProcessorContext.getNode(),
+						dataProcessorContext.getEdges(),
+						null,
+						dataProcessorContext.getNodes()
+				)).thenReturn(externalStorageDto);
+				pdkIntegrationMockedStatic.when(() -> PDKIntegration.registerMemoryFetcher(anyString(), any(HazelcastMergeNode.class))).thenAnswer((Answer<Void>) invocation -> null);
+				hazelcastMergeNode.doInit(jetContext);
+				externalStorageUtilMockedStatic.verify(() -> ExternalStorageUtil.getTargetNodeExternalStorage(
+						dataProcessorContext.getNode(),
+						dataProcessorContext.getEdges(),
+						null,
+						dataProcessorContext.getNodes()
+				), new Times(0));
+				Object actualObj = ReflectionTestUtils.getField(hazelcastMergeNode, "externalStorageDto");
+				assertNull(actualObj);
 			}
 		}
 	}
