@@ -175,7 +175,6 @@
     <modules>
         <module>iengine-app</module>
         <module>iengine-common</module>
-        <module>validator</module>
         <module>api</module>
         <module>modules</module>
     </modules>

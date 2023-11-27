@@ -1,0 +1,15 @@
+[
+  {
+    "delete": "ScheduleTasks",
+    "deletes": [
+      {
+        "q": {
+          "task_type": {
+            "$in": ["BG_JOBS","META_DATA_ANALYZER","METADATA_INSTANCES_ANALYZE","DASHBOARD_STATS","REPLICATE_DATA_STATS","META_DATA_STATS_MONGO_INDEXES","CLEAR_TARGET_OFFSET","TIMING_SYNC","CDC_EVENTS_TTL","CLEAR_AGG_TARGET_TTL_DATA"]
+          }
+        },
+        "limit": 0
+      }
+    ]
+  }
+]

@@ -548,12 +548,6 @@ public class ConnectorManager {
 		return metricManager;
 	}
 
-	@Bean(value = "performanceStatistics")
-	@DependsOn("settingService")
-	public PerformanceStatistics performanceStatistics() {
-		return new PerformanceStatistics(settingService);
-	}
-
 	@Bean("settingService")
 	@DependsOn("clientMongoOperator")
 	public SettingService initSettingsService() {
