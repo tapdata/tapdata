@@ -68,6 +68,7 @@ jobs:
           echo "::set-output name=TAG_NAME::${TAG_NAME}"
 
   Scan-Tapdata:
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: aws-scan
     needs: Get-Stable-Branch
     timeout-minutes: 30
