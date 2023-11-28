@@ -88,6 +88,12 @@ public class ObservableAspectTask extends AspectTask {
 			}
 		}
 
+		if (null != processorNodeSampleHandlers) {
+			for (ProcessorNodeSampleHandler handler : processorNodeSampleHandlers.values()) {
+				handler.close();
+			}
+		}
+
 		taskSampleHandler.close();
 	}
 
