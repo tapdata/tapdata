@@ -44,13 +44,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import java.io.IOException;
 import java.io.Serializable;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * @author samuel
@@ -190,30 +184,11 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 					} else {
 						ConnectionNode connectionNode = null;
 						try {
-							List<TapTable> tapTables = new ArrayList<>();
 							DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
-							connectionNode = PDKIntegration.createConnectionConnectorBuilder()
-									.withConnectionConfig(DataMap.create(connection.getConfig()))
-									.withGroup(databaseType.getGroup())
-									.withPdkId(databaseType.getPdkId())
-									.withAssociateId(connection.getName() + "_" + connection.getUser_id())
-									.withVersion(databaseType.getVersion())
-									.withLog(new TapLog())
-									.build();
+							connectionNode = getConnectionNode(connection, databaseType);
 							PDKInvocationMonitor.invoke(connectionNode, PDKMethod.INIT, connectionNode::connectorInit,
 									LoadSchemaEventHandler.class.getSimpleName());
-							LoadSchemaRunner.loadPdkSchema(
-									connection,
-									connectionNode,
-									table -> {
-										if (null == table) {
-											return;
-										}
-										if (StringUtils.isNotBlank(table.getName())) {
-											tapTables.add(table);
-										}
-									}
-							);
+							List<TapTable> tapTables = loadPdkSchema(connection, connectionNode);
 							connIdTablesMap.put(connId, tapTables);
 						} finally {
 							if (null != connectionNode) {
@@ -275,7 +250,34 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 		});
 		Thread thread = new Thread(threadGroup, runnable, threadName);
 		thread.start();
-		return null;
+		return thread;
+	}
+
+	protected List<TapTable> loadPdkSchema(Connections connection, ConnectionNode connectionNode) throws Exception {
+		List<TapTable> tapTables = new ArrayList<>();
+		LoadSchemaRunner.loadPdkSchema(
+				connection,
+				connectionNode,
+				table -> {
+					if (null == table) {
+						return;
+					}
+					if (StringUtils.isNotBlank(table.getName())) {
+						tapTables.add(table);
+					}
+				}
+		);
+		return tapTables;
+	}
+
+	protected ConnectionNode getConnectionNode(Connections connection, DatabaseTypeEnum.DatabaseType databaseType) {
+		return PDKIntegration.createConnectionConnectorBuilder().withConnectionConfig(DataMap.create(connection.getConfig()))
+				.withGroup(databaseType.getGroup())
+				.withPdkId(databaseType.getPdkId())
+				.withAssociateId(connection.getName() + "_" + connection.getUser_id())
+				.withVersion(databaseType.getVersion())
+				.withLog(new TapLog())
+				.build();
 	}
 
 	private <T> void wrapConnection(LoadSchemaEvent<T> loadSchemaEvent, Connections connections) {
@@ -331,6 +333,9 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 		private String tableName;
 		private FileProperty fileProperty;
 		private T schema;
+
+		public LoadSchemaEvent() {
+		}
 
 		public LoadSchemaEvent(String connId, String tableName, T schema) {
 			this.connId = connId;
