@@ -260,8 +260,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		executeAspect(new SnapshotReadBeginAspect().dataProcessorContext(dataProcessorContext).tables(tableList));
 		syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
 
-		// count the data size of the tables;
-		doCount(tableList);
+		BatchCountFunction batchCountFunction = getConnectorNode().getConnectorFunctions().getBatchCountFunction();
+		if (null == batchCountFunction) {
+			setDefaultRowSizeMap();
+			obsLogger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+		}
 
 		BatchReadFunction batchReadFunction = getConnectorNode().getConnectorFunctions().getBatchReadFunction();
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
@@ -277,13 +280,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				while (isRunning()) {
 					for (String tableName : tableList) {
 						firstBatch.set(true);
-						// wait until we count the table
-						while (isRunning() && (null == snapshotRowSizeMap || !snapshotRowSizeMap.containsKey(tableName))) {
-							try {
-								TimeUnit.MILLISECONDS.sleep(500);
-							} catch (InterruptedException ignored) {
-							}
-						}
 						try {
 							executeAspect(new SnapshotReadTableBeginAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
 							while (isRunning()) {
@@ -308,7 +304,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							obsLogger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
 
 							PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-							try {
+							try (AutoCloseable ignoreTableCountCloseable = doAsyncTableCount(batchCountFunction, tableName)) {
 							executeDataFuncAspect(
 									BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
 											.eventBatchSize(readBatchSize)
@@ -431,7 +427,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						if (CollectionUtils.isNotEmpty(newTables)) {
 							tableList.clear();
 							tableList.addAll(newTables);
-							doCount(tableList);
 							newTables.clear();
 						} else {
 							this.endSnapshotLoop.set(true);
