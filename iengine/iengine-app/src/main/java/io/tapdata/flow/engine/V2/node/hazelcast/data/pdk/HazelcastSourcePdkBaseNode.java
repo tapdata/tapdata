@@ -69,13 +69,10 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
@@ -159,11 +156,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		if (needCdcDelay()) {
-			this.cdcDelayCalculation = new CdcDelay();
-		} else {
-			this.cdcDelayCalculation = new CdcDelayDisable();
-		}
 		this.tapEventFilter = TargetTableDataEventFilter.create();
 	}
 
@@ -188,6 +180,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
+		if (needCdcDelay()) {
+			this.cdcDelayCalculation = new CdcDelay();
+		} else {
+			this.cdcDelayCalculation = new CdcDelayDisable();
+		}
 		if (connectorOnTaskThreadGroup == null)
 			connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
 		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
@@ -1154,6 +1151,63 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							)
 					));
 		}
+	}
+
+	protected Long doBatchCountFunction(BatchCountFunction batchCountFunction, TapTable table) {
+		AtomicReference<Long> counts = new AtomicReference<>();
+
+		executeDataFuncAspect(
+			TableCountFuncAspect.class,
+			() -> new TableCountFuncAspect().dataProcessorContext(getDataProcessorContext()).start(),
+			tableCountFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT, createPdkMethodInvoker().runnable(() -> {
+				try {
+					counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
+
+					if (null != tableCountFuncAspect) {
+						AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), counts.get());
+					}
+				} catch (Throwable e) {
+					throw new NodeException("Query table '" + table.getName() + "'  count failed: " + e.getMessage(), e)
+						.context(getProcessorBaseContext());
+				}
+			}))
+		);
+		return counts.get();
+	}
+
+	protected AutoCloseable doAsyncTableCount(BatchCountFunction batchCountFunction, String tableName) {
+		if (null == batchCountFunction) return () -> {};
+
+		CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+			// ignore table count if task stop
+			if (!isRunning()) return;
+
+			AtomicReference<TaskDto> task = new AtomicReference<>(getDataProcessorContext().getTaskDto());
+			AtomicReference<Node<?>> node = new AtomicReference<>(getDataProcessorContext().getNode());
+			String name = String.format("InitialSyncTableCount-%s(%s)-%s(%s)-%s",
+				task.get().getName(), task.get().getId().toHexString(), node.get().getName(), node.get().getId(), tableName);
+			Thread.currentThread().setName(name);
+
+			TapTable table = getDataProcessorContext().getTapTableMap().get(tableName);
+			Long counts = doBatchCountFunction(batchCountFunction, table);
+			obsLogger.info("Query table '{}' counts: {}", tableName, counts);
+			if (null == snapshotRowSizeMap) {
+				snapshotRowSizeMap = new HashMap<>();
+			}
+			snapshotRowSizeMap.putIfAbsent(tableName, counts);
+		});
+
+		return () -> {
+			try {
+				future.join();
+			} catch (Exception e) {
+				if (isRunning()) {
+					obsLogger.warn("Query '{}' snapshot row size failed: {}", tableName, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+					return;
+				}
+				obsLogger.info("Cancel query '{}' snapshot row size with task stopped.", tableName);
+			}
+		};
 	}
 
 	protected boolean isPollingCDC(Node<?> node) {

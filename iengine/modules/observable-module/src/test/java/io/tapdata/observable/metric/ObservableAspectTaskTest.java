@@ -1,14 +1,27 @@
 package io.tapdata.observable.metric;
 
+import com.tapdata.mongo.RestTemplateOperator;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.TaskStartAspect;
+import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.observable.metric.handler.DataNodeSampleHandler;
+import io.tapdata.observable.metric.handler.ProcessorNodeSampleHandler;
+import io.tapdata.observable.metric.handler.TableSampleHandler;
 import io.tapdata.observable.metric.util.SyncGetMemorySizeHandler;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.UUID;
 
 
 public class ObservableAspectTaskTest {
@@ -29,6 +42,35 @@ public class ObservableAspectTaskTest {
             Assertions.assertNotNull(observableAspectTask.streamReadFuture);
             Assertions.assertNotNull(observableAspectTask.writeRecordFuture);
         }
+    }
+
+    @Test
+    void testStartAndStop() {
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(new ObjectId());
+        taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
+        taskDto.setTaskRecordId(UUID.randomUUID().toString());
+        taskDto.setStartTime(new Date());
+        observableAspectTask.setTask(taskDto);
+
+        RestTemplateOperator mockRestTemplateOperator = Mockito.mock(RestTemplateOperator.class);
+        TaskSampleRetriever.getInstance().start(mockRestTemplateOperator);
+
+        // test onStart and onStop if null handler
+        observableAspectTask.onStart(new TaskStartAspect().task(taskDto));
+        observableAspectTask.onStop(new TaskStopAspect().task(taskDto));
+
+        // test onStop if handler not empty
+        ReflectionTestUtils.setField(observableAspectTask, "tableSampleHandlers", new HashMap<String, TableSampleHandler>() {{
+            put("test", Mockito.mock(TableSampleHandler.class));
+        }});
+        ReflectionTestUtils.setField(observableAspectTask, "dataNodeSampleHandlers", new HashMap<String, DataNodeSampleHandler>() {{
+            put("test", Mockito.mock(DataNodeSampleHandler.class));
+        }});
+        ReflectionTestUtils.setField(observableAspectTask, "processorNodeSampleHandlers", new HashMap<String, ProcessorNodeSampleHandler>() {{
+            put("test", Mockito.mock(ProcessorNodeSampleHandler.class));
+        }});
+        observableAspectTask.onStop(new TaskStopAspect().task(taskDto));
     }
 
     @Nested

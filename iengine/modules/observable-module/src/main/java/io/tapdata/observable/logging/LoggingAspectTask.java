@@ -400,9 +400,7 @@ public class LoggingAspectTask extends AspectTask {
 		switch (aspect.getState()) {
 			case BatchReadFuncAspect.STATE_START:
 				batchReadCompleteLastTs.put(nodeId, aspect.getTime());
-				Long total = tableCountMap.isEmpty() ? 0L : tableCountMap.get(nodeId).get(aspect.getTable().getName());
-				getObsLogger(node).info("Table {} is going to be initial synced, sync size: {}",
-						aspect.getTable().getName(), total);
+				getObsLogger(node).info("Table {} is going to be initial synced", aspect.getTable().getName());
 				aspect.readCompleteConsumer(events -> {
 					long now = System.currentTimeMillis();
 					debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, now - batchReadCompleteLastTs.get(nodeId),
