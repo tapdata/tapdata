@@ -1,15 +1,18 @@
 package io.tapdata.mongodb;
 
+import com.alibaba.fastjson.JSON;
 import com.mongodb.MongoBulkWriteException;
 import com.mongodb.MongoException;
 import com.mongodb.bulk.BulkWriteError;
 import io.tapdata.common.exception.AbstractExceptionCollector;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.exception.*;
+import io.tapdata.exception.runtime.TapPdkSkippableDataEx;
 import io.tapdata.kit.ErrorKit;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,7 +28,7 @@ public class MongodbExceptionCollector extends AbstractExceptionCollector {
     public void throwWriteExIfNeed(Object data, Throwable cause){
         this.collectTerminateByServer(cause);
         this.collectWritePrivileges(cause);
-//        this.collectWriteType(data, cause);
+        this.collectWriteType(data, cause);
         this.collectWriteLength(data, cause);
         this.collectViolateUnique(data, cause);
     }
@@ -88,7 +91,19 @@ public class MongodbExceptionCollector extends AbstractExceptionCollector {
     }
 
     public void collectWriteType(Object data, Throwable cause) {
-        //null类型
+        if (cause instanceof MongoBulkWriteException) {
+            for (BulkWriteError err : ((MongoBulkWriteException) cause).getWriteErrors()) {
+                if (Pattern.matches(".*cannot use the part \\([^)]+\\) to traverse the element \\([^)]+\\).*", err.getMessage())) {
+                    Optional.ofNullable(data)
+                            .map(obj -> (obj instanceof List) ? (List<?>) obj : null)
+                            .map(list -> (list.size() > err.getIndex()) ? list.get(err.getIndex()) : null)
+                            .ifPresent(event -> {
+                                throw new TapPdkSkippableDataEx(err.getMessage() + ": " + JSON.toJSONString(event), getPdkId(), ErrorKit.getLastCause(cause));
+                            });
+                    throw new TapPdkSkippableDataEx(err.getMessage(), getPdkId(), ErrorKit.getLastCause(cause));
+                }
+            }
+        }
     }
 
     public void collectWriteLength(Object data, Throwable cause) {
