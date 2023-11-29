@@ -672,6 +672,7 @@ public class RestTemplateOperator {
 			} catch (RestDoNotRetryException e) {
 				throw e;
 			} catch (HttpMessageConversionException | InterruptedException ignored) {
+				logger.warn("RetryWrap exception:{}",ignored.getMessage());
 				break;
 			} catch (Exception e) {
 				boolean changeURL = true;
@@ -692,6 +693,7 @@ public class RestTemplateOperator {
 				} else {
 					// 'NoHttpResponseException' may occur with multithreaded requests, There is no need to switch services
 					Throwable ex = e;
+					logger.warn("Throwable exception:{}",e.getMessage());
 					while (null != ex) {
 						if (ex instanceof NoHttpResponseException) {
 							changeURL = false;
