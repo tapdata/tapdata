@@ -84,4 +84,5 @@ public class Worker extends BaseEntity {
     private Object worker_status;
 
     private String singletonLock; // 单例锁标记，每次启动都会更新
+    private Boolean licenseBind;
 }

@@ -4448,4 +4448,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         return dto;
     }
+    public int findRunningTasksByAgentId(String processId){
+        if (StringUtils.isBlank(processId.trim())) throw new IllegalArgumentException("process id can not be empty");
+        Query query = Query.query(Criteria.where("agentId").is(processId).and("status").is("running"));
+        List<TaskDto> runningTasks = findAll(query);
+        return runningTasks.size();
+    }
 }
