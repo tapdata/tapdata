@@ -59,6 +59,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1051,12 +1052,19 @@ public class TaskController extends BaseController {
     @PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
                                         @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
-                                        @RequestParam(value = "listtags", required = false) String listtags) {
+                                        @RequestParam(value = "listtags", required = false) String listtags,
+                                        @RequestParam(value = "source", required = false, defaultValue = "") String source,
+                                        @RequestParam(value = "sink", required = false, defaultValue = "") String sink) throws IOException {
         List<String> tags = Lists.newArrayList();
         if (StringUtils.isNoneBlank(listtags)) {
             tags = JSON.parseArray(listtags, String.class);
         }
-        taskService.batchUpTask(file, getLoginUser(), cover, tags);
+        if (Objects.requireNonNull(file.getOriginalFilename()).endsWith("json.gz")) {
+            taskService.batchUpTask(file, getLoginUser(), cover, tags);
+        }
+        if (Objects.requireNonNull(file.getOriginalFilename()).endsWith("relmig")) {
+            taskService.importRmProject(file, getLoginUser(), cover, tags, source, sink);
+        }
         return success();
     }
 
