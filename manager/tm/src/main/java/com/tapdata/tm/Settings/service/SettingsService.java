@@ -1,7 +1,6 @@
 package com.tapdata.tm.Settings.service;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.extra.mail.MailUtil;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
@@ -13,8 +12,6 @@ import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.repository.SettingsRepository;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.utils.EncrptAndDencryUtil;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -25,10 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
-import org.jsoup.Jsoup;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
