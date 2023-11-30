@@ -234,6 +234,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 
 		AtomicReference<Object> scriptInvokeResult = new AtomicReference<>();
+		AtomicReference<Object> scriptInvokeBeforeResult = new AtomicReference<>();
 		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
 				TaskDto.SYNC_TYPE_TEST_RUN,
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
@@ -261,6 +262,9 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 		} else {
 			scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
+			if (null != before) {
+				scriptInvokeBeforeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, before));
+			}
 		}
 
 		if (StringUtils.isNotEmpty((CharSequence) context.get("op"))) {
@@ -274,12 +278,20 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				logger.debug("The event does not need to continue to be processed {}", tapdataEvent);
 			}
 		} else if (scriptInvokeResult.get() instanceof List) {
-			for (Object o : (List) scriptInvokeResult.get()) {
+			for (int i = 0; i < ((List) scriptInvokeResult.get()).size(); i++) {
+				Object o = ((List<?>) scriptInvokeResult.get()).get(i);
 				Map<String, Object> recordMap = new HashMap<>();
 				MapUtil.copyToNewMap((Map<String, Object>) o, recordMap);
 				TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
 				TapEvent returnTapEvent = getTapEvent(cloneTapdataEvent.getTapEvent(), op);
 				setRecordMap(returnTapEvent, op, recordMap);
+				if (OperationType.UPDATE.getOp().equals(op) && scriptInvokeBeforeResult.get() instanceof List
+						&& ((List<?>) scriptInvokeResult.get()).size() == ((List<?>) scriptInvokeBeforeResult.get()).size()) {
+					Object beforeObj = ((List<?>) scriptInvokeBeforeResult.get()).get(i);
+					Map<String, Object> recordBeforeMap = new HashMap<>();
+					MapUtil.copyToNewMap((Map) beforeObj, recordBeforeMap);
+					TapEventUtil.setBefore(returnTapEvent, recordBeforeMap);
+				}
 				cloneTapdataEvent.setTapEvent(returnTapEvent);
 				consumer.accept(cloneTapdataEvent, processResult);
 			}
@@ -288,6 +300,11 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			MapUtil.copyToNewMap((Map<String, Object>) scriptInvokeResult.get(), recordMap);
 			TapEvent returnTapEvent = getTapEvent(tapEvent, op);
 			setRecordMap(returnTapEvent, op, recordMap);
+			if (OperationType.UPDATE.getOp().equals(op) && null != scriptInvokeBeforeResult.get()) {
+				Map<String, Object> recordBeforeMap = new HashMap<>();
+				MapUtil.copyToNewMap((Map) scriptInvokeBeforeResult.get(), recordBeforeMap);
+				TapEventUtil.setBefore(returnTapEvent, recordBeforeMap);
+			}
 			tapdataEvent.setTapEvent(returnTapEvent);
 			consumer.accept(tapdataEvent, processResult);
 		}
