@@ -66,6 +66,7 @@ import io.tapdata.entity.ConnectionsType;
 import io.tapdata.entity.Converter;
 import io.tapdata.entity.Lib;
 import io.tapdata.entity.LibSupported;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
 import io.tapdata.schema.SchemaProxy;
@@ -290,7 +291,7 @@ public class ConnectorManager {
 		});
 
 		CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
-		if (!resultDto.getResult()) throw new RuntimeException(resultDto.getFailedReason());
+		if (null != resultDto && !resultDto.getResult()) throw new CoreException(resultDto.getFailedReason());
 		List<Worker> workers = clientMongoOperator.find(params, ConnectorConstant.WORKER_COLLECTION, Worker.class);
 
 		if (CollectionUtils.isNotEmpty(workers)) {
