@@ -3110,6 +3110,31 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 String script = "";
                 String declareScript = "";
 
+                // 增加 重命名 处理器
+                Map<String, Object> renameNode = new HashMap<>();
+                String renameId = UUID.randomUUID().toString().toLowerCase();
+                renameNode.put("id", renameId);
+                renameNode.put("catalog", "processor");
+                renameNode.put("elementType", "Node");
+                renameNode.put("fieldsNameTransform", "");
+                renameNode.put("isTransformed", false);
+                renameNode.put("name", "Rename " + tpTable);
+                renameNode.put("processorThreadNum", 1);
+                renameNode.put("type", "field_rename_processor");
+                List<Map<String, Object>> operations = new ArrayList<>();
+
+                // 增加 删除 处理器
+                Map<String, Object> deleteNode = new HashMap<>();
+                String deleteId = UUID.randomUUID().toString().toLowerCase();
+                deleteNode.put("id", deleteId);
+                deleteNode.put("catalog", "processor");
+                deleteNode.put("deleteAllFields", false);
+                deleteNode.put("elementType", "Node");
+                deleteNode.put("name", "Delete " + tpTable);
+                deleteNode.put("type", "field_add_del_processor");
+                deleteNode.put("processorThreadNum", 1);
+                List<Map<String, Object>> deleteOperations = new ArrayList<>();
+
                 for (String field : fields.keySet()) {
                     Map<String, Object> fieldMap = (Map<String, Object>) fields.get(field);
                     Map<String, Object> source = (Map<String, Object>) fieldMap.get("source");
@@ -3118,19 +3143,38 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     newName.put("target", target.get("name").toString());
                     newName.put("isPrimaryKey", (Boolean)source.get("isPrimaryKey"));
                     tableRenameFields.put(source.get("name").toString(), newName);
+
+                    if (!(Boolean)target.get("included")) {
+                        Map<String, Object> deleteOperation = new HashMap<>();
+                        deleteOperation.put("id", UUID.randomUUID().toString().toLowerCase());
+                        deleteOperation.put("field", source.get("name"));
+                        deleteOperation.put("op", "REMOVE");
+                        deleteOperation.put("operand", "true");
+                        deleteOperation.put("label", source.get("name"));
+                        deleteOperations.add(deleteOperation);
+                        continue;
+                    }
+
                     if (source.get("name").equals(target.get("name"))) {
                         continue;
                     }
-                    script += "    record[\"" + target.get("name") + "\"] = record[\"" + source.get("name") + "\"];\n";
-                    script += "    delete(record[\"" + source.get("name") + "\"]);\n";
-                    declareScript += "    TapModelDeclare.removeField(tapTable, '" + source.get("name") + "');\n";
-
-                    if ((Boolean)source.get("isPrimaryKey")) {
-                        declareScript += "    TapModelDeclare.setPk(tapTable, '" + target.get("name") + "');\n";
+                    if (!(Boolean)target.get("included")) {
+                        continue;
                     }
+
+                    Map<String, Object> fieldRenameNode = new HashMap<>();
+                    fieldRenameNode.put("id", UUID.randomUUID().toString().toLowerCase());
+                    fieldRenameNode.put("field", source.get("name"));
+                    fieldRenameNode.put("op", "RENAME");
+                    fieldRenameNode.put("operand", target.get("name"));
+                    operations.add(fieldRenameNode);
                 }
 
+                renameNode.put("operations", operations);
+                deleteNode.put("operations", deleteOperations);
+
                 renameFields.put(tpTable, tableRenameFields);
+
                 Map<String, Object> calculatedFields = (Map<String, Object>) contentMappingzValue.get("calculatedFields");
                 for (String field : calculatedFields.keySet()) {
                     Map<String, Object> fieldMap = (Map<String, Object>) calculatedFields.get(field);
@@ -3139,6 +3183,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     newFieldeExpression = newFieldeExpression.replace("columns[", "record[");
                     script += "    record[\"" + newFieldName + "\"] = " + newFieldeExpression + ";\n";
                 }
+
                 if (!script.equals("") || !declareScript.equals("")) {
                     script = "function process(record){" + script;
                     script += "    return record;\n";
@@ -3147,13 +3192,32 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 jsNode.put("script", script);
                 jsNode.put("declareScript", declareScript);
                 String sourceId = (String) node.get("id");
+
+                if (!deleteOperations.isEmpty()) {
+                    nodes.add(deleteNode);
+                    Map<String, Object> edge = new HashMap<>();
+                    edge.put("source", sourceId);
+                    edge.put("target", deleteId);
+                    edges.add(edge);
+                    sourceId = deleteId;
+                }
+
+                if (!operations.isEmpty()) {
+                    nodes.add(renameNode);
+                    Map<String, Object> edge = new HashMap<>();
+                    edge.put("source", sourceId);
+                    edge.put("target", renameId);
+                    edges.add(edge);
+                    sourceId = renameId;
+                }
+
                 if (!script.equals("")) {
                     nodes.add(jsNode);
-                    sourceId = jsId;
                     Map<String, Object> edge = new HashMap<>();
-                    edge.put("source",(String) node.get("id"));
+                    edge.put("source", sourceId);
                     edge.put("target", jsId);
                     edges.add(edge);
+                    sourceId = jsId;
                 }
 
                 // 记录映射
