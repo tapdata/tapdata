@@ -5,8 +5,6 @@ import com.mongodb.MongoClientURI;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -84,26 +82,6 @@ public class MongoClientProxy extends MongoClient {
 
 				aliveMongoClientHashCode.remove(this);
 			}
-		}
-	}
-
-	public static void main(String[] args) throws InterruptedException {
-
-		List<MongoClient> mongoClients = new ArrayList<>();
-		for (int i = 0; i < 50; i++) {
-			MongoClient client = new MongoClientProxy(new MongoClientURI("mongodb://localhost"));
-			mongoClients.add(client);
-		}
-
-		for (int i = 0; i < mongoClients.size(); i++) {
-			if (i % 2 == 0) {
-				continue;
-			}
-			mongoClients.get(i).close();
-		}
-
-		while (true) {
-			Thread.sleep(2000L);
 		}
 	}
 }

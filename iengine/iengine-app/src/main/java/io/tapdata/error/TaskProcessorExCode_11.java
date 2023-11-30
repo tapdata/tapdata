@@ -102,4 +102,6 @@ public interface TaskProcessorExCode_11 {
 	String INIT_SETTING_SERVICE_FAILED_CLIENT_MONGO_OPERATOR_IS_NULL = "11018";
 	@TapExCode
 	String INIT_SCRIPT_ENGINE_FAILED = "11019";
+	@TapExCode
+	String ERROR_HANDLE_FAILED = "11020";
 }

@@ -1,9 +1,11 @@
 package io.tapdata.flow.engine.V2.node.hazelcast;
 
 import base.hazelcast.BaseHazelcastNodeTest;
+import cn.hutool.core.date.StopWatch;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.JetService;
 import com.hazelcast.jet.Job;
+import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.entity.MessageEntity;
@@ -13,6 +15,7 @@ import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -24,6 +27,7 @@ import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -40,11 +44,14 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
+import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskClient;
+import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
@@ -81,6 +88,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		ReflectionTestUtils.setField(mockHazelcastBaseNode, "processorBaseContext", processorBaseContext);
 		hazelcastBaseNode = new HazelcastBaseNode(processorBaseContext) {
 		};
+		ReflectionTestUtils.setField(hazelcastBaseNode, "obsLogger", mockObsLogger);
 	}
 
 	@Nested
@@ -1263,12 +1271,415 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 
 	@Nested
 	@DisplayName("Close method test")
-	@Disabled
 	class CloseTest {
-		@Test
-		@DisplayName("Call close check ")
-		void testClose() {
+
+		private TapdataTaskScheduler tapdataTaskScheduler;
+
+		@BeforeEach
+		void beforeEach() {
 			Map taskClientMap = mock(Map.class);
+			TaskClient taskClient = mock(TaskClient.class);
+			when(taskClient.getTask()).thenReturn(taskDto);
+			when(taskClientMap.get(processorBaseContext.getTaskDto().getId().toHexString())).thenReturn(taskClient);
+			tapdataTaskScheduler = mock(TapdataTaskScheduler.class);
+			when(tapdataTaskScheduler.getTaskClientMap()).thenReturn(taskClientMap);
+			hazelcastBaseNode = spy(hazelcastBaseNode);
+		}
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Call close method")
+		void testClose() {
+			doNothing().when(hazelcastBaseNode).doClose();
+			try (
+					MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)
+			) {
+				beanUtilMockedStatic.when(() -> BeanUtil.getBean(TapdataTaskScheduler.class)).thenReturn(tapdataTaskScheduler);
+				assertDoesNotThrow(() -> hazelcastBaseNode.close());
+				assertFalse(hazelcastBaseNode.running.get());
+				verify(hazelcastBaseNode, new Times(1)).doClose();
+			}
+		}
+
+		@Test
+		@SneakyThrows
+		@DisplayName("When doClose method error")
+		void testCloseWhenDoCloseError() {
+			RuntimeException ex = new RuntimeException("test");
+			doThrow(ex).when(hazelcastBaseNode).doClose();
+			try (
+					MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)
+			) {
+				beanUtilMockedStatic.when(() -> BeanUtil.getBean(TapdataTaskScheduler.class)).thenReturn(tapdataTaskScheduler);
+				assertDoesNotThrow(() -> hazelcastBaseNode.close());
+				verify(mockObsLogger, new Times(1)).warn(anyString());
+			}
 		}
 	}
+
+	@Nested
+	@DisplayName("ErrorHandle method test")
+	class ErrorHandleTest {
+		@BeforeEach
+		void beforeEach() {
+			hazelcastBaseNode = spy(hazelcastBaseNode);
+		}
+
+		@Test
+		@DisplayName("Error handle method main process test")
+		void testErrorHandle() {
+			RuntimeException ex = new RuntimeException("test");
+			Job job = mock(Job.class);
+			doReturn(job).when(hazelcastBaseNode).getJetJob(taskDto);
+			TapCodeException tapCodeException = hazelcastBaseNode.errorHandle(ex);
+			assertNotNull(tapCodeException);
+			assertNotNull(tapCodeException.getCause());
+			assertEquals(ex, tapCodeException.getCause());
+			assertFalse(hazelcastBaseNode.running.get());
+			assertNotNull(hazelcastBaseNode.error);
+			assertEquals(tapCodeException, hazelcastBaseNode.error);
+			assertEquals(ex.toString(), hazelcastBaseNode.errorMessage);
+		}
+
+		@Test
+		@DisplayName("Global error is not null")
+		void testErrorHandleWhenGlobalErrorIsNotNull() {
+			TapCodeException error = new TapCodeException("1");
+			ReflectionTestUtils.setField(hazelcastBaseNode, "error", error);
+			RuntimeException ex1 = new RuntimeException("test1");
+			TapCodeException tapCodeException = hazelcastBaseNode.errorHandle(ex1);
+			assertEquals(error, hazelcastBaseNode.error);
+			assertEquals(ex1, tapCodeException.getCause());
+		}
+
+		@Test
+		@DisplayName("Error handle method send another error message")
+		void testErrorHandleWithAnotherErrorMessage() {
+			RuntimeException ex = new RuntimeException("test");
+			String anotherErrorMessage = "another error message";
+			Job job = mock(Job.class);
+			doReturn(job).when(hazelcastBaseNode).getJetJob(taskDto);
+			hazelcastBaseNode.errorHandle(ex, anotherErrorMessage);
+			assertEquals(anotherErrorMessage, hazelcastBaseNode.errorMessage);
+		}
+
+		@Test
+		@DisplayName("Error handle method when occur an error")
+		void testErrorHandleOccurAnError() {
+			RuntimeException ex = new RuntimeException("test");
+			RuntimeException errorHandleError = new RuntimeException("error handle error");
+			doThrow(errorHandleError).when(hazelcastBaseNode).getJetJob(taskDto);
+			ErrorHandleException errorHandleException = assertThrows(ErrorHandleException.class, () -> hazelcastBaseNode.errorHandle(ex));
+			assertNotNull(errorHandleException);
+			assertNotNull(errorHandleException.getOriginalException());
+			assertEquals(ex, errorHandleException.getOriginalException());
+		}
+	}
+
+	@Nested
+	@DisplayName("StopJetJobIfStatusIsRunning method test")
+	class StopJetJobIfStatusIsRunningTest {
+		@Test
+		@DisplayName("Main process test")
+		void testStopJetJobIfStatusIsRunning() {
+			Job job = mock(Job.class);
+			doNothing().when(job).suspend();
+			TaskClient taskClient = mock(TaskClient.class);
+			doNothing().when(taskClient).terminalMode(any(TerminalMode.class));
+			doNothing().when(taskClient).error(any(Throwable.class));
+			Map taskClientMap = mock(Map.class);
+			when(taskClientMap.get(taskDto.getId().toHexString())).thenReturn(taskClient);
+			TapdataTaskScheduler tapdataTaskScheduler = mock(TapdataTaskScheduler.class);
+			when(tapdataTaskScheduler.getTaskClientMap()).thenReturn(taskClientMap);
+			TapCodeException tapCodeException = new TapCodeException("1");
+			ReflectionTestUtils.setField(hazelcastBaseNode, "error", tapCodeException);
+			try (MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)) {
+				beanUtilMockedStatic.when(() -> BeanUtil.getBean(TapdataTaskScheduler.class)).thenReturn(tapdataTaskScheduler);
+				assertDoesNotThrow(() -> hazelcastBaseNode.stopJetJobIfStatusIsRunning(JobStatus.RUNNING, taskDto, job));
+				verify(taskClient, new Times(1)).terminalMode(TerminalMode.ERROR);
+				verify(taskClient, new Times(1)).error(tapCodeException);
+				verify(job, new Times(1)).suspend();
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("GetJetJob method test")
+	class getJetJobTest {
+
+		private HazelcastInstance hazelcastInstance;
+		private JetService jetService;
+		private Job job;
+
+		@BeforeEach
+		void beforeEach() {
+			ReflectionTestUtils.setField(hazelcastBaseNode, "jetContext", jetContext);
+			hazelcastInstance = mock(HazelcastInstance.class);
+			jetService = mock(JetService.class);
+			job = mock(Job.class);
+			when(hazelcastInstance.getJet()).thenReturn(jetService);
+			when(jetService.getJob(anyString())).thenReturn(job);
+			when(jetContext.hazelcastInstance()).thenReturn(hazelcastInstance);
+		}
+
+		@Test
+		@DisplayName("Main process test")
+		void testGetJetJob() {
+			Job actual = hazelcastBaseNode.getJetJob(taskDto);
+			assertEquals(job, actual);
+		}
+
+		@Test
+		@DisplayName("Input parameter taskDto is null")
+		void testGetJetJobWhenTaskDtoIsNull() {
+			assertThrows(IllegalArgumentException.class, () -> hazelcastBaseNode.getJetJob(null));
+		}
+
+		@Test
+		@DisplayName("When jetService's getJob method return null")
+		void testGetJetJobWhenHazelcastReturnNull() {
+			when(jetService.getJob(anyString())).thenReturn(null);
+			StopWatch stopWatch = StopWatch.create("testGetJetJobWhenHazelcastReturnNull");
+			stopWatch.start();
+			Job actual;
+			try {
+				actual = assertDoesNotThrow(() -> hazelcastBaseNode.getJetJob(taskDto));
+			} finally {
+				stopWatch.stop();
+			}
+			assertNull(actual);
+			assertTrue(stopWatch.getTotalTimeMillis() >= (500L * 5L));
+		}
+
+		@Test
+		@DisplayName("When jetContext is null")
+		void testGetJetJobWhenJetContextIsNull() {
+			ReflectionTestUtils.setField(hazelcastBaseNode, "jetContext", null);
+			StopWatch stopWatch = StopWatch.create("testGetJetJobWhenJetContextIsNull");
+			stopWatch.start();
+			Job actual;
+			try {
+				actual = assertDoesNotThrow(() -> hazelcastBaseNode.getJetJob(taskDto));
+			} finally {
+				stopWatch.stop();
+			}
+			assertNull(actual);
+			assertTrue(stopWatch.getTotalTimeMillis() < (500L * 5));
+		}
+	}
+
+	@Nested
+	@DisplayName("TaskHasBeenRun method test")
+	class TaskHasBeenRunTest {
+		@Test
+		@DisplayName("Main process test")
+		void testTaskHasBeenRun() {
+			Map<String, Object> attrs = new HashMap<>();
+			attrs.put("syncProgress", 1);
+			taskDto.setAttrs(attrs);
+			boolean actual = hazelcastBaseNode.taskHasBeenRun();
+			assertTrue(actual);
+		}
+
+		@Test
+		@DisplayName("When taskDto in processorContext is null")
+		void testTaskHasBeenRunWhenTaskDtoIsNull() {
+			when(processorBaseContext.getTaskDto()).thenReturn(null);
+			boolean actual = hazelcastBaseNode.taskHasBeenRun();
+			assertFalse(actual);
+		}
+
+		@Test
+		@DisplayName("When attr is empty")
+		void testTaskHasBeenRunWhenAttrIsEmpty() {
+			Map<String, Object> attrs = new HashMap<>();
+			taskDto.setAttrs(attrs);
+			boolean actual = hazelcastBaseNode.taskHasBeenRun();
+			assertFalse(actual);
+		}
+
+		@Test
+		@DisplayName("When attr is null")
+		void testTaskHasBeenRunWhenAttrIsNull() {
+			taskDto.setAttrs(null);
+			boolean actual = hazelcastBaseNode.taskHasBeenRun();
+			assertFalse(actual);
+		}
+
+		@Test
+		@DisplayName("When attr not contains key syncProgress")
+		void testTaskHasBeenRunWhenAttrNotContainsKeySyncProgress() {
+			Map<String, Object> attrs = new HashMap<>();
+			attrs.put("a", 1);
+			taskDto.setAttrs(attrs);
+			boolean actual = hazelcastBaseNode.taskHasBeenRun();
+			assertFalse(actual);
+		}
+	}
+
+	@Test
+	@DisplayName("IsCooperative method main process test")
+	void testIsCooperative() {
+		boolean actual = hazelcastBaseNode.isCooperative();
+		assertFalse(actual);
+	}
+
+	@Nested
+	@DisplayName("IsRunning method test")
+	class isRunningTest {
+
+		@BeforeEach
+		void beforeEach() {
+			hazelcastBaseNode = spy(hazelcastBaseNode);
+		}
+
+		@Test
+		@DisplayName("Main process test")
+		void testIsRunning() {
+			hazelcastBaseNode.running = new AtomicBoolean(true);
+			doReturn(true).when(hazelcastBaseNode).isJetJobRunning();
+			boolean actual = hazelcastBaseNode.isRunning();
+			assertTrue(actual);
+		}
+
+		@Test
+		@DisplayName("When running is false")
+		void testIsRunningWhenRunningIsFalse() {
+			boolean actual = hazelcastBaseNode.isRunning();
+			assertFalse(actual);
+		}
+
+		@Test
+		@DisplayName("When jet job is not running")
+		void testIsRunningWhenJetJobIsNotRunning() {
+			doReturn(false).when(hazelcastBaseNode).isJetJobRunning();
+			boolean actual = hazelcastBaseNode.isRunning();
+			assertFalse(actual);
+		}
+
+		@Test
+		@DisplayName("When thread is interrupted")
+		void testIsRunningWhenThreadIsInterrupt() {
+			Thread.currentThread().interrupt();
+			hazelcastBaseNode.running = new AtomicBoolean(true);
+			doReturn(true).when(hazelcastBaseNode).isJetJobRunning();
+			boolean actual = hazelcastBaseNode.isRunning();
+			assertFalse(actual);
+		}
+	}
+
+	@Nested
+	@DisplayName("GetTgtTableNameFromTapEvent method test")
+	class GetTgtTableNameFromTapEventTest {
+		private final static String TEST_TABLE_NAME = "test_table";
+
+		@Test
+		@DisplayName("Main process test")
+		void testGetTgtTableNameFromTapEvent() {
+			TapBaseEvent tapEvent = mock(TapBaseEvent.class);
+			when(tapEvent.getTableId()).thenReturn(TEST_TABLE_NAME);
+			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+			when(dagDataService.getNameByNodeAndTableName(tableNode.getId(), TEST_TABLE_NAME)).thenReturn(TEST_TABLE_NAME);
+			when(tapEvent.getInfo(HazelcastBaseNode.DAG_DATA_SERVICE_INFO_KEY)).thenReturn(dagDataService);
+			String actual = hazelcastBaseNode.getTgtTableNameFromTapEvent(tapEvent);
+			assertEquals(TEST_TABLE_NAME, actual);
+			verify(dagDataService, new Times(1)).getNameByNodeAndTableName(tableNode.getId(), TEST_TABLE_NAME);
+		}
+
+		@Test
+		@DisplayName("DagDataService return another table name")
+		void testGetTgtTableNameFromTapEventWhenDagDataServiceReturnAnotherTableName() {
+			TapBaseEvent tapEvent = mock(TapBaseEvent.class);
+			when(tapEvent.getTableId()).thenReturn(TEST_TABLE_NAME);
+			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+			when(dagDataService.getNameByNodeAndTableName(tableNode.getId(), TEST_TABLE_NAME)).thenReturn("another_table");
+			when(tapEvent.getInfo(HazelcastBaseNode.DAG_DATA_SERVICE_INFO_KEY)).thenReturn(dagDataService);
+			String actual = hazelcastBaseNode.getTgtTableNameFromTapEvent(tapEvent);
+			assertEquals("another_table", actual);
+		}
+
+		@Test
+		@DisplayName("When don't have DAGDataServiceImpl in event and don't have lastTableName")
+		void testGetTgtTableNameFromTapEventWhenDontHaveDagDataServiceImplAndDontHaveLastTableName() {
+			TapBaseEvent tapEvent = mock(TapBaseEvent.class);
+			when(tapEvent.getTableId()).thenReturn(TEST_TABLE_NAME);
+			String actual = hazelcastBaseNode.getTgtTableNameFromTapEvent(tapEvent);
+			assertEquals(TEST_TABLE_NAME, actual);
+		}
+
+		@Test
+		@DisplayName("When don't have DAGDataServiceImpl in event and have lastTableName")
+		void testGetTgtTableNameFromTapEventWhenDontHaveDagDataServiceImplAndHaveLastTableName() {
+			TapBaseEvent tapEvent = mock(TapBaseEvent.class);
+			when(tapEvent.getTableId()).thenReturn(TEST_TABLE_NAME);
+			hazelcastBaseNode.lastTableName = "lastTableName";
+			String actual = hazelcastBaseNode.getTgtTableNameFromTapEvent(tapEvent);
+			assertEquals("lastTableName", actual);
+		}
+	}
+
+	@Nested
+	@DisplayName("GetJetJobStatus method test")
+	class GetJetJobStatusTest {
+		@Test
+		@DisplayName("Main process test")
+		void testGetJetJobStatus() {
+			JetJobStatusMonitor jetJobStatusMonitor = mock(JetJobStatusMonitor.class);
+			when(jetJobStatusMonitor.get()).thenReturn(JobStatus.RUNNING);
+			ReflectionTestUtils.setField(hazelcastBaseNode, "jetJobStatusMonitor", jetJobStatusMonitor);
+			JobStatus actual = hazelcastBaseNode.getJetJobStatus();
+			assertEquals(JobStatus.RUNNING, actual);
+		}
+
+		@Test
+		@DisplayName("When jetJobStatusMonitor return null")
+		void testGetJetJobStatusWhenJetJobStatusMonitorReturnNull() {
+			JetJobStatusMonitor jetJobStatusMonitor = mock(JetJobStatusMonitor.class);
+			when(jetJobStatusMonitor.get()).thenReturn(null);
+			ReflectionTestUtils.setField(hazelcastBaseNode, "jetJobStatusMonitor", jetJobStatusMonitor);
+			JobStatus actual = hazelcastBaseNode.getJetJobStatus();
+			assertNull(actual);
+		}
+
+		@Test
+		@DisplayName("When jetJobStatusMonitor is null")
+		void testGetJetJobStatusWhenJetJobStatusMonitorIsNull() {
+			ReflectionTestUtils.setField(hazelcastBaseNode, "jetJobStatusMonitor", null);
+			JobStatus actual = hazelcastBaseNode.getJetJobStatus();
+			assertNull(actual);
+		}
+	}
+
+	@Nested
+	class IsJetJobRunningTest {
+		@BeforeEach
+		void beforeEach() {
+			hazelcastBaseNode = spy(hazelcastBaseNode);
+		}
+
+		@Test
+		@DisplayName("Main process test")
+		void testIsJetJobRunning() {
+			doReturn(JobStatus.RUNNING).when(hazelcastBaseNode).getJetJobStatus();
+			boolean actual = hazelcastBaseNode.isJetJobRunning();
+			assertTrue(actual);
+		}
+
+		@Test
+		@DisplayName("When jet job status is suspended")
+		void testIsJetJobRunningWhenSuspended() {
+			doReturn(JobStatus.SUSPENDED).when(hazelcastBaseNode).getJetJobStatus();
+			boolean actual = hazelcastBaseNode.isJetJobRunning();
+			assertFalse(actual);
+		}
+
+		@Test
+		@DisplayName("When jet job status is null")
+		void testIsJetJobRunningWhenJetJobStatusIsNull() {
+			doReturn(null).when(hazelcastBaseNode).getJetJobStatus();
+			boolean actual = hazelcastBaseNode.isJetJobRunning();
+			assertTrue(actual);
+		}
+	}
+
 }

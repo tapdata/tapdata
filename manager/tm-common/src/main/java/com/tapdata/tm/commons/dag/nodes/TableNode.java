@@ -60,8 +60,6 @@ public class TableNode extends DataNode {
     @EqField
     private Integer increaseSyncInterval;
     /** 增量读取条数 */
-    @EqField
-    private Integer increaseReadSize = 500;
     /** 全量一批读取条数 */
     /** 事务最大时长 oracle专用  单位小时  */
     @EqField

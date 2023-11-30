@@ -4,33 +4,9 @@ import com.mongodb.MongoClient;
 import com.mongodb.MongoClientOptions;
 import com.mongodb.MongoClientURI;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.constant.AgentUtil;
-import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.ConfigurationCenter;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.DateUtil;
 import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.MapUtil;
-import com.tapdata.constant.MongodbUtil;
-import com.tapdata.constant.SSLUtil;
-import com.tapdata.constant.SystemUtil;
-import com.tapdata.constant.UUIDGenerator;
-import com.tapdata.constant.VersionCheck;
-import com.tapdata.entity.AppType;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.Job;
-import com.tapdata.entity.JobConnection;
-import com.tapdata.entity.LoginResp;
-import com.tapdata.entity.ProgressRateStatsMap;
-import com.tapdata.entity.RelateDataBaseTable;
-import com.tapdata.entity.Schema;
-import com.tapdata.entity.Setting;
-import com.tapdata.entity.Stats;
-import com.tapdata.entity.TapLog;
-import com.tapdata.entity.User;
-import com.tapdata.entity.Worker;
+import com.tapdata.constant.*;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
@@ -40,28 +16,11 @@ import com.tapdata.tm.commons.ping.PingType;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
 import com.tapdata.tm.worker.WorkerSingletonException;
 import com.tapdata.tm.worker.WorkerSingletonLock;
-import com.tapdata.validator.ConnectionValidateResult;
-import com.tapdata.validator.ConnectionValidator;
-import com.tapdata.validator.ValidatorConstant;
 import io.tapdata.Runnable.LoadSchemaRunner;
-import io.tapdata.TapInterface;
 import io.tapdata.aspect.LoginSuccessfullyAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.common.ClassScanner;
-import io.tapdata.common.Connector;
-import io.tapdata.common.ConverterUtil;
-import io.tapdata.common.JetExceptionFilter;
-import io.tapdata.common.LoadBalancing;
-import io.tapdata.common.LogUtil;
-import io.tapdata.common.SettingService;
-import io.tapdata.common.SupportUtil;
-import io.tapdata.common.TapInterfaceUtil;
-import io.tapdata.common.TapdataLog4jFilter;
-import io.tapdata.common.WarningMaker;
+import io.tapdata.common.*;
 import io.tapdata.dao.MessageDao;
-import io.tapdata.entity.BaseConnectionValidateResult;
-import io.tapdata.entity.BaseConnectionValidateResultDetail;
-import io.tapdata.entity.ConnectionsType;
 import io.tapdata.entity.Converter;
 import io.tapdata.entity.Lib;
 import io.tapdata.entity.LibSupported;
@@ -100,27 +59,8 @@ import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -546,12 +486,6 @@ public class ConnectorManager {
 
 		this.metricManager = new MetricManager(settingService);
 		return metricManager;
-	}
-
-	@Bean(value = "performanceStatistics")
-	@DependsOn("settingService")
-	public PerformanceStatistics performanceStatistics() {
-		return new PerformanceStatistics(settingService);
 	}
 
 	@Bean("settingService")
@@ -1100,171 +1034,6 @@ public class ConnectorManager {
 		JOB_STATS.put(job.getId(), new HashMap<>(total));
 	}
 
-	/**
-	 * 测试连接方法
-	 * 定时轮询状态为testing的连接
-	 */
-//	@Scheduled(fixedDelay = 2000L)
-	public void testConnection() {
-		String userId = (String) configCenter.getConfig(ConfigurationCenter.USER_ID);
-		String workerTimeout = settingService.getString("lastHeartbeat", "60");
-		if (!AgentUtil.isFirstWorker(
-				clientMongoOperator,
-				instanceNo,
-				appType.isCloud() ? userId : null,
-				Double.valueOf(workerTimeout)
-		)
-		) {
-			return;
-		}
-		Thread.currentThread().setName(String.format(ConnectorConstant.TEST_CONNECTION_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
-		Query query = new Query(new Criteria().andOperator(
-				currentUserCriteria(),
-				new Criteria().orOperator(
-						where("status").is("testing"),
-						where("status").is("invalid").and("response_body.next_retry").lte(System.currentTimeMillis())),
-				Criteria.where("database_type").in(Arrays.asList("gridfs", "rest api", "tcp_udp", "bitsflow", "gbase-8s", "custom_connection"))
-		));
-		query.fields().exclude("schema");
-		List<Connections> connections = MongodbUtil.getConnections(query, null, clientMongoOperator, true);
-		if (CollectionUtils.isNotEmpty(connections)) {
-			for (Connections connection : connections) {
-
-				try {
-					logger.info(TapLog.CON_LOG_0021.getMsg(), connection.getName());
-
-					// workaround.
-					setFileDefaultCharset(connection);
-
-					ConnectionValidateResult validateResult = ConnectionValidator.initialValidate(connection);
-					List validateResultDetails = validateResult.getValidateResultDetails();
-
-					// get retry and next_try info
-					Map<String, Object> responseBody = connection.getResponse_body();
-					if (MapUtils.isNotEmpty(responseBody) && responseBody.containsKey("retry")) {
-						Object retry = responseBody.get("retry");
-						validateResult.setRetry(retry == null ? 0 : (Integer) retry);
-					}
-
-					TapInterface tapInterface = null;
-					String databaseType = connection.getDatabase_type();
-					if (CollectionUtils.isEmpty(validateResultDetails)) {
-						tapInterface = TapInterfaceUtil.getTapInterface(databaseType, null);
-						if (tapInterface != null) {
-							validateResultDetails = tapInterface.connectionsInit(ConnectionsType.getConnectionType(connection.getConnection_type()));
-						}
-					}
-
-					Update update = new Update();
-					update.set("response_body.validate_details", validateResultDetails);
-
-					Query updateQuery = new Query(where("_id").is(connection.getId()));
-					clientMongoOperator.update(query, update, ConnectorConstant.CONNECTION_COLLECTION);
-
-					connection.setSampleSize(settingService.getInt("connections.mongodbLoadSchemaSampleSize", 100));
-					long startTs = System.currentTimeMillis();
-					validateResult = ConnectionValidator.validate(connection, validateResult);
-
-					Schema schema = null;
-
-					if (validateResult != null) {
-
-						List<RelateDataBaseTable> schemaTables = null;
-						if (validateResult.getSchema() != null) {
-							schemaTables = validateResult.getSchema().getTables();
-						}
-
-						ConverterUtil.schemaConvert(schemaTables, connection.getDatabase_type());
-
-						update = getValidateResultUpdate(
-								validateResult.getRetry(), validateResult.getNextRetry(), validateResult.getStatus(),
-								validateResult.getDb_version(), schemaTables, validateResultDetails,
-								validateResult.getDbFullVersion()
-						);
-						int schemaTablesSize = CollectionUtils.isNotEmpty(schemaTables) ? schemaTables.size() : 0;
-						update.set(ConnectorConstant.LOAD_FIELDS, "loading")
-								.set("loadCount", 0).set("tableCount", schemaTablesSize);
-						long javaEndTs = System.currentTimeMillis();
-						long javaSpend = javaEndTs - startTs;
-
-						clientMongoOperator.update(updateQuery, update, ConnectorConstant.CONNECTION_COLLECTION);
-
-						schema = validateResult.getSchema();
-
-						long endTs = System.currentTimeMillis();
-						long managementSpend = endTs - startTs - javaSpend;
-						logger.info(TapLog.CON_LOG_0022.getMsg(), connection.getName(), validateResult.getStatus(),
-								javaSpend, managementSpend, schemaTablesSize);
-					} else if (tapInterface != null) {
-						BaseConnectionValidateResult baseConnectionValidateResult = tapInterface.testConnections(connection);
-
-						if (baseConnectionValidateResult != null) {
-
-							String status = baseConnectionValidateResult.getStatus();
-							validateResultDetails = baseConnectionValidateResult.getValidateResultDetails();
-							if (BaseConnectionValidateResult.CONNECTION_STATUS_READY.equals(status)
-									&& baseConnectionValidateResult != null
-									&& baseConnectionValidateResult.getSchema() != null
-									&& CollectionUtils.isNotEmpty(baseConnectionValidateResult.getSchema().getTables())) {
-								schema = baseConnectionValidateResult.getSchema();
-								ConverterUtil.schemaConvert(schema.getTables(), connection.getDatabase_type());
-								String uuid = UUIDGenerator.uuid();
-								schema.getTables().forEach(table -> table.setSchemaVersion(uuid));
-							} else {
-								schema = new Schema(new ArrayList<>());
-							}
-
-							update = getValidateResultUpdate(
-									baseConnectionValidateResult.getRetry(), baseConnectionValidateResult.getNextRetry(), status,
-									baseConnectionValidateResult.getDb_version(), schema.getTables(), validateResultDetails, null
-							);
-							update.set("loadFieldsStatus", "finished");
-							long javaEndTs = System.currentTimeMillis();
-							long javaSpend = javaEndTs - startTs;
-
-							clientMongoOperator.update(updateQuery, update, ConnectorConstant.CONNECTION_COLLECTION);
-
-							long endTs = System.currentTimeMillis();
-							long managementSpend = endTs - startTs - javaSpend;
-							logger.info(TapLog.CON_LOG_0022.getMsg(), connection.getName(), baseConnectionValidateResult.getStatus(),
-									javaSpend, managementSpend, schema.getTables().size());
-						}
-					}
-
-					if (schema != null && !schema.isIncludeFields()) {
-						// need to load schema fields
-						LoadSchemaRunner loadSchemaRunner = new LoadSchemaRunner(connection, clientMongoOperator, schema.getTables().size());
-						loadSchemaThreadPool.submit(loadSchemaRunner);
-					}
-				} catch (Exception e) {
-					logger.error("Cannot test connection {} {}", connection.getName(), e.getMessage(), e);
-					BaseConnectionValidateResult baseConnectionValidateResult = new BaseConnectionValidateResult();
-					baseConnectionValidateResult.setStatus(BaseConnectionValidateResult.CONNECTION_STATUS_INVALID);
-					List<BaseConnectionValidateResultDetail> baseConnectionValidateResultDetails = new ArrayList<>();
-					baseConnectionValidateResultDetails.add(new BaseConnectionValidateResultDetail() {{
-						setShow_msg("Init test connections");
-						setRequired(true);
-						setFailedInfo("Runtime error: " + e.getMessage());
-					}});
-					baseConnectionValidateResult.setValidateResultDetails(baseConnectionValidateResultDetails);
-
-					Update update = getValidateResultUpdate(
-							0, 0L, BaseConnectionValidateResult.CONNECTION_STATUS_INVALID,
-							null, null, baseConnectionValidateResultDetails, null
-					);
-
-					Query updateQuery = new Query(where("_id").is(connection.getId()));
-					clientMongoOperator.update(updateQuery, update, ConnectorConstant.CONNECTION_COLLECTION);
-				}
-
-			}
-		} else {
-			if (logger.isDebugEnabled()) {
-				logger.debug("Does not find any testing connection.");
-			}
-		}
-	}
-
 	private Update getValidateResultUpdate(int retry, Long nextRetry, String status, Integer db_version, List<RelateDataBaseTable> schemaTables, List validateResultDetails, String dbFullVersion) {
 		Update update = new Update();
 
@@ -1674,41 +1443,6 @@ public class ConnectorManager {
 			});
 		} catch (Exception e) {
 			logger.error("Scan stop fail job error {}", e.getMessage(), e);
-		}
-	}
-
-	//	@Scheduled(fixedDelay = 60000L)
-	private void clearExpiredGridFSFile() {
-		Thread.currentThread().setName(String.format(ConnectorConstant.CLEAR_GRIDFS_EXPIRED_FILE_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
-		Query query = new Query(where("database_type").is(DatabaseTypeEnum.GRIDFS.getType())
-				.and("connection_type").is(ConnectorConstant.CONNECTION_TYPE_TARGET)
-				.and("status").is(ValidatorConstant.CONNECTION_STATUS_READY)
-		);
-		query.fields().exclude("schema").exclude("response_body");
-
-		try {
-			List<Connections> connections = clientMongoOperator.find(query, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-			if (CollectionUtils.isNotEmpty(connections)) {
-				for (Connections connection : connections) {
-					try {
-						GridFSCleaner.ClearGridFSResult result = GridFSCleaner.startClean(connection);
-						if (result.isSuccess()) {
-							logger.info("Clear _id {} name {} gridfs connection files succeeded, {} ", connection.getId(), connection.getName(), result.toString());
-						} else {
-							logger.warn("Clear _id {} name {} gridfs connection files failed, reason {} errorMsg {}",
-									connection.getId(),
-									connection.getName(),
-									result.getFailedReason(),
-									result.getException() != null ? result.getException().getMessage() : ""
-							);
-						}
-					} catch (Exception e) {
-						logger.error("Clear _id {} name {} gridfs connection files happened unexpected error {} ", connection.getId(), connection.getName(), e.getMessage(), e);
-					}
-				}
-			}
-		} catch (Exception e) {
-			logger.error("Clear expired gridfs failed failed {}", e.getMessage(), e);
 		}
 	}
 
