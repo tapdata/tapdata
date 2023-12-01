@@ -2,6 +2,7 @@ package io.tapdata.proxy.client;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.aspect.supervisor.AspectRunnableUtil;
 import io.tapdata.aspect.supervisor.DisposableThreadGroupAspect;
@@ -34,6 +35,7 @@ import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.api.PDKIntegration;
+import io.tapdata.pdk.core.constants.SystemConstants;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -75,15 +77,19 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 //		if(nodeId == null)
 //			throw new CoreException(NetErrors.CURRENT_NODE_ID_NOT_FOUND, "Current nodeId is not found");
 //		proxySubscription = new ProxySubscription().nodeId(nodeId).service("engine");
+
 		long autoSyncSubscribeIdsInterval = CommonUtils.getPropertyLong("tapdata_auto_sync_subscribe_ids_interval_seconds", 60);
 		long idleSyncSubscribeIdsInterval = CommonUtils.getPropertyLong("tapdata_idle_sync_subscribe_ids_interval_seconds", 60 * 5);
-		ExecutorsManager.getInstance().getScheduledExecutorService().scheduleWithFixedDelay(() -> {
-			if(System.currentTimeMillis() - lastSyncTime > 1000 * idleSyncSubscribeIdsInterval) {
-				maxFrequencyLimiter.touch();
-				TapLogger.info(TAG, "Start to sync subscribe ids after idle {} seconds", idleSyncSubscribeIdsInterval);
-			}
-		}, autoSyncSubscribeIdsInterval, autoSyncSubscribeIdsInterval, TimeUnit.SECONDS);
-		maxFrequencyLimiter = new MaxFrequencyLimiter(500, this::syncSubscribeIds);
+		boolean isJunitTest = CommonUtils.getPropertyBool(SystemConstants.JUNIT_TEST_PROP_KEY, false);
+		if (!isJunitTest) {
+			ExecutorsManager.getInstance().getScheduledExecutorService().scheduleWithFixedDelay(() -> {
+				if(System.currentTimeMillis() - lastSyncTime > 1000 * idleSyncSubscribeIdsInterval) {
+					maxFrequencyLimiter.touch();
+					TapLogger.info(TAG, "Start to sync subscribe ids after idle {} seconds", idleSyncSubscribeIdsInterval);
+				}
+			}, autoSyncSubscribeIdsInterval, autoSyncSubscribeIdsInterval, TimeUnit.SECONDS);
+			maxFrequencyLimiter = new MaxFrequencyLimiter(500, this::syncSubscribeIds);
+		}
 	}
 	public void startIMClient(List<String> baseURLs, String accessToken) {
 		if(imClient == null) {

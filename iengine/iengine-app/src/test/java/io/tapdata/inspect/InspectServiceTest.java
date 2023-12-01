@@ -1,5 +1,6 @@
 package io.tapdata.inspect;
 
+import base.BaseTest;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.inspect.*;
@@ -28,7 +29,7 @@ import java.util.concurrent.*;
 import static org.mockito.Mockito.*;
 
 @RunWith(MockitoJUnitRunner.class)
-class InspectServiceTest {
+class InspectServiceTest extends BaseTest {
     private InspectService inspectService;
     private ClientMongoOperator clientMongoOperator;
     private SettingService settingService;
