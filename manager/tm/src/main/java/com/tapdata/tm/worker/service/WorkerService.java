@@ -834,7 +834,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         mongoTemplate.updateFirst(query, expireTime, WorkerExpire.class);
     }
     public WorkerDto queryWorkerByProcessId(String processId){
-        if (null == processId || StringUtils.isBlank(processId)) throw new IllegalArgumentException("process id can not be empty");
+        if (StringUtils.isBlank(processId)) throw new IllegalArgumentException("process id can not be empty");
         Query query = Query.query(Criteria.where("process_id").is(processId).and("worker_type").is("connector"));
         return findOne(query);
     }
@@ -843,7 +843,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return repository.findAll(query);
     }
     public boolean bindByProcessId(WorkerDto workerDto, String processId, UserDetail userDetail){
-        if (null == processId || StringUtils.isBlank(processId)) throw new IllegalArgumentException("process id can not be empty");
+        if (StringUtils.isBlank(processId)) throw new IllegalArgumentException("process id can not be empty");
         //if not exist
         WorkerDto res = queryWorkerByProcessId(processId);
         if (null == res){
@@ -856,7 +856,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return result.getModifiedCount() == 1 ? true : false;
     }
     public boolean unbindByProcessId(String processId){
-        if (null == processId || StringUtils.isBlank(processId)) throw new IllegalArgumentException("process id can not be empty");
+        if (StringUtils.isBlank(processId)) throw new IllegalArgumentException("process id can not be empty");
         Query query = Query.query(Criteria.where("process_id").is(processId).and("worker_type").is("connector"));
         Update update = Update.update("licenseBind", false);
         UpdateResult result = repository.update(query, update);
