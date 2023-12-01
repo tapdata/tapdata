@@ -67,8 +67,10 @@ import io.tapdata.entity.Converter;
 import io.tapdata.entity.Lib;
 import io.tapdata.entity.LibSupported;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.exception.ManagementException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.task.TapdataTaskScheduler;
 import io.tapdata.websocket.ManagementWebsocketHandler;
@@ -94,6 +96,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.socket.TextMessage;
 
 import javax.annotation.PostConstruct;
@@ -388,10 +391,17 @@ public class ConnectorManager {
 
 	protected CheckEngineValidResultDto checkLicenseEngineLimit() {
 		CheckEngineValidResultDto resultDto = null;
-		if (!appType.isCloud()){
-			Map<String, Object> processId = new HashMap<>();
-			processId.put("processId", instanceNo);
-			resultDto = clientMongoOperator.findOne(processId, ConnectorConstant.LICENSE_COLLECTION + "/checkEngineValid", CheckEngineValidResultDto.class);
+		if (!appType.isCloud()) {
+			try {
+				Map<String, Object> processId = new HashMap<>();
+				processId.put("processId", instanceNo);
+				resultDto = clientMongoOperator.findOne(processId, ConnectorConstant.LICENSE_COLLECTION + "/checkEngineValid", CheckEngineValidResultDto.class);
+			} catch (Exception e) {
+				Throwable cause = CommonUtils.matchThrowable(e, HttpClientErrorException.class);
+				if (cause instanceof HttpClientErrorException && ((HttpClientErrorException) cause).getRawStatusCode() == 404){
+					return null;
+				}
+			}
 		}
 		return resultDto;
 	}
@@ -1495,7 +1505,7 @@ public class ConnectorManager {
 				break;
 			case DAAS:
 				CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
-				if (!resultDto.getResult()){
+				if (null != resultDto && !resultDto.getResult()){
 					isExit = true;
 					if (StringUtils.isNotBlank(resultDto.getProcessId())){
 						exitInfo = String.format(resultDto.getFailedReason() + ", engine [%s] will be stopped and unbound", resultDto.getProcessId());

@@ -467,10 +467,6 @@ public class RestTemplateOperator {
 				);
 				return null;
 			} catch (HttpClientErrorException e) {
-				// 4xx 异常不进行重试
-				if (String.valueOf(e.getStatusCode().value()).startsWith("4")) {
-					throw new InterruptedException("Request cancel with response code: " + e.getStatusCode());
-				}
 				throw e;
 			}
 		}, stop);
