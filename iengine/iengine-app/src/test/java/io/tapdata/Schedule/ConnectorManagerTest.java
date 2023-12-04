@@ -2,6 +2,7 @@ package io.tapdata.Schedule;
 
 import base.BaseTest;
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.*;
 import com.tapdata.entity.values.CheckEngineValidResultDto;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -21,6 +22,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -37,9 +39,10 @@ class ConnectorManagerTest extends BaseTest {
     class TestInitForCheckLicenseEngineLimit{
         private MongoTemplate mongoTemplate;
         private RestTemplateOperator restTemplateOperator;
+        private List<String> baseURLs;
         @BeforeEach
         void buildConnectManager(){
-            List<String> baseURLs = new ArrayList<>();
+            baseURLs = new ArrayList<>();
             baseURLs.add("url1");
             ReflectionTestUtils.setField(connectorManager,"baseURLs",baseURLs);
             ReflectionTestUtils.setField(connectorManager,"appType",AppType.DAAS);
@@ -52,6 +55,11 @@ class ConnectorManagerTest extends BaseTest {
             ReflectionTestUtils.setField(connectorManager,"configCenter",configCenter);
             restTemplateOperator = mock(RestTemplateOperator.class);
             ReflectionTestUtils.setField(connectorManager,"restTemplateOperator",restTemplateOperator);
+        }
+        @Test
+        void testInitForThrowRuntimeEx(){
+            baseURLs.clear();
+            assertThrows(RuntimeException.class,()->connectorManager.init());
         }
         @Test
         void testInitForCheckLicenseEngineLimit() throws Exception {
@@ -119,6 +127,18 @@ class ConnectorManagerTest extends BaseTest {
             when(connectorManager.checkLicenseEngineLimit()).thenReturn(excepted);
             CheckEngineValidResultDto actual = connectorManager.checkLicenseEngineLimit();
             assertEquals(excepted,actual);
+        }
+        @Test
+        void testCheckLicenseEngineLimitWithEx(){
+            connectorManager = spy(ConnectorManager.class);
+            ReflectionTestUtils.setField(connectorManager,"appType",AppType.DAAS);
+            ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+            ReflectionTestUtils.setField(connectorManager,"clientMongoOperator",clientMongoOperator);
+            HttpClientErrorException ex = mock(HttpClientErrorException.class);
+            Map<String, Object> processId = new HashMap<>();
+            processId.put("processId", "tapdata-agent-connector");
+            doThrow(ex).when(clientMongoOperator).findOne(processId, ConnectorConstant.LICENSE_COLLECTION + "/checkEngineValid", CheckEngineValidResultDto.class);
+            assertEquals(null,connectorManager.checkLicenseEngineLimit());
         }
     }
     @Nested
