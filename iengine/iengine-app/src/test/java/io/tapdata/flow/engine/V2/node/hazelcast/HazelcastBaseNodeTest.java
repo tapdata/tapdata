@@ -1705,7 +1705,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 
 			when(dto.getIsomorphism()).thenReturn(true);
 			when(context.getTaskDto()).thenReturn(dto);
-			doCallRealMethod().when(mock).isomorphism(any(ProcessorBaseContext.class));
+			doCallRealMethod().when(mock).setIsomorphismByProcessorBaseContext(any(ProcessorBaseContext.class));
 			doCallRealMethod().when(mock).setIsomorphism(anyBoolean());
 			when(mock.getIsomorphism()).thenCallRealMethod();
 		}
@@ -1716,7 +1716,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 
 		@Test
 		void testIsomorphismWithNullProcessorBaseContext() {
-			doCallRealMethod().when(mock).isomorphism(null);
+			doCallRealMethod().when(mock).setIsomorphismByProcessorBaseContext(null);
 			assertVerify(null, false, 0, 0, 0);
 		}
 		@Test
@@ -1731,7 +1731,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		void assertVerify(ProcessorBaseContext c, boolean value, int getTaskDtoTimes, int getIsomorphismTimes, int setIsomorphismTimes) {
-			mock.isomorphism(c);
+			mock.setIsomorphismByProcessorBaseContext(c);
 			boolean isomorphism = mock.getIsomorphism();
 			Assertions.assertEquals(value, isomorphism);
 			verify(context, times(getTaskDtoTimes)).getTaskDto();

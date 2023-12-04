@@ -125,7 +125,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
-		isomorphism(this.processorBaseContext);
+		setIsomorphismByProcessorBaseContext(this.processorBaseContext);
 	}
 
 	public boolean getIsomorphism() {
@@ -136,7 +136,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		this.isomorphism = isomorphism;
 	}
 
-	protected void isomorphism(ProcessorBaseContext processorBaseContext) {
+	protected void setIsomorphismByProcessorBaseContext(ProcessorBaseContext processorBaseContext) {
 		if (null != processorBaseContext && null != processorBaseContext.getTaskDto()) {
 			TaskDto taskDto = processorBaseContext.getTaskDto();
 			this.setIsomorphism(Optional.ofNullable(taskDto.getIsomorphism()).orElse(false));
