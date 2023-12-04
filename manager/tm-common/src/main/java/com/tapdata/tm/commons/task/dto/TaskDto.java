@@ -174,6 +174,11 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     private String shareCdcStopMessage;
 
     /**
+     * 同构或异构标记
+     * */
+    protected Boolean isomorphism;
+
+    /**
      * 开启动态调整队列内存使用
      * true - 开启
      * false - 关闭

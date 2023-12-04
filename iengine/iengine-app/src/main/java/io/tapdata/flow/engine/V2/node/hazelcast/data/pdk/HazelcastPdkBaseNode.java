@@ -246,16 +246,16 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	protected void toTapValue(Map<String, Object> data, String tableName, TapCodecsFilterManager tapCodecsFilterManager) {
-		if (MapUtils.isEmpty(data)) {
+		if (getIsomorphism() || MapUtils.isEmpty(data)) {
 			return;
 		}
-		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
+		TapTable tapTable = getDataProcessorContext().getTapTableMap().get(tableName);
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 		tapCodecsFilterManager.transformToTapValueMap(data, nameFieldMap);
 	}
 
 	protected void fromTapValue(Map<String, Object> data, TapCodecsFilterManager tapCodecsFilterManager) {
-		if (MapUtils.isEmpty(data)) {
+		if (getIsomorphism() || MapUtils.isEmpty(data) || null == tapCodecsFilterManager) {
 			return;
 		}
 		tapCodecsFilterManager.transformFromTapValueMap(data);
@@ -346,5 +346,10 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			}
 			MapUtil.removeKey(data, notSupportField);
 		}
+	}
+	protected void toTapValueByCodecs(TapEvent tapEvent) {
+		if (getIsomorphism() || null == tapEvent) return;
+		TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+		tapRecordToTapValue(tapEvent, codecsFilterManager);
 	}
 }

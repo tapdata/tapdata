@@ -118,8 +118,29 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected String lastTableName;
 	protected ExternalStorageDto externalStorageDto;
 
+	/**
+	 * 同构或异构标记
+	 * */
+	protected boolean isomorphism;
+
 	protected HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
+		isomorphism(this.processorBaseContext);
+	}
+
+	public boolean getIsomorphism() {
+		return isomorphism;
+	}
+
+	public void setIsomorphism(boolean isomorphism) {
+		this.isomorphism = isomorphism;
+	}
+
+	protected void isomorphism(ProcessorBaseContext processorBaseContext) {
+		if (null != processorBaseContext && null != processorBaseContext.getTaskDto()) {
+			TaskDto taskDto = processorBaseContext.getTaskDto();
+			this.setIsomorphism(Optional.ofNullable(taskDto.getIsomorphism()).orElse(false));
+		}
 	}
 
 	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
