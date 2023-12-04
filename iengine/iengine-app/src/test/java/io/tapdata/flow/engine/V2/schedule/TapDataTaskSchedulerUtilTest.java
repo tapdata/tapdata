@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.schedule;
 
+import base.BaseTest;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.bson.Document;
@@ -16,7 +17,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TapDataTaskSchedulerUtilTest {
+public class TapDataTaskSchedulerUtilTest extends BaseTest {
     @Nested
     class SignTaskRetryWithTimestampTest {
         TaskDto taskDto;

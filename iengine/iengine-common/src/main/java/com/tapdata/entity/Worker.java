@@ -76,10 +76,21 @@ public class Worker implements Serializable {
 
 	private boolean stopping;
 
+	private boolean licenseBind;
+
+	public boolean isLicenseBind() {
+		return licenseBind;
+	}
+
+	public void setLicenseBind(boolean licenseBind) {
+		this.licenseBind = licenseBind;
+	}
+
+
 	public Worker() {
 	}
 
-	public Worker(String process_id, long start_time, String worker_type, int total_thread, int running_thread, String user_id, String version, String hostname, double cpuLoad, long usedMemory) {
+	public Worker(String process_id, long start_time, String worker_type, int total_thread, int running_thread, String user_id, String version, String hostname, double cpuLoad, long usedMemory, boolean licenseBind) {
 		this.process_id = process_id;
 		this.start_time = start_time;
 		this.worker_type = worker_type;
@@ -90,6 +101,7 @@ public class Worker implements Serializable {
 		this.hostname = hostname;
 		this.cpuLoad = cpuLoad;
 		this.usedMemory = usedMemory;
+		this.licenseBind = licenseBind;
 	}
 
 	public String getWorker_ip() {
@@ -213,7 +225,7 @@ public class Worker implements Serializable {
 	}
 
 	public void setDeleted(boolean deleted) {
-		deleted = deleted;
+		this.deleted = deleted;
 	}
 
 	public void setStopping(boolean stopping) {
@@ -258,6 +270,7 @@ public class Worker implements Serializable {
 				", platformInfo=" + platformInfo +
 				", isDeleted=" + isDeleted +
 				", stopping=" + stopping +
+				", isBind=" + licenseBind +
 				'}';
 	}
 }

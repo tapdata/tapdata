@@ -85,4 +85,5 @@ public class WorkerDto extends BaseDto {
 
     private String gitCommitId;
     private String singletonLock; // 单例锁标记，每次启动都会更新
+    private Boolean licenseBind;
 }

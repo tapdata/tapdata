@@ -1,5 +1,6 @@
 package io.tapdata.aspect;
 
+import base.BaseTest;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -17,7 +18,7 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
 import static junit.framework.TestCase.*;
 import static org.junit.Assert.assertNotEquals;
 
-public class AspectTest {
+public class AspectTest extends BaseTest {
 	@Test
 	public void testTaskLifeCircle() {
 		AspectTaskManager aspectTaskManager = InstanceFactory.instance(AspectTaskManager.class);

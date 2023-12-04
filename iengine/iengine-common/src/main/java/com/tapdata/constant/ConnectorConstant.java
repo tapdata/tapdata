@@ -73,6 +73,7 @@ public class ConnectorConstant {
 	public static final String CONNECTION_COLLECTION = "Connections";
 
 	public static final String WORKER_COLLECTION = "Workers";
+	public static final String LICENSE_COLLECTION = "Licenses";
 
 	public static final String SETTING_COLLECTION = "Settings";
 	public static final String METADATA_INSTANCE_COLLECTION = "MetadataInstances";
