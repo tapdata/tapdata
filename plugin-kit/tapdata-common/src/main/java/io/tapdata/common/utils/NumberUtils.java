@@ -13,7 +13,7 @@ public class NumberUtils {
         } else if (a instanceof BigInteger || b instanceof BigInteger){
             return new BigInteger(a.toString()).add(new BigInteger(b.toString()));
         } else {
-            return a.intValue() + b.intValue();
+            return a.longValue() + b.longValue();
         }
     }
 
