@@ -21,10 +21,7 @@ import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -227,9 +224,9 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			});
 
 			// test thread exception if not running
+			when(mockInstance.isRunning()).thenReturn(false);
 			assertDoesNotThrow(() -> {
 				try (AutoCloseable autoCloseable = mockInstance.doAsyncTableCount(mockBatchCountFunction.get(), testTableName)) {
-					when(mockInstance.isRunning()).thenReturn(false);
 				}
 			});
 		}
