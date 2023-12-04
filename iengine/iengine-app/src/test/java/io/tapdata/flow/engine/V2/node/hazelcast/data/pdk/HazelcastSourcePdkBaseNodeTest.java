@@ -222,6 +222,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			});
 
 			// test thread exception if not running
+			when(mockInstance.isRunning()).thenReturn(false);
 			assertDoesNotThrow(() -> {
                 // the isRunning method Return true on the first call and false on the second call
                 // Ensure that the exception 'isRunning' returns false, please!

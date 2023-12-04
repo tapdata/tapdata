@@ -16,5 +16,7 @@ public enum LockType {
 
     /** 启动LDP-FDM任务 */
     START_LDP_FDM,
+    /** 启动CHECK_ENGINE_VALID任务 */
+    CHECK_ENGINE_VALID,
     ;
 }

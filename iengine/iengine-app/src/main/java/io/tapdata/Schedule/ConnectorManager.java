@@ -8,6 +8,7 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.Stage;
+import com.tapdata.entity.values.CheckEngineValidResultDto;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
@@ -24,8 +25,11 @@ import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.Converter;
 import io.tapdata.entity.Lib;
 import io.tapdata.entity.LibSupported;
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.exception.ManagementException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.task.TapdataTaskScheduler;
 import io.tapdata.websocket.ManagementWebsocketHandler;
@@ -51,6 +55,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.socket.TextMessage;
 
 import javax.annotation.PostConstruct;
@@ -228,6 +233,8 @@ public class ConnectorManager {
 			return newSingletonLock;
 		});
 
+		CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
+		if (null != resultDto && !resultDto.getResult()) throw new CoreException(resultDto.getFailedReason());
 		List<Worker> workers = clientMongoOperator.find(params, ConnectorConstant.WORKER_COLLECTION, Worker.class);
 
 		if (CollectionUtils.isNotEmpty(workers)) {
@@ -320,6 +327,23 @@ public class ConnectorManager {
 		ConnectorConstant.clientMongoOperator = clientMongoOperator;
 
 		GlobalConstant.getInstance().configurationCenter(configCenter);
+	}
+
+	protected CheckEngineValidResultDto checkLicenseEngineLimit() {
+		CheckEngineValidResultDto resultDto = null;
+		if (!appType.isCloud()) {
+			try {
+				Map<String, Object> processId = new HashMap<>();
+				processId.put("processId", instanceNo);
+				resultDto = clientMongoOperator.findOne(processId, ConnectorConstant.LICENSE_COLLECTION + "/checkEngineValid", CheckEngineValidResultDto.class);
+			} catch (Exception e) {
+				Throwable cause = CommonUtils.matchThrowable(e, HttpClientErrorException.class);
+				if (cause instanceof HttpClientErrorException && ((HttpClientErrorException) cause).getRawStatusCode() == 404){
+					return null;
+				}
+			}
+		}
+		return resultDto;
 	}
 
 	@PreDestroy
@@ -1163,6 +1187,9 @@ public class ConnectorManager {
 					value.put("ping_time", 1);
 				}
 				pingClientMongoOperator.insertOne(value, ConnectorConstant.WORKER_COLLECTION + "/health");
+				if (isExit && appType.isDaas()) {
+					exit(instanceNo);
+				}
 //				sendWorkerHeartbeat(
 //						value,
 //						v -> pingClientMongoOperator.insertOne(v, ConnectorConstant.WORKER_COLLECTION + "/health"));
@@ -1225,30 +1252,42 @@ public class ConnectorManager {
 	 * @return true - 被停止或删除，实例将停止
 	 * false: 没有被停止或删除，实例正常运行
 	 */
-	private void checkAndExit(List<Worker> workers, Consumer<Boolean> beforeExit) {
+	protected void checkAndExit(List<Worker> workers, Consumer<Boolean> beforeExit) {
 		if (CollectionUtils.isEmpty(workers)) {
 			beforeExit.accept(false);
 			return;
 		}
 		Worker worker = workers.get(0);
-		if (!appType.isDfs()) {
-			beforeExit.accept(false);
-			return;
+		String exitInfo = "";
+		boolean isExit = false;
+		switch (appType){
+			case DFS:
+				if (worker.isDeleted() || worker.isStopping()) {
+						exitInfo = "Flow engine will stop, cause: ";
+					if (worker.isDeleted()) {
+						exitInfo += "is deleted";
+					} else if (worker.isStopping()) {
+						exitInfo += "is stopped";
+					}
+					isExit = true;
+				}
+				break;
+			case DAAS:
+				CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
+				if (null != resultDto && !resultDto.getResult()){
+					isExit = true;
+					if (StringUtils.isNotBlank(resultDto.getProcessId())){
+						exitInfo = String.format(resultDto.getFailedReason() + ", engine [%s] will be stopped and unbound", resultDto.getProcessId());
+					}else {
+						exitInfo = resultDto.getFailedReason();
+					}
+				}
+				break;
 		}
-		if (worker.isDeleted() || worker.isStopping()) {
-			String exitInfo = "Flow engine will stop, cause: ";
-			if (worker.isDeleted()) {
-				exitInfo += "is deleted";
-			} else if (worker.isStopping()) {
-				exitInfo += "is stopped";
-			}
+		if(StringUtils.isNotBlank(exitInfo)){
 			logger.info(exitInfo);
-			beforeExit.accept(true);
-			//用System.exit强制停止引擎会导致JS守护线程重新拉起，导致云版停止引擎后，过几分钟自动拉起
-			//System.exit(1);
-		} else {
-			beforeExit.accept(false);
 		}
+		beforeExit.accept(isExit);
 	}
 
 	/**

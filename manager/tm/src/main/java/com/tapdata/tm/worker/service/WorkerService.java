@@ -833,4 +833,34 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         Update expireTime = Update.update("expireTime", date).set("is_deleted", true).set("last_updated", date);
         mongoTemplate.updateFirst(query, expireTime, WorkerExpire.class);
     }
+    public WorkerDto queryWorkerByProcessId(String processId){
+        if (StringUtils.isBlank(processId)) throw new IllegalArgumentException("process id can not be empty");
+        Query query = Query.query(Criteria.where("process_id").is(processId).and("worker_type").is("connector"));
+        return findOne(query);
+    }
+    public List<Worker> queryAllBindWorker(){
+        Query query = Query.query(Criteria.where("worker_type").is("connector").and("licenseBind").is(true));
+        return repository.findAll(query);
+    }
+    public boolean bindByProcessId(WorkerDto workerDto, String processId, UserDetail userDetail){
+        if (StringUtils.isBlank(processId)) throw new IllegalArgumentException("process id can not be empty");
+        //if not exist
+        WorkerDto res = queryWorkerByProcessId(processId);
+        if (null == res){
+            save(workerDto, userDetail);
+        }
+        Query query = Query.query(Criteria.where("process_id").is(processId).and("worker_type").is("connector"));
+        Update update = Update.update("licenseBind", true);
+        UpdateResult result = repository.update(query, update);
+        if (null == result) return false;
+        return result.getModifiedCount() == 1 ? true : false;
+    }
+    public boolean unbindByProcessId(String processId){
+        if (StringUtils.isBlank(processId)) throw new IllegalArgumentException("process id can not be empty");
+        Query query = Query.query(Criteria.where("process_id").is(processId).and("worker_type").is("connector"));
+        Update update = Update.update("licenseBind", false);
+        UpdateResult result = repository.update(query, update);
+        if (null == result) return false;
+        return result.getModifiedCount() == 1 ? true : false;
+    }
 }
