@@ -82,51 +82,51 @@ public class PdkStateMap extends CleanRuleKVMap {
 	protected void initNodeStateMap(HazelcastInstance hazelcastInstance, String mapName, ExternalStorageDto tapdataOrDefaultExternalStorage) {
 		tapdataOrDefaultExternalStorage.setTable(null);
 		tapdataOrDefaultExternalStorage.setTtlDay(0); // No time to live
-		DocumentIMap<Document> iMapV2;
+		DocumentIMap<Document> documentIMapV2;
 		stateMapVersion = StateMapVersion.V2;
 		try {
-			iMapV2 = initDocumentIMapV2(hazelcastInstance, mapName, tapdataOrDefaultExternalStorage);
+			documentIMapV2 = initDocumentIMapV2(hazelcastInstance, mapName, tapdataOrDefaultExternalStorage);
 			if (logger.isDebugEnabled()) {
 				logger.debug("Init document imap v2 completed, map name: {}, external storage: {}", mapName, tapdataOrDefaultExternalStorage);
 			}
 		} catch (Exception e) {
 			throw new TapCodeException(PdkStateMapExCode_28.INIT_PDK_STATE_MAP_FAILED, String.format("Map name: %s", mapName), e);
 		}
-		if (iMapV2.isEmpty()) {
-			DocumentIMap<Document> iMapV1;
+		if (documentIMapV2.isEmpty()) {
+			DocumentIMap<Document> documentIMapV1;
 			try {
-				iMapV1 = initDocumentIMapV1(hazelcastInstance, mapName, tapdataOrDefaultExternalStorage);
+				documentIMapV1 = initDocumentIMapV1(hazelcastInstance, mapName, tapdataOrDefaultExternalStorage);
 			} catch (Exception e) {
-				constructIMap = iMapV2;
+				constructIMap = documentIMapV2;
 				writeStateMapSign();
 				return;
 			}
 			if (logger.isDebugEnabled()) {
 				logger.debug("IMap v2 is empty, also need to init IMap v1, map name: {}, external storage: {}", mapName, tapdataOrDefaultExternalStorage);
 			}
-			if (null == iMapV1) {
-				constructIMap = iMapV2;
+			if (null == documentIMapV1) {
+				constructIMap = documentIMapV2;
 			} else {
-				if (!iMapV1.isEmpty()) {
-					constructIMap = iMapV1;
+				if (!documentIMapV1.isEmpty()) {
+					constructIMap = documentIMapV1;
 					stateMapVersion = StateMapVersion.V1;
 					if (logger.isDebugEnabled()) {
-						logger.debug("IMap v1 is not empty, use IMap v1 as node pdk state map: {}", iMapV1.getName());
+						logger.debug("IMap v1 is not empty, use IMap v1 as node pdk state map: {}", documentIMapV1.getName());
 					}
 					try {
-						iMapV2.clear();
-						iMapV2.destroy();
+						documentIMapV2.clear();
+						documentIMapV2.destroy();
 					} catch (Exception e) {
 						// ignored
 					}
 				} else {
-					constructIMap = iMapV2;
+					constructIMap = documentIMapV2;
 					if (logger.isDebugEnabled()) {
-						logger.debug("IMap v1 is empty, use IMap v2 as node pdk state map: {}", iMapV2.getName());
+						logger.debug("IMap v1 is empty, use IMap v2 as node pdk state map: {}", documentIMapV2.getName());
 					}
 					try {
-						iMapV1.clear();
-						iMapV1.destroy();
+						documentIMapV1.clear();
+						documentIMapV1.destroy();
 					} catch (Exception e) {
 						// ignored
 					}
@@ -134,9 +134,9 @@ public class PdkStateMap extends CleanRuleKVMap {
 			}
 		} else {
 			if (logger.isDebugEnabled()) {
-				logger.debug("IMap v2 is not empty, use IMap v2 as node pdk state map: {}", iMapV2.getName());
+				logger.debug("IMap v2 is not empty, use IMap v2 as node pdk state map: {}", documentIMapV2.getName());
 			}
-			constructIMap = iMapV2;
+			constructIMap = documentIMapV2;
 		}
 		writeStateMapSign();
 	}
