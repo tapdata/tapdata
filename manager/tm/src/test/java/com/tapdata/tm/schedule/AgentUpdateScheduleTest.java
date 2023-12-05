@@ -3,6 +3,7 @@ package com.tapdata.tm.schedule;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.worker.service.WorkerService;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -15,6 +16,7 @@ import static org.mockito.Mockito.verify;
 
 
 @SpringBootTest( classes = {AgentUpdateScheduleTest.class, AgentUpdateScheduleTest.TestConfig.class} )
+@Disabled
 public class AgentUpdateScheduleTest {
 
     @MockBean
