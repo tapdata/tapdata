@@ -28,6 +28,12 @@
             <artifactId>guava</artifactId>
             <version>31.0.1-jre</version>
         </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
