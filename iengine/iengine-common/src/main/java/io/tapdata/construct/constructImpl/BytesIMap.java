@@ -2,6 +2,7 @@ package io.tapdata.construct.constructImpl;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import io.tapdata.construct.utils.DataUtil;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import org.bson.Document;
@@ -29,6 +30,7 @@ public class BytesIMap<T> extends ConstructIMap<T> {
 
 	@Override
 	public int insert(String key, T data) throws Exception {
+		data= (T) DataUtil.replaceDataValue(data);
 		iMap.put(key, new Document(DATA_KEY, serialized(data)));
 		return 1;
 	}
