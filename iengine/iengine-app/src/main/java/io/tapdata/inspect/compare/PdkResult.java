@@ -1,5 +1,6 @@
 package io.tapdata.inspect.compare;
 
+import cn.hutool.core.map.MapUtil;
 import com.tapdata.entity.Connections;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
