@@ -1,6 +1,6 @@
-package inspect;
+package io.tapdata.inspect;
 
-import ConnectorNode.ConnectorNodeBase;
+import io.tapdata.ConnectorNode.ConnectorNodeBase;
 import MockConnector.MockAdvanceFilterQueryFunction;
 import cn.hutool.core.map.MapUtil;
 import com.tapdata.entity.Connections;
@@ -128,8 +128,7 @@ public class QueryNextBatchTest extends ConnectorNodeBase {
                                                      List<List<Object>> diffKeyValues, List<String> dataKey) throws Throwable {
         init(executeCommandFunction);
         return new PdkResult(new ArrayList<>(), new Connections(), myTapTable.getId(),
-                new HashSet<>(), sqlConnectorNode, true, dataKey, diffKeyValues, new ArrayList<>(),
-                false, null);
+                new HashSet<>(), sqlConnectorNode, true, dataKey, diffKeyValues, new ArrayList<>());
     }
 
 }
