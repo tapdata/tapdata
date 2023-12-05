@@ -749,6 +749,7 @@ class PdkStateMapTest {
 			iMap = mock(IMap.class);
 			when(iMap.isEmpty()).thenReturn(false);
 			doReturn(persistenceStorage).when(persistenceStorage).initMapStoreConfig(anyString(), any(Config.class), anyString());
+			doReturn(true).when(persistenceStorage).isEmpty(eq(ConstructType.IMAP), anyString());
 			doReturn(iMap).when(mockHazelcastInstance).getMap(anyString());
 			node = mock(Node.class);
 			when(node.getId()).thenReturn("1");
