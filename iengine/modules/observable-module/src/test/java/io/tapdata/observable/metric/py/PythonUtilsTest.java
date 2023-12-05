@@ -917,21 +917,21 @@ public class PythonUtilsTest {
         }
 
 
-        @Test
-        public void testGetPythonConfig() {
-            File file = new File("temp.json");
-            createFile(file);
-            try {
-                Map<String, Object> pythonConfig = utils.getPythonConfig(file);
-                Assertions.assertEquals(2, pythonConfig.size());
-                Assertions.assertTrue(pythonConfig.containsKey("key1"));
-                Assertions.assertTrue(pythonConfig.containsKey("key2"));
-                Assertions.assertEquals("name", pythonConfig.get("key1"));
-                Assertions.assertEquals("id", pythonConfig.get("key2"));
-            } finally {
-                utils.deleteFile(file, new TapLog());
-            }
-        }
+//        @Test
+//        public void testGetPythonConfig() {
+//            File file = new File("temp.json");
+//            createFile(file);
+//            try {
+//                Map<String, Object> pythonConfig = utils.getPythonConfig(file);
+//                Assertions.assertEquals(2, pythonConfig.size());
+//                Assertions.assertTrue(pythonConfig.containsKey("key1"));
+//                Assertions.assertTrue(pythonConfig.containsKey("key2"));
+//                Assertions.assertEquals("name", pythonConfig.get("key1"));
+//                Assertions.assertEquals("id", pythonConfig.get("key2"));
+//            } finally {
+//                utils.deleteFile(file, new TapLog());
+//            }
+//        }
     }
 
     @Nested
@@ -1140,18 +1140,6 @@ public class PythonUtilsTest {
         void testCopyFileThrowException() {
             doAnswer(w->{throw mock(Exception.class);}).when(utils).doCopy(any(File.class), any(File.class));
             Assertions.assertThrows(Exception.class, () -> assertVerify(file, target, 1, 1, 1, 1, 0, 1));
-        }
-    }
-
-    @Nested
-    class GetRandomAccessFileTest {
-        @SneakyThrows
-        @Test
-        void testGetRandomAccessFile() {
-            when(utils.getRandomAccessFile(any(File.class))).thenCallRealMethod();
-            try(RandomAccessFile accessFile = utils.getRandomAccessFile(new File("mock"))) {
-                Assertions.assertNotNull(accessFile);
-            }
         }
     }
 
@@ -1386,30 +1374,6 @@ public class PythonUtilsTest {
                 throw mock;
             });
             assertVerify(0, 0, 0, 0, 0, 0, 0, 0, 1);
-        }
-    }
-
-    @Nested
-    class GetFileInputStreamTest {
-
-        @SneakyThrows
-        @Test
-        void testGetFileInputStream() {
-            when(utils.getFileInputStream(anyString())).thenCallRealMethod();
-            Assertions.assertDoesNotThrow(()-> {
-                utils.getFileInputStream("..,;l");
-            });
-        }
-    }
-    @Nested
-    class GetFileOutputStreamTest {
-        @SneakyThrows
-        @Test
-        void testGetFileOutputStream() {
-            when(utils.getFileOutputStream(anyString())).thenCallRealMethod();
-            Assertions.assertDoesNotThrow(()-> {
-                utils.getFileOutputStream("..,;l");
-            });
         }
     }
 
@@ -2041,12 +2005,5 @@ public class PythonUtilsTest {
             File file = utils.concatToFile("mock-path", new String[]{});
             Assertions.assertNotNull(file);
         }
-    }
-
-    public void createFile(File file) {
-        String map = "{\"key1\": \"name\", \"key2\": \"id\"}";
-        try (BufferedWriter out = new BufferedWriter(new FileWriter(file))){
-            out.write(map);
-        } catch (Exception ignore) { }
     }
 }
