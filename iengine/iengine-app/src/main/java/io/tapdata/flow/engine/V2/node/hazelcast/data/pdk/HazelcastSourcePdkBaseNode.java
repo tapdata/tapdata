@@ -575,7 +575,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					if (null != dataEvent) {
 						// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
 						// the event is considered been output to the next node.
-						toTapValueByCodecs(dataEvent.getTapEvent());
+						TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+						TapEvent tapEvent = dataEvent.getTapEvent();
+						tapRecordToTapValue(tapEvent, codecsFilterManager);
 					}
 				}
 			}
@@ -1247,7 +1249,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 				if (dataEvent != null) {
 					if (!isPending.get()) {
-						toTapValueByCodecs(dataEvent.getTapEvent());
+						TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+						TapEvent tapEvent = dataEvent.getTapEvent();
+						tapRecordToTapValue(tapEvent, codecsFilterManager);
 					}
 					if (!offer(dataEvent)) {
 						pendingEvent = dataEvent;

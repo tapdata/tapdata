@@ -291,7 +291,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			}
 
 			AtomicBoolean needFilterEvent = new AtomicBoolean(true);
-			setTaskDtoIsomorphism(nodes, taskDto);
 			for (Node node : nodes) {
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
@@ -916,33 +915,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
 		if (TaskDto.TYPE_INITIAL_SYNC.equals(type) || CollectionUtils.isNotEmpty(GraphUtil.findMergeNode(taskDto))) {
 			taskGlobalVariable.put(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY, new AtomicInteger(sourceNodes.size()));
-		}
-	}
-
-	/**确认当前任务是否是同构任务，源和目标的dataType一样，并且没有中间节点*/
-	protected void setTaskDtoIsomorphism(List<Node> nodes, TaskDto taskDto) {
-		if (null == taskDto) {
-			throw new IllegalArgumentException("Task dto can not be empty");
-		}
-		if (null == nodes || nodes.isEmpty()) {
-			taskDto.setIsomorphism(false);
-			return;
-		}
-		String typeName = null;
-		for(Node<?> node : nodes) {
-			if (null != taskDto.getIsomorphism() && !taskDto.getIsomorphism()) {
-				break;
-			}
-			String databaseType = null;
-			if (node instanceof DataParentNode) {
-				databaseType = ((DataParentNode<?>) node).getDatabaseType();
-			} else {
-				taskDto.setIsomorphism(false);
-			}
-			if (null != typeName) {
-				taskDto.setIsomorphism(typeName.equals(databaseType));
-			}
-			typeName = databaseType;
 		}
 	}
 }

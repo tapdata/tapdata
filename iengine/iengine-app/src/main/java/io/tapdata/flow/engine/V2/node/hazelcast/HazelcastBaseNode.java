@@ -29,6 +29,7 @@ import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.entity.codec.detector.TapDetector;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
@@ -118,29 +119,18 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected String lastTableName;
 	protected ExternalStorageDto externalStorageDto;
 
+	protected HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
+		this.processorBaseContext = processorBaseContext;
+	}
+
+	public String getLastTableName() {
+		return lastTableName;
+	}
 	/**
 	 * 同构或异构标记
 	 * */
-	protected boolean isomorphism;
-
-	protected HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
-		this.processorBaseContext = processorBaseContext;
-		setIsomorphismByProcessorBaseContext(this.processorBaseContext);
-	}
-
 	public boolean getIsomorphism() {
-		return isomorphism;
-	}
-
-	public void setIsomorphism(boolean isomorphism) {
-		this.isomorphism = isomorphism;
-	}
-
-	protected void setIsomorphismByProcessorBaseContext(ProcessorBaseContext processorBaseContext) {
-		if (null != processorBaseContext && null != processorBaseContext.getTaskDto()) {
-			TaskDto taskDto = processorBaseContext.getTaskDto();
-			this.setIsomorphism(Optional.ofNullable(taskDto.getIsomorphism()).orElse(false));
-		}
+		return Optional.ofNullable(this.processorBaseContext.getTaskDto().getIsomorphism()).orElse(false);
 	}
 
 	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
@@ -166,6 +156,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		try {
 			this.jetContext = context;
 			super.init(context);
+			processorBaseContext.getTaskDto().setIsomorphism(processorBaseContext.getTaskDto().getDag().getTaskDtoIsomorphism(processorBaseContext.getNodes()));
 			this.running.compareAndSet(false, true);
 			this.obsLogger = initObsLogger();
 			if (null != processorBaseContext.getConfigurationCenter()) {
