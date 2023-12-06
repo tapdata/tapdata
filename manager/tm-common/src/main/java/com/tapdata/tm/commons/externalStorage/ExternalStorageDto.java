@@ -8,6 +8,7 @@ import lombok.EqualsAndHashCode;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
+import java.util.StringJoiner;
 
 
 /**
@@ -41,7 +42,9 @@ public class ExternalStorageDto extends BaseDto {
 	private String maxSizePolicy;
 	private Integer writeDelaySeconds;
 	private String status;
-	/** 测试响应消息 */
+	/**
+	 * 测试响应消息
+	 */
 	private ResponseBody response_body;
 
 	public String maskUriPassword() {
@@ -67,11 +70,12 @@ public class ExternalStorageDto extends BaseDto {
 
 	@Override
 	public String toString() {
-		return "ExternalStorage{" +
-				"name='" + name + '\'' +
-				", type='" + type + '\'' +
-				", uri='" + maskUriPassword() + '\'' +
-				("mongodb".equals(type) ? (", table='" + table + '\'') : "") +
-				"} ";
+		return new StringJoiner(", ", ExternalStorageDto.class.getSimpleName() + "[", "]")
+				.add("name='" + name + "'")
+				.add("type='" + type + "'")
+				.add("uri='" + uri + "'")
+				.add("table='" + table + "'")
+				.add("ttlDay=" + ttlDay)
+				.toString();
 	}
 }

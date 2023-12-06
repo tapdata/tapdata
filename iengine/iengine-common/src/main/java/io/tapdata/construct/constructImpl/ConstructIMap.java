@@ -125,10 +125,7 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 
 	@Override
 	public boolean isEmpty() {
-		if (null == this.iMap) {
-			return true;
-		}
-		return this.iMap.isEmpty();
+		return PersistenceStorage.getInstance().isEmpty(ConstructType.IMAP, name);
 	}
 
 	@Override

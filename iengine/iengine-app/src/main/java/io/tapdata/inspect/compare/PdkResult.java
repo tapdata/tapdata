@@ -307,7 +307,9 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 						if (null != conditions) {
 							conditions.stream().filter(op -> op.getOperator() == 5).forEach(op -> match.put(op.getKey(), op.getValue()));
 						}
-						tapAdvanceFilter.match(match);
+						if (MapUtil.isEmpty(tapAdvanceFilter.getMatch())) {
+							tapAdvanceFilter.match(match);
+						}
 						if (firstTimeRead.compareAndSet(false, true)) {
 							logger.info("Inspect job[{}] read data from table '{}' by filter: {}", connections.getName(), tableName, tapAdvanceFilter);
 						}

@@ -4,21 +4,17 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.hazelcast.persistence.store.ttl.TTLCleanMode;
 import com.tapdata.constant.ConfigurationCenter;
-import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.AppType;
-import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.construct.constructImpl.DocumentIMap;
-import io.tapdata.entity.utils.cache.KVMap;
-import io.tapdata.error.ExternalStorageExCode_26;
+import io.tapdata.error.PdkStateMapExCode_28;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.pdk.core.api.CleanRuleKVMap;
 import io.tapdata.pdk.core.api.CleanRuleModel;
-import io.tapdata.pdk.core.utils.CleanRuleKVMapUtils;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -26,13 +22,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author samuel
@@ -44,23 +35,23 @@ public class PdkStateMap extends CleanRuleKVMap {
 	private static final String GLOBAL_MAP_NAME = "GlobalStateMap";
 	public static final int CONNECT_TIMEOUT_MS = 60 * 1000;
 	public static final int READ_TIMEOUT_MS = 60 * 1000;
-	//	private IMap<String, Document> imap;
 	private static final String KEY = PdkStateMap.class.getSimpleName();
-	public static final String STATEMAP_TABLE = "HazelcastPersistence";
+	public static final String STATE_MAP_TABLE = "HazelcastPersistence";
+	protected static final int[] GLOBAL_STATE_MAP_LOCK = new int[0];
+	public static final String SIGN_KEY = "sign";
 	private Logger logger = LogManager.getLogger(PdkStateMap.class);
 	private static volatile PdkStateMap globalStateMap;
 	private DocumentIMap<Document> constructIMap;
-	private ExternalStorageDto externalStorage;
+	private Node node;
+	private String nodeId;
+	private StateMapVersion stateMapVersion;
 
 	protected PdkStateMap() {
 	}
 
-	public ExternalStorageDto getExternalStorage() {
-		return externalStorage;
-	}
-
 	public PdkStateMap(String nodeId, HazelcastInstance hazelcastInstance) {
 		String name = getStateMapName(nodeId);
+		this.nodeId = nodeId;
 		initConstructMap(hazelcastInstance, name);
 	}
 
@@ -68,58 +59,132 @@ public class PdkStateMap extends CleanRuleKVMap {
 		initConstructMap(hazelcastInstance, mapName);
 	}
 
-	public PdkStateMap(String nodeId, HazelcastInstance hazelcastInstance, TaskDto taskDto, Node<?> node, ClientMongoOperator clientMongoOperator, String func) {
-		boolean needUpdateExternalStorageId = false;
-		if (null != taskDto && null != node) {
-			Map<String, Object> attrs = taskDto.getAttrs();
-			if (null != attrs) {
-				String externalStorageId = attrs.getOrDefault(getExternalStorageKey(node, func), "").toString();
-				if (StringUtils.isNotBlank(externalStorageId)) {
-					ExternalStorageDto findExternalStorageDto = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(externalStorageId)), ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
-					if (null != findExternalStorageDto) {
-						this.externalStorage = findExternalStorageDto;
-					} else {
-						logger.warn("Task {} node {} found last state map external storage id {}, but cannot found external storage config by this id, will use default config, " +
-										"may be cause some problem, recommend reset and restart task",
-								taskDto.getName(), node.getName(), externalStorageId);
-					}
-				} else {
-					needUpdateExternalStorageId = true;
-				}
-			} else {
-				needUpdateExternalStorageId = true;
-			}
-		}
-		String name = getStateMapName(nodeId);
+	public PdkStateMap(HazelcastInstance hazelcastInstance, Node<?> node) {
+		if (null == node) throw new IllegalArgumentException("Node cannot be null");
+		this.node = node;
+		String name = getStateMapName(node.getId());
 		initConstructMap(hazelcastInstance, name);
-		if (needUpdateExternalStorageId && null != externalStorage) {
-			clientMongoOperator.update(
-					Query.query(Criteria.where("_id").is(taskDto.getId().toString())),
-					new Update().set("attrs." + getExternalStorageKey(node, func), externalStorage.getId().toHexString()),
-					ConnectorConstant.TASK_COLLECTION
-			);
-		}
 	}
 
-	@NotNull
-	private static String getExternalStorageKey(Node<?> node, String func) {
-		return "state-external-storage-id-" + func + node.getId();
-	}
-
-	private void initConstructMap(HazelcastInstance hazelcastInstance, String mapName) {
+	protected void initConstructMap(HazelcastInstance hazelcastInstance, String mapName) {
 		if (AppType.init().isCloud()) {
 			initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), mapName);
 		} else {
 			ExternalStorageDto tapdataOrDefaultExternalStorage = ExternalStorageUtil.getTapdataOrDefaultExternalStorage();
 			if (mapName.equals(GLOBAL_MAP_NAME)) {
-				tapdataOrDefaultExternalStorage.setTable(STATEMAP_TABLE);
+				initGlobalStateMap(hazelcastInstance, mapName, tapdataOrDefaultExternalStorage);
+			} else {
+				initNodeStateMap(hazelcastInstance, mapName, tapdataOrDefaultExternalStorage);
 			}
-			tapdataOrDefaultExternalStorage.setTtlDay(0); // No time to live
-			constructIMap = new DocumentIMap<>(hazelcastInstance, TAG, mapName, tapdataOrDefaultExternalStorage);
 		}
 	}
 
-	private void initHttpTMStateMap(HazelcastInstance hazelcastInstance, ConfigurationCenter configurationCenter, String name) {
+	protected void initNodeStateMap(HazelcastInstance hazelcastInstance, String mapName, ExternalStorageDto tapdataOrDefaultExternalStorage) {
+		tapdataOrDefaultExternalStorage.setTable(null);
+		tapdataOrDefaultExternalStorage.setTtlDay(0); // No time to live
+		DocumentIMap<Document> documentIMapV2;
+		stateMapVersion = StateMapVersion.V2;
+		try {
+			documentIMapV2 = initDocumentIMapV2(hazelcastInstance, mapName, tapdataOrDefaultExternalStorage);
+			if (logger.isDebugEnabled()) {
+				logger.debug("Init document imap v2 completed, map name: {}, external storage: {}", mapName, tapdataOrDefaultExternalStorage);
+			}
+		} catch (Exception e) {
+			throw new TapCodeException(PdkStateMapExCode_28.INIT_PDK_STATE_MAP_FAILED, String.format("Map name: %s", mapName), e);
+		}
+		if (documentIMapV2.isEmpty()) {
+			DocumentIMap<Document> documentIMapV1;
+			try {
+				documentIMapV1 = initDocumentIMapV1(hazelcastInstance, mapName, tapdataOrDefaultExternalStorage);
+			} catch (Exception e) {
+				constructIMap = documentIMapV2;
+				writeStateMapSign();
+				return;
+			}
+			if (logger.isDebugEnabled()) {
+				logger.debug("IMap v2 is empty, also need to init IMap v1, map name: {}, external storage: {}", mapName, tapdataOrDefaultExternalStorage);
+			}
+			if (null == documentIMapV1) {
+				constructIMap = documentIMapV2;
+			} else {
+				if (!documentIMapV1.isEmpty()) {
+					constructIMap = documentIMapV1;
+					stateMapVersion = StateMapVersion.V1;
+					if (logger.isDebugEnabled()) {
+						logger.debug("IMap v1 is not empty, use IMap v1 as node pdk state map: {}", documentIMapV1.getName());
+					}
+					try {
+						documentIMapV2.clear();
+						documentIMapV2.destroy();
+					} catch (Exception e) {
+						// ignored
+					}
+				} else {
+					constructIMap = documentIMapV2;
+					if (logger.isDebugEnabled()) {
+						logger.debug("IMap v1 is empty, use IMap v2 as node pdk state map: {}", documentIMapV2.getName());
+					}
+					try {
+						documentIMapV1.clear();
+						documentIMapV1.destroy();
+					} catch (Exception e) {
+						// ignored
+					}
+				}
+			}
+		} else {
+			if (logger.isDebugEnabled()) {
+				logger.debug("IMap v2 is not empty, use IMap v2 as node pdk state map: {}", documentIMapV2.getName());
+			}
+			constructIMap = documentIMapV2;
+		}
+		writeStateMapSign();
+	}
+
+	protected void writeStateMapSign() {
+		if (null != constructIMap) {
+			CommonUtils.ignoreAnyError(() -> {
+				Document signDoc = null;
+				if (null != node) {
+					signDoc = new Document("nodeId", node.getId())
+							.append("nodeName", node.getName())
+							.append("nodeClass", node.getClass().getName())
+							.append("stateMapName", getStateMapName(node.getId()));
+				} else if (StringUtils.isNotBlank(nodeId)) {
+					signDoc = new Document("nodeId", nodeId)
+							.append("stateMapName", getStateMapName(nodeId));
+				}
+				if (null != signDoc) {
+					if (null != stateMapVersion) {
+						signDoc.append("stateMapVersion", stateMapVersion.name());
+					}
+					constructIMap.insert(SIGN_KEY, signDoc);
+				}
+			}, TAG);
+		}
+	}
+
+	protected void initGlobalStateMap(HazelcastInstance hazelcastInstance, String mapName, ExternalStorageDto tapdataOrDefaultExternalStorage) {
+		tapdataOrDefaultExternalStorage.setTable(STATE_MAP_TABLE);
+		tapdataOrDefaultExternalStorage.setTtlDay(0);
+		constructIMap = initDocumentIMapV1(hazelcastInstance, mapName, tapdataOrDefaultExternalStorage);
+	}
+
+	protected DocumentIMap<Document> initDocumentIMapV1(HazelcastInstance hazelcastInstance, String mapName, ExternalStorageDto externalStorageDto) {
+		return initDocumentIMap(hazelcastInstance, mapName, externalStorageDto);
+	}
+
+	protected DocumentIMap<Document> initDocumentIMapV2(HazelcastInstance hazelcastInstance, String mapName, ExternalStorageDto externalStorageDto) {
+		externalStorageDto.setTable(null);
+		String hashMapName = String.valueOf(mapName.hashCode());
+		return initDocumentIMap(hazelcastInstance, hashMapName, externalStorageDto);
+	}
+
+	protected DocumentIMap<Document> initDocumentIMap(HazelcastInstance hazelcastInstance, String mapName, ExternalStorageDto externalStorageDto) {
+		return new DocumentIMap<>(hazelcastInstance, TAG, mapName, externalStorageDto);
+	}
+
+	protected void initHttpTMStateMap(HazelcastInstance hazelcastInstance, ConfigurationCenter configurationCenter, String name) {
 		if (null == configurationCenter) {
 			throw new IllegalArgumentException("Config center cannot be null");
 		}
@@ -128,11 +193,7 @@ public class PdkStateMap extends CleanRuleKVMap {
 			throw new IllegalArgumentException(String.format("Create pdk state map failed, config %s cannot be null", ConfigurationCenter.BASR_URLS));
 		List<String> baseURLs;
 		if (baseURLsObj instanceof List) {
-			try {
-				baseURLs = (List<String>) configurationCenter.getConfig(ConfigurationCenter.BASR_URLS);
-			} catch (Exception e) {
-				throw new IllegalArgumentException(String.format("Create pdk state map failed, config %s type must be List<String>, actual: %s", ConfigurationCenter.BASR_URLS, baseURLsObj.getClass().getSimpleName()));
-			}
+			baseURLs = (List<String>) baseURLsObj;
 			if (CollectionUtils.isEmpty(baseURLs)) {
 				throw new IllegalArgumentException(String.format("Create pdk state map failed, config %s cannot be empty", ConfigurationCenter.BASR_URLS));
 			}
@@ -154,19 +215,22 @@ public class PdkStateMap extends CleanRuleKVMap {
 		externalStorageDto.setAccessToken(accessCode);
 		externalStorageDto.setConnectTimeoutMs(CONNECT_TIMEOUT_MS);
 		externalStorageDto.setReadTimeoutMs(READ_TIMEOUT_MS);
-		constructIMap = new DocumentIMap<>(hazelcastInstance, TAG, name, externalStorageDto);
+		constructIMap = initDocumentIMap(hazelcastInstance, name, externalStorageDto);
 	}
 
 	@NotNull
-	private static String getStateMapName(String nodeId) {
+	protected static String getStateMapName(String nodeId) {
+		if (StringUtils.isBlank(nodeId)) {
+			throw new IllegalArgumentException("Node id cannot be empty");
+		}
 		return TAG + "_" + nodeId;
 	}
 
 	public static PdkStateMap globalStateMap(HazelcastInstance hazelcastInstance) {
 		if (globalStateMap == null) {
-			synchronized (GLOBAL_MAP_NAME) {
+			synchronized (GLOBAL_STATE_MAP_LOCK) {
 				if (globalStateMap == null) {
-					synchronized (GLOBAL_MAP_NAME) {
+					synchronized (GLOBAL_STATE_MAP_LOCK) {
 						globalStateMap = new PdkStateMap(hazelcastInstance, GLOBAL_MAP_NAME);
 					}
 				}
@@ -177,7 +241,7 @@ public class PdkStateMap extends CleanRuleKVMap {
 
 	@Override
 	public void init(String mapKey, Class<Object> valueClass) {
-
+		// Do nothing
 	}
 
 	@SneakyThrows
@@ -218,17 +282,11 @@ public class PdkStateMap extends CleanRuleKVMap {
 	}
 
 	@Override
-	public void setKeyTTLRule(long keyTTlSeconds, String condition, CleanRuleModel cleanRuleModel) throws Exception{
-		PersistenceStorage.getInstance().setImapTTL(constructIMap.getiMap(),keyTTlSeconds,condition,TTLCleanMode.getTTLCleanMode(cleanRuleModel.getName()));
+	public void setKeyTTLRule(long keyTTlSeconds, String condition, CleanRuleModel cleanRuleModel) throws Exception {
+		PersistenceStorage.getInstance().setImapTTL(constructIMap.getiMap(), keyTTlSeconds, condition, TTLCleanMode.getTTLCleanMode(cleanRuleModel.getName()));
 	}
 
-
-	public enum StateMapMode {
-		DEFAULT,
-		HTTP_TM,
-	}
-
-	public DocumentIMap<Document> getConstructIMap() {
-		return constructIMap;
+	enum StateMapVersion {
+		V1, V2,
 	}
 }
