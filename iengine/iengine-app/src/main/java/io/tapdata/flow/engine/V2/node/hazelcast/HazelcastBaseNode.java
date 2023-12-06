@@ -151,12 +151,27 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected void doInitWithDisableNode(@NotNull Context context) throws TapCodeException {
 	}
 
+	protected void initWithIsomorphism(ProcessorBaseContext context) {
+		if (null == context) return;
+		TaskDto taskDto = context.getTaskDto();
+		if (null == taskDto) return;
+		DAG dag = taskDto.getDag();
+		if (null != dag) {
+			List<Node> nodes = context.getNodes();
+			if (null != nodes) {
+				taskDto.setIsomorphism(dag.getTaskDtoIsomorphism(nodes));
+				return;
+			}
+		}
+		taskDto.setIsomorphism(false);
+	}
+
 	@Override
 	public final void init(@NotNull Processor.Context context) throws Exception {
 		try {
 			this.jetContext = context;
 			super.init(context);
-			processorBaseContext.getTaskDto().setIsomorphism(processorBaseContext.getTaskDto().getDag().getTaskDtoIsomorphism(processorBaseContext.getNodes()));
+			initWithIsomorphism(processorBaseContext);
 			this.running.compareAndSet(false, true);
 			this.obsLogger = initObsLogger();
 			if (null != processorBaseContext.getConfigurationCenter()) {
