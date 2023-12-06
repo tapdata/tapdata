@@ -7,6 +7,8 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
+import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.*;
@@ -391,7 +393,34 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
             // 这里需要将 data_type 字段根据字段类型映射规则转换为 数据库类型
             //   需要 根据 所有可匹配条件，尽量缩小匹配结果，选择最优字段类型
-            metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, needPossibleDataTypes);
+            //   同构任务不需要做类型映射转换
+            if (null == metadataInstancesDto || !options.isIsomorphismTask()) {
+                metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, needPossibleDataTypes);
+            }
+            if (null != metadataInstancesDto && options.isIsomorphismTask()) {
+                Map<String, List<Field>> fieldMap = metadataInstancesDto.getFields().stream().filter(Objects::nonNull).collect(Collectors.groupingBy(Field::getFieldName));
+                FieldChangeRuleGroup fieldChangeRules = options.getFieldChangeRules();
+                if (null != fieldChangeRules) {
+                    Map<String, Map<FieldChangeRule.Scope, List<FieldChangeRule>>> rules = fieldChangeRules.getRules();
+                    //同构任务只能有一个源和一个目标，FieldChangeRuleGroup里面最多只有一个nodeId的配置
+                    if (rules.size() == 1) {
+                        for (Map.Entry<String, Map<FieldChangeRule.Scope, List<FieldChangeRule>>> entry : rules.entrySet()) {
+                            Map<FieldChangeRule.Scope, List<FieldChangeRule>> scopeListMap = entry.getValue();
+                            List<FieldChangeRule> changeRules = scopeListMap.get(FieldChangeRule.Scope.Field);
+                            for (FieldChangeRule changeRule : changeRules) {
+                                String accept = changeRule.getAccept();
+                                String fieldName = changeRule.getFieldName();
+                                List<Field> fields = fieldMap.get(fieldName);
+                                for (Field field : fields) {
+                                    if (null != accept && accept.equals(field.getDataType())) {
+                                        field.setSource(Field.SOURCE_MANUAL);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             metadataInstancesDto.getFields().forEach(field -> {
                 field.setSourceDbType(dataSource.getDatabase_type());
