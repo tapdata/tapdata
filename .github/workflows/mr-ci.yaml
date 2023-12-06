@@ -218,9 +218,8 @@ jobs:
           echo "OK"
 
   CLOSE_ENV:
-    if: ${{ github.event_name == 'schedule' }}
+    if: ${{ github.event_name == 'schedule' || failure() }}
     runs-on: ubuntu-latest
-#    if: ${{ always() }}
     needs:
       - MRCI
       - Get-Stable-Branch
