@@ -171,7 +171,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		try {
 			this.jetContext = context;
 			super.init(context);
-			initWithIsomorphism(processorBaseContext);
 			this.running.compareAndSet(false, true);
 			this.obsLogger = initObsLogger();
 			if (null != processorBaseContext.getConfigurationCenter()) {
@@ -186,6 +185,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				_DAG.setTaskId(processorBaseContext.getTaskDto().getId());
 				processorBaseContext.getTaskDto().setDag(_DAG);
 			}
+			initWithIsomorphism(processorBaseContext);
 
 			// 如果为迁移任务、且源节点为数据库类型
 			this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
