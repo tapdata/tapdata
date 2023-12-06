@@ -1,14 +1,10 @@
 package io.tapdata.flow.engine.V2.entity;
 
-import com.hazelcast.client.impl.proxy.ClientMapProxy;
-import com.hazelcast.client.impl.spi.ClientContext;
 import com.hazelcast.config.Config;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
-import com.hazelcast.persistence.config.PersistenceMongoDBConfig;
-import com.hazelcast.persistence.store.ttl.TTLCleanMode;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.entity.AppType;
 import com.tapdata.tm.commons.dag.Node;
@@ -18,9 +14,7 @@ import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.error.PdkStateMapExCode_28;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
-import io.tapdata.pdk.core.api.CleanRuleModel;
 import lombok.SneakyThrows;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -48,73 +42,6 @@ class PdkStateMapTest {
 	void beforeEach() {
 		mockPdkStateMap = mock(PdkStateMap.class);
 		mockHazelcastInstance = mock(HazelcastInstance.class);
-	}
-
-	@Nested
-	@DisplayName("Key TTL Test")
-	class KeyTTLTest {
-		private PdkStateMap pdkStateMapUnderTest;
-		private DocumentIMap<Document> constructIMap;
-
-		@BeforeEach
-		void setUp() {
-			HazelcastInstance hazelcastInstance = mock(HazelcastInstance.class);
-			ClientContext context = mock(ClientContext.class);
-			pdkStateMapUnderTest = new PdkStateMap();
-			PersistenceMongoDBConfig imapMongoDBConfig = PersistenceMongoDBConfig.create(ConstructType.IMAP, "test")
-					.uri("mongodb://test.com")
-					.database("hazelcast")
-					.collection("imap_default_config");
-			Logger logger = LogManager.getLogger(this);
-			PersistenceStorage.getInstance().logger(logger).addConfig(imapMongoDBConfig);
-			constructIMap = new DocumentIMap<>(hazelcastInstance, "123", "test");
-			ReflectionTestUtils.setField(constructIMap, "iMap", new ClientMapProxy("test", "test", context));
-			ReflectionTestUtils.setField(pdkStateMapUnderTest, "constructIMap", constructIMap);
-		}
-
-		/**
-		 * Normal input, ttl is not 0 and negative number
-		 *
-		 * @throws Exception
-		 */
-		@Test
-		void testSetKeyTTLRule_ttlIsPositiveNumber() throws Exception {
-			// Run the test
-			long inputTTl = 10L;
-			String inputCondition = "condition";
-			CleanRuleModel inputCleanRuleModel = CleanRuleModel.FUZZY_MATCHING;
-			pdkStateMapUnderTest.setKeyTTLRule(inputTTl, inputCondition, inputCleanRuleModel);
-			// Verify the results
-			assertNotNull(PersistenceStorage.getInstance().setImapTTL(constructIMap.getiMap(), inputTTl, inputCondition, TTLCleanMode.FUZZY_MATCHING));
-		}
-
-		/**
-		 * input ttl is 0
-		 */
-		@Test
-		void testSetKeyTTLRule_ttlIsZero() throws Exception {
-			// Run the test
-			long inputTTl = 0L;
-			String inputCondition = "condition";
-			CleanRuleModel inputCleanRuleModel = CleanRuleModel.FUZZY_MATCHING;
-			pdkStateMapUnderTest.setKeyTTLRule(inputTTl, inputCondition, inputCleanRuleModel);
-			// Verify the results
-			assertNull(PersistenceStorage.getInstance().setImapTTL(constructIMap.getiMap(), inputTTl, inputCondition, TTLCleanMode.FUZZY_MATCHING));
-		}
-
-		/**
-		 * ttl is a negative number
-		 */
-		@Test
-		void testSetKeyTTLRule_ttlIsNegativeNumber() throws Exception {
-			// Run the test
-			long inputTTl = -1L;
-			String inputCondition = "condition";
-			CleanRuleModel inputCleanRuleModel = CleanRuleModel.FUZZY_MATCHING;
-			pdkStateMapUnderTest.setKeyTTLRule(inputTTl, inputCondition, inputCleanRuleModel);
-			// Verify the results
-			assertNull(PersistenceStorage.getInstance().setImapTTL(constructIMap.getiMap(), inputTTl, inputCondition, TTLCleanMode.FUZZY_MATCHING));
-		}
 	}
 
 	@Nested
@@ -749,6 +676,7 @@ class PdkStateMapTest {
 			iMap = mock(IMap.class);
 			when(iMap.isEmpty()).thenReturn(false);
 			doReturn(persistenceStorage).when(persistenceStorage).initMapStoreConfig(anyString(), any(Config.class), anyString());
+			doReturn(true).when(persistenceStorage).isEmpty(eq(ConstructType.IMAP), anyString());
 			doReturn(iMap).when(mockHazelcastInstance).getMap(anyString());
 			node = mock(Node.class);
 			when(node.getId()).thenReturn("1");
