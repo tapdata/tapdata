@@ -318,9 +318,7 @@ public class WorkerController extends BaseController {
                     userLogService.addUserLog(
                             Modular.AGENT, operation,
                             userDetail, worker.getTcmInfo().getAgentName());
-                    if(com.tapdata.tm.userLog.constant.Operation.STOP.equals(operation)) {
-                        workerService.sendStopWorkWs(worker.getProcessId(), userDetail);
-                    }
+                    workerService.sendStopWorkWs(worker.getProcessId(), userDetail);
                 }
             } catch (Exception e) {
                 // Ignore record agent operation log error
