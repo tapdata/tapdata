@@ -1,5 +1,6 @@
 package com.tapdata.tm.message.service;
 
+import com.alibaba.fastjson.JSONObject;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
@@ -9,10 +10,7 @@ import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.service.EventsService;
-import com.tapdata.tm.message.constant.Level;
-import com.tapdata.tm.message.constant.MessageMetadata;
-import com.tapdata.tm.message.constant.MsgTypeEnum;
-import com.tapdata.tm.message.constant.SystemEnum;
+import com.tapdata.tm.message.constant.*;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.message.repository.MessageRepository;
@@ -22,8 +20,10 @@ import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.user.entity.Connected;
 import com.tapdata.tm.user.entity.Notification;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.HttpUtils;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -31,6 +31,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -39,9 +41,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.*;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Date;
+import java.util.*;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -70,6 +71,8 @@ class MessageServiceTest {
     private MpService mockMpService;
     @Mock
     private AlarmService mockAlarmService;
+    @Mock
+    private CircuitBreakerRecoveryService circuitBreakerRecoveryService;
 
     private MessageService messageServiceUnderTest;
 
@@ -80,6 +83,10 @@ class MessageServiceTest {
     private Method informUser2;
 
     private UserDetail userDetail;
+    @Mock
+    private ScheduledExecutorService scheduledExecutorService;
+    @Mock
+    private WorkerService workerService;
 
     @BeforeEach
     void setUp() throws NoSuchMethodException {
@@ -87,6 +94,9 @@ class MessageServiceTest {
         ReflectionTestUtils.setField(messageServiceUnderTest, "smsService", mockSmsService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "mpService", mockMpService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "alarmService", mockAlarmService);
+        ReflectionTestUtils.setField(messageServiceUnderTest, "circuitBreakerRecoveryService", circuitBreakerRecoveryService);
+        ReflectionTestUtils.setField(messageServiceUnderTest, "scheduledExecutorService", scheduledExecutorService);
+        ReflectionTestUtils.setField(messageServiceUnderTest, "workerService", workerService);
         messageServiceUnderTest.messageRepository = mockMessageRepository;
         messageServiceUnderTest.userService = mockUserService;
         messageServiceUnderTest.taskRepository = mockTaskRepository;
@@ -504,4 +514,74 @@ class MessageServiceTest {
         boolean result = messageServiceUnderTest.checkSending(userDetail);
         assertThat(result).isFalse();
     }
+    @Test
+    void testCheckAagentConnectedMessage_moreThanLimit(){
+        Date date = new Date();
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(date);
+        cal.add(Calendar.MINUTE, 3);
+        Date nowEnd = cal.getTime();
+        Query query = new Query(Criteria.where("createTime").gte(date).lte(nowEnd).
+                and("msg").is(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue()).
+                and("system").is(SourceModuleEnum.AGENT.getValue()).
+                and("isSend").is(false));
+        List<MessageEntity> messageEntityList = new ArrayList<>();
+        for(int i =0 ;i < 10;i++){
+            messageEntityList.add(Mockito.mock(MessageEntity.class));
+        }
+        when(mockMessageRepository.findAll(query)).thenReturn(messageEntityList);
+        try (MockedStatic<HttpUtils> httpUtilsMockedStatic = Mockito.mockStatic(HttpUtils.class)){
+            Map<String,String> map = new HashMap<>();
+            String content = "最近3分钟，累计超过"+10+"个Agent离线，已自动启动Agent离线告警熔断机制，请尽快检查相关服务是否正常!";
+            map.put("title", "Agent离线告警通知熔断提醒");
+            map.put("content", content);
+            map.put("color", "red");
+            map.put("groupId","oc_d6bc5fe48d56453264ec73a2fb3eec70");
+            httpUtilsMockedStatic.when(() -> HttpUtils.sendPostData("test", JSONObject.toJSONString(map))).thenReturn("");
+            long inputCount = 100L;
+            String inputAddress ="test";
+            messageServiceUnderTest.checkAagentConnectedMessage(date,inputCount,inputAddress);
+            verify(circuitBreakerRecoveryService,times(1)).checkServiceStatus(inputCount,inputAddress);
+        }
+    }
+
+    @Test
+    void testCheckAagentConnectedMessage(){
+        Date date = new Date();
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(date);
+        cal.add(Calendar.MINUTE, 3);
+        Date nowEnd = cal.getTime();
+        Query query = new Query(Criteria.where("createTime").gte(date).lte(nowEnd).
+                and("msg").is(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue()).
+                and("system").is(SourceModuleEnum.AGENT.getValue()).
+                and("isSend").is(false));
+        List<MessageEntity> messageEntityList = new ArrayList<>();
+        for(int i =0 ;i < 2;i++){
+            messageEntityList.add(Mockito.mock(MessageEntity.class));
+        }
+        when(mockMessageRepository.findAll(query)).thenReturn(messageEntityList);
+        long inputCount = 100L;
+        String inputAddress ="test";
+        messageServiceUnderTest.checkAagentConnectedMessage(date,inputCount,inputAddress);
+        verify(circuitBreakerRecoveryService,times(0)).checkServiceStatus(inputCount,inputAddress);
+    }
+    @Test
+    void testAdd(){
+        MessageDto mockMessageDto = new MessageDto();
+        mockMessageDto.setSourceModule(SourceModuleEnum.AGENT.getValue());
+        mockMessageDto.setMsg(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue());
+        messageServiceUnderTest.add(mockMessageDto,userDetail);
+        verify(scheduledExecutorService,times(1)).shutdown();
+    }
+
+    @Test
+    void testAdd_informUser(){
+        MessageDto mockMessageDto = new MessageDto();
+        mockMessageDto.setSourceModule(SourceModuleEnum.AGENT.getValue());
+        mockMessageDto.setMsg(MsgTypeEnum.CONNECTED.getValue());
+        messageServiceUnderTest.add(mockMessageDto,userDetail);
+        verify(scheduledExecutorService,times(0)).shutdown();
+    }
+
 }
