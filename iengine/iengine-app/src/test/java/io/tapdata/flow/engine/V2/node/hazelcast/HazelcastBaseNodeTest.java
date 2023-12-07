@@ -15,6 +15,7 @@ import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
@@ -1682,4 +1683,81 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 	}
 
+	@Nested
+	class GetIsomorphismTest {
+		@Test
+		void testGetIsomorphism() {
+			when(mockHazelcastBaseNode.getIsomorphism()).thenCallRealMethod();
+			boolean isomorphism = mockHazelcastBaseNode.getIsomorphism();
+			Assertions.assertFalse(isomorphism);
+		}
+	}
+
+	@Nested
+	class InitWithIsomorphismTest {
+		HazelcastBaseNode baseNode;
+		ProcessorBaseContext context;
+		TaskDto taskDto;
+		DAG dag;
+		List<Node> nodes;
+		@BeforeEach
+		void init() {
+			baseNode = mock(HazelcastBaseNode.class);
+			context = mock(ProcessorBaseContext.class);
+			taskDto = mock(TaskDto.class);
+			dag = mock(DAG.class);
+			nodes = mock(ArrayList.class);
+
+			when(context.getTaskDto()).thenReturn(taskDto);
+			when(taskDto.getDag()).thenReturn(dag);
+			when(context.getNodes()).thenReturn(nodes);
+			when(dag.getTaskDtoIsomorphism(anyList())).thenReturn(true);
+			doNothing().when(taskDto).setIsomorphism(anyBoolean());
+
+			doCallRealMethod().when(baseNode).initWithIsomorphism(any(ProcessorBaseContext.class));
+			doCallRealMethod().when(baseNode).initWithIsomorphism(null);
+		}
+
+		@Test
+		void testInitWithIsomorphismNormal() {
+			assertVerify(context, 1, 1, 1, 1, 1);
+		}
+
+		@Test
+		void testInitWithIsomorphismNullContext() {
+			assertVerify(null, 0, 0, 0, 0, 0);
+		}
+
+		@Test
+		void testInitWithIsomorphismNullTaskDto() {
+			when(context.getTaskDto()).thenReturn(null);
+			assertVerify(context, 1, 0, 0, 0, 0);
+		}
+
+		@Test
+		void testInitWithIsomorphismNullDag() {
+			when(taskDto.getDag()).thenReturn(null);
+			assertVerify(context, 1, 1, 0, 0, 1);
+		}
+
+		@Test
+		void testInitWithIsomorphismNullNodes() {
+			when(context.getNodes()).thenReturn(null);
+			assertVerify(context, 1, 1, 1, 0, 1);
+		}
+
+		void assertVerify(ProcessorBaseContext pbc,
+						  int getTaskDtoTimes,
+						  int getDagTimes,
+						  int getNodesTimes,
+						  int getTaskDtoIsomorphismTimes,
+						  int setIsomorphismTimes) {
+			baseNode.initWithIsomorphism(pbc);
+			verify(context, times(getTaskDtoTimes)).getTaskDto();
+			verify(taskDto, times(getDagTimes)).getDag();
+			verify(context, times(getNodesTimes)).getNodes();
+			verify(dag, times(getTaskDtoIsomorphismTimes)).getTaskDtoIsomorphism(anyList());
+			verify(taskDto, times(setIsomorphismTimes)).setIsomorphism(anyBoolean());
+		}
+	}
 }

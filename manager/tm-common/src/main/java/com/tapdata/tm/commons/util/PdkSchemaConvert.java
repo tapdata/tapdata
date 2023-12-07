@@ -118,6 +118,7 @@ public class PdkSchemaConvert {
                 tapField.setPrimaryKey(field.getPrimaryKey());
                 tapField.setPartitionKey(partitionSet.contains(field.getColumnPosition()));
                 tapField.setDataType(field.getDataType());
+                tapField.setCreateSource(field.getSource());
                 if (StringUtils.isNotBlank(field.getTapType())) {
                     TapType tapType = null;
                     try {
@@ -265,7 +266,7 @@ public class PdkSchemaConvert {
                 tapField.setConstraint(field.getPkConstraintName());
                 tapField.setPrimaryKey(field.getPrimaryKey());
                 tapField.setPartitionKey(partitionSet.contains(field.getColumnPosition()));
-
+                tapField.setCreateSource(field.getSource());
                 tapField.setDataType(field.getDataType());
                 if (StringUtils.isNotBlank(field.getTapType())) {
                     TapType tapType = null;
@@ -373,6 +374,7 @@ public class PdkSchemaConvert {
                     field.setPrimaryKey(tapField1.getPrimaryKey());
                     field.setDataType(tapField1.getDataType());
                     field.setDeleted(tapField1.isDeleted());
+                    field.setSource(tapField1.getCreateSource());
                 }
                 field.setDefaultValue(tapField.getDefaultValue());
                 field.setIsNullable(tapField.getNullable());
@@ -389,7 +391,7 @@ public class PdkSchemaConvert {
                 field.setPkConstraintName(tapField.getConstraint());
                 field.setPrimaryKey(tapField.getPrimaryKey());
                 field.setTapType(tapField.getTapType() == null ? null : getJsonParser().toJson(tapField.getTapType()));
-
+                field.setSource(tapField.getCreateSource());
                 if (tapField.getPartitionKey()) {
                     partitionSet.add(tapField.getPos());
                 }

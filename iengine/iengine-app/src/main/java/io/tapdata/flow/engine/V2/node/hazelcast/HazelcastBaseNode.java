@@ -29,6 +29,7 @@ import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.entity.codec.detector.TapDetector;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
@@ -122,6 +123,16 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		this.processorBaseContext = processorBaseContext;
 	}
 
+	public String getLastTableName() {
+		return lastTableName;
+	}
+	/**
+	 * 同构或异构标记
+	 * */
+	public boolean getIsomorphism() {
+		return Optional.ofNullable(this.processorBaseContext.getTaskDto().getIsomorphism()).orElse(false);
+	}
+
 	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
 		return AspectUtils.executeDataFuncAspect(aspectClass, aspectCallable, anyErrorConsumer);
 	}
@@ -138,6 +149,21 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void doInitWithDisableNode(@NotNull Context context) throws TapCodeException {
+	}
+
+	protected void initWithIsomorphism(ProcessorBaseContext context) {
+		if (null == context) return;
+		TaskDto taskDto = context.getTaskDto();
+		if (null == taskDto) return;
+		DAG dag = taskDto.getDag();
+		if (null != dag) {
+			List<Node> nodes = context.getNodes();
+			if (null != nodes) {
+				taskDto.setIsomorphism(dag.getTaskDtoIsomorphism(nodes));
+				return;
+			}
+		}
+		taskDto.setIsomorphism(false);
 	}
 
 	@Override
@@ -159,6 +185,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				_DAG.setTaskId(processorBaseContext.getTaskDto().getId());
 				processorBaseContext.getTaskDto().setDag(_DAG);
 			}
+			initWithIsomorphism(processorBaseContext);
 
 			// 如果为迁移任务、且源节点为数据库类型
 			this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
