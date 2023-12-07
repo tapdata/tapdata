@@ -712,7 +712,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             updateMany(query,Update.update("isSend",true));
             Map<String,String> map = new HashMap<>();
             String content = "最近3分钟，累计超过"+messageDtoList.size()+"个Agent离线，已自动启动Agent离线告警熔断机制，请尽快检查相关服务是否正常!";
-            map.put("title", "Agent离线告警通知熔断提醒");
+            map.put("title", "Agent离线告警通知熔断提醒---测试消息请忽略");
             map.put("content", content);
             map.put("color", "red");
             map.put("groupId","oc_d6bc5fe48d56453264ec73a2fb3eec70");

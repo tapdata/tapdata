@@ -33,7 +33,7 @@ public class CircuitBreakerRecoveryService {
                 if(checkAvailableAgentCount(count)){
                     Map<String,String> map = new HashMap<>();
                     String content = "熔断恢复，服务已恢复正常";
-                    map.put("title", "服务熔断恢复提醒");
+                    map.put("title", "服务熔断恢复提醒----测试消息请忽略");
                     map.put("content", content);
                     map.put("color", "green");
                     map.put("groupId","oc_d6bc5fe48d56453264ec73a2fb3eec70");
