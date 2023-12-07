@@ -631,6 +631,7 @@ public class PythonUtilsTest {
         String pythonJarPath;
         ProcessBuilder processBuilder;
         Process start;
+        File setUpParentFile;
         //Thread mockThread;
 
         @SneakyThrows
@@ -638,9 +639,10 @@ public class PythonUtilsTest {
         void init() {
             //mockThread = mock(Thread.class);
             //doNothing().when(mockThread).interrupt();
-
+            setUpParentFile = mock(File.class);
             unPackageFile = mock(File.class);
-            when(unPackageFile.getAbsolutePath()).thenReturn("mock-AbsolutePath");
+            when(unPackageFile.getParentFile()).thenReturn(setUpParentFile);
+            when(setUpParentFile.getAbsolutePath()).thenReturn("mock-AbsolutePath");
 
             afterUnzipFile = mock(File.class);
             when(afterUnzipFile.getName()).thenReturn("mock-name");
@@ -704,7 +706,8 @@ public class PythonUtilsTest {
 //            } finally {
                 verify(afterUnzipFile, times(getNameTimes)).getName();
                 verify(utils, times(getUnPackageFileProcessBuilderTimes)).getUnPackageFileProcessBuilder(anyString(), anyString());
-                verify(unPackageFile, times(getAbsolutePathTimes)).getAbsolutePath();
+                verify(unPackageFile, times(getAbsolutePathTimes)).getParentFile();
+                verify(setUpParentFile, times(getAbsolutePathTimes)).getAbsolutePath();
                 verify(processBuilder, times(startTimes)).start();
                 verify(start, times(waitForTimes)).waitFor();
                 verify(start, times(destroyTimes)).destroy();

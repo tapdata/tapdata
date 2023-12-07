@@ -182,7 +182,7 @@ public class PythonUtils {
         Process start = null;
         try {
             logger.info("{}'s resource package is being generated, please wait.", afterUnzipFile.getName());
-            ProcessBuilder command = getUnPackageFileProcessBuilder(f.getAbsolutePath(), pythonJarPath);
+            ProcessBuilder command = getUnPackageFileProcessBuilder(f.getParentFile().getAbsolutePath(), pythonJarPath);
             start = command.start();
             start.waitFor();
             logger.info("{}'s resource package is being generated", afterUnzipFile.getName());
