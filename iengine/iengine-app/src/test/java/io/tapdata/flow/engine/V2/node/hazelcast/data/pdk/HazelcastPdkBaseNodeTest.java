@@ -152,8 +152,8 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		class ToTapValueTest {
 			@BeforeEach
 			void init() {
-				doNothing().when(tapCodecsFilterManager).transformToTapValueMap(data, fields, skipDetector);
-				doNothing().when(tapCodecsFilterManager).transformToTapValueMap(null, fields, skipDetector);
+				doNothing().when(tapCodecsFilterManager).transformToTapValueMap(data, fields);
+				doNothing().when(tapCodecsFilterManager).transformToTapValueMap(null, fields);
 
 				doCallRealMethod().when(hazelcastPdkBaseNode).toTapValue(data, lastTableName, tapCodecsFilterManager);
 			}
@@ -190,9 +190,9 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			void assertVerify(int execTimes, Map<String, Object> dataTemp, TapCodecsFilterManager manager) {
 				hazelcastPdkBaseNode.toTapValue(dataTemp, lastTableName, manager);
-				verify(hazelcastPdkBaseNode, times(execTimes)).getSkipDetector();
+				//verify(hazelcastPdkBaseNode, times(execTimes)).getSkipDetector();
 				verify(hazelcastPdkBaseNode, times(execTimes)).getTableFiledMap(anyString());
-				verify(tapCodecsFilterManager, times(execTimes)).transformToTapValueMap(data, fields, skipDetector);
+				verify(tapCodecsFilterManager, times(execTimes)).transformToTapValueMap(data, fields);
 			}
 		}
 
@@ -200,8 +200,8 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		class FromTapValueTest {
 			@BeforeEach
 			void init() {
-				when(tapCodecsFilterManager.transformFromTapValueMap(data, fields, skipDetector)).thenReturn(null);
-				when(tapCodecsFilterManager.transformFromTapValueMap(null, fields, skipDetector)).thenReturn(null);
+				when(tapCodecsFilterManager.transformFromTapValueMap(data)).thenReturn(null);
+				when(tapCodecsFilterManager.transformFromTapValueMap(null)).thenReturn(null);
 
 				doCallRealMethod().when(hazelcastPdkBaseNode).fromTapValue(data, tapCodecsFilterManager);
 			}
@@ -232,15 +232,15 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			@Test
 			void testToTapValueNullTableName() {
 				when(hazelcastPdkBaseNode.getLastTableName()).thenReturn(null);
-				assertVerify(0, 1,  data, tapCodecsFilterManager);
+				assertVerify(1, 1,  data, tapCodecsFilterManager);
 			}
 
 			void assertVerify(int execTimes, int getLastTableNameTimes, Map<String, Object> dataTemp, TapCodecsFilterManager manager) {
 				hazelcastPdkBaseNode.fromTapValue(dataTemp, manager);
-				verify(hazelcastPdkBaseNode, times(getLastTableNameTimes)).getLastTableName();
-				verify(hazelcastPdkBaseNode, times(execTimes)).getSkipDetector();
-				verify(hazelcastPdkBaseNode, times(execTimes)).getTableFiledMap(anyString());
-				verify(tapCodecsFilterManager, times(execTimes)).transformFromTapValueMap(data, fields, skipDetector);
+				//verify(hazelcastPdkBaseNode, times(getLastTableNameTimes)).getLastTableName();
+				//verify(hazelcastPdkBaseNode, times(execTimes)).getSkipDetector();
+				//verify(hazelcastPdkBaseNode, times(execTimes)).getTableFiledMap(anyString());
+				verify(tapCodecsFilterManager, times(execTimes)).transformFromTapValueMap(data);
 			}
 		}
 	}

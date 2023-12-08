@@ -256,7 +256,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == tableName) {
 			return;
 		}
-		tapCodecsFilterManager.transformToTapValueMap(data, getTableFiledMap(tableName), getSkipDetector());
+		tapCodecsFilterManager.transformToTapValueMap(data, getTableFiledMap(tableName));
 	}
 
 	protected LinkedHashMap<String, TapField> getTableFiledMap(String tableName) {
@@ -271,10 +271,10 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	protected void fromTapValue(Map<String, Object> data, TapCodecsFilterManager tapCodecsFilterManager) {
-		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == getLastTableName()) {
+		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager ) {
 			return;
 		}
-		tapCodecsFilterManager.transformFromTapValueMap(data, getTableFiledMap(getLastTableName()), getSkipDetector());
+		tapCodecsFilterManager.transformFromTapValueMap(data);
 	}
 
 	@Override
