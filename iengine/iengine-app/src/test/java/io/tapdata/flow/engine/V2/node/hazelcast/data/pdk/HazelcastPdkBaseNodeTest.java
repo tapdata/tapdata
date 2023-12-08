@@ -200,43 +200,52 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		class FromTapValueTest {
 			@BeforeEach
 			void init() {
+				when(hazelcastPdkBaseNode.getIsomorphism()).thenReturn(true);
 				when(tapCodecsFilterManager.transformFromTapValueMap(data, fields, skipDetector)).thenReturn(null);
 				when(tapCodecsFilterManager.transformFromTapValueMap(null, fields, skipDetector)).thenReturn(null);
 
 				doCallRealMethod().when(hazelcastPdkBaseNode).fromTapValue(data, tapCodecsFilterManager);
+
 			}
 
 			@Test
 			void testToTapValueNormal() {
-				assertVerify(1, 2, data, tapCodecsFilterManager);
+				assertVerify(1, 1, 2, data, tapCodecsFilterManager);
+			}
+
+			@Test
+			void testToTapValueIsNotIsomorphismTask() {
+				when(hazelcastPdkBaseNode.getIsomorphism()).thenReturn(false);
+				assertVerify(1,  1, 1, data, tapCodecsFilterManager);
 			}
 
 			@Test
 			void testToTapValueEmptyDataMap() {
 				when(data.isEmpty()).thenReturn(true);
-				assertVerify(0, 0, data, tapCodecsFilterManager);
+				assertVerify(0, 0, 0, data, tapCodecsFilterManager);
 			}
 
 			@Test
 			void testToTapValueNullDataMap() {
 				doCallRealMethod().when(hazelcastPdkBaseNode).fromTapValue(null, tapCodecsFilterManager);
-				assertVerify(0, 0,null, tapCodecsFilterManager);
+				assertVerify(0,  0, 0,null, tapCodecsFilterManager);
 			}
 
 			@Test
 			void testToTapValueNullTapCodecsFilterManager() {
 				doCallRealMethod().when(hazelcastPdkBaseNode).fromTapValue(data, null);
-				assertVerify(0, 0,  data, null);
+				assertVerify(0, 0, 0,  data, null);
 			}
 
 			@Test
 			void testToTapValueNullTableName() {
 				when(hazelcastPdkBaseNode.getLastTableName()).thenReturn(null);
-				assertVerify(0, 1,  data, tapCodecsFilterManager);
+				assertVerify(0, 1,1,  data, tapCodecsFilterManager);
 			}
 
-			void assertVerify(int execTimes, int getLastTableNameTimes, Map<String, Object> dataTemp, TapCodecsFilterManager manager) {
+			void assertVerify(int execTimes, int getIsomorphismTimes, int getLastTableNameTimes, Map<String, Object> dataTemp, TapCodecsFilterManager manager) {
 				hazelcastPdkBaseNode.fromTapValue(dataTemp, manager);
+				verify(hazelcastPdkBaseNode, times(getIsomorphismTimes)).getIsomorphism();
 				verify(hazelcastPdkBaseNode, times(getLastTableNameTimes)).getLastTableName();
 				verify(hazelcastPdkBaseNode, times(execTimes)).getSkipDetector();
 				verify(hazelcastPdkBaseNode, times(execTimes)).getTableFiledMap(anyString());
