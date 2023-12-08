@@ -4,6 +4,7 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.Iterator;
@@ -11,16 +12,10 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
@@ -40,6 +35,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	protected final Long time;
 	protected final Map<K, String> tableNameAndQualifiedNameMap;
 	private final Lock lock = new ReentrantLock();
+	public static final String PRELOAD_SCHEMA_WAIT_TIME = System.getenv().getOrDefault("PRELOAD_SCHEMA_WAIT_TIME","10");
 
 	protected TapTableMap(String nodeId, Long time, Map<K, String> tableNameAndQualifiedNameMap) {
 		if (StringUtils.isBlank(nodeId)) {
@@ -116,6 +112,51 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		return getTapTable((K) key);
 	}
 
+	private CompletableFuture<Void> future = null;
+	public void preLoadSchema() {
+		List<String> tableNames = new ArrayList<>(tableNameAndQualifiedNameMap.keySet());
+		AtomicInteger index = new AtomicInteger(0);
+		AtomicLong allCostTs = new AtomicLong(0L);
+		int cursor = preLoadSchema(tableNames, index.get(), costTs -> allCostTs.addAndGet(costTs) > TimeUnit.SECONDS.toMillis(Long.parseLong(PRELOAD_SCHEMA_WAIT_TIME)));
+		index.set(cursor);
+		if (index.get() == size()) return;
+		TapLogger.info("[preload-schema-fork-thread]", "preload schema continue");
+		ExecutorService executorService = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
+		future = CompletableFuture.runAsync(() -> {
+			Thread.currentThread().setName(this.nodeId + "-preload-schema-runner");
+			preLoadSchema(tableNames, index.get(), null);
+		}, executorService);
+		executorService.shutdown();
+		future.join();
+	}
+	protected int preLoadSchema(List<String> tableNames, int index, Function<Long, Boolean> costInterceptor) {
+		for (int i = index; i < tableNames.size(); i++) {
+			if (Thread.currentThread().isInterrupted()) {
+				break;
+			}
+			long startTs = System.currentTimeMillis();
+			String tableName = tableNames.get(i);
+			getTapTable((K) tableName);
+			index++;
+			long endTs = System.currentTimeMillis();
+			long costTs = endTs - startTs;
+			if (null != costInterceptor) {
+				Boolean isIntercept = costInterceptor.apply(costTs);
+				if (Boolean.TRUE.equals(isIntercept)) {
+					break;
+				}
+			}
+		}
+		return index;
+	}
+
+	public void doClose() {
+		//停止预加载线程
+		if (null == future) {
+			return;
+		}
+		future.cancel(true);
+	}
 	@Override
 	public final boolean containsKey(Object key) {
 		return tableNameAndQualifiedNameMap.containsKey(key);

@@ -215,6 +215,27 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			mockHazelcastBaseNode.init(jetContext);
 			verify(mockHazelcastBaseNode, new Times(1)).errorHandle(mockTapEx);
 		}
+		@Test
+		@SneakyThrows
+		@DisplayName("preload schema test")
+		void testInitPreload(){
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContext.getTapTableMap()).thenReturn(tapTableMap);
+			doCallRealMethod().when(mockHazelcastBaseNode).init(jetContext);
+			doNothing().when(tapTableMap).preLoadSchema();
+			mockHazelcastBaseNode.init(jetContext);
+			verify(tapTableMap, new Times(1)).preLoadSchema();
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("preload schema throw exception")
+		void testInitPreloadWithEx(){
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContext.getTapTableMap()).thenReturn(tapTableMap);
+			doThrow(new RuntimeException()).when(tapTableMap).preLoadSchema();
+			doCallRealMethod().when(mockHazelcastBaseNode).init(jetContext);
+			assertThrows(RuntimeException.class, () -> mockHazelcastBaseNode.init(jetContext));
+		}
 	}
 
 	@Nested
@@ -1315,6 +1336,17 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 				assertDoesNotThrow(() -> hazelcastBaseNode.close());
 				verify(mockObsLogger, new Times(1)).warn(anyString());
 			}
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("preload schema test")
+		void testClosePreload(){
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContext.getTapTableMap()).thenReturn(tapTableMap);
+			doCallRealMethod().when(hazelcastBaseNode).close();
+			hazelcastBaseNode.close();
+			doNothing().when(tapTableMap).doClose();
+			verify(tapTableMap, new Times(1)).doClose();
 		}
 	}
 
