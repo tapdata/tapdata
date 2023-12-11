@@ -7,7 +7,7 @@ on:
   pull_request:
     branches: [ "main", "develop", "release-v*.*" ]
   schedule:
-    - cron: "30 22 * * *"
+    - cron: "* 5 * * *"
 
 jobs:
 
@@ -207,7 +207,7 @@ jobs:
       - name: Run - Local Service - Schedule
         if: ${{ github.event_name == 'schedule' }}
         run: |
-          bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}" --maxtimeinmins=120 --testplanid=724
+          bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}" --maxtimeinmins=120 --testplanid=724 --pollcount=12
       - name: Print Test Result
         if: ${{ always() }}
         run: |

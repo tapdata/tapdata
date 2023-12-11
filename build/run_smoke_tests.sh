@@ -55,6 +55,10 @@ for i in "$@"
     MAX_WAIT_TIME_FOR_SCRIPT_TO_EXIT="${i#*=}"
     shift
     ;;
+    -p=*|--pollcount=*)
+    POLL_COUNT="${i#*=}"
+    shift
+    ;;
     -r=*|--reportfilepath=*)
     JUNIT_REPORT_FILE_PATH="${i#*=}"
     shift
@@ -85,7 +89,9 @@ for i in "$@"
     ;;
   esac
 done
- 
+
+SLEEP_TIME=$(((MAX_WAIT_TIME_FOR_SCRIPT_TO_EXIT*60)/$POLL_COUNT))
+
 get_status(){
   # Old method
   # RUN_RESPONSE=$(curl -u $TESTSIGMA_USER_NAME:$TESTSIGMA_PASSWORD --silent --write-out "HTTPSTATUS:%{http_code}" -X GET $TESTSIGMA_TEST_PLAN_RUN_URL/$HTTP_BODY/status)
