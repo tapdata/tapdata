@@ -212,7 +212,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		});
 	}
 
-	private void connect(String baseURL) {
+	protected void connect(String baseURL) {
 		currentWsUrl = null;
 		try {
 			if (StringUtils.startsWithIgnoreCase(baseURL, "http://")) {
@@ -386,10 +386,10 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		session.sendMessage(textMessage);
 	}
 
-	private class SessionOption implements AutoCloseable {
+	protected class SessionOption implements AutoCloseable {
 		private WebSocketSession session;
 
-		synchronized boolean isOpen() {
+		protected synchronized boolean isOpen() {
 			return null != session && session.isOpen();
 		}
 
@@ -399,23 +399,26 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			this.session.setTextMessageSizeLimit(SESSION_TEXT_LENGTH_LIMIT_BYTE);
 		}
 
-		synchronized void connect() {
+		protected synchronized void connect() {
 			if (isOpen()) return;
 
 			// 连接前关闭之前所有的连接
 			release();
-
-			if (CollectionUtils.isNotEmpty(baseURLs)) {
-				for (String baseURL : baseURLs) {
-					ManagementWebsocketHandler.this.connect(baseURL);
+			List<String> urLs = getBaseURLs();
+			if (CollectionUtils.isNotEmpty(urLs)) {
+				for (String baseURL : urLs) {
+					getManagementWebsocketHandler().connect(baseURL);
 					if (isOpen()) break;
 				}
+				if (!isOpen()) {
+					throw new RuntimeException("Send websocket message failed, can not connected any one of TM before send message");
+				}
 			} else {
-				logger.error("Connect to management websocket failed, base url(s) is empty");
+				throw new RuntimeException("Connect to management websocket failed, base url(s) is empty");
 			}
 		}
 
-		synchronized void release() {
+		protected synchronized void release() {
 			release(null);
 		}
 		synchronized void release(CloseStatus closeStatus) {
@@ -469,6 +472,11 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		public synchronized void close() throws Exception {
 			release();
 		}
+		protected ManagementWebsocketHandler getManagementWebsocketHandler() {
+			return ManagementWebsocketHandler.this;
+		}
+		protected List<String> getBaseURLs() {
+			return baseURLs;
+		}
 	}
-
 }
