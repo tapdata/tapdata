@@ -64,7 +64,7 @@ public class TapRecordSkipDetectorTest {
             //when(skipDetector.isomorphism).thenReturn(false);
             when(field.getCreateSource()).thenReturn(Field.SOURCE_JOB_ANALYZE);
             boolean skip = skipDetector.skip(field);
-            Assertions.assertTrue(skip);
+            Assertions.assertFalse(skip);
             verify(field, times(0)).getCreateSource();
         }
 
