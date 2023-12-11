@@ -173,7 +173,7 @@ jobs:
     if: ${{ github.event_name == 'schedule' }}
     concurrency:
       group: staging_environment
-    timeout-minutes: 60
+    timeout-minutes: 120
     needs:
       - Build-And-Deploy
     steps:
@@ -200,9 +200,14 @@ jobs:
         run: |
           #mvn clean install -DskipTests -P idaas -P not_encrypt -U -T1C
           echo "OK"
-      - name: Run - Local Service
+      - name: Run - Local Service - Not Schedule
+        if: ${{ github.event_name != 'schedule' }}
         run: |
           bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}"
+      - name: Run - Local Service - Schedule
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}" --maxtimeinmins=120 --testplanid=724 --pollcount=12
       - name: Print Test Result
         if: ${{ always() }}
         run: |
