@@ -7,7 +7,7 @@ on:
   pull_request:
     branches: [ "main", "develop", "release-v*.*" ]
   schedule:
-    - cron: "30 22 * * *"
+    - cron: "* 5 * * *"
 
 jobs:
 
