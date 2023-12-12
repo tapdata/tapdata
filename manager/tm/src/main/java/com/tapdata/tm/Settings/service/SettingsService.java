@@ -10,6 +10,7 @@ import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.repository.SettingsRepository;
+import com.tapdata.tm.Settings.service.util.SettingServiceUtil;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 
@@ -166,6 +167,10 @@ public class SettingsService {
             });
         }
         return settingsDtoList;
+    }
+    public List<SettingsDto> findALl(String decode, Query filter) {
+        List<Settings> settingsList = mongoTemplate.find(filter, Settings.class);
+        return SettingServiceUtil.copyProperties(decode, settingsList);
     }
 
     public Settings findById(String id) {

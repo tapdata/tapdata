@@ -1,5 +1,6 @@
 package io.tapdata.Schedule;
 
+import com.hazelcast.persistence.CommonUtils;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoClientOptions;
 import com.mongodb.MongoClientURI;
@@ -26,7 +27,6 @@ import io.tapdata.entity.Converter;
 import io.tapdata.entity.Lib;
 import io.tapdata.entity.LibSupported;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.exception.ManagementException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -1485,7 +1485,9 @@ public class ConnectorManager {
 		}
 	}
 
-	@Scheduled(fixedDelay = 1000 * 60 * 30)
+	/**
+	 * @deprecated see com.tapdata.tm.schedule.LoadSchemaSchedule
+	 * */
 	public void schemaAutoUpdate() {
 		String userId = (String) configCenter.getConfig(ConfigurationCenter.USER_ID);
 		String workerTimeout = settingService.getString("lastHeartbeat", "60");
