@@ -113,10 +113,10 @@ function checkTestPlanRunStatus(){
   for ((i=0;i<=POLL_COUNT;i++))
   do
     get_status
-    if [ $EXECUTION_STATUS = "STATUS_IN_PROGRESS" ]; then
+    if [[ $EXECUTION_STATUS == "STATUS_IN_PROGRESS" ]]; then
       echo "Poll #$(($i+1)) - Test Execution in progress... Wait for $SLEEP_TIME seconds before next poll.."
       sleep $SLEEP_TIME
-    elif [ $EXECUTION_STATUS = "STATUS_COMPLETED" ]; then
+    elif [[ $EXECUTION_STATUS == "STATUS_COMPLETED" ]]; then
       IS_TEST_RUN_COMPLETED=1
       echo "Poll #$(($i+1)) - Tests Execution completed..."
       TOTALRUNSECONDS=$(($(($i+1))*$SLEEP_TIME))
@@ -158,7 +158,8 @@ function saveFinalResponseToJUnitFile(){
  
 function getJsonValue() {
   json_key=$1
-  awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\042'$json_key'\042/){print $(i+1)}}}' | tr -d '"'
+  # awk -F"[,:}]" '{for(i=1;i<=NF;i++){if($i~/\042'$json_key'\042/){print $(i+1)}}}' | tr -d '"'
+  jq ".${json_key}" | tr -d '"'
 }
  
 function populateRuntimeData() {
