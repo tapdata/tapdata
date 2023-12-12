@@ -2,11 +2,19 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.AppType;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.task.dto.MergeTableProperties;
+import io.tapdata.construct.constructImpl.ConstructIMap;
+import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.pdk.core.api.PDKIntegration;
+import lombok.SneakyThrows;
+import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,7 +24,8 @@ import org.mockito.internal.verification.Times;
 import org.mockito.stubbing.Answer;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
+import java.time.Instant;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -103,6 +112,116 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				Object actualObj = ReflectionTestUtils.getField(hazelcastMergeNode, "externalStorageDto");
 				assertNull(actualObj);
 			}
+		}
+	}
+
+	@Nested
+	@DisplayName("UpsertCache Method Test")
+	class UpsertCacheTest {
+
+		private TapdataEvent tapdataEvent;
+		private TapInsertRecordEvent tapInsertRecordEvent;
+		private ConstructIMap<Document> constructIMap;
+		private MergeTableProperties mergeTableProperties;
+		private Map<String, List<String>> sourcePkOrUniqueFieldMap;
+
+		@BeforeEach
+		void beforeEach() {
+			hazelcastMergeNode = spy(hazelcastMergeNode);
+			tapdataEvent = mock(TapdataEvent.class);
+			tapInsertRecordEvent = mock(TapInsertRecordEvent.class);
+			when(tapdataEvent.getTapEvent()).thenReturn(tapInsertRecordEvent);
+			constructIMap = mock(ConstructIMap.class);
+			mergeTableProperties = mock(MergeTableProperties.class);
+			sourcePkOrUniqueFieldMap = new HashMap<>();
+			ReflectionTestUtils.setField(hazelcastMergeNode, "sourcePkOrUniqueFieldMap", sourcePkOrUniqueFieldMap);
+			ReflectionTestUtils.setField(hazelcastMergeNode, "mapIterator", new AllLayerMapIterator());
+		}
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Upsert one event into cache must call transformDateTime method")
+		void testUpsertOneEventCacheMustCallDateTimeValue() {
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("create_time", new DateTime(Instant.now()));
+			when(tapInsertRecordEvent.getAfter()).thenReturn(after);
+			List<Map<String, String>> joinKeys = new ArrayList<Map<String, String>>() {{
+				add(new HashMap<String, String>() {{
+					put("source", "id");
+					put("target", "id");
+				}});
+			}};
+			when(mergeTableProperties.getJoinKeys()).thenReturn(joinKeys);
+			when(mergeTableProperties.getId()).thenReturn("sourceId");
+			sourcePkOrUniqueFieldMap.put("sourceId", new ArrayList<String>() {{
+				add("id");
+			}});
+			when(constructIMap.find(anyString())).thenReturn(null);
+			when(constructIMap.upsert(anyString(), any(Document.class))).thenAnswer(invocationOnMock -> null);
+			hazelcastMergeNode.upsertCache(tapdataEvent, mergeTableProperties, constructIMap);
+			verify(hazelcastMergeNode, new Times(1)).transformDateTime(any(Map.class));
+		}
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Upsert many events into cache must call transformDateTime method")
+		void testUpsertManyEventCacheMustCallDateTimeValue() {
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("create_time", new DateTime(Instant.now()));
+			when(tapInsertRecordEvent.getAfter()).thenReturn(after);
+			TapInsertRecordEvent tapInsertRecordEvent1 = mock(TapInsertRecordEvent.class);
+			when(tapInsertRecordEvent1.getAfter()).thenReturn(new HashMap<String, Object>() {{
+				put("id", 2);
+				put("create_time", new DateTime(Instant.now()));
+			}});
+			TapdataEvent tapdataEvent1 = mock(TapdataEvent.class);
+			when(tapdataEvent1.getTapEvent()).thenReturn(tapInsertRecordEvent1);
+			List<Map<String, String>> joinKeys = new ArrayList<Map<String, String>>() {{
+				add(new HashMap<String, String>() {{
+					put("source", "id");
+					put("target", "id");
+				}});
+			}};
+			when(mergeTableProperties.getJoinKeys()).thenReturn(joinKeys);
+			when(mergeTableProperties.getId()).thenReturn("sourceId");
+			sourcePkOrUniqueFieldMap.put("sourceId", new ArrayList<String>() {{
+				add("id");
+			}});
+			when(constructIMap.findAll(any(Set.class))).thenReturn(new HashMap<>());
+			when(constructIMap.upsert(anyString(), any(Document.class))).thenAnswer(invocationOnMock -> null);
+			hazelcastMergeNode.upsertCache(new ArrayList<TapdataEvent>() {{
+				add(tapdataEvent);
+				add(tapdataEvent1);
+			}}, mergeTableProperties, constructIMap);
+			verify(hazelcastMergeNode, new Times(2)).transformDateTime(any(Map.class));
+		}
+	}
+
+	@Nested
+	@DisplayName("TransformDateTime Method Test")
+	class TransformDateTimeTest {
+		@Test
+		@DisplayName("Main process test")
+		void transformDateTime() {
+			ReflectionTestUtils.setField(hazelcastMergeNode, "mapIterator", new AllLayerMapIterator());
+			Instant now = Instant.now();
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("create_time", new DateTime(now));
+			after.put("sub_map", new HashMap<String, Object>() {{
+				put("create_time", new DateTime(now));
+			}});
+			after.put("sub_list", new ArrayList<Object>() {{
+				add(new HashMap<String, Object>() {{
+					put("create_time", new DateTime(now));
+					put("create_time1", new DateTime(now));
+				}});
+			}});
+			hazelcastMergeNode.transformDateTime(after);
+			assertEquals(4, after.size());
+			assertInstanceOf(Date.class, after.get("create_time"));
 		}
 	}
 }
