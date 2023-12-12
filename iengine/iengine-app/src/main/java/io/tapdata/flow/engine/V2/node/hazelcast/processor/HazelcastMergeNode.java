@@ -1,7 +1,10 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.tapdata.constant.*;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.MapUtilV2;
+import com.tapdata.constant.NotExistsNode;
 import com.tapdata.entity.*;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Edge;
@@ -11,12 +14,16 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import io.tapdata.construct.constructImpl.ConstructIMap;
+import io.tapdata.entity.codec.filter.EntryFilter;
+import io.tapdata.entity.codec.filter.MapIteratorEx;
+import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskMergeProcessorExCode_16;
@@ -95,6 +102,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	private Set<String> firstLevelMergeNodeIds;
 	private BatchProcessMetrics batchProcessMetrics;
 	private long lastBatchProcessFinishMS;
+	MapIteratorEx mapIterator;
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -168,6 +176,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 					thread.setName("Merge-Processor-Lookup-Thread-" + thread.getId());
 					return thread;
 				});
+		this.mapIterator = new AllLayerMapIterator();
 		batchProcessMetrics = new BatchProcessMetrics();
 		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(memoryKey(), this), TAG);
 	}
@@ -722,7 +731,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private void upsertCache(TapdataEvent tapdataEvent, MergeTableProperties mergeTableProperty, ConstructIMap<Document> hazelcastConstruct) {
+	protected void upsertCache(TapdataEvent tapdataEvent, MergeTableProperties mergeTableProperty, ConstructIMap<Document> hazelcastConstruct) {
 		Map<String, Object> after = getAfter(tapdataEvent);
 		String joinValueKey = getJoinValueKeyBySource(after, mergeTableProperty, hazelcastConstruct);
 		String encodeJoinValueKey = encode(joinValueKey);
@@ -738,6 +747,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		if (null == groupByJoinKeyValues) {
 			groupByJoinKeyValues = new Document();
 		}
+		transformDateTime(after);
 		groupByJoinKeyValues.put(encodePkOrUniqueValueKey, after);
 		try {
 			hazelcastConstruct.upsert(encodeJoinValueKey, groupByJoinKeyValues);
@@ -747,7 +757,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private void upsertCache(List<TapdataEvent> tapdataEvents, MergeTableProperties mergeTableProperties, ConstructIMap<Document> hazelcastConstruct) {
+	protected void upsertCache(List<TapdataEvent> tapdataEvents, MergeTableProperties mergeTableProperties, ConstructIMap<Document> hazelcastConstruct) {
 		Map<String, TapdataEvent> joinValueKeyTapdataEventMap = new HashMap<>();
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
 			Map<String, Object> after = getAfter(tapdataEvent);
@@ -759,7 +769,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		try {
 			groupByJoinKeyValues = hazelcastConstruct.findAll(joinValueKeyTapdataEventMap.keySet());
 		} catch (Exception e) {
-			if (null != e.getCause() && e.getCause() instanceof InterruptedException) {
+			if (e.getCause() instanceof InterruptedException) {
 				return;
 			}
 			throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHE_FIND_BY_JOIN_KEYS_FAILED, e);
@@ -775,6 +785,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				Map<String, Object> after = getAfter(tapdataEvent);
 				String pkOrUniqueValueKey = getPkOrUniqueValueKey(after, mergeTableProperties, hazelcastConstruct);
 				String encodePkOrUniqueValueKey = encode(pkOrUniqueValueKey);
+				transformDateTime(after);
 				((Document) groupByJoinKeyValue).put(encodePkOrUniqueValueKey, after);
 				insertMap.put(joinValueKey, (Document) groupByJoinKeyValue);
 			}
@@ -787,6 +798,15 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			}
 			throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHES_FAILED, e);
 		}
+	}
+
+	protected void transformDateTime(Map<String, Object> after) {
+		mapIterator.iterate(after, (key, value, recursive) -> {
+			if (value instanceof DateTime) {
+				return ((DateTime) value).toDate();
+			}
+			return value;
+		});
 	}
 
 	private void deleteCache(TapdataEvent tapdataEvent, MergeTableProperties mergeTableProperty, ConstructIMap<Document> hazelcastConstruct) throws Exception {
