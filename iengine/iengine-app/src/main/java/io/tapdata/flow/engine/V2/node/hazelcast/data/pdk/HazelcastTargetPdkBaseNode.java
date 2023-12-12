@@ -768,8 +768,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		if (tapEvent instanceof TapRecordEvent) {
 			TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
-			fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
-			fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
+			String targetTableName = getTgtTableNameFromTapEvent(tapEvent);
+			fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager, targetTableName);
+			fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
 		}
 		tapdataShareLogEvents.add((TapdataShareLogEvent) tapdataEvent);
 		if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
@@ -813,8 +814,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				tapRecordEvent = tapInsertRecordEvent;
 			}
 		}
-		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
-		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
+		String targetTableName = getTgtTableNameFromTapEvent(tapRecordEvent);
+		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager, targetTableName);
+		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
 		return tapRecordEvent;
 	}
 
