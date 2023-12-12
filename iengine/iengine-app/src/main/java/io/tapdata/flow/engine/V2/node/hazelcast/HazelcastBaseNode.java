@@ -198,7 +198,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			this.monitorManager = initMonitor();
 			startMonitorIfNeed(context);
 			setThreadName();
-			if (null != processorBaseContext.getTapTableMap()) {
+			if (null != processorBaseContext && null != processorBaseContext.getTapTableMap()) {
+				processorBaseContext.getTapTableMap().buildTaskRetryConfig(processorBaseContext.getTaskConfig());
 				processorBaseContext.getTapTableMap().preLoadSchema();
 			}
 			if (!getNode().disabledNode()) {
@@ -467,9 +468,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			}, TAG);
 		} finally {
 			ThreadContext.clearAll();
-			if (null != processorBaseContext.getTapTableMap()) {
-				processorBaseContext.getTapTableMap().doClose();
-			}
 			super.close();
 			sw.stop();
 			obsLogger.info(String.format("Node %s[%s] close complete, cost %d ms", getNode().getName(), getNode().getId(), sw.getTotalTimeMillis()));

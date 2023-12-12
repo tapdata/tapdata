@@ -2,20 +2,27 @@ package io.tapdata.schema;
 
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.Iterator;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
+import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.RetryUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
@@ -35,6 +42,8 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	protected final Long time;
 	protected final Map<K, String> tableNameAndQualifiedNameMap;
 	private final Lock lock = new ReentrantLock();
+	private TaskConfig taskConfig;
+	private final Logger logger = LogManager.getLogger(TapTableMap.class);
 	public static final String PRELOAD_SCHEMA_WAIT_TIME = System.getenv().getOrDefault("PRELOAD_SCHEMA_WAIT_TIME","10");
 
 	protected TapTableMap(String nodeId, Long time, Map<K, String> tableNameAndQualifiedNameMap) {
@@ -107,12 +116,27 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		return tableNameAndQualifiedNameMap.isEmpty();
 	}
 
+	public void buildTaskRetryConfig(TaskConfig taskConfig){
+		this.taskConfig = taskConfig;
+	}
 	@Override
 	public final V get(Object key) {
-		return getTapTable((K) key);
+		if (null == taskConfig || null == taskConfig.getTaskRetryConfig()){
+			return getTapTable((K) key);
+		}
+		AtomicReference<V> res = new AtomicReference<>();
+		PDKMethodInvoker invoker = PDKMethodInvoker.create()
+				.logTag(TapTableMap.class.getSimpleName())
+				.retryPeriodSeconds(taskConfig.getTaskRetryConfig().getRetryIntervalSecond())
+				.maxRetryTimeMinute(taskConfig.getTaskRetryConfig().getMaxRetryTime(TimeUnit.SECONDS))
+				.runnable(()->res.set(getTapTable((K) key)));
+		PDKInvocationMonitor.invokerRetrySetter(invoker);
+		RetryUtils.autoRetry(PDKMethod.IENGINE_PRELOAD_SCHEMA, invoker);
+		return res.get();
 	}
 
 	private CompletableFuture<Void> future = null;
+	private ExecutorService executorService = null;
 	public void preLoadSchema() {
 		List<String> tableNames = new ArrayList<>(tableNameAndQualifiedNameMap.keySet());
 		AtomicInteger index = new AtomicInteger(0);
@@ -120,14 +144,18 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		int cursor = preLoadSchema(tableNames, index.get(), costTs -> allCostTs.addAndGet(costTs) > TimeUnit.SECONDS.toMillis(Long.parseLong(PRELOAD_SCHEMA_WAIT_TIME)));
 		index.set(cursor);
 		if (index.get() == size()) return;
-		TapLogger.info("[preload-schema-fork-thread]", "preload schema continue");
-		ExecutorService executorService = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
+		logger.info("preload schema will fork continue");
+		executorService = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
 		future = CompletableFuture.runAsync(() -> {
-			Thread.currentThread().setName(this.nodeId + "-preload-schema-runner");
-			preLoadSchema(tableNames, index.get(), null);
+			try {
+				Thread.currentThread().setName(this.nodeId + "-preload-schema-runner");
+				preLoadSchema(tableNames, index.get(), null);
+			}catch (Exception e){
+				logger.error("preload schema error",e.getStackTrace());
+			}finally {
+				executorService.shutdown();
+			}
 		}, executorService);
-		executorService.shutdown();
-		future.join();
 	}
 	protected int preLoadSchema(List<String> tableNames, int index, Function<Long, Boolean> costInterceptor) {
 		for (int i = index; i < tableNames.size(); i++) {
@@ -152,10 +180,11 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 
 	public void doClose() {
 		//停止预加载线程
-		if (null == future) {
-			return;
+		//未执行完
+		if (null != future && !future.isDone() && null != executorService){
+			future.cancel(true);
+			executorService.shutdown();
 		}
-		future.cancel(true);
 	}
 	@Override
 	public final boolean containsKey(Object key) {
@@ -383,6 +412,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	public void reset() {
 		resetTapTable();
 		this.tableNameAndQualifiedNameMap.clear();
+		doClose();
 	}
 
 	protected void resetTapTable() {

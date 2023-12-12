@@ -15,6 +15,7 @@ import io.tapdata.exception.ManagementException;
 import io.tapdata.exception.RestAuthException;
 import io.tapdata.exception.RestDoNotRetryException;
 import io.tapdata.exception.RestException;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -723,7 +724,7 @@ public class RestTemplateOperator {
 		}
 	}
 
-	private <T> T retryWrap(TryFunc<T> func, Predicate<?> stop) {
+	protected  <T> T retryWrap(TryFunc<T> func, Predicate<?> stop) {
 		RetryInfo retryInfo = new RetryInfo(baseURL, Optional.ofNullable(getRetryTimeout).map(Supplier::get).orElse(retryTime * retryInterval));
 		do {
 			try {
@@ -756,13 +757,8 @@ public class RestTemplateOperator {
 					}
 				} else {
 					// 'NoHttpResponseException' may occur with multithreaded requests, There is no need to switch services
-					Throwable ex = e;
-					while (null != ex) {
-						if (ex instanceof NoHttpResponseException) {
-							changeURL = false;
-							break;
-						}
-						ex = ex.getCause();
+					if (null != CommonUtils.matchThrowable(e, NoHttpResponseException.class)) {
+						changeURL = false;
 					}
 				}
 

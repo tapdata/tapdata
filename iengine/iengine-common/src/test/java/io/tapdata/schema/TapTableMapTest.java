@@ -1,14 +1,19 @@
 package io.tapdata.schema;
 
-import lombok.SneakyThrows;
+import com.tapdata.entity.task.config.TaskConfig;
+import com.tapdata.entity.task.config.TaskRetryConfig;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.core.utils.RetryUtils;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,7 +32,55 @@ public class TapTableMapTest {
         tableNameAndQualifiedNameMap.put("table2","table2");
         tableNameAndQualifiedNameMap.put("table3","table3");
         ReflectionTestUtils.setField(tapTableMap,"tableNameAndQualifiedNameMap",tableNameAndQualifiedNameMap);
+        ReflectionTestUtils.setField(tapTableMap,"logger",mock(org.apache.logging.log4j.Logger.class));
         tableNames = new ArrayList<>(tableNameAndQualifiedNameMap.keySet());
+    }
+    @Nested
+    @DisplayName("buildTaskRetryConfig method test")
+    class BuildTaskRetryConfigTest{
+        @Test
+        void testBuildTaskRetryConfigNormal(){
+            TaskConfig taskConfig = mock(TaskConfig.class);
+            doCallRealMethod().when(tapTableMap).buildTaskRetryConfig(taskConfig);
+            tapTableMap.buildTaskRetryConfig(taskConfig);
+            Object actual = ReflectionTestUtils.getField(tapTableMap, "taskConfig");
+            assertEquals(taskConfig,actual);
+        }
+        @Test
+        void testBuildTaskRetryConfigWithNull(){
+            doCallRealMethod().when(tapTableMap).buildTaskRetryConfig(null);
+            tapTableMap.buildTaskRetryConfig(null);
+            Object actual = ReflectionTestUtils.getField(tapTableMap, "taskConfig");
+            assertEquals(null,actual);
+        }
+    }
+    @Nested
+    @DisplayName("get method test")
+    class TestGetMethod{
+        @Test
+        @DisplayName("test get without retry")
+        void testGetWithoutRetry(){
+            when(tapTableMap.getTapTable(any())).thenReturn(null);
+            doCallRealMethod().when(tapTableMap).get(any());
+            TapTable tapTable = tapTableMap.get(any());
+            assertEquals(null, tapTable);
+        }
+        @Test
+        @DisplayName("test get with retry")
+        void testGetWithRetry(){
+            try (MockedStatic<RetryUtils> mockAutoRetry = Mockito
+                    .mockStatic(RetryUtils.class)) {
+                mockAutoRetry.when(()->RetryUtils.autoRetry(any(),any())).thenAnswer(invocationOnMock -> {
+                    return null;
+                });
+                TaskConfig taskConfig = mock(TaskConfig.class);
+                when(taskConfig.getTaskRetryConfig()).thenReturn(mock(TaskRetryConfig.class));
+                ReflectionTestUtils.setField(tapTableMap, "taskConfig",taskConfig);
+                doCallRealMethod().when(tapTableMap).get(any());
+                tapTableMap.get(any());
+                mockAutoRetry.verify(()->RetryUtils.autoRetry(any(),any()));
+            }
+        }
     }
     @Nested
     @DisplayName("preload schema method test")
@@ -35,18 +88,18 @@ public class TapTableMapTest {
         @Test
         @DisplayName("preload has been finished")
         void test1(){
-            doCallRealMethod().when(tapTableMap).preLoadSchema();
+            tapTableMap = spy(new TapTableMap<>("111",1L,tableNameAndQualifiedNameMap));
+            doReturn(mock(TapTable.class)).when(tapTableMap).findSchema(anyString());
             tapTableMap.preLoadSchema();
-            verify(tapTableMap).preLoadSchema();
+            verify(tapTableMap ,new Times(3)).getTapTable(anyString());
         }
         @Test
         @DisplayName("start thread to preload")
         void test2(){
-            AtomicLong allCostTs = new AtomicLong(0L);
-            when(tapTableMap.preLoadSchema(anyList(),anyInt(),any())).thenReturn(1);
-            doCallRealMethod().when(tapTableMap).preLoadSchema();
+            tapTableMap = spy(new TapTableMap<>("111",1L,tableNameAndQualifiedNameMap));
+            doReturn(1).when(tapTableMap).preLoadSchema(anyList(),anyInt(),any());
+            doReturn(mock(TapTable.class)).when(tapTableMap).findSchema(anyString());
             tapTableMap.preLoadSchema();
-            verify(tapTableMap).preLoadSchema();
         }
     }
     @Nested
@@ -97,6 +150,7 @@ public class TapTableMapTest {
         @DisplayName("do close with future")
         void test2(){
             ExecutorService executorService = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
+            ReflectionTestUtils.setField(tapTableMap,"executorService",executorService);
             CompletableFuture future = CompletableFuture.runAsync(() -> {
                 try {
                     Thread.sleep(5000L);
@@ -108,6 +162,29 @@ public class TapTableMapTest {
             doCallRealMethod().when(tapTableMap).doClose();
             tapTableMap.doClose();
             assertEquals(true,future.isCancelled());
+        }
+    }
+    @Nested
+    @DisplayName("getTapTable method test")
+    class GetTapTableTest{
+        @Test
+        @DisplayName("test getTapTable normal")
+        void testGetTapTableNormal(){
+            TapTable tapTable = mock(TapTable.class);
+            tapTableMap = spy(new TapTableMap<>("111",1L,tableNameAndQualifiedNameMap));
+            doReturn(tapTable).when(tapTableMap).getTapTable("table1");
+            TapTable actual = tapTableMap.getTapTable("table1");
+            assertEquals(tapTable,actual);
+        }
+    }
+    @Nested
+    @DisplayName("reset method test")
+    class ResetTest{
+        @Test
+        void testResetNormal(){
+            doCallRealMethod().when(tapTableMap).reset();
+            tapTableMap.reset();
+            verify(tapTableMap, new Times(1)).doClose();
         }
     }
 }
