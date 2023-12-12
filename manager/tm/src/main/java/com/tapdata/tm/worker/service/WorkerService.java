@@ -863,4 +863,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (null == result) return false;
         return result.getModifiedCount() == 1 ? true : false;
     }
+
+    public Long getAvailableAgentCount(){
+        return count(getAvailableAgentQuery());
+    }
 }

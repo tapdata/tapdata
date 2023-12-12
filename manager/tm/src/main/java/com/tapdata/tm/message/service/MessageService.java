@@ -35,6 +35,7 @@ import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.user.entity.Notification;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
+import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -87,6 +88,10 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     @Autowired
     @Lazy
     private AlarmService alarmService;
+    @Autowired
+    private WorkerService workerService;
+    @Autowired
+    private CircuitBreakerRecoveryService circuitBreakerRecoveryService;
 
     private final static String MAIL_SUBJECT = "【Tapdata】";
     private final static String MAIL_CONTENT = "尊敬的用户您好，您在Tapdata Cloud上创建的Agent:";
@@ -101,7 +106,6 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 
     private final static String FEISHU_ADDRESS = "http://34.96.213.48:30008/send_to/feishu/group";
 
-    private final static int OFFLINE_AGENT_COUNT = 10;
 
 
 
@@ -659,12 +663,13 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             messageEntity.setLastUpdBy(userDetail.getUsername());
             repository.save(messageEntity, userDetail);
             messageDto.setId(messageEntity.getId());
+            Long agentCount = workerService.getAvailableAgentCount();
             if(SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())
                     && MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(messageDto.getMsg())){
                 if(!scheduledExecutorService.isShutdown()){
                     scheduledExecutorService.schedule(()->{
                         try{
-                            checkAagentConnectedMessage(now);
+                            checkAagentConnectedMessage(now,agentCount,FEISHU_ADDRESS);
                         }catch (Exception e){
                             log.error("Delayed message sending failed {}.",e.getMessage());
                         }finally {
@@ -686,7 +691,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     /**
      * 等待3个心跳周期，观察在该周期内，新增离线agent的数量是否超过（10）个
      */
-    public void checkAagentConnectedMessage(Date date){
+    public void checkAagentConnectedMessage(Date date,Long agentCount,String address){
         Calendar cal = Calendar.getInstance();
         cal.setTime(date);
         cal.add(Calendar.MINUTE, 3);
@@ -702,7 +707,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             messageDto.setMessageMetadata(JSONObject.toJSONString(messageEntity.getMessageMetadata()));
             return messageDto;
         }).collect(Collectors.toList());
-        if(messageDtoList.size() >= OFFLINE_AGENT_COUNT){
+        if(messageDtoList.size() >= CommonUtils.getPropertyLong("offline_agent_count", 10)){
             log.info("agent offline exceeds limit");
             updateMany(query,Update.update("isSend",true));
             Map<String,String> map = new HashMap<>();
@@ -711,7 +716,8 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             map.put("content", content);
             map.put("color", "red");
             map.put("groupId","oc_d6bc5fe48d56453264ec73a2fb3eec70");
-            HttpUtils.sendPostData(FEISHU_ADDRESS,JSONObject.toJSONString(map));
+            HttpUtils.sendPostData(address,JSONObject.toJSONString(map));
+            circuitBreakerRecoveryService.checkServiceStatus(agentCount,address);
         }else{
             if(CollectionUtils.isNotEmpty(messageDtoList)){
                 messageDtoList.forEach(this::informUser);
