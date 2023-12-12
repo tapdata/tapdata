@@ -1711,7 +1711,9 @@ public class ConnectorManager {
 		}
 	}
 
-	@Scheduled(fixedDelay = 1000 * 60 * 30)
+	/**
+	 * @deprecated see com.tapdata.tm.schedule.LoadSchemaSchedule
+	 * */
 	public void schemaAutoUpdate() {
 		String userId = (String) configCenter.getConfig(ConfigurationCenter.USER_ID);
 		String workerTimeout = settingService.getString("lastHeartbeat", "60");
