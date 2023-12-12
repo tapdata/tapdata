@@ -11,6 +11,8 @@ import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.error.TaskMergeProcessorExCode_16;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import lombok.SneakyThrows;
@@ -196,6 +198,77 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				add(tapdataEvent1);
 			}}, mergeTableProperties, constructIMap);
 			verify(hazelcastMergeNode, new Times(2)).transformDateTime(any(Map.class));
+		}
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Upsert many events into cache, when findAll throw InterruptedException")
+		void testUpsertManyEventCacheFindAllThrowInterruptedException() {
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("create_time", new DateTime(Instant.now()));
+			when(tapInsertRecordEvent.getAfter()).thenReturn(after);
+			TapInsertRecordEvent tapInsertRecordEvent1 = mock(TapInsertRecordEvent.class);
+			when(tapInsertRecordEvent1.getAfter()).thenReturn(new HashMap<String, Object>() {{
+				put("id", 2);
+				put("create_time", new DateTime(Instant.now()));
+			}});
+			TapdataEvent tapdataEvent1 = mock(TapdataEvent.class);
+			when(tapdataEvent1.getTapEvent()).thenReturn(tapInsertRecordEvent1);
+			List<Map<String, String>> joinKeys = new ArrayList<Map<String, String>>() {{
+				add(new HashMap<String, String>() {{
+					put("source", "id");
+					put("target", "id");
+				}});
+			}};
+			when(mergeTableProperties.getJoinKeys()).thenReturn(joinKeys);
+			when(mergeTableProperties.getId()).thenReturn("sourceId");
+			sourcePkOrUniqueFieldMap.put("sourceId", new ArrayList<String>() {{
+				add("id");
+			}});
+			when(constructIMap.findAll(any(Set.class))).thenThrow(new RuntimeException(new InterruptedException()));
+			assertDoesNotThrow(() -> hazelcastMergeNode.upsertCache(new ArrayList<TapdataEvent>() {{
+				add(tapdataEvent);
+				add(tapdataEvent1);
+			}}, mergeTableProperties, constructIMap));
+			verify(hazelcastMergeNode, new Times(0)).transformDateTime(any(Map.class));
+		}
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Upsert many events into cache, when findAll throw Exception")
+		void testUpsertManyEventCacheFindAllThrowException() {
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("create_time", new DateTime(Instant.now()));
+			when(tapInsertRecordEvent.getAfter()).thenReturn(after);
+			TapInsertRecordEvent tapInsertRecordEvent1 = mock(TapInsertRecordEvent.class);
+			when(tapInsertRecordEvent1.getAfter()).thenReturn(new HashMap<String, Object>() {{
+				put("id", 2);
+				put("create_time", new DateTime(Instant.now()));
+			}});
+			TapdataEvent tapdataEvent1 = mock(TapdataEvent.class);
+			when(tapdataEvent1.getTapEvent()).thenReturn(tapInsertRecordEvent1);
+			List<Map<String, String>> joinKeys = new ArrayList<Map<String, String>>() {{
+				add(new HashMap<String, String>() {{
+					put("source", "id");
+					put("target", "id");
+				}});
+			}};
+			when(mergeTableProperties.getJoinKeys()).thenReturn(joinKeys);
+			when(mergeTableProperties.getId()).thenReturn("sourceId");
+			sourcePkOrUniqueFieldMap.put("sourceId", new ArrayList<String>() {{
+				add("id");
+			}});
+			RuntimeException mockEx = new RuntimeException();
+			when(constructIMap.findAll(any(Set.class))).thenThrow(mockEx);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> hazelcastMergeNode.upsertCache(new ArrayList<TapdataEvent>() {{
+				add(tapdataEvent);
+				add(tapdataEvent1);
+			}}, mergeTableProperties, constructIMap));
+			verify(hazelcastMergeNode, new Times(0)).transformDateTime(any(Map.class));
+			assertEquals(TaskMergeProcessorExCode_16.UPSERT_CACHE_FIND_BY_JOIN_KEYS_FAILED, tapCodeException.getCode());
+			assertEquals(mockEx, tapCodeException.getCause());
 		}
 	}
 
