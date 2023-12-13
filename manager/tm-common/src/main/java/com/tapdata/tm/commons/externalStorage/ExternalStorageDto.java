@@ -73,7 +73,7 @@ public class ExternalStorageDto extends BaseDto {
 		return new StringJoiner(", ", ExternalStorageDto.class.getSimpleName() + "[", "]")
 				.add("name='" + name + "'")
 				.add("type='" + type + "'")
-				.add("uri='" + uri + "'")
+				.add("uri='" + maskUriPassword() + "'")
 				.add("table='" + table + "'")
 				.add("ttlDay=" + ttlDay)
 				.toString();
