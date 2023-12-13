@@ -1,8 +1,8 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
+import base.BaseTest;
 import com.tapdata.processor.Log4jScriptLogger;
 import com.tapdata.processor.LoggingOutputStream;
-import io.tapdata.base.BaseTest;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.graalvm.polyglot.Context;

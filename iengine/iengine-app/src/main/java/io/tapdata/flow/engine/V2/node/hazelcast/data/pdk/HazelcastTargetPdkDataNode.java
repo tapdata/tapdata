@@ -631,7 +631,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return true;
 	}
 
-	private void writeRecord(List<TapEvent> events) {
+	protected void writeRecord(List<TapEvent> events) {
 		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
 		events.forEach(event -> tapRecordEvents.add((TapRecordEvent) event));
 		TapRecordEvent firstEvent = tapRecordEvents.get(0);
