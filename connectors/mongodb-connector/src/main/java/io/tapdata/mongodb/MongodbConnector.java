@@ -140,7 +140,7 @@ public class MongodbConnector extends ConnectorBase {
 		MongoIterable<String> collectionNames = mongoDatabase.listCollectionNames();
 		TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
 		this.stringTypeValueMap = new HashMap<>();
-		final int SampleSizeBatchSize = getSampleSizeBatchSize(connectionContext);
+		final int sampleSizeBatchSize = getSampleSizeBatchSize(connectionContext);
 
 		ThreadPoolExecutor executor = new ThreadPoolExecutor(10, 30, 60L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(30));
 
@@ -173,7 +173,7 @@ public class MongodbConnector extends ConnectorBase {
 						TapTable table = table(name).defaultPrimaryKeys("_id");
 						MongoCollection collection = documentMap.get(name);
 						try {
-							MongodbUtil.sampleDataRow(collection, SampleSizeBatchSize, (dataRow) -> {
+							MongodbUtil.sampleDataRow(collection, sampleSizeBatchSize, (dataRow) -> {
 								Set<String> fieldNames = dataRow.keySet();
 								for (String fieldName : fieldNames) {
 									BsonValue value = dataRow.get(fieldName);
