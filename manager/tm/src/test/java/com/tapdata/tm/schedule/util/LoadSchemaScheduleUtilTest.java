@@ -95,12 +95,13 @@ class LoadSchemaScheduleUtilTest {
         @Test
         void testNullKeys() {
             when(scheduleUtil.whereForSettings(null)).thenCallRealMethod();
-            Query query = scheduleUtil.whereForSettings(keys);
+            Query query = scheduleUtil.whereForSettings(null);
             Assertions.assertNotNull(query);
         }
         @Test
         void testEmptyKeys() {
-            when(scheduleUtil.whereForSettings(new String[0])).thenCallRealMethod();
+            keys = new String[0];
+            when(scheduleUtil.whereForSettings(keys)).thenCallRealMethod();
             Query query = scheduleUtil.whereForSettings(keys);
             Assertions.assertNotNull(query);
         }
@@ -599,6 +600,11 @@ class LoadSchemaScheduleUtilTest {
         void testInterval() {
             when(settingsDto.getKey()).thenReturn(LoadSchemaScheduleUtil.CONNECTION_SCHEMA_UPDATE_INTERVAL);
             assertVerify(settingsService, settingMap, 1, 1, 0, 0, 1 , 0, 1);
+        }
+        @Test
+        void testOtherKey() {
+            when(settingsDto.getKey()).thenReturn("otherKey");
+            assertVerify(settingsService, settingMap, 1, 1, 0, 0, 0 , 0, 0);
         }
         @Test
         void testNullSettingsService() {

@@ -11,8 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
@@ -61,8 +61,9 @@ class TestConnectionHandlerTest {
         @Test
         void testNormal() {
             doCallRealMethod().when(handler).saveMongodbLoadSchemaSampleSize(event, connection, service);
-            definitionTags = new ArrayList<String>();
-            ((List<String>)definitionTags).add("schema-free");
+            List<String> definitionTagsArr = new ArrayList<>();
+            definitionTagsArr.add("schema-free");
+            when(event.get("definitionTags")).thenReturn(definitionTagsArr);
             assertVerify(event, connection, service,
                     1, 1, 1, 1, 1);
         }
@@ -109,7 +110,7 @@ class TestConnectionHandlerTest {
             doCallRealMethod().when(handler).saveMongodbLoadSchemaSampleSize(event, connection, service);
             definitionTags = 1;
             assertVerify(event, connection, service,
-                    1, 1, 1, 0, 0);
+                    1, 1, 1, 1, 0);
         }
     }
 }

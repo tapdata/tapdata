@@ -9,8 +9,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyMap;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
@@ -41,7 +41,7 @@ public class LoadSchemaRunnerTest {
             when(connections.getTags()).thenReturn("schema-free");
             doNothing().when(connections).setConfig(any(Map.class));
             when(connections.getSampleSize()).thenReturn(1000);
-            when(config.put("mongodbLoadSchemaSampleSize", 1000));
+            when(config.put("mongodbLoadSchemaSampleSize", 1000)).thenReturn(null);
 
             doCallRealMethod().when(runner).configMongodbLoadSchemaSampleSize(connections, databaseType);
         }
@@ -56,8 +56,8 @@ public class LoadSchemaRunnerTest {
                           int putTimes) {
             runner.configMongodbLoadSchemaSampleSize(connectionsTemp, databaseTypeTemp);
             verify(connections, times(getTagsTimes)).getTags();
-            verify(connections, times(getPdkIdTimes)).getConfig();
-            verify(databaseType, times(getConfigTimes)).getPdkId();
+            verify(connections, times(getConfigTimes)).getConfig();
+            verify(databaseType, times(getPdkIdTimes)).getPdkId();
             verify(connections, times(setConfigTimes)).setConfig(anyMap());
             verify(connections, times(getSampleSizeTimes)).getSampleSize();
             verify(config, times(putTimes)).put("mongodbLoadSchemaSampleSize", sampleSize);
@@ -70,12 +70,12 @@ public class LoadSchemaRunnerTest {
         @Test
         void testNullConfigMap() {
             when(connections.getConfig()).thenReturn(null);
-            assertVerify(connections, databaseType, 1000, 1, 1,1, 0, 1, 0);
+            assertVerify(connections, databaseType, 1000, 1, 1,1, 1, 1, 0);
         }
         @Test
         void testSampleSizeLessThanZero() {
             when(connections.getSampleSize()).thenReturn(-1);
-            assertVerify(connections, databaseType, 100, 1, 1,1, 0, 1, 0);
+            assertVerify(connections, databaseType, 100, 1, 1,1, 0, 1, 1);
         }
         @Test
         void testNullDataType() {
@@ -85,15 +85,21 @@ public class LoadSchemaRunnerTest {
         @Test
         void testNotMongoDB() {
             when(databaseType.getPdkId()).thenReturn("mysql");
-            assertVerify(connections, databaseType, 100, 1,1, 0, 0, 0, 0);
+            assertVerify(connections, databaseType, 100, 1,1, 1, 0, 1, 0);
         }
 
         @Test
         void testIsSchemaFree() {
             when(databaseType.getPdkId()).thenReturn("mysql");
             when(connections.getTags()).thenReturn("schema-free");
-            assertVerify(connections, databaseType, 100, 1,1, 1, 0, 1, 1);
+            assertVerify(connections, databaseType, 1000, 1,1, 1, 0, 1, 1);
+        }
 
+        @Test
+        void testNotSchemaFree() {
+            when(databaseType.getPdkId()).thenReturn("mysql");
+            when(connections.getTags()).thenReturn("sdhema-free");
+            assertVerify(connections, databaseType, 1000, 1,1, 0, 0, 0, 0);
         }
         @Test
         void testTagIsNull() {
