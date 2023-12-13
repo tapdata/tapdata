@@ -42,6 +42,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -167,6 +168,7 @@ public class LoadSchemaRunner implements Runnable {
 					ConnectionNode connectionNode = null;
 					try {
 						DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
+						configMongodbLoadSchemaSampleSize(connections, databaseType);
 						connectionNode = PDKIntegration.createConnectionConnectorBuilder()
 								.withConnectionConfig(DataMap.create(connections.getConfig()))
 								.withNodeConfig(DataMap.create(nodeConfig))
@@ -436,5 +438,19 @@ public class LoadSchemaRunner implements Runnable {
 			}
 			return true;
 		}
+	}
+
+	protected void configMongodbLoadSchemaSampleSize(Connections connections, DatabaseTypeEnum.DatabaseType databaseType) {
+		if (null == databaseType || !"mongodb".equalsIgnoreCase(databaseType.getPdkId())) return;
+		Map<String, Object> config = connections.getConfig();
+		if (null == config) {
+			config = new HashMap<>();
+			connections.setConfig(config);
+		}
+		int sampleSize = connections.getSampleSize();
+		if (sampleSize <= 0) {
+			sampleSize = 100;
+		}
+		config.put("mongodbLoadSchemaSampleSize", sampleSize);
 	}
 }
