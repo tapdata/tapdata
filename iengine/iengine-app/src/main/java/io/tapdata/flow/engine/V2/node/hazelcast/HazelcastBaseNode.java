@@ -176,8 +176,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			if (null != processorBaseContext.getConfigurationCenter()) {
 				this.clientMongoOperator = initClientMongoOperator();
 				this.settingService = initSettingService();
-			} else {
-				throw new TapCodeException(TaskProcessorExCode_11.INIT_CONFIGURATION_CENTER_CANNOT_BE_NULL);
 			}
 			if (null != processorBaseContext.getNode() && null == processorBaseContext.getNode().getGraph()) {
 				Dag dag = new Dag(processorBaseContext.getEdges(), processorBaseContext.getNodes());
