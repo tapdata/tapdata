@@ -95,12 +95,13 @@ class LoadSchemaScheduleUtilTest {
         @Test
         void testNullKeys() {
             when(scheduleUtil.whereForSettings(null)).thenCallRealMethod();
-            Query query = scheduleUtil.whereForSettings(keys);
+            Query query = scheduleUtil.whereForSettings(null);
             Assertions.assertNotNull(query);
         }
         @Test
         void testEmptyKeys() {
-            when(scheduleUtil.whereForSettings(new String[0])).thenCallRealMethod();
+            keys = new String[0];
+            when(scheduleUtil.whereForSettings(keys)).thenCallRealMethod();
             Query query = scheduleUtil.whereForSettings(keys);
             Assertions.assertNotNull(query);
         }
@@ -337,8 +338,8 @@ class LoadSchemaScheduleUtilTest {
         void assertVerify(
                 DataSourceConnectionDto dataSourceTemp, DataSourceService serviceTemp,
                 int nowTimes, int getHourTimes, int nowFuncTimes,
-                          int getLoadSchemaTimeTimes, int getTimeTimes,
-                          int sendTestConnectionTimes, int sleepTimes) {
+                int getLoadSchemaTimeTimes, int getTimeTimes,
+                int sendTestConnectionTimes, int sleepTimes) {
             try (MockedStatic<LocalDateTime> mockedStatic = mockStatic(LocalDateTime.class)){
                 mockedStatic.when(LocalDateTime::now).thenReturn(now);
                 scheduleUtil.loadSchemaOnce(dataSourceTemp, count, interval, time, user, serviceTemp);
@@ -359,40 +360,40 @@ class LoadSchemaScheduleUtilTest {
             doCallRealMethod().when(scheduleUtil).loadSchemaOnce(null, count, interval, time, user, service);
             assertVerify(null, service,
                     0, 0, 0,
-            0, 0,
-            0, 0);
+                    0, 0,
+                    0, 0);
         }
         @Test
         void testNullDataSourceService() {
             doCallRealMethod().when(scheduleUtil).loadSchemaOnce(dataSource, count, interval, time, user, null);
             assertVerify(dataSource, null,
                     0, 0, 0,
-            0, 0,
-            0, 0);
+                    0, 0,
+                    0, 0);
         }
         @Test
         void testNullWhenGetLoadSchemaTime() {
             when(dataSource.getLoadSchemaTime()).thenReturn(null);
             assertVerify(dataSource, service,
                     1, 1, 1,
-            1, 0,
-            1, 1);
+                    1, 0,
+                    1, 1);
         }
         @Test
         void testTimeNotEqualHour() {
             when(now.getHour()).thenReturn(3);
             assertVerify(dataSource, service,
                     1, 1, 0,
-            1, 1,
-            0, 0);
+                    1, 1,
+                    0, 0);
         }
 
         @Test
         void testMoreThanInterval() {
             assertVerify(dataSource, service,
                     1, 1, 1,
-            1, 1,
-            1, 1);
+                    1, 1,
+                    1, 1);
         }
 
         @Test
@@ -400,8 +401,8 @@ class LoadSchemaScheduleUtilTest {
             when(scheduleUtil.now()).thenReturn(0L);
             assertVerify(dataSource, service,
                     1, 1, 1,
-            1, 1,
-            0, 0);
+                    1, 1,
+                    0, 0);
         }
 
         @Test
@@ -409,8 +410,8 @@ class LoadSchemaScheduleUtilTest {
             when(loadSchemaTime.getTime()).thenReturn(nowTime - interval * 24 * 60 * 60 * 1000);
             assertVerify(dataSource, service,
                     1, 1, 1,
-            1, 1,
-            1, 1);
+                    1, 1,
+                    1, 1);
         }
 
         @Test
@@ -419,8 +420,8 @@ class LoadSchemaScheduleUtilTest {
             when(loadSchemaTime.getTime()).thenReturn(nowTime - interval * 24 * 60 * 60 * 1000 - 1);
             assertVerify(dataSource, service,
                     1, 1, 0,
-            1, 1,
-            0, 0);
+                    1, 1,
+                    0, 0);
         }
 
     }
@@ -475,7 +476,7 @@ class LoadSchemaScheduleUtilTest {
                     anyInt(),
                     any(UserDetail.class),
                     any(DataSourceService.class)
-                );
+            );
 
             doCallRealMethod().when(scheduleUtil).doLoadSchema(dataSource, userDetailMap, metadataInstancesService, settingMap, dataSourceService);
         }
@@ -599,6 +600,11 @@ class LoadSchemaScheduleUtilTest {
         void testInterval() {
             when(settingsDto.getKey()).thenReturn(LoadSchemaScheduleUtil.CONNECTION_SCHEMA_UPDATE_INTERVAL);
             assertVerify(settingsService, settingMap, 1, 1, 0, 0, 1 , 0, 1);
+        }
+        @Test
+        void testOtherKey() {
+            when(settingsDto.getKey()).thenReturn("otherKey");
+            assertVerify(settingsService, settingMap, 1, 1, 0, 0, 0 , 0, 0);
         }
         @Test
         void testNullSettingsService() {
