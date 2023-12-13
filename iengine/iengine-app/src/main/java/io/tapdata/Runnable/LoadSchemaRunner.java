@@ -441,16 +441,19 @@ public class LoadSchemaRunner implements Runnable {
 	}
 
 	protected void configMongodbLoadSchemaSampleSize(Connections connections, DatabaseTypeEnum.DatabaseType databaseType) {
-		if (null == databaseType || !"mongodb".equalsIgnoreCase(databaseType.getPdkId())) return;
-		Map<String, Object> config = connections.getConfig();
-		if (null == config) {
-			config = new HashMap<>();
-			connections.setConfig(config);
+		if (null == databaseType) return;
+		String tags = connections.getTags();
+		if ("mongodb".equalsIgnoreCase(databaseType.getPdkId()) || (null != tags && tags.contains("schema-free")) ){
+			Map<String, Object> config = connections.getConfig();
+			if (null == config) {
+				config = new HashMap<>();
+				connections.setConfig(config);
+			}
+			int sampleSize = connections.getSampleSize();
+			if (sampleSize <= 0) {
+				sampleSize = 100;
+			}
+			config.put("mongodbLoadSchemaSampleSize", sampleSize);
 		}
-		int sampleSize = connections.getSampleSize();
-		if (sampleSize <= 0) {
-			sampleSize = 100;
-		}
-		config.put("mongodbLoadSchemaSampleSize", sampleSize);
 	}
 }
