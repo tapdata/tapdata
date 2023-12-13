@@ -42,10 +42,12 @@ import org.springframework.data.mongodb.core.query.Update;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.StringJoiner;
 import java.util.UUID;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -209,6 +211,8 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 					save = true;
 				}
 
+				// save Mongodb Load Schema Sample Size
+				saveMongodbLoadSchemaSampleSize(event, connection, settingService);
 				// Decode passwords
 				connection.decodeDatabasePassword();
 				if (StringUtils.isBlank(connection.getDatabase_password()) && event.containsKey("plain_password")) {
@@ -447,5 +451,20 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 		}
 
 		return update;
+	}
+
+	protected void saveMongodbLoadSchemaSampleSize(Map event, Connections connection, SettingService service) {
+		if (null == connection || null == service) return;
+		connection.setSampleSize(service.getInt("connections.mongodbLoadSchemaSampleSize", 100));
+		if (null == event || !event.containsKey("definitionTags")) return;
+		Object definitionTags = event.get("definitionTags");
+		if (definitionTags instanceof Collection) {
+			Collection<Object> tags = (Collection<Object>) definitionTags;
+			StringJoiner joiner = new StringJoiner(",");
+			for (Object tag : tags) {
+				joiner.add(String.valueOf(tag));
+			}
+			connection.setTags(joiner.toString());
+		}
 	}
 }
