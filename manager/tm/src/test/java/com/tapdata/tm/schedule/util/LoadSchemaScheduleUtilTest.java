@@ -278,7 +278,7 @@ class LoadSchemaScheduleUtilTest {
         void testNullUpdateHourStr() {
             when(scheduleUtil.getUpdateHour(null, 2)).thenCallRealMethod();
             int updateHour = scheduleUtil.getUpdateHour(null, 2);
-            Assertions.assertEquals(2, updateHour);
+            Assertions.assertEquals(-10, updateHour);
         }
         @Test
         void testNotContainsCharInUpdateHourStr() {
@@ -290,13 +290,19 @@ class LoadSchemaScheduleUtilTest {
         void testNotNumberStringInUpdateHourStr() {
             when(scheduleUtil.getUpdateHour("0x2", 2)).thenCallRealMethod();
             int updateHour = scheduleUtil.getUpdateHour("0x2", 2);
-            Assertions.assertEquals(2, updateHour);
+            Assertions.assertEquals(-10, updateHour);
         }
         @Test
         void testContainsCharButNotNumberStringInUpdateHourStr() {
             when(scheduleUtil.getUpdateHour("0x2:00", 2)).thenCallRealMethod();
             int updateHour = scheduleUtil.getUpdateHour("0x2:00", 2);
-            Assertions.assertEquals(2, updateHour);
+            Assertions.assertEquals(-10, updateHour);
+        }
+        @Test
+        void testContainsCharIsFalseStringInUpdateHourStr() {
+            when(scheduleUtil.getUpdateHour("false", 2)).thenCallRealMethod();
+            int updateHour = scheduleUtil.getUpdateHour("false", 2);
+            Assertions.assertEquals(100, updateHour);
         }
     }
 

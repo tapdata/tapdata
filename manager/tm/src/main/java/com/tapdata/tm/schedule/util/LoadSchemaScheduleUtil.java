@@ -107,7 +107,7 @@ public class LoadSchemaScheduleUtil {
         try {
             return Integer.parseInt(hourSplit[0]);
         } catch (Exception e) {
-            return defaultValue;
+            return ScheduleTimeEnum.getHour(hourSplit[0]);
         }
     }
 
