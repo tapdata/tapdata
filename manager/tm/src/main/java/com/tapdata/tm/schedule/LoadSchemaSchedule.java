@@ -60,7 +60,7 @@ public class LoadSchemaSchedule {
      *  数据源配置的时间不是false，取全局配置的频率在配置的时间加载一下模型
      *  数据源配置的时间是false时，取全局的时间和频率在这个时间加载一次模型
      * */
-    @Scheduled(cron = "0 0/1 * * * ?")
+    @Scheduled(cron = "0 0 0/1 * * ?")
     @SchedulerLock(name ="timedReloadSchema_lock", lockAtMostFor = "20s", lockAtLeastFor = "20s")
     public void timedReloadSchema() {
         //查询所有的数据源信息
