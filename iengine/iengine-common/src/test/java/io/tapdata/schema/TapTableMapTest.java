@@ -2,8 +2,12 @@ package io.tapdata.schema;
 
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
+import com.tapdata.mongo.ClientMongoOperator;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.core.utils.RetryUtils;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -17,12 +21,14 @@ import java.util.concurrent.*;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 public class TapTableMapTest {
     private TapTableMap tapTableMap;
     private Map tableNameAndQualifiedNameMap;
     List<String> tableNames;
+    Logger logger;
 
     @BeforeEach
     void buildTapTableMap(){
@@ -32,8 +38,46 @@ public class TapTableMapTest {
         tableNameAndQualifiedNameMap.put("table2","table2");
         tableNameAndQualifiedNameMap.put("table3","table3");
         ReflectionTestUtils.setField(tapTableMap,"tableNameAndQualifiedNameMap",tableNameAndQualifiedNameMap);
-        ReflectionTestUtils.setField(tapTableMap,"logger",mock(org.apache.logging.log4j.Logger.class));
+        logger = mock(org.apache.logging.log4j.Logger.class);
+        ReflectionTestUtils.setField(tapTableMap,"logger",logger);
         tableNames = new ArrayList<>(tableNameAndQualifiedNameMap.keySet());
+    }
+    @Nested
+    @DisplayName("logListener method test")
+    class LogListenerTest{
+        void logListenerInvoke(TapLogger.LogListener logListener){
+            logListener.debug("test debug");
+            logListener.info("test info");
+            logListener.warn("test warn");
+            logListener.error("test error");
+            logListener.fatal("test fatal");
+            logListener.memory("test memory");
+        }
+        @Test
+        void testLogListenerWithNull(){
+            doCallRealMethod().when(tapTableMap).logListener(null);
+            TapTableMap actual = tapTableMap.logListener(null);
+            TapLogger.LogListener logListener = (TapLogger.LogListener) ReflectionTestUtils.getField(actual, "logListener");
+            logListenerInvoke(logListener);
+            verify(logger, new Times(1)).debug("test debug");
+            verify(logger, new Times(1)).info("test info");
+            verify(logger, new Times(1)).warn("test warn");
+            verify(logger, new Times(1)).error("test error");
+            verify(logger, new Times(1)).fatal("test fatal");
+        }
+        @Test
+        void testLogListenerWithLogger(){
+            TapLogger.LogListener logger = mock(TapLogger.LogListener.class);
+            doCallRealMethod().when(tapTableMap).logListener(logger);
+            TapTableMap actual = tapTableMap.logListener(logger);
+            TapLogger.LogListener logListener = (TapLogger.LogListener) ReflectionTestUtils.getField(actual, "logListener");
+            logListenerInvoke(logListener);
+            verify(logger, new Times(1)).debug("test debug");
+            verify(logger, new Times(1)).info("test info");
+            verify(logger, new Times(1)).warn("test warn");
+            verify(logger, new Times(1)).error("test error");
+            verify(logger, new Times(1)).fatal("test fatal");
+        }
     }
     @Nested
     @DisplayName("buildTaskRetryConfig method test")
@@ -97,9 +141,12 @@ public class TapTableMapTest {
         @DisplayName("start thread to preload")
         void test2(){
             tapTableMap = spy(new TapTableMap<>("111",1L,tableNameAndQualifiedNameMap));
+            Logger log = mock(Logger.class);
+            ReflectionTestUtils.setField(tapTableMap,"logger",log);
             doReturn(1).when(tapTableMap).preLoadSchema(anyList(),anyInt(),any());
             doReturn(mock(TapTable.class)).when(tapTableMap).findSchema(anyString());
             tapTableMap.preLoadSchema();
+            verify(log).info("preload schema will fork continue");
         }
     }
     @Nested
@@ -185,6 +232,18 @@ public class TapTableMapTest {
             doCallRealMethod().when(tapTableMap).reset();
             tapTableMap.reset();
             verify(tapTableMap, new Times(1)).doClose();
+        }
+    }
+    @Nested
+    @DisplayName("find schema method test")
+    class FindSchemaTest{
+        @Test
+        void testFindSchemaWithEx(){
+            tapTableMap = spy(new TapTableMap<>("111",1L,tableNameAndQualifiedNameMap));
+            ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+            when(tapTableMap.createClientMongoOperator()).thenReturn(clientMongoOperator);
+            doThrow(new RuntimeException()).when(clientMongoOperator).findOne(anyMap(),anyString(),any());
+            assertThrows(TapCodeException.class,()->tapTableMap.findSchema("table1"));
         }
     }
 }

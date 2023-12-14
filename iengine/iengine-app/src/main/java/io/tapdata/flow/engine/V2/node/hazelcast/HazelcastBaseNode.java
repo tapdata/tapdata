@@ -29,7 +29,6 @@ import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
-import io.tapdata.entity.codec.detector.TapDetector;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
@@ -39,6 +38,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapValue;
@@ -199,6 +199,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			startMonitorIfNeed(context);
 			setThreadName();
 			if (null != processorBaseContext && null != processorBaseContext.getTapTableMap()) {
+				buildLogListener();
 				processorBaseContext.getTapTableMap().buildTaskRetryConfig(processorBaseContext.getTaskConfig());
 				processorBaseContext.getTapTableMap().preLoadSchema();
 			}
@@ -210,6 +211,33 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} catch (Exception e) {
 			errorHandle(e);
 		}
+	}
+	protected void buildLogListener(){
+		processorBaseContext.getTapTableMap().logListener(new TapLogger.LogListener() {
+			@Override
+			public void debug(String log) {
+				obsLogger.debug(log);
+			}
+			@Override
+			public void info(String log) {
+				obsLogger.info(log);
+			}
+			@Override
+			public void warn(String log) {
+				obsLogger.warn(log);
+			}
+			@Override
+			public void error(String log) {
+				obsLogger.error(log);
+			}
+			@Override
+			public void fatal(String log) {
+				obsLogger.fatal(log);
+			}
+			@Override
+			public void memory(String memoryLog) {
+			}
+		});
 	}
 
 	protected MonitorManager initMonitor() {
