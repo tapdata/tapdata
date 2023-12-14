@@ -17,7 +17,6 @@ import com.tapdata.tm.commons.ping.PingType;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
 import com.tapdata.tm.worker.WorkerSingletonException;
 import com.tapdata.tm.worker.WorkerSingletonLock;
-import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.LoginSuccessfullyAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.*;
@@ -61,8 +60,6 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.time.LocalTime;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
@@ -1481,61 +1478,6 @@ public class ConnectorManager {
 			});
 		} catch (Exception e) {
 			logger.error("Scan stop fail job error {}", e.getMessage(), e);
-		}
-	}
-
-	/**
-	 * @deprecated see com.tapdata.tm.schedule.LoadSchemaSchedule
-	 * */
-	public void schemaAutoUpdate() {
-		String userId = (String) configCenter.getConfig(ConfigurationCenter.USER_ID);
-		String workerTimeout = settingService.getString("lastHeartbeat", "60");
-		if (!AgentUtil.isFirstWorker(
-				clientMongoOperator,
-				instanceNo,
-				appType.isCloud() ? userId : null,
-				Double.valueOf(workerTimeout)
-		)
-		) {
-			return;
-		}
-		Query query = new Query(where("schemaAutoUpdate").is(true));
-		query.fields().exclude("schema");
-		List<Connections> connections = clientMongoOperator.find(query, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-		if (CollectionUtils.isNotEmpty(connections)) {
-			try {
-				String schemaUpdateHour = settingService.getString("connection_schema_update_hour", "false");
-				int connectionSchemaUpdateHour = -1;
-				if (schemaUpdateHour.indexOf(":") > 0) {
-					String[] hourSplit = schemaUpdateHour.split(":");
-					connectionSchemaUpdateHour = Integer.valueOf(hourSplit[0]);
-				}
-				int connectionSchemaUpdateInterval = settingService.getInt("connection_schema_update_interval", -1);
-				int hour = LocalTime.now().getHour();
-				if (connectionSchemaUpdateHour < 0 || hour != connectionSchemaUpdateHour || connectionSchemaUpdateInterval < 0) {
-					return;
-				}
-				SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-				String now = sdf.format(new Date());
-				for (Connections connection : connections) {
-					String lastTime = sdf.format(new Date(connection.getSchemaAutoUpdateLastTime()));
-					long day = (sdf.parse(now).getTime() - sdf.parse(lastTime).getTime()) / (1000 * 60 * 60 * 24);
-					if (connectionSchemaUpdateInterval <= day) {
-						try {
-							connection.decodeDatabasePassword();
-							LoadSchemaRunner loadSchemaRunner = new LoadSchemaRunner(connection, clientMongoOperator, 0);
-							schemaUpdatePool.submit(loadSchemaRunner);
-							query = new Query(where("_id").is(connection.getId()));
-							query.fields().exclude("schema");
-							clientMongoOperator.update(query, new Update().set("schemaAutoUpdateLastTime", System.currentTimeMillis()), ConnectorConstant.CONNECTION_COLLECTION);
-						} catch (Exception e) {
-							logger.error("Load schema is failed,connection name: {},message: {}", connection.getName(), e.getMessage(), e);
-						}
-					}
-				}
-			} catch (Exception e) {
-				logger.error("SchemaUpdate is failed,message: {}", e.getMessage(), e);
-			}
 		}
 	}
 
