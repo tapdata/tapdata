@@ -1,0 +1,11 @@
+[
+  {
+    "delete": "Settings",
+    "deletes": [{
+      "q": {
+        "_id": "59"
+      },
+      "limit": 0
+    }]
+  }
+]
