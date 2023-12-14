@@ -179,6 +179,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             if (taskService.checkIsCronOrPlanTask(taskScheduleFlag)) {
                 runningNum -= 1;
             }
+            log.info("taskId {} name {} running num is {}, taskLimit is {}",taskDto.getId(),taskDto.getName(),runningNum,limitTaskNum);
             if (runningNum > limitTaskNum && !limitNum) {
                 StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
                 if (stateMachineResult.isOk()) {
@@ -192,6 +193,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         if (taskService.checkIsCronOrPlanTask(taskScheduleFlag)){
             runningNum -= 1;
         }
+        log.info("taskId {} name {} running num is {}, taskLimit is {}",taskDto.getId(),taskDto.getName(),runningNum,calculationEngineVo.getTaskLimit());
         if (StringUtils.isNotBlank(taskDto.getAgentId()) && runningNum > calculationEngineVo.getTaskLimit()
                 && !limitNum) {
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);

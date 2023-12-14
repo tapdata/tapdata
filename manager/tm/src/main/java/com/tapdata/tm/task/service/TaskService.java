@@ -1282,6 +1282,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     if (checkIsCronOrPlanTask(task)) {
                         runningNum -= 1;
                     }
+                    log.info("taskId {} name {} running num is {}, taskLimit is {}",task.getId(),task.getName(),runningNum,calculationEngineVo.getTaskLimit());
                     if (runningNum > calculationEngineVo.getTaskLimit() ||
                             index > calculationEngineVo.getTotalLimit()) {
                         throw new BizException("Task.ScheduleLimit");
@@ -3495,6 +3496,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (checkIsCronOrPlanTask(taskScheduleFlag)) {
                     runningNum -= 1;
                 }
+                log.info("taskId {} name {} running num is {}, taskLimit is {}",taskDto.getId(),taskDto.getName(),runningNum,calculationEngineVo.getTaskLimit());
                 if (runningNum > calculationEngineVo.getTaskLimit()) {
                     throw new BizException("Task.ScheduleLimit");
                 }
