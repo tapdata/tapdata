@@ -68,6 +68,10 @@ public class LoadSchemaScheduleUtil {
         }
         if (time == ScheduleTimeEnum.DEFAULT.getValue()) {
             time = (Integer) Optional.ofNullable(settingMap.get(CONNECTION_SCHEMA_UPDATE_HOUR)).orElse(ScheduleTimeEnum.TWO.getValue());
+            //默认关闭的情况直接退出即可
+            if (time == ScheduleTimeEnum.FALSE.getValue()) {
+                return;
+            }
         }
         loadSchemaOnce(dataSource,
                 count,
