@@ -538,6 +538,13 @@ class LoadSchemaScheduleUtilTest {
             when(settingMap.get(LoadSchemaScheduleUtil.CONNECTION_SCHEMA_UPDATE_HOUR)).thenReturn(null);
             assertVerify(1, 1, 1, 1, 1, 1, 1);
         }
+
+        @Test
+        void testGetSchemaUpdateHourDefaultAndHourAndDefaultIsClose() {
+            when(dataSource.getSchemaUpdateHour()).thenReturn("default");
+            when(settingMap.get(LoadSchemaScheduleUtil.CONNECTION_SCHEMA_UPDATE_HOUR)).thenReturn(ScheduleTimeEnum.FALSE.getValue());
+            assertVerify(1, 1, 1, 1, 1, 1, 0);
+        }
     }
 
     @Nested
