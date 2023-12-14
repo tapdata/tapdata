@@ -1278,7 +1278,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             try {
                 if (settingsService.isCloud()) {
                     CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(task, user, true);
-                    if (calculationEngineVo.getRunningNum() >= calculationEngineVo.getTaskLimit() ||
+                    int runningNum = calculationEngineVo.getRunningNum();
+                    if (checkIsCronOrPlanTask(task)) {
+                        runningNum -= 1;
+                    }
+                    if (runningNum >= calculationEngineVo.getTaskLimit() ||
                             index > calculationEngineVo.getTotalLimit()) {
                         throw new BizException("Task.ScheduleLimit");
                     }
@@ -1304,6 +1308,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             responseMessages.add(mutiResponseMessage);
         }
         return responseMessages;
+    }
+
+    public boolean checkIsCronOrPlanTask(TaskDto task) {
+        if(null == task) throw new IllegalArgumentException("Task can not be null");
+        if ((task.getCrontabExpressionFlag() != null && task.getCrontabExpressionFlag()) || task.isPlanStartDateFlag()) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     public List<MutiResponseMessage> batchStop(List<ObjectId> taskIds, UserDetail user,
@@ -3477,7 +3490,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         try {
             if (settingsService.isCloud()) {
                 CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(taskDto, user, true);
-                if (calculationEngineVo.getRunningNum() >= calculationEngineVo.getTaskLimit()) {
+                TaskDto taskScheduleFlag = findByTaskId(taskDto.getId(), "planStartDateFlag", "crontabExpressionFlag");
+                int runningNum = calculationEngineVo.getRunningNum();
+                if (checkIsCronOrPlanTask(taskScheduleFlag)) {
+                    runningNum -= 1;
+                }
+                if (runningNum >= calculationEngineVo.getTaskLimit()) {
                     throw new BizException("Task.ScheduleLimit");
                 }
             }
