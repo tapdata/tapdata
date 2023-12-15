@@ -167,4 +167,9 @@ public interface TaskMergeProcessorExCode_16 {
 			describeCN = "批量更新缓存，操作只能是写入"
 	)
 	String INVALID_OPERATION = "16028";
+	@TapExCode(
+			describe = "The initialization of the associated key sharing relationship failed, and the merge configuration dictionary is empty, possibly because the calling order is wrong",
+			describeCN = "初始化关联键共用关系失败，合并配置字典为空，可能是因为调用顺序错误"
+	)
+	String INIT_SHARE_JOIN_KEYS_FAILED_TABLE_MERGE_MAP_EMPTY = "16029";
 }
