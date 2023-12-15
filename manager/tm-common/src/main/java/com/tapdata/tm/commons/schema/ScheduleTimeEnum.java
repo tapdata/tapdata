@@ -3,6 +3,7 @@ package com.tapdata.tm.commons.schema;
 import lombok.Getter;
 
 public enum ScheduleTimeEnum {
+    DEFAULT("default", -10),
     FALSE("false", 100),
     ZERO("00:00", 0),
     ONE("01:00", 1),
@@ -48,6 +49,6 @@ public enum ScheduleTimeEnum {
                 return value.getValue();
             }
         }
-        return ScheduleTimeEnum.TWO.getValue();
+        return ScheduleTimeEnum.DEFAULT.getValue();
     }
 }
