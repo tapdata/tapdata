@@ -3,8 +3,8 @@ package io.tapdata.error;
 import io.tapdata.exception.TapExClass;
 import io.tapdata.exception.TapExCode;
 
-@TapExClass(code = 29, module = "Find Schema", prefix = "FS")
-public interface FindSchemaExCode_29 {
+@TapExClass(code = 29, module = "Tap Table Map", prefix = "TTM")
+public interface TapTableMapExCode_29 {
     @TapExCode
     String UNKNOWN_ERROR = "29001";
     @TapExCode(

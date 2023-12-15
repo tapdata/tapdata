@@ -55,9 +55,9 @@ public class TapTableMapTest {
         }
         @Test
         void testLogListenerWithNull(){
-            doCallRealMethod().when(tapTableMap).logListener(null);
-            TapTableMap actual = tapTableMap.logListener(null);
-            TapLogger.LogListener logListener = (TapLogger.LogListener) ReflectionTestUtils.getField(actual, "logListener");
+            doCallRealMethod().when(tapTableMap).initLogListener();
+            tapTableMap.initLogListener();
+            TapLogger.LogListener logListener = (TapLogger.LogListener) ReflectionTestUtils.getField(tapTableMap, "logListener");
             logListenerInvoke(logListener);
             verify(logger, new Times(1)).debug("test debug");
             verify(logger, new Times(1)).info("test info");
@@ -133,6 +133,7 @@ public class TapTableMapTest {
         @DisplayName("preload has been finished")
         void test1(){
             tapTableMap = spy(new TapTableMap<>("111",1L,tableNameAndQualifiedNameMap));
+            tapTableMap.initLogListener();
             doReturn(mock(TapTable.class)).when(tapTableMap).findSchema(anyString());
             tapTableMap.preLoadSchema();
             verify(tapTableMap ,new Times(3)).getTapTable(anyString());
@@ -141,12 +142,13 @@ public class TapTableMapTest {
         @DisplayName("start thread to preload")
         void test2(){
             tapTableMap = spy(new TapTableMap<>("111",1L,tableNameAndQualifiedNameMap));
+            tapTableMap.initLogListener();
             Logger log = mock(Logger.class);
             ReflectionTestUtils.setField(tapTableMap,"logger",log);
             doReturn(1).when(tapTableMap).preLoadSchema(anyList(),anyInt(),any());
             doReturn(mock(TapTable.class)).when(tapTableMap).findSchema(anyString());
             tapTableMap.preLoadSchema();
-            verify(log).info("preload schema will fork continue");
+            verify(log).info("Node [111] start preload schema,table counts: 3");
         }
     }
     @Nested
@@ -155,6 +157,8 @@ public class TapTableMapTest {
         @Test
         @DisplayName("test preload schema without interceptor")
         void test1(){
+            doCallRealMethod().when(tapTableMap).initLogListener();
+            tapTableMap.initLogListener();
             doCallRealMethod().when(tapTableMap).preLoadSchema(tableNames, 0,null);
             int actual = tapTableMap.preLoadSchema(tableNames,0, null);
             assertEquals(3,actual);
@@ -162,6 +166,8 @@ public class TapTableMapTest {
         @Test
         @DisplayName("test preload schema with interceptor")
         void test2(){
+            doCallRealMethod().when(tapTableMap).initLogListener();
+            tapTableMap.initLogListener();
             Function<Long, Boolean> costInterceptor = mock(Function.class);
             doCallRealMethod().when(tapTableMap).preLoadSchema(tableNames,0, costInterceptor);
             int actual = tapTableMap.preLoadSchema(tableNames,0,costInterceptor);

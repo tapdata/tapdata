@@ -9,7 +9,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.Iterator;
-import io.tapdata.error.FindSchemaExCode_29;
+import io.tapdata.error.TapTableMapExCode_29;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -58,6 +58,34 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		this.tableNameAndQualifiedNameMap = new ConcurrentHashMap<>(tableNameAndQualifiedNameMap);
 	}
 
+	protected void initLogListener() {
+		logListener = new TapLogger.LogListener() {
+			@Override
+			public void debug(String log) {
+				logger.debug(log);
+			}
+			@Override
+			public void info(String log) {
+				logger.info(log);
+			}
+			@Override
+			public void warn(String log) {
+				logger.warn(log);
+			}
+			@Override
+			public void error(String log) {
+				logger.error(log);
+			}
+			@Override
+			public void fatal(String log) {
+				logger.fatal(log);
+			}
+			@Override
+			public void memory(String memoryLog) {
+			}
+		};
+	}
+
 	public static TapTableMap<String, TapTable> create(String nodeId) {
 		return create(null, nodeId);
 	}
@@ -78,10 +106,10 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		TapTableMap<String, TapTable> tapTableMap;
 		if (tableNameAndQualifiedNameMap.size() > 99) {
 			tapTableMap = new TapTableMapEhcache<>(prefix, nodeId, time, tableNameAndQualifiedNameMap);
-//			tapTableMap = new TapTableMapTapStorage<>(prefix, nodeId, time, tableNameAndQualifiedNameMap);
 		} else {
 			tapTableMap = new TapTableMap<>(nodeId, time, tableNameAndQualifiedNameMap);
 		}
+		tapTableMap.initLogListener();
 		return tapTableMap;
 	}
 
@@ -120,33 +148,6 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	}
 
 	public TapTableMap logListener(TapLogger.LogListener logListener){
-		if (null == logListener){
-			logListener = new TapLogger.LogListener() {
-				@Override
-				public void debug(String log) {
-					logger.debug(log);
-				}
-				@Override
-				public void info(String log) {
-					logger.info(log);
-				}
-				@Override
-				public void warn(String log) {
-					logger.warn(log);
-				}
-				@Override
-				public void error(String log) {
-					logger.error(log);
-				}
-				@Override
-				public void fatal(String log) {
-					logger.fatal(log);
-				}
-				@Override
-				public void memory(String memoryLog) {
-				}
-			};
-		}
 		this.logListener = logListener;
 		return this;
 	}
@@ -173,19 +174,21 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	private CompletableFuture<Void> future = null;
 	private ExecutorService executorService = null;
 	public void preLoadSchema() {
+		logListener.info("Node ["+this.nodeId+"]"  + " start preload schema,table counts: " + tableNameAndQualifiedNameMap.size());
 		List<String> tableNames = new ArrayList<>(tableNameAndQualifiedNameMap.keySet());
 		AtomicInteger index = new AtomicInteger(0);
 		AtomicLong allCostTs = new AtomicLong(0L);
 		int cursor = preLoadSchema(tableNames, index.get(), costTs -> allCostTs.addAndGet(costTs) > TimeUnit.SECONDS.toMillis(Long.parseLong(PRELOAD_SCHEMA_WAIT_TIME)));
 		index.set(cursor);
 		if (index.get() == size()) return;
-		logger.info("preload schema will fork continue");
+		logListener.info("Node ["+this.nodeId+"]"  + " preload schema will fork continue, remind counts:" + (tableNameAndQualifiedNameMap.size()-index.get()));
 		executorService = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
 		future = CompletableFuture.runAsync(() -> {
 			try {
-				Thread.currentThread().setName(this.nodeId + "-preload-schema-runner");
+				Thread.currentThread().setName("Node ["+this.nodeId+"]"  + "-preload-schema-runner");
 				preLoadSchema(tableNames, index.get(), null);
 			}catch (Exception e){
+				logListener.error("Node ["+this.nodeId+"]"  + " preload schema error");
 				logger.error("preload schema error",e.getStackTrace());
 			}finally {
 				executorService.shutdown();
@@ -209,6 +212,9 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 					break;
 				}
 			}
+		}
+		if (index == tableNames.size()){
+			logListener.info("Node ["+this.nodeId+"]" + " preload schema finished");
 		}
 		return index;
 	}
@@ -405,7 +411,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 				tapTable = clientMongoOperator.findOne(query, url, TapTable.class);
 			}
 		}catch (Exception e){
-			throw new TapCodeException(FindSchemaExCode_29.FIND_SCHEMA_FAILED, String.format("Table [%s] find schema failed", k), e);
+			throw new TapCodeException(TapTableMapExCode_29.FIND_SCHEMA_FAILED, String.format("Table [%s] find schema failed", k), e);
 		}
 		if (null == tapTable) {
 			throw new RuntimeException("Table name \"" + k + "\" not exists, qualified name: " + qualifiedName);
