@@ -74,4 +74,33 @@ class DataSourceServiceTest {
             dataSourceServiceUnderTest.updateConnectionOptions(id, options, user);
         }
     }
+
+    @Test
+    void testUpdateConnectionOptions_dbVersoinNull() {
+        final ObjectId id = new ObjectId(new GregorianCalendar(2020, Calendar.JANUARY, 1).getTime(), 0);
+        final ConnectionOptions options = new ConnectionOptions();
+        final UserDetail user = new UserDetail("userId", "customerId", "username", "password", "customerType",
+                "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
+        Criteria criteria = Criteria.where("_id").is(id);
+        Query query = new Query(criteria);
+        query.fields().include("_id", "database_type");
+        DataSourceEntity dataSourceEntity = new DataSourceEntity();
+        dataSourceEntity.setDb_version("test");
+        dataSourceEntity.setDatabase_type("mongo");
+        DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+        definitionDto.setCapabilities(Arrays.asList(new Capability("id")));
+        Update expect = new Update();
+        expect.set("capabilities",definitionDto.getCapabilities());
+        try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class)){
+            serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
+            when(dataSourceRepository.findOne(query,user)).thenReturn(Optional.of(dataSourceEntity));
+            when(dataSourceDefinitionService.getByDataSourceType(dataSourceEntity.getDatabase_type(),user)).thenReturn(definitionDto);
+            when(dataSourceRepository.updateFirstNotChangeLast(any(),any(),any())).thenAnswer(invocationOnMock -> {
+                Update result = invocationOnMock.getArgument(1, Update.class);
+                Assertions.assertNull(result.getUpdateObject().get("db_version"));
+                return null;
+            });
+            dataSourceServiceUnderTest.updateConnectionOptions(id, options, user);
+        }
+    }
 }
