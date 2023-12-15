@@ -5,6 +5,7 @@ import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -28,4 +29,5 @@ public class Table implements Serializable {
     private FileProperty fileProperty;
     private String oneone;
     private String userId;
+    private Map<String, Object> tableAttr;
 }

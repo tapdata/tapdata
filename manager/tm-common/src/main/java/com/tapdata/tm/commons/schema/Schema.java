@@ -127,4 +127,6 @@ public class Schema implements Cloneable, Serializable {
         return sourceNodeDatabaseType;
     }
 
+    private Map<String, Object> tableAttr;
+
 }
