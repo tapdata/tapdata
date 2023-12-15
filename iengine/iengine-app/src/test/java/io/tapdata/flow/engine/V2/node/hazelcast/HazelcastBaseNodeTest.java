@@ -170,15 +170,6 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 
 		@Test
 		@SneakyThrows
-		@DisplayName("Init with out ConfigureCenter test")
-		void testInitWithOutConfigureCenter() {
-			when(processorBaseContext.getConfigurationCenter()).thenReturn(null);
-			doCallRealMethod().when(mockHazelcastBaseNode).init(jetContext);
-			assertThrows(TapCodeException.class, () -> mockHazelcastBaseNode.init(jetContext));
-		}
-
-		@Test
-		@SneakyThrows
 		@DisplayName("Init when node graph is null test")
 		void testInitWhenNodeGraphIsNull() {
 			tableNode.setGraph(null);

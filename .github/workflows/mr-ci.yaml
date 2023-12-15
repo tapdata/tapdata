@@ -7,7 +7,14 @@ on:
   pull_request:
     branches: [ "main", "develop", "release-v*.*" ]
   schedule:
-    - cron: "30 22 * * *"
+    - cron: "* 5 * * *"
+  workflow_dispatch:
+    inputs:
+      mrci_run:
+        description: 'MRCI run or not'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
 
@@ -120,7 +127,7 @@ jobs:
           scanMetadataReportFile: tapdata/target/sonar/report-task.txt
 
   Build-And-Deploy:
-    if: ${{ github.event_name == 'schedule' }}
+    if: ${{ github.event_name == 'schedule' || inputs.mrci_run }}
     runs-on: ubuntu-latest
     needs:
       - Get-Stable-Branch
@@ -170,7 +177,7 @@ jobs:
 
   MRCI:
     runs-on: aws-ubuntu-20
-    if: ${{ github.event_name == 'schedule' }}
+    if: ${{ github.event_name == 'schedule' || inputs.mrci_run }}
     concurrency:
       group: staging_environment
     timeout-minutes: 120
@@ -205,9 +212,9 @@ jobs:
         run: |
           bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}"
       - name: Run - Local Service - Schedule
-        if: ${{ github.event_name == 'schedule' }}
+        if: ${{ github.event_name == 'schedule' || inputs.mrci_run }}
         run: |
-          bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}" --maxtimeinmins=120 --testplanid=724
+          bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}" --maxtimeinmins=120 --testplanid=724 --pollcount=12
       - name: Print Test Result
         if: ${{ always() }}
         run: |
@@ -223,7 +230,7 @@ jobs:
           echo "OK"
 
   CLOSE_ENV:
-    if: ${{ github.event_name == 'schedule' || failure() }}
+    if: ${{ github.event_name == 'schedule' || failure() || inputs.mrci_run }}
     runs-on: ubuntu-latest
     needs:
       - MRCI

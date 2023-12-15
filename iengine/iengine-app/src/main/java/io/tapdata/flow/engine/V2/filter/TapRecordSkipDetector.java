@@ -17,7 +17,8 @@ public class TapRecordSkipDetector implements TapSkipper {
 
     @Override
     public boolean skip(TapField field) {
-        return !(isomorphism && null != field && null != field.getCreateSource() && Field.SOURCE_MANUAL.equalsIgnoreCase(field.getCreateSource()));
+        if (!isomorphism) return false;
+        return !(null != field && null != field.getCreateSource() && Field.SOURCE_MANUAL.equalsIgnoreCase(field.getCreateSource()));
     }
 
     protected void setIsomorphism(boolean isomorphism) {
