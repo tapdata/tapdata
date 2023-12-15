@@ -45,7 +45,6 @@ public class ScheduleService {
         if (taskService.checkIsCronOrPlanTask(taskDto)) {
             runningNum -= 1;
         }
-        log.info("taskId {} name {} running num is {}, taskLimit is {} ,planFlag {} ,cronFlag {} ",taskDto.getId(),taskDto.getName(),runningNum,calculationEngineVo.getTaskLimit(),taskDto.isPlanStartDateFlag(),taskDto.getCrontabExpressionFlag());
         if (StringUtils.isNotBlank(taskDto.getAgentId()) &&  runningNum > calculationEngineVo.getTaskLimit()) {
             // 调度失败
             taskDto.setCrontabScheduleMsg("Task.ScheduleLimit");
