@@ -102,6 +102,11 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
         }
 
         // check plan task and cron task
+        checkPlanTaskAndCronTask(taskDto, userDetail, locale, taskId, result);
+        return result;
+    }
+
+    protected void checkPlanTaskAndCronTask(TaskDto taskDto, UserDetail userDetail, Locale locale, ObjectId taskId, List<TaskDagCheckLog> result) {
         if (taskService.checkIsCronOrPlanTask(taskDto)) {
             CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, userDetail, "task", taskDto.getName());
             int runningNum = calculationEngineVo.getRunningNum();
@@ -118,7 +123,5 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
             }
 
         }
-
-        return result;
     }
 }
