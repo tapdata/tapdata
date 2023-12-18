@@ -4423,6 +4423,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return (int) workNum;
     }
 
+    public int runningTaskNum(UserDetail userDetail) {
+        long workNum = count(Query.query(Criteria.where("is_deleted").ne(true)
+                .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
+                        Criteria.where("planStartDateFlag").is(true),
+                        Criteria.where("crontabExpressionFlag").is(true)
+                )), userDetail);
+        return (int) workNum;
+    }
+
     @Override
     public TaskEntity convertToEntity(Class entityClass, BaseDto dto, String... ignoreProperties) {
         if (entityClass == null || dto == null)

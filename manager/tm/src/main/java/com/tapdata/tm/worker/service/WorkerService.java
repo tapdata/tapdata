@@ -482,7 +482,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 scheduleTaskLimit.set(taskLimit);
             }
         }
-
+        int totalRunningNum = taskService.runningTaskNum(userDetail);
         filter = where.toString();
         String processId = scheduleAgentId.get();
 
@@ -494,9 +494,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         calculationEngineVo.setThreadLog(threadLog);
         calculationEngineVo.setAvailable(availableNum);
         calculationEngineVo.setManually(false);
-        calculationEngineVo.setTaskLimit(scheduleTaskLimit.get());
-        calculationEngineVo.setRunningNum(scheduleRunNum.get());
         int totalTask = totalTaskLimit.get() < 0 ? Integer.MAX_VALUE : totalTaskLimit.get();
+        calculationEngineVo.setTaskLimit(totalTask);
+        calculationEngineVo.setRunningNum(totalRunningNum);
         calculationEngineVo.setTotalLimit(totalTask);
         return calculationEngineVo;
     }
