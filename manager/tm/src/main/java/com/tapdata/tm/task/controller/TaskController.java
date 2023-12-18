@@ -1356,7 +1356,7 @@ public class TaskController extends BaseController {
 
     @GetMapping("checkCloudTaskLimit/{taskId}")
     public ResponseMessage<Boolean> checkCloudTaskLimit(@PathVariable(value = "taskId") String taskId){
-        return success(taskService.checkCloudTaskLimit(MongoUtils.toObjectId(taskId),getLoginUser()));
+        return success(taskService.checkCloudTaskLimit(MongoUtils.toObjectId(taskId),getLoginUser(),true));
     }
 
 

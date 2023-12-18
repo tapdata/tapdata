@@ -1084,6 +1084,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         //taskDto.setTemp(null);
 
+        if(!checkCloudTaskLimit(id,user,false)){
+            taskDto.setCrontabExpressionFlag(false);
+            taskDto.setCrontabExpression(null);
+        }
+
         //创建新任务， 直接调用事务不会生效
         TaskService taskService = SpringContextHelper.getBean(TaskService.class);
 
@@ -4462,12 +4467,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return false;
         }
     }
-    public boolean checkCloudTaskLimit(ObjectId taskId,UserDetail user){
+    public boolean checkCloudTaskLimit(ObjectId taskId,UserDetail user,boolean checkCurrentTask){
         if (settingsService.isCloud()) {
             TaskDto task = findByTaskId(taskId);
             CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(task, user, true);
             int runningNum = calculationEngineVo.getRunningNum();
-            if (checkIsCronOrPlanTask(task)) {
+            if (checkCurrentTask && checkIsCronOrPlanTask(task)) {
                 runningNum -= 1;
             }
             log.info("taskId {} name {} running num is {}, taskLimit is {} ,planFlag {} ,cronFlag {} ",task.getId(),task.getName(),runningNum,calculationEngineVo.getTaskLimit(),task.isPlanStartDateFlag(),task.getCrontabExpressionFlag());
