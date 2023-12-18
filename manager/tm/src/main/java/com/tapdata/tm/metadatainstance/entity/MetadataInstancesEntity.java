@@ -118,4 +118,7 @@ public class MetadataInstancesEntity extends BaseEntity {
     private boolean hasUpdateField;
 
     private String description;
+
+    @Field("tableAttr")
+    private Map<String, Object> tableAttr;
 }

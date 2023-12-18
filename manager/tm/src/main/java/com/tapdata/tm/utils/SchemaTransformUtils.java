@@ -78,6 +78,7 @@ public class SchemaTransformUtils {
             newObj.setPartitionSet(table.getPartitionSet());
             //TODO  fileMeta
             newObj.setFileProperty(table.getFileProperty());//TODO JAVA TYPE
+            newObj.setTableAttr(table.getTableAttr());
             newSchema.add(newObj);
         }
 
@@ -111,6 +112,7 @@ public class SchemaTransformUtils {
             oldTable.setTableId(newTable.getId().toHexString());
             oldTable.setPartitionSet(newTable.getPartitionSet());
             oldTable.setCharset(newTable.getCharset());
+            oldTable.setTableAttr(newTable.getTableAttr());
 
             List<Field> fields = newTable.getFields();
             List<Field> oldFields = new ArrayList<>();
@@ -168,6 +170,7 @@ public class SchemaTransformUtils {
                     keyTable.setId(table.getTableName());
                     keyTable.setRel(table.getOneone());
                     keyTable.setFields(new ArrayList<>());
+                    keyTable.setTableAttr(table.getTableAttr());
                     relation.setForeignKeyTable(keyTable);
                 }
 

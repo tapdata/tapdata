@@ -41,4 +41,8 @@ public class Table {
     private String oneone;
     private String userId;
     private String charset;
+
+    @JsonProperty("tableAttr")
+    @Field("tableAttr")
+    private Map<String, Object> tableAttr;
 }

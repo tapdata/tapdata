@@ -1849,6 +1849,9 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
             update.set("multiConnectionInstanceId", options.getInstanceUniqueId());
             update.set("namespace", options.getNamespaces());
         }
+        if (null != options.getDbVersion()){
+            update.set("db_version",options.getDbVersion());
+        }
 
         updateByIdNotChangeLast(id, update, user);
 
