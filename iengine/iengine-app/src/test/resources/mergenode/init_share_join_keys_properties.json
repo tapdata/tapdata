@@ -1,0 +1,60 @@
+[
+  {
+    "mergeType": "updateOrInsert",
+    "tableName": "company",
+    "id": "1",
+    "children": [
+      {
+        "mergeType": "updateWrite",
+        "joinKeys": [
+          {
+            "source": "city_id",
+            "target": "city_id"
+          },
+          {
+            "source": "name",
+            "target": "name"
+          },
+          {
+            "source": "xxx_id",
+            "target": "xxx.xxx_id"
+          }
+        ],
+        "tableName": "city",
+        "targetPath": "",
+        "id": "2",
+        "children": [],
+        "isArray": false
+      },
+      {
+        "mergeType": "updateWrite",
+        "joinKeys": [
+          {
+            "source": "txn_id",
+            "target": "txn_id"
+          }
+        ],
+        "tableName": "txn",
+        "targetPath": "txn",
+        "id": "3",
+        "children": [],
+        "isArray": false
+      },
+      {
+        "mergeType": "updateWrite",
+        "joinKeys": [
+          {
+            "source": "xxx_id",
+            "target": "xxx_id"
+          }
+        ],
+        "tableName": "xxx",
+        "targetPath": "xxx",
+        "id": "4",
+        "children": [],
+        "isArray": false
+      }
+    ],
+    "isArray": false
+  }
+]

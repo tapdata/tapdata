@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import base.hazelcast.BaseHazelcastNodeTest;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.entity.AppType;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.dag.Node;
@@ -26,6 +27,7 @@ import org.mockito.internal.verification.Times;
 import org.mockito.stubbing.Answer;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.File;
 import java.time.Instant;
 import java.util.*;
 
@@ -41,11 +43,12 @@ import static org.mockito.Mockito.*;
 public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 
 	HazelcastMergeNode hazelcastMergeNode;
+	MergeTableNode mergeTableNode;
 
 	@BeforeEach
 	void beforeEach() {
 		super.allSetup();
-		MergeTableNode mergeTableNode = new MergeTableNode();
+		mergeTableNode = new MergeTableNode();
 		mergeTableNode.setMergeProperties(new ArrayList<>());
 		when(dataProcessorContext.getNode()).thenReturn((Node) mergeTableNode);
 		hazelcastMergeNode = new HazelcastMergeNode(dataProcessorContext);
@@ -55,8 +58,14 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 	@Nested
 	@DisplayName("DoInit method test")
 	class DoInitTest {
+		@BeforeEach
+		void setup() {
+			hazelcastMergeNode = spy(hazelcastMergeNode);
+			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).initShareJoinKeys();
+		}
+
 		@Test
-		@DisplayName("Init external storage when cloud app type")
+		@DisplayName("Init external storage when app type is 'DFS'")
 		void testDoInitExternalStorageCloudAppType() {
 			AppType appType = AppType.DFS;
 			ExternalStorageDto externalStorageDto = mock(ExternalStorageDto.class);
@@ -87,7 +96,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
-		@DisplayName("Init external storage when daas app type")
+		@DisplayName("Init external storage when app type is 'DAAS'")
 		void testDoInitExternalStorageDaasAppType() {
 			AppType appType = AppType.DAAS;
 			ExternalStorageDto externalStorageDto = mock(ExternalStorageDto.class);
@@ -297,4 +306,94 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			assertInstanceOf(Date.class, after.get("create_time"));
 		}
 	}
+
+	@Nested
+	@DisplayName("initShareJoinKeys Method Test")
+	class initShareJoinKeysTest {
+		@Test
+		@DisplayName("main process test")
+		void mainProcessTest() {
+			// Mock merge table properties
+			List<MergeTableProperties> mergeTableProperties = json2Pojo("mergenode" + File.separator + "init_share_join_keys_properties.json", new TypeReference<List<MergeTableProperties>>() {
+			});
+			mergeTableNode.setMergeProperties(mergeTableProperties);
+
+			// call test method
+			hazelcastMergeNode.initMergeTableProperties(null);
+			hazelcastMergeNode.initShareJoinKeys();
+
+			// assert
+			Object actualObj = ReflectionTestUtils.getField(hazelcastMergeNode, "shareJoinKeysMap");
+			assertNotNull(actualObj);
+			assertInstanceOf(HashMap.class, actualObj);
+			Map actualMap = (HashMap) actualObj;
+			assertEquals(2, actualMap.size());
+			assertTrue(actualMap.containsKey("2"));
+			assertTrue(actualMap.containsKey("4"));
+			Object actualValue = actualMap.get("2");
+			assertNotNull(actualValue);
+			assertInstanceOf(HashSet.class, actualValue);
+			assertEquals(3, ((HashSet) actualValue).size());
+			assertTrue(((HashSet) actualValue).contains("city_id"));
+			assertTrue(((HashSet) actualValue).contains("name"));
+			assertTrue(((HashSet) actualValue).contains("xxx_id"));
+			actualValue = actualMap.get("4");
+			assertNotNull(actualValue);
+			assertInstanceOf(HashSet.class, actualValue);
+			assertEquals(1, ((HashSet) actualValue).size());
+			assertTrue(((HashSet) actualValue).contains("xxx.xxx_id"));
+		}
+	}
+
+	@Nested
+	@DisplayName("joinKeyExists method test")
+	class joinKeyExistsTest {
+		@BeforeEach
+		void beforeEach() {
+			List<MergeTableProperties> mergeTableProperties = json2Pojo("mergenode" + File.separator + "init_share_join_keys_properties.json", new TypeReference<List<MergeTableProperties>>() {
+			});
+			mergeTableNode.setMergeProperties(mergeTableProperties);
+			hazelcastMergeNode.initMergeTableProperties(null);
+		}
+
+		@Test
+		@DisplayName("main process test")
+		void mainProcessTest() {
+			boolean actual = hazelcastMergeNode.joinKeyExists("city_id", HazelcastMergeNode.JoinConditionType.TARGET);
+			assertTrue(actual);
+		}
+
+		@Test
+		@DisplayName("join condition type is source")
+		void joinConditionTypeIsSource() {
+			boolean actual = hazelcastMergeNode.joinKeyExists("xxx.xxx_id", HazelcastMergeNode.JoinConditionType.SOURCE);
+			assertTrue(actual);
+		}
+
+		@Test
+		@DisplayName("first parameter[joinKey] is null or empty")
+		void firstParameterJoinKeyIsNullOrEmpty() {
+			boolean actual = hazelcastMergeNode.joinKeyExists(null, HazelcastMergeNode.JoinConditionType.TARGET);
+			assertFalse(actual);
+			actual = hazelcastMergeNode.joinKeyExists("", HazelcastMergeNode.JoinConditionType.TARGET);
+			assertFalse(actual);
+		}
+
+		@Test
+		@DisplayName("second parameter[joinConditionType] is null")
+		void secondParameterJoinConditionTypeIsNull() {
+			boolean actual = hazelcastMergeNode.joinKeyExists("city_id", null);
+			assertFalse(actual);
+		}
+
+		@Test
+		@DisplayName("mergeTablePropertiesMap is null")
+		void mergeTablePropertiesMapIsNull() {
+			ReflectionTestUtils.setField(hazelcastMergeNode, "mergeTablePropertiesMap", null);
+			boolean actual = hazelcastMergeNode.joinKeyExists("city_id", HazelcastMergeNode.JoinConditionType.TARGET);
+			assertFalse(actual);
+		}
+	}
+
+
 }

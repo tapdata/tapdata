@@ -103,6 +103,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	private BatchProcessMetrics batchProcessMetrics;
 	private long lastBatchProcessFinishMS;
 	MapIteratorEx mapIterator;
+	private Map<String, Set<String>> shareJoinKeysMap;
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -159,6 +160,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		initSourceConnectionMap(null);
 		initSourcePkOrUniqueFieldMap(null);
 		initSourceNodeLevelMap(null, 1);
+		initShareJoinKeys();
 		this.mergeMode = ((MergeTableNode) getNode()).getMergeMode();
 		this.firstLevelMergeNodeIds = new HashSet<>();
 		List<MergeTableProperties> mergeProperties = ((MergeTableNode) getNode()).getMergeProperties();
@@ -217,6 +219,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		initSourceConnectionMap(null);
 		initSourcePkOrUniqueFieldMap(null);
 		initSourceNodeLevelMap(null, 1);
+		initShareJoinKeys();
 	}
 
 	@Override
@@ -351,6 +354,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			MergeInfo mergeInfo = new MergeInfo();
 			mergeInfo.setCurrentProperty(preNodeIdPdkMergeTablePropertieMap.get(preNodeId));
 			mergeInfo.setLevel(this.sourceNodeLevelMap.get(preNodeId));
+			mergeInfo.setSharedJoinKeys(this.shareJoinKeysMap.get(preNodeId));
 			tapdataEvent.getTapEvent().addInfo(MergeInfo.EVENT_INFO_KEY, mergeInfo);
 			return mergeInfo;
 		} else {
@@ -368,7 +372,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		});
 	}
 
-	private void initMergeTableProperties(List<MergeTableProperties> mergeTableProperties) {
+	protected void initMergeTableProperties(List<MergeTableProperties> mergeTableProperties) {
 		if (null == mergeTableProperties) {
 			this.mergeTablePropertiesMap = new HashMap<>();
 			Node<?> node = processorBaseContext.getNode();
@@ -519,6 +523,64 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			this.sourcePkOrUniqueFieldMap.put(sourceNodeId, fieldNames);
 			initSourcePkOrUniqueFieldMap(mergeProperty.getChildren());
 		}
+	}
+
+	protected void initShareJoinKeys() {
+		this.shareJoinKeysMap = new HashMap<>();
+		if (MapUtils.isEmpty(this.mergeTablePropertiesMap)) {
+			throw new TapCodeException(TaskMergeProcessorExCode_16.INIT_SHARE_JOIN_KEYS_FAILED_TABLE_MERGE_MAP_EMPTY);
+		}
+		for (Map.Entry<String, MergeTableProperties> entry : this.mergeTablePropertiesMap.entrySet()) {
+			String id = entry.getKey();
+			MergeTableProperties mergeTableProperties = entry.getValue();
+			if (mergeTableProperties.getMergeType() != MergeTableProperties.MergeType.updateWrite) {
+				continue;
+			}
+			if (mergeTableProperties.getIsArray()) {
+				continue;
+			}
+			List<Map<String, String>> joinKeys = mergeTableProperties.getJoinKeys();
+			String targetPath = mergeTableProperties.getTargetPath();
+			for (Map<String, String> joinKey : joinKeys) {
+				String sourceJoinKey = joinKey.get(JoinConditionType.SOURCE.getType());
+				if (StringUtils.isNotBlank(targetPath)) {
+					sourceJoinKey = String.join(".", targetPath, sourceJoinKey);
+				}
+				if (joinKeyExists(sourceJoinKey, JoinConditionType.TARGET)) {
+					this.shareJoinKeysMap.putIfAbsent(id, new HashSet<>());
+					this.shareJoinKeysMap.get(id).add(sourceJoinKey);
+				}
+			}
+		}
+	}
+
+	protected boolean joinKeyExists(String joinKey, JoinConditionType joinConditionType) {
+		if (StringUtils.isBlank(joinKey)) {
+			return false;
+		}
+		if (null == joinConditionType) {
+			return false;
+		}
+		if (MapUtils.isEmpty(this.mergeTablePropertiesMap)) {
+			return false;
+		}
+		for (MergeTableProperties mergeTableProperties : this.mergeTablePropertiesMap.values()) {
+			String targetPath = mergeTableProperties.getTargetPath();
+			List<Map<String, String>> joinKeys = mergeTableProperties.getJoinKeys();
+			if (CollectionUtils.isEmpty(joinKeys)) {
+				continue;
+			}
+			for (Map<String, String> key : joinKeys) {
+				String s = key.get(joinConditionType.getType());
+				if (JoinConditionType.SOURCE == joinConditionType && StringUtils.isNotBlank(targetPath)) {
+					s = String.join(".", targetPath, s);
+				}
+				if (joinKey.equals(s)) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	private static String getCacheName(String nodeId, String tableName) {
@@ -1026,7 +1088,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			if (MapUtils.isEmpty(findData)) {
 				continue;
 			}
-			io.tapdata.pdk.apis.entity.merge.MergeTableProperties pdkMergeTableProperty = copyMergeTableProperty(childMergeProperty);
+			io.tapdata.pdk.apis.entity.merge.MergeTableProperties copyMergeTableProperty = copyMergeTableProperty(childMergeProperty);
 			if (MergeTableProperties.MergeType.updateWrite == mergeType) {
 				Set<String> keySet = findData.keySet();
 				keySet.remove("_ts");
@@ -1040,7 +1102,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				String firstKey = keySet.iterator().next();
 				Map<String, Object> lookupMap = (Map<String, Object>) findData.get(firstKey);
 				MergeLookupResult mergeLookupResult = new MergeLookupResult();
-				mergeLookupResult.setProperty(pdkMergeTableProperty);
+				mergeLookupResult.setProperty(copyMergeTableProperty);
 				mergeLookupResult.setData(lookupMap);
 				mergeLookupResult.setMergeLookupResults(recursiveLookup(childMergeProperty, lookupMap));
 				mergeLookupResults.add(mergeLookupResult);
@@ -1049,7 +1111,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				for (Object arrayData : lookupArray) {
 					if (!(arrayData instanceof Map)) continue;
 					MergeLookupResult mergeLookupResult = new MergeLookupResult();
-					mergeLookupResult.setProperty(pdkMergeTableProperty);
+					mergeLookupResult.setProperty(copyMergeTableProperty);
 					mergeLookupResult.setData((Map<String, Object>) arrayData);
 					mergeLookupResult.setMergeLookupResults(recursiveLookup(childMergeProperty, (Map<String, Object>) arrayData));
 					mergeLookupResults.add(mergeLookupResult);
@@ -1065,10 +1127,11 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		dataMap.kv("lookup thread pool size", lookupThreadNum);
 		dataMap.kv("lookup runnable queue", null == lookupQueue ? 0 : lookupQueue.size());
 		dataMap.kv("last batch metrics", batchProcessMetrics.toString());
+		dataMap.kv("share join key", shareJoinKeysMap);
 		return dataMap;
 	}
 
-	private enum JoinConditionType {
+	protected enum JoinConditionType {
 		SOURCE("source"), TARGET("target"),
 		;
 
