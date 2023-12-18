@@ -7,6 +7,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
@@ -14,16 +15,19 @@ import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.jsonwebtoken.lang.Assert;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -163,39 +167,49 @@ public class TaskServiceTest {
             taskEntity.setName("test");
             taskEntity.setId(MongoUtils.toObjectId("6324562fc5c0a4052d821d90"));
             taskEntities.add(taskEntity);
-            taskScheduleService=mock(TaskScheduleService.class);
+            taskScheduleService = mock(TaskScheduleService.class);
             taskService.setTaskScheduleService(taskScheduleService);
             when(repository.findAll(query)).thenReturn(taskEntities);
         }
 
         @Test
         void testExceedBatchStart() {
-            List<TaskDto> taskDtos = CglibUtil.copyList(taskEntities, TaskDto::new);
-            CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
-            calculationEngineVo.setTaskLimit(2);
-            calculationEngineVo.setRunningNum(2);
-            calculationEngineVo.setTaskLimit(2);
-            when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
-            MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
-            taskService.setMonitoringLogsService(monitoringLogsService);
-            List<MutiResponseMessage> mutiResponseMessages = taskService.batchStart(ids, user, null, null);
-            assertEquals("Task.ScheduleLimit", mutiResponseMessages.get(0).getCode());
+            try (MockedStatic<DataPermissionHelper> dataPermissionHelperMockedStatic = mockStatic(DataPermissionHelper.class)) {
+                Query query = new Query(Criteria.where("_id").is(taskEntity.getId()));
+                query.fields().include("planStartDateFlag", "crontabExpressionFlag");
+                when(repository.findOne(query)).thenReturn(Optional.ofNullable(taskEntity));
+                List<TaskDto> taskDtos = CglibUtil.copyList(taskEntities, TaskDto::new);
+                CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
+                calculationEngineVo.setTaskLimit(2);
+                calculationEngineVo.setRunningNum(2);
+                calculationEngineVo.setTaskLimit(2);
+                when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
+                MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
+                taskService.setMonitoringLogsService(monitoringLogsService);
+                List<MutiResponseMessage> mutiResponseMessages = taskService.batchStart(ids, user, null, null);
+                assertEquals("Task.ScheduleLimit", mutiResponseMessages.get(0).getCode());
+            }
         }
 
         @Test
         void testBatchStart() {
-            taskEntity.setCrontabExpressionFlag(true);
-            List<TaskDto> taskDtos = CglibUtil.copyList(taskEntities, TaskDto::new);
-            CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
-            calculationEngineVo.setTaskLimit(2);
-            calculationEngineVo.setRunningNum(2);
-            calculationEngineVo.setTaskLimit(2);
-            calculationEngineVo.setTotalLimit(2);
-            when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
-            MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
-            taskService.setMonitoringLogsService(monitoringLogsService);
-            taskService.batchStart(ids, user, null, null);
-            verify(taskService, times(1)).start(taskDtos.get(0), user, "11");
+            try (MockedStatic<DataPermissionHelper> dataPermissionHelperMockedStatic = mockStatic(DataPermissionHelper.class)) {
+                taskEntity.setCrontabExpressionFlag(true);
+                Query query = new Query(Criteria.where("_id").is(taskEntity.getId()));
+                query.fields().include("planStartDateFlag", "crontabExpressionFlag");
+                when(repository.findOne(query)).thenReturn(Optional.ofNullable(taskEntity));
+                List<TaskDto> taskDtos = CglibUtil.copyList(taskEntities, TaskDto::new);
+                CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
+                calculationEngineVo.setTaskLimit(2);
+                calculationEngineVo.setRunningNum(2);
+                calculationEngineVo.setTaskLimit(2);
+                calculationEngineVo.setTotalLimit(2);
+                when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
+                MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
+                taskService.setMonitoringLogsService(monitoringLogsService);
+                taskService.batchStart(ids, user, null, null);
+                verify(taskService, times(1)).start(taskDtos.get(0), user, "11");
+            }
         }
     }
 
@@ -266,6 +280,43 @@ public class TaskServiceTest {
                 StateMachineService stateMachineService = mock(StateMachineService.class);
                 taskService.setStateMachineService(stateMachineService);
                 assertThrows(BizException.class, () -> taskService.run(taskDto, user));
+            }
+        }
+    }
+    @Nested
+    class TestSubCronOrPlanNum{
+        TaskRepository taskRepository;
+        TaskEntity taskEntity;
+        TaskDto taskDto;
+        @BeforeEach
+        void beforeEach(){
+            taskEntity=new TaskEntity();
+            taskEntity.setId(MongoUtils.toObjectId("6324562fc5c0a4052d821d90"));
+
+            taskDto=new TaskDto();
+            BeanUtils.copyProperties(taskEntity,taskDto);
+            taskRepository = mock(TaskRepository.class);
+            taskService=spy(new TaskService(taskRepository));
+            Query query = new Query(Criteria.where("_id").is(taskDto.getId()));
+            query.fields().include("planStartDateFlag", "crontabExpressionFlag");
+            when(taskRepository.findOne(query)).thenReturn(Optional.ofNullable(taskEntity));
+        }
+        @DisplayName("test cron task sub 1")
+        @Test
+        void testSubCronOrPlanNum(){
+            taskEntity.setCrontabExpressionFlag(true);
+            try (MockedStatic<DataPermissionHelper> dataPermissionHelperMockedStatic = mockStatic(DataPermissionHelper.class)) {
+                int result = taskService.subCronOrPlanNum(taskDto, 3);
+                assertEquals(2,result);
+            }
+        }
+        @DisplayName("test not cron task don't sub 1")
+        @Test
+        void testNoCronOrPlanTask(){
+            taskEntity.setCrontabExpressionFlag(null);
+            try (MockedStatic<DataPermissionHelper> dataPermissionHelperMockedStatic = mockStatic(DataPermissionHelper.class)) {
+                int result = taskService.subCronOrPlanNum(taskDto, 3);
+                assertEquals(3,result);
             }
         }
     }

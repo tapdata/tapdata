@@ -3,12 +3,14 @@ package com.tapdata.tm.schedule.service;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -63,7 +65,7 @@ public class ScheduleServiceTest {
             TaskService taskService = mock(TaskService.class);
             ScheduleService scheduleService=new ScheduleService();
             TaskDto taskDto=new TaskDto();
-            try(MockedStatic<SpringContextHelper> springContextHelperMockedStatic = mockStatic(SpringContextHelper.class);){
+            try(MockedStatic<SpringContextHelper> springContextHelperMockedStatic = mockStatic(SpringContextHelper.class)){
                 taskDto.setUserId("6393f084c162f518b18165c3");
                 taskDto.setAgentId("632327dd287a904778c0a13c-1gd0l7dvk");
                 taskDto.setName("test");
@@ -72,6 +74,7 @@ public class ScheduleServiceTest {
                 springContextHelperMockedStatic.when(()->SpringContextHelper.getBean(eq(TaskService.class))).thenReturn(taskService);
                 when(userService.loadUserById(MongoUtils.toObjectId("6393f084c162f518b18165c3"))).thenReturn(user);
                 when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenReturn(calculationEngineVo);
+                when(taskService.subCronOrPlanNum(taskDto,3)).thenReturn(3);
                 scheduleService.executeTask(taskDto);
                 assertEquals("Task.ScheduleLimit",taskDto.getCrontabScheduleMsg());
             }

@@ -1278,10 +1278,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             try {
                 if (settingsService.isCloud()) {
                     CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(task, user, true);
-                    int runningNum = calculationEngineVo.getRunningNum();
-                    if (checkIsCronOrPlanTask(task)) {
-                        runningNum -= 1;
-                    }
+                    int runningNum = subCronOrPlanNum(task, calculationEngineVo.getRunningNum());
                     if (runningNum >= calculationEngineVo.getTaskLimit() ||
                             index > calculationEngineVo.getTotalLimit()) {
                         throw new BizException("Task.ScheduleLimit");
@@ -1308,6 +1305,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             responseMessages.add(mutiResponseMessage);
         }
         return responseMessages;
+    }
+
+    public int subCronOrPlanNum(TaskDto task, int runningNum) {
+        TaskDto taskScheduleFlag = findByTaskId(task.getId(), "planStartDateFlag", "crontabExpressionFlag");
+        if (checkIsCronOrPlanTask(taskScheduleFlag) && runningNum > 0) {
+            runningNum -= 1;
+        }
+        return runningNum;
     }
 
     public boolean checkIsCronOrPlanTask(TaskDto task) {
@@ -3490,11 +3495,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         try {
             if (settingsService.isCloud()) {
                 CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(taskDto, user, true);
-                TaskDto taskScheduleFlag = findByTaskId(taskDto.getId(), "planStartDateFlag", "crontabExpressionFlag");
-                int runningNum = calculationEngineVo.getRunningNum();
-                if (checkIsCronOrPlanTask(taskScheduleFlag)) {
-                    runningNum -= 1;
-                }
+                int runningNum = subCronOrPlanNum(taskDto, calculationEngineVo.getRunningNum());
                 if (runningNum >= calculationEngineVo.getTaskLimit()) {
                     throw new BizException("Task.ScheduleLimit");
                 }

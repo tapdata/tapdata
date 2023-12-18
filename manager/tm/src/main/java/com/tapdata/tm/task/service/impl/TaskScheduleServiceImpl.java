@@ -170,15 +170,11 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             }
         }
 
-        TaskDto taskScheduleFlag = taskService.findByTaskId(taskDto.getId(), "planStartDateFlag", "crontabExpressionFlag");
         if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
                 && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
-            int runningNum = taskService.runningTaskNum(taskDto.getAgentId(), user);
             WorkerDto workerDto = workerService.findByProcessId(taskDto.getAgentId(), user, "user_id", "agentTags", "process_id");
             int limitTaskNum = workerService.getLimitTaskNum(workerDto, user);
-            if (taskService.checkIsCronOrPlanTask(taskScheduleFlag)) {
-                runningNum -= 1;
-            }
+            int runningNum = taskService.subCronOrPlanNum(taskDto, taskService.runningTaskNum(taskDto.getAgentId(), user));
             if (runningNum > limitTaskNum && !limitNum) {
                 StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
                 if (stateMachineResult.isOk()) {
@@ -188,10 +184,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         }
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
-        int runningNum = calculationEngineVo.getRunningNum();
-        if (taskService.checkIsCronOrPlanTask(taskScheduleFlag)){
-            runningNum -= 1;
-        }
+        int runningNum = taskService.subCronOrPlanNum(taskDto, calculationEngineVo.getRunningNum());
         if (StringUtils.isNotBlank(taskDto.getAgentId()) && runningNum > calculationEngineVo.getTaskLimit()
                 && !limitNum) {
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
