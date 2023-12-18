@@ -1353,4 +1353,11 @@ public class TaskController extends BaseController {
         Where where = parseWhere(whereJson);
         return success(taskService.findByConId(sourceConnectionId, targetConnectionId, syncType, status, where, getLoginUser()));
     }
+
+    @GetMapping("checkCloudTaskLimit/{taskId}")
+    public ResponseMessage<Boolean> checkCloudTaskLimit(@PathVariable(value = "taskId") String taskId){
+        return success(taskService.checkCloudTaskLimit(MongoUtils.toObjectId(taskId),getLoginUser()));
+    }
+
+
 }

@@ -4454,4 +4454,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<TaskDto> runningTasks = findAll(query);
         return runningTasks.size();
     }
+
+    public boolean checkCloudTaskLimit(ObjectId taskId,UserDetail user){
+        if (settingsService.isCloud()) {
+            TaskDto task = findByTaskId(taskId);
+            CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(task, user, true);
+            int runningNum = calculationEngineVo.getRunningNum();
+            log.info("taskId {} name {} running num is {}, taskLimit is {} ,planFlag {} ,cronFlag {} ",task.getId(),task.getName(),runningNum,calculationEngineVo.getTaskLimit(),task.isPlanStartDateFlag(),task.getCrontabExpressionFlag());
+            if (runningNum >= calculationEngineVo.getTaskLimit()) {
+                return false;
+            }
+        }
+        return true;
+    }
 }
