@@ -65,15 +65,14 @@ public class TaskScheduleServiceImplTest {
             workerDto.setUserId(user.getUserId());
             when(taskService.findByTaskId(taskDto.getId(), "user_id")).thenReturn(taskDto);
             when(userService.loadUserById(new ObjectId(taskDto.getUserId()))).thenReturn(user);
-            when(taskService.findByTaskId(taskDto.getId(), "planStartDateFlag", "crontabExpressionFlag")).thenReturn(taskDto);
             when(workerService.findByProcessId(processId, user, "user_id", "agentTags", "process_id")).thenReturn(workerDto);
-            when(taskService.checkIsCronOrPlanTask(taskDto)).thenReturn(true);
             when(workerService.getLimitTaskNum(workerDto, user)).thenReturn(2);
         }
 
         @Test
         void testSpecifiedByTheUserExceedCloudTaskLimitNum() {
             when(taskService.runningTaskNum(processId, user)).thenReturn(4);
+            when(taskService.subCronOrPlanNum(taskDto,4)).thenReturn(4);
             when(stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user)).thenReturn(StateMachineResult.ok());
             assertThrows(BizException.class, () -> taskScheduleService.cloudTaskLimitNum(taskDto, user, false));
         }
@@ -81,6 +80,7 @@ public class TaskScheduleServiceImplTest {
         @Test
         void testSpecifiedByTheUserNoExceedCloudTaskLimitNum() {
             when(taskService.runningTaskNum(processId, user)).thenReturn(3);
+            when(taskService.subCronOrPlanNum(taskDto,3)).thenReturn(2);
             when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenReturn(new CalculationEngineVo());
             taskScheduleService.cloudTaskLimitNum(taskDto, user, false);
             verify(workerService, times(1)).scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
@@ -90,8 +90,11 @@ public class TaskScheduleServiceImplTest {
         void testNoExceedCloudTaskLimitNum() {
             CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
             calculationEngineVo.setRunningNum(1);
+            calculationEngineVo.setTaskLimit(2);
             when(taskService.runningTaskNum(processId, user)).thenReturn(3);
+            when(taskService.subCronOrPlanNum(taskDto,3)).thenReturn(2);
             when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenReturn(calculationEngineVo);
+            when(taskService.subCronOrPlanNum(taskDto,1)).thenReturn(1);
             CalculationEngineVo result = taskScheduleService.cloudTaskLimitNum(taskDto, user, false);
             assertEquals(calculationEngineVo, result);
         }
@@ -99,10 +102,13 @@ public class TaskScheduleServiceImplTest {
         @Test
         void testExceedCloudTaskLimitNum() {
             CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
-            calculationEngineVo.setRunningNum(3);
-            when(taskService.runningTaskNum(processId, user)).thenReturn(3);
+            calculationEngineVo.setRunningNum(4);
+            calculationEngineVo.setTaskLimit(2);
+            when(taskService.runningTaskNum(processId, user)).thenReturn(2);
+            when(taskService.subCronOrPlanNum(taskDto,2)).thenReturn(1);
             when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenReturn(calculationEngineVo);
             when(stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user)).thenReturn(StateMachineResult.ok());
+            when(taskService.subCronOrPlanNum(taskDto,4)).thenReturn(4);
             assertThrows(BizException.class, () -> taskScheduleService.cloudTaskLimitNum(taskDto, user, false));
         }
     }
