@@ -1,39 +1,34 @@
 package com.tapdata.tm.schedule;
 
-import com.tapdata.tm.Settings.constant.SettingsEnum;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.ScheduleTimeEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
+import com.tapdata.tm.schedule.util.LoadSchemaScheduleUtil;
 import com.tapdata.tm.user.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Component
 public class LoadSchemaSchedule {
-
     @Autowired
     private DataSourceRepository repository;
-
 
     @Autowired
     private DataSourceService dataSourceService;
@@ -44,7 +39,27 @@ public class LoadSchemaSchedule {
     @Autowired
     private MetadataInstancesService metadataInstancesService;
 
-    /** 每小时执行一次 */
+    @Autowired
+    private SettingsService settingsService;
+
+    @Autowired
+    private LoadSchemaScheduleUtil scheduleUtil;
+
+    private final Map<String, Object> settingMap = new ConcurrentHashMap<>();
+
+    /** 每分钟刷新一次全局配置，
+     * 这里仅获取模型加载的配置：
+     * connection_schema_update_hour 和 connection_schema_update_interval
+     * */
+    @Scheduled(cron = "0 0/1 * * * ?")
+    public void loadSettings() {
+        scheduleUtil.loadSettings(settingsService, settingMap);
+    }
+
+    /** 每小时执行一次
+     *  数据源配置的时间不是false，取全局配置的频率在配置的时间加载一下模型
+     *  数据源配置的时间是false时，取全局的时间和频率在这个时间加载一次模型
+     * */
     @Scheduled(cron = "0 0 0/1 * * ?")
     @SchedulerLock(name ="timedReloadSchema_lock", lockAtMostFor = "20s", lockAtLeastFor = "20s")
     public void timedReloadSchema() {
@@ -64,48 +79,8 @@ public class LoadSchemaSchedule {
             return;
         }
 
-        int countThreshold = SettingsEnum.SCHEDULED_LOAD_SCHEMA_COUNT_THRESHOLD.getIntValue(10000);
-
-        int oneDay = 1000 * 60 * 60 * 24;
-
         for (DataSourceConnectionDto dataSource : dataSourceConnectionDtos) {
-            UserDetail user = userDetailMap.get(dataSource.getUserId());
-
-            Criteria criteria = Criteria.where("is_deleted").ne(true)
-                    .and("source._id").is(dataSource.getId().toHexString())
-                    .and("sourceType").is(SourceTypeEnum.SOURCE.name())
-                    .and("meta_type").ne("database")
-                    .and("taskId").exists(false);
-            long count = metadataInstancesService.count(new Query(criteria));
-            long sleepTime = count / 1000;
-            if (count < countThreshold) {
-                dataSourceService.sendTestConnection(dataSource, true, true, user);
-                if (sleepTime > 0) {
-                    try {
-                        //比较大的表，需要sleep一下
-                        Thread.sleep(sleepTime * 1000);
-                    } catch (InterruptedException e) {
-                    }
-                }
-                continue;
-            }
-
-            int time = ScheduleTimeEnum.getHour(dataSource.getSchemaUpdateHour());
-            if (time == ScheduleTimeEnum.FALSE.getValue()) {
-                //不需要加载
-                continue;
-            }
-            LocalDateTime now = LocalDateTime.now();
-            int hour = now.getHour();
-            if (time == hour || System.currentTimeMillis() - dataSource.getLoadSchemaTime().getTime() > oneDay) {
-                dataSourceService.sendTestConnection(dataSource, true, true, user);
-                try {
-                    //比较大的表，需要sleep一下
-                    sleepTime = sleepTime > 60 ? 60 : sleepTime;
-                    Thread.sleep(sleepTime * 1000);
-                } catch (InterruptedException e) {
-                }
-            }
+            scheduleUtil.doLoadSchema(dataSource, userDetailMap, metadataInstancesService, settingMap, dataSourceService);
         }
     }
 
