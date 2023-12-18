@@ -35,6 +35,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapDateTime;
@@ -206,8 +207,54 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			mockHazelcastBaseNode.init(jetContext);
 			verify(mockHazelcastBaseNode, new Times(1)).errorHandle(mockTapEx);
 		}
+		@Test
+		@SneakyThrows
+		@DisplayName("preload schema test")
+		void testInitPreload(){
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContext.getTapTableMap()).thenReturn(tapTableMap);
+			doCallRealMethod().when(mockHazelcastBaseNode).init(jetContext);
+			doNothing().when(tapTableMap).preLoadSchema();
+			mockHazelcastBaseNode.init(jetContext);
+			verify(tapTableMap, new Times(1)).preLoadSchema();
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("preload schema throw exception")
+		void testInitPreloadWithEx(){
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContext.getTapTableMap()).thenReturn(tapTableMap);
+			doThrow(new RuntimeException()).when(tapTableMap).preLoadSchema();
+			doCallRealMethod().when(mockHazelcastBaseNode).init(jetContext);
+			assertThrows(RuntimeException.class, () -> mockHazelcastBaseNode.init(jetContext));
+		}
 	}
 
+	@Nested
+	@DisplayName("Build log listener method test")
+	class BuildLogListenerTest{
+		@Test
+		void testBuildLogListener(){
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(mockHazelcastBaseNode,"obsLogger",obsLogger);
+			doCallRealMethod().when(mockHazelcastBaseNode).buildLogListener();
+			TapTableMap tapTableMap = TapTableMap.create("111");
+			when(processorBaseContext.getTapTableMap()).thenReturn(tapTableMap);
+			mockHazelcastBaseNode.buildLogListener();
+			TapLogger.LogListener logListener = (TapLogger.LogListener) ReflectionTestUtils.getField(processorBaseContext.getTapTableMap(), "logListener");
+			logListener.debug("test debug");
+			logListener.info("test info");
+			logListener.warn("test warn");
+			logListener.error("test error");
+			logListener.fatal("test fatal");
+			logListener.memory("test memory");
+			verify(obsLogger, new Times(1)).debug("test debug");
+			verify(obsLogger, new Times(1)).info("test info");
+			verify(obsLogger, new Times(1)).warn("test warn");
+			verify(obsLogger, new Times(1)).error("test error");
+			verify(obsLogger, new Times(1)).fatal("test fatal");
+		}
+	}
 	@Nested
 	@DisplayName("Execute aspect methods test")
 	class ExecuteAspectTest {

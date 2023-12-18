@@ -2,8 +2,10 @@ package com.tapdata.mongo;
 
 import com.google.common.collect.ImmutableList;
 import io.tapdata.exception.ManagementException;
+import lombok.SneakyThrows;
 import org.apache.commons.io.input.BrokenInputStream;
 import org.apache.commons.io.input.NullInputStream;
+import org.apache.http.NoHttpResponseException;
 import org.assertj.core.util.Files;
 import org.assertj.core.util.Lists;
 import org.junit.After;
@@ -11,6 +13,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
+import org.mockito.internal.verification.Times;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -29,15 +32,13 @@ import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class RestTemplateOperatorTest {
 	@Mock
@@ -390,5 +391,13 @@ public class RestTemplateOperatorTest {
 		};
 		final InputStream source = new NullInputStream();
 		restTemplateOperatorUnderTest.downloadFileByProgress(inputCallback, source, null, 0L);
+	}
+	@Test(expected = ManagementException.class)
+	@SneakyThrows
+	public void testRetryWarpWithNoHttpResponseException(){
+		RestTemplateOperator.TryFunc func = mock(RestTemplateOperator.TryFunc.class);
+		Predicate<?> stop = mock(Predicate.class);
+		doThrow(new NoHttpResponseException("test msg")).when(func).tryFunc(any());
+		restTemplateOperatorUnderTest.retryWrap(func,stop);
 	}
 }
