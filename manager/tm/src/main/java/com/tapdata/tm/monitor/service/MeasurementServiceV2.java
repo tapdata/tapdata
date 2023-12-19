@@ -281,6 +281,7 @@ public class MeasurementServiceV2 {
         Criteria criteria = Criteria.where(MeasurementEntity.FIELD_DATE);
 
         boolean typeIsTask = false;
+        boolean typeIsNode = false;
         boolean typeIsEngine = false;
         String taskId = "";
         String taskRecordId = "";
@@ -293,6 +294,8 @@ public class MeasurementServiceV2 {
                     typeIsTask = true;
                 } else if ("engine".equals(value)) {
                     typeIsEngine = true;
+                }else if("node".equals(value)){
+                    typeIsNode = true;
                 }
             }
             if (format.equals("tags.taskId")) {
@@ -366,7 +369,11 @@ public class MeasurementServiceV2 {
             LimitOperation limit = new LimitOperation(1L);
             aggregation = Aggregation.newAggregation( match, sort, limit, limitOperation, projectionOperation);
         } else {
-            aggregation = Aggregation.newAggregation( match, sort, limitOperation,projectionOperation);
+            if(typeIsNode){
+                aggregation = Aggregation.newAggregation(match, sort, projectionOperation);
+            }else {
+                aggregation = Aggregation.newAggregation(match, sort, limitOperation, projectionOperation);
+            }
         }
         aggregation.withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
         AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
