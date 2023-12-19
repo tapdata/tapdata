@@ -20,6 +20,7 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
+import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.jsonwebtoken.lang.Assert;
 import org.bson.types.ObjectId;
@@ -34,6 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -156,6 +158,7 @@ public class TaskServiceTest {
         Query query;
         TaskEntity taskEntity;
         TaskScheduleService taskScheduleService;
+
 
         @BeforeEach
         void beforeEach() {
@@ -333,6 +336,7 @@ public class TaskServiceTest {
         SettingsService settingsService = mock(SettingsService.class);
 
         TaskScheduleService taskScheduleService = mock(TaskScheduleService.class);
+        WorkerService workerService = mock(WorkerService.class);
 
         final UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
@@ -341,6 +345,7 @@ public class TaskServiceTest {
             taskService = new TaskService(taskRepository);
             taskService.setSettingsService(settingsService);
             taskService.setTaskScheduleService(taskScheduleService);
+            ReflectionTestUtils.setField(taskService,"workerService",workerService);
         }
         @Test
         void test_isDass(){
@@ -354,8 +359,7 @@ public class TaskServiceTest {
         void test_isCloudLimit(){
             ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
             Query query = new Query(Criteria.where("_id").is(taskId));
-            String [] fields = {};
-            query.fields().include(fields);
+            query.fields().include("id","agentId","agentTags");
             TaskEntity mockTask = new TaskEntity();
             mockTask.setCrontabExpressionFlag(false);
             mockTask.setId(MongoUtils.toObjectId("632454d5287a904778c40f8d"));
@@ -368,7 +372,7 @@ public class TaskServiceTest {
                 CalculationEngineVo mockEngineVo = new CalculationEngineVo();
                 mockEngineVo.setTaskLimit(5);
                 mockEngineVo.setRunningNum(5);
-                when(taskScheduleService.cloudTaskLimitNum(mockTaskDto,user,true)).thenReturn(mockEngineVo);
+                when(workerService.calculationEngine(mockTaskDto,user,null)).thenReturn(mockEngineVo);
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
@@ -381,8 +385,7 @@ public class TaskServiceTest {
         void test_isCloudLimitNotReached(){
             ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
             Query query = new Query(Criteria.where("_id").is(taskId));
-            String [] fields = {};
-            query.fields().include(fields);
+            query.fields().include("id","agentId","agentTags");
             TaskEntity mockTask = new TaskEntity();
             mockTask.setCrontabExpressionFlag(false);
             mockTask.setId(MongoUtils.toObjectId("632454d5287a904778c40f8d"));
@@ -395,7 +398,7 @@ public class TaskServiceTest {
                 CalculationEngineVo mockEngineVo = new CalculationEngineVo();
                 mockEngineVo.setTaskLimit(5);
                 mockEngineVo.setRunningNum(4);
-                when(taskScheduleService.cloudTaskLimitNum(mockTaskDto,user,true)).thenReturn(mockEngineVo);
+                when(workerService.calculationEngine(mockTaskDto,user,null)).thenReturn(mockEngineVo);
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
@@ -408,8 +411,7 @@ public class TaskServiceTest {
         void test_isCloudLimitScheduling(){
             ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
             Query query = new Query(Criteria.where("_id").is(taskId));
-            String [] fields = {};
-            query.fields().include(fields);
+            query.fields().include("id","agentId","agentTags");
             TaskEntity mockTask = new TaskEntity();
             mockTask.setCrontabExpressionFlag(true);
             mockTask.setId(MongoUtils.toObjectId("632454d5287a904778c40f8d"));
@@ -422,7 +424,7 @@ public class TaskServiceTest {
                 CalculationEngineVo mockEngineVo = new CalculationEngineVo();
                 mockEngineVo.setTaskLimit(5);
                 mockEngineVo.setRunningNum(5);
-                when(taskScheduleService.cloudTaskLimitNum(mockTaskDto,user,true)).thenReturn(mockEngineVo);
+                when(workerService.calculationEngine(mockTaskDto,user,null)).thenReturn(mockEngineVo);
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
@@ -442,6 +444,8 @@ public class TaskServiceTest {
 
         UserLogService serLogService = mock(UserLogService.class);
 
+        WorkerService workerService = mock(WorkerService.class);
+
         final UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
         @BeforeEach
@@ -450,6 +454,7 @@ public class TaskServiceTest {
             taskService.setSettingsService(settingsService);
             taskService.setTaskScheduleService(taskScheduleService);
             taskService.setUserLogService(serLogService);
+            ReflectionTestUtils.setField(taskService,"workerService",workerService);
         }
 
         @Test
@@ -467,13 +472,12 @@ public class TaskServiceTest {
                 when(taskRepository.findById(taskId,user)).thenReturn(Optional.of(mockTask));
                 when(settingsService.isCloud()).thenReturn(true);
                 Query query = new Query(Criteria.where("_id").is(taskId));
-                String [] fields = {};
-                query.fields().include(fields);
+                query.fields().include("id","agentId","agentTags");
                 when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
                 CalculationEngineVo mockEngineVo = new CalculationEngineVo();
                 mockEngineVo.setTaskLimit(5);
                 mockEngineVo.setRunningNum(4);
-                when(taskScheduleService.cloudTaskLimitNum(mockTaskDto,user,true)).thenReturn(mockEngineVo);
+                when(workerService.calculationEngine(mockTaskDto,user,null)).thenReturn(mockEngineVo);
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
@@ -502,13 +506,12 @@ public class TaskServiceTest {
                 when(taskRepository.findById(taskId,user)).thenReturn(Optional.of(mockTask));
                 when(settingsService.isCloud()).thenReturn(true);
                 Query query = new Query(Criteria.where("_id").is(taskId));
-                String [] fields = {};
-                query.fields().include(fields);
+                query.fields().include("id","agentId","agentTags");
                 when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
                 CalculationEngineVo mockEngineVo = new CalculationEngineVo();
                 mockEngineVo.setTaskLimit(5);
                 mockEngineVo.setRunningNum(5);
-                when(taskScheduleService.cloudTaskLimitNum(mockTaskDto,user,true)).thenReturn(mockEngineVo);
+                when(workerService.calculationEngine(mockTaskDto,user,null)).thenReturn(mockEngineVo);
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
@@ -536,13 +539,12 @@ public class TaskServiceTest {
                 when(taskRepository.findById(taskId,user)).thenReturn(Optional.of(mockTask));
                 when(settingsService.isCloud()).thenReturn(true);
                 Query query = new Query(Criteria.where("_id").is(taskId));
-                String [] fields = {};
-                query.fields().include(fields);
+                query.fields().include("id","agentId","agentTags");
                 when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
                 CalculationEngineVo mockEngineVo = new CalculationEngineVo();
                 mockEngineVo.setTaskLimit(5);
                 mockEngineVo.setRunningNum(4);
-                when(taskScheduleService.cloudTaskLimitNum(mockTaskDto,user,true)).thenReturn(mockEngineVo);
+                when(workerService.calculationEngine(mockTaskDto,user,null)).thenReturn(mockEngineVo);
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));

@@ -342,7 +342,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return calculationEngineVo;
     }
 
-    protected CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail, String type) {
+    public CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail, String type) {
         CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
         String filter;
         int availableNum;

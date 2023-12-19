@@ -4489,8 +4489,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public boolean checkCloudTaskLimit(ObjectId taskId,UserDetail user,boolean checkCurrentTask){
         if (settingsService.isCloud()) {
-            TaskDto task = findByTaskId(taskId);
-            CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(task, user, true);
+            TaskDto task = findByTaskId(taskId,"id","agentId","agentTags");
+            CalculationEngineVo calculationEngineVo = workerService.calculationEngine(task, user, null);
             int runningNum;
             if(checkCurrentTask){
                 runningNum  = subCronOrPlanNum(task, calculationEngineVo.getRunningNum());
