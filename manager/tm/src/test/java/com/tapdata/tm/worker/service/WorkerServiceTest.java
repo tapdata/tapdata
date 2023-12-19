@@ -1,19 +1,32 @@
 package com.tapdata.tm.worker.service;
 
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.reporitory.BaseRepository;
+import com.tapdata.tm.commons.base.dto.SchedulableDto;
+import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.service.DataPermissionService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.repository.WorkerRepository;
+import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import org.bson.BsonValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,10 +36,17 @@ import static org.mockito.Mockito.*;
 class WorkerServiceTest {
     private WorkerService workerService;
     private WorkerRepository workerRepository;
+    private SettingsService settingsService;
+
+    private TaskService taskService;
     @BeforeEach
     void buildWorkService(){
         workerRepository = mock(WorkerRepository.class);
         workerService = spy(new WorkerService(workerRepository));
+        settingsService = mock(SettingsService.class);
+        taskService = mock(TaskService.class);
+        ReflectionTestUtils.setField(workerService,"settingsService",settingsService);
+        ReflectionTestUtils.setField(workerService,"taskService",taskService);
     }
     @Test
     void testQueryWorkerByProcessIdWithoutId(){
@@ -192,5 +212,29 @@ class WorkerServiceTest {
         when(workerRepository.update(query,update)).thenReturn(result);
         boolean actual = workerService.unbindByProcessId(processId);
         assertEquals(true,actual);
+    }
+
+    @Test
+    void testCalculationEngine(){
+        SchedulableDto mockSchedulable = new SchedulableDto();
+        UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
+                "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
+        try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class)){
+            when(settingsService.isCloud()).thenReturn(false);
+            Settings settings = new Settings();
+            settings.setValue("1000");
+            when(settingsService.getByCategoryAndKey(CategoryEnum.WORKER, KeyEnum.WORKER_HEART_TIMEOUT)).thenReturn(settings);
+            serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
+            Worker worker = new Worker();
+            worker.setUserId("6393f084c162f518b18165c3");
+            worker.setProcessId("test");
+            List<Worker> workers = Arrays.asList(worker);
+            int expected = 5;
+            when(workerRepository.findAll(any(Query.class))).thenReturn(workers);
+            when(taskService.runningTaskNum("test",user)).thenReturn(expected);
+            when(taskService.runningTaskNum(user)).thenReturn(expected);
+            CalculationEngineVo calculationEngineVo = workerService.calculationEngine(mockSchedulable,user,null);
+            assertEquals(expected,calculationEngineVo.getRunningNum());
+        }
     }
 }

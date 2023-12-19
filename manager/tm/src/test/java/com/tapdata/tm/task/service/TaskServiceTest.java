@@ -10,13 +10,16 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.service.DataPermissionService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.jsonwebtoken.lang.Assert;
 import org.bson.types.ObjectId;
@@ -26,6 +29,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -35,6 +39,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.beans.BeanUtils.*;
 
@@ -320,4 +325,259 @@ public class TaskServiceTest {
             }
         }
     }
+
+    @Nested
+    class TestCheckCloudTaskLimit {
+        TaskRepository taskRepository = mock(TaskRepository.class);
+
+        SettingsService settingsService = mock(SettingsService.class);
+
+        TaskScheduleService taskScheduleService = mock(TaskScheduleService.class);
+
+        final UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
+                "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
+        @BeforeEach
+        void beforeEach() {
+            taskService = new TaskService(taskRepository);
+            taskService.setSettingsService(settingsService);
+            taskService.setTaskScheduleService(taskScheduleService);
+        }
+        @Test
+        void test_isDass(){
+            when(settingsService.isCloud()).thenReturn(false);
+            ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
+            boolean result = taskService.checkCloudTaskLimit(taskId,user,true);
+            assertTrue(result);
+        }
+
+        @Test
+        void test_isCloudLimit(){
+            ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
+            Query query = new Query(Criteria.where("_id").is(taskId));
+            String [] fields = {};
+            query.fields().include(fields);
+            TaskEntity mockTask = new TaskEntity();
+            mockTask.setCrontabExpressionFlag(false);
+            mockTask.setId(MongoUtils.toObjectId("632454d5287a904778c40f8d"));
+            try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class)) {
+                serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
+                when(settingsService.isCloud()).thenReturn(true);
+                when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
+                TaskDto mockTaskDto = new TaskDto();
+                BeanUtils.copyProperties(mockTask,mockTaskDto);
+                CalculationEngineVo mockEngineVo = new CalculationEngineVo();
+                mockEngineVo.setTaskLimit(5);
+                mockEngineVo.setRunningNum(5);
+                when(taskScheduleService.cloudTaskLimitNum(mockTaskDto,user,true)).thenReturn(mockEngineVo);
+                Query mockQuery = new Query(Criteria.where("_id").is(taskId));
+                mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
+                when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
+                boolean result = taskService.checkCloudTaskLimit(taskId,user,true);
+                assertFalse(result);
+            }
+        }
+
+        @Test
+        void test_isCloudLimitNotReached(){
+            ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
+            Query query = new Query(Criteria.where("_id").is(taskId));
+            String [] fields = {};
+            query.fields().include(fields);
+            TaskEntity mockTask = new TaskEntity();
+            mockTask.setCrontabExpressionFlag(false);
+            mockTask.setId(MongoUtils.toObjectId("632454d5287a904778c40f8d"));
+            try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class)) {
+                serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
+                when(settingsService.isCloud()).thenReturn(true);
+                when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
+                TaskDto mockTaskDto = new TaskDto();
+                BeanUtils.copyProperties(mockTask,mockTaskDto);
+                CalculationEngineVo mockEngineVo = new CalculationEngineVo();
+                mockEngineVo.setTaskLimit(5);
+                mockEngineVo.setRunningNum(4);
+                when(taskScheduleService.cloudTaskLimitNum(mockTaskDto,user,true)).thenReturn(mockEngineVo);
+                Query mockQuery = new Query(Criteria.where("_id").is(taskId));
+                mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
+                when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
+                boolean result = taskService.checkCloudTaskLimit(taskId,user,true);
+                assertTrue(result);
+            }
+        }
+
+        @Test
+        void test_isCloudLimitScheduling(){
+            ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
+            Query query = new Query(Criteria.where("_id").is(taskId));
+            String [] fields = {};
+            query.fields().include(fields);
+            TaskEntity mockTask = new TaskEntity();
+            mockTask.setCrontabExpressionFlag(true);
+            mockTask.setId(MongoUtils.toObjectId("632454d5287a904778c40f8d"));
+            try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class)) {
+                serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
+                when(settingsService.isCloud()).thenReturn(true);
+                when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
+                TaskDto mockTaskDto = new TaskDto();
+                BeanUtils.copyProperties(mockTask,mockTaskDto);
+                CalculationEngineVo mockEngineVo = new CalculationEngineVo();
+                mockEngineVo.setTaskLimit(5);
+                mockEngineVo.setRunningNum(5);
+                when(taskScheduleService.cloudTaskLimitNum(mockTaskDto,user,true)).thenReturn(mockEngineVo);
+                Query mockQuery = new Query(Criteria.where("_id").is(taskId));
+                mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
+                when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
+                boolean result = taskService.checkCloudTaskLimit(taskId,user,true);
+                assertTrue(result);
+            }
+        }
+    }
+
+    @Nested
+    class TestCopy{
+        TaskRepository taskRepository = mock(TaskRepository.class);
+
+        SettingsService settingsService = mock(SettingsService.class);
+
+        TaskScheduleService taskScheduleService = mock(TaskScheduleService.class);
+
+        UserLogService serLogService = mock(UserLogService.class);
+
+        final UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
+                "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
+        @BeforeEach
+        void beforeEach() {
+            taskService = new TaskService(taskRepository);
+            taskService.setSettingsService(settingsService);
+            taskService.setTaskScheduleService(taskScheduleService);
+            taskService.setUserLogService(serLogService);
+        }
+
+        @Test
+        void test_copySchedulingTask(){
+            ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
+            TaskEntity mockTask = new TaskEntity();
+            mockTask.setCrontabExpressionFlag(true);
+            mockTask.setCrontabExpression("test");
+            mockTask.setId(MongoUtils.toObjectId("632454d5287a904778c40f8d"));
+            try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class);
+                 MockedStatic<SpringContextHelper> helperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
+                serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
+                TaskDto mockTaskDto = new TaskDto();
+                BeanUtils.copyProperties(mockTask,mockTaskDto);
+                when(taskRepository.findById(taskId,user)).thenReturn(Optional.of(mockTask));
+                when(settingsService.isCloud()).thenReturn(true);
+                Query query = new Query(Criteria.where("_id").is(taskId));
+                String [] fields = {};
+                query.fields().include(fields);
+                when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
+                CalculationEngineVo mockEngineVo = new CalculationEngineVo();
+                mockEngineVo.setTaskLimit(5);
+                mockEngineVo.setRunningNum(4);
+                when(taskScheduleService.cloudTaskLimitNum(mockTaskDto,user,true)).thenReturn(mockEngineVo);
+                Query mockQuery = new Query(Criteria.where("_id").is(taskId));
+                mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
+                when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
+                TaskService mockTaskService = mock(TaskService.class);
+                helperMockedStatic.when(()->SpringContextHelper.getBean(TaskService.class)).thenReturn(mockTaskService);
+                when(mockTaskService.confirmById(any(TaskDto.class),any(UserDetail.class),any(Boolean.class))).thenAnswer(invocationOnMock -> {
+                    return invocationOnMock.<TaskDto>getArgument(0);
+                });
+                TaskDto result = taskService.copy(taskId,user);
+                assertTrue(result.getCrontabExpressionFlag());
+                assertEquals("test",result.getCrontabExpression());
+            }
+        }
+
+        @Test
+        void test_copySchedulingTaskLimit(){
+            ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
+            TaskEntity mockTask = new TaskEntity();
+            mockTask.setCrontabExpressionFlag(true);
+            mockTask.setId(MongoUtils.toObjectId("632454d5287a904778c40f8d"));
+            try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class);
+                 MockedStatic<SpringContextHelper> helperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
+                serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
+                TaskDto mockTaskDto = new TaskDto();
+                BeanUtils.copyProperties(mockTask,mockTaskDto);
+                when(taskRepository.findById(taskId,user)).thenReturn(Optional.of(mockTask));
+                when(settingsService.isCloud()).thenReturn(true);
+                Query query = new Query(Criteria.where("_id").is(taskId));
+                String [] fields = {};
+                query.fields().include(fields);
+                when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
+                CalculationEngineVo mockEngineVo = new CalculationEngineVo();
+                mockEngineVo.setTaskLimit(5);
+                mockEngineVo.setRunningNum(5);
+                when(taskScheduleService.cloudTaskLimitNum(mockTaskDto,user,true)).thenReturn(mockEngineVo);
+                Query mockQuery = new Query(Criteria.where("_id").is(taskId));
+                mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
+                when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
+                TaskService mockTaskService = mock(TaskService.class);
+                helperMockedStatic.when(()->SpringContextHelper.getBean(TaskService.class)).thenReturn(mockTaskService);
+                when(mockTaskService.confirmById(any(TaskDto.class),any(UserDetail.class),any(Boolean.class))).thenAnswer(invocationOnMock -> {
+                    return invocationOnMock.<TaskDto>getArgument(0);
+                });
+                TaskDto result = taskService.copy(taskId,user);
+                assertFalse(result.getCrontabExpressionFlag());
+                assertNull(result.getCrontabExpression());
+            }
+        }
+
+        @Test
+        void test_copyNormalTaskLimit(){
+            ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
+            TaskEntity mockTask = new TaskEntity();
+            mockTask.setId(MongoUtils.toObjectId("632454d5287a904778c40f8d"));
+            try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class);
+                 MockedStatic<SpringContextHelper> helperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
+                serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
+                TaskDto mockTaskDto = new TaskDto();
+                BeanUtils.copyProperties(mockTask,mockTaskDto);
+                when(taskRepository.findById(taskId,user)).thenReturn(Optional.of(mockTask));
+                when(settingsService.isCloud()).thenReturn(true);
+                Query query = new Query(Criteria.where("_id").is(taskId));
+                String [] fields = {};
+                query.fields().include(fields);
+                when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
+                CalculationEngineVo mockEngineVo = new CalculationEngineVo();
+                mockEngineVo.setTaskLimit(5);
+                mockEngineVo.setRunningNum(4);
+                when(taskScheduleService.cloudTaskLimitNum(mockTaskDto,user,true)).thenReturn(mockEngineVo);
+                Query mockQuery = new Query(Criteria.where("_id").is(taskId));
+                mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
+                when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
+                TaskService mockTaskService = mock(TaskService.class);
+                helperMockedStatic.when(()->SpringContextHelper.getBean(TaskService.class)).thenReturn(mockTaskService);
+                when(mockTaskService.confirmById(any(TaskDto.class),any(UserDetail.class),any(Boolean.class))).thenAnswer(invocationOnMock -> {
+                    return invocationOnMock.<TaskDto>getArgument(0);
+                });
+                TaskDto result = taskService.copy(taskId,user);
+                assertNull(result.getCrontabExpressionFlag());
+                assertNull(result.getCrontabExpression());
+            }
+        }
+    }
+    @Nested
+    class TestRunningTaskNum{
+        TaskRepository taskRepository = mock(TaskRepository.class);
+        final UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
+                "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
+        @BeforeEach
+        void beforeEach() {
+            taskService = new TaskService(taskRepository);
+        }
+        @Test
+        void testRunningTaskNum(){
+            long except = 5L;
+            when(taskRepository.count(Query.query(Criteria.where("is_deleted").ne(true)
+                    .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                    .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
+                            Criteria.where("planStartDateFlag").is(true),
+                            Criteria.where("crontabExpressionFlag").is(true)
+                    )),user)).thenReturn(except);
+            long result = taskService.runningTaskNum(user);
+            assertEquals(except,result);
+        }
+    }
+
 }
