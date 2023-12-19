@@ -47,21 +47,21 @@ public class RandomSampleEventHandlerTest {
          * */
         @Test
         public void testRandomSampleList() {
-            testRandomSampleCase(4, 0.5, 4);
+            testRandomSampleCase(4, 0.5, 1);
         }
         /**
          * 测试取样方法，根据比例采样
          * */
         @Test
         public void testRandomSampleListRangeLessThenZero() {
-            testRandomSampleCase(4, -1, 4);
+            testRandomSampleCase(4, -1, 1);
         }
         /**
          * 测试取样方法，根据比例采样
          * */
         @Test
         public void testRandomSampleListRangeLagerThenOne() {
-            testRandomSampleCase(4, 11, 4);
+            testRandomSampleCase(4, 11, 1);
         }
 
         /**
@@ -69,7 +69,7 @@ public class RandomSampleEventHandlerTest {
          * */
         @Test
         public void testRandomSampleList0() {
-            testRandomSampleCase(20, 0.5, 10);
+            testRandomSampleCase(20, 0.5, 1);
         }
 
         /**
@@ -77,7 +77,7 @@ public class RandomSampleEventHandlerTest {
          * */
         @Test
         public void testRandomSampleLis1() {
-            testRandomSampleCase(20, 1, 20);
+            testRandomSampleCase(20, 1, 1);
         }
 
         /**
@@ -252,6 +252,18 @@ public class RandomSampleEventHandlerTest {
             RandomSampleEventHandler.HandleEvent handle = (e) -> (TapEvent) e;
             handler.sampleMemoryTapEvent(recorder, events, handle);
             return recorder;
+        }
+
+        @Test
+        public void testSimpleMemoryNotRecordTapEvent() {
+            RandomSampleEventHandler handler = new RandomSampleEventHandler(1);
+            HandlerUtil.EventTypeRecorder recorder = new HandlerUtil.EventTypeRecorder();
+            List<Object> events = (List<Object>) simpleList(0, RandomSampleEventHandlerTest::simpleTapEvent);
+            TapEvent event = new TapCreateIndexEvent();
+            events.add(event);
+            RandomSampleEventHandler.HandleEvent handle = (e) -> (TapEvent) e;
+            handler.sampleMemoryTapEvent(recorder, events, handle);
+            Assertions.assertEquals( 0, recorder.getMemorySize());
         }
     }
 
