@@ -1278,7 +1278,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             try {
                 if (settingsService.isCloud()) {
                     CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(task, user, true);
-                    if (calculationEngineVo.getRunningNum() >= calculationEngineVo.getTaskLimit() ||
+                    int runningNum = subCronOrPlanNum(task, calculationEngineVo.getRunningNum());
+                    if (runningNum >= calculationEngineVo.getTaskLimit() ||
                             index > calculationEngineVo.getTotalLimit()) {
                         throw new BizException("Task.ScheduleLimit");
                     }
@@ -1304,6 +1305,23 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             responseMessages.add(mutiResponseMessage);
         }
         return responseMessages;
+    }
+
+    public int subCronOrPlanNum(TaskDto task, int runningNum) {
+        TaskDto taskScheduleFlag = findByTaskId(task.getId(), "planStartDateFlag", "crontabExpressionFlag");
+        if (checkIsCronOrPlanTask(taskScheduleFlag) && runningNum > 0) {
+            runningNum -= 1;
+        }
+        return runningNum;
+    }
+
+    public boolean checkIsCronOrPlanTask(TaskDto task) {
+        if(null == task) throw new IllegalArgumentException("Task can not be null");
+        if ((task.getCrontabExpressionFlag() != null && task.getCrontabExpressionFlag()) || task.isPlanStartDateFlag()) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     public List<MutiResponseMessage> batchStop(List<ObjectId> taskIds, UserDetail user,
@@ -3477,7 +3495,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         try {
             if (settingsService.isCloud()) {
                 CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(taskDto, user, true);
-                if (calculationEngineVo.getRunningNum() >= calculationEngineVo.getTaskLimit()) {
+                int runningNum = subCronOrPlanNum(taskDto, calculationEngineVo.getRunningNum());
+                if (runningNum >= calculationEngineVo.getTaskLimit()) {
                     throw new BizException("Task.ScheduleLimit");
                 }
             }
