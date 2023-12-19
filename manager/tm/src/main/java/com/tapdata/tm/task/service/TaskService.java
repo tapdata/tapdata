@@ -4480,6 +4480,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public boolean checkCloudTaskLimit(ObjectId taskId,UserDetail user,boolean checkCurrentTask){
         if (settingsService.isCloud()) {
             TaskDto task = findByTaskId(taskId);
+            if((task.getCrontabExpressionFlag() != null && !task.getCrontabExpressionFlag()) || !task.isPlanStartDateFlag()){
+                return true;
+            }
             CalculationEngineVo calculationEngineVo = taskScheduleService.cloudTaskLimitNum(task, user, true);
             int runningNum = calculationEngineVo.getRunningNum();
             if (checkCurrentTask && checkIsCronOrPlanTask(task)) {
