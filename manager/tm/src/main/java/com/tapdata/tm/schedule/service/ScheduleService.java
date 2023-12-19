@@ -41,7 +41,8 @@ public class ScheduleService {
 
         UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, userDetail, "task", taskDto.getName());
-        if (StringUtils.isNotBlank(taskDto.getAgentId()) && calculationEngineVo.getRunningNum() > calculationEngineVo.getTaskLimit()) {
+        int runningNum = taskService.subCronOrPlanNum(taskDto, calculationEngineVo.getRunningNum());
+        if (StringUtils.isNotBlank(taskDto.getAgentId()) &&  runningNum > calculationEngineVo.getTaskLimit()) {
             // 调度失败
             taskDto.setCrontabScheduleMsg("Task.ScheduleLimit");
             taskService.save(taskDto, userDetail);
