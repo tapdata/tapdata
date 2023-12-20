@@ -16,4 +16,5 @@ public class CalculationEngineVo {
     private int taskLimit;
     private int runningNum;
     private int totalLimit;
+    private int totalRunningNum;
 }
