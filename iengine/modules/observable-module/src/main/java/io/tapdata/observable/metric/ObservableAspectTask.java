@@ -428,7 +428,7 @@ public class ObservableAspectTask extends AspectTask {
 						return;
 					}
 
-					HandlerUtil.EventTypeRecorder inner = HandlerUtil.countTapEvent(events);
+					HandlerUtil.EventTypeRecorder inner = HandlerUtil.countTapEvent(events, recorder.getMemorySize());
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 							handler -> {
 								handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner);

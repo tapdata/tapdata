@@ -18,8 +18,10 @@ public class SyncGetMemorySizeHandler {
         synchronized (memorySize) {
             if (memorySize.get() >= 0) {
                 recorder = HandlerUtil.countTapEvent(events, memorySize.get());
+                memorySize.set(-1);
             } else {
                 recorder = HandlerUtil.countTapEvent(events);
+                memorySize.set(recorder.getMemorySize());
             }
         }
         return recorder;
@@ -31,8 +33,10 @@ public class SyncGetMemorySizeHandler {
         synchronized (memorySize) {
             if (memorySize.get() >= 0) {
                 recorder = HandlerUtil.countTapDataEvent(events, memorySize.get());
+                memorySize.set(-1);
             } else {
                 recorder = HandlerUtil.countTapdataEvent(events);
+                memorySize.set(recorder.getMemorySize());
             }
         }
         return recorder;
