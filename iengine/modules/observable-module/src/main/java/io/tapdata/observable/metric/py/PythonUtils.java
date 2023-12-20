@@ -29,8 +29,6 @@ import static io.tapdata.entity.simplify.TapSimplify.fromJson;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 public class PythonUtils {
-
-    protected static final String PACKAGE_COMPILATION_COMMAND = "cd %s; java -jar %s setup.py install";
     protected static final String PACKAGE_COMPILATION_FILE = "setup.py";
     public static final String PYTHON_THREAD_PACKAGE_PATH = "py-lib";
     public static final String PYTHON_THREAD_SITE_PACKAGES_PATH = "site-packages";
@@ -180,9 +178,9 @@ public class PythonUtils {
 
     protected void unPackageFile(File setUpPyFile, File afterUnzipFile, final String pythonJarPath, Log logger) {
         Process start = null;
+        logger.info("{}'s resource package is being generating now, please wait.", afterUnzipFile.getName());
+        ProcessBuilder command = getUnPackageFileProcessBuilder(setUpPyFile.getParentFile().getAbsolutePath(), pythonJarPath);
         try {
-            logger.info("{}'s resource package is being generated, please wait.", afterUnzipFile.getName());
-            ProcessBuilder command = getUnPackageFileProcessBuilder(setUpPyFile.getParentFile().getAbsolutePath(), pythonJarPath);
             start = command.start();
             start.waitFor();
             logger.info("{}'s resource package is being generated", afterUnzipFile.getName());
@@ -200,8 +198,7 @@ public class PythonUtils {
         if (null == pythonJarPath) {
             throw new CoreException("Can not find python jar by an empty path name");
         }
-        return new ProcessBuilder().command("/bin/sh", "-c",
-                String.format(PACKAGE_COMPILATION_COMMAND, unPackageAbsolutePath, new File(pythonJarPath).getAbsolutePath()));
+        return CommandStageForOS.getProcessBuilder(unPackageAbsolutePath, pythonJarPath);
     }
 
     protected InputStream getLibPath(String jarName, AtomicReference<String> ato) throws IOException {
