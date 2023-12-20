@@ -5,16 +5,26 @@ import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
@@ -26,6 +36,8 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -275,5 +287,62 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(tableSize, (long) countResult);
 		}
 	}
-
+	@Nested
+	@DisplayName("handleSchemaChange methods test")
+	class HandleSchemaChangeTest{
+		@Test
+		@DisplayName("cover setTableAttr test")
+		void testHandleSchemaChangeCoverSetTableAttr(){
+			TapEvent tapEvent = mock(TapDDLEvent.class);
+			when(((TapDDLEvent) tapEvent).getTableId()).thenReturn("111");
+			doCallRealMethod().when(mockInstance).handleSchemaChange(tapEvent);
+			when(processorBaseContext.getTapTableMap()).thenReturn(mock(TapTableMap.class));
+			DDLSchemaHandler handler = mock(DDLSchemaHandler.class);
+			when(mockInstance.ddlSchemaHandler()).thenReturn(handler);
+			doNothing().when(handler).updateSchemaByDDLEvent(any(),any());
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(mockInstance.getConnectorNode()).thenReturn(connectorNode);
+			TapConnectorContext context = mock(TapConnectorContext.class);
+			when(connectorNode.getConnectorContext()).thenReturn(context);
+			TapNodeSpecification specification = mock(TapNodeSpecification.class);
+			when(context.getSpecification()).thenReturn(specification);
+			when(specification.getDataTypesMap()).thenReturn(mock(DefaultExpressionMatchingMap.class));
+			when(processorBaseContext.getTapTableMap().get(((TapDDLEvent) tapEvent).getTableId())).thenReturn(mock(TapTable.class));
+			DAG dag = mock(DAG.class);
+			TaskDto dto = mock(TaskDto.class);
+			when(processorBaseContext.getTaskDto()).thenReturn(dto);
+			when(dto.getDag()).thenReturn(dag);
+			TransformerWsMessageDto transformerWsMessageDto = mock(TransformerWsMessageDto.class);
+			ReflectionTestUtils.setField(mockInstance,"transformerWsMessageDto",transformerWsMessageDto);
+			when(transformerWsMessageDto.getMetadataInstancesDtoList()).thenReturn(mock(ArrayList.class));
+			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+			ReflectionTestUtils.setField(mockInstance,"dagDataService",dagDataService);
+			TapTableMap tableMap = mock(TapTableMap.class);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tableMap);
+			when(tableMap.getQualifiedName(anyString())).thenReturn("qualifiedName");
+			when(dag.transformSchema(any(),any(),any())).thenReturn(mock(HashMap.class));
+			MetadataInstancesDto metadata = mock(MetadataInstancesDto.class);
+			when(dagDataService.getMetadata(anyString())).thenReturn(metadata);
+			ObjectId objectId = mock(ObjectId.class);
+			when(metadata.getId()).thenReturn(objectId);
+			HashMap attr = mock(HashMap.class);
+			when(metadata.getTableAttr()).thenReturn(attr);
+			when(objectId.toHexString()).thenReturn("objectId");
+			mockInstance.handleSchemaChange(tapEvent);
+			assertEquals(attr,metadata.getTableAttr());
+		}
+	}
+	@Nested
+	class DdlSchemaHandlerTest{
+		@Test
+		void testDdlSchemaHandler(){
+			try (MockedStatic<InstanceFactory> factory = Mockito
+					.mockStatic(InstanceFactory.class)) {
+				DDLSchemaHandler handler = mock(DDLSchemaHandler.class);
+				factory.when(()->InstanceFactory.bean(DDLSchemaHandler.class)).thenReturn(handler);
+				doCallRealMethod().when(mockInstance).ddlSchemaHandler();
+				assertEquals(handler,mockInstance.ddlSchemaHandler());
+			}
+		}
+	}
 }
