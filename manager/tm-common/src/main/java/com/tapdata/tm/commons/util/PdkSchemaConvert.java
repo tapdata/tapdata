@@ -290,7 +290,6 @@ public class PdkSchemaConvert {
         }
         tapTable.setNameFieldMap(nameFieldMap);
         tapTable.setLastUpdate(schema.getLastUpdate());
-        tapTable.setTableAttr(schema.getTableAttr());
 
         return tapTable;
     }
