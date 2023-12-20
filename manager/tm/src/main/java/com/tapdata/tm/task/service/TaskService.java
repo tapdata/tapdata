@@ -1083,7 +1083,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             attrs.remove("syncProgress");
         }
         //taskDto.setTemp(null);
-
+        if(!checkCloudTaskLimit(id,user,false)){
+            taskDto.setCrontabExpressionFlag(false);
+            taskDto.setCrontabExpression(null);
+        }
         //创建新任务， 直接调用事务不会生效
         TaskService taskService = SpringContextHelper.getBean(TaskService.class);
 
@@ -4472,5 +4475,32 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query = Query.query(Criteria.where("agentId").is(processId).and("status").is("running"));
         List<TaskDto> runningTasks = findAll(query);
         return runningTasks.size();
+    }
+
+    public int runningTaskNum(UserDetail userDetail) {
+        long workNum = count(Query.query(Criteria.where("is_deleted").ne(true)
+                .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
+                        Criteria.where("planStartDateFlag").is(true),
+                        Criteria.where("crontabExpressionFlag").is(true)
+                )), userDetail);
+        return (int) workNum;
+    }
+
+    public boolean checkCloudTaskLimit(ObjectId taskId,UserDetail user,boolean checkCurrentTask){
+        if (settingsService.isCloud()) {
+            TaskDto task = findByTaskId(taskId,"id","agentId","agentTags");
+            CalculationEngineVo calculationEngineVo = workerService.calculationEngine(task, user, null);
+            int runningNum;
+            if(checkCurrentTask){
+                runningNum  = subCronOrPlanNum(task, calculationEngineVo.getRunningNum());
+            }else{
+                runningNum = calculationEngineVo.getRunningNum();
+            }
+            if (runningNum >= calculationEngineVo.getTaskLimit()) {
+                return false;
+            }
+        }
+        return true;
     }
 }
