@@ -941,7 +941,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		return tapdataEvent;
 	}
 
-	private void handleSchemaChange(TapEvent tapEvent) {
+	protected void handleSchemaChange(TapEvent tapEvent) {
 		String tableId = ((TapDDLEvent) tapEvent).getTableId();
 		TapTable tapTable;
 		// Modify schema by ddl event
@@ -950,7 +950,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		} else {
 			try {
 				tapTable = processorBaseContext.getTapTableMap().get(tableId);
-				InstanceFactory.bean(DDLSchemaHandler.class).updateSchemaByDDLEvent((TapDDLEvent) tapEvent, tapTable);
+				ddlSchemaHandler().updateSchemaByDDLEvent((TapDDLEvent) tapEvent, tapTable);
 				TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
 				DefaultExpressionMatchingMap dataTypesMap = getConnectorNode().getConnectorContext().getSpecification().getDataTypesMap();
 				tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap(), dataTypesMap);
@@ -1018,6 +1018,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (metadata.getId() == null) {
 					metadata.setId(metadata.getOldId());
 				}
+				metadata.setTableAttr(metadata.getTableAttr());
 				updateMetadata.put(metadata.getId().toHexString(), metadata);
 				obsLogger.info("Alter table schema transform finished");
 			}
@@ -1030,8 +1031,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			throw new RuntimeException("Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage(), e);
 		}
 	}
-
-
+	protected DDLSchemaHandler ddlSchemaHandler() {
+		return InstanceFactory.bean(DDLSchemaHandler.class);
+	}
 	public void enqueue(TapdataEvent tapdataEvent) {
 		try {
 			if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
