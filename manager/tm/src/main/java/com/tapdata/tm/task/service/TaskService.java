@@ -4493,11 +4493,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             CalculationEngineVo calculationEngineVo = workerService.calculationEngine(task, user, null);
             int runningNum;
             if(checkCurrentTask){
-                runningNum  = subCronOrPlanNum(task, calculationEngineVo.getRunningNum());
+                runningNum  = subCronOrPlanNum(task, calculationEngineVo.getTotalRunningNum());
             }else{
-                runningNum = calculationEngineVo.getRunningNum();
+                runningNum = calculationEngineVo.getTotalRunningNum();
             }
-            if (runningNum >= calculationEngineVo.getTaskLimit()) {
+            if (runningNum >= calculationEngineVo.getTotalLimit()) {
                 return false;
             }
         }
