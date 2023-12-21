@@ -199,13 +199,11 @@ public class DataPermissionService {
 
 		// actions is null or empty do not anything
 		if (null != actions && !actions.isEmpty()) {
-			// role permissions auth
-			List<DataPermissionAction> actionList = new ArrayList<>();
 			for (String tid : typeIds) {
-				actionList.add(new DataPermissionAction(type.name(), tid, actions));
+				 update = Update.fromDocument(new Document("$addToSet", new Document(DataPermissionHelper.FIELD_NAME,new DataPermissionAction(type.name(), tid, actions))));
+				//update = Update.update(DataPermissionHelper.FIELD_NAME, actionList);
+				mongoOperations.updateMulti(query, update, dataType.getCollection());
 			}
-			update = Update.update(DataPermissionHelper.FIELD_NAME, actionList);
-			mongoOperations.updateMulti(query, update, dataType.getCollection());
 		}
 	}
 }
