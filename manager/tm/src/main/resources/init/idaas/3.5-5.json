@@ -1,0 +1,39 @@
+[
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "_id": {
+          "$oid": "6583b4915081ca1b3cddc4f3"
+        },
+        "category": "Job",
+        "key": "INCREMENTAL_DELAY_LINE_DATA_MAX",
+        "value": 5,
+        "default_value": 5,
+        "last_update": {
+          "$numberLong": "0"
+        },
+        "key_label": "INCREMENTAL_DELAY_LINE_DATA_MAX",
+        "user_visible": true,
+        "hot_reloading": false,
+        "_class": "com.tapdata.tm.Settings.dto.SettingsDto"
+      },
+      {
+        "_id": {
+          "$oid": "6583b1b55081ca1b3cddc4f0"
+        },
+        "category": "Job",
+        "key": "INCREMENTAL_DELAY_LINE_DATA_COEFFICIENT",
+        "value": "1",
+        "default_value": "1",
+        "last_update": {
+          "$numberLong": "0"
+        },
+        "key_label": "INCREMENTAL_DELAY_LINE_DATA_COEFFICIENT",
+        "user_visible": true,
+        "hot_reloading": false,
+        "_class": "com.tapdata.tm.Settings.dto.SettingsDto"
+      }
+    ]
+  }
+]
