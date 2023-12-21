@@ -4,11 +4,13 @@ import com.alibaba.fastjson.JSONObject;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
+import com.tapdata.tm.Settings.dto.NotificationDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.events.entity.Events;
 import com.tapdata.tm.events.service.EventsService;
 import com.tapdata.tm.message.constant.*;
 import com.tapdata.tm.message.dto.MessageDto;
@@ -19,15 +21,18 @@ import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.user.entity.Connected;
 import com.tapdata.tm.user.entity.Notification;
+import com.tapdata.tm.user.entity.StoppedByError;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.HttpUtils;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import lombok.SneakyThrows;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -583,5 +588,95 @@ class MessageServiceTest {
         messageServiceUnderTest.add(mockMessageDto,userDetail);
         verify(scheduledExecutorService,times(0)).shutdown();
     }
-
+    @Nested
+    class AddMigrationTest{
+        @Test
+        void testAddMigrationForConnected(){
+            try (MockedStatic<MailUtils> mailUtilsMockedStatic = Mockito
+                    .mockStatic(MailUtils.class)) {
+                mailUtilsMockedStatic.when(()->MailUtils.sendHtmlEmail(any(),anyList(),anyString(),anyString())).thenAnswer(invocation -> null);
+                String serverName = "testName";
+                String sourceId ="testId";
+                MsgTypeEnum msgTypeEnum = MsgTypeEnum.CONNECTED;
+                Level level = Level.INFO;
+                UserDetail userDetail = mock(UserDetail.class);
+                messageServiceUnderTest.addMigration(serverName,sourceId,msgTypeEnum,level,userDetail);
+                mailUtilsMockedStatic.verify(()->MailUtils.sendHtmlEmail(any(),anyList(),anyString(),anyString()),times(0));
+            }
+        }
+        @Test
+        void testAddMigrationForDeletedAndPaused(){
+            try (MockedStatic<MailUtils> mailUtilsMockedStatic = Mockito
+                    .mockStatic(MailUtils.class)) {
+                mailUtilsMockedStatic.when(()->MailUtils.sendHtmlEmail(any(),anyList(),anyString(),anyString())).thenAnswer(invocation -> null);
+                String serverName = "testName";
+                String sourceId ="testId";
+                MsgTypeEnum msgTypeEnum = MsgTypeEnum.DELETED;
+                Level level = Level.INFO;
+                UserDetail userDetail = mock(UserDetail.class);
+                messageServiceUnderTest.addMigration(serverName,sourceId,msgTypeEnum,level,userDetail);
+                mailUtilsMockedStatic.verify(()->MailUtils.sendHtmlEmail(any(),anyList(),anyString(),anyString()),times(0));
+                msgTypeEnum = MsgTypeEnum.PAUSED;
+                messageServiceUnderTest.addMigration(serverName,sourceId,msgTypeEnum,level,userDetail);
+                mailUtilsMockedStatic.verify(()->MailUtils.sendHtmlEmail(any(),anyList(),anyString(),anyString()),times(0));
+            }
+        }
+        @Test
+        void testAddMigrationForElse(){
+            try (MockedStatic<MailUtils> mailUtilsMockedStatic = Mockito
+                    .mockStatic(MailUtils.class)) {
+                mailUtilsMockedStatic.when(()->MailUtils.sendHtmlEmail(any(),anyList(),anyString(),anyString())).thenAnswer(invocation -> null);
+                Settings settings = new Settings();
+                settings.setId("id");
+                settings.setCategory("category");
+                settings.setCategory_sort(0);
+                settings.setDefault_value("default_value");
+                settings.setValue("{\"runNotification\":[{\"label\":\"jobStarted\",\"notice\":true,\"email\":false}," +
+                        "{\"label\":\"jobPaused\",\"notice\":true,\"email\":false},{\"label\":\"jobDeleted\",\"notice\":true,\"email\":false}," +
+                        "{\"label\":\"jobStateError\",\"notice\":true,\"email\":false},{\"label\":\"jobEncounterError\",\"notice\":true,\"email\":false,\"noticeInterval\":\"noticeInterval\",\"Interval\":12,\"util\":\"hour\"}," +
+                        "{\"label\":\"CDCLagTime\",\"notice\":true,\"email\":false,\"lagTime\":\"lagTime\",\"lagTimeInterval\":12,\"lagTimeUtil\":\"second\",\"noticeInterval\":\"noticeInterval\",\"noticeIntervalInterval\":24,\"noticeIntervalUtil\":\"hour\"}," +
+                        "{\"label\":\"inspectCount\",\"notice\":true,\"email\":false},{\"label\":\"inspectValue\",\"notice\":true,\"email\":false},{\"label\":\"inspectDelete\",\"notice\":true,\"email\":false}," +
+                        "{\"label\":\"inspectError\",\"notice\":true,\"email\":false}],\"systemNotification\":[],\"agentNotification\":[{\"label\":\"serverDisconnected\",\"notice\":true,\"email\":false},{\"label\":\"agentStarted\",\"notice\":true,\"email\":false}," +
+                        "{\"label\":\"agentStopped\",\"notice\":true,\"email\":false},{\"label\":\"agentCreated\",\"notice\":true,\"email\":false}," +
+                        "{\"label\":\"agentDeleted\",\"notice\":true,\"email\":false}]}");
+                when(mockSettingsService.getByCategoryAndKey(CategoryEnum.NOTIFICATION, KeyEnum.NOTIFICATION))
+                        .thenReturn(settings);
+                String serverName = "testName";
+                String sourceId ="testId";
+                MsgTypeEnum msgTypeEnum = MsgTypeEnum.ERROR;
+                Level level = Level.INFO;
+                UserDetail userDetail = mock(UserDetail.class);
+                Notification notification = mock(Notification.class);
+                when(userDetail.getNotification()).thenReturn(notification);
+                StoppedByError stopped = mock(StoppedByError.class);
+                when(notification.getStoppedByError()).thenReturn(stopped);
+                when(stopped.getEmail()).thenReturn(true);
+                when(mockAlarmService.getMailAccount(null)).thenReturn(mock(MailAccountDto.class));
+                messageServiceUnderTest.addMigration(serverName,sourceId,msgTypeEnum,level,userDetail);
+                mailUtilsMockedStatic.verify(()->MailUtils.sendHtmlEmail(any(),anyList(),anyString(),anyString()),times(1));
+            }
+        }
+    }
+    @Nested
+    class AddSyncTest{
+        @SneakyThrows
+        @Test
+        void testAddSyncForDeletedOrPaused(){
+            try (MockedStatic<MailUtils> mailUtilsMockedStatic = Mockito
+                    .mockStatic(MailUtils.class)) {
+                mailUtilsMockedStatic.when(()->MailUtils.sendHtmlEmail(any(),anyList(),anyString(),anyString())).thenAnswer(invocation -> null);
+                String serverName = "testName";
+                String sourceId ="testId";
+                MsgTypeEnum msgTypeEnum = MsgTypeEnum.DELETED;
+                String title = "testTitle";
+                Level level = Level.INFO;
+                UserDetail userDetail = mock(UserDetail.class);
+                messageServiceUnderTest.addSync(serverName,sourceId,msgTypeEnum,title,level,userDetail);
+                mailUtilsMockedStatic.verify(()->MailUtils.sendHtmlEmail(any(),anyList(),anyString(),anyString()),times(0));
+                msgTypeEnum = MsgTypeEnum.PAUSED;
+                messageServiceUnderTest.addSync(serverName,sourceId,msgTypeEnum,title,level,userDetail);
+                mailUtilsMockedStatic.verify(()->MailUtils.sendHtmlEmail(any(),anyList(),anyString(),anyString()),times(0));
+            }
+        }
+    }
 }

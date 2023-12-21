@@ -354,6 +354,10 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
      * @param userDetail
      */
     public void addSync(String serverName, String sourceId, MsgTypeEnum msgTypeEnum, String title, Level level, UserDetail userDetail) {
+        if (MsgTypeEnum.DELETED.equals(msgTypeEnum) || MsgTypeEnum.PAUSED.equals(msgTypeEnum)) {
+            log.info("任务删除或停止，不用发邮件短信");
+            return;
+        }
         NotificationDto notificationDto = needInform(SystemEnum.SYNC, msgTypeEnum);
         if (null == notificationDto) {
             return;
@@ -368,10 +372,6 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                     update(Query.query(Criteria.where("_id").is(saveMessage.getId())),Update.update("isSend",true));
                 }
             }, () -> {
-                if (MsgTypeEnum.DELETED.equals(msgTypeEnum) || MsgTypeEnum.PAUSED.equals(msgTypeEnum)) {
-                    log.info("任务删除或停止，不用发邮件短信");
-                    return;
-                }
                 MailAccountDto mailAccount = alarmService.getMailAccount(userDetail.getUserId());
                 String mailTitle = getMailTitle(msgTypeEnum);
                 MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle, serverName + mailTitle);
