@@ -63,6 +63,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -177,6 +178,12 @@ public class ConnectorManager {
 
 	@Autowired
 	private SchemaProxy schemaProxy;
+
+    private final Supplier<Long> getRetryTimeoutSupplier = () -> {
+        // change 60s to 300s, because DFS fault usually lasts longer than 1 minute
+        long jobHeartTimeout = settingService.getLong("jobHeartTimeout", appType.isCloud() ? 300000L : 60000L);
+        return Math.max((long) (jobHeartTimeout * 0.8), 30000L);
+    };
 
 	@PostConstruct
 	public void init() throws Exception {
@@ -480,14 +487,7 @@ public class ConnectorManager {
 	@Bean("restTemplateOperator")
 	public RestTemplateOperator initRestTemplate() {
 		initVariable();
-		restTemplateOperator = new RestTemplateOperator(
-				baseURLs,
-				restRetryTime,
-				() -> {
-					long jobHeartTimeout = settingService.getLong("jobHeartTimeout", 60000L);
-					return jobHeartTimeout * 0.8 > 30000 ? (long) (jobHeartTimeout * 0.8) : 30000L;
-				}
-		);
+		restTemplateOperator = new RestTemplateOperator(baseURLs, restRetryTime, getRetryTimeoutSupplier);
 
 		return restTemplateOperator;
 	}
