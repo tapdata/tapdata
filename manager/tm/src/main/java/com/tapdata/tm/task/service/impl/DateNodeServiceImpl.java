@@ -15,9 +15,6 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.task.service.DateNodeService;
 import com.tapdata.tm.utils.MongoUtils;
-import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
-import io.tapdata.entity.mapping.TypeExprResult;
-import io.tapdata.entity.utils.DataMap;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,9 +51,8 @@ public class DateNodeServiceImpl implements DateNodeService {
         }
 
         List<Node> sources = dag.getSources();
-        DatabaseNode sourceNode = (DatabaseNode) sources.get(0);
-
-
+        DatabaseNode sourceNode = (DatabaseNode)sources.stream().filter(DatabaseNode.class::isInstance).findFirst().orElse(null);
+        if(sourceNode == null)return;
         Set<String> dataTypes = new HashSet<>();
         for (Node node : nodes) {
             if (node instanceof MigrateDateProcessorNode) {
