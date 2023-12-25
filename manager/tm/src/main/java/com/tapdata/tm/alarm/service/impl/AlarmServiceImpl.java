@@ -527,6 +527,11 @@ public class AlarmServiceImpl implements AlarmService {
                 content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START, info.getName(), info.getParam().get("cdcTime"));
                 SmsEvent = "增量开始";
                 break;
+            case TASK_STATUS_STOP:
+                title = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL_TITLE, info.getName());
+                content = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL, info.getName(), dateTime);
+                SmsEvent = "任务停止";
+                break;
             case TASK_INCREMENT_DELAY:
                 title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("currentValue"));

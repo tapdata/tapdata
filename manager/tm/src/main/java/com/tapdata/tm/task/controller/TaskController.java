@@ -1,9 +1,16 @@
 package com.tapdata.tm.task.controller;
 
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.google.common.collect.Maps;
+import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
+import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
+import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
+import com.tapdata.tm.alarm.entity.AlarmInfo;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
@@ -16,6 +23,7 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
@@ -92,6 +100,7 @@ public class TaskController extends BaseController {
     private TaskRecordService taskRecordService;
     private WorkerService workerService;
     private UserService userService;
+    private AlarmService alarmService;
 
 		private <T> T dataPermissionUnAuth() {
 			throw new RuntimeException("Un auth");
@@ -869,6 +878,25 @@ public class TaskController extends BaseController {
 						messageService.addMigration(task.getName(), task.getId().toString(), MsgTypeEnum.PAUSED, Level.INFO, getLoginUser());
 					}
 				}
+                if (!taskIds.isEmpty()){
+                    for (String taskId : taskIds){
+                        TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId));
+                        boolean checkOpen = alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_DELAY, null, userDetail);
+                        if (checkOpen){
+                            Map<String, Object> param = Maps.newHashMap();
+                            param.put("stopTime", DateUtil.now());
+                            param.put("alarmDate", DateUtil.now());
+                            param.put("taskName", taskDto.getName());
+                            AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.NORMAL).component(AlarmComponentEnum.FE)
+                                    .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(taskDto.getAgentId()).taskId(taskId)
+                                    .name(taskDto.getName()).summary("TASK_STATUS_STOP").metric(AlarmKeyEnum.TASK_STATUS_STOP)
+                                    .param(param)
+                                    .build();
+                            alarmInfo.setUserId(taskDto.getUserId());
+                            alarmService.save(alarmInfo);
+                        }
+                    }
+                }
 			} catch (Exception e) {
 				log.warn("add migration message error");
 			}
