@@ -161,7 +161,7 @@ public class DataSourceController extends BaseController {
         }
 
         UserDetail userDetail;
-        if (filter.getWhere().containsKey("_id")) {
+        if (filter.getWhere().containsKey("_id") && filter.getWhere().get("_id") instanceof String) {
             DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(filter.getWhere().get("_id").toString()));
             Assert.notNull(connectionDto, "connection is null");
             userDetail = userService.loadUserById(MongoUtils.toObjectId(connectionDto.getUserId()));
@@ -171,9 +171,7 @@ public class DataSourceController extends BaseController {
 
 			final NoSchemaFilter finalFilter = filter;
 			final Boolean finalNoSchema = noSchema;
-			return success(DataPermissionMenuEnums.Connections.checkAndSetFilter(userDetail, DataPermissionActionEnums.View, () -> {
-				return dataSourceService.list(finalFilter, finalNoSchema, userDetail);
-			}));
+			return success(DataPermissionMenuEnums.Connections.checkAndSetFilter(userDetail, DataPermissionActionEnums.View, () -> dataSourceService.list(finalFilter, finalNoSchema, userDetail)));
     }
 
 
