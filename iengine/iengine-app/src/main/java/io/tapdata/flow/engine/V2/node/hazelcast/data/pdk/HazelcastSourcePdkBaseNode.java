@@ -228,7 +228,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				TapEvent e = event.getTapEvent();
 				try {
 					if (e instanceof TapRecordEvent) {
-						String tableId = TapEventUtil.getTableId(e);
+						String tableId = ShareCdcUtil.getTapRecordEventTableName((TapRecordEvent) e);
 						TapTable tapTable = null;
 						try {
 							tapTable = tapTableMap.get(tableId);
