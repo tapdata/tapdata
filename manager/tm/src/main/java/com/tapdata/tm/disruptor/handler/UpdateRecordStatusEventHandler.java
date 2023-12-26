@@ -86,6 +86,22 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
                     alarmService.save(errorInfo);
                 }
                 break;
+            case TaskDto.STATUS_STOP:
+                TaskDto stopTaskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+                boolean checkOpenForStop = alarmService.checkOpen(stopTaskDto, null, AlarmKeyEnum.TASK_STATUS_STOP, null, data.getUserDetail());
+                if (checkOpenForStop) {
+                    param.put("taskName", taskName);
+                    param.put("stopTime", DateUtil.now());
+                    param.put("alarmDate", alarmDate);
+                    AlarmInfo errorInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.NORMAL).component(AlarmComponentEnum.FE)
+                            .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId)
+                            .name(data.getTaskName()).summary("TASK_STATUS_STOP").metric(AlarmKeyEnum.TASK_STATUS_STOP)
+                            .param(param)
+                            .build();
+                    errorInfo.setUserId(stopTaskDto.getUserId());
+                    alarmService.save(errorInfo);
+                }
+                break;
         }
     }
 

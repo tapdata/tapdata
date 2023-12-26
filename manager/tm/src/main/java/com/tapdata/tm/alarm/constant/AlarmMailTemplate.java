@@ -13,8 +13,7 @@ public class AlarmMailTemplate {
     public static final String TASK_STATUS_STOP_MANUAL_TITLE = "【Tapdata Notification:Task stopped】{0}";
     public static final String TASK_STATUS_STOP_MANUAL = "Your task has been stopped. \n" +
             "    Task name: 【{0}】\n" +
-            "    Stop time: {1}\n" +
-            "    Stop reason: 被{2}手动停止";
+            "    Stop time: {1}\n";
 
     public static final String TASK_FULL_COMPLETE_TITLE = "【Tapdata Notification:Initial sync complete】{0}";
     public static final String TASK_FULL_COMPLETE = "Your task initial sync has been completed. \n" +
