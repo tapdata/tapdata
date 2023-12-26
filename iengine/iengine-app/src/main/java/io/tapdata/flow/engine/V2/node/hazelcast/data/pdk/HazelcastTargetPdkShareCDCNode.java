@@ -623,9 +623,6 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		if (null == timestamp || timestamp.compareTo(0L) <= 0) {
 			obsLogger.warn("Invalid timestamp value: " + timestamp);
 		}
-		if (StringUtils.isBlank(offsetStr)) {
-			obsLogger.warn("Invalid offset string: " + offsetStr);
-		}
 	}
 
 	private void verifyDDL(TapEvent tapEvent, String tableId, String op, Long timestamp, String offsetStr) {
@@ -640,9 +637,6 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		}
 		if (null == timestamp || timestamp.compareTo(0L) <= 0) {
 			obsLogger.warn("Invalid timestamp value: " + timestamp);
-		}
-		if (StringUtils.isBlank(offsetStr)) {
-			obsLogger.warn("Invalid offset string: " + offsetStr);
 		}
 	}
 

@@ -99,21 +99,27 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	private final Map<String, MemoryMetrics> memoryMetricsMap = new HashMap<>();
 	private AtomicBoolean readFirstData = new AtomicBoolean();
 
-	ShareCdcPDKTaskReader(Object offset) {
-		super();
-		if (offset instanceof Map) {
-			Map<String, Long> map = new HashMap<>();
-			for (Map.Entry<?, ?> entry : ((Map<?, ?>) offset).entrySet()) {
-				if (!(entry.getValue() instanceof Long)) {
-					continue;
-				}
-				map.put(entry.getKey().toString(), Long.parseLong(((Long) entry.getValue()).toString()));
-			}
-			this.sequenceMap = new ConcurrentHashMap<>(map);
-		} else {
-			this.sequenceMap = new ConcurrentHashMap<>();
-		}
-	}
+    ShareCdcPDKTaskReader(Object offset) {
+        super();
+        if (offset instanceof Map) {
+            this.sequenceMap = new ConcurrentHashMap<>(generateSequenceMap((Map) offset));
+        } else if (offset instanceof ShareCDCOffset) {
+            this.sequenceMap = new ConcurrentHashMap<>(generateSequenceMap(((ShareCDCOffset) offset).getSequenceMap()));
+        } else {
+            this.sequenceMap = new ConcurrentHashMap<>();
+        }
+    }
+
+    private Map<String, Long> generateSequenceMap(Map offset) {
+        Map<String, Long> map = new HashMap<>();
+        for (Map.Entry<?, ?> entry : ((Map<?, ?>) offset).entrySet()) {
+            if (!(entry.getValue() instanceof Long)) {
+                continue;
+            }
+            map.put(entry.getKey().toString(), Long.parseLong(((Long) entry.getValue()).toString()));
+        }
+        return map;
+    }
 
 	@Override
 	public void init(ShareCdcContext shareCdcContext) throws ShareCdcUnsupportedException {
