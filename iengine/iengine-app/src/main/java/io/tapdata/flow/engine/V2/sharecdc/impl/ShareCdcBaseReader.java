@@ -165,9 +165,6 @@ public class ShareCdcBaseReader implements ShareCdcReader {
 		if (StringUtils.isBlank(op)) {
 			throw new TapCodeException(ShareCdcReaderExCode_13.MISSING_OPERATION, "Log data: " + logContent);
 		}
-		if (StringUtils.isBlank(logContent.getOffsetString())) {
-			throw new TapCodeException(ShareCdcReaderExCode_13.MISSING_OFFSET, "Log data: " + logContent);
-		}
 		if (StringUtils.isBlank(logContent.getFromTable())) {
 			throw new TapCodeException(ShareCdcReaderExCode_13.MISSING_TABLE_NAME, "Log data: " + logContent);
 		}
