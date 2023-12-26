@@ -26,15 +26,53 @@ import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 @RunWith(MockitoJUnitRunner.class)
 class ConnectorManagerTest extends BaseTest {
     private ConnectorManager connectorManager = new ConnectorManager();
+    @Nested
+    class TestInitRestTemplate {
+        @Test
+        void testInitRestTemplateNotNull() {
+            try (MockedStatic<com.tapdata.tm.sdk.util.AppType> t1 = mockStatic(com.tapdata.tm.sdk.util.AppType.class)) {
+                t1.when(com.tapdata.tm.sdk.util.AppType::init).thenReturn(com.tapdata.tm.sdk.util.AppType.DAAS);
+                try (MockedStatic<AppType> t2 = mockStatic(AppType.class)) {
+                    t2.when(AppType::init).thenReturn(AppType.DAAS);
+                    assertNotNull(connectorManager.initRestTemplate());
+                }
+            }
+        }
+
+        @Test
+        void testGetRetryTimeoutSupplier() {
+            final double scale = 0.8;
+            final long minTimeout = 30000L;
+            final long defDFS = 300000L;
+            final long defDAAS = 60000L;
+
+            connectorManager = spy(ConnectorManager.class);
+            ReflectionTestUtils.setField(connectorManager, "appType", AppType.DAAS);
+            SettingService settingService = mock(SettingService.class);
+            when(settingService.getLong("jobHeartTimeout", defDAAS)).thenReturn(3100L, defDAAS);
+            when(settingService.getLong("jobHeartTimeout", defDFS)).thenReturn(defDFS);
+            ReflectionTestUtils.setField(connectorManager, "settingService", settingService);
+
+
+            Supplier<Long> getRetryTimeout = (Supplier<Long>) ReflectionTestUtils.getField(connectorManager, "getRetryTimeoutSupplier");
+            assertNotNull(getRetryTimeout);
+
+            // settings less 3 seconds
+            assertEquals(getRetryTimeout.get(), minTimeout);
+            assertEquals(getRetryTimeout.get(), (long) (defDAAS * scale));
+            ReflectionTestUtils.setField(connectorManager, "appType", AppType.DFS);
+            assertEquals(getRetryTimeout.get(), (long) (defDFS * scale));
+        }
+    }
     @Nested
     class TestInitForCheckLicenseEngineLimit{
         private MongoTemplate mongoTemplate;

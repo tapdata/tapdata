@@ -63,6 +63,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -177,6 +178,14 @@ public class ConnectorManager {
 
 	@Autowired
 	private SchemaProxy schemaProxy;
+
+    private final Supplier<Long> getRetryTimeoutSupplier = () -> {
+        // change 60s to 300s, because DFS fault usually lasts longer than 1 minute
+        long defRestApiTimeout = CommonUtils.getPropertyLong("DEFAULT_REST_API_TIMEOUT", appType.isCloud() ? 300000L : 60000L);
+        long minRestApiTimeout = CommonUtils.getPropertyLong("MINIMUM_REST_API_TIMEOUT", 30000L);
+        long jobHeartTimeout = settingService.getLong("jobHeartTimeout", defRestApiTimeout);
+        return Math.max((long) (jobHeartTimeout * 0.8), minRestApiTimeout);
+    };
 
 	@PostConstruct
 	public void init() throws Exception {
@@ -480,14 +489,7 @@ public class ConnectorManager {
 	@Bean("restTemplateOperator")
 	public RestTemplateOperator initRestTemplate() {
 		initVariable();
-		restTemplateOperator = new RestTemplateOperator(
-				baseURLs,
-				restRetryTime,
-				() -> {
-					long jobHeartTimeout = settingService.getLong("jobHeartTimeout", 60000L);
-					return jobHeartTimeout * 0.8 > 30000 ? (long) (jobHeartTimeout * 0.8) : 30000L;
-				}
-		);
+		restTemplateOperator = new RestTemplateOperator(baseURLs, restRetryTime, getRetryTimeoutSupplier);
 
 		return restTemplateOperator;
 	}
@@ -1676,11 +1678,11 @@ public class ConnectorManager {
 		this.restRetryTime = 3;
 		this.mode = "cluster";
 
-		String isCloud = System.getenv("isCloud");
+		String isCloud = CommonUtils.getenv("isCloud");
 		if ("true".equals(isCloud)) {
 			this.mongoURI = null;
 		} else {
-			String tapdataMongoUri = System.getenv("TAPDATA_MONGO_URI");
+			String tapdataMongoUri = CommonUtils.getenv("TAPDATA_MONGO_URI");
 			if (StringUtils.isBlank(tapdataMongoUri)) {
 				logger.info("TAPDATA_MONGO_URI env variable does not set, will use default {}", this.mongoURI);
 			} else {
@@ -1688,35 +1690,35 @@ public class ConnectorManager {
 			}
 		}
 
-		String tapdataMongoConn = System.getenv("TAPDATA_MONGO_CONN");
+		String tapdataMongoConn = CommonUtils.getenv("TAPDATA_MONGO_CONN");
 		if (StringUtils.isEmpty(tapdataMongoConn)) {
 			logger.info("TAPDATA_MONGO_CONN env variable does not set, will use default {}", this.mongodbConnParams);
 		}
 
-		String ssl = System.getenv("MONGO_SSL");
+		String ssl = CommonUtils.getenv("MONGO_SSL");
 		if (StringUtils.isEmpty(ssl)) {
 			logger.info("ssl env variable does not set, will use default {}", this.ssl);
 		} else {
 			this.ssl = Boolean.valueOf(ssl);
 		}
 
-		String sslCA = System.getenv("MONGO_SSL_CA");
+		String sslCA = CommonUtils.getenv("MONGO_SSL_CA");
 		if (StringUtils.isNotBlank(sslCA)) {
 			this.sslCA = sslCA;
 		}
-		String sslCertKey = System.getenv("MONGO_SSL_CERT_KEY");
+		String sslCertKey = CommonUtils.getenv("MONGO_SSL_CERT_KEY");
 		if (StringUtils.isNotBlank(sslCertKey)) {
 			this.sslPEM = sslCertKey;
 		}
 
-		String cloud_accessCode = System.getenv("cloud_accessCode");
+		String cloud_accessCode = CommonUtils.getenv("cloud_accessCode");
 		if (StringUtils.isEmpty(cloud_accessCode)) {
 			logger.info("cloud_accessCode env variable does not set, will use default \"{}\".", this.accessCode);
 		} else {
 			this.accessCode = cloud_accessCode;
 		}
 
-		String cloud_retryTime = System.getenv("cloud_retryTime");
+		String cloud_retryTime = CommonUtils.getenv("cloud_retryTime");
 		if (StringUtils.isEmpty(cloud_retryTime)) {
 			logger.info("cloud_retryTime env variable does not set, will use default {}", this.restRetryTime);
 		} else {
@@ -1727,7 +1729,7 @@ public class ConnectorManager {
 			this.restRetryTime = Integer.valueOf(cloud_retryTime);
 		}
 
-		String cloud_baseURLs = System.getenv("backend_url");
+		String cloud_baseURLs = CommonUtils.getenv("backend_url");
 		if (StringUtils.isEmpty(cloud_baseURLs)) {
 			logger.info("backend_url env variable does not set, will use default {}", this.baseURLs);
 		} else {
@@ -1741,7 +1743,7 @@ public class ConnectorManager {
 			this.baseURLs = baseURLs;
 		}
 
-		String mode = System.getenv("mode");
+		String mode = CommonUtils.getenv("mode");
 		if (StringUtils.isEmpty(mode)) {
 			logger.info("mode env variable does not set, will use default {}", this.mode);
 		} else {
@@ -1756,8 +1758,8 @@ public class ConnectorManager {
 			return;
 		}
 
-		this.tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
-		String processId = System.getenv("process_id");
+		this.tapdataWorkDir = CommonUtils.getenv("TAPDATA_WORK_DIR");
+		String processId = CommonUtils.getenv("process_id");
 		if (StringUtils.isBlank(processId)) {
 			processId = AgentUtil.readAgentId(tapdataWorkDir);
 			if (StringUtils.isBlank(processId)) {
@@ -1773,7 +1775,7 @@ public class ConnectorManager {
 		this.instanceNo = processId;
 		ConfigurationCenter.processId = processId;
 
-		this.jobTags = System.getenv("jobTags");
+		this.jobTags = CommonUtils.getenv("jobTags");
 		if (appType.isDrs() && StringUtils.isNotBlank(jobTags)) {
 			String[] jobTagsSplit = jobTags.split(",");
 			if (jobTagsSplit.length < 2) {
