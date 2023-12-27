@@ -58,7 +58,7 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
         return true;
     }
 
-    private void taskAlarm(SyncTaskStatusDto data) {
+    protected void taskAlarm(SyncTaskStatusDto data) {
         AlarmService alarmService = SpringUtil.getBean(AlarmService.class);
 
         String taskId = data.getTaskId();
