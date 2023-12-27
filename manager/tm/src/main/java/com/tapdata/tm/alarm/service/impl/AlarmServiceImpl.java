@@ -158,6 +158,14 @@ public class AlarmServiceImpl implements AlarmService {
                 openTask = alarmSettingDtos.stream().anyMatch(t ->
                         key.equals(t.getKey()) && t.isOpen() && (type ==null || t.getNotify().contains(type)));
             }
+            if (AlarmKeyEnum.TASK_STATUS_STOP.equals(key)){
+                List<AlarmSettingDto> settingDtos = alarmSettingService.findAllAlarmSetting(userDetail);
+                Map<AlarmKeyEnum, AlarmSettingDto> settingDtoMap = settingDtos.stream().collect(Collectors.toMap(AlarmSettingDto::getKey, Function.identity(), (e1, e2) -> e1));
+                List<AlarmSettingDto> alarmSettingDto = Lists.newArrayList();
+                alarmSettingDto.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));
+                openTask = alarmSettingDto.stream().anyMatch(t ->
+                        key.equals(t.getKey()) && t.isOpen() && (type ==null || t.getNotify().contains(type)));
+            }
         }
 
         boolean openSys = false;
@@ -531,6 +539,11 @@ public class AlarmServiceImpl implements AlarmService {
                 title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("currentValue"));
                 SmsEvent = "增量延迟";
+                break;
+            case TASK_STATUS_STOP:
+                title = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL_TITLE, info.getName());
+                content = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL, info.getName(), dateTime);
+                SmsEvent = "任务停止";
                 break;
             case DATANODE_AVERAGE_HANDLE_CONSUME:
                 title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
