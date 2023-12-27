@@ -234,7 +234,6 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             log.info("任务恢复运行，只add message， 不用发邮件短信");
             return;
         }
-
         NotificationDto notificationDto = needInform(SystemEnum.MIGRATION, msgTypeEnum);
         Notification userNotification = userDetail.getNotification();
         if (null != notificationDto) {
@@ -250,6 +249,10 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             if (userNotification.getStoppedByError().getEmail()) {
                 log.info("dataflow出错，email 通知");
                 MessageEntity finalSaveMessage = saveMessage;
+                if (MsgTypeEnum.DELETED.equals(msgTypeEnum) || MsgTypeEnum.PAUSED.equals(msgTypeEnum)) {
+                    log.info("任务删除或停止，不用发邮件短信");
+                    return;
+                }
                 FunctionUtils.isTureOrFalse(settingsService.isCloud()).trueOrFalseHandle(() -> {
                     informUserEmail(msgTypeEnum, SystemEnum.MIGRATION, serverName, sourceId, finalSaveMessage.getId().toString(), userDetail);
                 }, () -> {
@@ -360,7 +363,10 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         if (notificationDto.getEmail()) {
             FunctionUtils.isTureOrFalse(settingsService.isCloud()).trueOrFalseHandle(() -> {
                 if(checkSending(userDetail)){
-                    SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), userDetail.getUsername(), serverName, SystemEnum.SYNC, msgTypeEnum, sourceId);
+                    SendStatus sendStatus = new SendStatus("", "false");
+                    if (!MsgTypeEnum.DELETED.equals(msgTypeEnum)) {
+                        sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), userDetail.getUsername(), serverName, SystemEnum.SYNC, msgTypeEnum, sourceId);
+                    }
                     eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
                     update(Query.query(Criteria.where("_id").is(saveMessage.getId())),Update.update("isSend",true));
                 }
@@ -448,7 +454,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         return messageEntity;
     }
 
-    private MessageEntity addMessage(String serverName, String sourceId, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum, String title, Level level, UserDetail userDetail, Boolean isNotify) {
+    protected MessageEntity addMessage(String serverName, String sourceId, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum, String title, Level level, UserDetail userDetail, Boolean isNotify) {
         MessageEntity messageEntity = new MessageEntity();
         messageEntity.setLevel(level.getValue());
         messageEntity.setServerName(serverName);
