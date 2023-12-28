@@ -50,7 +50,6 @@ import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -472,7 +471,7 @@ public class RestTemplateOperator {
 			}
 		}, stop);
 	}
-	public void downloadFileByProgress(RestTemplateOperator.Callback callback,InputStream source,File file,long fileSize) throws IOException {
+	public void downloadFileByProgress(RestTemplateOperator.Callback callback,InputStream source,File file,long fileSize) throws Exception {
 			byte[] buffer = new byte[10 * 1024 * 1024];
 			int numberOfBytesRead;
 			long totalNumberOfBytesRead = 0;
@@ -522,7 +521,11 @@ public class RestTemplateOperator {
 				ResponseExtractor<Boolean> responseExtractor = clientHttpResponse -> {
 					HttpHeaders headers = clientHttpResponse.getHeaders();
 					totalNumberOfBytesRead.set(headers.getContentLength());
-					downloadFileByProgress(callback,clientHttpResponse.getBody(),file,headers.getContentLength());
+					try {
+						downloadFileByProgress(callback,clientHttpResponse.getBody(),file,headers.getContentLength());
+					} catch (Exception e) {
+						throw new RuntimeException(e);
+					}
 					return true;
 				};
 				Boolean execute =restTemplate.execute(uri, HttpMethod.GET, requestCallback, responseExtractor);
@@ -801,12 +804,12 @@ public class RestTemplateOperator {
 		T tryFunc(RetryInfo retryInfo) throws Exception;
 	}
 	public interface Callback {
-        void needDownloadPdkFile(boolean flag) throws IOException;
-		void onProgress(long fileSize,long progress) throws IOException;
+        void needDownloadPdkFile(boolean flag) throws Exception;
+		void onProgress(long fileSize,long progress) throws Exception;
 
-		void onFinish(String downloadSpeed) throws IOException;
+		void onFinish(String downloadSpeed) throws Exception;
 
-		void onError(IOException ex) throws IOException;
+		void onError(IOException ex) throws Exception;
 	}
 
 	enum ResponseCode {

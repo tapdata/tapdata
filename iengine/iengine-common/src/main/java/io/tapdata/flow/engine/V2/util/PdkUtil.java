@@ -21,9 +21,7 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.net.util.Base64;
 import org.jetbrains.annotations.NotNull;
-
 import java.io.File;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -91,7 +89,7 @@ public class PdkUtil {
 				} else if (!PDKIntegration.hasJar(theFilePath.getName())) {
 					PDKIntegration.refreshJars(filePath.toString());
 				}
-			} catch (IOException e) {
+			} catch (Exception e) {
 				throw new RuntimeException(e);
 			} finally {
 				pdkDownloadUnlock(pdkHash, lock);
