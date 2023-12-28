@@ -127,7 +127,7 @@ public class DownLoadConnectorHandler implements WebSocketEventHandler {
         return null;
     }
 
-    private void upsertConnectorRecord(ConnectorRecordDto connectorRecordDto) throws IllegalAccessException {
+    protected void upsertConnectorRecord(ConnectorRecordDto connectorRecordDto) throws IllegalAccessException {
         HashMap<String, Object> queryMap = new HashMap<>();
         queryMap.put("connectionId", connectorRecordDto.getConnectionId());
         clientMongoOperator.upsert(queryMap, MapUtil.obj2Map(connectorRecordDto), ConnectorConstant.CONNECTORRECORD_COLLECTION);
