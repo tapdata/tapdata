@@ -2,6 +2,7 @@ package io.tapdata.websocket.handler;
 
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
@@ -17,16 +18,13 @@ import io.tapdata.threadgroup.utils.DisposableType;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.SendMessage;
 import io.tapdata.websocket.WebSocketEventHandler;
-import io.tapdata.websocket.WebSocketEventResult;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Consumer;
 @EventHandlerAnnotation(type = "downLoadConnector")
 public class DownLoadConnectorHandler implements WebSocketEventHandler {
     private final static Logger logger = LogManager.getLogger(DownLoadConnectorHandler.class);
@@ -65,51 +63,61 @@ public class DownLoadConnectorHandler implements WebSocketEventHandler {
             try{
                 PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseDefinition.getPdkHash(), databaseDefinition.getJarFile(), databaseDefinition.getJarRid(), new RestTemplateOperator.Callback() {
                     @Override
-                    public void needDownloadPdkFile(boolean flag) throws IOException {
+                    public void needDownloadPdkFile(boolean flag) throws Exception {
                         logger.info("Whether to start downloading the pdk file {}",flag);
-                        sendMessage.send(WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.DOWNLOAD_PDK_FILE_FLAG,flag));
+                        ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
+                        connectorRecordDto.setConnectionId(connectionId);
+                        connectorRecordDto.setPdkHash(databaseDefinition.getPdkHash());
+                        connectorRecordDto.setFlag(flag);
+                        upsertConnectorRecord(connectorRecordDto);
                     }
 
                     @Override
-                    public void onProgress(long fileSize,long progress) throws IOException {
-                        Map<String, Object> map = new HashMap<>();
-                        map.put("fileSize",fileSize);
-                        map.put("progress", progress);
-                        map.put("status","downloading");
-                        sendMessage.send(WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.PROGRESS_REPORTING,map));
+                    public void onProgress(long fileSize,long progress) throws Exception{
+                        ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
+                        connectorRecordDto.setConnectionId(connectionId);
+                        connectorRecordDto.setFileSize(fileSize);
+                        connectorRecordDto.setProgress(progress);
+                        connectorRecordDto.setPdkHash(databaseDefinition.getPdkHash());
+                        connectorRecordDto.setStatus(ConnectorRecordDto.StatusEnum.DOWNLOADING.getStatus());
+                        connectorRecordDto.setFlag(true);
+                        upsertConnectorRecord(connectorRecordDto);
                     }
 
                     @Override
-                    public void onFinish(String downloadSpeed){
+                    public void onFinish(String downloadSpeed) throws Exception{
                         logger.info("Downloading the pdk file is completed at a speed of {}.",downloadSpeed);
-                        uploadConnectorRecord(databaseDefinition.getPdkHash(), ConnectorRecordDto.statusEnum.FINISH,downloadSpeed,message->{
-                            try {
-                                sendMessage.send(message);
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                        });
+                        ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
+                        connectorRecordDto.setConnectionId(connectionId);
+                        connectorRecordDto.setStatus(ConnectorRecordDto.StatusEnum.FINISH.getStatus());
+                        connectorRecordDto.setDownloadSpeed(downloadSpeed);
+                        connectorRecordDto.setFlag(false);
+                        upsertConnectorRecord(connectorRecordDto);
                     }
 
                     @Override
-                    public void onError(IOException ex){
+                    public void onError(IOException ex) throws Exception{
                         logger.error("The reason why downloading the pdk file failed is {}.",ex.getMessage());
-                        uploadConnectorRecord(databaseDefinition.getPdkHash(), ConnectorRecordDto.statusEnum.FAIL,ex.getMessage(),message->{
-                            try {
-                                sendMessage.send(message);
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                        });
-                        throw new RuntimeException("Download connector failed",ex);
+                        ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
+                        connectorRecordDto.setConnectionId(connectionId);
+                        connectorRecordDto.setStatus(ConnectorRecordDto.StatusEnum.FAIL.getStatus());
+                        connectorRecordDto.setDownFiledMessage(ex.getMessage());
+                        connectorRecordDto.setFlag(true);
+                        upsertConnectorRecord(connectorRecordDto);
+                        throw new RuntimeException("Download connector failed ",ex);
                     }
                 });
             } catch (Exception e){
                 String errMsg = String.format("Download connector %s failed, data: %s, err: %s", connName, event, e.getMessage());
                 logger.error(errMsg, e);
                 try {
-                    sendMessage.send(WebSocketEventResult.handleFailed(WebSocketEventResult.Type.PROGRESS_REPORTING, errMsg, e));
-                } catch (IOException ex) {
+                    ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
+                    connectorRecordDto.setConnectionId(connectionId);
+                    connectorRecordDto.setStatus(ConnectorRecordDto.StatusEnum.FAIL.getStatus());
+                    connectorRecordDto.setDownFiledMessage(e.getMessage());
+                    connectorRecordDto.setFlag(true);
+                    upsertConnectorRecord(connectorRecordDto);
+                } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
             }
@@ -119,24 +127,10 @@ public class DownLoadConnectorHandler implements WebSocketEventHandler {
         return null;
     }
 
-    private void uploadConnectorRecord(String pdkHash, ConnectorRecordDto.statusEnum statusEnum, String message, Consumer<WebSocketEventResult> consumer){
-        Map<String, Object> map = new HashMap<>();
-        ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
-        connectorRecordDto.setPdkHash(pdkHash);
-        if(statusEnum.equals(ConnectorRecordDto.statusEnum.FINISH)){
-            map.put("status",ConnectorRecordDto.statusEnum.FINISH.getStatus());
-            connectorRecordDto.setStatus(ConnectorRecordDto.statusEnum.FINISH.getStatus());
-            connectorRecordDto.setDownloadSpeed(message);
-            consumer.accept(WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.PROGRESS_REPORTING,map));
-        }else{
-            connectorRecordDto.setStatus(ConnectorRecordDto.statusEnum.FAIL.getStatus());
-            connectorRecordDto.setDownFiledMessage(message);
-            consumer.accept(WebSocketEventResult.handleFailed(WebSocketEventResult.Type.PROGRESS_REPORTING,message));
-        }
-        try {
-            clientMongoOperator.insertOne(connectorRecordDto, ConnectorConstant.CONNECTORRECORD_COLLECTION);
-        }catch (Exception e){
-            logger.error("Failed to upload downloader metrics");
-        }
+    private void upsertConnectorRecord(ConnectorRecordDto connectorRecordDto) throws IllegalAccessException {
+        HashMap<String, Object> queryMap = new HashMap<>();
+        queryMap.put("connectionId", connectorRecordDto.getConnectionId());
+        clientMongoOperator.upsert(queryMap, MapUtil.obj2Map(connectorRecordDto), ConnectorConstant.CONNECTORRECORD_COLLECTION);
     }
+
 }
