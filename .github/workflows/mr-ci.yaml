@@ -7,7 +7,7 @@ on:
   pull_request:
     branches: [ "main", "develop", "release-v*.*" ]
   schedule:
-    - cron: "* 5 * * *"
+    - cron: "* 21 * * *"
   workflow_dispatch:
     inputs:
       mrci_run:
@@ -208,7 +208,7 @@ jobs:
           #mvn clean install -DskipTests -P idaas -P not_encrypt -U -T1C
           echo "OK"
       - name: Run - Local Service - Not Schedule
-        if: ${{ github.event_name != 'schedule' }}
+        if: ${{ github.event_name == 'pull_request' }}
         run: |
           bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}"
       - name: Run - Local Service - Schedule
