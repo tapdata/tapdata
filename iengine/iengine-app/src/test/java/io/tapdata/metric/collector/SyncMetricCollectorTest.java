@@ -16,7 +16,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -90,13 +89,7 @@ class SyncMetricCollectorTest {
         syncMetricCollector.log(TapInsertRecordEvent.create().referenceTime(beginTimes));
         ReflectionTestUtils.setField(syncMetricCollector, "cdcBeginTimes", beginTimes);
         ReflectionTestUtils.setField(syncMetricCollector, "cdcCompletedTimes", beginTimes);
-        Object cdcDelayTotals = ReflectionTestUtils.getField(syncMetricCollector, "cdcDelayTotals");
-        if (cdcDelayTotals instanceof Map) {
-            ((Map<?, ?>) cdcDelayTotals).clear();
-        }
         Assertions.assertTrue(syncMetricCollector.toString().contains("cdcBegin"));
-//        syncMetricCollector.log(TapInsertRecordEvent.create().referenceTime(beginTimes));
-//        Assertions.assertTrue(syncMetricCollector.toString().contains("cdcBegin"));
 
         List<TapBaseEvent> list = new ArrayList<>();
         // null referenceTime

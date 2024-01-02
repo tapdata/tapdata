@@ -137,7 +137,7 @@ public class SyncMetricCollector implements ISyncMetricCollector {
             buf.append(", \"snapshotQPS\": ").append(snapshotQps);
         }
 
-        if (null != cdcBeginTimes && null != cdcFirstEventTimes) {
+        if (null != cdcBeginTimes) {
             buf.append(", \"cdcBegin\": \"").append(sdf.format(cdcBeginTimes)).append("\"");
             buf.append(", \"cdcEnd\": \"").append(sdf.format(cdcCompletedTimes)).append("\"");
             buf.append(", \"cdcFirst\": \"").append(sdf.format(cdcFirstEventTimes)).append("\"");
