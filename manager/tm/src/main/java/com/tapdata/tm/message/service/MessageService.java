@@ -89,8 +89,6 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     @Lazy
     private AlarmService alarmService;
     @Autowired
-    private WorkerService workerService;
-    @Autowired
     private CircuitBreakerRecoveryService circuitBreakerRecoveryService;
 
     private final static String MAIL_SUBJECT = "【Tapdata】";
@@ -669,6 +667,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             messageEntity.setLastUpdBy(userDetail.getUsername());
             repository.save(messageEntity, userDetail);
             messageDto.setId(messageEntity.getId());
+            WorkerService workerService = SpringContextHelper.getBean(WorkerService.class);
             Long agentCount = workerService.getLastCheckAvailableAgentCount();
             if(SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())
                     && MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(messageDto.getMsg())){
