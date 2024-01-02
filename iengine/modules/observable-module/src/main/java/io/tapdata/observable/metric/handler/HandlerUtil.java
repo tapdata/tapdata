@@ -26,7 +26,7 @@ public class HandlerUtil {
     private HandlerUtil() {
 
     }
-    protected static final RandomSampleEventHandler randomSampleEventHandler = new RandomSampleEventHandler(1);
+    protected static final RandomSampleEventHandler randomSampleEventHandler = new RandomSampleEventHandler(0.5);
     protected static final RandomSampleEventHandler.HandleEvent covertTapDataEvent = data -> {
         if (data instanceof TapdataEvent) {
             TapdataEvent tapdataEvent = (TapdataEvent) data;
