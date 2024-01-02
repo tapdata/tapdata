@@ -669,7 +669,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             messageEntity.setLastUpdBy(userDetail.getUsername());
             repository.save(messageEntity, userDetail);
             messageDto.setId(messageEntity.getId());
-            Long agentCount = workerService.getAvailableAgentCount();
+            Long agentCount = workerService.getLastCheckAvailableAgentCount();
             if(SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())
                     && MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(messageDto.getMsg())){
                 if(!scheduledExecutorService.isShutdown()){

@@ -867,4 +867,13 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     public Long getAvailableAgentCount(){
         return count(getAvailableAgentQuery());
     }
+
+    public Long getLastCheckAvailableAgentCount(){
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30) + 120;
+        Criteria criteria = Criteria.where("worker_type").is("connector")
+                .and("ping_time").gte(System.currentTimeMillis() - (overTime * 1000L))
+                .and("isDeleted").ne(true)
+                .and("agentTags").ne("disabledScheduleTask");
+        return count(Query.query(criteria));
+    }
 }
