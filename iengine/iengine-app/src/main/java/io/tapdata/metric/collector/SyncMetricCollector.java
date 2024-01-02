@@ -164,15 +164,15 @@ public class SyncMetricCollector implements ISyncMetricCollector {
                 allDelay.set(allDelay.get().add(new BigDecimal(k * v.get())));
             });
 
-            Long latency99 = null; // 99 百分位，最长延迟
-            Long latency95 = null; // 95 百分位，最长延迟
+            long latency99 = 0; // 99 百分位，最长延迟
+            long latency95 = 0; // 95 百分位，最长延迟
             double currentTotals = totals.get();
             Long[] keySortArray = cdcDelayTotals.keySet().stream().sorted(Comparator.reverseOrder()).toArray(Long[]::new);
             for (Long k : keySortArray) {
                 currentTotals -= cdcDelayTotals.get(k).get();
                 if (currentTotals / totals.get() > 0.99) continue;
 
-                if (null == latency99) latency99 = k;
+                if (0 == latency99) latency99 = k;
 
                 if (currentTotals / totals.get() > 0.95) continue;
 
@@ -180,8 +180,8 @@ public class SyncMetricCollector implements ISyncMetricCollector {
                 break;
             }
 
-            if (null != latency99) buf.append(", \"99thLatency\": \"").append(latency99 * scale).append("ms\"");
-            if (null != latency95) buf.append(", \"95thLatency\": \"").append(latency95 * scale).append("ms\"");
+            buf.append(", \"99thLatency\": \"").append(latency99 * scale).append("ms\"");
+            buf.append(", \"95thLatency\": \"").append(latency95 * scale).append("ms\"");
             buf.append(", \"avgLatency\": \"").append(allDelay.get()
                 .multiply(new BigDecimal(scale))
                 .divide(new BigDecimal(totals.get()), 2, RoundingMode.HALF_UP)

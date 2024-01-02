@@ -16,6 +16,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -89,6 +90,10 @@ class SyncMetricCollectorTest {
         syncMetricCollector.log(TapInsertRecordEvent.create().referenceTime(beginTimes));
         ReflectionTestUtils.setField(syncMetricCollector, "cdcBeginTimes", beginTimes);
         ReflectionTestUtils.setField(syncMetricCollector, "cdcCompletedTimes", beginTimes);
+        Object cdcDelayTotals = ReflectionTestUtils.getField(syncMetricCollector, "cdcDelayTotals");
+        if (cdcDelayTotals instanceof Map) {
+            ((Map<?, ?>) cdcDelayTotals).clear();
+        }
         Assertions.assertTrue(syncMetricCollector.toString().contains("cdcBegin"));
 //        syncMetricCollector.log(TapInsertRecordEvent.create().referenceTime(beginTimes));
 //        Assertions.assertTrue(syncMetricCollector.toString().contains("cdcBegin"));
@@ -97,14 +102,17 @@ class SyncMetricCollectorTest {
         // null referenceTime
         list.add(TapInsertRecordEvent.create());
         // insert records
-        list.add(TapInsertRecordEvent.create().referenceTime(System.currentTimeMillis()));
+        for (int i = 0; i < 1; i++) list.add(TapInsertRecordEvent.create().referenceTime(System.currentTimeMillis() - 100));
+        for (int i = 0; i < 2; i++) list.add(TapInsertRecordEvent.create().referenceTime(System.currentTimeMillis() - 200));
         // update records
-        list.add(TapUpdateRecordEvent.create().referenceTime(System.currentTimeMillis()));
+        for (int i = 0; i < 100; i++) list.add(TapUpdateRecordEvent.create().referenceTime(System.currentTimeMillis() - 300));
         // delete records
-        list.add(TapDeleteRecordEvent.create().referenceTime(System.currentTimeMillis()));
+        for (int i = 0; i < 2; i++) list.add(TapDeleteRecordEvent.create().referenceTime(System.currentTimeMillis() - 400));
+        for (int i = 0; i < 1; i++) list.add(TapDeleteRecordEvent.create().referenceTime(System.currentTimeMillis() - 500));
         syncMetricCollector.log(list);
 
         // exist cdc metric
+        System.out.println(syncMetricCollector.toString());
         Assertions.assertTrue(syncMetricCollector.toString().contains("cdcBegin"));
     }
 
