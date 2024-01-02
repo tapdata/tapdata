@@ -27,8 +27,7 @@ public class ConnectorRecordController extends BaseController {
 
     @GetMapping()
     public ResponseMessage<ConnectorRecordEntity> getConnectorRecord(@RequestParam String connectionId){
-        UserDetail loginUser = getLoginUser();
-        return success(connectorRecordService.queryByConnectionId(connectionId,loginUser));
+        return success(connectorRecordService.queryByConnectionId(connectionId));
     }
     @PostMapping("/upsertWithWhere")
     public ResponseMessage<ConnectorRecordDto> upsertConnectorRecord(@RequestParam("where") String whereJson,

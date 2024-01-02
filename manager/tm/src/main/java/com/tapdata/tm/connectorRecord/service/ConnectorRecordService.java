@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -63,20 +64,29 @@ public class ConnectorRecordService extends BaseService<ConnectorRecordDto, Conn
         return null;
     }
 
-    public ConnectorRecordEntity queryByConnectionId(String connectionId, UserDetail loginUser) {
+    public ConnectorRecordEntity queryByConnectionId(String connectionId) {
         ConnectorRecordEntity connectorRecord = mongoTemplate.findOne(Query.query(Criteria.where("connectionId").is(connectionId)), ConnectorRecordEntity.class);
         return connectorRecord;
     }
 
     public void deleteByConnectionId(String connectionId) {
-        Query query = Query.query(Criteria.where("connectionId").is(connectionId));
-        mongoTemplate.remove(query,ConnectorRecordEntity.class);
+         mongoTemplate.remove(Query.query(Criteria.where("connectionId").is(connectionId)), ConnectorRecordEntity.class);
     }
 
     public void sendMessage(MessageInfo messageInfo, UserDetail userDetail) {
         Map<String, Object> data = messageInfo.getData();
         data.put("type", messageInfo.getType());
         messageInfo.setType("pipe");
+        List<String> tags = addAgentTags(data);
+        AtomicReference<String> receiver = getReceiver(data,tags,userDetail);
+        String agentId = receiver.get();
+        MessageQueueDto messageQueueDto=new MessageQueueDto();
+        messageQueueDto.setReceiver(agentId);
+        messageQueueDto.setData(data);
+        messageQueueDto.setType("pipe");
+        messageQueueService.sendMessage(messageQueueDto);
+    }
+    public List<String> addAgentTags(Map<String, Object> data) {
         Map platformInfos = MapUtils.getAsMap(data, "platformInfo");
         List<String> tags = new ArrayList<>();
         if (MapUtils.isNotEmpty(platformInfos)){
@@ -85,12 +95,16 @@ public class ConnectorRecordService extends BaseService<ConnectorRecordDto, Conn
                 if (list.contains(o.toString()) && platformInfos.get(o) != null){
                     tags.add(platformInfos.get(o).toString());
                 }
-                if (platformInfos.get(o) instanceof Boolean && (Boolean)platformInfos.get(0)){
+                if (platformInfos.get(o) instanceof Boolean && (Boolean)platformInfos.get(o)){
                     tags.add("internet");
                 }
             }
             data.put("agentTags", tags);
         }
+        return tags;
+    }
+
+    public AtomicReference<String> getReceiver(Map<String, Object> data, List<String> tags, UserDetail userDetail) {
         AtomicReference<String> receiver = new AtomicReference<>("");
         try {
             boolean accessNodeTypeEmpty = (Boolean) data.getOrDefault("accessNodeTypeEmpty", false);
@@ -122,11 +136,6 @@ public class ConnectorRecordService extends BaseService<ConnectorRecordDto, Conn
         } catch (Exception e) {
             log.error("error {}", e.getMessage());
         }
-        String agentId = receiver.get();
-        MessageQueueDto messageQueueDto=new MessageQueueDto();
-        messageQueueDto.setReceiver(agentId);
-        messageQueueDto.setData(data);
-        messageQueueDto.setType("pipe");
-        messageQueueService.sendMessage(messageQueueDto);
+        return receiver;
     }
 }
