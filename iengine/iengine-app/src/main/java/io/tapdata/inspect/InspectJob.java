@@ -20,6 +20,8 @@ import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Array;
+import java.sql.Clob;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
@@ -119,6 +121,13 @@ public abstract class InspectJob implements Runnable {
 				result.put(entry.getKey(), ((ObjectId) value).toHexString());
 			} else if (value instanceof DateTime) {
 				result.put(entry.getKey(), ((DateTime) value).toInstant().toString());
+			} else if(value instanceof Clob){
+				Clob clob = (Clob)value;
+				try {
+					result.put(entry.getKey(), clob.getSubString(1, (int) clob.length()));
+				}catch (SQLException e){
+					e.printStackTrace();
+				}
 			} else {
 				result.put(entry.getKey(), entry.getValue());
 			}
