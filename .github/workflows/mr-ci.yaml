@@ -251,9 +251,17 @@ jobs:
         with:
           cluster_name: 'tapdata-cloud-cluster'
           location: 'asia-east2'
+      - name: Checkout Tapdata Application
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-application'
+          ref: "main"
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-application
       - name: Close Test Env
         id: get_ip_port
         run: |
-          deployment_name=$(echo ${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} | tr 'A-F' 'a-f' | sed 's/\.//g')
-          kubectl delete deployment tapdata-$deployment_name -n dev
-          kubectl delete service tapdata-$deployment_name -n dev
+          ssh -i tapdata-application/build/id_rsa -o StrictHostKeyChecking=no ${{ secrets.LOCAL_DEPLOY_USER }}@${{ secrets.LOCAL_DEPLOY_HOST }} \
+              cd /app/tapdata-$version_name/ && \
+              sudo docker compose down && \
+              rm -rf /app/tapdata-$version_name
