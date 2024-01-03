@@ -27,7 +27,6 @@ import java.util.UUID;
 public class DownLoadConnectorHandler extends BaseEventHandler implements WebSocketEventHandler {
     private final static Logger logger = LogManager.getLogger(DownLoadConnectorHandler.class);
 
-
     @Override
     public Object handle(Map event, SendMessage sendMessage) {
         logger.info(String.format("downLoad connector, event: %s", event));
@@ -47,54 +46,55 @@ public class DownLoadConnectorHandler extends BaseEventHandler implements WebSoc
         String threadName = String.format("DOWNLOAD-CONNECTOR-%s", Optional.ofNullable(event.get("name")).orElse(""));
         DisposableThreadGroup threadGroup = new DisposableThreadGroup(DisposableType.DOWNLOAD_CONNECTOR, threadName);
         DatabaseTypeEnum.DatabaseType databaseDefinition = ConnectionUtil.getDatabaseType(clientMongoOperator, pskHash);
+        RestTemplateOperator.Callback callback=new RestTemplateOperator.Callback() {
+            @Override
+            public void needDownloadPdkFile(boolean flag) throws Exception {
+                logger.info("Whether to start downloading the pdk file {}",flag);
+                ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
+                connectorRecordDto.setConnectionId(connectionId);
+                connectorRecordDto.setPdkHash(databaseDefinition.getPdkHash());
+                connectorRecordDto.setFlag(flag);
+                upsertConnectorRecord(connectorRecordDto);
+            }
+
+            @Override
+            public void onProgress(long fileSize,long progress) throws Exception{
+                ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
+                connectorRecordDto.setConnectionId(connectionId);
+                connectorRecordDto.setFileSize(fileSize);
+                connectorRecordDto.setProgress(progress);
+                connectorRecordDto.setPdkHash(databaseDefinition.getPdkHash());
+                connectorRecordDto.setStatus(ConnectorRecordDto.StatusEnum.DOWNLOADING.getStatus());
+                connectorRecordDto.setFlag(true);
+                upsertConnectorRecord(connectorRecordDto);
+            }
+
+            @Override
+            public void onFinish(String downloadSpeed) throws Exception{
+                logger.info("Downloading the pdk file is completed at a speed of {}.",downloadSpeed);
+                ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
+                connectorRecordDto.setConnectionId(connectionId);
+                connectorRecordDto.setStatus(ConnectorRecordDto.StatusEnum.FINISH.getStatus());
+                connectorRecordDto.setDownloadSpeed(downloadSpeed);
+                connectorRecordDto.setFlag(false);
+                upsertConnectorRecord(connectorRecordDto);
+            }
+
+            @Override
+            public void onError(Exception ex) throws Exception{
+                logger.error("The reason why downloading the pdk file failed is {}.",ex.getMessage());
+                ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
+                connectorRecordDto.setConnectionId(connectionId);
+                connectorRecordDto.setStatus(ConnectorRecordDto.StatusEnum.FAIL.getStatus());
+                connectorRecordDto.setDownFiledMessage(ex.getMessage());
+                connectorRecordDto.setFlag(true);
+                upsertConnectorRecord(connectorRecordDto);
+                throw new RuntimeException("Download connector failed ",ex);
+            }
+        };
         Runnable runnable = AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(connectionId, threadGroup, entity), () -> {
             try{
-                PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseDefinition.getPdkHash(), databaseDefinition.getJarFile(), databaseDefinition.getJarRid(), new RestTemplateOperator.Callback() {
-                    @Override
-                    public void needDownloadPdkFile(boolean flag) throws Exception {
-                        logger.info("Whether to start downloading the pdk file {}",flag);
-                        ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
-                        connectorRecordDto.setConnectionId(connectionId);
-                        connectorRecordDto.setPdkHash(databaseDefinition.getPdkHash());
-                        connectorRecordDto.setFlag(flag);
-                        upsertConnectorRecord(connectorRecordDto);
-                    }
-
-                    @Override
-                    public void onProgress(long fileSize,long progress) throws Exception{
-                        ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
-                        connectorRecordDto.setConnectionId(connectionId);
-                        connectorRecordDto.setFileSize(fileSize);
-                        connectorRecordDto.setProgress(progress);
-                        connectorRecordDto.setPdkHash(databaseDefinition.getPdkHash());
-                        connectorRecordDto.setStatus(ConnectorRecordDto.StatusEnum.DOWNLOADING.getStatus());
-                        connectorRecordDto.setFlag(true);
-                        upsertConnectorRecord(connectorRecordDto);
-                    }
-
-                    @Override
-                    public void onFinish(String downloadSpeed) throws Exception{
-                        logger.info("Downloading the pdk file is completed at a speed of {}.",downloadSpeed);
-                        ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
-                        connectorRecordDto.setConnectionId(connectionId);
-                        connectorRecordDto.setStatus(ConnectorRecordDto.StatusEnum.FINISH.getStatus());
-                        connectorRecordDto.setDownloadSpeed(downloadSpeed);
-                        connectorRecordDto.setFlag(false);
-                        upsertConnectorRecord(connectorRecordDto);
-                    }
-
-                    @Override
-                    public void onError(Exception ex) throws Exception{
-                        logger.error("The reason why downloading the pdk file failed is {}.",ex.getMessage());
-                        ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
-                        connectorRecordDto.setConnectionId(connectionId);
-                        connectorRecordDto.setStatus(ConnectorRecordDto.StatusEnum.FAIL.getStatus());
-                        connectorRecordDto.setDownFiledMessage(ex.getMessage());
-                        connectorRecordDto.setFlag(true);
-                        upsertConnectorRecord(connectorRecordDto);
-                        throw new RuntimeException("Download connector failed ",ex);
-                    }
-                });
+                PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseDefinition.getPdkHash(), databaseDefinition.getJarFile(), databaseDefinition.getJarRid(), callback);
             } catch (Exception e){
                 String errMsg = String.format("Download connector %s failed, data: %s, err: %s", connName, event, e.getMessage());
                 logger.error(errMsg, e);
@@ -112,7 +112,7 @@ public class DownLoadConnectorHandler extends BaseEventHandler implements WebSoc
         });
         Thread thread = new Thread(threadGroup, runnable, threadName);
         thread.start();
-        return null;
+        return thread;
     }
 
     protected void upsertConnectorRecord(ConnectorRecordDto connectorRecordDto) throws IllegalAccessException {

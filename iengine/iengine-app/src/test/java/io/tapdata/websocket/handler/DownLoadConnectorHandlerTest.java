@@ -17,6 +17,7 @@ import org.mockito.Mockito;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.*;
@@ -37,11 +38,13 @@ public class DownLoadConnectorHandlerTest extends BaseTest {
     @Nested
     class TestHandle{
         private DownLoadConnectorHandler downLoadConnectorHandler;
+        private HttpClientMongoOperator httpClientMongoOperator;
 
         @BeforeEach
         void beforeEach(){
             downLoadConnectorHandler = spy(DownLoadConnectorHandler.class);
-            downLoadConnectorHandler.clientMongoOperator = mockClientMongoOperator;
+            httpClientMongoOperator=mock(HttpClientMongoOperator.class);
+            downLoadConnectorHandler.clientMongoOperator = httpClientMongoOperator;
         }
         @Test
         void testHandle(){
@@ -59,53 +62,11 @@ public class DownLoadConnectorHandlerTest extends BaseTest {
             databaseType.setPdkHash(pdkHash);
             databaseType.setJarFile("mongodb-connector-v1.0-SNAPSHOT.jar");
             databaseType.setJarRid("658bd476be560938470cafa8");
-
-            when(mockClientMongoOperator.findOne(anyMap(),any(),any())).thenReturn(databaseType);
-            PdkUtil pdkUtil = spy(PdkUtil.class);
-//            when(pdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator)mockClientMongoOperator, databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid(), new RestTemplateOperator.Callback() {
-//                        @Override
-//                        public void needDownloadPdkFile(boolean flag) throws Exception {
-//                            ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
-//                            connectorRecordDto.setConnectionId(connectionId);
-//                            connectorRecordDto.setPdkHash(databaseType.getPdkHash());
-//                            connectorRecordDto.setFlag(flag);
-//                            downLoadConnectorHandler.upsertConnectorRecord(connectorRecordDto);
-//                        }
-//
-//                        @Override
-//                        public void onProgress(long fileSize,long progress) throws Exception{
-//                            ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
-//                            connectorRecordDto.setConnectionId(connectionId);
-//                            connectorRecordDto.setFileSize(fileSize);
-//                            connectorRecordDto.setProgress(progress);
-//                            connectorRecordDto.setPdkHash(databaseType.getPdkHash());
-//                            connectorRecordDto.setStatus(ConnectorRecordDto.StatusEnum.DOWNLOADING.getStatus());
-//                            connectorRecordDto.setFlag(true);
-//                            downLoadConnectorHandler.upsertConnectorRecord(connectorRecordDto);
-//                        }
-//
-//                        @Override
-//                        public void onFinish(String downloadSpeed) throws Exception{
-//                            ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
-//                            connectorRecordDto.setConnectionId(connectionId);
-//                            connectorRecordDto.setStatus(ConnectorRecordDto.StatusEnum.FINISH.getStatus());
-//                            connectorRecordDto.setDownloadSpeed(downloadSpeed);
-//                            connectorRecordDto.setFlag(false);
-//                            downLoadConnectorHandler.upsertConnectorRecord(connectorRecordDto);
-//                        }
-//
-//                        @Override
-//                        public void onError(Exception ex) throws Exception{
-//                            ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
-//                            connectorRecordDto.setConnectionId(connectionId);
-//                            connectorRecordDto.setStatus(ConnectorRecordDto.StatusEnum.FAIL.getStatus());
-//                            connectorRecordDto.setDownFiledMessage(ex.getMessage());
-//                            connectorRecordDto.setFlag(true);
-//                            downLoadConnectorHandler.upsertConnectorRecord(connectorRecordDto);
-//                            throw new RuntimeException("Download connector failed ",ex);
-//                        }
-//                    })).thenReturn();
-            downLoadConnectorHandler.handle(event,null);
+            when(httpClientMongoOperator.findOne(anyMap(),any(),any())).thenReturn(databaseType);
+            Object thead = downLoadConnectorHandler.handle(event, null);
+            assertNotNull(thead);
+            assertEquals(Thread.class, thead.getClass());
+            assertDoesNotThrow(() -> ((Thread) thead).join());
 
         }
     }
