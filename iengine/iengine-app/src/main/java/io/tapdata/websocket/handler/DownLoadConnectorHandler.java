@@ -4,14 +4,12 @@ import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
 import com.tapdata.tm.commons.metrics.ConnectorRecordDto;
 import io.tapdata.aspect.supervisor.AspectRunnableUtil;
 import io.tapdata.aspect.supervisor.DisposableThreadGroupAspect;
 import io.tapdata.aspect.supervisor.entity.ConnectionTestEntity;
-import io.tapdata.common.SettingService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.threadgroup.DisposableThreadGroup;
 import io.tapdata.threadgroup.utils.DisposableType;
@@ -26,19 +24,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 @EventHandlerAnnotation(type = "downLoadConnector")
-public class DownLoadConnectorHandler implements WebSocketEventHandler {
+public class DownLoadConnectorHandler extends BaseEventHandler implements WebSocketEventHandler {
     private final static Logger logger = LogManager.getLogger(DownLoadConnectorHandler.class);
-    private ClientMongoOperator clientMongoOperator;
-    private SettingService settingService;
-    @Override
-    public void initialize(ClientMongoOperator clientMongoOperator) {
 
-    }
-    @Override
-    public void initialize(ClientMongoOperator clientMongoOperator, SettingService settingService) {
-        this.clientMongoOperator = clientMongoOperator;
-        this.settingService = settingService;
-    }
 
     @Override
     public Object handle(Map event, SendMessage sendMessage) {
@@ -96,7 +84,7 @@ public class DownLoadConnectorHandler implements WebSocketEventHandler {
                     }
 
                     @Override
-                    public void onError(IOException ex) throws Exception{
+                    public void onError(Exception ex) throws Exception{
                         logger.error("The reason why downloading the pdk file failed is {}.",ex.getMessage());
                         ConnectorRecordDto connectorRecordDto = new ConnectorRecordDto();
                         connectorRecordDto.setConnectionId(connectionId);

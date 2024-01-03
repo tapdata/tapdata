@@ -487,9 +487,10 @@ public class RestTemplateOperator {
 						senDate = new Date();
 					}
 				}
-			} catch (IOException ex) {
+			} catch (Exception ex) {
 				callback.onError(ex);
-			}finally {
+			}
+			finally {
 			    source.close();
 		    }
 	}
@@ -809,7 +810,7 @@ public class RestTemplateOperator {
 
 		void onFinish(String downloadSpeed) throws Exception;
 
-		void onError(IOException ex) throws Exception;
+		void onError(Exception ex) throws Exception;
 	}
 
 	enum ResponseCode {

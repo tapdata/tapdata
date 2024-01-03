@@ -88,7 +88,7 @@ public class RestTemplateOperatorTest {
 			}
 
 			@Override
-			public void onError(IOException ex) throws IOException {
+			public void onError(Exception ex) throws Exception {
 				Assert.assertNull(ex);
 
 			}
@@ -285,9 +285,48 @@ public class RestTemplateOperatorTest {
 			}
 
 			@Override
-			public void onError(IOException ex) throws IOException {
+			public void onError(Exception ex) throws IOException {
 				Assert.assertNull(ex);
 
+			}
+		};
+		// Run the test
+		restTemplateOperatorUnderTest.downloadFileByProgress(inputCallback, inputSource, inputFile, inputFileSize);
+	}
+
+	/**
+	 * Other Exception Case
+	 * @throws Exception
+	 */
+	@Test
+	public void testDownloadFileByProgressOtherException() throws Exception {
+		// input param
+		String inputString = "s";
+		for (int i = 1; i < 1024; i++) {
+			inputString = inputString + "s";
+		}
+		final int inputFileSize = inputString.getBytes().length;
+		final InputStream inputSource = new ByteArrayInputStream(inputString.getBytes());
+		final File inputFile = new File("filename.txt");
+		RestTemplateOperator.Callback inputCallback = new RestTemplateOperator.Callback() {
+			@Override
+			public void needDownloadPdkFile(boolean flag) throws IOException {
+
+			}
+
+			@Override
+			public void onProgress(long fileSize, long progress) throws Exception {
+				throw new IllegalAccessException("ill Type");
+			}
+
+			@Override
+			public void onFinish(String downloadSpeed) throws IOException {
+				Assert.assertNotNull(downloadSpeed);
+			}
+
+			@Override
+			public void onError(Exception ex) throws Exception {
+				assertEquals("ill Type",ex.getMessage());
 			}
 		};
 		// Run the test
@@ -320,7 +359,7 @@ public class RestTemplateOperatorTest {
 			}
 
 			@Override
-			public void onError(IOException ex) throws IOException {
+			public void onError(Exception ex) throws IOException {
 				Assert.assertNull(ex);
 
 			}
@@ -353,7 +392,7 @@ public class RestTemplateOperatorTest {
 			}
 
 			@Override
-			public void onError(IOException ex) throws IOException {
+			public void onError(Exception ex) throws Exception {
 				throw ex;
 			}
 		};
@@ -385,7 +424,7 @@ public class RestTemplateOperatorTest {
 			}
 
 			@Override
-			public void onError(IOException ex) throws IOException {
+			public void onError(Exception ex) throws Exception {
 				throw ex;
 			}
 		};
