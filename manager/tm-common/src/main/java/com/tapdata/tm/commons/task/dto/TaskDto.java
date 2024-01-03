@@ -193,6 +193,11 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      */
     private Double dynamicAdjustMemorySampleRate;
 
+    /**
+     * 是否启用同步指标收集，启用时任务停止打印同步指标
+     */
+    private Boolean enableSyncMetricCollector;
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());

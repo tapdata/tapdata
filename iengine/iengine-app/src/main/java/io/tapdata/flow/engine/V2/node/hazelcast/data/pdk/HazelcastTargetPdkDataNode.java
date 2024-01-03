@@ -15,7 +15,6 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
@@ -716,6 +715,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 										}
 								)
 						)));
+                syncMetricCollector.log(tapRecordEvents);
 			} finally {
 				removePdkMethodInvoker(pdkMethodInvoker);
 			}
