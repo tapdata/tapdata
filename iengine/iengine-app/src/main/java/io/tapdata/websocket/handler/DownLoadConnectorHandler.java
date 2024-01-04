@@ -1,8 +1,6 @@
 package io.tapdata.websocket.handler;
 
 import com.tapdata.constant.ConnectionUtil;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.metrics.ConnectorRecordDto;
@@ -49,6 +47,11 @@ public class DownLoadConnectorHandler extends BaseEventHandler implements WebSoc
         Runnable runnable = AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(connectionId, threadGroup, entity), () -> {
             downloadPdkFileIfNeedPrivate(event, connName, connectionId, databaseDefinition, callback);
         });
+        startThread( threadGroup, runnable,threadName);
+        return null;
+    }
+
+    protected Thread startThread(DisposableThreadGroup threadGroup,Runnable runnable,String threadName ) {
         Thread thread = new Thread(threadGroup, runnable, threadName);
         thread.start();
         return thread;
