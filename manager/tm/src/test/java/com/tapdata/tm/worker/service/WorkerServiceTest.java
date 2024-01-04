@@ -3,6 +3,8 @@ package com.tapdata.tm.worker.service;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.constant.SettingUtil;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.reporitory.BaseRepository;
@@ -18,8 +20,10 @@ import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import org.bson.BsonValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -235,6 +239,17 @@ class WorkerServiceTest {
             when(taskService.runningTaskNum(user)).thenReturn(expected);
             CalculationEngineVo calculationEngineVo = workerService.calculationEngine(mockSchedulable,user,null);
             assertEquals(expected,calculationEngineVo.getRunningNum());
+        }
+    }
+
+    @Test
+    void test_getLastCheckAvailableAgentCount(){
+        try(MockedStatic<SettingUtil> mockedStatic = mockStatic(SettingUtil.class)){
+            mockedStatic.when(()->SettingUtil.getValue(anyString(),anyString())).thenReturn("300");
+            Long except = 100L;
+            when(workerRepository.count(any(Query.class))).thenReturn(except);
+            Long result = workerService.getLastCheckAvailableAgentCount();
+            assertEquals(except,result);
         }
     }
 }
