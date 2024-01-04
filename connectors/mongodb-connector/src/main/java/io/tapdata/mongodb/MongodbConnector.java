@@ -1397,6 +1397,7 @@ public class MongodbConnector extends ConnectorBase {
 			}
 
 			if (mongodbWriter != null) {
+				TapLogger.info(TAG,"Last event written:{}",mongodbWriter.lastEvent.get());
 				mongodbWriter.onDestroy();
 				mongodbWriter = null;
 			}

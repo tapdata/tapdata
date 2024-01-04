@@ -52,6 +52,8 @@ public class MongodbWriter {
 	private MongodbConfig mongodbConfig;
 	private final Log tapLogger;
 
+	public AtomicReference<TapRecordEvent> lastEvent = new AtomicReference<>();
+
 	private boolean is_cloud;
 
 	public MongodbWriter(KVMap<Object> globalStateMap, MongodbConfig mongodbConfig, MongoClient mongoClient, Log tapLogger) {
@@ -211,6 +213,7 @@ public class MongodbWriter {
 		}
 		BulkWriteModel bulkWriteModel = new BulkWriteModel(pks.contains("_id"));
 		for (TapRecordEvent recordEvent : tapRecordEvents) {
+			lastEvent.set(recordEvent);
 			if (!(recordEvent instanceof TapInsertRecordEvent)) {
 				bulkWriteModel.setAllInsert(false);
 			}

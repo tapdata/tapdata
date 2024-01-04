@@ -254,6 +254,7 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 												.noCursorTimeout(true).iterator()) {
 
 										consumer.streamReadStarted();
+										AtomicBoolean firstEvent = new AtomicBoolean(true);
 										while (running.get()) {
 												if (mongoCursor.hasNext()) {
 														final Document event = mongoCursor.next();
@@ -267,6 +268,10 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
                                                         }
 
 														tapBaseEvent.setReferenceTime((long) (bsonTimestamp.getTime()) * 1000);
+														if(firstEvent.get()){
+															TapLogger.info(TAG,"ReadStream First Event:{},ReplicaSetName:{},BsonTimestamp:{}",tapBaseEvent,replicaSetName,bsonTimestamp);
+															firstEvent.compareAndSet(true,false);
+														}
 
 														while (running.get()) {
 																if (tapEventQueue.offer(
