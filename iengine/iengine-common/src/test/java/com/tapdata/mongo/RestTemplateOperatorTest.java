@@ -1,6 +1,7 @@
 package com.tapdata.mongo;
 
 import com.google.common.collect.ImmutableList;
+import io.tapdata.callback.DownloadCallback;
 import io.tapdata.exception.ManagementException;
 import lombok.SneakyThrows;
 import org.apache.commons.io.input.BrokenInputStream;
@@ -72,7 +73,7 @@ public class RestTemplateOperatorTest {
 	public void testDownloadFile() throws Exception {
 		// input param
 		final Map<String, Object> params = new HashMap<>();
-		RestTemplateOperator.Callback inputCallback = new RestTemplateOperator.Callback() {
+		DownloadCallback inputCallback = new DownloadCallback() {
 			@Override
 			public void needDownloadPdkFile(boolean flag) throws IOException {
 
@@ -121,7 +122,7 @@ public class RestTemplateOperatorTest {
 	public void testDownloadFile_CheckClientHttpRequest() throws Exception {
 		// input param
 		final Map<String, Object> params = new HashMap<>();
-		RestTemplateOperator.Callback inputCallback = null;
+		DownloadCallback inputCallback = null;
 		// expected data
 		MockClientHttpRequest mockClientHttpRequest = new MockClientHttpRequest();
 		when(mockRestTemplate.execute(any(URI.class), any(HttpMethod.class),
@@ -159,7 +160,7 @@ public class RestTemplateOperatorTest {
 	public void testDownloadFile_inputRegionNull() throws Exception {
 		// input param
 		final Map<String, Object> params = new HashMap<>();
-		RestTemplateOperator.Callback inputCallback = null;
+		DownloadCallback inputCallback = null;
 		// expected data
 		MockClientHttpRequest mockClientHttpRequest = new MockClientHttpRequest();
 		when(mockRestTemplate.execute(any(URI.class), any(HttpMethod.class),
@@ -197,7 +198,7 @@ public class RestTemplateOperatorTest {
 	public void testDownloadFile_inputCookiesNull() throws Exception {
 		// input param
 		final Map<String, Object> params = new HashMap<>();
-		RestTemplateOperator.Callback inputCallback = null;
+		DownloadCallback inputCallback = null;
 		// expected data
 		MockClientHttpRequest mockClientHttpRequest = new MockClientHttpRequest();
 		when(mockRestTemplate.execute(any(URI.class), any(HttpMethod.class),
@@ -223,7 +224,7 @@ public class RestTemplateOperatorTest {
 	public void testDownloadFile_RestTemplateReturnsNull() throws Exception {
 		// Setup
 		final Map<String, Object> params = new HashMap<>();
-		final RestTemplateOperator.Callback callback = null;
+		final DownloadCallback callback = null;
 		when(mockRestTemplate.execute(any(URI.class), any(HttpMethod.class),
 				any(RequestCallback.class), any(ResponseExtractor.class))).thenReturn(null);
 
@@ -244,7 +245,7 @@ public class RestTemplateOperatorTest {
 	public void testDownloadFile_RestTemplateThrowsRestClientException() throws Exception {
 		// Setup
 		final Map<String, Object> params = new HashMap<>();
-		final RestTemplateOperator.Callback callback = null;
+		final DownloadCallback callback = null;
 		when(mockRestTemplate.execute(any(URI.class), any(HttpMethod.class),
 				any(RequestCallback.class), any(ResponseExtractor.class))).thenThrow(HttpClientErrorException.class);
 
@@ -267,7 +268,7 @@ public class RestTemplateOperatorTest {
 		final int inputFileSize = inputString.getBytes().length;
 		final InputStream inputSource = new ByteArrayInputStream(inputString.getBytes());
 		final File inputFile = new File("filename.txt");
-		RestTemplateOperator.Callback inputCallback = new RestTemplateOperator.Callback() {
+		DownloadCallback inputCallback = new DownloadCallback() {
 			@Override
 			public void needDownloadPdkFile(boolean flag) throws IOException {
 
@@ -308,7 +309,7 @@ public class RestTemplateOperatorTest {
 		final int inputFileSize = inputString.getBytes().length;
 		final InputStream inputSource = new ByteArrayInputStream(inputString.getBytes());
 		final File inputFile = new File("filename.txt");
-		RestTemplateOperator.Callback inputCallback = new RestTemplateOperator.Callback() {
+		DownloadCallback inputCallback = new DownloadCallback() {
 			@Override
 			public void needDownloadPdkFile(boolean flag) throws IOException {
 
@@ -341,7 +342,7 @@ public class RestTemplateOperatorTest {
 	@Test
 	public void testDownloadFileByProgress_EmptySource() throws Exception {
 		// input param
-		RestTemplateOperator.Callback inputCallback = new RestTemplateOperator.Callback() {
+        DownloadCallback inputCallback = new DownloadCallback() {
 			@Override
 			public void needDownloadPdkFile(boolean flag) throws IOException {
 
@@ -377,7 +378,7 @@ public class RestTemplateOperatorTest {
 	 */
 	@Test(expected = IOException.class)
 	public void testDownloadFileByProgress_BrokenSource() throws Exception {
-		RestTemplateOperator.Callback inputCallback = new RestTemplateOperator.Callback() {
+        DownloadCallback inputCallback = new DownloadCallback() {
 			@Override
 			public void needDownloadPdkFile(boolean flag) throws IOException {
 
@@ -409,7 +410,7 @@ public class RestTemplateOperatorTest {
 	@Test(expected = RuntimeException.class)
 	public void testDownloadFileByProgress_NullFile() throws Exception {
 		// Setup
-		RestTemplateOperator.Callback inputCallback = new RestTemplateOperator.Callback() {
+        DownloadCallback inputCallback = new DownloadCallback() {
 			@Override
 			public void needDownloadPdkFile(boolean flag) throws IOException {
 
