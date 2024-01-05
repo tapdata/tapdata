@@ -177,6 +177,7 @@ jobs:
         run: |
           version_name=$(echo ${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} | tr 'A-F' 'a-f' | sed 's/\.//g')
           echo "version_name=$version_name" >> $GITHUB_ENV
+          chmod 0600 tapdata-application/build/id_rsa
           port=$(ssh -i tapdata-application/build/id_rsa -o StrictHostKeyChecking=no ${{ secrets.LOCAL_DEPLOY_USER }}@${{ secrets.LOCAL_DEPLOY_HOST }} sudo docker port tapdata-${{ env.version_name }} 3030 | awk -F: '{print $2}' | grep -v '^$')
           ip=${{ secrets.LOCAL_DEPLOY_HOST }}
           echo "::set-output name=IP::$ip"
