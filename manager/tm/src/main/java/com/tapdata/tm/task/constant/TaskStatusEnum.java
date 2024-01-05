@@ -16,7 +16,8 @@ public enum TaskStatusEnum {
     STATUS_PAUSED("paused"),
     STATUS_ERROR("error"),
     STATUS_COMPLETE("complete"),
-    STATUS_STOP("stop");
+    STATUS_STOP("stop"),
+    STATUS_WAIT_START("wait_start");
 
     private final String value;
 

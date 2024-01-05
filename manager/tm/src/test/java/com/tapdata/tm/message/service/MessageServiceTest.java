@@ -24,6 +24,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.HttpUtils;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
@@ -88,8 +89,6 @@ class MessageServiceTest {
     private UserDetail userDetail;
     @Mock
     private ScheduledExecutorService scheduledExecutorService;
-    @Mock
-    private WorkerService workerService;
 
     @BeforeEach
     void setUp() throws NoSuchMethodException {
@@ -99,7 +98,6 @@ class MessageServiceTest {
         ReflectionTestUtils.setField(messageServiceUnderTest, "alarmService", mockAlarmService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "circuitBreakerRecoveryService", circuitBreakerRecoveryService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "scheduledExecutorService", scheduledExecutorService);
-        ReflectionTestUtils.setField(messageServiceUnderTest, "workerService", workerService);
         messageServiceUnderTest.messageRepository = mockMessageRepository;
         messageServiceUnderTest.userService = mockUserService;
         messageServiceUnderTest.taskRepository = mockTaskRepository;
@@ -574,8 +572,12 @@ class MessageServiceTest {
         MessageDto mockMessageDto = new MessageDto();
         mockMessageDto.setSourceModule(SourceModuleEnum.AGENT.getValue());
         mockMessageDto.setMsg(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue());
-        messageServiceUnderTest.add(mockMessageDto,userDetail);
-        verify(scheduledExecutorService,times(1)).shutdown();
+        try(MockedStatic<SpringContextHelper> mockedStatic = Mockito.mockStatic(SpringContextHelper.class)){
+            mockedStatic.when(()->SpringContextHelper.getBean(WorkerService.class)).thenReturn(mock(WorkerService.class));
+            messageServiceUnderTest.add(mockMessageDto,userDetail);
+            verify(scheduledExecutorService,times(1)).shutdown();
+        }
+
     }
 
     @Test
@@ -583,8 +585,11 @@ class MessageServiceTest {
         MessageDto mockMessageDto = new MessageDto();
         mockMessageDto.setSourceModule(SourceModuleEnum.AGENT.getValue());
         mockMessageDto.setMsg(MsgTypeEnum.CONNECTED.getValue());
-        messageServiceUnderTest.add(mockMessageDto,userDetail);
-        verify(scheduledExecutorService,times(0)).shutdown();
+        try(MockedStatic<SpringContextHelper> mockedStatic = Mockito.mockStatic(SpringContextHelper.class)){
+            mockedStatic.when(()->SpringContextHelper.getBean(WorkerService.class)).thenReturn(mock(WorkerService.class));
+            messageServiceUnderTest.add(mockMessageDto,userDetail);
+            verify(scheduledExecutorService,times(0)).shutdown();
+        }
     }
     @Nested
     class AddMigrationTest{
