@@ -52,8 +52,6 @@ public class ObservableAspectTaskUtilTest {
         void init() {
             events = new ArrayList<>();
             taskSampleHandler = mock(TaskSampleHandler.class);
-            doNothing().when(taskSampleHandler).handleStreamReadAccept(any(HandlerUtil.EventTypeRecorder.class));
-            doNothing().when(dataNodeSampleHandler).handleStreamReadReadComplete(anyLong(), any(HandlerUtil.EventTypeRecorder.class));
         }
         @Test
         void testStreamReadCompleteNormal() {
@@ -66,6 +64,8 @@ public class ObservableAspectTaskUtilTest {
             tapEvent.before(before);
             events.add(tapEvent);
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doNothing().when(taskSampleHandler).handleStreamReadAccept(record);
+            doNothing().when(dataNodeSampleHandler).handleStreamReadReadComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.streamReadComplete(future,
                     events,
                     record,
@@ -87,6 +87,8 @@ public class ObservableAspectTaskUtilTest {
             tapEvent.before(before);
             events.add(tapEvent);
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doNothing().when(taskSampleHandler).handleStreamReadAccept(record);
+            doNothing().when(dataNodeSampleHandler).handleStreamReadReadComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.streamReadComplete(future,
                     events,
                     record,
@@ -99,6 +101,8 @@ public class ObservableAspectTaskUtilTest {
         @Test
         void testStreamReadCompleteEmptyEvent() {
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doNothing().when(taskSampleHandler).handleStreamReadAccept(record);
+            doNothing().when(dataNodeSampleHandler).handleStreamReadReadComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.streamReadComplete(future,
                     events,
                     record,
@@ -111,6 +115,8 @@ public class ObservableAspectTaskUtilTest {
         @Test
         void testStreamReadCompleteNullEvent() {
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doNothing().when(taskSampleHandler).handleStreamReadAccept(record);
+            doNothing().when(dataNodeSampleHandler).handleStreamReadReadComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.streamReadComplete(future,
                     null,
                     record,
@@ -128,7 +134,6 @@ public class ObservableAspectTaskUtilTest {
         void init() {
             es = new ArrayList<>();
             taskSampleHandler = mock(TaskSampleHandler.class);
-            doCallRealMethod().when(dataNodeSampleHandler).handleStreamReadProcessComplete(anyLong(), any(HandlerUtil.EventTypeRecorder.class));
         }
         @Test
         void testStreamReadProcessCompleteNormal() {
@@ -143,6 +148,7 @@ public class ObservableAspectTaskUtilTest {
             e.setTapEvent(tapEvent);
             es.add(e);
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doCallRealMethod().when(dataNodeSampleHandler).handleStreamReadProcessComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.streamReadProcessComplete(future,
                     es,
                     record,
@@ -153,6 +159,7 @@ public class ObservableAspectTaskUtilTest {
         @Test
         void testStreamReadProcessCompleteEmptyEvent() {
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doCallRealMethod().when(dataNodeSampleHandler).handleStreamReadProcessComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.streamReadProcessComplete(future,
                     es,
                     record,
@@ -163,6 +170,7 @@ public class ObservableAspectTaskUtilTest {
         @Test
         void testStreamReadProcessCompleteNullEvent() {
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doCallRealMethod().when(dataNodeSampleHandler).handleStreamReadProcessComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.streamReadProcessComplete(future,
                     null,
                     record,
@@ -178,8 +186,6 @@ public class ObservableAspectTaskUtilTest {
         void init() {
             events = new ArrayList<>();
             taskSampleHandler = mock(TaskSampleHandler.class);
-            doNothing().when(taskSampleHandler).handleBatchReadAccept(any(HandlerUtil.EventTypeRecorder.class));
-            doNothing().when(dataNodeSampleHandler).handleBatchReadReadComplete(anyLong(), any(HandlerUtil.EventTypeRecorder.class));
         }
         @Test
         void testBatchReadCompleteNormal() {
@@ -192,6 +198,8 @@ public class ObservableAspectTaskUtilTest {
             tapEvent.before(before);
             events.add(tapEvent);
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doNothing().when(taskSampleHandler).handleBatchReadAccept(record);
+            doNothing().when(dataNodeSampleHandler).handleBatchReadReadComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.batchReadComplete(future,
                     events,
                     record,
@@ -214,6 +222,8 @@ public class ObservableAspectTaskUtilTest {
             tapEvent.before(before);
             events.add(tapEvent);
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doNothing().when(taskSampleHandler).handleBatchReadAccept(record);
+            doNothing().when(dataNodeSampleHandler).handleBatchReadReadComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.batchReadComplete(future,
                     events,
                     record,
@@ -226,6 +236,8 @@ public class ObservableAspectTaskUtilTest {
         @Test
         void testBatchReadCompleteEmptyEvent() {
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doNothing().when(taskSampleHandler).handleBatchReadAccept(record);
+            doNothing().when(dataNodeSampleHandler).handleBatchReadReadComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.batchReadComplete(future,
                     events,
                     record,
@@ -238,6 +250,8 @@ public class ObservableAspectTaskUtilTest {
         @Test
         void testBatchReadCompleteNullEvent() {
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doNothing().when(taskSampleHandler).handleBatchReadAccept(record);
+            doNothing().when(dataNodeSampleHandler).handleBatchReadReadComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.batchReadComplete(future,
                     null,
                     record,
@@ -255,7 +269,6 @@ public class ObservableAspectTaskUtilTest {
         void init() {
             es = new ArrayList<>();
             taskSampleHandler = mock(TaskSampleHandler.class);
-            doCallRealMethod().when(dataNodeSampleHandler).handleBatchReadProcessComplete(anyLong(), any(HandlerUtil.EventTypeRecorder.class));
         }
 
         @Test
@@ -271,6 +284,7 @@ public class ObservableAspectTaskUtilTest {
             e.setTapEvent(tapEvent);
             es.add(e);
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doCallRealMethod().when(dataNodeSampleHandler).handleBatchReadProcessComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.batchReadProcessComplete(future,
                     es,
                     record,
@@ -281,6 +295,7 @@ public class ObservableAspectTaskUtilTest {
         @Test
         void testBatchReadProcessCompleteEmptyEvent() {
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doCallRealMethod().when(dataNodeSampleHandler).handleBatchReadProcessComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.batchReadProcessComplete(future,
                     es,
                     record,
@@ -291,6 +306,7 @@ public class ObservableAspectTaskUtilTest {
         @Test
         void testBatchReadProcessCompleteNullEvent() {
             record = syncGetMemorySizeHandler.getEventTypeRecorderSyncTapEvent(events);
+            doCallRealMethod().when(dataNodeSampleHandler).handleBatchReadProcessComplete(mockTimestamp, record);
             ObservableAspectTaskUtil.batchReadProcessComplete(future,
                     null,
                     record,
