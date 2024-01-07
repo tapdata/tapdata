@@ -73,7 +73,7 @@ public class PdkUtil {
 
 				filePath.append(".jar");
 				File theFilePath = new File(filePath.toString());
-				if(callback != null)callback.needDownloadPdkFile(!theFilePath.isFile());
+//				if(callback != null)callback.needDownloadPdkFile(!theFilePath.isFile());
 				if (!theFilePath.isFile()) {
 					httpClientMongoOperator.downloadFile(
 							new HashMap<String, Object>(1) {{

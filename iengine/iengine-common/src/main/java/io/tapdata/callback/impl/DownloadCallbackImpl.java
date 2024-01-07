@@ -57,6 +57,7 @@ public class DownloadCallbackImpl implements DownloadCallback {
         connectorRecordDto.setConnectionId(connectionId);
         connectorRecordDto.setPdkHash(databaseDefinition.getPdkHash());
         connectorRecordDto.setFlag(flag);
+        connectorRecordDto.setProgress(0L);
         upsertConnectorRecord(connectorRecordDto);
     }
 
