@@ -593,7 +593,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					transactionRollback();
 					throw e;
 				}
-				flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
+				if(!cdcConcurrent)flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
 			} catch (Throwable throwable) {
 				throw new RuntimeException(String.format("Process events failed: %s", throwable.getMessage()), throwable);
 			}
@@ -601,7 +601,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
 			try {
 				processShareLog(tapdataShareLogEvents);
-				flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
+				if(!cdcConcurrent)flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
 			} catch (Throwable throwable) {
 				throw new RuntimeException(String.format("Process share log failed: %s", throwable.getMessage()), throwable);
 			}
