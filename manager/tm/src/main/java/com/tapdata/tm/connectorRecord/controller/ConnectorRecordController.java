@@ -27,8 +27,9 @@ public class ConnectorRecordController extends BaseController {
     }
 
     @GetMapping()
-    public ResponseMessage<ConnectorRecordEntity> getConnectorRecord(@RequestParam String connectionId){
-        return success(connectorRecordService.queryByConnectionId(connectionId));
+    public ResponseMessage<ConnectorRecordEntity> getConnectorRecord(@RequestParam String processId,@RequestParam String pdkHash){
+        UserDetail userDetail = getLoginUser();
+        return success(connectorRecordService.queryByConnectionId(processId,pdkHash,userDetail));
     }
     @PostMapping("/upsertWithWhere")
     public ResponseMessage<ConnectorRecordDto> upsertConnectorRecord(@RequestParam("where") String whereJson,
@@ -39,8 +40,8 @@ public class ConnectorRecordController extends BaseController {
 
     @PostMapping("/downloadConnector")
     public ResponseMessage<String> downloadConnector(@RequestBody MessageInfo messageInfo){
-        connectorRecordService.sendMessage(messageInfo,getLoginUser());
-        return success("ok");
+        String processId = connectorRecordService.sendMessage(messageInfo, getLoginUser());
+        return success(processId);
     }
     @DeleteMapping("{connectionId}")
     public ResponseMessage<Void> delete(@PathVariable("connectionId") String connectionId) {
@@ -54,9 +55,9 @@ public class ConnectorRecordController extends BaseController {
         return success();
     }
     @GetMapping("/getFlag")
-    public ResponseMessage<ConnectorRecordFlag> getConnectorFlag(@RequestBody ConnectorRecordFlag connectorRecordFlag){
+    public ResponseMessage<ConnectorRecordFlag> getConnectorFlag(@RequestParam String processId,@RequestParam Long version,@RequestParam String pdkHash){
         UserDetail loginUser = getLoginUser();
-        return success(connectorRecordService.queryFlag(connectorRecordFlag,loginUser));
+        return success(connectorRecordService.queryFlag(processId,pdkHash,version,loginUser));
     }
 
 

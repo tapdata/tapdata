@@ -65,8 +65,9 @@ public class ConnectorRecordService extends BaseService<ConnectorRecordDto, Conn
         return null;
     }
 
-    public ConnectorRecordEntity queryByConnectionId(String connectionId) {
-        ConnectorRecordEntity connectorRecord = mongoTemplate.findOne(Query.query(Criteria.where("connectionId").is(connectionId)), ConnectorRecordEntity.class);
+    public ConnectorRecordEntity queryByConnectionId(String processId,String pdkHash,UserDetail userDetail) {
+        Query query = Query.query(Criteria.where("processId").is(processId).and("pdkHash").is(pdkHash).and("userId").is(userDetail.getUserId()));
+        ConnectorRecordEntity connectorRecord = mongoTemplate.findOne(query, ConnectorRecordEntity.class);
         return connectorRecord;
     }
 
@@ -74,7 +75,7 @@ public class ConnectorRecordService extends BaseService<ConnectorRecordDto, Conn
          mongoTemplate.remove(Query.query(Criteria.where("connectionId").is(connectionId)), ConnectorRecordEntity.class);
     }
 
-    public void sendMessage(MessageInfo messageInfo, UserDetail userDetail) {
+    public String sendMessage(MessageInfo messageInfo, UserDetail userDetail) {
         Map<String, Object> data = messageInfo.getData();
         data.put("type", messageInfo.getType());
         messageInfo.setType("pipe");
@@ -87,6 +88,7 @@ public class ConnectorRecordService extends BaseService<ConnectorRecordDto, Conn
         messageQueueDto.setData(data);
         messageQueueDto.setType("pipe");
         messageQueueService.sendMessage(messageQueueDto);
+        return agentId;
     }
     public List<String> addAgentTags(Map<String, Object> data) {
         Map platformInfos = MapUtils.getAsMap(data, "platformInfo");
@@ -141,26 +143,26 @@ public class ConnectorRecordService extends BaseService<ConnectorRecordDto, Conn
         return receiver;
     }
 
-    public void saveFlag(ConnectorRecordFlag connectorRecordFlag,UserDetail userDetail) {
-        if (Objects.nonNull(connectorRecordFlag)){
+    public void saveFlag(ConnectorRecordFlag connectorRecordFlag, UserDetail userDetail) {
+        if (Objects.nonNull(connectorRecordFlag)) {
             StringJoiner joiner = new StringJoiner(":");
             joiner.add(connectorRecordFlag.getPdkHash());
             joiner.add(connectorRecordFlag.getProcessId());
-            joiner.add(connectorRecordFlag.getVersion().toString());
+//            joiner.add(connectorRecordFlag.getVersion().toString());
             joiner.add(userDetail.getUserId());
-            CacheUtils.put(joiner.toString(),connectorRecordFlag.getFlag());
+            CacheUtils.put(joiner.toString(), connectorRecordFlag);
         }
     }
 
-    public ConnectorRecordFlag queryFlag(ConnectorRecordFlag connectorRecordFlag, UserDetail userDetail) {
+    public ConnectorRecordFlag queryFlag(String processId,String pdkHash,Long version, UserDetail userDetail) {
         StringJoiner joiner = new StringJoiner(":");
-        joiner.add(connectorRecordFlag.getPdkHash());
-        joiner.add(connectorRecordFlag.getProcessId());
-        joiner.add(connectorRecordFlag.getVersion().toString());
+        joiner.add(pdkHash);
+        joiner.add(processId);
+        joiner.add(version.toString());
         joiner.add(userDetail.getUserId());
-        CacheUtils.put(joiner.toString(),connectorRecordFlag.getFlag());
+        ConnectorRecordFlag connectorRecordFlag=new ConnectorRecordFlag();
         if(CacheUtils.isExist(joiner.toString())){
-//            connectorRecordFlag.setFlag(CacheUtils.get(joiner.toString()));
+            BeanUtils.copyProperties(CacheUtils.invalidate(joiner.toString()),connectorRecordFlag);
             connectorRecordFlag.setIsOver(true);
         }else{
             connectorRecordFlag.setIsOver(false);
