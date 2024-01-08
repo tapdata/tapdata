@@ -6,12 +6,14 @@ import io.tapdata.entity.logger.TapLog;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -181,9 +183,12 @@ public class PythonUtils {
     protected void unPackageFile(File setUpPyFile, File afterUnzipFile, final String pythonJarPath, Log logger) {
         Process start = null;
         try {
-            logger.info("{}'s resource package is being generated, please wait.", afterUnzipFile.getName());
+            logger.info("{}'s resource package is being generating, please wait", afterUnzipFile.getName());
             ProcessBuilder command = getUnPackageFileProcessBuilder(setUpPyFile.getParentFile().getAbsolutePath(), pythonJarPath);
             start = command.start();
+            final Process finalStart = start;
+            new Thread(() -> printMsg(finalStart.getInputStream(), logger)).start();
+            new Thread(() -> printMsg(finalStart.getErrorStream(), logger)).start();
             start.waitFor();
             logger.info("{}'s resource package is being generated", afterUnzipFile.getName());
         } catch (IOException e) {
@@ -193,6 +198,17 @@ public class PythonUtils {
             Thread.currentThread().interrupt();
         } finally {
             Optional.ofNullable(start).ifPresent(Process::destroy);
+        }
+    }
+
+    private void printMsg(InputStream stream, Log log) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                log.info(line);
+            }
+        } catch (Exception e) {
+            log.warn(e.getMessage());
         }
     }
 
