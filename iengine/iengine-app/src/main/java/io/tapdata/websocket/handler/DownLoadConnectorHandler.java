@@ -17,6 +17,8 @@ import io.tapdata.websocket.SendMessage;
 import io.tapdata.websocket.WebSocketEventHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,7 +29,7 @@ public class DownLoadConnectorHandler extends BaseEventHandler implements WebSoc
     @Override
     public Object handle(Map event, SendMessage sendMessage) {
         logger.info(String.format("downLoad connector, event: %s", event));
-        String pskHash = (String) event.getOrDefault("pdkHash", "");
+        String pdkHash = (String) event.getOrDefault("pdkHash", "");
         String connName = (String) event.getOrDefault("name", "");
         String connectionId = String.valueOf(event.get("id"));
         ConnectionTestEntity entity = new ConnectionTestEntity()
@@ -37,13 +39,16 @@ public class DownLoadConnectorHandler extends BaseEventHandler implements WebSoc
                 .type(String.valueOf(event.get("type")))
                 .connectionName(connName)
                 .pdkType(String.valueOf(event.get("pdkType")))
-                .pdkHash(pskHash)
+                .pdkHash(pdkHash)
                 .schemaVersion(String.valueOf(event.get("schemaVersion")))
                 .databaseType(String.valueOf(event.get("database_type")));
+        Map<String,Object> params=new HashMap<>();
+        params.put("version",event.get("version"));
+        params.put("processId",event.get("processId"));
         String threadName = String.format("DOWNLOAD-CONNECTOR-%s", Optional.ofNullable(event.get("name")).orElse(""));
         DisposableThreadGroup threadGroup = new DisposableThreadGroup(DisposableType.DOWNLOAD_CONNECTOR, threadName);
-        DatabaseTypeEnum.DatabaseType databaseDefinition = ConnectionUtil.getDatabaseType(clientMongoOperator, pskHash);
-        DownloadCallback callback=new DownloadCallbackImpl(databaseDefinition,connectionId,clientMongoOperator);
+        DatabaseTypeEnum.DatabaseType databaseDefinition = ConnectionUtil.getDatabaseType(clientMongoOperator, pdkHash);
+        DownloadCallback callback=new DownloadCallbackImpl(databaseDefinition,connectionId,clientMongoOperator,params);
         Runnable runnable = AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(connectionId, threadGroup, entity), () -> {
             downloadPdkFileIfNeedPrivate(event, connName, connectionId, databaseDefinition, callback);
         });

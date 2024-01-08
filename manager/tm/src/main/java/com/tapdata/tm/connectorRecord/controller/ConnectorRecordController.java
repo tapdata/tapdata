@@ -4,6 +4,8 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.metrics.ConnectorRecordDto;
+import com.tapdata.tm.commons.metrics.ConnectorRecordFlag;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.connectorRecord.entity.ConnectorRecordEntity;
 import com.tapdata.tm.connectorRecord.service.ConnectorRecordService;
 import com.tapdata.tm.ws.dto.MessageInfo;
@@ -45,7 +47,17 @@ public class ConnectorRecordController extends BaseController {
         connectorRecordService.deleteByConnectionId(connectionId);
         return success();
     }
-
+    @PostMapping("/saveFlag")
+    public ResponseMessage<Void> saveConnectorFlag(@RequestBody ConnectorRecordFlag connectorRecordFlag) {
+        UserDetail loginUser = getLoginUser();
+        connectorRecordService.saveFlag(connectorRecordFlag,loginUser);
+        return success();
+    }
+    @GetMapping("/getFlag")
+    public ResponseMessage<ConnectorRecordFlag> getConnectorFlag(@RequestBody ConnectorRecordFlag connectorRecordFlag){
+        UserDetail loginUser = getLoginUser();
+        return success(connectorRecordService.queryFlag(connectorRecordFlag,loginUser));
+    }
 
 
 }

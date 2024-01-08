@@ -5,11 +5,13 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.metrics.ConnectorRecordDto;
+import com.tapdata.tm.commons.metrics.ConnectorRecordFlag;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.connectorRecord.entity.ConnectorRecordEntity;
 import com.tapdata.tm.connectorRecord.repository.ConnectorRecordRepository;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MapUtils;
@@ -79,6 +81,7 @@ public class ConnectorRecordService extends BaseService<ConnectorRecordDto, Conn
         List<String> tags = addAgentTags(data);
         AtomicReference<String> receiver = getReceiver(data,tags,userDetail);
         String agentId = receiver.get();
+        data.put("processId",agentId);
         MessageQueueDto messageQueueDto=new MessageQueueDto();
         messageQueueDto.setReceiver(agentId);
         messageQueueDto.setData(data);
@@ -136,5 +139,32 @@ public class ConnectorRecordService extends BaseService<ConnectorRecordDto, Conn
             log.error("error {}", e.getMessage());
         }
         return receiver;
+    }
+
+    public void saveFlag(ConnectorRecordFlag connectorRecordFlag,UserDetail userDetail) {
+        if (Objects.nonNull(connectorRecordFlag)){
+            StringJoiner joiner = new StringJoiner(":");
+            joiner.add(connectorRecordFlag.getPdkHash());
+            joiner.add(connectorRecordFlag.getProcessId());
+            joiner.add(connectorRecordFlag.getVersion().toString());
+            joiner.add(userDetail.getUserId());
+            CacheUtils.put(joiner.toString(),connectorRecordFlag.getFlag());
+        }
+    }
+
+    public ConnectorRecordFlag queryFlag(ConnectorRecordFlag connectorRecordFlag, UserDetail userDetail) {
+        StringJoiner joiner = new StringJoiner(":");
+        joiner.add(connectorRecordFlag.getPdkHash());
+        joiner.add(connectorRecordFlag.getProcessId());
+        joiner.add(connectorRecordFlag.getVersion().toString());
+        joiner.add(userDetail.getUserId());
+        CacheUtils.put(joiner.toString(),connectorRecordFlag.getFlag());
+        if(CacheUtils.isExist(joiner.toString())){
+//            connectorRecordFlag.setFlag(CacheUtils.get(joiner.toString()));
+            connectorRecordFlag.setIsOver(true);
+        }else{
+            connectorRecordFlag.setIsOver(false);
+        }
+        return connectorRecordFlag;
     }
 }

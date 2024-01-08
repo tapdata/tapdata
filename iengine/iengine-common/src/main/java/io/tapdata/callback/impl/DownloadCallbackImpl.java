@@ -10,12 +10,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.HashMap;
+import java.util.Map;
 
 public class DownloadCallbackImpl implements DownloadCallback {
     private final static Logger logger = LogManager.getLogger(DownloadCallbackImpl.class);
     private DatabaseTypeEnum.DatabaseType databaseDefinition;
     private String connectionId;
     private ClientMongoOperator clientMongoOperator;
+
+    private Map<String,Object> params;
 
     public DatabaseTypeEnum.DatabaseType getDatabaseDefinition() {
         return databaseDefinition;
@@ -44,10 +47,11 @@ public class DownloadCallbackImpl implements DownloadCallback {
         this.clientMongoOperator = clientMongoOperator;
     }
 
-    public DownloadCallbackImpl(DatabaseTypeEnum.DatabaseType databaseDefinition, String connectionId, ClientMongoOperator clientMongoOperator) {
+    public DownloadCallbackImpl(DatabaseTypeEnum.DatabaseType databaseDefinition, String connectionId, ClientMongoOperator clientMongoOperator,Map<String,Object> params) {
         this.databaseDefinition = databaseDefinition;
         this.connectionId = connectionId;
         this.clientMongoOperator = clientMongoOperator;
+        this.params = params;
     }
 
     @Override
@@ -57,7 +61,11 @@ public class DownloadCallbackImpl implements DownloadCallback {
         connectorRecordDto.setConnectionId(connectionId);
         connectorRecordDto.setPdkHash(databaseDefinition.getPdkHash());
         connectorRecordDto.setFlag(flag);
+        connectorRecordDto.setProgress(0L);
+        params.put("pdkHash",databaseDefinition.getPdkHash());
+        params.put("flag",flag);
         upsertConnectorRecord(connectorRecordDto);
+        updateDownloadFileFlag(params);
     }
 
     @Override
@@ -103,5 +111,8 @@ public class DownloadCallbackImpl implements DownloadCallback {
         }catch (IllegalAccessException e){
             logger.error("Update inspect result failed. ", e);
         }
+    }
+    public void updateDownloadFileFlag(Map<String,Object> params){
+        clientMongoOperator.insertOne(params,"/ConnectorRecord/saveFlag");
     }
 }

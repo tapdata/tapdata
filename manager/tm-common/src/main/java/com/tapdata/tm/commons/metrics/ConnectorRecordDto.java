@@ -16,6 +16,7 @@ public class ConnectorRecordDto extends BaseDto {
     private String connectionId;
     private Long fileSize;
     private Long progress;
+    private String processId;
 
     public enum StatusEnum {
         FINISH("finish"),
