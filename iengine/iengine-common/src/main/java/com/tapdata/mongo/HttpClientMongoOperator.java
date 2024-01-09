@@ -18,7 +18,7 @@ import com.tapdata.entity.ScheduleTask;
 import com.tapdata.entity.User;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.callback.DownloadCallback;
+import io.tapdata.DownloadCallback;
 import io.tapdata.exception.ManagementException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;

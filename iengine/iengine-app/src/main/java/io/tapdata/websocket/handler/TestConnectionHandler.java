@@ -225,6 +225,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 				if (databaseDefinition == null) {
 					throw new ConnectionException(String.format("Unknown database type %s", connection.getDatabase_type()));
 				}
+
 				PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseDefinition.getPdkHash(), databaseDefinition.getJarFile(), databaseDefinition.getJarRid());
 				validateResult = ConnectionValidator.testPdkConnection(connection, databaseDefinition);
 				schema = validateResult.getSchema();

@@ -1,7 +1,7 @@
 package com.tapdata.mongo;
 
 import com.google.common.collect.ImmutableList;
-import io.tapdata.callback.DownloadCallback;
+import io.tapdata.DownloadCallback;
 import io.tapdata.exception.ManagementException;
 import lombok.SneakyThrows;
 import org.apache.commons.io.input.BrokenInputStream;

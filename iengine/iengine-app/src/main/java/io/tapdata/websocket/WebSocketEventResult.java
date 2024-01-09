@@ -113,7 +113,7 @@ public class WebSocketEventResult implements Serializable {
 		AUTO_INSPECT_AGAIN("autoInspectAgainResult"),
 		DROP_TABLE("dropTable"),
 		DOWNLOAD_PDK_FILE_FLAG("downloadPdkFileFlag"),
-		PROGRESS_REPORTING("progressReporting")
+		PROGRESS_REPORTING("progressReporting"),
 		;
 
 		private String type;

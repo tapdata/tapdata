@@ -13,6 +13,7 @@ public enum MessageType {
 	TEST_CONNECTION("testConnection"),
 
 	DOWNLOAD_CONNECTOR("downLoadConnector"),
+	DOWNLOAD_PDK_FILE_FLAG("downloadPdkFileFlag"),
 
 	PIPE("pipe"),
 

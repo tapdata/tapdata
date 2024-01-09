@@ -19,9 +19,11 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.dto.MessageInfo;
+import com.tapdata.tm.ws.handler.DownLoadConnectorHandler;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
@@ -77,7 +79,9 @@ public class ConnectorRecordService extends BaseService<ConnectorRecordDto, Conn
 
     public String sendMessage(MessageInfo messageInfo, UserDetail userDetail) {
         Map<String, Object> data = messageInfo.getData();
+        UUID uuid = UUID.randomUUID();
         data.put("type", messageInfo.getType());
+        data.put("uId",uuid);
         messageInfo.setType("pipe");
         List<String> tags = addAgentTags(data);
         AtomicReference<String> receiver = getReceiver(data,tags,userDetail);
@@ -88,6 +92,7 @@ public class ConnectorRecordService extends BaseService<ConnectorRecordDto, Conn
         messageQueueDto.setData(data);
         messageQueueDto.setType("pipe");
         messageQueueService.sendMessage(messageQueueDto);
+//        DownLoadConnectorHandler.handleResponse();
         return agentId;
     }
     public List<String> addAgentTags(Map<String, Object> data) {

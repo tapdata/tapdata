@@ -11,9 +11,15 @@ import com.tapdata.tm.ws.dto.WebSocketContext;
 import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
 
-@WebSocketMessageHandler(type = MessageType.DOWNLOAD_CONNECTOR)
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.function.Consumer;
+
+@WebSocketMessageHandler(type = MessageType.DOWNLOAD_PDK_FILE_FLAG)
 @Slf4j
 public class DownLoadConnectorHandler implements WebSocketHandler {
+    private final static int MAX_SIZE = 1000000;
+    private static final LinkedList cacheList;
 
     private final MessageQueueService messageQueueService;
 
@@ -24,6 +30,9 @@ public class DownLoadConnectorHandler implements WebSocketHandler {
     private final UserService userService;
 
     private final WorkerService workerService;
+    static {
+        cacheList = new LinkedList<Map<String,Object>>();
+    }
 
     public DownLoadConnectorHandler(MessageQueueService messageQueueService, DataSourceService dataSourceService, UserService userService
             , WorkerService workerService, DataSourceDefinitionService dataSourceDefinitionService) {
@@ -36,7 +45,25 @@ public class DownLoadConnectorHandler implements WebSocketHandler {
 
     @Override
     public void handleMessage(WebSocketContext context) throws Exception {
-        TestConnectionHandler testConnectionHandler = new TestConnectionHandler(messageQueueService,dataSourceService,userService,workerService,dataSourceDefinitionService);
-        testConnectionHandler.handleMessage(context);
+        if(null == context) return;
+        synchronized (cacheList) {
+            if (cacheList.size() >= MAX_SIZE) {
+                cacheList.remove(0);
+            }
+            cacheList.add(context.getMessageInfo().getData());
+        }
     }
+
+    public static boolean handleResponse(String pingId, Consumer<Map<String, Object>> consumer) {
+        Map<String, Object> cache;
+        synchronized (cacheList) {
+        }
+        return false;
+    }
+
+//    @Override
+//    public void handleMessage(WebSocketContext context) throws Exception {
+//        TestConnectionHandler testConnectionHandler = new TestConnectionHandler(messageQueueService,dataSourceService,userService,workerService,dataSourceDefinitionService);
+//        testConnectionHandler.handleMessage(context);
+//    }
 }

@@ -11,7 +11,7 @@ import com.tapdata.tm.sdk.available.CloudRestTemplate;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import com.tapdata.tm.sdk.interceptor.VersionHeaderInterceptor;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
-import io.tapdata.callback.DownloadCallback;
+import io.tapdata.DownloadCallback;
 import io.tapdata.exception.ManagementException;
 import io.tapdata.exception.RestAuthException;
 import io.tapdata.exception.RestDoNotRetryException;

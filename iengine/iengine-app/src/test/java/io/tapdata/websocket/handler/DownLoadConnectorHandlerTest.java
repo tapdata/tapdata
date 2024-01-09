@@ -5,21 +5,17 @@ import base.BaseTest;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.metrics.ConnectorRecordDto;
-import io.tapdata.aspect.supervisor.AspectRunnableUtil;
-import io.tapdata.callback.DownloadCallback;
-import io.tapdata.callback.impl.DownloadCallbackImpl;
+import io.tapdata.DownloadCallback;
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
-import io.tapdata.threadgroup.DisposableThreadGroup;
-import jnr.constants.platform.PRIO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
-
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -36,7 +32,7 @@ public class DownLoadConnectorHandlerTest extends BaseTest {
         void beforeEach() {
             downLoadConnectorHandler = spy(DownLoadConnectorHandler.class);
             httpClientMongoOperator = mock(HttpClientMongoOperator.class);
-            callback = mock(DownloadCallbackImpl.class);
+            callback = mock(DownLoadConnectorHandler.DownloadCallbackImpl.class);
             downLoadConnectorHandler.clientMongoOperator = httpClientMongoOperator;
         }
 
@@ -78,7 +74,7 @@ public class DownLoadConnectorHandlerTest extends BaseTest {
                     assertEquals("downloadFaild",connectorRecordDto.getDownFiledMessage());
                     assertTrue(connectorRecordDto.getFlag());
                     return null;
-                }).when((DownloadCallbackImpl)callback).upsertConnectorRecord(any());
+                }).when((DownLoadConnectorHandler.DownloadCallbackImpl)callback).upsertConnectorRecord(any());
                 downLoadConnectorHandler.downloadPdkFileIfNeedPrivate(null,connName,connectionId,databaseDefinition,callback);
             };
         }
@@ -96,9 +92,18 @@ public class DownLoadConnectorHandlerTest extends BaseTest {
                     String downloadSpeed=invocationOnMock.getArgument(0);
                     assertEquals("100",downloadSpeed);
                     return null;
-                }).when((DownloadCallbackImpl)callback).onFinish(anyString());
+                }).when((DownLoadConnectorHandler.DownloadCallbackImpl)callback).onFinish(anyString());
                 downLoadConnectorHandler.downloadPdkFileIfNeedPrivate(null,connName,connectionId,databaseDefinition,callback);
             }
+        }
+        @Test
+        void test1(){
+//            TapTable table=new TapTable();
+//
+//            table.getNameFieldMap();
+            LinkedHashMap<String, TapField> linkedHashMap=new LinkedHashMap<>();
+
+            linkedHashMap.values().iterator().next();
         }
     }
 }
