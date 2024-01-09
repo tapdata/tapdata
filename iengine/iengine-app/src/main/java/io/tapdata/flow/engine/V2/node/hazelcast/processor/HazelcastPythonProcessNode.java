@@ -186,13 +186,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                 thread.interrupt();
             }
             if (errorAtomicRef.get() != null) {
-                if (System.getProperty("os.name").toLowerCase().contains("windowns")) {
-                    throw new TapCodeException(TaskProcessorExCode_11.PYTHON_PROCESS_FAILED,
-                            "Windows OS not be support python node, use python node in your linux OS or Mac OS",
-                            errorAtomicRef.get());
-                } else {
-                    throw new TapCodeException(TaskProcessorExCode_11.PYTHON_PROCESS_FAILED, errorAtomicRef.get());
-                }
+                throw new TapCodeException(TaskProcessorExCode_11.PYTHON_PROCESS_FAILED, errorAtomicRef.get());
             }
 
         } else {
