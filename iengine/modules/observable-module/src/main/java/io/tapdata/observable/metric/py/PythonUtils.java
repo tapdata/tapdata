@@ -186,9 +186,8 @@ public class PythonUtils {
             logger.info("{}'s resource package is being generating, please wait", afterUnzipFile.getName());
             ProcessBuilder command = getUnPackageFileProcessBuilder(setUpPyFile.getParentFile().getAbsolutePath(), pythonJarPath);
             start = command.start();
-            final Process finalStart = start;
-            new Thread(() -> printMsg(finalStart.getInputStream(), logger)).start();
-            new Thread(() -> printMsg(finalStart.getErrorStream(), logger)).start();
+            printInfo(start.getInputStream(), logger);
+            printInfo(start.getErrorStream(), logger);
             start.waitFor();
             logger.info("{}'s resource package is being generated", afterUnzipFile.getName());
         } catch (IOException e) {
@@ -201,8 +200,25 @@ public class PythonUtils {
         }
     }
 
-    private void printMsg(InputStream stream, Log log) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
+    protected void printInfo(InputStream stream, Log logger) {
+        new Thread(() -> printMsg(stream, logger)).start();
+    }
+
+    protected void printMsg(InputStream stream, Log log) {
+        if (null == stream) return;
+        try (BufferedReader reader = getBufferedReader(stream)) {
+            printMsg(reader, log);
+        } catch (Exception e) {
+            log.warn(e.getMessage());
+        }
+    }
+    protected BufferedReader getBufferedReader(InputStream stream) {
+        return new BufferedReader(new InputStreamReader(stream));
+    }
+
+    protected void printMsg(BufferedReader reader, Log log) {
+        if (null == reader) return;
+        try {
             String line;
             while ((line = reader.readLine()) != null) {
                 log.info(line);
