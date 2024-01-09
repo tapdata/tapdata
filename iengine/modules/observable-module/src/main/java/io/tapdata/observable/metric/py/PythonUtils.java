@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.fromJson;
@@ -183,11 +184,12 @@ public class PythonUtils {
     protected void unPackageFile(File setUpPyFile, File afterUnzipFile, final String pythonJarPath, Log logger) {
         Process start = null;
         try {
-            logger.info("{}'s resource package is being generating, please wait", afterUnzipFile.getName());
+            String tag = afterUnzipFile.getName();
+            logger.info("{}'s resource package is being generating, please wait", tag);
             ProcessBuilder command = getUnPackageFileProcessBuilder(setUpPyFile.getParentFile().getAbsolutePath(), pythonJarPath);
             start = command.start();
-            printInfo(start.getInputStream(), logger);
-            printInfo(start.getErrorStream(), logger);
+            printInfo(start.getInputStream(), logger, tag);
+            printInfo(start.getErrorStream(), logger, tag);
             start.waitFor();
             logger.info("{}'s resource package is being generated", afterUnzipFile.getName());
         } catch (IOException e) {
@@ -200,8 +202,8 @@ public class PythonUtils {
         }
     }
 
-    protected void printInfo(InputStream stream, Log logger) {
-        new Thread(() -> printMsg(stream, logger)).start();
+    protected void printInfo(InputStream stream, Log logger, String tag) {
+        new Thread(() -> printMsg(stream, logger), "PYTHON-NODE-INSTALLER-" + UUID.randomUUID().toString() + "-" + tag).start();
     }
 
     protected void printMsg(InputStream stream, Log log) {

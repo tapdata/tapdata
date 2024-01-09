@@ -662,8 +662,8 @@ public class PythonUtilsTest {
             doCallRealMethod().when(utils).unPackageFile(any(File.class), any(File.class), anyString(), any(Log.class));
             when(start.getInputStream()).thenReturn(infoStream);
             when(start.getErrorStream()).thenReturn(errorStream);
-            doNothing().when(utils).printInfo(infoStream, log);
-            doNothing().when(utils).printInfo(errorStream, log);
+            doNothing().when(utils).printInfo(infoStream, log, "mock-name");
+            doNothing().when(utils).printInfo(errorStream, log, "mock-name");
             when(utils.getUnPackageFileProcessBuilder(anyString(), anyString())).thenReturn(processBuilder);
         }
 
@@ -749,9 +749,9 @@ public class PythonUtilsTest {
             verify(log, times(logWarnBTimes)).warn(anyString(), anyString());
 //            }
             verify(start, times(printTimes)).getInputStream();
-            verify(utils, times(printTimes)).printInfo(infoStream, log);
+            verify(utils, times(printTimes)).printInfo(infoStream, log, "mock-name");
             verify(start, times(printTimes)).getErrorStream();
-            verify(utils, times(printTimes)).printInfo(errorStream, log);
+            verify(utils, times(printTimes)).printInfo(errorStream, log, "mock-name");
         }
     }
 
