@@ -8,6 +8,7 @@ import com.hazelcast.persistence.store.StoreLogger;
 import com.mongodb.MongoClientURI;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MongodbUtil;
+import com.tapdata.constant.OsUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Edge;
@@ -35,6 +36,7 @@ import org.jetbrains.annotations.Nullable;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -144,6 +146,17 @@ public class ExternalStorageUtil {
 		if (StringUtils.isBlank(rocksdbPath)) {
 			throw new IllegalArgumentException(LOG_PREFIX + "Init hazelcast persist config failed. RocksDB path cannot be empty");
 		}
+		String tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
+		if (com.tapdata.manager.common.utils.StringUtils.isBlank(tapdataWorkDir)) {
+			tapdataWorkDir = System.getProperty("user.dir");
+		}
+		rocksdbPath = tapdataWorkDir + rocksdbPath;
+		if (OsUtil.isWindows()) {
+			rocksdbPath = rocksdbPath.replace("\\","/");
+
+		}
+		File file = new File(rocksdbPath);
+		file.getParentFile().mkdirs();
 		PersistenceRocksDBConfig rocksDBConfig = PersistenceRocksDBConfig.create(constructType, constructName)
 				.path(rocksdbPath);
 		return rocksDBConfig;

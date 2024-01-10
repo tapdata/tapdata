@@ -25,12 +25,16 @@ import io.tapdata.common.SettingService;
 import io.tapdata.entity.BaseConnectionValidateResult;
 import io.tapdata.exception.ConnectionException;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
+import io.tapdata.indices.IIndices;
+import io.tapdata.indices.IndicesUtil;
 import io.tapdata.threadgroup.DisposableThreadGroup;
 import io.tapdata.threadgroup.utils.DisposableType;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.SendMessage;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
+import io.tapdata.websocket.testconnection.RocksDBTestConnectionImpl;
+import io.tapdata.websocket.testconnection.TestConnection;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -217,6 +221,10 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 				}
 
 				// PDK connection test
+				if(StringUtils.isBlank(connection.getPdkType()) && (Boolean)event.get("isExternalStorage")){
+				   handleNoPdkTestConnection(sendMessage,event);
+				   return;
+				}
 				if (StringUtils.isBlank(connection.getPdkType())) {
 					throw new ConnectionException("Unknown connection pdk type");
 				}
@@ -449,4 +457,23 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 
 		return update;
 	}
+
+	private void handleNoPdkTestConnection(SendMessage sendMessage,Map event) throws IOException {
+		ConnectionValidateResult connectionValidateResult = new ConnectionValidateResult();
+		TestConnection testConnection = getInstance(event.get("testType").toString());
+		testConnection.testConnection(event,connectionValidateResult);
+		sendMessage.send(WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.TEST_CONNECTION_RESULT,
+				wrapConnectionResult(new Connections(), connectionValidateResult)));
+
+	}
+
+	private <T> TestConnection getInstance(String testType) {
+		switch (testType) {
+			case "rocksdb":
+				return new RocksDBTestConnectionImpl();
+			default:
+				throw new RuntimeException("TestType not found instance '" + testType + "'");
+		}
+	}
+
 }

@@ -107,8 +107,10 @@ public class TestConnectionHandler implements WebSocketHandler {
 			String database_type = (String)data.get("database_type");
 			if (StringUtils.isBlank(database_type)) {
 				String pdkHash = (String) data.get("pdkHash");
-				DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findByPdkHash(pdkHash, Integer.MAX_VALUE, userDetail, "type");
-				database_type = definitionDto.getType();
+				if(StringUtils.isNotBlank(pdkHash)) {
+					DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findByPdkHash(pdkHash, Integer.MAX_VALUE, userDetail, "type");
+					database_type = definitionDto.getType();
+				}
 			}
 			JSONObject config1 = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(config), JSONObject.class);
 			assert config1 != null;
