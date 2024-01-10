@@ -7,7 +7,7 @@ on:
   pull_request:
     branches: [ "main", "develop", "release-v*.*" ]
   schedule:
-    - cron: "* 21 * * *"
+    - cron: "0 21 * * *"
   workflow_dispatch:
     inputs:
       mrci_run:
@@ -165,15 +165,21 @@ jobs:
         with:
           cluster_name: 'tapdata-cloud-cluster'
           location: 'asia-east2'
+      - name: Checkout Tapdata Application
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-application'
+          ref: "main"
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-application
       - name: Get IP and Port
         id: get_ip_port
         run: |
-          deployment_name=$(echo ${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} | tr 'A-F' 'a-f' | sed 's/\.//g')
-          kubectl get service tapdata-$deployment_name -n dev -o jsonpath='{.status.loadBalancer.ingress[0].ip}:{.spec.ports[?(@.name=="web")].port}' > .service_ip_port
-          ip=$(cat .service_ip_port | cut -d ':' -f 1)
-          port=$(cat .service_ip_port | cut -d ':' -f 2)
-          echo "::set-output name=IP::$ip"
-          echo "::set-output name=PORT::$port"
+          bash tapdata-application/build/upgrade.sh --get-ip-port=true --version=${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} --deploy-way=docker-compose
+          IP=$(cat .service_ip_port | awk -F':' '{print $1}')
+          PORT=$(cat .service_ip_port | awk -F':' '{print $2}')
+          echo "::set-output name=IP::$IP"
+          echo "::set-output name=PORT::$PORT"
 
   MRCI:
     runs-on: aws-ubuntu-20
@@ -245,9 +251,14 @@ jobs:
         with:
           cluster_name: 'tapdata-cloud-cluster'
           location: 'asia-east2'
+      - name: Checkout Tapdata Application
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-application'
+          ref: "main"
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-application
       - name: Close Test Env
         id: get_ip_port
         run: |
-          deployment_name=$(echo ${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} | tr 'A-F' 'a-f' | sed 's/\.//g')
-          kubectl delete deployment tapdata-$deployment_name -n dev
-          kubectl delete service tapdata-$deployment_name -n dev
+          bash tapdata-application/build/upgrade.sh --delete-env=${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} --delete-env-tag=true
