@@ -441,10 +441,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         // 这里需要将 data_type 字段根据字段类型映射规则转换为 数据库类型
         //   需要 根据 所有可匹配条件，尽量缩小匹配结果，选择最优字段类型
         //   同构任务不需要做类型映射转换
-        if (null == metadataInstancesDto || !options.isIsomorphismTask()) {
-            metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, needPossibleDataTypes);
-        }
-        ChangeRuleStage.changeStart(metadataInstancesDto, options);
+        //if (null == metadataInstancesDto || !options.isIsomorphismTask()) {
+        metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, needPossibleDataTypes);
+        //}
+        //ChangeRuleStage.changeStart(metadataInstancesDto, options);
         return metadataInstancesDto;
     }
     private Map<String, MetadataInstancesDto> rollbackOperation(List<MetadataInstancesDto> metadataInstancesDtos, String rollback, String rollbackTable) {
