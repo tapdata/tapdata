@@ -11,6 +11,7 @@ import com.tapdata.tm.sdk.available.CloudRestTemplate;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import com.tapdata.tm.sdk.interceptor.VersionHeaderInterceptor;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
+import io.tapdata.callback.DownloadCallback;
 import io.tapdata.exception.ManagementException;
 import io.tapdata.exception.RestAuthException;
 import io.tapdata.exception.RestDoNotRetryException;
@@ -472,7 +473,7 @@ public class RestTemplateOperator {
 			}
 		}, stop);
 	}
-	public void downloadFileByProgress(RestTemplateOperator.Callback callback,InputStream source,File file,long fileSize) throws IOException {
+	public void downloadFileByProgress(DownloadCallback callback,InputStream source,File file,long fileSize) throws IOException {
 			byte[] buffer = new byte[10 * 1024 * 1024];
 			int numberOfBytesRead;
 			long totalNumberOfBytesRead = 0;
@@ -494,7 +495,7 @@ public class RestTemplateOperator {
 			    source.close();
 		    }
 	}
-	public File downloadFile(Map<String, Object> params, String resource, String path, String cookies, String region,RestTemplateOperator.Callback callback) {
+	public File downloadFile(Map<String, Object> params, String resource, String path, String cookies, String region, DownloadCallback callback) {
 		return retryWrap(retryInfo -> {
 			RequestCallback requestCallback = request -> {
 				if (StringUtils.isNotBlank(cookies)) {

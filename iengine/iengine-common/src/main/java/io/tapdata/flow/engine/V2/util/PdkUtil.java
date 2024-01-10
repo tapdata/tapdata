@@ -4,6 +4,7 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
+import io.tapdata.callback.DownloadCallback;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
@@ -55,7 +56,7 @@ public class PdkUtil {
 	public static void downloadPdkFileIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, String resourceId) {
 		downloadPdkFileIfNeed(httpClientMongoOperator,pdkHash,fileName,resourceId,null);
 	}
-	public static void downloadPdkFileIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, String resourceId, RestTemplateOperator.Callback callback) {
+	public static void downloadPdkFileIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, String resourceId, DownloadCallback callback) {
 		final Object lock = pdkDownloadLock(pdkHash);
 		synchronized (lock) {
 			try {
@@ -91,7 +92,7 @@ public class PdkUtil {
 				} else if (!PDKIntegration.hasJar(theFilePath.getName())) {
 					PDKIntegration.refreshJars(filePath.toString());
 				}
-			} catch (IOException e) {
+			} catch (Exception e) {
 				throw new RuntimeException(e);
 			} finally {
 				pdkDownloadUnlock(pdkHash, lock);

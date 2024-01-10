@@ -1,6 +1,7 @@
 package com.tapdata.mongo;
 
 import com.google.common.collect.ImmutableList;
+import io.tapdata.callback.DownloadCallback;
 import io.tapdata.exception.ManagementException;
 import lombok.SneakyThrows;
 import org.apache.commons.io.input.BrokenInputStream;
@@ -45,6 +46,7 @@ public class RestTemplateOperatorTest {
 	private RestTemplate mockRestTemplate;
 
 	private RestTemplateOperator restTemplateOperatorUnderTest;
+	private DownloadCallback downloadCallback;
 
 	@Before
 	public void setUp() throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
@@ -106,7 +108,7 @@ public class RestTemplateOperatorTest {
 		});
 		// Run the test，actual data
 		final File result = restTemplateOperatorUnderTest.downloadFile(params, "resource", "filename", "cookies", "region",
-				inputCallback);
+				downloadCallback);
 
 		// Verify the results
 		assertEquals(expectedResult, result);
@@ -140,7 +142,7 @@ public class RestTemplateOperatorTest {
 		LinkedList<String> expectedRegion = new LinkedList<>();
 		expectedRegion.add("region");
 		final File result = restTemplateOperatorUnderTest.downloadFile(params, "resource", "filename", "cookies", "region",
-				inputCallback);
+				downloadCallback);
 		Object resultCookie = mockClientHttpRequest.getHeaders().get("Cookie");
 		Object resultJobTags = mockClientHttpRequest.getHeaders().get("jobTags");
 		List<MediaType> resultMedia = mockClientHttpRequest.getHeaders().getAccept();
@@ -178,7 +180,7 @@ public class RestTemplateOperatorTest {
 		LinkedList<String> expectedRegion = new LinkedList<>();
 		expectedRegion.add("region");
 		restTemplateOperatorUnderTest.downloadFile(params, "resource", "filename", "cookies", null,
-				inputCallback);
+				downloadCallback);
 		Object resultCookie = mockClientHttpRequest.getHeaders().get("Cookie");
 		Object resultJobTags = mockClientHttpRequest.getHeaders().get("jobTags");
 		List<MediaType> resultMedia = mockClientHttpRequest.getHeaders().getAccept();
@@ -209,7 +211,7 @@ public class RestTemplateOperatorTest {
 		});
 		// Run the test，actual data
 		restTemplateOperatorUnderTest.downloadFile(params, "resource", "filename", null, "region",
-				inputCallback);
+				downloadCallback);
 		// Verify the results
 		assertTrue(mockClientHttpRequest.getHeaders().isEmpty());
 	}
@@ -229,7 +231,7 @@ public class RestTemplateOperatorTest {
 
 		// Run the test
 		final File result = restTemplateOperatorUnderTest.downloadFile(params, "resource", "path", "cookies", "region",
-				callback);
+				downloadCallback);
 
 		// Verify the results
 		assertNull(result);
@@ -244,7 +246,7 @@ public class RestTemplateOperatorTest {
 	public void testDownloadFile_RestTemplateThrowsRestClientException() throws Exception {
 		// Setup
 		final Map<String, Object> params = new HashMap<>();
-		final RestTemplateOperator.Callback callback = null;
+		final DownloadCallback callback = null;
 		when(mockRestTemplate.execute(any(URI.class), any(HttpMethod.class),
 				any(RequestCallback.class), any(ResponseExtractor.class))).thenThrow(HttpClientErrorException.class);
 
@@ -291,7 +293,7 @@ public class RestTemplateOperatorTest {
 			}
 		};
 		// Run the test
-		restTemplateOperatorUnderTest.downloadFileByProgress(inputCallback, inputSource, inputFile, inputFileSize);
+		restTemplateOperatorUnderTest.downloadFileByProgress(downloadCallback, inputSource, inputFile, inputFileSize);
 	}
 
 	/**
@@ -327,7 +329,7 @@ public class RestTemplateOperatorTest {
 		};
 		final InputStream inputSource = new NullInputStream();
 		final File inputFile = new File("filename.txt");
-		restTemplateOperatorUnderTest.downloadFileByProgress(inputCallback, inputSource, inputFile, 0L);
+		restTemplateOperatorUnderTest.downloadFileByProgress(downloadCallback, inputSource, inputFile, 0L);
 
 	}
 
@@ -359,7 +361,7 @@ public class RestTemplateOperatorTest {
 		};
 		final InputStream source = new BrokenInputStream();
 		final File file = new File("filename.txt");
-		restTemplateOperatorUnderTest.downloadFileByProgress(inputCallback, source, file, 0L);
+		restTemplateOperatorUnderTest.downloadFileByProgress(downloadCallback, source, file, 0L);
 	}
 
 	/**
@@ -390,7 +392,7 @@ public class RestTemplateOperatorTest {
 			}
 		};
 		final InputStream source = new NullInputStream();
-		restTemplateOperatorUnderTest.downloadFileByProgress(inputCallback, source, null, 0L);
+		restTemplateOperatorUnderTest.downloadFileByProgress(downloadCallback, source, null, 0L);
 	}
 	@Test(expected = ManagementException.class)
 	@SneakyThrows

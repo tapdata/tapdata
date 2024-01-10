@@ -14,5 +14,9 @@ public class ConnectorRecordEntity extends BaseEntity {
     private String status;
     private String downloadSpeed;
     private String downFiledMessage;
-
+    private String flag;
+    private String connectionId;
+    private Long fileSize;
+    private Long progress;
+    private String processId;
 }

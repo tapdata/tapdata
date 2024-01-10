@@ -7,6 +7,8 @@
 package com.tapdata.tm.ws.handler;
 
 import com.alibaba.fastjson.JSONObject;
+import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.commons.metrics.ConnectorRecordDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
@@ -16,15 +18,13 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.schema.DataSourceEnum;
+import com.tapdata.tm.connectorRecord.service.ConnectorRecordService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.AES256Util;
-import com.tapdata.tm.utils.FunctionUtils;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MapUtils;
+import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -62,13 +62,16 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 	private final WorkerService workerService;
 
+	private final ConnectorRecordService connectorRecordService;
+
 	public TestConnectionHandler(MessageQueueService messageQueueService, DataSourceService dataSourceService, UserService userService
-			, WorkerService workerService, DataSourceDefinitionService dataSourceDefinitionService) {
+			, WorkerService workerService, DataSourceDefinitionService dataSourceDefinitionService, ConnectorRecordService connectorRecordService) {
 		this.messageQueueService = messageQueueService;
 		this.dataSourceService = dataSourceService;
 		this.userService = userService;
 		this.workerService = workerService;
 		this.dataSourceDefinitionService = dataSourceDefinitionService;
+		this.connectorRecordService=connectorRecordService;
 	}
 	@Override
 	public void handleMessage(WebSocketContext context) throws Exception{
@@ -174,7 +177,6 @@ public class TestConnectionHandler implements WebSocketHandler {
 			data.put("status", "error");
 			data.put("msg", "Worker not found, receiver is blank");
 		}
-
 		if (Objects.nonNull(data.get("msg"))){
 			Map<String, Object> msg = testConnectErrorData(String.valueOf(data.get("id")), data.get("msg").toString());
 			context.getMessageInfo().setData(msg);
@@ -182,11 +184,26 @@ public class TestConnectionHandler implements WebSocketHandler {
 			sendMessage(context.getSender(), context);
 			return;
 		}
+		ConnectorRecordDto connectorRecordDto=new ConnectorRecordDto();
+		connectorRecordDto.setFlag("initialize");
+		Where where=new Where();
+		where.and("processId",agentId);
+		where.and("pdkHash",data.get("pdkHash"));
+		//upsert 初始化连接下载器进度
+		connectorRecordService.upsertByWhere(where,connectorRecordDto,userDetail);
+		//给前端返回调度的引擎id
+		Map<String,Object> downloadData=new HashMap<>();
+		downloadData.put("agnetId",agentId);
+		downloadData.put("pdkHash",data.get("pdkHash"));
+		downloadData.put("type","reportDownloadAgent");
+		context.getMessageInfo().setData(downloadData);
+		sendMessage(context.getSender(),context);
 
 		handleData(agentId, context);
 	}
 		private void handleData(String receiver, WebSocketContext context) {
 			Map<String, Object> data = context.getMessageInfo().getData();
+			data.put("processId",receiver);
 			String database_type = MapUtils.getAsString(data, "database_type");
 			String database_uri = MapUtils.getAsString(data, "database_uri");
 			boolean containsDatabaseType = Arrays.asList("mongodb", "gridfs").contains(database_type);

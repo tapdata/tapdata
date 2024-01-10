@@ -33,14 +33,23 @@ public class ConnectorRecordService extends BaseService<ConnectorRecordDto, Conn
         // TODO document why this method is empty
     }
 
-    public ConnectorRecordEntity uploadConnectorRecord(ConnectorRecordDto connectorRecordDto,UserDetail userDetail){
-        Document document = mongoTemplate.findOne(Query.query(Criteria.where("pdkHash").is(connectorRecordDto.getPdkHash())), Document.class,"DatabaseTypes");
-        ConnectorRecordEntity connectorRecord = new ConnectorRecordEntity();
-        BeanUtils.copyProperties(connectorRecordDto,connectorRecord);
-        if(document != null && document.getString("pdkId") != null){
-            connectorRecord.setPdkId(document.getString("pdkId"));
-            return repository.insert(connectorRecord,userDetail);
-        }
-        return null;
+//    public ConnectorRecordEntity uploadConnectorRecord(ConnectorRecordDto connectorRecordDto,UserDetail userDetail){
+//        Document document = mongoTemplate.findOne(Query.query(Criteria.where("pdkHash").is(connectorRecordDto.getPdkHash())), Document.class,"DatabaseTypes");
+//        ConnectorRecordEntity connectorRecord = new ConnectorRecordEntity();
+//        BeanUtils.copyProperties(connectorRecordDto,connectorRecord);
+//        if(document != null && document.getString("pdkId") != null){
+//            connectorRecord.setPdkId(document.getString("pdkId"));
+//            return repository.insert(connectorRecord,userDetail);
+//        }
+//        return null;
+//    }
+//    public ConnectorRecordEntity queryByConnectionId(String connectionId, UserDetail loginUser) {
+//
+//        ConnectorRecordEntity connectorRecord = mongoTemplate.findOne(Query.query(Criteria.where("connectionId").is(connectionId)), ConnectorRecordEntity.class);
+//        return connectorRecord;
+//    }
+    public ConnectorRecordEntity queryByCondition(String processId, String pdkHash, UserDetail loginUser) {
+        Query query = Query.query(Criteria.where("processId").is(processId).and("pdkHash").is(pdkHash).and("userId").is(loginUser.getUserId()));
+        return mongoTemplate.findOne(query, ConnectorRecordEntity.class);
     }
 }

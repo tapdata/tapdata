@@ -21,6 +21,8 @@ import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.supervisor.AspectRunnableUtil;
 import io.tapdata.aspect.supervisor.DisposableThreadGroupAspect;
 import io.tapdata.aspect.supervisor.entity.ConnectionTestEntity;
+import io.tapdata.callback.DownloadCallback;
+import io.tapdata.callback.impl.DownloadCallbackImpl;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.BaseConnectionValidateResult;
 import io.tapdata.exception.ConnectionException;
@@ -225,7 +227,12 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 				if (databaseDefinition == null) {
 					throw new ConnectionException(String.format("Unknown database type %s", connection.getDatabase_type()));
 				}
-				PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseDefinition.getPdkHash(), databaseDefinition.getJarFile(), databaseDefinition.getJarRid());
+				Map<String,Object> downloadParams=new HashMap<>();
+				downloadParams.put("databaseDefinition",databaseDefinition);
+				String processId=(String) event.getOrDefault("processId", "");
+				downloadParams.put("processId",processId);
+				DownloadCallback callback=new DownloadCallbackImpl(clientMongoOperator,downloadParams);
+				PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseDefinition.getPdkHash(), databaseDefinition.getJarFile(), databaseDefinition.getJarRid(),callback);
 				validateResult = ConnectionValidator.testPdkConnection(connection, databaseDefinition);
 				schema = validateResult.getSchema();
 				List<ConnectionValidateResultDetail> validateResultDetails = validateResult.getValidateResultDetails();
