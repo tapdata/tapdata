@@ -63,9 +63,9 @@ class DAGDataServiceImplTest {
                 mockedStatic.when(() -> ChangeRuleStage.changeStart(metadataInstancesDto, options)).thenAnswer(w->null);
                 MetadataInstancesDto dto = service.modelDeduction(this.metadataInstancesDto, schema, dataSource, needPossibleDataTypes, options);
                 Assertions.assertEquals(metadataInstancesDto, dto);
-                verify(options, times(1)).isIsomorphismTask();
-                verify(service, times(0)).processFieldToDB(any(Schema.class), any(MetadataInstancesDto.class), any(DataSourceConnectionDto.class), anyBoolean());
-                mockedStatic.verify(() -> ChangeRuleStage.changeStart(metadataInstancesDto, options), times(1));
+                verify(options, times(0)).isIsomorphismTask();
+                verify(service, times(1)).processFieldToDB(any(Schema.class), any(MetadataInstancesDto.class), any(DataSourceConnectionDto.class), anyBoolean());
+                mockedStatic.verify(() -> ChangeRuleStage.changeStart(metadataInstancesDto, options), times(0));
             }
         }
         @Test
@@ -76,7 +76,7 @@ class DAGDataServiceImplTest {
                 Assertions.assertEquals(metadataInstancesDto, dto);
                 verify(options, times(0)).isIsomorphismTask();
                 verify(service, times(1)).processFieldToDB(schema, null, dataSource, needPossibleDataTypes);
-                mockedStatic.verify(() -> ChangeRuleStage.changeStart(any(MetadataInstancesDto.class), any(DAG.Options.class)), times(1));
+                mockedStatic.verify(() -> ChangeRuleStage.changeStart(any(MetadataInstancesDto.class), any(DAG.Options.class)), times(0));
             }
         }
         @Test
@@ -86,9 +86,9 @@ class DAGDataServiceImplTest {
                 when(options.isIsomorphismTask()).thenReturn(false);
                 MetadataInstancesDto dto = service.modelDeduction(metadataInstancesDto, schema, dataSource, needPossibleDataTypes, options);
                 Assertions.assertEquals(metadataInstancesDto, dto);
-                verify(options, times(1)).isIsomorphismTask();
+                verify(options, times(0)).isIsomorphismTask();
                 verify(service, times(1)).processFieldToDB(any(Schema.class), any(MetadataInstancesDto.class), any(DataSourceConnectionDto.class), anyBoolean());
-                mockedStatic.verify(() -> ChangeRuleStage.changeStart(any(MetadataInstancesDto.class), any(DAG.Options.class)), times(1));
+                mockedStatic.verify(() -> ChangeRuleStage.changeStart(any(MetadataInstancesDto.class), any(DAG.Options.class)), times(0));
             }
         }
     }
