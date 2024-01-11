@@ -12,6 +12,8 @@ import org.bson.types.ObjectId;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.sql.Clob;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Comparator;
@@ -254,7 +256,7 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 		}
 	}
 
-	private Object try2String(Object val) {
+	protected Object try2String(Object val) {
 		if (val instanceof ObjectId) {
 			return ((ObjectId) val).toHexString();
 		} else if (val instanceof byte[]) {
@@ -265,6 +267,13 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 			return ((Instant) val).toString();
 		} else if (val instanceof DateTime) {
 			return ((DateTime) val).toInstant().toString();
+		}else if(val instanceof Clob){
+			Clob clob = (Clob)val;
+			try {
+				return clob.getSubString(1, (int) clob.length());
+			}catch (SQLException e){
+				e.printStackTrace();
+			}
 		}
 		return val;
 	}
