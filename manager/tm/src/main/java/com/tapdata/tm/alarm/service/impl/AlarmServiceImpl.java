@@ -87,7 +87,6 @@ public class AlarmServiceImpl implements AlarmService {
     private TaskService taskService;
     private InspectService inspectService;
     private AlarmSettingService alarmSettingService;
-    @Lazy
     private MessageService messageService;
     private SettingsService settingsService;
     private UserService userService;

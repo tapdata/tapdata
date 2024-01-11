@@ -86,6 +86,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     @Autowired
     private MpService mpService;
     @Autowired
+    @Lazy
     private AlarmService alarmService;
     @Autowired
     private CircuitBreakerRecoveryService circuitBreakerRecoveryService;
