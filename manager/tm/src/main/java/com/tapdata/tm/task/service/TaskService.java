@@ -73,6 +73,8 @@ import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.schedule.ChartSchedule;
 import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
@@ -1977,15 +1979,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
                 //共享缓存的任务设计的有点问题
                 .and("shareCache").ne(true);
-        if (!user.isRoot()) {
-            criteria.and("user_id").is(user.getUserId());
-        }
 
 
         Query query = Query.query(criteria);
         query.fields().include("syncType", "status", "statuses");
         //把任务都查询出来
-        List<TaskDto> taskDtoList = findAllDto(query, user);
+        List<TaskDto> taskDtoList = DataPermissionMenuEnums.MigrateTack.checkAndSetFilter(
+                user, DataPermissionActionEnums.View, () -> findAllDto(query, user)
+        );
         Map<String, List<TaskDto>> syncTypeToTaskList = taskDtoList.stream().collect(Collectors.groupingBy(TaskDto::getSyncType));
 
         List<TaskDto> migrateList =  syncTypeToTaskList.getOrDefault(SyncType.MIGRATE.getValue(), Collections.emptyList());
