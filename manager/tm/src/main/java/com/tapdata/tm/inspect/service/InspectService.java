@@ -88,6 +88,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class InspectService extends BaseService<InspectDto, InspectEntity, ObjectId, InspectRepository> {
     @Autowired
+    @Lazy
     private MessageService messageService;
     @Autowired
     private SettingsService settingsService;

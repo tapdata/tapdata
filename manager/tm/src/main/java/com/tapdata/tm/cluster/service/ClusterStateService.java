@@ -65,6 +65,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     ClusterOperationService clusterOperationService;
 
     @Autowired
+    @Lazy
     private MessageService messageService;
     private SettingsService settingsService;
     private MongoTemplate mongoTemplate;

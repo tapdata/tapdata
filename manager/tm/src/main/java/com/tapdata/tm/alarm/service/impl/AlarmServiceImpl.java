@@ -57,6 +57,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -84,8 +85,9 @@ public class AlarmServiceImpl implements AlarmService {
 
     private MongoTemplate mongoTemplate;
     private TaskService taskService;
-		private InspectService inspectService;
+    private InspectService inspectService;
     private AlarmSettingService alarmSettingService;
+    @Lazy
     private MessageService messageService;
     private SettingsService settingsService;
     private UserService userService;
