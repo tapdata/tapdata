@@ -95,7 +95,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         TaskCollectionObjDto taskCollectionObjDto = new TaskCollectionObjDto();
         BeanUtils.copyProperties(newTaskDto, taskCollectionObjDto);
         Query query2 = new Query(Criteria.where("_id").is(taskDto.getId()));
-        taskCollectionObjService.upsert(query2, taskCollectionObjDto, user);
+        taskCollectionObjService.upsert(query2, taskCollectionObjDto);
 
         if (Objects.isNull(newTaskDto.getScheduleDate())) {
             taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())),
