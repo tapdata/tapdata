@@ -29,7 +29,7 @@ public class TapDataTaskSchedulerUtilTest extends BaseTest {
             taskId = new ObjectId().toHexString();
             taskDto = mock(TaskDto.class);
             timestamp = System.currentTimeMillis();
-            when(taskDto.getTaskRetryStartTime()).thenReturn(timestamp);
+            when(taskDto.getTaskRetryStartTimeFlag()).thenReturn(timestamp);
             mongoOperator = mock(ClientMongoOperator.class);
             when(mongoOperator.findOne(any(Query.class), anyString(), any(Class.class))).thenReturn(taskDto);
         }
