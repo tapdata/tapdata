@@ -93,7 +93,7 @@ jobs:
       - name: Patch Maven Dependens
         run: |
           echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
-          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@192.168.1.184:873/data/enterprise-temp/tapdata/ /root/.m2/
+          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@172.31.16.203:873/data/enterprise-temp/tapdata/ /root/.m2/
       - name: Get OpenSource Branch Name -- Common
         run: |
           echo "OPENSOURCE_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
@@ -108,7 +108,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           cd tapdata && mvn clean test -T1C -Dmaven.compile.fork=true -P idaas && mvn sonar:sonar \
-            -Dsonar.projectKey=daas -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
+            -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
             -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }}
       - name: Prevent Skip Unittest
