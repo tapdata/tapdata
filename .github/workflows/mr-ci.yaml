@@ -76,7 +76,7 @@ jobs:
 
   Push-Code-To-GOGS:
     runs-on: ubuntu-latest
-    needs: Set-Env
+    needs: Get-Stable-Branch
     steps:
       - name: Checkout Tapdata Code
         uses: actions/checkout@v3
