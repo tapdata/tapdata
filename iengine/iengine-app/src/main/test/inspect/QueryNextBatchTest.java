@@ -14,6 +14,7 @@ import io.tapdata.pdk.apis.entity.Projection;
 import io.tapdata.pdk.apis.entity.SortOn;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -60,6 +61,9 @@ public class QueryNextBatchTest extends ConnectorNodeBase {
 
         BatchCountFunction batchCountFunction = mock(BatchCountFunction.class);
         ReflectionTestUtils.setField(connectorFunction,"batchCountFunction",batchCountFunction);
+
+        ExecuteCommandFunction  executeCommandFunction= mock(ExecuteCommandFunction.class);
+        ReflectionTestUtils.setField(connectorFunction,"executeCommandFunction",executeCommandFunction);
         TapNodeSpecification specification = sqlConnectorNode.getTapNodeInfo().getTapNodeSpecification();
         TapConnectorContext connectorContext = new TapConnectorContext(specification,
                 new DataMap(), new DataMap(), new TapLog());
@@ -130,6 +134,46 @@ public class QueryNextBatchTest extends ConnectorNodeBase {
         return new PdkResult(new ArrayList<>(), new Connections(), myTapTable.getId(),
                 new HashSet<>(), sqlConnectorNode, true, dataKey, diffKeyValues, new ArrayList<>(),
                 false, null);
+    }
+
+    @Test
+    public void testQueryNextBatchForHasDiff() throws Throwable {
+        // init param
+        MockAdvanceFilterQueryFunction mockAdvanceFilterQueryFunction = new MockAdvanceFilterQueryFunction();
+        List<List<Object>> diffKeyValues = new ArrayList<>();
+        List<Object> objects = new ArrayList<>();
+        objects.add("test");
+        diffKeyValues.add(objects);
+        PdkResult pdkResult = handleMockAdvanceFilterFunction(mockAdvanceFilterQueryFunction,diffKeyValues,new ArrayList<>());
+
+        // execution method
+        ReflectionTestUtils.invokeMethod(pdkResult,"queryNextBatch",null);
+
+        Thread.sleep(3000);
+
+        boolean actualData  = mockAdvanceFilterQueryFunction.isFlag();
+
+        // output results
+        Assert.assertTrue(actualData);
+
+    }
+
+    @Test
+    public void testQueryNextBatchForNoDiff() throws Throwable {
+        // init param
+        MockAdvanceFilterQueryFunction mockAdvanceFilterQueryFunction = new MockAdvanceFilterQueryFunction();
+        PdkResult pdkResult = handleMockAdvanceFilterFunction(mockAdvanceFilterQueryFunction,new ArrayList<>(),new ArrayList<>());
+
+        // execution method
+        ReflectionTestUtils.invokeMethod(pdkResult,"queryNextBatch",null);
+
+        Thread.sleep(3000);
+
+        boolean actualData  = mockAdvanceFilterQueryFunction.isFlag();
+
+        // output results
+        Assert.assertFalse(actualData);
+
     }
 
 }
