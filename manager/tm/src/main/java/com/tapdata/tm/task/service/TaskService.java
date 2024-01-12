@@ -2985,7 +2985,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return newId;
     }
 
-    private void replaceRmProjectId(Map<String, Object> rmProject) {
+    protected void replaceRmProjectId(Map<String, Object> rmProject) {
         Map<String, String> globalIdMap = new HashMap<>();
         Map<String, Object> project = (Map<String, Object>) rmProject.get("project");
         Map<String, Object> content = (Map<String, Object>) project.get("content");
@@ -2997,7 +2997,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             contentCollections.remove(key);
             contentCollections.put(replaceKey, collection);
         }
-        contentCollectionKeys = new HashSet<>(contentCollections.keySet());
 
         Map<String, Object> contentMapping = (Map<String, Object>) content.get("mappings");
         Set<String> contentMappingKeys = new HashSet<>(contentMapping.keySet());
@@ -3012,7 +3011,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             Map<String, Object> mapping = (Map<String, Object>) contentMapping.get(key);
             mapping.put("collectionId", replaceId((String) mapping.get("collectionId"), globalIdMap));
         }
+        replaceRelationShipsKey(globalIdMap, content);
+    }
 
+    protected void replaceRelationShipsKey(Map<String, String> globalIdMap, Map<String, Object> content) {
         Map<String, Object> relationships = content.get("relationships") == null ? new HashMap<>() : (Map<String, Object>) content.get("relationships");
         Map<String, Object> relationshipsCollection = relationships.get("collections") == null ? new HashMap<>() : (Map<String, Object>) relationships.get("collections");
         Set<String> relationshipsCollectionKeys = new HashSet<>(relationshipsCollection.keySet());
@@ -3052,7 +3054,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
-    private Map<String, String> parseTaskFromRm(String rmJson, String sourceConnectionId, String targetConnectionId, UserDetail user) {
+    protected Map<String, String> parseTaskFromRm(String rmJson, String sourceConnectionId, String targetConnectionId, UserDetail user) {
         Map<String, String> sourceToJs = new HashMap<>();
         Map<String, String> parsedTpTasks = new HashMap<>();
         Map<String, Object> rmProject = new HashMap<>();
@@ -3060,7 +3062,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         try {
             rmProject = new ObjectMapper().readValue(rmJson, HashMap.class);
         } catch (Exception e) {
-            return null;
+            throw new BizException("Can not convert rmProject");
         }
 
         replaceRmProjectId(rmProject);
@@ -3183,15 +3185,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 sourceNodes.add(sourceId);
             }
 
-            // 增加主从合并节点
-            String mergeNodeId = UUID.randomUUID().toString().toLowerCase();
-            Map<String, Object> mergeNode = new HashMap<>();
-            mergeNode.put("type", "merge_table_processor");
-            mergeNode.put("name", "merge");
-            mergeNode.put("id", mergeNodeId);
-            mergeNode.put("catalog", "processor");
-            mergeNode.put("mergeMode", "main_table_first");
-            mergeNode.put("isTransformed", false);
 
             List<Map<String, Object>> mergeProperties = new ArrayList<>();
             Map<String, Object> schema = (Map<String, Object>) rmProject.get("schema");
@@ -3227,11 +3220,19 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 continue;
             }
 
+            // 增加主从合并节点
+            String mergeNodeId = UUID.randomUUID().toString().toLowerCase();
+            Map<String, Object> mergeNode = new HashMap<>();
+            mergeNode.put("type", "merge_table_processor");
+            mergeNode.put("name", "merge");
+            mergeNode.put("id", mergeNodeId);
+            mergeNode.put("catalog", "processor");
+            mergeNode.put("mergeMode", "main_table_first");
+            mergeNode.put("isTransformed", false);
             Map<String, Object> rootProperties = new HashMap<>();
             rootProperties.put("targetPath", "");
             rootProperties.put("id", sourceToJs.get(rootNodeId));
             rootProperties.put("rm_id", rootNodeId);
-
             rootProperties.put("mergeType", "updateOrInsert");
             tpTable = ((String) ((Map<String, Object>) contentMapping.get(rootNodeId)).get("table")).split("\\.")[((String) ((Map<String, Object>) contentMapping.get(rootNodeId)).get("table")).split("\\.").length - 1];
             rootProperties.put("tableName", tpTable);
@@ -3307,6 +3308,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             tpTasks.add(tpTask);
         }
         batchImport(tpTasks, user, cover, tags, new HashMap<>(), new HashMap<>());
+        checkJsProcessorTestRun(user, tpTasks);
+    }
+
+    public void checkJsProcessorTestRun(UserDetail user, List<TaskDto> tpTasks) {
         for (TaskDto task: tpTasks) {
             DAG dag = task.getDag();
             List<Node> nodes = dag.getNodes();
@@ -3323,7 +3328,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 testRunDto.setTableName(node.getName());
                 taskNodeService.testRunJsNodeRPC(testRunDto, user, 1);
             }
-
         }
     }
 

@@ -1,13 +1,18 @@
 package com.tapdata.tm.task.service;
 
 import cn.hutool.extra.cglib.CglibUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.MutiResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
@@ -20,12 +25,10 @@ import com.tapdata.tm.task.bean.Chart6Vo;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.userLog.service.UserLogService;
-import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
-import io.jsonwebtoken.lang.Assert;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,11 +39,21 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.core.query.UpdateDefinition;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.net.URL;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -631,6 +644,172 @@ public class TaskServiceTest {
                 assertEquals(chart6Vo,actual.get("chart6"));
             }
 
+        }
+    }
+    @Nested
+    class importRmProjectTest{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskService taskService=spy(new TaskService(taskRepository));
+        UserDetail userDetail;
+        FileInputStream fileInputStream;
+        @BeforeEach
+        void beforeEach() throws FileNotFoundException {
+            userDetail = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
+                    "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
+            URL resource = this.getClass().getClassLoader().getResource("test.relmig");
+            fileInputStream=new FileInputStream(resource.getFile());
+        }
+        @Test
+        void importRmProjectTest() throws IOException {
+            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
+            String rmJson = new String(mockMultipartFile.getBytes());
+            HashMap<String, Object> rmProject = new ObjectMapper().readValue(rmJson, HashMap.class);
+            HashMap<String, Object> project = (HashMap<String, Object>) rmProject.get("project");
+            HashMap<String, Object> content = (HashMap<String, Object>) project.get("content");
+            HashMap<String, Object> contentCollections = (HashMap<String, Object>) content.get("collections");
+            Map<String, String> stringStringMap = taskService.parseTaskFromRm(rmJson, "123", "123", userDetail);
+            TaskDto taskDto=null;
+            for(String taskKey:stringStringMap.keySet()){
+                taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(taskKey), TaskDto.class);
+            }
+            for(String key:contentCollections.keySet()){
+                Map<String,String> contentCollectionMap = (Map<String, String>) contentCollections.get(key);
+                String afterName = contentCollectionMap.get("name");
+                assertEquals(taskDto.getName(),afterName);
+            }
+            assertEquals("6393f084c162f518b18165c3",taskDto.getUserId());
+            assertEquals("customerId",taskDto.getCustomId());
+            assertEquals("customer5",taskDto.getDag().getNodes().get(0).getName());
+            assertEquals("123",((TableNode)taskDto.getDag().getNodes().get(0)).getConnectionId());
+            assertEquals("customer5",taskDto.getDag().getNodes().get(2).getName());
+            assertEquals("customer5",taskDto.getDag().getNodes().get(1).getName());
+        }
+        @Test
+        void nullImportRmProjectTest(){
+            assertThrows(BizException.class,()->{taskService.parseTaskFromRm(null, "123", "123", userDetail);});
+        }
+        @Test
+        void replaceIdTest() throws IOException {
+            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
+            String s = new String(mockMultipartFile.getBytes());
+            Map<String, Object> rmProject = new ObjectMapper().readValue(s, HashMap.class);
+            Map<String, Object> project = (Map<String, Object>) rmProject.get("project");
+            Map<String, Object> content = (Map<String, Object>) project.get("content");
+            Map<String, Object> contentMapping = (Map<String, Object>) content.get("mappings");
+            Map<String, Object> contentCollections = (Map<String, Object>) content.get("collections");
+            Set<String> collectionKeys = contentCollections.keySet();
+            String collectionKey=null;
+            for(String key:collectionKeys){
+                collectionKey=key;
+            }
+            Set<String> contentMappingKeys = contentMapping.keySet();
+            String contentMappingKey=null;
+            String contentMappingCollectionId=null;
+            for(String key:contentMappingKeys){
+                Map<String, Object> mapping = (Map<String, Object>) contentMapping.get(key);
+                String collectionId = (String)mapping.get("collectionId");
+                contentMappingCollectionId=collectionId;
+                contentMappingKey=key;
+            }
+            taskService.replaceRmProjectId(rmProject);
+            Set<String> afterStrings = contentCollections.keySet();
+            String afterCollectionKey=null;
+            for(String afterKey1:afterStrings){
+                afterCollectionKey=afterKey1;
+            }
+            Set<String> afterContentMappingKeys = contentMapping.keySet();
+            String afterContentMappingCollectionId=null;
+            String afterContentMappingKey=null;
+            for(String key:afterContentMappingKeys){
+                Map<String, Object> mapping = (Map<String, Object>) contentMapping.get(key);
+                afterContentMappingCollectionId = (String)mapping.get("collectionId");
+                afterContentMappingKey=key;
+            }
+            assertNotEquals(collectionKey,afterCollectionKey);
+            assertNotEquals(contentMappingKey,afterContentMappingKey);
+            assertNotEquals(contentMappingCollectionId,afterContentMappingCollectionId);
+        }
+        @Test
+        void testReplaceRelationShipsKey() throws IOException {
+            Map<String, String> globalIdMap = new HashMap<>();
+            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
+            String s = new String(mockMultipartFile.getBytes());
+            Map<String, Object> rmProject = new ObjectMapper().readValue(s, HashMap.class);
+            Map<String, Object> project = (Map<String, Object>) rmProject.get("project");
+            Map<String, Object> content = (Map<String, Object>) project.get("content");
+            Map<String, Object> relationships = content.get("relationships") == null ? new HashMap<>() : (Map<String, Object>) content.get("relationships");
+            Map<String, Object> collectionMap = (Map<String, Object>) relationships.get("collections");
+            Map<String, Object> mappingsMap = (Map<String, Object>) relationships.get("mappings");
+            String collectionKey=null;
+            for(String key:collectionMap.keySet()){
+                collectionKey=key;
+            }
+            String mappingKey=null;
+            for(String key:mappingsMap.keySet()){
+                mappingKey=key;
+            }
+            String relationShipMappingsKey=null;
+            for(String key:mappingsMap.keySet()){
+                relationShipMappingsKey=key;
+            }
+            taskService.replaceRelationShipsKey(globalIdMap,content);
+            String afterCollectionKey=null;
+            for(String key:collectionMap.keySet()){
+                afterCollectionKey=key;
+            }
+            String afterMappingKey=null;
+            for(String key:mappingsMap.keySet()){
+                afterMappingKey=key;
+            }
+            String afterRelationShipMappingsKey=null;
+            for(String key:mappingsMap.keySet()){
+                afterRelationShipMappingsKey=key;
+            }
+            assertNotEquals(collectionKey,afterCollectionKey);
+            assertNotEquals(afterMappingKey,mappingKey);
+            assertNotEquals(afterRelationShipMappingsKey,relationShipMappingsKey);
+        }
+        @Test
+        void testImportRmProject() throws IOException {
+            CustomSqlService customSqlService = mock(CustomSqlService.class);
+            taskService.setCustomSqlService(customSqlService);
+            DateNodeService dataNodeService = mock(DateNodeService.class);
+            taskService.setDateNodeService(dataNodeService);
+            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
+            String s = new String(mockMultipartFile.getBytes());
+            Map<String, String> stringStringMap = taskService.parseTaskFromRm(s, "123", "123", userDetail);
+            TaskDto taskDto=null;
+            for(String s1: stringStringMap.keySet()){
+                taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(s1), TaskDto.class);
+            }
+            try (MockedStatic<BeanUtils> beanUtilsMockedStatic = mockStatic(BeanUtils.class);MockedStatic<DataPermissionHelper> dataPermissionHelperMockedStatic = mockStatic(DataPermissionHelper.class)) {
+                BeanUtils.copyProperties(any(),any());
+                TaskEntity taskEntity = taskService.convertToEntity(TaskEntity.class, taskDto);
+                when(taskRepository.importEntity(any(),any())).thenReturn(taskEntity);
+                MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+                when(taskRepository.getMongoOperations()).thenReturn(mongoTemplate);
+                assertThrows(BizException.class,()->{taskService.importRmProject(mockMultipartFile,userDetail,false,new ArrayList<>(),"123","123");});
+            }
+        }
+        @Test
+        void testCheckJsProcessorTestRun() throws IOException {
+            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
+            String s = new String(mockMultipartFile.getBytes());
+            Map<String, String> stringStringMap = taskService.parseTaskFromRm(s, "123", "123", userDetail);
+            TaskDto taskDto=null;
+            for(String s1: stringStringMap.keySet()){
+                taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(s1), TaskDto.class);
+                taskDto.setId(new ObjectId("659d296d5ae70acad4e3f0db"));
+            }
+            List<TaskDto> taskDtos = Arrays.asList(taskDto);
+            TaskNodeService taskNodeService = mock(TaskNodeService.class);
+            taskService.setTaskNodeService(taskNodeService);
+//            doAnswer(invocationOnMock -> {
+//                TestRunDto argument = (TestRunDto) invocationOnMock.getArgument(0);
+//                argument.getScript();
+//                return null;
+//            }).when(taskNodeService).testRunJsNodeRPC(any(),any(),any());
+            taskService.checkJsProcessorTestRun(userDetail,taskDtos);
         }
     }
 
