@@ -804,12 +804,28 @@ public class TaskServiceTest {
             List<TaskDto> taskDtos = Arrays.asList(taskDto);
             TaskNodeService taskNodeService = mock(TaskNodeService.class);
             taskService.setTaskNodeService(taskNodeService);
-//            doAnswer(invocationOnMock -> {
-//                TestRunDto argument = (TestRunDto) invocationOnMock.getArgument(0);
-//                argument.getScript();
-//                return null;
-//            }).when(taskNodeService).testRunJsNodeRPC(any(),any(),any());
+            doAnswer(invocationOnMock -> {
+                TestRunDto testRunDto = (TestRunDto) invocationOnMock.getArgument(0);
+                assertEquals(1,testRunDto.getRows());
+                assertEquals("659d296d5ae70acad4e3f0db",testRunDto.getTaskId());
+                return null;
+            }).when(taskNodeService).testRunJsNodeRPC(any(TestRunDto.class),any(UserDetail.class),anyInt());
             taskService.checkJsProcessorTestRun(userDetail,taskDtos);
+        }
+        @Test
+        void testGenProperties() throws IOException {
+            URL resource = this.getClass().getClassLoader().getResource("EmployeeSchema.relmig");
+            FileInputStream fileInputStream=new FileInputStream(resource.getFile());
+            MockMultipartFile mockMultipartFile = new MockMultipartFile("EmployeeSchema.relmig", fileInputStream);
+            String s =new String(mockMultipartFile.getBytes());
+            taskService.parseTaskFromRm(s,"123","123",userDetail);
+            HashMap<String,Object> rootProp=new HashMap<>();
+            rootProp.put("targetPath", "");
+            rootProp.put("mergeType", "updateOrInsert");
+            rootProp.put("rm_id","73f983a3-d1db-4aec-b251-5db5a328fbd8");
+            rootProp.put("id","e8599336-6615-4ee1-815c-030afe7df396");
+            rootProp.put("tableName","tEmp");
+
         }
     }
 
