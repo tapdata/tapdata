@@ -776,16 +776,19 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         String title = "";
         String content = "";
         String weChatContent = "";
+        String subject = "";
 
         if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
             if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
-                emailTip = "Instance online";
+                emailTip = "Agent online";
+                subject = "Agent online";
                 smsContent = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
                 title = "实例 " + metadataName + "已上线运行";
                 content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
                 weChatContent = "实例:" + metadataName + " 已上线运行";
             } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
-                emailTip = "Instance offline";
+                subject = "Agent offline";
+                emailTip = "Agent offline";
                 smsContent = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
                 title = "实例 " + metadataName + "已离线";
                 content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
@@ -820,7 +823,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             String clickHref = mailUtils.getAgentClick(metadataName, msgTypeEnum);
             if(checkSending(userDetail)){
                 SendStatus sendStatus = mailUtils.sendHtmlMail(MAIL_SUBJECT, userDetail.getEmail(), username, metadataName, clickHref, emailTip);
-                eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
+                eventsService.recordEvents(MAIL_SUBJECT + subject, MAIL_CONTENT, userDetail.getEmail(), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
             }
         }
 
