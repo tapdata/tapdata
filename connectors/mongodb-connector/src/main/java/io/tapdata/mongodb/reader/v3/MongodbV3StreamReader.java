@@ -110,6 +110,7 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 						for (Map.Entry<String, String> entry : nodesURI.entrySet()) {
 								final String replicaSetName = entry.getKey();
 								final String mongodbURI = entry.getValue();
+								TapLogger.info(TAG,"Total number of shards:{},Start reading {} shard data,Shard connection information:{}",nodesURI.entrySet().size(),replicaSetName,mongodbURI);
 								final IntervalReport<BsonTimestamp, InterruptedException> intervalReport = new IntervalReport<BsonTimestamp, InterruptedException>(intervalReportMillis) {
 								    @Override
 								    protected void report(BsonTimestamp bsonTimestamp) throws InterruptedException {
@@ -216,7 +217,9 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 						final int seconds = mongoV3StreamOffset.getSeconds();
 						startTs = new BsonTimestamp(seconds, mongoV3StreamOffset.getInc());
 				} else {
-						startTs = new BsonTimestamp((int) (System.currentTimeMillis() / 1000), 0);
+					    final int seconds = (int) (System.currentTimeMillis() / 1000);
+						startTs = new BsonTimestamp(seconds, 0);
+						offset.put(replicaSetName,new MongoV3StreamOffset(seconds,0));
 				}
 
 				final Bson fromMigrateFilter = Filters.exists("fromMigrate", false);
