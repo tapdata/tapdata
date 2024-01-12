@@ -15,10 +15,11 @@ import java.util.function.Consumer;
 
 public class MockAdvanceFilterQueryFunction  implements QueryByAdvanceFilterFunction {
 
-
+    private boolean flag;
     private TapAdvanceFilter tapAdvanceFilter;
     @Override
     public void query(TapConnectorContext tapConnectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable tapTable, Consumer<FilterResults> consumer) throws Throwable {
+        this.flag = true;
         this.tapAdvanceFilter = tapAdvanceFilter;
     }
 
@@ -28,5 +29,13 @@ public class MockAdvanceFilterQueryFunction  implements QueryByAdvanceFilterFunc
 
     public void setTapAdvanceFilter(TapAdvanceFilter tapAdvanceFilter) {
         this.tapAdvanceFilter = tapAdvanceFilter;
+    }
+
+    public boolean isFlag() {
+        return flag;
+    }
+
+    public void setFlag(boolean flag) {
+        this.flag = flag;
     }
 }
