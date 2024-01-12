@@ -61,7 +61,7 @@ public class TapDataTaskSchedulerUtilTest extends BaseTest {
 
         @Test
         void testJudgeTaskRetryStartTimeNormal() {
-            when(taskDto.getTaskRetryStartTime()).thenReturn(timestamp);
+            when(taskDto.getTaskRetryStartTimeFlag()).thenReturn(timestamp);
             boolean needRetryStartTime = TapDataTaskSchedulerUtil.judgeTaskRetryStartTime(taskDto);
             Assertions.assertFalse(needRetryStartTime);
         }
