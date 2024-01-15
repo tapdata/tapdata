@@ -2,10 +2,16 @@ package io.tapdata.flow.engine.V2.util;
 
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import org.junit.Assert;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -30,5 +36,28 @@ class TapEventUtilTest {
 		TapEvent tapEvent = mock(TapEvent.class);
 		String actual = TapEventUtil.getTableId(tapEvent);
 		assertEquals("", actual);
+	}
+	@Test
+	void testGetRemoveFields(){
+		TapUpdateRecordEvent tapUpdateRecordEvent = new TapUpdateRecordEvent();
+		List<String> stringList=new ArrayList<>();
+		stringList.add("abc");
+		stringList.add("123");
+		tapUpdateRecordEvent.setRemovedFields(stringList);
+		List<String> removeFields = TapEventUtil.getRemoveFields(tapUpdateRecordEvent);
+		assertEquals("abc",removeFields.get(0));
+		assertEquals("123",removeFields.get(1));
+	}
+	@Test
+	void testGetNullRemoveFields(){
+		TapUpdateRecordEvent tapUpdateRecordEvent = new TapUpdateRecordEvent();
+		List<String> removeFields = TapEventUtil.getRemoveFields(tapUpdateRecordEvent);
+		assertNull(removeFields);
+	}
+	@Test
+	void testNullEvent(){
+		TapUpdateRecordEvent tapUpdateRecordEvent = null;
+		List<String> removeFields = TapEventUtil.getRemoveFields(null);
+		assertNull(removeFields);
 	}
 }
