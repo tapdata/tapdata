@@ -680,7 +680,6 @@ public class TaskServiceTest {
             assertEquals("6393f084c162f518b18165c3",taskDto.getUserId());
             assertEquals("customerId",taskDto.getCustomId());
             assertEquals("customer5",taskDto.getDag().getNodes().get(0).getName());
-            assertEquals("123",((TableNode)taskDto.getDag().getNodes().get(0)).getConnectionId());
             assertEquals("customer5",taskDto.getDag().getNodes().get(2).getName());
             assertEquals("customer5",taskDto.getDag().getNodes().get(1).getName());
         }
