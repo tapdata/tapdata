@@ -7,6 +7,7 @@
 package com.tapdata.tm.ws.handler;
 
 import com.alibaba.fastjson.JSONObject;
+import com.mongodb.ConnectionString;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
@@ -41,8 +42,6 @@ import org.bson.types.ObjectId;
 import java.net.URLEncoder;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -53,6 +52,7 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 public class TestConnectionHandler implements WebSocketHandler {
 
 	private static final String MONGODB_URI_PREFIX = "mongodb://";
+	private static final String MASK_PWD = "******";
 
 	private final MessageQueueService messageQueueService;
 
@@ -116,23 +116,22 @@ public class TestConnectionHandler implements WebSocketHandler {
 			assert config1 != null;
 			String uri = config1.getString("uri");
 			if (StringUtils.isNotBlank(database_type) && database_type.toLowerCase(Locale.ROOT).contains("mongo") && StringUtils.isNotBlank(uri)) {
-				if (uri.contains("******")) {
+				if (uri.contains(MASK_PWD) && data.get("id") instanceof String) {
 					Object id = data.get("id");
-					if (id != null) {
-						DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(toObjectId(id.toString()));
-						Map<String, Object> dataSourceConfig = dataSourceConnectionDto.getConfig();
-						if (dataSourceConfig.containsKey("uri")) {
-							String admAndPwd = null;
-							String uriFromDataSource = dataSourceConfig.get("uri").toString();
-							String regex = "mongodb:\\/\\/(.*?)@";
-							Pattern pattern = Pattern.compile(regex);
-							Matcher matcher = pattern.matcher(uriFromDataSource);
-							if(matcher.find()){
-								admAndPwd = matcher.group(1);
+					DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(toObjectId(id.toString()));
+					Map<String, Object> dataSourceConfig = dataSourceConnectionDto.getConfig();
+					if (dataSourceConfig.containsKey("uri") && dataSourceConfig.get("uri") instanceof String) {
+						Object uriFormDataSource = dataSourceConfig.get("uri");
+						ConnectionString connectionString = new ConnectionString(uriFormDataSource.toString());
+						char[] passwordChars = connectionString.getPassword();
+						if (null != passwordChars && passwordChars.length > 0) {
+							StringBuilder password = new StringBuilder();
+							for (char passwordChar : passwordChars) {
+								password.append(passwordChar);
 							}
-							if (!admAndPwd.isEmpty()){
-								String password = admAndPwd.split(":")[1];
-								config1.put("uri", uri.replace("******",password));
+							String username = connectionString.getUsername();
+							if (org.apache.commons.lang3.StringUtils.isNotBlank(username) && org.apache.commons.lang3.StringUtils.isNotBlank(password)) {
+								config1.put("uri",uri.replace(username + ":" + MASK_PWD, username + ":" + password));
 							}
 						}
 						data.put("config", config1);
@@ -143,7 +142,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 				Object mqPassword = config1.get("mqPassword");
 				if (Objects.isNull(password) && Objects.isNull(mqPassword)) {
 					Object id = data.get("id");
-					if (id != null) {
+					if (id instanceof String) {
 						DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(toObjectId(id.toString()));
 						Map<String, Object> dataSourceConfig = dataSourceConnectionDto.getConfig();
 						if (dataSourceConfig.containsKey("password")) {
