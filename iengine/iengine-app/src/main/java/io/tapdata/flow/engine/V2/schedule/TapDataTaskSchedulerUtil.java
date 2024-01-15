@@ -23,8 +23,8 @@ public class TapDataTaskSchedulerUtil {
 
     public static boolean judgeTaskRetryStartTime(TaskDto taskDto) {
         if (null == taskDto) return true;
-        Long retryStartTime = taskDto.getTaskRetryStartTime();
-        return null == retryStartTime || retryStartTime <= 0;
+        Long retryStartTimeFlag = taskDto.getTaskRetryStartTimeFlag();
+        return null == retryStartTimeFlag || retryStartTimeFlag <= 0;
     }
 
     public static Query signTaskRetryQuery(String taskId) {

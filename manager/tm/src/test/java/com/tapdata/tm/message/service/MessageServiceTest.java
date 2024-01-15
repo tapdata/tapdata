@@ -448,7 +448,7 @@ class MessageServiceTest {
         messageDto.setSourceModule("agent");
         when(mockUserService.loadUserById(new ObjectId("62bc5008d4958d013d97c7a6"))).thenReturn(userDetail);
         informUser2.invoke(messageServiceUnderTest,messageDto);
-        verify(mockMailUtils,times(1)).sendHtmlMail("【Tapdata】","test@test.com", "Hi, : ", "name",null,"Instance online");
+        verify(mockMailUtils,times(1)).sendHtmlMail("【Tapdata】","test@test.com", "Hi, : ", "name",null,"Agent online");
     }
 
     @Test

@@ -278,6 +278,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             Criteria criteria = Criteria.where("agentId").is(worker.getProcessId())
                     .and("is_deleted").ne(true)
                     .and("user_id").is(userDetail.getUserId())
+                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
                     .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
                      Criteria.where("crontabExpressionFlag").is(true),
                      Criteria.where("planStartDateFlag").is(true));
