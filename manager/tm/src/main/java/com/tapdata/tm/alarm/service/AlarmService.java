@@ -44,7 +44,6 @@ public interface AlarmService {
 
     void closeWhenTaskRunning(String taskId);
 
-    MailAccountDto getMailAccount(String userId);
 
     void delAlarm(String taskId);
 
