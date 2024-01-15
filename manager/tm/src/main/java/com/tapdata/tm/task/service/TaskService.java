@@ -7,7 +7,6 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
-import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -113,7 +112,6 @@ import org.jetbrains.annotations.NotNull;
 import org.quartz.CronScheduleBuilder;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -124,7 +122,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -153,7 +150,6 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, TaskRepository> {
-    @Lazy
     private MessageService messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private InspectService inspectService;
