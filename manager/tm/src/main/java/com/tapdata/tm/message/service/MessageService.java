@@ -14,7 +14,6 @@ import com.tapdata.tm.Settings.dto.NotificationSettingDto;
 import com.tapdata.tm.Settings.dto.RunNotificationDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
@@ -45,7 +44,6 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -55,7 +53,6 @@ import org.springframework.expression.common.TemplateParserContext;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -85,9 +82,6 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     private SmsService smsService;
     @Autowired
     private MpService mpService;
-    @Autowired
-    @Lazy
-    private AlarmService alarmService;
     @Autowired
     private CircuitBreakerRecoveryService circuitBreakerRecoveryService;
 
@@ -254,7 +248,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                 FunctionUtils.isTureOrFalse(settingsService.isCloud()).trueOrFalseHandle(() -> {
                     informUserEmail(msgTypeEnum, SystemEnum.MIGRATION, serverName, sourceId, finalSaveMessage.getId().toString(), userDetail);
                 }, () -> {
-                    MailAccountDto mailAccount = alarmService.getMailAccount(userDetail.getUserId());
+                    MailAccountDto mailAccount = settingsService.getMailAccount(userDetail.getUserId());
 
                     String mailTitle = getMailTitle(msgTypeEnum);
                     MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle, serverName + mailTitle);
@@ -369,7 +363,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                     update(Query.query(Criteria.where("_id").is(saveMessage.getId())),Update.update("isSend",true));
                 }
             }, () -> {
-                MailAccountDto mailAccount = alarmService.getMailAccount(userDetail.getUserId());
+                MailAccountDto mailAccount = settingsService.getMailAccount(userDetail.getUserId());
                 String mailTitle = getMailTitle(msgTypeEnum);
                 MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle, serverName + mailTitle);
             });
