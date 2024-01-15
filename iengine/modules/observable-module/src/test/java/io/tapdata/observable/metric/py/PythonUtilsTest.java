@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -633,10 +634,14 @@ public class PythonUtilsTest {
         Process start;
         File setUpParentFile;
         //Thread mockThread;
+        InputStream infoStream;
+        InputStream errorStream;
 
         @SneakyThrows
         @BeforeEach
         void init() {
+            infoStream = mock(InputStream.class);
+            errorStream = mock(InputStream.class);
             //mockThread = mock(Thread.class);
             //doNothing().when(mockThread).interrupt();
             setUpParentFile = mock(File.class);
@@ -655,6 +660,10 @@ public class PythonUtilsTest {
             processBuilder = mock(ProcessBuilder.class);
 
             doCallRealMethod().when(utils).unPackageFile(any(File.class), any(File.class), anyString(), any(Log.class));
+            when(start.getInputStream()).thenReturn(infoStream);
+            when(start.getErrorStream()).thenReturn(errorStream);
+            doNothing().when(utils).printInfo(infoStream, log, "mock-name");
+            doNothing().when(utils).printInfo(errorStream, log, "mock-name");
             when(utils.getUnPackageFileProcessBuilder(anyString(), anyString())).thenReturn(processBuilder);
         }
 
@@ -672,7 +681,7 @@ public class PythonUtilsTest {
             IOException exception = mock(IOException.class);
             when(exception.getMessage()).thenReturn("mock-message");
             when(processBuilder.start()).thenThrow(exception);
-            assertVerify(0, 1, 1, 1, 0, 0, 1, 1, 0 , 1);
+            assertVerify(0, 1, 1, 1, 0, 0, 1, 1, 0 , 1, 0);
             verify(exception, times(1)).getMessage();
         }
 
@@ -698,24 +707,51 @@ public class PythonUtilsTest {
                           int logInfoTimes,
                           int logWarnATimes,
                           int logWarnBTimes ) {
+            assertVerify(currentThreadTimes,
+                    getAbsolutePathTimes,
+                    getNameTimes,
+                    startTimes,
+                    waitForTimes,
+                    destroyTimes,
+                    getUnPackageFileProcessBuilderTimes,
+                    logInfoTimes,
+                    logWarnATimes,
+                    logWarnBTimes, startTimes);
+        }
+        @SneakyThrows
+        void assertVerify(int currentThreadTimes,
+                          int getAbsolutePathTimes,
+                          int getNameTimes,
+                          int startTimes,
+                          int waitForTimes,
+                          int destroyTimes,
+                          int getUnPackageFileProcessBuilderTimes,
+                          int logInfoTimes,
+                          int logWarnATimes,
+                          int logWarnBTimes, int printTimes) {
             utils.unPackageFile(unPackageFile, afterUnzipFile, pythonJarPath, log);
-//            try (MockedStatic<Thread> mockedStatic = mockStatic(Thread.class)) {
+
+            //            try (MockedStatic<Thread> mockedStatic = mockStatic(Thread.class)) {
 //                mockedStatic.when(Thread::currentThread).thenReturn(mockThread);
 //                utils.unPackageFile(unPackageFile, afterUnzipFile, pythonJarPath, log);
 //                mockedStatic.verify(Thread::currentThread, times(currentThreadTimes));
 //            } finally {
-                verify(afterUnzipFile, times(getNameTimes)).getName();
-                verify(utils, times(getUnPackageFileProcessBuilderTimes)).getUnPackageFileProcessBuilder(anyString(), anyString());
-                verify(unPackageFile, times(getAbsolutePathTimes)).getParentFile();
-                verify(setUpParentFile, times(getAbsolutePathTimes)).getAbsolutePath();
-                verify(processBuilder, times(startTimes)).start();
-                verify(start, times(waitForTimes)).waitFor();
-                verify(start, times(destroyTimes)).destroy();
-                //verify(mockThread, times(currentThreadTimes)).interrupt();
-                verify(log, times(logInfoTimes)).info(anyString(), anyString());
-                verify(log, times(logWarnATimes)).warn(anyString());
-                verify(log, times(logWarnBTimes)).warn(anyString(), anyString());
+            verify(afterUnzipFile, times(getNameTimes)).getName();
+            verify(utils, times(getUnPackageFileProcessBuilderTimes)).getUnPackageFileProcessBuilder(anyString(), anyString());
+            verify(unPackageFile, times(getAbsolutePathTimes)).getParentFile();
+            verify(setUpParentFile, times(getAbsolutePathTimes)).getAbsolutePath();
+            verify(processBuilder, times(startTimes)).start();
+            verify(start, times(waitForTimes)).waitFor();
+            verify(start, times(destroyTimes)).destroy();
+            //verify(mockThread, times(currentThreadTimes)).interrupt();
+            verify(log, times(logInfoTimes)).info(anyString(), anyString());
+            verify(log, times(logWarnATimes)).warn(anyString());
+            verify(log, times(logWarnBTimes)).warn(anyString(), anyString());
 //            }
+            verify(start, times(printTimes)).getInputStream();
+            verify(utils, times(printTimes)).printInfo(infoStream, log, "mock-name");
+            verify(start, times(printTimes)).getErrorStream();
+            verify(utils, times(printTimes)).printInfo(errorStream, log, "mock-name");
         }
     }
 
@@ -2008,5 +2044,128 @@ public class PythonUtilsTest {
             File file = utils.concatToFile("mock-path", new String[]{});
             Assertions.assertNotNull(file);
         }
+    }
+
+    @Nested
+    class PrintMsgTest {
+        BufferedReader reader;
+
+        @BeforeEach
+        void init() throws IOException {
+            reader = mock(BufferedReader.class);
+        }
+
+        @Nested
+        class PrintMsgWithBufferedReaderTest {
+            Exception e;
+
+            AtomicInteger index = new AtomicInteger(0);
+            String[] lines;
+
+            @BeforeEach
+            void init() throws IOException {
+                e = new Exception("error");
+                lines = new String[]{"", ""};
+
+                when(reader.readLine()).thenAnswer(w->{
+                    if (index.get() < lines.length) {
+                        String line = lines[index.get()];
+                        index.incrementAndGet();
+                        return line;
+                    }
+                    return null;
+                });
+
+                doCallRealMethod().when(utils).printMsg(reader, log);
+            }
+
+            void verifyAssert(int linesTimes, int infoTimes, int warnTimes) throws IOException {
+                utils.printMsg(reader, log);
+                verify(reader, times(linesTimes)).readLine();
+                verify(log, times(infoTimes)).info(anyString());
+                verify(log, times(warnTimes)).warn(anyString());
+            }
+
+            @Test
+            void testNormal() {
+                try {
+                    Assertions.assertDoesNotThrow(() -> {
+                        verifyAssert(3, 2, 0);
+                    });
+                } finally {
+                    index.set(0);
+                }
+            }
+
+            @Test
+            void testThrowException() throws IOException {
+                try {
+                    when(reader.readLine()).thenAnswer(w-> {throw e;});
+                    Assertions.assertDoesNotThrow(() -> {
+                        verifyAssert(1, 0, 1);
+                    });
+                } finally {
+                    index.set(0);
+                }
+            }
+
+            @Test
+            void testNullBufferedReader() throws IOException {
+                BufferedReader temp = null;
+                doCallRealMethod().when(utils).printMsg(temp, log);
+                utils.printMsg(temp, log);
+                verify(reader, times(0)).readLine();
+                verify(log, times(0)).info(anyString());
+                verify(log, times(0)).warn(anyString());
+            }
+        }
+
+        @Nested
+        class PrintMsgWithInputStreamTest {
+            InputStream stream;
+            @BeforeEach
+            void init() throws IOException {
+                stream = mock(InputStream.class);
+
+                when(utils.getBufferedReader(stream)).thenReturn(reader);
+                doNothing().when(utils).printMsg(reader, log);
+                doCallRealMethod().when(utils).printMsg(stream, log);
+            }
+
+            void assertVerify(int getBufferedReaderTimes, int printMsgTimes, int logTimes) {
+                utils.printMsg(stream, log);
+                verify(utils, times(getBufferedReaderTimes)).getBufferedReader(stream);
+                verify(utils, times(printMsgTimes)).printMsg(reader, log);
+                verify(log, times(logTimes)).warn(anyString());
+            }
+
+            @Test
+            void testNormal() {
+                Assertions.assertDoesNotThrow(() -> {
+                    assertVerify(1, 1, 0);
+                });
+            }
+
+            @Test
+            void testException() {
+                when(utils.getBufferedReader(stream)).thenAnswer(w->{throw new Exception("");});
+                Assertions.assertDoesNotThrow(() -> {
+                    assertVerify(1, 0, 1);
+                });
+            }
+
+            @Test
+            void testNullInputStream() {
+                InputStream temp = null;
+                doCallRealMethod().when(utils).printMsg(temp, log);
+                Assertions.assertDoesNotThrow(() -> {
+                    utils.printMsg(temp, log);
+                    verify(utils, times(0)).getBufferedReader(stream);
+                    verify(utils, times(0)).printMsg(stream, log);
+                    verify(log, times(0)).warn(anyString());
+                });
+            }
+        }
+
     }
 }
