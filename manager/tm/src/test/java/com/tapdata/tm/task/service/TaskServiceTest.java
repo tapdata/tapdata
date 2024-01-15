@@ -815,17 +815,24 @@ public class TaskServiceTest {
         @Test
         void testGenProperties() throws IOException {
             URL resource = this.getClass().getClassLoader().getResource("EmployeeSchema.relmig");
-            FileInputStream fileInputStream=new FileInputStream(resource.getFile());
+            FileInputStream fileInputStream = new FileInputStream(resource.getFile());
             MockMultipartFile mockMultipartFile = new MockMultipartFile("EmployeeSchema.relmig", fileInputStream);
-            String s =new String(mockMultipartFile.getBytes());
-            taskService.parseTaskFromRm(s,"123","123",userDetail);
-            HashMap<String,Object> rootProp=new HashMap<>();
-            rootProp.put("targetPath", "");
-            rootProp.put("mergeType", "updateOrInsert");
-            rootProp.put("rm_id","73f983a3-d1db-4aec-b251-5db5a328fbd8");
-            rootProp.put("id","e8599336-6615-4ee1-815c-030afe7df396");
-            rootProp.put("tableName","tEmp");
-
+            String s = new String(mockMultipartFile.getBytes());
+            Map<String, String> stringStringMap = taskService.parseTaskFromRm(s, "123", "123", userDetail);
+            TaskDto taskDto = null;
+            for (String key : stringStringMap.keySet()) {
+                System.out.println();
+                taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(key), TaskDto.class);
+            }
+            ;
+            List<Node> nodes = taskDto.getDag().getNodes();
+            boolean flag = false;
+            for (Node node : nodes) {
+                if (node.getType().equals("merge_table_processor")) {
+                    flag = true;
+                }
+            }
+            assertTrue(flag);
         }
     }
 
