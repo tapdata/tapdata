@@ -41,6 +41,8 @@ import org.bson.types.ObjectId;
 import java.net.URLEncoder;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -113,9 +115,28 @@ public class TestConnectionHandler implements WebSocketHandler {
 			JSONObject config1 = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(config), JSONObject.class);
 			assert config1 != null;
 			String uri = config1.getString("uri");
-			if (StringUtils.isNotBlank(database_type) && StringUtils.isNotBlank(database_type) && database_type.toLowerCase(Locale.ROOT).contains("mongo") && StringUtils.isNotBlank(uri)) {
+			if (StringUtils.isNotBlank(database_type) && database_type.toLowerCase(Locale.ROOT).contains("mongo") && StringUtils.isNotBlank(uri)) {
 				if (uri.contains("******")) {
-					data.put("editTest", false);
+					Object id = data.get("id");
+					if (id != null) {
+						DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(toObjectId(id.toString()));
+						Map<String, Object> dataSourceConfig = dataSourceConnectionDto.getConfig();
+						if (dataSourceConfig.containsKey("uri")) {
+							String admAndPwd = null;
+							String uriFromDataSource = dataSourceConfig.get("uri").toString();
+							String regex = "mongodb:\\/\\/(.*?)@";
+							Pattern pattern = Pattern.compile(regex);
+							Matcher matcher = pattern.matcher(uriFromDataSource);
+							if(matcher.find()){
+								admAndPwd = matcher.group(1);
+							}
+							if (!admAndPwd.isEmpty()){
+								String password = admAndPwd.split(":")[1];
+								config1.put("uri", uri.replace("******",password));
+							}
+						}
+						data.put("config", config1);
+					}
 				}
 			} else {
 				Object password = config1.get("password");
