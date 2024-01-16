@@ -200,9 +200,15 @@ public interface TaskMergeProcessorExCode_16 {
 	)
 	String GET_CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_NAME_FAILED_NODE_ID_CANNOT_NULL = "16034";
 
-	@TapExCode
+	@TapExCode(
+			describe = "Failed to establish a cache to detect whether the join key value has changed, and the write signature failed",
+			describeCN = "建立检测关联键值是否变更缓存失败，写入签名失败"
+	)
 	String INIT_CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_WRITE_SIGN_FAILED = "16035";
-	@TapExCode
+	@TapExCode(
+			describe = "Failed to copy external storage, original dto is null",
+			describeCN = "复制外部存储失败，原始对象为空"
+	)
 	String COPY_EXTERNAL_STORAGE_FAILED_SOURCE_IS_NULL = "16036";
 	@TapExCode(
 			describe = "Failed to analyze the reference relationship, and the merged configuration could not be obtained based on the ID",
@@ -269,4 +275,49 @@ public interface TaskMergeProcessorExCode_16 {
 			describeCN = "获取并更新关联键缓存失败，源端必须有before数据"
 	)
 	String GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_HAVE_BEFORE = "16049";
+	@TapExCode(
+			describe = "Failed to get and update the join key cache, unable to find before data",
+			describeCN = "获取并更新关联键缓存失败，无法找到before数据"
+	)
+	String GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_CANNOT_FIND_BEFORE = "16050";
+	@TapExCode(
+			describe = "Failed to insert the join key cache, unable to get IMAP",
+			describeCN = "插入关联键缓存失败，无法获取IMAP"
+	)
+	String INSERT_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP = "16051";
+	@TapExCode(
+			describe = "Failed to insert the join key cache, insert failed",
+			describeCN = "插入关联键缓存失败，写入失败"
+	)
+	String INSERT_JOIN_KEY_CACHE_FAILED_UPSERT_FAILED = "16052";
+	@TapExCode(
+			describe = "Failed to delete the join key cache, unable to get IMAP",
+			describeCN = "删除关联键缓存失败，无法获取IMAP"
+	)
+	String DELETE_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP = "16053";
+	@TapExCode(
+			describe = "Failed to delete the join key cache, delete failed",
+			describeCN = "删除关联键缓存失败，删除失败"
+	)
+	String DELETE_JOIN_KEY_CACHE_FAILED_UPSERT_FAILED = "16054";
+	@TapExCode(
+			describe = "Delete merge cache failed, lookup cache failed",
+			describeCN = "删除合并缓存失败，查找缓存失败"
+	)
+	String REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_FIND_CACHE_ERROR = "16055";
+	@TapExCode(
+			describe = "Delete merge cache failed, delete cache failed",
+			describeCN = "删除合并缓存失败，删除缓存失败"
+	)
+	String REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_DELETE_CACHE_ERROR = "16056";
+	@TapExCode(
+			describe = "Delete merge cache failed, update cache failed",
+			describeCN = "删除合并缓存失败，更新缓存失败"
+	)
+	String REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_UPDATE_CACHE_ERROR = "16057";
+	@TapExCode(
+			describe = "Clear and destroy cache failed",
+			describeCN = "清理并销毁缓存失败"
+	)
+	String CLEAR_AND_DESTROY_CACHE_FAILED = "16058";
 }

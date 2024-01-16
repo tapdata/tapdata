@@ -16,6 +16,7 @@ import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
@@ -343,20 +344,20 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			assertNotNull(actualObj);
 			assertInstanceOf(HashMap.class, actualObj);
 			Map actualMap = (HashMap) actualObj;
-			assertEquals(2, actualMap.size());
+			assertEquals(3, actualMap.size());
 			assertTrue(actualMap.containsKey("2"));
 			assertTrue(actualMap.containsKey("4"));
 			Object actualValue = actualMap.get("2");
 			assertNotNull(actualValue);
 			assertInstanceOf(HashSet.class, actualValue);
-			assertEquals(3, ((HashSet) actualValue).size());
+			assertEquals(4, ((HashSet) actualValue).size());
 			assertTrue(((HashSet) actualValue).contains("city_id"));
 			assertTrue(((HashSet) actualValue).contains("name"));
 			assertTrue(((HashSet) actualValue).contains("xxx_id"));
 			actualValue = actualMap.get("4");
 			assertNotNull(actualValue);
 			assertInstanceOf(HashSet.class, actualValue);
-			assertEquals(1, ((HashSet) actualValue).size());
+			assertEquals(2, ((HashSet) actualValue).size());
 			assertTrue(((HashSet) actualValue).contains("xxx.xxx_id"));
 		}
 	}
@@ -720,6 +721,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
+	@DisplayName("handleUpdateJoinKey method test")
 	class handleBatchUpdateJoinKeyIfNeedTest {
 		@BeforeEach
 		void setUp() {
@@ -738,11 +740,11 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			Map<String, HazelcastMergeNode.EnableUpdateJoinKey> enableUpdateJoinKeyMap = new HashMap<>();
 			enableUpdateJoinKeyMap.put("1", enableUpdateJoinKey);
 			ReflectionTestUtils.setField(hazelcastMergeNode, "enableUpdateJoinKeyMap", enableUpdateJoinKeyMap);
-			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).handleUpdateJoinKeyIfNeed(tapdataEvent);
+			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).handleUpdateJoinKey(tapdataEvent);
 			hazelcastMergeNode.initHandleUpdateJoinKeyThreadPool();
 
-			hazelcastMergeNode.handleBatchUpdateJoinKeyIfNeed(batchEventWrappers);
-			verify(hazelcastMergeNode, times(1)).handleUpdateJoinKeyIfNeed(tapdataEvent);
+			hazelcastMergeNode.handleBatchUpdateJoinKey(batchEventWrappers);
+			verify(hazelcastMergeNode, times(1)).handleUpdateJoinKey(tapdataEvent);
 		}
 
 		@Test
@@ -757,11 +759,11 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			Map<String, HazelcastMergeNode.EnableUpdateJoinKey> enableUpdateJoinKeyMap = new HashMap<>();
 			enableUpdateJoinKeyMap.put("1", enableUpdateJoinKey);
 			ReflectionTestUtils.setField(hazelcastMergeNode, "enableUpdateJoinKeyMap", enableUpdateJoinKeyMap);
-			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).handleUpdateJoinKeyIfNeed(tapdataEvent);
+			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).handleUpdateJoinKey(tapdataEvent);
 			hazelcastMergeNode.initHandleUpdateJoinKeyThreadPool();
 
-			hazelcastMergeNode.handleBatchUpdateJoinKeyIfNeed(batchEventWrappers);
-			verify(hazelcastMergeNode, times(1)).handleUpdateJoinKeyIfNeed(tapdataEvent);
+			hazelcastMergeNode.handleBatchUpdateJoinKey(batchEventWrappers);
+			verify(hazelcastMergeNode, times(1)).handleUpdateJoinKey(tapdataEvent);
 		}
 
 		@Test
@@ -777,11 +779,11 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			Map<String, HazelcastMergeNode.EnableUpdateJoinKey> enableUpdateJoinKeyMap = new HashMap<>();
 			enableUpdateJoinKeyMap.put("1", enableUpdateJoinKey);
 			ReflectionTestUtils.setField(hazelcastMergeNode, "enableUpdateJoinKeyMap", enableUpdateJoinKeyMap);
-			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).handleUpdateJoinKeyIfNeed(tapdataEvent);
+			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).handleUpdateJoinKey(tapdataEvent);
 			hazelcastMergeNode.initHandleUpdateJoinKeyThreadPool();
 
-			hazelcastMergeNode.handleBatchUpdateJoinKeyIfNeed(batchEventWrappers);
-			verify(hazelcastMergeNode, times(1)).handleUpdateJoinKeyIfNeed(tapdataEvent);
+			hazelcastMergeNode.handleBatchUpdateJoinKey(batchEventWrappers);
+			verify(hazelcastMergeNode, times(1)).handleUpdateJoinKey(tapdataEvent);
 		}
 
 		@Test
@@ -795,11 +797,11 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			Map<String, HazelcastMergeNode.EnableUpdateJoinKey> enableUpdateJoinKeyMap = new HashMap<>();
 			enableUpdateJoinKeyMap.put("1", enableUpdateJoinKey);
 			ReflectionTestUtils.setField(hazelcastMergeNode, "enableUpdateJoinKeyMap", enableUpdateJoinKeyMap);
-			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).handleUpdateJoinKeyIfNeed(tapdataEvent);
+			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).handleUpdateJoinKey(tapdataEvent);
 			hazelcastMergeNode.initHandleUpdateJoinKeyThreadPool();
 
-			hazelcastMergeNode.handleBatchUpdateJoinKeyIfNeed(batchEventWrappers);
-			verify(hazelcastMergeNode, times(0)).handleUpdateJoinKeyIfNeed(tapdataEvent);
+			hazelcastMergeNode.handleBatchUpdateJoinKey(batchEventWrappers);
+			verify(hazelcastMergeNode, times(0)).handleUpdateJoinKey(tapdataEvent);
 		}
 
 		@Test
@@ -812,22 +814,22 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			Map<String, HazelcastMergeNode.EnableUpdateJoinKey> enableUpdateJoinKeyMap = new HashMap<>();
 			enableUpdateJoinKeyMap.put("1", null);
 			ReflectionTestUtils.setField(hazelcastMergeNode, "enableUpdateJoinKeyMap", enableUpdateJoinKeyMap);
-			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).handleUpdateJoinKeyIfNeed(tapdataEvent);
+			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).handleUpdateJoinKey(tapdataEvent);
 			hazelcastMergeNode.initHandleUpdateJoinKeyThreadPool();
 
-			hazelcastMergeNode.handleBatchUpdateJoinKeyIfNeed(batchEventWrappers);
-			verify(hazelcastMergeNode, times(0)).handleUpdateJoinKeyIfNeed(tapdataEvent);
+			hazelcastMergeNode.handleBatchUpdateJoinKey(batchEventWrappers);
+			verify(hazelcastMergeNode, times(0)).handleUpdateJoinKey(tapdataEvent);
 		}
 
 		@Test
 		@DisplayName("when input batch event list is null or empty")
 		void whenInputBatchEventsNullOrEmpty() {
-			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).handleUpdateJoinKeyIfNeed(any());
-			assertDoesNotThrow(() -> hazelcastMergeNode.handleBatchUpdateJoinKeyIfNeed(null));
-			verify(hazelcastMergeNode, times(0)).handleUpdateJoinKeyIfNeed(any());
+			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).handleUpdateJoinKey(any());
+			assertDoesNotThrow(() -> hazelcastMergeNode.handleBatchUpdateJoinKey(null));
+			verify(hazelcastMergeNode, times(0)).handleUpdateJoinKey(any());
 
-			assertDoesNotThrow(() -> hazelcastMergeNode.handleBatchUpdateJoinKeyIfNeed(new ArrayList<>()));
-			verify(hazelcastMergeNode, times(0)).handleUpdateJoinKeyIfNeed(any());
+			assertDoesNotThrow(() -> hazelcastMergeNode.handleBatchUpdateJoinKey(new ArrayList<>()));
+			verify(hazelcastMergeNode, times(0)).handleUpdateJoinKey(any());
 		}
 	}
 
@@ -917,6 +919,8 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			mockHazelcastMergeNode.initMergeTableProperties();
 			mockHazelcastMergeNode.initShareJoinKeys();
 			mockHazelcastMergeNode.initMergeTablePropertyReferenceMap();
+
+			doAnswer(invocationOnMock -> null).when(mockHazelcastMergeNode).removeMergeCacheIfUpdateJoinKey(any(), any());
 		}
 
 		@Test
@@ -933,7 +937,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
 			doReturn("2").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
 
-			mockHazelcastMergeNode.handleUpdateJoinKeyIfNeed(tapdataEvent);
+			mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent);
 			Object mergeInfoObj = tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY);
 			assertInstanceOf(MergeInfo.class, mergeInfoObj);
 			MergeInfo mergeInfo = (MergeInfo) mergeInfoObj;
@@ -949,6 +953,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(1, after1.size());
 			assertTrue(after1.containsKey("b_id"));
 			assertEquals(2, after1.get("b_id"));
+			verify(mockHazelcastMergeNode, times(1)).removeMergeCacheIfUpdateJoinKey(any(), any());
 		}
 
 		@Test
@@ -965,7 +970,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
 			doReturn("2").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
 
-			mockHazelcastMergeNode.handleUpdateJoinKeyIfNeed(tapdataEvent);
+			mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent);
 			Object mergeInfoObj = tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY);
 			assertNull(mergeInfoObj);
 		}
@@ -990,7 +995,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
 			doReturn("1").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
 
-			mockHazelcastMergeNode.handleUpdateJoinKeyIfNeed(tapdataEvent);
+			mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent);
 			Object mergeInfoObj = tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY);
 			assertInstanceOf(MergeInfo.class, mergeInfoObj);
 			MergeInfo mergeInfo = (MergeInfo) mergeInfoObj;
@@ -1042,7 +1047,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
 			doReturn("1").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
 
-			mockHazelcastMergeNode.handleUpdateJoinKeyIfNeed(tapdataEvent);
+			mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent);
 			Object mergeInfoObj = tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY);
 			assertNull(mergeInfoObj);
 		}
@@ -1085,7 +1090,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			ReflectionTestUtils.setField(mockHazelcastMergeNode, "mapIterator", mapIterator);
 			aConn.setCapabilities(new ArrayList<>());
 
-			mockHazelcastMergeNode.handleUpdateJoinKeyIfNeed(tapdataEvent);
+			mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent);
 			Object mergeInfoObj = tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY);
 			assertInstanceOf(MergeInfo.class, mergeInfoObj);
 			MergeInfo mergeInfo = (MergeInfo) mergeInfoObj;
@@ -1128,10 +1133,10 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			TapdataEvent tapdataEvent = new TapdataEvent();
 			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
 			doReturn("1").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
-			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKeyIfNeed(tapdataEvent));
+			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent));
 
 			tapUpdateRecordEvent.setAfter(new HashMap<>());
-			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKeyIfNeed(tapdataEvent));
+			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent));
 		}
 
 		@Test
@@ -1149,14 +1154,14 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
 			doReturn("1").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
 
-			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> mockHazelcastMergeNode.handleUpdateJoinKeyIfNeed(tapdataEvent));
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent));
 			assertEquals(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_HAVE_BEFORE, tapCodeException.getCode());
 		}
 
 		@Test
 		@DisplayName("when input tapdata event is null")
 		void testTapdataEventIsNull() {
-			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKeyIfNeed(null));
+			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKey(null));
 		}
 
 		@Test
@@ -1165,20 +1170,298 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			TapAlterFieldNameEvent tapAlterFieldNameEvent = new TapAlterFieldNameEvent();
 			TapdataEvent tapdataEvent = new TapdataEvent();
 			tapdataEvent.setTapEvent(tapAlterFieldNameEvent);
-			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKeyIfNeed(tapdataEvent));
+			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent));
 			Object mergeInfoObj = tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY);
 			assertNull(mergeInfoObj);
 		}
 
 		@Test
-		@DisplayName("when is not update record event")
-		void testIsNotUpdateRecordEvent() {
+		@DisplayName("when is insert record event and have cache")
+		void testIsInsertRecordEventAndHaveCache() {
+			Map<String, ConstructIMap<Document>> checkJoinKeyUpdateCacheMap = mock(Map.class);
+			when(checkJoinKeyUpdateCacheMap.containsKey("2")).thenReturn(true);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "checkJoinKeyUpdateCacheMap", checkJoinKeyUpdateCacheMap);
 			TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
 			TapdataEvent tapdataEvent = new TapdataEvent();
 			tapdataEvent.setTapEvent(tapInsertRecordEvent);
-			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKeyIfNeed(tapdataEvent));
+			doReturn("2").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
+			doAnswer(invocationOnMock -> {
+				Object argument1 = invocationOnMock.getArgument(0);
+				assertNotNull(argument1);
+				assertEquals(tapdataEvent, argument1);
+				return null;
+			}).when(mockHazelcastMergeNode).insertJoinKeyCache(tapdataEvent);
+
+			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent));
 			Object mergeInfoObj = tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY);
 			assertNull(mergeInfoObj);
+			verify(mockHazelcastMergeNode, times(1)).insertJoinKeyCache(tapdataEvent);
+		}
+
+		@Test
+		@DisplayName("when is insert record event and not have cache")
+		void testIsInsertRecordEventAndNotHaveCache() {
+			Map<String, ConstructIMap<Document>> checkJoinKeyUpdateCacheMap = mock(Map.class);
+			when(checkJoinKeyUpdateCacheMap.containsKey("2")).thenReturn(false);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "checkJoinKeyUpdateCacheMap", checkJoinKeyUpdateCacheMap);
+			TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapInsertRecordEvent);
+			doReturn("2").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
+			doAnswer(invocationOnMock -> null).when(mockHazelcastMergeNode).insertJoinKeyCache(tapdataEvent);
+
+			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent));
+			Object mergeInfoObj = tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY);
+			assertNull(mergeInfoObj);
+			verify(mockHazelcastMergeNode, times(0)).insertJoinKeyCache(tapdataEvent);
+		}
+
+		@Test
+		@DisplayName("when is delete record event and have cache")
+		void testIsDeleteRecordEventAndHaveCache() {
+			Map<String, ConstructIMap<Document>> checkJoinKeyUpdateCacheMap = mock(Map.class);
+			when(checkJoinKeyUpdateCacheMap.containsKey("2")).thenReturn(true);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "checkJoinKeyUpdateCacheMap", checkJoinKeyUpdateCacheMap);
+			TapDeleteRecordEvent tapDeleteRecordEvent = new TapDeleteRecordEvent();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapDeleteRecordEvent);
+			doReturn("2").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
+			doAnswer(invocationOnMock -> {
+				Object argument1 = invocationOnMock.getArgument(0);
+				assertNotNull(argument1);
+				assertEquals(tapdataEvent, argument1);
+				return null;
+			}).when(mockHazelcastMergeNode).deleteJoinKeyCache(tapdataEvent);
+
+			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent));
+			Object mergeInfoObj = tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY);
+			assertNull(mergeInfoObj);
+			verify(mockHazelcastMergeNode, times(1)).deleteJoinKeyCache(tapdataEvent);
+		}
+
+		@Test
+		@DisplayName("when is delete record event and not have cache")
+		void testIsDeleteRecordEventAndNotHaveCache() {
+			Map<String, ConstructIMap<Document>> checkJoinKeyUpdateCacheMap = mock(Map.class);
+			when(checkJoinKeyUpdateCacheMap.containsKey("2")).thenReturn(false);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "checkJoinKeyUpdateCacheMap", checkJoinKeyUpdateCacheMap);
+			TapDeleteRecordEvent tapDeleteRecordEvent = new TapDeleteRecordEvent();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapDeleteRecordEvent);
+			doReturn("2").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
+			doAnswer(invocationOnMock -> null).when(mockHazelcastMergeNode).deleteJoinKeyCache(tapdataEvent);
+
+			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent));
+			Object mergeInfoObj = tapdataEvent.getTapEvent().getInfo(MergeInfo.EVENT_INFO_KEY);
+			assertNull(mergeInfoObj);
+			verify(mockHazelcastMergeNode, times(0)).deleteJoinKeyCache(tapdataEvent);
+		}
+	}
+
+	@Nested
+	@DisplayName("insertJoinKeyCache method test")
+	class insertJoinKeyCacheTest {
+
+		private HazelcastMergeNode mock;
+
+		@BeforeEach
+		void setUp() {
+			mock = spy(hazelcastMergeNode);
+		}
+
+		@Test
+		@DisplayName("main process test")
+		@SneakyThrows
+		void testMainProcess() {
+			Map<String, Object> after = new HashMap<>();
+			after.put("code", "a");
+			after.put("id", 1);
+			after.put("test", "test");
+			TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+			tapInsertRecordEvent.setAfter(after);
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapInsertRecordEvent);
+			doReturn("1").when(mock).getPreNodeId(tapdataEvent);
+			doAnswer(invocationOnMock -> null).when(mock).transformDateTime(after);
+			Map<String, ConstructIMap<Document>> checkJoinKeyUpdateCacheMap = mock(Map.class);
+			ConstructIMap<Document> constructIMap = mock(ConstructIMap.class);
+			doReturn("a_1").when(mock).getPkOrUniqueValueKey(after, "1", constructIMap);
+			when(constructIMap.insert(eq("a_1"), any(Document.class))).thenAnswer(invocationOnMock -> {
+				Object argument2 = invocationOnMock.getArgument(1);
+				assertInstanceOf(Document.class, argument2);
+				assertEquals(3, ((Document) argument2).size());
+				return null;
+			});
+			when(checkJoinKeyUpdateCacheMap.get("1")).thenReturn(constructIMap);
+			ReflectionTestUtils.setField(mock, "checkJoinKeyUpdateCacheMap", checkJoinKeyUpdateCacheMap);
+
+			mock.insertJoinKeyCache(tapdataEvent);
+			verify(mock, times(1)).transformDateTime(after);
+			verify(constructIMap, times(1)).insert(eq("a_1"), any(Document.class));
+		}
+
+		@Test
+		@DisplayName("when cache map is null")
+		void constructIMapIsNull() {
+			Map<String, Object> after = new HashMap<>();
+			after.put("code", "a");
+			after.put("id", 1);
+			after.put("test", "test");
+			TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+			tapInsertRecordEvent.setAfter(after);
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapInsertRecordEvent);
+			doReturn("1").when(mock).getPreNodeId(tapdataEvent);
+			Node node = mock(Node.class);
+			when(node.getName()).thenReturn("test");
+			doReturn(node).when(mock).getPreNode("1");
+			Map<String, ConstructIMap<Document>> checkJoinKeyUpdateCacheMap = mock(Map.class);
+			when(checkJoinKeyUpdateCacheMap.get("1")).thenReturn(null);
+			ReflectionTestUtils.setField(mock, "checkJoinKeyUpdateCacheMap", checkJoinKeyUpdateCacheMap);
+
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> mock.insertJoinKeyCache(tapdataEvent));
+			assertEquals(TaskMergeProcessorExCode_16.INSERT_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP, tapCodeException.getCode());
+		}
+
+		@Test
+		@DisplayName("when insert cache error")
+		@SneakyThrows
+		void insertCacheError() {
+			Map<String, Object> after = new HashMap<>();
+			after.put("code", "a");
+			after.put("id", 1);
+			after.put("test", "test");
+			TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+			tapInsertRecordEvent.setAfter(after);
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapInsertRecordEvent);
+			doReturn("1").when(mock).getPreNodeId(tapdataEvent);
+			doAnswer(invocationOnMock -> null).when(mock).transformDateTime(after);
+			Map<String, ConstructIMap<Document>> checkJoinKeyUpdateCacheMap = mock(Map.class);
+			ConstructIMap<Document> constructIMap = mock(ConstructIMap.class);
+			when(constructIMap.getName()).thenReturn("cache");
+			doReturn("a_1").when(mock).getPkOrUniqueValueKey(after, "1", constructIMap);
+			RuntimeException runtimeException = new RuntimeException("test");
+			when(constructIMap.insert(eq("a_1"), any(Document.class))).thenThrow(runtimeException);
+			when(checkJoinKeyUpdateCacheMap.get("1")).thenReturn(constructIMap);
+			ReflectionTestUtils.setField(mock, "checkJoinKeyUpdateCacheMap", checkJoinKeyUpdateCacheMap);
+
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> mock.insertJoinKeyCache(tapdataEvent));
+			assertEquals(TaskMergeProcessorExCode_16.INSERT_JOIN_KEY_CACHE_FAILED_UPSERT_FAILED, tapCodeException.getCode());
+			assertEquals(runtimeException, tapCodeException.getCause());
+		}
+	}
+
+	@Nested
+	@DisplayName("deleteJoinKeyCache method test")
+	class deleteJoinKeyCacheTest {
+
+		private HazelcastMergeNode mockHazelcastMergeNode;
+
+		@BeforeEach
+		void setUp() {
+			mockHazelcastMergeNode = spy(hazelcastMergeNode);
+		}
+
+		@Test
+		@DisplayName("main process test")
+		@SneakyThrows
+		void testMainProcess() {
+			Map<String, Object> before = new HashMap<>();
+			before.put("code", "a");
+			before.put("id", 1);
+			before.put("test", "test");
+			TapDeleteRecordEvent tapDeleteRecordEvent = new TapDeleteRecordEvent();
+			tapDeleteRecordEvent.setBefore(before);
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapDeleteRecordEvent);
+			doReturn("1").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
+			doAnswer(invocationOnMock -> null).when(mockHazelcastMergeNode).transformDateTime(before);
+			Map<String, ConstructIMap<Document>> checkJoinKeyUpdateCacheMap = mock(Map.class);
+			ConstructIMap<Document> constructIMap = mock(ConstructIMap.class);
+			when(constructIMap.getName()).thenReturn("cache");
+			doReturn("a_1").when(mockHazelcastMergeNode).getPkOrUniqueValueKey(before, "1", constructIMap);
+			when(constructIMap.delete(eq("a_1"))).thenAnswer(invocationOnMock -> null);
+			when(checkJoinKeyUpdateCacheMap.get("1")).thenReturn(constructIMap);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "checkJoinKeyUpdateCacheMap", checkJoinKeyUpdateCacheMap);
+
+			mockHazelcastMergeNode.deleteJoinKeyCache(tapdataEvent);
+			verify(mockHazelcastMergeNode, times(1)).transformDateTime(before);
+			verify(constructIMap, times(1)).delete(eq("a_1"));
+		}
+
+		@Test
+		@DisplayName("when cache is null")
+		@SneakyThrows
+		void cacheIsNull() {
+			Map<String, Object> before = new HashMap<>();
+			before.put("code", "a");
+			before.put("id", 1);
+			before.put("test", "test");
+			TapDeleteRecordEvent tapDeleteRecordEvent = new TapDeleteRecordEvent();
+			tapDeleteRecordEvent.setBefore(before);
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapDeleteRecordEvent);
+			doReturn("1").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
+			Node node = mock(Node.class);
+			when(node.getName()).thenReturn("test");
+			doReturn(node).when(mockHazelcastMergeNode).getPreNode("1");
+			Map<String, ConstructIMap<Document>> checkJoinKeyUpdateCacheMap = mock(Map.class);
+			when(checkJoinKeyUpdateCacheMap.get("1")).thenReturn(null);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "checkJoinKeyUpdateCacheMap", checkJoinKeyUpdateCacheMap);
+
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> mockHazelcastMergeNode.deleteJoinKeyCache(tapdataEvent));
+			assertEquals(TaskMergeProcessorExCode_16.DELETE_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP, tapCodeException.getCode());
+		}
+
+		@Test
+		@DisplayName("when delete cache error")
+		@SneakyThrows
+		void deleteCacheError() {
+			Map<String, Object> before = new HashMap<>();
+			before.put("code", "a");
+			before.put("id", 1);
+			before.put("test", "test");
+			TapDeleteRecordEvent tapDeleteRecordEvent = new TapDeleteRecordEvent();
+			tapDeleteRecordEvent.setBefore(before);
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapDeleteRecordEvent);
+			doReturn("1").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
+			doAnswer(invocationOnMock -> null).when(mockHazelcastMergeNode).transformDateTime(before);
+			Map<String, ConstructIMap<Document>> checkJoinKeyUpdateCacheMap = mock(Map.class);
+			ConstructIMap<Document> constructIMap = mock(ConstructIMap.class);
+			when(constructIMap.getName()).thenReturn("cache");
+			doReturn("a_1").when(mockHazelcastMergeNode).getPkOrUniqueValueKey(before, "1", constructIMap);
+			RuntimeException runtimeException = new RuntimeException("test");
+			when(constructIMap.delete(eq("a_1"))).thenThrow(runtimeException);
+			when(checkJoinKeyUpdateCacheMap.get("1")).thenReturn(constructIMap);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "checkJoinKeyUpdateCacheMap", checkJoinKeyUpdateCacheMap);
+
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> mockHazelcastMergeNode.deleteJoinKeyCache(tapdataEvent));
+			assertEquals(TaskMergeProcessorExCode_16.DELETE_JOIN_KEY_CACHE_FAILED_UPSERT_FAILED, tapCodeException.getCode());
+			assertEquals(runtimeException, tapCodeException.getCause());
+		}
+
+		@Test
+		@DisplayName("when before not have pk field(s)")
+		@SneakyThrows
+		void beforeNotHavePk() {
+			Map<String, Object> before = new HashMap<>();
+			TapDeleteRecordEvent tapDeleteRecordEvent = new TapDeleteRecordEvent();
+			tapDeleteRecordEvent.setBefore(before);
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapDeleteRecordEvent);
+			doReturn("1").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
+			doAnswer(invocationOnMock -> null).when(mockHazelcastMergeNode).transformDateTime(before);
+			Map<String, ConstructIMap<Document>> checkJoinKeyUpdateCacheMap = mock(Map.class);
+			ConstructIMap<Document> constructIMap = mock(ConstructIMap.class);
+			when(constructIMap.getName()).thenReturn("cache");
+			doReturn("").when(mockHazelcastMergeNode).getPkOrUniqueValueKey(before, "1", constructIMap);
+			when(checkJoinKeyUpdateCacheMap.get("1")).thenReturn(constructIMap);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "checkJoinKeyUpdateCacheMap", checkJoinKeyUpdateCacheMap);
+
+			mockHazelcastMergeNode.deleteJoinKeyCache(tapdataEvent);
+			verify(constructIMap, times(0)).delete(anyString());
 		}
 	}
 }
