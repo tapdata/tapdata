@@ -286,7 +286,9 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		} else {
 			constructName = ShareCdcUtil.getConstructName(this.logCollectorTaskDto, tableName);
 		}
-		constructName = constructName + "_" + ((ShareCdcTaskPdkContext) shareCdcContext).getTaskDto().getName();
+		if (!logCollectorExternalStorage.getType().equals("rocksdb")) {
+			constructName = constructName + "_" + ((ShareCdcTaskPdkContext) shareCdcContext).getTaskDto().getName();
+		}
 
 		String connId = ((ShareCdcTaskPdkContext) shareCdcContext).getConnections().getId();
 		String sign = ShareCdcTableMappingDto.genSign(connId, tableName);

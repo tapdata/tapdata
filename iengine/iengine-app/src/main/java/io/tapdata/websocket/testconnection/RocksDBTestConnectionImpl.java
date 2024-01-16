@@ -51,6 +51,7 @@ public class RocksDBTestConnectionImpl implements TestConnection{
         connectionValidateResultDetail.setRequired(true);
         connectionValidateResultDetail.setShow_msg(mark);
         File file = new File(dir,"testConnect.txt");
+        connectionValidateResultDetail.setShow_msg(dir);
         String status = "failed";
         if (file.exists()) {
             if ("Write".equals(mark)) {

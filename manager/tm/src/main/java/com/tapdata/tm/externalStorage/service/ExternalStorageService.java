@@ -198,7 +198,7 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 	@Override
 	public Page<ExternalStorageDto> find(Filter filter, UserDetail userDetail) {
 		Page<ExternalStorageDto> externalStorageDtoPage;
-		if (settingsService.isCloud()) {
+		if (!settingsService.isCloud()) {
 			externalStorageDtoPage = super.find(filter);
 		} else {
 			externalStorageDtoPage = super.find(filter, userDetail);

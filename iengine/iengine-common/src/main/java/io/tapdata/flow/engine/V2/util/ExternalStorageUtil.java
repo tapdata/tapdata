@@ -152,7 +152,7 @@ public class ExternalStorageUtil {
 		}
 		rocksdbPath = tapdataWorkDir + rocksdbPath;
 		if (OsUtil.isWindows()) {
-			rocksdbPath = rocksdbPath.replace("\\","/");
+			rocksdbPath = rocksdbPath.replace("/","\\");
 
 		}
 		File file = new File(rocksdbPath);
