@@ -40,6 +40,7 @@ import io.tapdata.flow.engine.V2.common.StoreLoggerImpl;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.modules.api.net.utils.TapEngineUtils;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
@@ -406,6 +407,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			ShareCdcUtil.iterateAndHandleSpecialType(before, this::handleData);
 			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
 			ShareCdcUtil.iterateAndHandleSpecialType(after, this::handleData);
+			List<String> removedFields =TapEventUtil.getRemoveFields(tapEvent);
 			verifyDML(tapEvent, tableId, op, timestamp, before, after, offsetStr);
 			logContent = LogContent.createDMLLogContent(
 					tableId,
@@ -413,7 +415,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 					before,
 					after,
 					op,
-					offsetStr
+					offsetStr,
+					removedFields
 			);
 			logContent.setTableNamespaces(TapEventUtil.getNamespaces(tapEvent));
 			logContent.setConnectionId(connectionId);

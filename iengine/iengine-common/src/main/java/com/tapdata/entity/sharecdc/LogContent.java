@@ -41,6 +41,8 @@ public class LogContent implements Serializable {
 	private byte[] tapDDLEvent;
 	private String connectionId;
 
+	private List<String> removeFields;
+
 	public LogContent() {
 	}
 
@@ -75,6 +77,24 @@ public class LogContent implements Serializable {
 	public static LogContent createDMLLogContent(String fromTable, Long timestamp, Map<String, Object> before, Map<String, Object> after,
 												 String op, String offsetString) {
 		return new LogContent(fromTable, timestamp, before, after, op, offsetString);
+	}
+
+	public void setRemoveFields(List<String> removeFields) {
+		this.removeFields = removeFields;
+	}
+
+	public List<String> getRemoveFields() {
+		return removeFields;
+	}
+
+	public static LogContent createDMLLogContent(String fromTable, Long timestamp, Map<String, Object> before, Map<String, Object> after,
+												 String op, String offsetString, List<String> removedFields) {
+		return new LogContent(fromTable, timestamp, before, after, op, offsetString,removedFields);
+	}
+
+	public LogContent(String fromTable, Long timestamp, Map<String, Object> before, Map<String, Object> after, String op, String offsetString, List<String> removedFields) {
+		this(fromTable,timestamp,before,after,op,offsetString);
+		this.removeFields=removedFields;
 	}
 
 	private LogContent(String fromTable, Long timestamp, String op, String offsetString, byte[] tapDDLEvent) {
@@ -230,6 +250,10 @@ public class LogContent implements Serializable {
 		Object afterObject = document.getOrDefault("after", null);
 		if (afterObject instanceof Map) {
 			logContent.setAfter((Map<String, Object>) afterObject);
+		}
+		Object removeFields = document.getOrDefault("removeFields", null);
+		if(removeFields instanceof List){
+			logContent.setRemoveFields((List<String>) removeFields);
 		}
 		logContent.setTimestamp(document.getLong("timestamp"));
 		logContent.setOp(document.getOrDefault("op", "").toString());

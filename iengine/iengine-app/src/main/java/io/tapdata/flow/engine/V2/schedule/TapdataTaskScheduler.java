@@ -482,9 +482,11 @@ public class TapdataTaskScheduler {
 		taskRetryTimeMap.remove(taskId);
 	}
 
-	private void resetTaskRetryServiceIfNeed() {
+	protected void resetTaskRetryServiceIfNeed() {
 		try {
-			for (Map.Entry<String, Long> entry : taskRetryTimeMap.entrySet()) {
+			Iterator<Map.Entry<String, Long>> iterator = taskRetryTimeMap.entrySet().iterator();
+			while (iterator.hasNext()){
+				Map.Entry<String, Long> entry = iterator.next();
 				String taskId = entry.getKey();
 				Long taskRetryStartTimeMs = entry.getValue();
 				if (StringUtils.isBlank(taskId) || null == taskRetryStartTimeMs) {
@@ -506,6 +508,7 @@ public class TapdataTaskScheduler {
 						}
 					}
 					clearTaskRetry(taskId);
+					iterator.remove();
 				}
 			}
 		} catch (Throwable ignored) {

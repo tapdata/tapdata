@@ -24,6 +24,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.HttpUtils;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
@@ -73,8 +74,6 @@ class MessageServiceTest {
     @Mock
     private MpService mockMpService;
     @Mock
-    private AlarmService mockAlarmService;
-    @Mock
     private CircuitBreakerRecoveryService circuitBreakerRecoveryService;
 
     private MessageService messageServiceUnderTest;
@@ -88,18 +87,14 @@ class MessageServiceTest {
     private UserDetail userDetail;
     @Mock
     private ScheduledExecutorService scheduledExecutorService;
-    @Mock
-    private WorkerService workerService;
 
     @BeforeEach
     void setUp() throws NoSuchMethodException {
         messageServiceUnderTest = new MessageService(mockRepository);
         ReflectionTestUtils.setField(messageServiceUnderTest, "smsService", mockSmsService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "mpService", mockMpService);
-        ReflectionTestUtils.setField(messageServiceUnderTest, "alarmService", mockAlarmService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "circuitBreakerRecoveryService", circuitBreakerRecoveryService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "scheduledExecutorService", scheduledExecutorService);
-        ReflectionTestUtils.setField(messageServiceUnderTest, "workerService", workerService);
         messageServiceUnderTest.messageRepository = mockMessageRepository;
         messageServiceUnderTest.userService = mockUserService;
         messageServiceUnderTest.taskRepository = mockTaskRepository;
@@ -450,7 +445,7 @@ class MessageServiceTest {
         messageDto.setSourceModule("agent");
         when(mockUserService.loadUserById(new ObjectId("62bc5008d4958d013d97c7a6"))).thenReturn(userDetail);
         informUser2.invoke(messageServiceUnderTest,messageDto);
-        verify(mockMailUtils,times(1)).sendHtmlMail("【Tapdata】","test@test.com", "Hi, : ", "name",null,"Instance online");
+        verify(mockMailUtils,times(1)).sendHtmlMail("【Tapdata】","test@test.com", "Hi, : ", "name",null,"Agent online");
     }
 
     @Test
@@ -574,8 +569,12 @@ class MessageServiceTest {
         MessageDto mockMessageDto = new MessageDto();
         mockMessageDto.setSourceModule(SourceModuleEnum.AGENT.getValue());
         mockMessageDto.setMsg(MsgTypeEnum.CONNECTION_INTERRUPTED.getValue());
-        messageServiceUnderTest.add(mockMessageDto,userDetail);
-        verify(scheduledExecutorService,times(1)).shutdown();
+        try(MockedStatic<SpringContextHelper> mockedStatic = Mockito.mockStatic(SpringContextHelper.class)){
+            mockedStatic.when(()->SpringContextHelper.getBean(WorkerService.class)).thenReturn(mock(WorkerService.class));
+            messageServiceUnderTest.add(mockMessageDto,userDetail);
+            verify(scheduledExecutorService,times(1)).shutdown();
+        }
+
     }
 
     @Test
@@ -583,8 +582,11 @@ class MessageServiceTest {
         MessageDto mockMessageDto = new MessageDto();
         mockMessageDto.setSourceModule(SourceModuleEnum.AGENT.getValue());
         mockMessageDto.setMsg(MsgTypeEnum.CONNECTED.getValue());
-        messageServiceUnderTest.add(mockMessageDto,userDetail);
-        verify(scheduledExecutorService,times(0)).shutdown();
+        try(MockedStatic<SpringContextHelper> mockedStatic = Mockito.mockStatic(SpringContextHelper.class)){
+            mockedStatic.when(()->SpringContextHelper.getBean(WorkerService.class)).thenReturn(mock(WorkerService.class));
+            messageServiceUnderTest.add(mockMessageDto,userDetail);
+            verify(scheduledExecutorService,times(0)).shutdown();
+        }
     }
     @Nested
     class AddMigrationTest{
@@ -660,7 +662,7 @@ class MessageServiceTest {
                 StoppedByError stopped = mock(StoppedByError.class);
                 when(notification.getStoppedByError()).thenReturn(stopped);
                 when(stopped.getEmail()).thenReturn(true);
-                when(mockAlarmService.getMailAccount(null)).thenReturn(mock(MailAccountDto.class));
+                when(mockSettingsService.getMailAccount(null)).thenReturn(mock(MailAccountDto.class));
                 messageServiceUnderTest.addMigration(serverName,sourceId,msgTypeEnum,level,userDetail);
                 mailUtilsMockedStatic.verify(()->MailUtils.sendHtmlEmail(any(),anyList(),anyString(),anyString()),times(1));
             }

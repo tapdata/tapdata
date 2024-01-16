@@ -89,4 +89,13 @@ public class TapEventUtil {
 		}
 		return null;
 	}
+
+	public static List<String> getRemoveFields(TapEvent tapEvent) {
+		List<String> removeFields=null;
+		if(tapEvent instanceof  TapUpdateRecordEvent){
+			removeFields=((TapUpdateRecordEvent)tapEvent).getRemovedFields();
+			return removeFields;
+		}
+		return null;
+	}
 }

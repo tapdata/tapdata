@@ -14,7 +14,6 @@ import com.tapdata.tm.Settings.dto.NotificationSettingDto;
 import com.tapdata.tm.Settings.dto.RunNotificationDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
@@ -45,7 +44,6 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -55,7 +53,6 @@ import org.springframework.expression.common.TemplateParserContext;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -85,11 +82,6 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     private SmsService smsService;
     @Autowired
     private MpService mpService;
-    @Autowired
-    @Lazy
-    private AlarmService alarmService;
-    @Autowired
-    private WorkerService workerService;
     @Autowired
     private CircuitBreakerRecoveryService circuitBreakerRecoveryService;
 
@@ -256,7 +248,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                 FunctionUtils.isTureOrFalse(settingsService.isCloud()).trueOrFalseHandle(() -> {
                     informUserEmail(msgTypeEnum, SystemEnum.MIGRATION, serverName, sourceId, finalSaveMessage.getId().toString(), userDetail);
                 }, () -> {
-                    MailAccountDto mailAccount = alarmService.getMailAccount(userDetail.getUserId());
+                    MailAccountDto mailAccount = settingsService.getMailAccount(userDetail.getUserId());
 
                     String mailTitle = getMailTitle(msgTypeEnum);
                     MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle, serverName + mailTitle);
@@ -371,7 +363,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                     update(Query.query(Criteria.where("_id").is(saveMessage.getId())),Update.update("isSend",true));
                 }
             }, () -> {
-                MailAccountDto mailAccount = alarmService.getMailAccount(userDetail.getUserId());
+                MailAccountDto mailAccount = settingsService.getMailAccount(userDetail.getUserId());
                 String mailTitle = getMailTitle(msgTypeEnum);
                 MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle, serverName + mailTitle);
             });
@@ -669,7 +661,8 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             messageEntity.setLastUpdBy(userDetail.getUsername());
             repository.save(messageEntity, userDetail);
             messageDto.setId(messageEntity.getId());
-            Long agentCount = workerService.getAvailableAgentCount();
+            WorkerService workerService = SpringContextHelper.getBean(WorkerService.class);
+            Long agentCount = workerService.getLastCheckAvailableAgentCount();
             if(SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())
                     && MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(messageDto.getMsg())){
                 if(!scheduledExecutorService.isShutdown()){
@@ -777,16 +770,19 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         String title = "";
         String content = "";
         String weChatContent = "";
+        String subject = "";
 
         if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
             if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
-                emailTip = "Instance online";
+                emailTip = "Agent online";
+                subject = "Agent online";
                 smsContent = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
                 title = "实例 " + metadataName + "已上线运行";
                 content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
                 weChatContent = "实例:" + metadataName + " 已上线运行";
             } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
-                emailTip = "Instance offline";
+                subject = "Agent offline";
+                emailTip = "Agent offline";
                 smsContent = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
                 title = "实例 " + metadataName + "已离线";
                 content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
@@ -821,7 +817,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             String clickHref = mailUtils.getAgentClick(metadataName, msgTypeEnum);
             if(checkSending(userDetail)){
                 SendStatus sendStatus = mailUtils.sendHtmlMail(MAIL_SUBJECT, userDetail.getEmail(), username, metadataName, clickHref, emailTip);
-                eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
+                eventsService.recordEvents(MAIL_SUBJECT + subject, MAIL_CONTENT, userDetail.getEmail(), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
             }
         }
 

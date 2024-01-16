@@ -26,6 +26,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 
@@ -190,9 +191,7 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
                     });
                 }
 
-                if (!createMap.isEmpty()) {
-                    nameFieldMap.putAll(createMap);
-                }
+                addCrateTapField(createMap, tapTable);
 
                 if (!unSetPkMap.isEmpty()) {
                     unSetPkMap.keySet().forEach(name -> {
@@ -278,6 +277,14 @@ public class MigrateScriptProcessNode extends MigrateProcessorNode {
         }
 
         return result;
+    }
+
+    public void addCrateTapField(Map<String, TapField> createMap, TapTable tapTable) {
+        if (MapUtils.isNotEmpty(createMap)) {
+            createMap.keySet().forEach(name ->{
+                tapTable.add(createMap.get(name));
+            });
+        }
     }
 
     @Override

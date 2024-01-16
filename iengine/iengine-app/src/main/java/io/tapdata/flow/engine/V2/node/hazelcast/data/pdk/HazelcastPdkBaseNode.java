@@ -173,9 +173,10 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		if (!isSign) {
 			long functionRetryEx = timestamp + 5 * 60 * 1000L;
 			update.set("functionRetryEx", functionRetryEx);
-			update.set("taskRetryStartTime", 0);
+			update.set("taskRetryStartTimeFlag", 0);
 		} else {
 			update.set("taskRetryStartTime", timestamp);
+			update.set("taskRetryStartTimeFlag", timestamp);
 		}
 		return update;
 	}

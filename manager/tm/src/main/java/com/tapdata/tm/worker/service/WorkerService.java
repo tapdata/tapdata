@@ -278,6 +278,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             Criteria criteria = Criteria.where("agentId").is(worker.getProcessId())
                     .and("is_deleted").ne(true)
                     .and("user_id").is(userDetail.getUserId())
+                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
                     .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
                      Criteria.where("crontabExpressionFlag").is(true),
                      Criteria.where("planStartDateFlag").is(true));
@@ -866,5 +867,14 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
     public Long getAvailableAgentCount(){
         return count(getAvailableAgentQuery());
+    }
+
+    public Long getLastCheckAvailableAgentCount(){
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30) + 120;
+        Criteria criteria = Criteria.where("worker_type").is("connector")
+                .and("ping_time").gte(System.currentTimeMillis() - (overTime * 1000L))
+                .and("isDeleted").ne(true)
+                .and("agentTags").ne("disabledScheduleTask");
+        return count(Query.query(criteria));
     }
 }

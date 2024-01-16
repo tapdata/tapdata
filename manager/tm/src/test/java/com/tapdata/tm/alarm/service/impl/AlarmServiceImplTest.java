@@ -1,5 +1,6 @@
 package com.tapdata.tm.alarm.service.impl;
 
+import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarm.constant.AlarmMailTemplate;
@@ -111,6 +112,7 @@ class AlarmServiceImplTest {
         List<AlarmSettingDto> all =  Arrays.asList(alarmSettingDto);
         when(mockSettingsService.isCloud()).thenReturn(true);
         when(mockAlarmSettingService.findAllAlarmSetting(any(UserDetail.class))).thenReturn(all);
+        when(mockSettingsService.getMailAccount(null)).thenReturn(mock(MailAccountDto.class));
         sendMail.invoke(alarmServiceImplUnderTest,alarmInfo,AlarmMessageDto.builder().agentId("agentId").taskId("taskId").name("name").emailOpen(true).build(),userDetail,messageDto,"messageId");
         verify(mockMessageService,times(1)).update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId("messageId"))), Update.update("isSend",true));
     }
