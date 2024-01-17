@@ -204,7 +204,8 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 			externalStorageDtoPage = super.find(filter, userDetail);
 		}
 		if (null == filter.getWhere() || filter.getWhere().isEmpty()) {
-			List<ExternalStorageEntity> initExternalStorages = repository.findAll(Query.query(Criteria.where("init").is(true)));
+			List<ExternalStorageEntity> initExternalStorages = repository.findAll(Query.query(Criteria.where("init").is(true)
+					.and("status").is(DataSourceConnectionDto.STATUS_READY)));
 			List<ExternalStorageDto> items = externalStorageDtoPage.getItems();
 			for (ExternalStorageEntity initExternalStorage : initExternalStorages) {
 				if (null == items.stream().filter(i -> i.getName().equals(initExternalStorage.getName())).findFirst().orElse(null)) {
