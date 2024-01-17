@@ -254,6 +254,7 @@ jobs:
       - name: Run - Local Service - Schedule
         if: ${{ github.event_name == 'schedule' || inputs.mrci_run }}
         run: |
+          cd tapdata
           bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}" --maxtimeinmins=120 --testplanid=724 --pollcount=12
       - name: Print Test Result
         if: ${{ always() }}
