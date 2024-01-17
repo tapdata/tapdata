@@ -231,12 +231,10 @@ jobs:
         run: |
           echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
       - name: Fetch Code - Main Repo
-        uses: actions/checkout@v3
-        with:
-            fetch-depth: 0
-            ref: ${{ env.CURRENT_BRANCH }}
-            token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-            path: ./
+        run: |
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b ${{github.event.pull_request.head.ref}} --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata.git
+          cd tapdata && git fetch --tags
       - name: Compile - IEngine And Management
         run: |
           #mvn clean install -DskipTests -P idaas -P not_encrypt -U -T1C
@@ -280,12 +278,10 @@ jobs:
           cluster_name: 'tapdata-cloud-cluster'
           location: 'asia-east2'
       - name: Checkout Tapdata Application
-        uses: actions/checkout@v2
-        with:
-          repository: 'tapdata/tapdata-application'
-          ref: "main"
-          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          path: tapdata-application
+        run: |
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b main --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata-application.git
+          cd tapdata-application && git fetch --tags
       - name: Close Test Env
         id: get_ip_port
         run: |
