@@ -66,7 +66,7 @@ jobs:
         id: set-output
         run: |
           cd tapdata-application
-          OPENSOURCE_BRANCH=${{github.event.pull_request.head.ref}}
+          OPENSOURCE_BRANCH=${{ github.event.pull_request.head.ref }}
           ENTERPRISE_BRANCH="main"
           FRONTEND_BRANCH="main"
           echo "::set-output name=OPENSOURCE_BRANCH::${OPENSOURCE_BRANCH}"
