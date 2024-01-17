@@ -6,10 +6,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.core.Appender;
-import org.apache.logging.log4j.core.Core;
-import org.apache.logging.log4j.core.Filter;
-import org.apache.logging.log4j.core.Layout;
-import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.*;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
@@ -20,11 +17,8 @@ import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author samuel
@@ -43,6 +37,8 @@ public class ObsHttpTMLog4jAppender extends AbstractAppender {
 	private final LinkedBlockingQueue<String> messageQueue;
 	private final ExecutorService consumeMessageThreadPool;
 	private final int batchSize;
+	private final AtomicBoolean running = new AtomicBoolean(true);
+
 	protected ObsHttpTMLog4jAppender(String name, Filter filter, Layout<? extends Serializable> layout, boolean ignoreExceptions, Property[] properties,
 									 ClientMongoOperator clientMongoOperator, int batchSize) {
 		super(name, filter, layout, ignoreExceptions, properties);
@@ -56,7 +52,7 @@ public class ObsHttpTMLog4jAppender extends AbstractAppender {
 
 	private void consumeAndInsertLogs() {
 		List<String> bufferList = new ArrayList<>();
-		while (!Thread.currentThread().isInterrupted()) {
+		while (!Thread.currentThread().isInterrupted() && running.get()) {
 			int drainResult;
 			try {
 				drainResult = Queues.drain(messageQueue, bufferList, this.batchSize, 1L, TimeUnit.SECONDS);
@@ -113,8 +109,10 @@ public class ObsHttpTMLog4jAppender extends AbstractAppender {
 
 	@Override
 	public boolean stop(long timeout, TimeUnit timeUnit) {
-		if (null != this.consumeMessageThreadPool) {
-			ExecutorUtil.shutdown(this.consumeMessageThreadPool, 1L, TimeUnit.MINUTES);
+		if (this.running.compareAndSet(true, false)) {
+			if (null != this.consumeMessageThreadPool) {
+				ExecutorUtil.shutdown(this.consumeMessageThreadPool, 1L, TimeUnit.MINUTES);
+			}
 		}
 		return super.stop(timeout, timeUnit);
 	}
