@@ -272,7 +272,9 @@ public interface TaskMergeProcessorExCode_16 {
 	String BUILD_CHECK_UPDATE_JOIN_KEY_CACHE_FAILED_JOIN_KEY_INCLUDE_PK = "16048";
 	@TapExCode(
 			describe = "Failed to get and update the join key cache, the source must have before data",
-			describeCN = "获取并更新关联键缓存失败，源端必须有before数据"
+			describeCN = "获取并更新关联键缓存失败，源端必须有before数据",
+			solution = "1. If MongoDB is the source and the version is 6.0 or above, you need to turn on the 'Document Preimages' function",
+			solutionCN = "1. 如果是MongoDB作为源头，并且版本是6.0及以上，则需要打开'文档原像'功能"
 	)
 	String GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_HAVE_BEFORE = "16049";
 	@TapExCode(
