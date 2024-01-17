@@ -217,6 +217,7 @@ jobs:
     timeout-minutes: 120
     needs:
       - Build-And-Deploy
+      - Get-Stable-Branch
     steps:
       - name: Set Env
         run: |
@@ -233,7 +234,7 @@ jobs:
       - name: Fetch Code - Main Repo
         run: |
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{github.event.pull_request.head.ref}} --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata.git
+          git clone -b ${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }} --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata.git
           cd tapdata && git fetch --tags
       - name: Compile - IEngine And Management
         run: |
