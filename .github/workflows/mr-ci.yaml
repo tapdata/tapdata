@@ -278,10 +278,12 @@ jobs:
           cluster_name: 'tapdata-cloud-cluster'
           location: 'asia-east2'
       - name: Checkout Tapdata Application
-        run: |
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b main --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata-application.git
-          cd tapdata-application && git fetch --tags
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-application'
+          ref: "main"
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-application
       - name: Close Test Env
         id: get_ip_port
         run: |
