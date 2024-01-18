@@ -615,7 +615,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		}
 	}
 
-	private ShareCDCReaderEvent tapEventWrapper(Document document) {
+	protected ShareCDCReaderEvent tapEventWrapper(Document document) {
 		if (null == document) {
 			return null;
 		}
@@ -636,6 +636,8 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				((TapUpdateRecordEvent) tapEvent).setBefore(logContent.getBefore());
 				ShareCdcUtil.iterateAndHandleSpecialType(logContent.getAfter(), this::handleData);
 				((TapUpdateRecordEvent) tapEvent).setAfter(logContent.getAfter());
+				List<String> removeFields = logContent.getRemoveFields();
+				((TapUpdateRecordEvent) tapEvent).setRemovedFields(removeFields);
 				break;
 			case DELETE:
 				tapEvent = new TapDeleteRecordEvent().init();

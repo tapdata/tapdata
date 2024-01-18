@@ -64,8 +64,8 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Document document = assertResult(update);
 			Assertions.assertTrue(document.containsKey("functionRetryEx"));
 			Assertions.assertEquals(timestamp + 5 * 60 * 1000L, document.get("functionRetryEx"));
-			Assertions.assertTrue(document.containsKey("taskRetryStartTime"));
-			Assertions.assertEquals(0, document.get("taskRetryStartTime"));
+			Assertions.assertTrue(document.containsKey("taskRetryStartTimeFlag"));
+			Assertions.assertEquals(0, document.get("taskRetryStartTimeFlag"));
 		}
 
 		Document assertResult(Update update) {

@@ -13,6 +13,8 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -50,6 +52,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -60,7 +63,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  */
 @Component
 @DependsOn("connectorManager")
-public class TapdataTaskScheduler {
+public class TapdataTaskScheduler implements MemoryFetcher {
 	public static final String TAG = TapdataTaskScheduler.class.getSimpleName();
 	private Logger logger = LogManager.getLogger(TapdataTaskScheduler.class);
 	private Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
@@ -299,16 +302,22 @@ public class TapdataTaskScheduler {
 	private void startTask(TaskDto taskDto) {
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		final String taskId = taskDto.getId().toHexString();
-		if (taskClientMap.containsKey(taskId)) {
-			TaskClient<TaskDto> taskClient = taskClientMap.get(taskId);
-			if (null != taskClient) {
-				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
-				if (!TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
-					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
+		AtomicBoolean isReturn = new AtomicBoolean(false);
+		taskClientMap.computeIfPresent(taskId, (id, taskClient)->{
+			if (taskClientMap.containsKey(taskId)) {
+				if (null != taskClient) {
+					logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
+					if (!TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
+						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
+					}
+				} else {
+					logger.info("The [task {}, id {}] is being executed, ignore the scheduling", taskDto.getName(), taskId);
 				}
-			} else {
-				logger.info("The [task {}, id {}] is being executed, ignore the scheduling", taskDto.getName(), taskId);
+				isReturn.compareAndSet(false, true);
 			}
+			return taskClient;
+		});
+		if (isReturn.get()) {
 			return;
 		}
 		try {
@@ -482,9 +491,11 @@ public class TapdataTaskScheduler {
 		taskRetryTimeMap.remove(taskId);
 	}
 
-	private void resetTaskRetryServiceIfNeed() {
+	protected void resetTaskRetryServiceIfNeed() {
 		try {
-			for (Map.Entry<String, Long> entry : taskRetryTimeMap.entrySet()) {
+			Iterator<Map.Entry<String, Long>> iterator = taskRetryTimeMap.entrySet().iterator();
+			while (iterator.hasNext()){
+				Map.Entry<String, Long> entry = iterator.next();
 				String taskId = entry.getKey();
 				Long taskRetryStartTimeMs = entry.getValue();
 				if (StringUtils.isBlank(taskId) || null == taskRetryStartTimeMs) {
@@ -506,6 +517,7 @@ public class TapdataTaskScheduler {
 						}
 					}
 					clearTaskRetry(taskId);
+					iterator.remove();
 				}
 			}
 		} catch (Throwable ignored) {
@@ -661,6 +673,23 @@ public class TapdataTaskScheduler {
 
 	public Map<String, TaskClient<TaskDto>> getTaskClientMap() {
 		return taskClientMap;
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		DataMap dataMap = DataMap.create();
+		DataMap taskMap = DataMap.create();
+		taskClientMap.forEach((k, v) -> {
+			if (null == v) {
+				taskMap.kv(k, "null");
+			} else {
+				DataMap task = DataMap.create();
+				task.kv("task status", v.getTask().getStatus());
+				task.kv("jet status", v.getStatus());
+				taskMap.kv(v.getTask().getName(), task);
+			}
+		});
+		return dataMap;
 	}
 
 	private enum StopTaskResource {

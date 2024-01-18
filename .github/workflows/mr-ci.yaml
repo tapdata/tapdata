@@ -74,22 +74,50 @@ jobs:
           echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
           echo "::set-output name=TAG_NAME::${TAG_NAME}"
 
+  Push-Code-To-GOGS:
+    runs-on: ubuntu-latest
+    needs: Get-Stable-Branch
+    steps:
+      - name: Checkout Tapdata Code
+        uses: actions/checkout@v3
+        with:
+          repository: 'tapdata/tapdata'
+          ref: ${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata
+          fetch-depth: 0
+      - name: Checkout Tapdata Application
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-application'
+          ref: 'migrate-runner'
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-application
+          fetch-depth: 0
+      - name: Push Tapdata to Gogs
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: |
+            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata --gogs-project-name=tapdata
+
   Scan-Tapdata:
     if: ${{ github.event_name != 'schedule' }}
     runs-on: office-scan
-    needs: Get-Stable-Branch
+    needs:
+      - Get-Stable-Branch
+      - Push-Code-To-GOGS
     timeout-minutes: 30
     steps:
       - name: Clean Directory
         run: |
           rm -rf ./*
       - name: Checkout Tapdata Code
-        uses: actions/checkout@v3
-        with:
-          repository: 'tapdata/tapdata'
-          ref: ${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }}
-          path: tapdata
-          fetch-depth: 0
+        run: |
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b ${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }} --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata.git
+          cd tapdata && git fetch --tags
       - name: Patch Maven Dependens
         run: |
           echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
@@ -108,7 +136,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           cd tapdata && mvn clean test -T1C -Dmaven.compile.fork=true -P idaas && mvn sonar:sonar \
-            -Dsonar.projectKey=daas -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
+            -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
             -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }}
       - name: Prevent Skip Unittest
