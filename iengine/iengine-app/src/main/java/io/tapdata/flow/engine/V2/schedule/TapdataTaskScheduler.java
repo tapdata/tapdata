@@ -20,6 +20,7 @@ import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskClient;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.TaskOperation;
@@ -28,6 +29,7 @@ import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.flow.engine.V2.util.SingleLockWithKey;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -149,6 +151,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		});
 		initScheduleTask();
 		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::resetTaskRetryServiceIfNeed, 1L, 1L, TimeUnit.MINUTES);
+		PDKIntegration.registerMemoryFetcher("taskScheduler", this);
 	}
 
 	private void initScheduleTask() {
@@ -685,10 +688,13 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			} else {
 				DataMap task = DataMap.create();
 				task.kv("task status", v.getTask().getStatus());
-				task.kv("jet status", v.getStatus());
+				if (v instanceof HazelcastTaskClient) {
+					task.kv("jet status", ((HazelcastTaskClient) v).getJetStatus());
+				}
 				taskMap.kv(v.getTask().getName(), task);
 			}
 		});
+		dataMap.kv("task client map", taskMap);
 		return dataMap;
 	}
 
