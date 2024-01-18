@@ -478,10 +478,10 @@ public class AlarmServiceImpl implements AlarmService {
                 String metadataName = messageMetadata.getName();
                 if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
                     if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
-                        title = "Instance online";
+                        title = "Agent online";
                         content = "Dear Users，Hi，The instance you created on Tapdata Cloud V3.0:" + metadataName + "up and running";
                     } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
-                        title = "Instance offline";
+                        title = "Agent offline";
                         content = "Dear Users，Hi，The instance you created on Tapdata Cloud V3.0:" + metadataName + " has been offline, please deal with it in time";
                     }
                 } else {
