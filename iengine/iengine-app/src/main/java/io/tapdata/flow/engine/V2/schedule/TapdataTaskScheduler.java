@@ -683,16 +683,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		DataMap dataMap = DataMap.create();
 		DataMap taskMap = DataMap.create();
 		taskClientMap.forEach((k, v) -> {
-			if (null == v) {
-				taskMap.kv(k, "null");
-			} else {
-				DataMap task = DataMap.create();
-				task.kv("task status", v.getTask().getStatus());
-				if (v instanceof HazelcastTaskClient) {
-					task.kv("jet status", ((HazelcastTaskClient) v).getJetStatus());
-				}
-				taskMap.kv(v.getTask().getName(), task);
+			DataMap task = DataMap.create();
+			task.kv("task status", v.getTask().getStatus());
+			if (v instanceof HazelcastTaskClient) {
+				task.kv("jet status", ((HazelcastTaskClient) v).getJetStatus());
 			}
+			taskMap.kv(v.getTask().getName(), task);
 		});
 		dataMap.kv("task client map", taskMap);
 		return dataMap;

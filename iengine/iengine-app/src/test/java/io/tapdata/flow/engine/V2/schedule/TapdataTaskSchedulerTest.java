@@ -79,35 +79,70 @@ public class TapdataTaskSchedulerTest {
 			assertEquals(2, taskRetryTimeMap.size());
 		}
 
-		@Test
-		void testMemory() {
-			TapdataTaskScheduler taskScheduler = mock(TapdataTaskScheduler.class);
-			HazelcastTaskClient hazelcastTaskClient = mock(HazelcastTaskClient.class);
-			when(hazelcastTaskClient.getJetStatus()).thenReturn(JobStatus.RUNNING);
-			TaskDto taskDto = mock(TaskDto.class);
-			when(taskDto.getName()).thenReturn("task 1");
-			when(taskDto.getStatus()).thenReturn(TaskDto.STATUS_RUNNING);
-			when(hazelcastTaskClient.getTask()).thenReturn(taskDto);
-			when(taskScheduler.memory(null, null)).thenCallRealMethod();
-			ReflectionTestUtils.setField(taskScheduler, "taskClientMap", new ConcurrentHashMap<String, TaskClient<TaskDto>>() {{
-				put("1", hazelcastTaskClient);
-			}});
+		@Nested
+		@DisplayName("memory method test")
+		class memoryTest {
+			@Test
+			@DisplayName("main process test")
+			void testMemory() {
+				TapdataTaskScheduler taskScheduler = mock(TapdataTaskScheduler.class);
+				HazelcastTaskClient hazelcastTaskClient = mock(HazelcastTaskClient.class);
+				when(hazelcastTaskClient.getJetStatus()).thenReturn(JobStatus.RUNNING);
+				TaskDto taskDto = mock(TaskDto.class);
+				when(taskDto.getName()).thenReturn("task 1");
+				when(taskDto.getStatus()).thenReturn(TaskDto.STATUS_RUNNING);
+				when(hazelcastTaskClient.getTask()).thenReturn(taskDto);
+				ReflectionTestUtils.setField(taskScheduler, "taskClientMap", new ConcurrentHashMap<String, TaskClient<TaskDto>>() {{
+					put("1", hazelcastTaskClient);
+				}});
 
-			DataMap actual = taskScheduler.memory(null, null);
-			assertNotNull(actual);
-			assertEquals(1, actual.size());
-			assertTrue(actual.containsKey("task client map"));
-			Object taskClientMapObj = actual.get("task client map");
-			assertInstanceOf(DataMap.class, taskClientMapObj);
-			DataMap taskClientMap = (DataMap) taskClientMapObj;
-			assertEquals(1, taskClientMap.size());
-			assertTrue(taskClientMap.containsKey("task 1"));
-			Object taskMapObj = taskClientMap.get("task 1");
-			assertInstanceOf(DataMap.class, taskMapObj);
-			DataMap taskMap = (DataMap) taskMapObj;
-			assertEquals(2, taskMap.size());
-			assertEquals(TaskDto.STATUS_RUNNING, taskMap.getString("task status"));
-			assertEquals(JobStatus.RUNNING.toString(), taskMap.getString("jet status"));
+				when(taskScheduler.memory(null, null)).thenCallRealMethod();
+				DataMap actual = taskScheduler.memory(null, null);
+				assertNotNull(actual);
+				assertEquals(1, actual.size());
+				assertTrue(actual.containsKey("task client map"));
+				Object taskClientMapObj = actual.get("task client map");
+				assertInstanceOf(DataMap.class, taskClientMapObj);
+				DataMap taskClientMap = (DataMap) taskClientMapObj;
+				assertEquals(1, taskClientMap.size());
+				assertTrue(taskClientMap.containsKey("task 1"));
+				Object taskMapObj = taskClientMap.get("task 1");
+				assertInstanceOf(DataMap.class, taskMapObj);
+				DataMap taskMap = (DataMap) taskMapObj;
+				assertEquals(2, taskMap.size());
+				assertEquals(TaskDto.STATUS_RUNNING, taskMap.getString("task status"));
+				assertEquals(JobStatus.RUNNING.toString(), taskMap.getString("jet status"));
+			}
+
+			@Test
+			@DisplayName("when task client is not hazelcast task client")
+			void notHazelcastTaskClient() {
+				TapdataTaskScheduler taskScheduler = mock(TapdataTaskScheduler.class);
+				TaskClient taskClient = mock(TaskClient.class);
+				TaskDto taskDto = mock(TaskDto.class);
+				when(taskDto.getName()).thenReturn("task 1");
+				when(taskDto.getStatus()).thenReturn(TaskDto.STATUS_RUNNING);
+				when(taskClient.getTask()).thenReturn(taskDto);
+				ReflectionTestUtils.setField(taskScheduler, "taskClientMap", new ConcurrentHashMap<String, TaskClient<TaskDto>>() {{
+					put("1", taskClient);
+				}});
+
+				when(taskScheduler.memory(null, null)).thenCallRealMethod();
+				DataMap actual = taskScheduler.memory(null, null);
+				assertNotNull(actual);
+				assertEquals(1, actual.size());
+				assertTrue(actual.containsKey("task client map"));
+				Object taskClientMapObj = actual.get("task client map");
+				assertInstanceOf(DataMap.class, taskClientMapObj);
+				DataMap taskClientMap = (DataMap) taskClientMapObj;
+				assertEquals(1, taskClientMap.size());
+				assertTrue(taskClientMap.containsKey("task 1"));
+				Object taskMapObj = taskClientMap.get("task 1");
+				assertInstanceOf(DataMap.class, taskMapObj);
+				DataMap taskMap = (DataMap) taskMapObj;
+				assertEquals(1, taskMap.size());
+				assertEquals(TaskDto.STATUS_RUNNING, taskMap.getString("task status"));
+			}
 		}
 	}
 }
