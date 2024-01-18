@@ -1,6 +1,8 @@
 package io.tapdata.flow.engine.V2.schedule;
 
 import com.hazelcast.jet.core.JobStatus;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -9,12 +11,15 @@ import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
@@ -142,6 +147,47 @@ public class TapdataTaskSchedulerTest {
 				DataMap taskMap = (DataMap) taskMapObj;
 				assertEquals(1, taskMap.size());
 				assertEquals(TaskDto.STATUS_RUNNING, taskMap.getString("task status"));
+			}
+		}
+	}
+
+	@Nested
+	class startTaskTest {
+
+		private TapdataTaskScheduler taskScheduler;
+
+		@BeforeEach
+		void setUp() {
+			taskScheduler = mock(TapdataTaskScheduler.class);
+		}
+
+		@Test
+		@DisplayName("start task when task exists")
+		void testStartTaskWhenTaskExists() {
+			ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+			try (
+					MockedStatic obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)
+			) {
+				obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+				ObjectId taskId = new ObjectId();
+				TaskDto taskDto = new TaskDto();
+				taskDto.setId(taskId);
+				Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
+				TaskClient taskClient = mock(TaskClient.class);
+				when(taskClient.getStatus()).thenReturn(TaskDto.STATUS_RUNNING);
+				taskClientMap.put(taskId.toString(), taskClient);
+				ReflectionTestUtils.setField(taskScheduler, "taskClientMap", taskClientMap);
+				Logger logger = mock(Logger.class);
+				ReflectionTestUtils.setField(taskScheduler, "logger", logger);
+
+				doCallRealMethod().when(taskScheduler).startTask(taskDto);
+				assertDoesNotThrow(() -> taskScheduler.startTask(taskDto));
+
+				ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+				ReflectionTestUtils.setField(taskScheduler, "clientMongoOperator", clientMongoOperator);
+				when(taskClient.getStatus()).thenReturn(TaskDto.STATUS_STOPPING);
+				assertDoesNotThrow(() -> taskScheduler.startTask(taskDto));
+				verify(clientMongoOperator, times(1)).updateById(any(Update.class), eq(ConnectorConstant.TASK_COLLECTION + "/running"), eq(taskId.toString()), eq(TaskDto.class));
 			}
 		}
 	}

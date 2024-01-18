@@ -302,19 +302,15 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 	}
 
-	private void startTask(TaskDto taskDto) {
+	protected void startTask(TaskDto taskDto) {
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		final String taskId = taskDto.getId().toHexString();
 		AtomicBoolean isReturn = new AtomicBoolean(false);
 		taskClientMap.computeIfPresent(taskId, (id, taskClient)->{
 			if (taskClientMap.containsKey(taskId)) {
-				if (null != taskClient) {
-					logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
-					if (!TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
-						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
-					}
-				} else {
-					logger.info("The [task {}, id {}] is being executed, ignore the scheduling", taskDto.getName(), taskId);
+				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
+				if (!TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
+					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
 				}
 				isReturn.compareAndSet(false, true);
 			}
@@ -324,17 +320,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return;
 		}
 		try {
-			// todo 后续处理
-//			String checkTaskCanStart = checkTaskCanStart(taskId);
-//			if (StringUtils.isNotBlank(checkTaskCanStart)) {
-//				logger.warn(checkTaskCanStart);
-//				return;
-//			}
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
 			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
-			//threadPoolExecutorEx = AsyncUtils.createThreadPoolExecutor("RootTask-" + taskDto.getName(), 1, new TaskThreadGroup(taskDto), TAG);
-			//hazelcastTaskService.setThreadPoolExecutorEx(threadPoolExecutorEx);
 			final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
 			taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
 		} catch (Exception e) {
