@@ -62,11 +62,18 @@ jobs:
           ref: "main"
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           path: tapdata-application
+      - name: Get OpenSource Branch Name -- Common
+        run: |
+          echo "OPENSOURCE_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Get OpenSource Branch Name -- Pr
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "OPENSOURCE_BRANCH=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
       - name: Get last stable branch
         id: set-output
         run: |
           cd tapdata-application
-          OPENSOURCE_BRANCH=${{github.event.pull_request.head.ref}}
+          OPENSOURCE_BRANCH=${{ env.OPENSOURCE_BRANCH }}
           ENTERPRISE_BRANCH="main"
           FRONTEND_BRANCH="main"
           echo "::set-output name=OPENSOURCE_BRANCH::${OPENSOURCE_BRANCH}"
@@ -217,6 +224,7 @@ jobs:
     timeout-minutes: 120
     needs:
       - Build-And-Deploy
+      - Get-Stable-Branch
     steps:
       - name: Set Env
         run: |
@@ -231,12 +239,11 @@ jobs:
         run: |
           echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
       - name: Fetch Code - Main Repo
-        uses: actions/checkout@v3
-        with:
-            fetch-depth: 0
-            ref: ${{ env.CURRENT_BRANCH }}
-            token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-            path: ./
+        run: |
+          rm -rf tapdata
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b ${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }} --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata.git
+          cd tapdata && git fetch --tags
       - name: Compile - IEngine And Management
         run: |
           #mvn clean install -DskipTests -P idaas -P not_encrypt -U -T1C
@@ -248,10 +255,12 @@ jobs:
       - name: Run - Local Service - Schedule
         if: ${{ github.event_name == 'schedule' || inputs.mrci_run }}
         run: |
+          cd tapdata
           bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}" --maxtimeinmins=120 --testplanid=724 --pollcount=12
       - name: Print Test Result
         if: ${{ always() }}
         run: |
+          cd tapdata
           run_id=`cat ./run_id`
           test_plan_id=`cat ./test_plan_id`
           echo "**TestSigma Test Result Link:**" >> $GITHUB_STEP_SUMMARY
