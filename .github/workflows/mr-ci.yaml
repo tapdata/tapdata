@@ -260,6 +260,7 @@ jobs:
       - name: Print Test Result
         if: ${{ always() }}
         run: |
+          cd tapdata
           run_id=`cat ./run_id`
           test_plan_id=`cat ./test_plan_id`
           echo "**TestSigma Test Result Link:**" >> $GITHUB_STEP_SUMMARY
