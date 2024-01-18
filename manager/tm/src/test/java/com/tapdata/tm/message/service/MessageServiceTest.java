@@ -74,8 +74,6 @@ class MessageServiceTest {
     @Mock
     private MpService mockMpService;
     @Mock
-    private AlarmService mockAlarmService;
-    @Mock
     private CircuitBreakerRecoveryService circuitBreakerRecoveryService;
 
     private MessageService messageServiceUnderTest;
@@ -95,7 +93,6 @@ class MessageServiceTest {
         messageServiceUnderTest = new MessageService(mockRepository);
         ReflectionTestUtils.setField(messageServiceUnderTest, "smsService", mockSmsService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "mpService", mockMpService);
-        ReflectionTestUtils.setField(messageServiceUnderTest, "alarmService", mockAlarmService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "circuitBreakerRecoveryService", circuitBreakerRecoveryService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "scheduledExecutorService", scheduledExecutorService);
         messageServiceUnderTest.messageRepository = mockMessageRepository;
@@ -448,7 +445,7 @@ class MessageServiceTest {
         messageDto.setSourceModule("agent");
         when(mockUserService.loadUserById(new ObjectId("62bc5008d4958d013d97c7a6"))).thenReturn(userDetail);
         informUser2.invoke(messageServiceUnderTest,messageDto);
-        verify(mockMailUtils,times(1)).sendHtmlMail("【Tapdata】","test@test.com", "Hi, : ", "name",null,"Instance online");
+        verify(mockMailUtils,times(1)).sendHtmlMail("【Tapdata】","test@test.com", "Hi, : ", "name",null,"Agent online");
     }
 
     @Test
@@ -665,7 +662,7 @@ class MessageServiceTest {
                 StoppedByError stopped = mock(StoppedByError.class);
                 when(notification.getStoppedByError()).thenReturn(stopped);
                 when(stopped.getEmail()).thenReturn(true);
-                when(mockAlarmService.getMailAccount(null)).thenReturn(mock(MailAccountDto.class));
+                when(mockSettingsService.getMailAccount(null)).thenReturn(mock(MailAccountDto.class));
                 messageServiceUnderTest.addMigration(serverName,sourceId,msgTypeEnum,level,userDetail);
                 mailUtilsMockedStatic.verify(()->MailUtils.sendHtmlEmail(any(),anyList(),anyString(),anyString()),times(1));
             }

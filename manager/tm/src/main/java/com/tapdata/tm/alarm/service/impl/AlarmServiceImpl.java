@@ -84,7 +84,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     private MongoTemplate mongoTemplate;
     private TaskService taskService;
-		private InspectService inspectService;
+    private InspectService inspectService;
     private AlarmSettingService alarmSettingService;
     private MessageService messageService;
     private SettingsService settingsService;
@@ -457,12 +457,12 @@ public class AlarmServiceImpl implements AlarmService {
                     log.error("Current user ({}, {}) can't bind email, cancel send message {}.", userDetail.getUsername(), userDetail.getUserId(), JSON.toJSONString(info));
                     return true;
                 }
-                mailAccount = getMailAccount(alarmMessageDto.getUserId());
+                mailAccount = settingsService.getMailAccount(alarmMessageDto.getUserId());
                 Map<String, String> map = getTaskTitleAndContent(info);
                 content = map.get("content");
                 title = map.get("title");
             } else {
-                mailAccount = getMailAccount(messageDto.getUserId());
+                mailAccount = settingsService.getMailAccount(messageDto.getUserId());
                 String msgType = messageDto.getMsg();
                 AlarmKeyEnum alarmKeyEnum;
                 alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN;
@@ -981,40 +981,6 @@ public class AlarmServiceImpl implements AlarmService {
         mongoTemplate.updateMulti(Query.query(Criteria.where("taskId").is(taskId)), update, AlarmInfo.class);
     }
 
-    @Override
-    public MailAccountDto getMailAccount(String userId) {
-        List<Settings> all = settingsService.findAll();
-        Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
-
-        String host = (String) collect.get("smtp.server.host");
-        String port = (String) collect.getOrDefault("smtp.server.port", "465");
-        String from = (String) collect.get("email.send.address");
-        String user = (String) collect.get("smtp.server.user");
-        Object pwd = collect.get("smtp.server.password");
-        String password = Objects.nonNull(pwd) ? pwd.toString() : null;
-        String protocol = (String) collect.get("email.server.tls");
-
-        AtomicReference<List<String>> receiverList = new AtomicReference<>();
-
-        boolean isCloud = settingsService.isCloud();
-        if (isCloud) {
-            UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
-            Optional.ofNullable(userDetail).ifPresent(u -> {
-                if (StringUtils.isNotBlank(u.getEmail())) {
-                    receiverList.set(Lists.newArrayList(u.getEmail()));
-                }
-            });
-        } else {
-            String receivers = (String) collect.get("email.receivers");
-            if (StringUtils.isNotBlank(receivers)) {
-                String[] split = receivers.split(",");
-                receiverList.set(Arrays.asList(split));
-            }
-        }
-
-        return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
-                .receivers(receiverList.get()).protocol(protocol).build();
-    }
 
     public boolean enableEmail() {
         List<Settings> result = settingsService.findAll(Query.query(Criteria.where("category").is("SMTP")

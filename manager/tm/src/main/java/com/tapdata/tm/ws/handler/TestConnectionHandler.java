@@ -7,6 +7,7 @@
 package com.tapdata.tm.ws.handler;
 
 import com.alibaba.fastjson.JSONObject;
+import com.mongodb.ConnectionString;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
@@ -51,6 +52,7 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 public class TestConnectionHandler implements WebSocketHandler {
 
 	private static final String MONGODB_URI_PREFIX = "mongodb://";
+	private static final String MASK_PWD = "******";
 
 	private final MessageQueueService messageQueueService;
 
@@ -115,16 +117,34 @@ public class TestConnectionHandler implements WebSocketHandler {
 			JSONObject config1 = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(config), JSONObject.class);
 			assert config1 != null;
 			String uri = config1.getString("uri");
-			if (StringUtils.isNotBlank(database_type) && StringUtils.isNotBlank(database_type) && database_type.toLowerCase(Locale.ROOT).contains("mongo") && StringUtils.isNotBlank(uri)) {
-				if (uri.contains("******")) {
-					data.put("editTest", false);
+			if (StringUtils.isNotBlank(database_type) && database_type.toLowerCase(Locale.ROOT).contains("mongo") && StringUtils.isNotBlank(uri)) {
+				if (uri.contains(MASK_PWD) && data.get("id") instanceof String) {
+					Object id = data.get("id");
+					DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(toObjectId(id.toString()));
+					Map<String, Object> dataSourceConfig = dataSourceConnectionDto.getConfig();
+					if (dataSourceConfig.containsKey("uri") && dataSourceConfig.get("uri") instanceof String) {
+						Object uriFormDataSource = dataSourceConfig.get("uri");
+						ConnectionString connectionString = new ConnectionString(uriFormDataSource.toString());
+						char[] passwordChars = connectionString.getPassword();
+						if (null != passwordChars && passwordChars.length > 0) {
+							StringBuilder password = new StringBuilder();
+							for (char passwordChar : passwordChars) {
+								password.append(passwordChar);
+							}
+							String username = connectionString.getUsername();
+							if (org.apache.commons.lang3.StringUtils.isNotBlank(username) && org.apache.commons.lang3.StringUtils.isNotBlank(password)) {
+								config1.put("uri",uri.replace(username + ":" + MASK_PWD, username + ":" + password));
+							}
+						}
+						data.put("config", config1);
+					}
 				}
 			} else {
 				Object password = config1.get("password");
 				Object mqPassword = config1.get("mqPassword");
 				if (Objects.isNull(password) && Objects.isNull(mqPassword)) {
 					Object id = data.get("id");
-					if (id != null) {
+					if (id instanceof String) {
 						DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(toObjectId(id.toString()));
 						Map<String, Object> dataSourceConfig = dataSourceConnectionDto.getConfig();
 						if (dataSourceConfig.containsKey("password")) {

@@ -6,12 +6,14 @@ import io.tapdata.entity.logger.TapLog;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -23,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.fromJson;
@@ -181,9 +184,12 @@ public class PythonUtils {
     protected void unPackageFile(File setUpPyFile, File afterUnzipFile, final String pythonJarPath, Log logger) {
         Process start = null;
         try {
-            logger.info("{}'s resource package is being generated, please wait.", afterUnzipFile.getName());
+            String tag = afterUnzipFile.getName();
+            logger.info("{}'s resource package is being generating, please wait", tag);
             ProcessBuilder command = getUnPackageFileProcessBuilder(setUpPyFile.getParentFile().getAbsolutePath(), pythonJarPath);
             start = command.start();
+            printInfo(start.getInputStream(), logger, tag);
+            printInfo(start.getErrorStream(), logger, tag);
             start.waitFor();
             logger.info("{}'s resource package is being generated", afterUnzipFile.getName());
         } catch (IOException e) {
@@ -193,6 +199,34 @@ public class PythonUtils {
             Thread.currentThread().interrupt();
         } finally {
             Optional.ofNullable(start).ifPresent(Process::destroy);
+        }
+    }
+
+    protected void printInfo(InputStream stream, Log logger, String tag) {
+        new Thread(() -> printMsg(stream, logger), "PYTHON-NODE-INSTALLER-" + UUID.randomUUID().toString() + "-" + tag).start();
+    }
+
+    protected void printMsg(InputStream stream, Log log) {
+        if (null == stream) return;
+        try (BufferedReader reader = getBufferedReader(stream)) {
+            printMsg(reader, log);
+        } catch (Exception e) {
+            log.warn(e.getMessage());
+        }
+    }
+    protected BufferedReader getBufferedReader(InputStream stream) {
+        return new BufferedReader(new InputStreamReader(stream));
+    }
+
+    protected void printMsg(BufferedReader reader, Log log) {
+        if (null == reader) return;
+        try {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                log.info(line);
+            }
+        } catch (Exception e) {
+            log.warn(e.getMessage());
         }
     }
 

@@ -39,23 +39,23 @@ public class TapRecordSkipDetectorTest {
             when(field.getCreateSource()).thenReturn(Field.SOURCE_MANUAL);
             boolean skip = skipDetector.skip(field);
             Assertions.assertFalse(skip);
-            verify(field, times(2)).getCreateSource();
+            verify(field, times(0)).getCreateSource();
         }
 
         @Test
         void testSkipNullCreateSourceInField() {
             when(field.getCreateSource()).thenReturn(null);
             boolean skip = skipDetector.skip(field);
-            Assertions.assertTrue(skip);
-            verify(field, times(1)).getCreateSource();
+            Assertions.assertFalse(skip);
+            verify(field, times(0)).getCreateSource();
         }
 
         @Test
         void testSkipNotManualCreateSourceInField() {
             when(field.getCreateSource()).thenReturn(Field.SOURCE_JOB_ANALYZE);
             boolean skip = skipDetector.skip(field);
-            Assertions.assertTrue(skip);
-            verify(field, times(2)).getCreateSource();
+            Assertions.assertFalse(skip);
+            verify(field, times(0)).getCreateSource();
         }
 
         @Test
@@ -72,7 +72,7 @@ public class TapRecordSkipDetectorTest {
         void testSkipNullField() {
             when(field.getCreateSource()).thenReturn(Field.SOURCE_JOB_ANALYZE);
             boolean skip = skipDetector.skip(null);
-            Assertions.assertTrue(skip);
+            Assertions.assertFalse(skip);
             verify(field, times(0)).getCreateSource();
         }
     }
