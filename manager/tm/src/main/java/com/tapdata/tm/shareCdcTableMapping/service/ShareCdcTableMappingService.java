@@ -51,7 +51,7 @@ public class ShareCdcTableMappingService extends BaseService<ShareCdcTableMappin
 
 	}
 
-	public void genShareCdcTableMappingsByLogCollectorTask(TaskDto logCollectorTask, boolean newTask) {
+	public void genShareCdcTableMappingsByLogCollectorTask(TaskDto logCollectorTask, boolean newTask,UserDetail user) {
 		if (null == logCollectorTask) return;
 		DAG dag = logCollectorTask.getDag();
 		if (null == dag) return;
@@ -94,13 +94,13 @@ public class ShareCdcTableMappingService extends BaseService<ShareCdcTableMappin
 				wait2SaveShareCdcTableMappingEntities.add(shareCdcTableMappingEntity);
 			}
 			if (wait2SaveShareCdcTableMappingEntities.size() >= 1000) {
-				bulkUpsert(wait2SaveShareCdcTableMappingEntities, bulkOperations);
+				bulkUpsert(wait2SaveShareCdcTableMappingEntities, bulkOperations,user);
 				bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
 				wait2SaveShareCdcTableMappingEntities.clear();
 			}
 		}
 		if (CollectionUtils.isNotEmpty(wait2SaveShareCdcTableMappingEntities)) {
-			bulkUpsert(wait2SaveShareCdcTableMappingEntities, bulkOperations);
+			bulkUpsert(wait2SaveShareCdcTableMappingEntities, bulkOperations, user);
 		}
 	}
 
@@ -114,10 +114,10 @@ public class ShareCdcTableMappingService extends BaseService<ShareCdcTableMappin
 		return name;
 	}
 
-	private void bulkUpsert(List<ShareCdcTableMappingEntity> wait2SaveShareCdcTableMappingEntities, BulkOperations bulkOperations) {
+	private void bulkUpsert(List<ShareCdcTableMappingEntity> wait2SaveShareCdcTableMappingEntities, BulkOperations bulkOperations,UserDetail user) {
 		for (ShareCdcTableMappingEntity wait2SaveShareCdcTableMappingEntity : wait2SaveShareCdcTableMappingEntities) {
 			Query query = Query.query(Criteria.where("sign").is(wait2SaveShareCdcTableMappingEntity.getSign()));
-			Update update = repository.buildUpdateSet(wait2SaveShareCdcTableMappingEntity);
+			Update update = repository.buildUpdateSet(wait2SaveShareCdcTableMappingEntity,user);
 			bulkOperations.upsert(query, update);
 		}
 		bulkOperations.execute();
