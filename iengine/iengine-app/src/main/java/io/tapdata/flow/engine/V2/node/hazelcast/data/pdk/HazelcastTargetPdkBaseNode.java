@@ -333,7 +333,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (cdcConcurrent != null) {
 				this.cdcConcurrentWriteNum = dataParentNode.getCdcConcurrentWriteNum() != null ? dataParentNode.getCdcConcurrentWriteNum() : 4;
 				this.cdcConcurrent = cdcConcurrent && cdcConcurrentWriteNum > 1;
-				if (cdcConcurrent) {
+				if (this.cdcConcurrent) {
 					this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum, partitionKeyFunction);
 					this.cdcPartitionConcurrentProcessor.start();
 				}
@@ -801,7 +801,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void handleTapdataHeartbeatEvent(TapdataEvent tapdataEvent) {
-		flushSyncProgressMap(tapdataEvent);
+		flushOffsetByTapdataEventForNoConcurrent(new AtomicReference<>(tapdataEvent));
 	}
 
 	private TapRecordEvent handleTapdataRecordEvent(TapdataEvent tapdataEvent) {
