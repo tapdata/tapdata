@@ -59,6 +59,10 @@ public abstract class AbstractNodeSampleHandler extends AbstractHandler {
     @Override
     List<String> samples() {
         return Arrays.asList(
+                Constants.CURR_EVENT_TS,
+                Constants.INPUT_SIZE_QPS,
+                Constants.OUTPUT_SIZE_QPS,
+                Constants.QPS_TYPE,
                 Constants.INPUT_DDL_TOTAL,
                 Constants.INPUT_INSERT_TOTAL,
                 Constants.INPUT_UPDATE_TOTAL,
@@ -78,6 +82,7 @@ public abstract class AbstractNodeSampleHandler extends AbstractHandler {
     }
 
     void doInit(Map<String, Number> values) {
+        super.doInit(values);
         inputDdlCounter = getCounterSampler(values, Constants.INPUT_DDL_TOTAL);
         inputInsertCounter = getCounterSampler(values, Constants.INPUT_INSERT_TOTAL);
         inputUpdateCounter = getCounterSampler(values, Constants.INPUT_UPDATE_TOTAL);

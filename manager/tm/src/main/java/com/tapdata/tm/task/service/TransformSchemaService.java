@@ -210,7 +210,7 @@ public class TransformSchemaService {
         Criteria idCriteria = Criteria.where("_id").in(connectionIds);
         Query query = new Query(idCriteria);
         //TODO query 需要限制好参数
-        List<DataSourceConnectionDto> dataSources = dataSourceService.findAllDto(query, user);
+        List<DataSourceConnectionDto> dataSources = dataSourceService.findAll(query);
 
 
         if (CollectionUtils.isNotEmpty(dataSources)) {

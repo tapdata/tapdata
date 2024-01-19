@@ -47,6 +47,7 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
+import javax.script.ScriptException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,12 +64,12 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	private static final Logger logger = LogManager.getLogger(HazelcastJavaScriptProcessorNode.class);
 	public static final String TAG = HazelcastJavaScriptProcessorNode.class.getSimpleName();
 
-	private final Invocable engine;
+	private Invocable engine;
 
 	private ScriptExecutorsManager scriptExecutorsManager;
 
-	private final ThreadLocal<Map<String, Object>> processContextThreadLocal;
-	private final Map<String, Object> globalTaskContent;
+	private ThreadLocal<Map<String, Object>> processContextThreadLocal;
+	private Map<String, Object> globalTaskContent;
 	private ScriptExecutorsManager.ScriptExecutor source;
 	private ScriptExecutorsManager.ScriptExecutor target;
 
@@ -82,6 +83,11 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	@SneakyThrows
 	public HazelcastJavaScriptProcessorNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
+	}
+
+	@Override
+	protected void doInit(@NotNull Context context) throws TapCodeException {
+		super.doInit(context);
 		Node<?> node = getNode();
 		String script;
 		if (node instanceof JsProcessorNode) {
@@ -113,13 +119,24 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				: clientMongoOperator.find( new Query(where("type")
 						.ne("system"))
 						.with(Sort.by(Sort.Order.asc("last_update"))),
-								ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION,
-								JavaScriptFunctions.class
+				ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION,
+				JavaScriptFunctions.class
 		);
 
 		ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
-		this.engine = finalJs ?
-				ScriptUtil.getScriptStandardizationEngine(
+		try {
+			this.engine = finalJs ?
+					ScriptUtil.getScriptStandardizationEngine(
+							JSEngineEnum.GRAALVM_JS.getEngineName(),
+							script,
+							javaScriptFunctions,
+							clientMongoOperator,
+							null,
+							null,
+							scriptCacheService,
+							new ObsScriptLogger(obsLogger, logger),
+							this.standard)
+					: ScriptUtil.getScriptEngine(
 					JSEngineEnum.GRAALVM_JS.getEngineName(),
 					script,
 					javaScriptFunctions,
@@ -128,25 +145,12 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 					null,
 					scriptCacheService,
 					new ObsScriptLogger(obsLogger, logger),
-					this.standard)
-			: ScriptUtil.getScriptEngine(
-				JSEngineEnum.GRAALVM_JS.getEngineName(),
-				script,
-				javaScriptFunctions,
-				clientMongoOperator,
-				null,
-				null,
-				scriptCacheService,
-				new ObsScriptLogger(obsLogger, logger),
-				this.standard);
+					this.standard);
+		} catch (ScriptException e) {
+			throw new TapCodeException(TaskProcessorExCode_11.INIT_SCRIPT_ENGINE_FAILED, e);
+		}
 		this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
 		this.globalTaskContent = new HashMap<>();
-	}
-
-	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
-		super.doInit(context);
-		Node<?> node = getNode();
 		if (!this.standard) {
 			this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
 					node.getTaskId(), node.getId(),
@@ -327,7 +331,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	}
 
 	@Override
-	protected void doClose() throws Exception {
+	protected void doClose() throws TapCodeException {
 		try {
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.source).ifPresent(ScriptExecutorsManager.ScriptExecutor::close), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.target).ifPresent(ScriptExecutorsManager.ScriptExecutor::close), TAG);
@@ -337,6 +341,9 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 					((GraalJSScriptEngine) this.engine).close();
 				}
 			}, TAG);
+			if (null != processContextThreadLocal) {
+				processContextThreadLocal.remove();
+			}
 		} finally {
 			super.doClose();
 		}

@@ -44,7 +44,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	 */
 	private boolean ignore;
 
-	private final DelayHandler delayHandler;
+	private DelayHandler delayHandler;
 
 	protected SyncStage syncStage;
 	private boolean enableInitialBatch = false;
@@ -52,14 +52,14 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	public HazelcastProcessorBaseNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
-		Node<?> node = processorBaseContext.getNode();
-		String tag = node.getId() + "-" + node.getName();
-		this.delayHandler = new DelayHandler(obsLogger, tag);
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
+		Node<?> node = processorBaseContext.getNode();
+		String tag = node.getId() + "-" + node.getName();
+		this.delayHandler = new DelayHandler(obsLogger, tag);
 		initEnableInitialBatch();
 		initInitialBatchProcessorIfNeed();
 	}
@@ -218,7 +218,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 							return;
 						}
 						// Update memory from ddl event info map
-						updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()));
+						updateMemoryFromDDLInfoMap(tapdataEvent);
 						AtomicReference<TapValueTransform> tapValueTransform = new AtomicReference<>();
 						if (tapdataEvent.isDML()) {
 							tapValueTransform.set(transformFromTapValue(tapdataEvent));
@@ -310,7 +310,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	}
 
 	@Override
-	protected void doClose() throws Exception {
+	protected void doClose() throws TapCodeException {
 		try {
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialBatchProcessor).ifPresent(InitialBatchProcessor::shutdown), TAG);
 		} finally {

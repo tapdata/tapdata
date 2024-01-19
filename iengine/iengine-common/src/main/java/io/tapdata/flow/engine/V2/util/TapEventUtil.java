@@ -67,10 +67,8 @@ public class TapEventUtil {
 	}
 
 	public static String getTableId(TapEvent tapEvent) {
-		if (tapEvent instanceof TapRecordEvent) {
-			return ((TapRecordEvent) tapEvent).getTableId();
-		} else if (tapEvent instanceof TapDDLEvent) {
-			return ((TapDDLEvent) tapEvent).getTableId();
+		if (tapEvent instanceof TapBaseEvent) {
+			return ((TapBaseEvent) tapEvent).getTableId();
 		}
 		return "";
 	}
@@ -88,6 +86,15 @@ public class TapEventUtil {
 	public static List<String> getNamespaces(TapEvent tapEvent) {
 		if (tapEvent instanceof TapBaseEvent) {
 			return ((TapBaseEvent) tapEvent).getNamespaces();
+		}
+		return null;
+	}
+
+	public static List<String> getRemoveFields(TapEvent tapEvent) {
+		List<String> removeFields=null;
+		if(tapEvent instanceof  TapUpdateRecordEvent){
+			removeFields=((TapUpdateRecordEvent)tapEvent).getRemovedFields();
+			return removeFields;
 		}
 		return null;
 	}

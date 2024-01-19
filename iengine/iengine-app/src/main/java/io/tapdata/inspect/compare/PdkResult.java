@@ -307,11 +307,13 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 						if (null != conditions) {
 							conditions.stream().filter(op -> op.getOperator() == 5).forEach(op -> match.put(op.getKey(), op.getValue()));
 						}
-						tapAdvanceFilter.match(match);
+						if (MapUtil.isEmpty(tapAdvanceFilter.getMatch())) {
+							tapAdvanceFilter.match(match);
+						}
 						if (firstTimeRead.compareAndSet(false, true)) {
 							logger.info("Inspect job[{}] read data from table '{}' by filter: {}", connections.getName(), tableName, tapAdvanceFilter);
 						}
-						if(enableCustomCommand && MapUtil.isNotEmpty(customCommand)){
+						if (enableCustomCommand && MapUtil.isNotEmpty(customCommand) && CollectionUtils.isEmpty(diffKeyValues)) {
 							setCommandQueryParam(customCommand,connectorNode,tapTable,sortOnList,projection);
 							TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
 									.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params"));

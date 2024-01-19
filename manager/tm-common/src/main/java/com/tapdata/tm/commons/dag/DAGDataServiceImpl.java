@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.commons.dag.deduction.rule.ChangeRuleStage;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
@@ -20,14 +21,12 @@ import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.PossibleDataTypes;
-import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapRaw;
 import io.tapdata.entity.schema.type.TapType;
-import io.tapdata.entity.utils.InstanceFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -38,7 +37,6 @@ import org.springframework.beans.BeanUtils;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
@@ -389,10 +387,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             MetadataInstancesDto metadataInstancesDto =
                     JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
 
-            // 这里需要将 data_type 字段根据字段类型映射规则转换为 数据库类型
-            //   需要 根据 所有可匹配条件，尽量缩小匹配结果，选择最优字段类型
-            metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, needPossibleDataTypes);
-
+            metadataInstancesDto = modelDeduction(metadataInstancesDto, schema, dataSource, needPossibleDataTypes, options);
             metadataInstancesDto.getFields().forEach(field -> {
                 field.setSourceDbType(dataSource.getDatabase_type());
                 field.setDataTypeTemp(field.getDataType());
@@ -442,7 +437,16 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         return metadataInstancesDtos.parallelStream()
                 .map(dto -> JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dto), Schema.class)).collect(Collectors.toList());
     }
-
+    protected MetadataInstancesDto modelDeduction(MetadataInstancesDto metadataInstancesDto, Schema schema, DataSourceConnectionDto dataSource, boolean needPossibleDataTypes, DAG.Options options) {
+        // 这里需要将 data_type 字段根据字段类型映射规则转换为 数据库类型
+        //   需要 根据 所有可匹配条件，尽量缩小匹配结果，选择最优字段类型
+        //   同构任务不需要做类型映射转换
+        //if (null == metadataInstancesDto || !options.isIsomorphismTask()) {
+        metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, needPossibleDataTypes);
+        //}
+        //ChangeRuleStage.changeStart(metadataInstancesDto, options);
+        return metadataInstancesDto;
+    }
     private Map<String, MetadataInstancesDto> rollbackOperation(List<MetadataInstancesDto> metadataInstancesDtos, String rollback, String rollbackTable) {
 
         List<String> qualifiedNames = metadataInstancesDtos.stream().map(MetadataInstancesDto::getQualifiedName)
@@ -558,7 +562,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
      * @param dataSourceConnectionDto 数据库类型
      * @param needPossibleDataTypes 是否需要类型映射数据
      */
-    private MetadataInstancesDto processFieldToDB(Schema schema, MetadataInstancesDto metadataInstancesDto, DataSourceConnectionDto dataSourceConnectionDto, boolean needPossibleDataTypes) {
+    protected MetadataInstancesDto processFieldToDB(Schema schema, MetadataInstancesDto metadataInstancesDto, DataSourceConnectionDto dataSourceConnectionDto, boolean needPossibleDataTypes) {
 
         if (metadataInstancesDto == null || schema == null ||
                 metadataInstancesDto.getFields() == null || dataSourceConnectionDto == null){

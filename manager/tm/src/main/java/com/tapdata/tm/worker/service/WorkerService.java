@@ -278,6 +278,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             Criteria criteria = Criteria.where("agentId").is(worker.getProcessId())
                     .and("is_deleted").ne(true)
                     .and("user_id").is(userDetail.getUserId())
+                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
                     .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
                      Criteria.where("crontabExpressionFlag").is(true),
                      Criteria.where("planStartDateFlag").is(true));
@@ -342,7 +343,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return calculationEngineVo;
     }
 
-    private CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail, String type) {
+    public CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail, String type) {
         CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
         String filter;
         int availableNum;
@@ -482,7 +483,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 scheduleTaskLimit.set(taskLimit);
             }
         }
-
+        int totalRunningNum = taskService.runningTaskNum(userDetail);
         filter = where.toString();
         String processId = scheduleAgentId.get();
 
@@ -494,9 +495,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         calculationEngineVo.setThreadLog(threadLog);
         calculationEngineVo.setAvailable(availableNum);
         calculationEngineVo.setManually(false);
-        calculationEngineVo.setTaskLimit(scheduleTaskLimit.get());
-        calculationEngineVo.setRunningNum(scheduleRunNum.get());
         int totalTask = totalTaskLimit.get() < 0 ? Integer.MAX_VALUE : totalTaskLimit.get();
+        calculationEngineVo.setTaskLimit(totalTask);
+        calculationEngineVo.setRunningNum(totalRunningNum);
         calculationEngineVo.setTotalLimit(totalTask);
         return calculationEngineVo;
     }
@@ -832,5 +833,48 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         Date date = new Date();
         Update expireTime = Update.update("expireTime", date).set("is_deleted", true).set("last_updated", date);
         mongoTemplate.updateFirst(query, expireTime, WorkerExpire.class);
+    }
+    public WorkerDto queryWorkerByProcessId(String processId){
+        if (StringUtils.isBlank(processId)) throw new IllegalArgumentException("process id can not be empty");
+        Query query = Query.query(Criteria.where("process_id").is(processId).and("worker_type").is("connector"));
+        return findOne(query);
+    }
+    public List<Worker> queryAllBindWorker(){
+        Query query = Query.query(Criteria.where("worker_type").is("connector").and("licenseBind").is(true));
+        return repository.findAll(query);
+    }
+    public boolean bindByProcessId(WorkerDto workerDto, String processId, UserDetail userDetail){
+        if (StringUtils.isBlank(processId)) throw new IllegalArgumentException("process id can not be empty");
+        //if not exist
+        WorkerDto res = queryWorkerByProcessId(processId);
+        if (null == res){
+            save(workerDto, userDetail);
+        }
+        Query query = Query.query(Criteria.where("process_id").is(processId).and("worker_type").is("connector"));
+        Update update = Update.update("licenseBind", true);
+        UpdateResult result = repository.update(query, update);
+        if (null == result) return false;
+        return result.getModifiedCount() == 1 ? true : false;
+    }
+    public boolean unbindByProcessId(String processId){
+        if (StringUtils.isBlank(processId)) throw new IllegalArgumentException("process id can not be empty");
+        Query query = Query.query(Criteria.where("process_id").is(processId).and("worker_type").is("connector"));
+        Update update = Update.update("licenseBind", false);
+        UpdateResult result = repository.update(query, update);
+        if (null == result) return false;
+        return result.getModifiedCount() == 1 ? true : false;
+    }
+
+    public Long getAvailableAgentCount(){
+        return count(getAvailableAgentQuery());
+    }
+
+    public Long getLastCheckAvailableAgentCount(){
+        int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30) + 120;
+        Criteria criteria = Criteria.where("worker_type").is("connector")
+                .and("ping_time").gte(System.currentTimeMillis() - (overTime * 1000L))
+                .and("isDeleted").ne(true)
+                .and("agentTags").ne("disabledScheduleTask");
+        return count(Query.query(criteria));
     }
 }

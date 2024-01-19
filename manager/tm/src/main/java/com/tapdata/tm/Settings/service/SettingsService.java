@@ -1,7 +1,6 @@
 package com.tapdata.tm.Settings.service;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.extra.mail.MailUtil;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
@@ -11,24 +10,23 @@ import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.repository.SettingsRepository;
+import com.tapdata.tm.Settings.service.util.SettingServiceUtil;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.utils.EncrptAndDencryUtil;
-
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MailUtils;
+import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
-import org.jsoup.Jsoup;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -44,6 +42,8 @@ import org.springframework.stereotype.Service;
 public class SettingsService {
     private SettingsRepository settingsRepository;
     private MongoTemplate mongoTemplate;
+
+    private UserService userService;
 
     /**
      * 有value 则返回value, 没有则返回default_value
@@ -91,6 +91,40 @@ public class SettingsService {
             buildProfile = "DAAS";
         }
         return buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+    }
+
+    public MailAccountDto getMailAccount(String userId) {
+        List<Settings> all = findAll();
+        Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
+
+        String host = (String) collect.get("smtp.server.host");
+        String port = (String) collect.getOrDefault("smtp.server.port", "465");
+        String from = (String) collect.get("email.send.address");
+        String user = (String) collect.get("smtp.server.user");
+        Object pwd = collect.get("smtp.server.password");
+        String password = Objects.nonNull(pwd) ? pwd.toString() : null;
+        String protocol = (String) collect.get("email.server.tls");
+
+        AtomicReference<List<String>> receiverList = new AtomicReference<>();
+
+        boolean isCloud = isCloud();
+        if (isCloud) {
+            UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
+            Optional.ofNullable(userDetail).ifPresent(u -> {
+                if (StringUtils.isNotBlank(u.getEmail())) {
+                    receiverList.set(Lists.newArrayList(u.getEmail()));
+                }
+            });
+        } else {
+            String receivers = (String) collect.get("email.receivers");
+            if (StringUtils.isNotBlank(receivers)) {
+                String[] split = receivers.split(",");
+                receiverList.set(Arrays.asList(split));
+            }
+        }
+
+        return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
+                .receivers(receiverList.get()).protocol(protocol).build();
     }
 
     public Settings getByCategoryAndKey(CategoryEnum category, KeyEnum key) {
@@ -172,6 +206,10 @@ public class SettingsService {
             });
         }
         return settingsDtoList;
+    }
+    public List<SettingsDto> findALl(String decode, Query filter) {
+        List<Settings> settingsList = mongoTemplate.find(filter, Settings.class);
+        return SettingServiceUtil.copyProperties(decode, settingsList);
     }
 
     public Settings findById(String id) {

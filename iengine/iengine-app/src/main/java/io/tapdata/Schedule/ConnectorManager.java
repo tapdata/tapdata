@@ -4,34 +4,11 @@ import com.mongodb.MongoClient;
 import com.mongodb.MongoClientOptions;
 import com.mongodb.MongoClientURI;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.constant.AgentUtil;
-import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.ConfigurationCenter;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.DateUtil;
 import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.MapUtil;
-import com.tapdata.constant.MongodbUtil;
-import com.tapdata.constant.SSLUtil;
-import com.tapdata.constant.SystemUtil;
-import com.tapdata.constant.UUIDGenerator;
-import com.tapdata.constant.VersionCheck;
-import com.tapdata.entity.AppType;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.Job;
-import com.tapdata.entity.JobConnection;
-import com.tapdata.entity.LoginResp;
-import com.tapdata.entity.ProgressRateStatsMap;
-import com.tapdata.entity.RelateDataBaseTable;
-import com.tapdata.entity.Schema;
-import com.tapdata.entity.Setting;
-import com.tapdata.entity.Stats;
-import com.tapdata.entity.TapLog;
-import com.tapdata.entity.User;
-import com.tapdata.entity.Worker;
+import com.tapdata.constant.*;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.Stage;
+import com.tapdata.entity.values.CheckEngineValidResultDto;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
@@ -40,33 +17,17 @@ import com.tapdata.tm.commons.ping.PingType;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
 import com.tapdata.tm.worker.WorkerSingletonException;
 import com.tapdata.tm.worker.WorkerSingletonLock;
-import com.tapdata.validator.ConnectionValidateResult;
-import com.tapdata.validator.ConnectionValidator;
-import com.tapdata.validator.ValidatorConstant;
-import io.tapdata.Runnable.LoadSchemaRunner;
-import io.tapdata.TapInterface;
 import io.tapdata.aspect.LoginSuccessfullyAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.common.ClassScanner;
-import io.tapdata.common.Connector;
-import io.tapdata.common.ConverterUtil;
-import io.tapdata.common.JetExceptionFilter;
-import io.tapdata.common.LoadBalancing;
-import io.tapdata.common.LogUtil;
-import io.tapdata.common.SettingService;
-import io.tapdata.common.SupportUtil;
-import io.tapdata.common.TapInterfaceUtil;
-import io.tapdata.common.TapdataLog4jFilter;
-import io.tapdata.common.WarningMaker;
+import io.tapdata.common.*;
 import io.tapdata.dao.MessageDao;
-import io.tapdata.entity.BaseConnectionValidateResult;
-import io.tapdata.entity.BaseConnectionValidateResultDetail;
-import io.tapdata.entity.ConnectionsType;
 import io.tapdata.entity.Converter;
 import io.tapdata.entity.Lib;
 import io.tapdata.entity.LibSupported;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.task.TapdataTaskScheduler;
 import io.tapdata.websocket.ManagementWebsocketHandler;
@@ -92,36 +53,17 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.socket.TextMessage;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -237,6 +179,14 @@ public class ConnectorManager {
 	@Autowired
 	private SchemaProxy schemaProxy;
 
+    private final Supplier<Long> getRetryTimeoutSupplier = () -> {
+        // change 60s to 300s, because DFS fault usually lasts longer than 1 minute
+        long defRestApiTimeout = CommonUtils.getPropertyLong("DEFAULT_REST_API_TIMEOUT", appType.isCloud() ? 300000L : 60000L);
+        long minRestApiTimeout = CommonUtils.getPropertyLong("MINIMUM_REST_API_TIMEOUT", 30000L);
+        long jobHeartTimeout = settingService.getLong("jobHeartTimeout", defRestApiTimeout);
+        return Math.max((long) (jobHeartTimeout * 0.8), minRestApiTimeout);
+    };
+
 	@PostConstruct
 	public void init() throws Exception {
 		availableProcessors = Runtime.getRuntime().availableProcessors();
@@ -288,6 +238,8 @@ public class ConnectorManager {
 			return newSingletonLock;
 		});
 
+		CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
+		if (null != resultDto && !resultDto.getResult()) throw new CoreException(resultDto.getFailedReason());
 		List<Worker> workers = clientMongoOperator.find(params, ConnectorConstant.WORKER_COLLECTION, Worker.class);
 
 		if (CollectionUtils.isNotEmpty(workers)) {
@@ -380,6 +332,23 @@ public class ConnectorManager {
 		ConnectorConstant.clientMongoOperator = clientMongoOperator;
 
 		GlobalConstant.getInstance().configurationCenter(configCenter);
+	}
+
+	protected CheckEngineValidResultDto checkLicenseEngineLimit() {
+		CheckEngineValidResultDto resultDto = null;
+		if (!appType.isCloud()) {
+			try {
+				Map<String, Object> processId = new HashMap<>();
+				processId.put("processId", instanceNo);
+				resultDto = clientMongoOperator.findOne(processId, ConnectorConstant.LICENSE_COLLECTION + "/checkEngineValid", CheckEngineValidResultDto.class);
+			} catch (Exception e) {
+				Throwable cause = CommonUtils.matchThrowable(e, HttpClientErrorException.class);
+				if (cause instanceof HttpClientErrorException && ((HttpClientErrorException) cause).getRawStatusCode() == 404){
+					return null;
+				}
+			}
+		}
+		return resultDto;
 	}
 
 	@PreDestroy
@@ -520,14 +489,7 @@ public class ConnectorManager {
 	@Bean("restTemplateOperator")
 	public RestTemplateOperator initRestTemplate() {
 		initVariable();
-		restTemplateOperator = new RestTemplateOperator(
-				baseURLs,
-				restRetryTime,
-				() -> {
-					long jobHeartTimeout = settingService.getLong("jobHeartTimeout", 60000L);
-					return jobHeartTimeout * 0.8 > 30000 ? (long) (jobHeartTimeout * 0.8) : 30000L;
-				}
-		);
+		restTemplateOperator = new RestTemplateOperator(baseURLs, restRetryTime, getRetryTimeoutSupplier);
 
 		return restTemplateOperator;
 	}
@@ -546,12 +508,6 @@ public class ConnectorManager {
 
 		this.metricManager = new MetricManager(settingService);
 		return metricManager;
-	}
-
-	@Bean(value = "performanceStatistics")
-	@DependsOn("settingService")
-	public PerformanceStatistics performanceStatistics() {
-		return new PerformanceStatistics(settingService);
 	}
 
 	@Bean("settingService")
@@ -1100,171 +1056,6 @@ public class ConnectorManager {
 		JOB_STATS.put(job.getId(), new HashMap<>(total));
 	}
 
-	/**
-	 * 测试连接方法
-	 * 定时轮询状态为testing的连接
-	 */
-//	@Scheduled(fixedDelay = 2000L)
-	public void testConnection() {
-		String userId = (String) configCenter.getConfig(ConfigurationCenter.USER_ID);
-		String workerTimeout = settingService.getString("lastHeartbeat", "60");
-		if (!AgentUtil.isFirstWorker(
-				clientMongoOperator,
-				instanceNo,
-				appType.isCloud() ? userId : null,
-				Double.valueOf(workerTimeout)
-		)
-		) {
-			return;
-		}
-		Thread.currentThread().setName(String.format(ConnectorConstant.TEST_CONNECTION_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
-		Query query = new Query(new Criteria().andOperator(
-				currentUserCriteria(),
-				new Criteria().orOperator(
-						where("status").is("testing"),
-						where("status").is("invalid").and("response_body.next_retry").lte(System.currentTimeMillis())),
-				Criteria.where("database_type").in(Arrays.asList("gridfs", "rest api", "tcp_udp", "bitsflow", "gbase-8s", "custom_connection"))
-		));
-		query.fields().exclude("schema");
-		List<Connections> connections = MongodbUtil.getConnections(query, null, clientMongoOperator, true);
-		if (CollectionUtils.isNotEmpty(connections)) {
-			for (Connections connection : connections) {
-
-				try {
-					logger.info(TapLog.CON_LOG_0021.getMsg(), connection.getName());
-
-					// workaround.
-					setFileDefaultCharset(connection);
-
-					ConnectionValidateResult validateResult = ConnectionValidator.initialValidate(connection);
-					List validateResultDetails = validateResult.getValidateResultDetails();
-
-					// get retry and next_try info
-					Map<String, Object> responseBody = connection.getResponse_body();
-					if (MapUtils.isNotEmpty(responseBody) && responseBody.containsKey("retry")) {
-						Object retry = responseBody.get("retry");
-						validateResult.setRetry(retry == null ? 0 : (Integer) retry);
-					}
-
-					TapInterface tapInterface = null;
-					String databaseType = connection.getDatabase_type();
-					if (CollectionUtils.isEmpty(validateResultDetails)) {
-						tapInterface = TapInterfaceUtil.getTapInterface(databaseType, null);
-						if (tapInterface != null) {
-							validateResultDetails = tapInterface.connectionsInit(ConnectionsType.getConnectionType(connection.getConnection_type()));
-						}
-					}
-
-					Update update = new Update();
-					update.set("response_body.validate_details", validateResultDetails);
-
-					Query updateQuery = new Query(where("_id").is(connection.getId()));
-					clientMongoOperator.update(query, update, ConnectorConstant.CONNECTION_COLLECTION);
-
-					connection.setSampleSize(settingService.getInt("connections.mongodbLoadSchemaSampleSize", 100));
-					long startTs = System.currentTimeMillis();
-					validateResult = ConnectionValidator.validate(connection, validateResult);
-
-					Schema schema = null;
-
-					if (validateResult != null) {
-
-						List<RelateDataBaseTable> schemaTables = null;
-						if (validateResult.getSchema() != null) {
-							schemaTables = validateResult.getSchema().getTables();
-						}
-
-						ConverterUtil.schemaConvert(schemaTables, connection.getDatabase_type());
-
-						update = getValidateResultUpdate(
-								validateResult.getRetry(), validateResult.getNextRetry(), validateResult.getStatus(),
-								validateResult.getDb_version(), schemaTables, validateResultDetails,
-								validateResult.getDbFullVersion()
-						);
-						int schemaTablesSize = CollectionUtils.isNotEmpty(schemaTables) ? schemaTables.size() : 0;
-						update.set(ConnectorConstant.LOAD_FIELDS, "loading")
-								.set("loadCount", 0).set("tableCount", schemaTablesSize);
-						long javaEndTs = System.currentTimeMillis();
-						long javaSpend = javaEndTs - startTs;
-
-						clientMongoOperator.update(updateQuery, update, ConnectorConstant.CONNECTION_COLLECTION);
-
-						schema = validateResult.getSchema();
-
-						long endTs = System.currentTimeMillis();
-						long managementSpend = endTs - startTs - javaSpend;
-						logger.info(TapLog.CON_LOG_0022.getMsg(), connection.getName(), validateResult.getStatus(),
-								javaSpend, managementSpend, schemaTablesSize);
-					} else if (tapInterface != null) {
-						BaseConnectionValidateResult baseConnectionValidateResult = tapInterface.testConnections(connection);
-
-						if (baseConnectionValidateResult != null) {
-
-							String status = baseConnectionValidateResult.getStatus();
-							validateResultDetails = baseConnectionValidateResult.getValidateResultDetails();
-							if (BaseConnectionValidateResult.CONNECTION_STATUS_READY.equals(status)
-									&& baseConnectionValidateResult != null
-									&& baseConnectionValidateResult.getSchema() != null
-									&& CollectionUtils.isNotEmpty(baseConnectionValidateResult.getSchema().getTables())) {
-								schema = baseConnectionValidateResult.getSchema();
-								ConverterUtil.schemaConvert(schema.getTables(), connection.getDatabase_type());
-								String uuid = UUIDGenerator.uuid();
-								schema.getTables().forEach(table -> table.setSchemaVersion(uuid));
-							} else {
-								schema = new Schema(new ArrayList<>());
-							}
-
-							update = getValidateResultUpdate(
-									baseConnectionValidateResult.getRetry(), baseConnectionValidateResult.getNextRetry(), status,
-									baseConnectionValidateResult.getDb_version(), schema.getTables(), validateResultDetails, null
-							);
-							update.set("loadFieldsStatus", "finished");
-							long javaEndTs = System.currentTimeMillis();
-							long javaSpend = javaEndTs - startTs;
-
-							clientMongoOperator.update(updateQuery, update, ConnectorConstant.CONNECTION_COLLECTION);
-
-							long endTs = System.currentTimeMillis();
-							long managementSpend = endTs - startTs - javaSpend;
-							logger.info(TapLog.CON_LOG_0022.getMsg(), connection.getName(), baseConnectionValidateResult.getStatus(),
-									javaSpend, managementSpend, schema.getTables().size());
-						}
-					}
-
-					if (schema != null && !schema.isIncludeFields()) {
-						// need to load schema fields
-						LoadSchemaRunner loadSchemaRunner = new LoadSchemaRunner(connection, clientMongoOperator, schema.getTables().size());
-						loadSchemaThreadPool.submit(loadSchemaRunner);
-					}
-				} catch (Exception e) {
-					logger.error("Cannot test connection {} {}", connection.getName(), e.getMessage(), e);
-					BaseConnectionValidateResult baseConnectionValidateResult = new BaseConnectionValidateResult();
-					baseConnectionValidateResult.setStatus(BaseConnectionValidateResult.CONNECTION_STATUS_INVALID);
-					List<BaseConnectionValidateResultDetail> baseConnectionValidateResultDetails = new ArrayList<>();
-					baseConnectionValidateResultDetails.add(new BaseConnectionValidateResultDetail() {{
-						setShow_msg("Init test connections");
-						setRequired(true);
-						setFailedInfo("Runtime error: " + e.getMessage());
-					}});
-					baseConnectionValidateResult.setValidateResultDetails(baseConnectionValidateResultDetails);
-
-					Update update = getValidateResultUpdate(
-							0, 0L, BaseConnectionValidateResult.CONNECTION_STATUS_INVALID,
-							null, null, baseConnectionValidateResultDetails, null
-					);
-
-					Query updateQuery = new Query(where("_id").is(connection.getId()));
-					clientMongoOperator.update(updateQuery, update, ConnectorConstant.CONNECTION_COLLECTION);
-				}
-
-			}
-		} else {
-			if (logger.isDebugEnabled()) {
-				logger.debug("Does not find any testing connection.");
-			}
-		}
-	}
-
 	private Update getValidateResultUpdate(int retry, Long nextRetry, String status, Integer db_version, List<RelateDataBaseTable> schemaTables, List validateResultDetails, String dbFullVersion) {
 		Update update = new Update();
 
@@ -1394,6 +1185,9 @@ public class ConnectorManager {
 					value.put("ping_time", 1);
 				}
 				pingClientMongoOperator.insertOne(value, ConnectorConstant.WORKER_COLLECTION + "/health");
+				if (isExit && appType.isDaas()) {
+					exit(instanceNo);
+				}
 //				sendWorkerHeartbeat(
 //						value,
 //						v -> pingClientMongoOperator.insertOne(v, ConnectorConstant.WORKER_COLLECTION + "/health"));
@@ -1456,30 +1250,42 @@ public class ConnectorManager {
 	 * @return true - 被停止或删除，实例将停止
 	 * false: 没有被停止或删除，实例正常运行
 	 */
-	private void checkAndExit(List<Worker> workers, Consumer<Boolean> beforeExit) {
+	protected void checkAndExit(List<Worker> workers, Consumer<Boolean> beforeExit) {
 		if (CollectionUtils.isEmpty(workers)) {
 			beforeExit.accept(false);
 			return;
 		}
 		Worker worker = workers.get(0);
-		if (!appType.isDfs()) {
-			beforeExit.accept(false);
-			return;
+		String exitInfo = "";
+		boolean isExit = false;
+		switch (appType){
+			case DFS:
+				if (worker.isDeleted() || worker.isStopping()) {
+						exitInfo = "Flow engine will stop, cause: ";
+					if (worker.isDeleted()) {
+						exitInfo += "is deleted";
+					} else if (worker.isStopping()) {
+						exitInfo += "is stopped";
+					}
+					isExit = true;
+				}
+				break;
+			case DAAS:
+				CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
+				if (null != resultDto && !resultDto.getResult()){
+					isExit = true;
+					if (StringUtils.isNotBlank(resultDto.getProcessId())){
+						exitInfo = String.format(resultDto.getFailedReason() + ", engine [%s] will be stopped and unbound", resultDto.getProcessId());
+					}else {
+						exitInfo = resultDto.getFailedReason();
+					}
+				}
+				break;
 		}
-		if (worker.isDeleted() || worker.isStopping()) {
-			String exitInfo = "Flow engine will stop, cause: ";
-			if (worker.isDeleted()) {
-				exitInfo += "is deleted";
-			} else if (worker.isStopping()) {
-				exitInfo += "is stopped";
-			}
+		if(StringUtils.isNotBlank(exitInfo)){
 			logger.info(exitInfo);
-			beforeExit.accept(true);
-			//用System.exit强制停止引擎会导致JS守护线程重新拉起，导致云版停止引擎后，过几分钟自动拉起
-			//System.exit(1);
-		} else {
-			beforeExit.accept(false);
 		}
+		beforeExit.accept(isExit);
 	}
 
 	/**
@@ -1674,94 +1480,6 @@ public class ConnectorManager {
 			});
 		} catch (Exception e) {
 			logger.error("Scan stop fail job error {}", e.getMessage(), e);
-		}
-	}
-
-	//	@Scheduled(fixedDelay = 60000L)
-	private void clearExpiredGridFSFile() {
-		Thread.currentThread().setName(String.format(ConnectorConstant.CLEAR_GRIDFS_EXPIRED_FILE_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
-		Query query = new Query(where("database_type").is(DatabaseTypeEnum.GRIDFS.getType())
-				.and("connection_type").is(ConnectorConstant.CONNECTION_TYPE_TARGET)
-				.and("status").is(ValidatorConstant.CONNECTION_STATUS_READY)
-		);
-		query.fields().exclude("schema").exclude("response_body");
-
-		try {
-			List<Connections> connections = clientMongoOperator.find(query, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-			if (CollectionUtils.isNotEmpty(connections)) {
-				for (Connections connection : connections) {
-					try {
-						GridFSCleaner.ClearGridFSResult result = GridFSCleaner.startClean(connection);
-						if (result.isSuccess()) {
-							logger.info("Clear _id {} name {} gridfs connection files succeeded, {} ", connection.getId(), connection.getName(), result.toString());
-						} else {
-							logger.warn("Clear _id {} name {} gridfs connection files failed, reason {} errorMsg {}",
-									connection.getId(),
-									connection.getName(),
-									result.getFailedReason(),
-									result.getException() != null ? result.getException().getMessage() : ""
-							);
-						}
-					} catch (Exception e) {
-						logger.error("Clear _id {} name {} gridfs connection files happened unexpected error {} ", connection.getId(), connection.getName(), e.getMessage(), e);
-					}
-				}
-			}
-		} catch (Exception e) {
-			logger.error("Clear expired gridfs failed failed {}", e.getMessage(), e);
-		}
-	}
-
-	@Scheduled(fixedDelay = 1000 * 60 * 30)
-	public void schemaAutoUpdate() {
-		String userId = (String) configCenter.getConfig(ConfigurationCenter.USER_ID);
-		String workerTimeout = settingService.getString("lastHeartbeat", "60");
-		if (!AgentUtil.isFirstWorker(
-				clientMongoOperator,
-				instanceNo,
-				appType.isCloud() ? userId : null,
-				Double.valueOf(workerTimeout)
-		)
-		) {
-			return;
-		}
-		Query query = new Query(where("schemaAutoUpdate").is(true));
-		query.fields().exclude("schema");
-		List<Connections> connections = clientMongoOperator.find(query, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-		if (CollectionUtils.isNotEmpty(connections)) {
-			try {
-				String schemaUpdateHour = settingService.getString("connection_schema_update_hour", "false");
-				int connectionSchemaUpdateHour = -1;
-				if (schemaUpdateHour.indexOf(":") > 0) {
-					String[] hourSplit = schemaUpdateHour.split(":");
-					connectionSchemaUpdateHour = Integer.valueOf(hourSplit[0]);
-				}
-				int connectionSchemaUpdateInterval = settingService.getInt("connection_schema_update_interval", -1);
-				int hour = LocalTime.now().getHour();
-				if (connectionSchemaUpdateHour < 0 || hour != connectionSchemaUpdateHour || connectionSchemaUpdateInterval < 0) {
-					return;
-				}
-				SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-				String now = sdf.format(new Date());
-				for (Connections connection : connections) {
-					String lastTime = sdf.format(new Date(connection.getSchemaAutoUpdateLastTime()));
-					long day = (sdf.parse(now).getTime() - sdf.parse(lastTime).getTime()) / (1000 * 60 * 60 * 24);
-					if (connectionSchemaUpdateInterval <= day) {
-						try {
-							connection.decodeDatabasePassword();
-							LoadSchemaRunner loadSchemaRunner = new LoadSchemaRunner(connection, clientMongoOperator, 0);
-							schemaUpdatePool.submit(loadSchemaRunner);
-							query = new Query(where("_id").is(connection.getId()));
-							query.fields().exclude("schema");
-							clientMongoOperator.update(query, new Update().set("schemaAutoUpdateLastTime", System.currentTimeMillis()), ConnectorConstant.CONNECTION_COLLECTION);
-						} catch (Exception e) {
-							logger.error("Load schema is failed,connection name: {},message: {}", connection.getName(), e.getMessage(), e);
-						}
-					}
-				}
-			} catch (Exception e) {
-				logger.error("SchemaUpdate is failed,message: {}", e.getMessage(), e);
-			}
 		}
 	}
 
@@ -1960,11 +1678,11 @@ public class ConnectorManager {
 		this.restRetryTime = 3;
 		this.mode = "cluster";
 
-		String isCloud = System.getenv("isCloud");
+		String isCloud = CommonUtils.getenv("isCloud");
 		if ("true".equals(isCloud)) {
 			this.mongoURI = null;
 		} else {
-			String tapdataMongoUri = System.getenv("TAPDATA_MONGO_URI");
+			String tapdataMongoUri = CommonUtils.getenv("TAPDATA_MONGO_URI");
 			if (StringUtils.isBlank(tapdataMongoUri)) {
 				logger.info("TAPDATA_MONGO_URI env variable does not set, will use default {}", this.mongoURI);
 			} else {
@@ -1972,35 +1690,35 @@ public class ConnectorManager {
 			}
 		}
 
-		String tapdataMongoConn = System.getenv("TAPDATA_MONGO_CONN");
+		String tapdataMongoConn = CommonUtils.getenv("TAPDATA_MONGO_CONN");
 		if (StringUtils.isEmpty(tapdataMongoConn)) {
 			logger.info("TAPDATA_MONGO_CONN env variable does not set, will use default {}", this.mongodbConnParams);
 		}
 
-		String ssl = System.getenv("MONGO_SSL");
+		String ssl = CommonUtils.getenv("MONGO_SSL");
 		if (StringUtils.isEmpty(ssl)) {
 			logger.info("ssl env variable does not set, will use default {}", this.ssl);
 		} else {
 			this.ssl = Boolean.valueOf(ssl);
 		}
 
-		String sslCA = System.getenv("MONGO_SSL_CA");
+		String sslCA = CommonUtils.getenv("MONGO_SSL_CA");
 		if (StringUtils.isNotBlank(sslCA)) {
 			this.sslCA = sslCA;
 		}
-		String sslCertKey = System.getenv("MONGO_SSL_CERT_KEY");
+		String sslCertKey = CommonUtils.getenv("MONGO_SSL_CERT_KEY");
 		if (StringUtils.isNotBlank(sslCertKey)) {
 			this.sslPEM = sslCertKey;
 		}
 
-		String cloud_accessCode = System.getenv("cloud_accessCode");
+		String cloud_accessCode = CommonUtils.getenv("cloud_accessCode");
 		if (StringUtils.isEmpty(cloud_accessCode)) {
 			logger.info("cloud_accessCode env variable does not set, will use default \"{}\".", this.accessCode);
 		} else {
 			this.accessCode = cloud_accessCode;
 		}
 
-		String cloud_retryTime = System.getenv("cloud_retryTime");
+		String cloud_retryTime = CommonUtils.getenv("cloud_retryTime");
 		if (StringUtils.isEmpty(cloud_retryTime)) {
 			logger.info("cloud_retryTime env variable does not set, will use default {}", this.restRetryTime);
 		} else {
@@ -2011,7 +1729,7 @@ public class ConnectorManager {
 			this.restRetryTime = Integer.valueOf(cloud_retryTime);
 		}
 
-		String cloud_baseURLs = System.getenv("backend_url");
+		String cloud_baseURLs = CommonUtils.getenv("backend_url");
 		if (StringUtils.isEmpty(cloud_baseURLs)) {
 			logger.info("backend_url env variable does not set, will use default {}", this.baseURLs);
 		} else {
@@ -2025,7 +1743,7 @@ public class ConnectorManager {
 			this.baseURLs = baseURLs;
 		}
 
-		String mode = System.getenv("mode");
+		String mode = CommonUtils.getenv("mode");
 		if (StringUtils.isEmpty(mode)) {
 			logger.info("mode env variable does not set, will use default {}", this.mode);
 		} else {
@@ -2040,8 +1758,8 @@ public class ConnectorManager {
 			return;
 		}
 
-		this.tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
-		String processId = System.getenv("process_id");
+		this.tapdataWorkDir = CommonUtils.getenv("TAPDATA_WORK_DIR");
+		String processId = CommonUtils.getenv("process_id");
 		if (StringUtils.isBlank(processId)) {
 			processId = AgentUtil.readAgentId(tapdataWorkDir);
 			if (StringUtils.isBlank(processId)) {
@@ -2057,7 +1775,7 @@ public class ConnectorManager {
 		this.instanceNo = processId;
 		ConfigurationCenter.processId = processId;
 
-		this.jobTags = System.getenv("jobTags");
+		this.jobTags = CommonUtils.getenv("jobTags");
 		if (appType.isDrs() && StringUtils.isNotBlank(jobTags)) {
 			String[] jobTagsSplit = jobTags.split(",");
 			if (jobTagsSplit.length < 2) {

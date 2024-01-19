@@ -46,6 +46,7 @@ import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -83,7 +84,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     private MongoTemplate mongoTemplate;
     private TaskService taskService;
-		private InspectService inspectService;
+    private InspectService inspectService;
     private AlarmSettingService alarmSettingService;
     private MessageService messageService;
     private SettingsService settingsService;
@@ -155,6 +156,14 @@ public class AlarmServiceImpl implements AlarmService {
             List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
             if (CollectionUtils.isNotEmpty(alarmSettingDtos)) {
                 openTask = alarmSettingDtos.stream().anyMatch(t ->
+                        key.equals(t.getKey()) && t.isOpen() && (type ==null || t.getNotify().contains(type)));
+            }
+            if (AlarmKeyEnum.TASK_STATUS_STOP.equals(key)){
+                List<AlarmSettingDto> settingDtos = alarmSettingService.findAllAlarmSetting(userDetail);
+                Map<AlarmKeyEnum, AlarmSettingDto> settingDtoMap = settingDtos.stream().collect(Collectors.toMap(AlarmSettingDto::getKey, Function.identity(), (e1, e2) -> e1));
+                List<AlarmSettingDto> alarmSettingDto = Lists.newArrayList();
+                alarmSettingDto.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));
+                openTask = alarmSettingDto.stream().anyMatch(t ->
                         key.equals(t.getKey()) && t.isOpen() && (type ==null || t.getNotify().contains(type)));
             }
         }
@@ -324,15 +333,13 @@ public class AlarmServiceImpl implements AlarmService {
 					}
 
             FunctionUtils.ignoreAnyError(() -> {
-                boolean reuslt = sendMessage(info, alarmMessageDto, userDetail,null);
-                if (!reuslt) {
+                MessageEntity reusltMessage = sendMessage(info, alarmMessageDto, userDetail,null);
+                if (reusltMessage == null) {
                     DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(),30);
                     info.setLastNotifyTime(dateTime);
                     save(info);
                 }
-            });
-            FunctionUtils.ignoreAnyError(() -> {
-                boolean reuslt = sendMail(info, alarmMessageDto, userDetail, null);
+                boolean reuslt = sendMail(info, alarmMessageDto, userDetail, null,reusltMessage.getId().toString());
                 if (!reuslt) {
                     DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
                     info.setLastNotifyTime(dateTime);
@@ -363,14 +370,14 @@ public class AlarmServiceImpl implements AlarmService {
 
     }
 
-    private boolean sendMessage(AlarmInfo info, AlarmMessageDto alarmMessageDto, UserDetail userDetail, MessageDto messageDto) {
+    private MessageEntity sendMessage(AlarmInfo info, AlarmMessageDto alarmMessageDto, UserDetail userDetail, MessageDto messageDto) {
         try {
             MessageEntity messageEntity = new MessageEntity();
             Date date = DateUtil.date();
             if (messageDto == null) {
                 if (!alarmMessageDto.isSystemOpen()) {
                     log.info("Current user ({}, {}) can't open system notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return true;
+                    return messageEntity;
                 }
                 ExpressionParser parser = new SpelExpressionParser();
                 TemplateParserContext parserContext = new TemplateParserContext();
@@ -401,7 +408,7 @@ public class AlarmServiceImpl implements AlarmService {
                 }
                 if (!isOwnPermission(userDetail, alarmKeyEnum, NotifyEnum.SYSTEM)) {
                     log.info("Current user ({}, {}) can't open system notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
-                    return true;
+                    return messageEntity;
                 }
                 messageEntity.setLevel(Level.EMERGENCY.name());
                 messageEntity.setAgentId(messageDto.getAgentId());
@@ -433,14 +440,14 @@ public class AlarmServiceImpl implements AlarmService {
             messageEntity.setLastUpdAt(date);
             messageEntity.setRead(false);
             messageService.addMessage(messageEntity, userDetail);
+            return messageEntity;
         } catch (Exception e) {
             log.error("sendMessage error: {}", ThrowableUtils.getStackTraceByPn(e));
-            return true;
+            return new MessageEntity();
         }
-        return true;
     }
 
-    private boolean sendMail(AlarmInfo info, AlarmMessageDto alarmMessageDto, UserDetail userDetail, MessageDto messageDto) {
+    private boolean sendMail(AlarmInfo info, AlarmMessageDto alarmMessageDto, UserDetail userDetail, MessageDto messageDto,String messageId) {
         try {
             String title = null;
             String content = null;
@@ -450,12 +457,12 @@ public class AlarmServiceImpl implements AlarmService {
                     log.error("Current user ({}, {}) can't bind email, cancel send message {}.", userDetail.getUsername(), userDetail.getUserId(), JSON.toJSONString(info));
                     return true;
                 }
-                mailAccount = getMailAccount(alarmMessageDto.getUserId());
+                mailAccount = settingsService.getMailAccount(alarmMessageDto.getUserId());
                 Map<String, String> map = getTaskTitleAndContent(info);
                 content = map.get("content");
                 title = map.get("title");
             } else {
-                mailAccount = getMailAccount(messageDto.getUserId());
+                mailAccount = settingsService.getMailAccount(messageDto.getUserId());
                 String msgType = messageDto.getMsg();
                 AlarmKeyEnum alarmKeyEnum;
                 alarmKeyEnum = AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN;
@@ -494,7 +501,10 @@ public class AlarmServiceImpl implements AlarmService {
                 Settings prefix = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
                 AtomicReference<String> mailTitle = new AtomicReference<>(title);
                 Optional.ofNullable(prefix).ifPresent(pre -> mailTitle.updateAndGet(v -> pre.getValue() + v));
-                MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle.get(), content);
+                if(!settingsService.isCloud() || messageService.checkMessageLimit(userDetail) < CommonUtils.getPropertyInt("cloud_mail_limit",MailUtils.CLOUD_MAIL_LIMIT)){
+                    MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle.get(), content);
+                    if(StringUtils.isNotBlank(messageId)) messageService.update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
+                }
             }
         } catch (Exception e) {
             log.error("sendMail error: {}", ThrowableUtils.getStackTraceByPn(e));
@@ -529,6 +539,11 @@ public class AlarmServiceImpl implements AlarmService {
                 title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("currentValue"));
                 SmsEvent = "增量延迟";
+                break;
+            case TASK_STATUS_STOP:
+                title = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL_TITLE, info.getName());
+                content = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL, info.getName(), dateTime);
+                SmsEvent = "任务停止";
                 break;
             case DATANODE_AVERAGE_HANDLE_CONSUME:
                 title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
@@ -966,40 +981,6 @@ public class AlarmServiceImpl implements AlarmService {
         mongoTemplate.updateMulti(Query.query(Criteria.where("taskId").is(taskId)), update, AlarmInfo.class);
     }
 
-    @Override
-    public MailAccountDto getMailAccount(String userId) {
-        List<Settings> all = settingsService.findAll();
-        Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
-
-        String host = (String) collect.get("smtp.server.host");
-        String port = (String) collect.getOrDefault("smtp.server.port", "465");
-        String from = (String) collect.get("email.send.address");
-        String user = (String) collect.get("smtp.server.user");
-        Object pwd = collect.get("smtp.server.password");
-        String password = Objects.nonNull(pwd) ? pwd.toString() : null;
-        String protocol = (String) collect.get("email.server.tls");
-
-        AtomicReference<List<String>> receiverList = new AtomicReference<>();
-
-        boolean isCloud = settingsService.isCloud();
-        if (isCloud) {
-            UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
-            Optional.ofNullable(userDetail).ifPresent(u -> {
-                if (StringUtils.isNotBlank(u.getEmail())) {
-                    receiverList.set(Lists.newArrayList(u.getEmail()));
-                }
-            });
-        } else {
-            String receivers = (String) collect.get("email.receivers");
-            if (StringUtils.isNotBlank(receivers)) {
-                String[] split = receivers.split(",");
-                receiverList.set(Arrays.asList(split));
-            }
-        }
-
-        return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
-                .receivers(receiverList.get()).protocol(protocol).build();
-    }
 
     public boolean enableEmail() {
         List<Settings> result = settingsService.findAll(Query.query(Criteria.where("category").is("SMTP")
@@ -1029,8 +1010,8 @@ public class AlarmServiceImpl implements AlarmService {
     public MessageDto add(MessageDto messageDto, UserDetail userDetail) {
         try {
             log.info("informUser");
-            sendMessage(null, null, userDetail, messageDto);
-            sendMail(null, null, userDetail, messageDto);
+            MessageEntity messageEntity = sendMessage(null, null, userDetail, messageDto);
+            sendMail(null, null, userDetail, messageDto,messageEntity.getId().toString());
             sendSms(null, null, userDetail, messageDto);
             sendWeChat(null, null, userDetail, messageDto);
         } catch (Exception e) {

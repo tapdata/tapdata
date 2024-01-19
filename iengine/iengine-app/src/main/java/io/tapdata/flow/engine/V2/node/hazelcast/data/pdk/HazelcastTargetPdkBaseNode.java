@@ -56,6 +56,7 @@ import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.flow.engine.V2.util.TargetTapEventFilter;
+import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.entity.Capability;
@@ -139,6 +140,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected int writeQueueCapacity;
 	protected final int[] dynamicAdjustQueueLock = new int[0];
 	private final ScheduledExecutorService flushOffsetExecutor;
+    protected ISyncMetricCollector syncMetricCollector;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -158,7 +160,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
+        syncMetricCollector = ISyncMetricCollector.init(dataProcessorContext);
 		queueConsumerThreadPool.submitSync(() -> {
 			super.doInit(context);
 			createPdkAndInit(context);
@@ -173,7 +176,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
+	protected void doInitWithDisableNode(@NotNull Context context) throws TapCodeException {
 		queueConsumerThreadPool.submitSync(() -> {
 			super.doInitWithDisableNode(context);
 			createPdkAndInit(context);
@@ -545,8 +548,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				SyncStage syncStage = tapdataEvent.getSyncStage();
 				if (null != syncStage) {
 					if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
+                        syncMetricCollector.snapshotBegin();
 						executeAspect(new SnapshotWriteBeginAspect().dataProcessorContext(dataProcessorContext));
 					} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
+                        syncMetricCollector.cdcBegin();
 						executeAspect(new CDCWriteBeginAspect().dataProcessorContext(dataProcessorContext));
 					}
 				}
@@ -768,8 +773,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		if (tapEvent instanceof TapRecordEvent) {
 			TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
-			fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
-			fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
+			String targetTableName = getTgtTableNameFromTapEvent(tapEvent);
+			fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager, targetTableName);
+			fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
 		}
 		tapdataShareLogEvents.add((TapdataShareLogEvent) tapdataEvent);
 		if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
@@ -789,6 +795,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			((AtomicInteger) obj).decrementAndGet();
 		}
 		executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
+        syncMetricCollector.snapshotCompleted();
 	}
 
 	private void handleTapdataHeartbeatEvent(TapdataEvent tapdataEvent) {
@@ -813,8 +820,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				tapRecordEvent = tapInsertRecordEvent;
 			}
 		}
-		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
-		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
+		String targetTableName = getTgtTableNameFromTapEvent(tapRecordEvent);
+		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager, targetTableName);
+		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
 		return tapRecordEvent;
 	}
 
@@ -844,7 +852,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (tapdataEvent.getTapEvent() instanceof TapCreateTableEvent) {
 			updateNode(tapdataEvent);
 		}
-		updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapDDLEvent));
+		updateMemoryFromDDLInfoMap(tapdataEvent);
 		Object updateMetadata = tapDDLEvent.getInfo(UPDATE_METADATA_INFO_KEY);
 		if (updateMetadata instanceof Map && MapUtils.isNotEmpty((Map<?, ?>) updateMetadata)) {
 			this.updateMetadata.putAll((Map<? extends String, ? extends MetadataInstancesDto>) updateMetadata);
@@ -1115,7 +1123,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		try {
 			if (CollectionUtils.isNotEmpty(exactlyOnceWriteCleanerEntities)) {
 				CommonUtils.ignoreAnyError(() -> {
@@ -1133,6 +1141,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}), TAG);
 			CommonUtils.ignoreAnyError(()->Optional.ofNullable(this.flushOffsetExecutor).ifPresent(ExecutorService::shutdownNow), TAG);
 			CommonUtils.ignoreAnyError(this::saveToSnapshot, TAG);
+			CommonUtils.ignoreAnyError(()-> syncMetricCollector.close(obsLogger), TAG);
 		} finally {
 			super.doClose();
 		}

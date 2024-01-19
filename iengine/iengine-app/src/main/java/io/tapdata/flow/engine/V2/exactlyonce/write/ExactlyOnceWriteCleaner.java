@@ -213,8 +213,8 @@ public class ExactlyOnceWriteCleaner {
 			super(nodeId, hazelcastInstance);
 		}
 
-		public ExactlyOnceWriteCleanerStateMap(String nodeId, HazelcastInstance hazelcastInstance, TaskDto taskDto, Node<?> node, ClientMongoOperator clientMongoOperator, String func) {
-			super(nodeId, hazelcastInstance, taskDto, node, clientMongoOperator, func);
+		public ExactlyOnceWriteCleanerStateMap(HazelcastInstance hazelcastInstance, Node<?> node) {
+			super(hazelcastInstance, node);
 		}
 
 		@Override
@@ -249,11 +249,6 @@ public class ExactlyOnceWriteCleaner {
 		@Override
 		public Object get(String key) {
 			return map.get(key);
-		}
-
-		@Override
-		public DocumentIMap<Document> getConstructIMap() {
-			return null;
 		}
 	}
 

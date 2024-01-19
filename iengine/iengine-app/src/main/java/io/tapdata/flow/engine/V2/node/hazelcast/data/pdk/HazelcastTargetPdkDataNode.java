@@ -15,7 +15,6 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
@@ -81,7 +80,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
 		try {
 			super.doInit(context);
 			if (getNode() instanceof TableNode) {
@@ -631,7 +630,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return true;
 	}
 
-	private void writeRecord(List<TapEvent> events) {
+	protected void writeRecord(List<TapEvent> events) {
 		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
 		events.forEach(event -> tapRecordEvents.add((TapRecordEvent) event));
 		TapRecordEvent firstEvent = tapRecordEvents.get(0);
@@ -716,6 +715,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 										}
 								)
 						)));
+                syncMetricCollector.log(tapRecordEvents);
 			} finally {
 				removePdkMethodInvoker(pdkMethodInvoker);
 			}
@@ -863,7 +863,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		super.doClose();
 	}
 

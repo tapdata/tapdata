@@ -48,6 +48,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
@@ -68,13 +69,10 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
@@ -131,6 +129,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	 * blocked when reading data from data source while jet using async when passing the event to next node.
 	 */
 	protected LinkedBlockingQueue<TapdataEvent> eventQueue;
+    private final AtomicReference<Object> lastStreamOffset = new AtomicReference<>();
 	protected StreamReadFuncAspect streamReadFuncAspect;
 	protected TapdataEvent pendingEvent;
 	protected SourceMode sourceMode = SourceMode.NORMAL;
@@ -157,11 +156,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		if (needCdcDelay()) {
-			this.cdcDelayCalculation = new CdcDelay();
-		} else {
-			this.cdcDelayCalculation = new CdcDelayDisable();
-		}
 		this.tapEventFilter = TargetTableDataEventFilter.create();
 	}
 
@@ -185,7 +179,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
+		if (needCdcDelay()) {
+			this.cdcDelayCalculation = new CdcDelay();
+		} else {
+			this.cdcDelayCalculation = new CdcDelayDisable();
+		}
 		if (connectorOnTaskThreadGroup == null)
 			connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
 		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
@@ -207,6 +206,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initTapEventFilter();
 			initTableMonitor();
 			initDynamicAdjustMemory();
+            initSourceRunnerOnce();
 			initAndStartSourceRunner();
 		});
 	}
@@ -228,7 +228,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				TapEvent e = event.getTapEvent();
 				try {
 					if (e instanceof TapRecordEvent) {
-						String tableId = TapEventUtil.getTableId(e);
+						String tableId = ShareCdcUtil.getTapRecordEventTableName((TapRecordEvent) e);
 						TapTable tapTable = null;
 						try {
 							tapTable = tapTableMap.get(tableId);
@@ -248,7 +248,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
+	protected void doInitWithDisableNode(@NotNull Context context) throws TapCodeException {
 		if (connectorOnTaskThreadGroup == null)
 			connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
 		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
@@ -296,19 +296,22 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
+    private void initSourceRunnerOnce() {
+        this.sourceRunnerLock = new ReentrantLock(true);
+        this.endSnapshotLoop = new AtomicBoolean(false);
+        this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
+                ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
+                TransformerWsMessageDto.class);
+        this.sourceRunnerFirstTime = new AtomicBoolean(true);
+        this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
+    }
+
 	private void initAndStartSourceRunner() {
-		this.sourceRunnerLock = new ReentrantLock(true);
-		this.endSnapshotLoop = new AtomicBoolean(false);
-		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-				ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
-				TransformerWsMessageDto.class);
-		this.sourceRunnerFirstTime = new AtomicBoolean(true);
-		this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
+        this.lastStreamOffset.set(syncProgress.getStreamOffset());
+        this.sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
+    }
 
-		this.sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
-	}
-
-	private void initSourceEventQueue() {
+    private void initSourceEventQueue() {
 		this.sourceQueueCapacity = readBatchSize * SOURCE_QUEUE_FACTOR;
 		this.originalSourceQueueCapacity = sourceQueueCapacity;
 		this.eventQueue = new LinkedBlockingQueue<>(sourceQueueCapacity);
@@ -317,8 +320,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void initSourceReadBatchSize() {
 		this.readBatchSize = DEFAULT_READ_BATCH_SIZE;
+		this.increaseReadSize = DEFAULT_INCREASE_BATCH_SIZE;
 		if (getNode() instanceof DataParentNode) {
 			this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(DEFAULT_READ_BATCH_SIZE);
+			this.increaseReadSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_READ_BATCH_SIZE);
 		}
 		obsLogger.info("Source node \"{}\" read batch size: {}", getNode().getName(), readBatchSize);
 	}
@@ -799,8 +804,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		this.sourceRunner.shutdownNow();
 		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
-		sourceRunner.submit(this::startSourceRunner);
-	}
+        initAndStartSourceRunner();
+    }
 
 	@NotNull
 	public List<TapdataEvent> wrapTapdataEvent(List<TapEvent> events) {
@@ -833,7 +838,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected TapdataEvent wrapTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
 		try {
-			return wrapSingleTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
+            if (SyncStage.CDC == syncStage) {
+                // Fixed #149167 in 2023-10-29: CDC batch events not full consumed cause loss data
+                //todo: Remove lastStreamOffset if need add transaction in streamReadConsumer.
+                if (isLast) lastStreamOffset.set(offsetObj);
+                return wrapSingleTapdataEvent(tapEvent, syncStage, lastStreamOffset.get(), isLast);
+            } else {
+                return wrapSingleTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
+            }
 		} catch (Throwable throwable) {
 			throw new NodeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable
 					.getMessage(), throwable)
@@ -904,8 +916,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					tapdataEvent.setSourceTime(syncProgress.getSourceTime());
 				}
 			} else if (SyncStage.CDC == syncStage) {
-				// Fixed #149167 in 2023-10-29: CDC batch events not full consumed cause loss data
-                if (isLast) tapdataEvent.setStreamOffset(offsetObj);
+                tapdataEvent.setStreamOffset(offsetObj);
 				if (null == ((TapRecordEvent) tapEvent).getReferenceTime())
 					throw new RuntimeException("Tap CDC event's reference time is null");
 				tapdataEvent.setSourceTime(((TapRecordEvent) tapEvent).getReferenceTime());
@@ -930,7 +941,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		return tapdataEvent;
 	}
 
-	private void handleSchemaChange(TapEvent tapEvent) {
+	protected void handleSchemaChange(TapEvent tapEvent) {
 		String tableId = ((TapDDLEvent) tapEvent).getTableId();
 		TapTable tapTable;
 		// Modify schema by ddl event
@@ -939,7 +950,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		} else {
 			try {
 				tapTable = processorBaseContext.getTapTableMap().get(tableId);
-				InstanceFactory.bean(DDLSchemaHandler.class).updateSchemaByDDLEvent((TapDDLEvent) tapEvent, tapTable);
+				ddlSchemaHandler().updateSchemaByDDLEvent((TapDDLEvent) tapEvent, tapTable);
 				TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
 				DefaultExpressionMatchingMap dataTypesMap = getConnectorNode().getConnectorContext().getSpecification().getDataTypesMap();
 				tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap(), dataTypesMap);
@@ -1007,6 +1018,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (metadata.getId() == null) {
 					metadata.setId(metadata.getOldId());
 				}
+				metadata.setTableAttr(metadata.getTableAttr());
 				updateMetadata.put(metadata.getId().toHexString(), metadata);
 				obsLogger.info("Alter table schema transform finished");
 			}
@@ -1019,8 +1031,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			throw new RuntimeException("Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage(), e);
 		}
 	}
-
-
+	protected DDLSchemaHandler ddlSchemaHandler() {
+		return InstanceFactory.bean(DDLSchemaHandler.class);
+	}
 	public void enqueue(TapdataEvent tapdataEvent) {
 		try {
 			if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
@@ -1142,12 +1155,69 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
+	protected Long doBatchCountFunction(BatchCountFunction batchCountFunction, TapTable table) {
+		AtomicReference<Long> counts = new AtomicReference<>();
+
+		executeDataFuncAspect(
+			TableCountFuncAspect.class,
+			() -> new TableCountFuncAspect().dataProcessorContext(getDataProcessorContext()).start(),
+			tableCountFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT, createPdkMethodInvoker().runnable(() -> {
+				try {
+					counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
+
+					if (null != tableCountFuncAspect) {
+						AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), counts.get());
+					}
+				} catch (Throwable e) {
+					throw new NodeException("Query table '" + table.getName() + "'  count failed: " + e.getMessage(), e)
+						.context(getProcessorBaseContext());
+				}
+			}))
+		);
+		return counts.get();
+	}
+
+	protected AutoCloseable doAsyncTableCount(BatchCountFunction batchCountFunction, String tableName) {
+		if (null == batchCountFunction) return () -> {};
+
+		CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+			// ignore table count if task stop
+			if (!isRunning()) return;
+
+			AtomicReference<TaskDto> task = new AtomicReference<>(getDataProcessorContext().getTaskDto());
+			AtomicReference<Node<?>> node = new AtomicReference<>(getDataProcessorContext().getNode());
+			String name = String.format("InitialSyncTableCount-%s(%s)-%s(%s)-%s",
+				task.get().getName(), task.get().getId().toHexString(), node.get().getName(), node.get().getId(), tableName);
+			Thread.currentThread().setName(name);
+
+			TapTable table = getDataProcessorContext().getTapTableMap().get(tableName);
+			Long counts = doBatchCountFunction(batchCountFunction, table);
+			obsLogger.info("Query table '{}' counts: {}", tableName, counts);
+			if (null == snapshotRowSizeMap) {
+				snapshotRowSizeMap = new HashMap<>();
+			}
+			snapshotRowSizeMap.putIfAbsent(tableName, counts);
+		});
+
+		return () -> {
+			try {
+				future.join();
+			} catch (Exception e) {
+				if (isRunning()) {
+					obsLogger.warn("Query '{}' snapshot row size failed: {}", tableName, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+					return;
+				}
+				obsLogger.info("Cancel query '{}' snapshot row size with task stopped.", tableName);
+			}
+		};
+	}
+
 	protected boolean isPollingCDC(Node<?> node) {
 		return !SyncTypeEnum.INITIAL_SYNC.equals(syncType) && node instanceof TableNode && "polling".equals(((TableNode) node).getCdcMode());
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		try {
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(waitObj).ifPresent(w -> {
 				synchronized (this.waitObj) {
@@ -1180,10 +1250,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				}
 
 				if (dataEvent != null) {
-					TapEvent tapEvent;
 					if (!isPending.get()) {
 						TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-						tapEvent = dataEvent.getTapEvent();
+						TapEvent tapEvent = dataEvent.getTapEvent();
 						tapRecordToTapValue(tapEvent, codecsFilterManager);
 					}
 					if (!offer(dataEvent)) {

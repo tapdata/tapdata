@@ -16,6 +16,7 @@ import com.tapdata.tm.worker.dto.CheckTaskUsedAgentDto;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
+import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -317,7 +318,8 @@ public class WorkerController extends BaseController {
                     userLogService.addUserLog(
                             Modular.AGENT, operation,
                             userDetail, worker.getTcmInfo().getAgentName());
-                    if(com.tapdata.tm.userLog.constant.Operation.STOP.equals(operation)) {
+                    if(com.tapdata.tm.userLog.constant.Operation.STOP.equals(operation)
+                    || com.tapdata.tm.userLog.constant.Operation.DELETE.equals(operation)) {
                         workerService.sendStopWorkWs(worker.getProcessId(), userDetail);
                     }
                 }
@@ -464,5 +466,13 @@ public class WorkerController extends BaseController {
     public ResponseMessage<Void> deleteShareWorker() {
         workerService.deleteShareWorker(getLoginUser());
         return success();
+    }
+    @GetMapping("/queryAllBindWorker")
+    public ResponseMessage<List<Worker>> queryAllBindWorker() {
+        return success(workerService.queryAllBindWorker());
+    }
+    @PostMapping("/unbindByProcessId")
+    public ResponseMessage<Boolean> unbindByProcessId(@RequestParam String processId) {
+        return success(workerService.unbindByProcessId(processId));
     }
 }

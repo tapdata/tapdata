@@ -63,6 +63,7 @@ public class MailUtils {
 
     private String password;
 
+    public final static Integer CLOUD_MAIL_LIMIT = 10;
     @Autowired
     SettingsService settingsService;
 
@@ -78,7 +79,6 @@ public class MailUtils {
     /**
      * 发送html形式的邮件
      */
-    @Deprecated
     public SendStatus sendHtmlMail(String subject, String to, String username, String agentName, String emailHref, String maiContent) {
 
         if (blacklistService.inBlacklist(to)) {

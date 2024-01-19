@@ -1,10 +1,7 @@
 package com.tapdata.tm.Settings.constant;
 
-import com.tapdata.tm.Settings.service.SettingsService;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 /**
  * @Author: Zed
@@ -102,17 +99,4 @@ public enum SettingsEnum {
     }
 }
 
-@Component
-class SettingUtil {
-    private static SettingsService settingsService;
 
-    @Autowired
-    SettingUtil(SettingsService service) {
-        settingsService = service;
-    }
-
-    static String getValue(String category, String key) {
-        return String.valueOf(settingsService.getByCategoryAndKey(category, key));
-    }
-
-}

@@ -6,6 +6,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.check.DAGCheckUtil;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
@@ -580,6 +581,7 @@ public class DAG implements Serializable, Cloneable {
             for (Node allNode : allNodes) {
                 allNode.setSchema(null);
             }
+            setIsomorphismValueToOptions(options, allNodes);
             if (nodeId != null) {
                 Node node = graph.getNode(nodeId);
                 clearTransFlag(node);
@@ -1124,6 +1126,7 @@ public class DAG implements Serializable, Cloneable {
 
         private String syncType;
         private FieldChangeRuleGroup fieldChangeRules;
+        private boolean isIsomorphismTask;
 
         public Options(String rollback, String rollbackTable, List<CustomTypeMapping> customTypeMappings) {
             this.rollback = rollback;
@@ -1198,5 +1201,26 @@ public class DAG implements Serializable, Cloneable {
         Dag dag1 = JsonUtil.parseJsonUseJackson(json, new TypeReference<Dag>() {
         });
         return DAG.build(dag1);
+    }
+
+    /**确认当前任务是否是同构任务，源和目标的dataType一样，并且没有中间节点*/
+    public boolean getTaskDtoIsomorphism(List<Node> nodes) {
+        if (null == nodes || nodes.size() != 2) {
+            return false;
+        }
+        Node node1 = nodes.get(0);
+        if (!(node1 instanceof DataParentNode)) return false;
+        Node node2 = nodes.get(1);
+        if (!(node2 instanceof DataParentNode)) return false;
+        DataParentNode dataParentNode1 = (DataParentNode)node1;
+        DataParentNode dataParentNode2 = (DataParentNode)node2;
+        String databaseType = String.valueOf(dataParentNode1.getDatabaseType());
+        return databaseType.equals(dataParentNode2.getDatabaseType());
+    }
+    
+    protected void setIsomorphismValueToOptions(Options options, List<Node> allNodes) {
+        if (null != options) {
+            options.setIsomorphismTask(getTaskDtoIsomorphism(allNodes));
+        }
     }
 }

@@ -168,10 +168,16 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     private Long functionRetryEx;
     private String taskRetryStatus;
     private Long taskRetryStartTime;
+    private Long taskRetryStartTimeFlag;
 
     /** 使用的共享挖掘任务停止 */
     private Boolean shareCdcStop;
     private String shareCdcStopMessage;
+
+    /**
+     * 同构或异构标记
+     * */
+    protected Boolean isomorphism;
 
     /**
      * 开启动态调整队列内存使用
@@ -187,6 +193,11 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      * 动态调整时，计算每行大小的采样比例
      */
     private Double dynamicAdjustMemorySampleRate;
+
+    /**
+     * 是否启用同步指标收集，启用时任务停止打印同步指标
+     */
+    private Boolean enableSyncMetricCollector;
 
     public DAG getDag() {
         if (dag != null) {

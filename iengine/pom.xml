@@ -168,6 +168,8 @@
         <pdk-error-code.version>1.0-SNAPSHOT</pdk-error-code.version>
         <error-code-scanner.version>1.0-SNAPSHOT</error-code-scanner.version>
         <lucene-core.version>8.11.2</lucene-core.version>
+        <junit-jupiter.version>5.8.1</junit-jupiter.version>
+        <mockito-all.version>1.10.19</mockito-all.version>
     </properties>
 
     <modules>
@@ -403,27 +405,23 @@
 
             <!-- Test dependencies -->
             <dependency>
-                <groupId>junit</groupId>
-                <artifactId>junit</artifactId>
-                <version>${version.junit}</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>org.hamcrest</groupId>
-                        <artifactId>hamcrest-core</artifactId>
-                    </exclusion>
-                </exclusions>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.hamcrest</groupId>
-                <artifactId>hamcrest-library</artifactId>
-                <version>${version.hamcrest}</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
                 <groupId>org.easytesting</groupId>
                 <artifactId>fest-assert</artifactId>
                 <version>${version.fest}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit-jupiter.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-all</artifactId>
+                <version>${mockito-all.version}</version>
                 <scope>test</scope>
             </dependency>
 

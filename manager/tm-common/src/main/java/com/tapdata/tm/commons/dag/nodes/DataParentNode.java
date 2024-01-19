@@ -82,6 +82,8 @@ public abstract class DataParentNode<S> extends Node<S> {
     @EqField
     private Integer readBatchSize = 500;
     @EqField
+    private Integer increaseReadSize = 1;
+    @EqField
     private Integer writeBatchSize;
 
     /** 写入每批最大等待时间 */

@@ -73,6 +73,7 @@ public class ConnectorConstant {
 	public static final String CONNECTION_COLLECTION = "Connections";
 
 	public static final String WORKER_COLLECTION = "Workers";
+	public static final String LICENSE_COLLECTION = "Licenses";
 
 	public static final String SETTING_COLLECTION = "Settings";
 	public static final String METADATA_INSTANCE_COLLECTION = "MetadataInstances";
@@ -133,6 +134,7 @@ public class ConnectorConstant {
 	public static final String TASK_RESET_LOGS_COLLECTION = "TaskResetLogs";
 	public static final String SHARE_CDC_TABLE_METRICS_COLLECTION = "ShareCdcTableMetrics";
 
+	public static final String CONNECTORRECORD_COLLECTION = "ConnectorRecord";
 	public static final String SUBTASK_PROGRESS = "TaskProgress";
 	public static final String OFFSET_MONGO_SERVER_URI = "offset.mongo.server.uri";
 
@@ -347,5 +349,7 @@ public class ConnectorConstant {
 	public static final String TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME = "Tapdata MongoDB External Storage";
 
 	public static final String TARGET_MONGO_DB_EXTERNAL_STORAGE_NAME = "Target MongoDB External Storage";
+
+	public static final String JUNIT_TEST_PROP_KEY = "JUNIT_TEST";
 
 }

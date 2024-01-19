@@ -7,4 +7,6 @@ public class DisposableType {
     public static final String DISCOVER_SCHEMA = "DiscoverSchema";
     /**Command*/
     public static final String COMMAND = "Command";
+    /**downLoad connector*/
+    public static final String DOWNLOAD_CONNECTOR = "DownloadConnector";
 }

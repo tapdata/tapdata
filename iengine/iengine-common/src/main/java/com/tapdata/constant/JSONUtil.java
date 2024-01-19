@@ -5,11 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.ObjectCodec;
 import com.fasterxml.jackson.core.TreeNode;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -23,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,9 +66,6 @@ public class JSONUtil {
 		try {
 			TypeFactory typeFactory = mapper.getTypeFactory();
 			list = mapper.readValue(json, typeFactory.constructCollectionType(List.class, classz));
-//      list = InstanceFactory.instance(JsonParser.class).fromJson(json, new TypeHolder<List<T>>() {
-//        },
-//        TapConstants.abstractClassDetectors);
 		} catch (Throwable e) {
 			throw new IOException("parse json to " + classz.getName() + " list failed\n" + json, e);
 		}
@@ -107,9 +101,6 @@ public class JSONUtil {
 		try {
 			map = mapper.readValue(json, new TypeReference<HashMap<String, Object>>() {
 			});
-//      map = InstanceFactory.instance(JsonParser.class).fromJson(json, new TypeHolder<HashMap<String, Object>>() {
-//        },
-//        TapConstants.abstractClassDetectors);
 		} catch (Throwable e) {
 			throw new IOException("parse json to map failed\n" + json, e);
 		}
@@ -121,8 +112,6 @@ public class JSONUtil {
 		T pojo;
 		try {
 			pojo = mapper.readValue(json, className);
-//      pojo = InstanceFactory.instance(JsonParser.class).fromJson(json, className,
-//        TapConstants.abstractClassDetectors);
 		} catch (Throwable e) {
 			throw new IOException("parse json to " + className.getName() + " failed\n" + json, e);
 		}
@@ -134,12 +123,31 @@ public class JSONUtil {
 		T pojo;
 		try {
 			pojo = mapper.readValue(json, typeReference);
-//      pojo = InstanceFactory.instance(JsonParser.class).fromJson(json, typeReference.getType(),
-//        TapConstants.abstractClassDetectors);
 		} catch (Throwable e) {
 			throw new IOException("parse json to " + typeReference.getType().getTypeName() + " failed\n" + json, e);
 		}
 
+		return pojo;
+	}
+
+	public static <T> T json2POJO(URL url, Class<T> clazz) throws IOException {
+		T pojo;
+		try {
+			pojo = mapper.readValue(url, clazz);
+		} catch (Throwable e) {
+			throw new IOException("parse json to " + clazz.getName() + " failed\n" + url, e);
+		}
+
+		return pojo;
+	}
+
+	public static <T> T json2POJO(URL url, TypeReference<T> typeReference) throws IOException {
+		T pojo;
+		try {
+			pojo = mapper.readValue(url, typeReference);
+		} catch (Throwable e) {
+			throw new IOException("parse json to " + typeReference.getType().getTypeName() + " failed\n" + url, e);
+		}
 		return pojo;
 	}
 

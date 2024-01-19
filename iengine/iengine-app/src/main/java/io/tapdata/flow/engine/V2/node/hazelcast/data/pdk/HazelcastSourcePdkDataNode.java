@@ -124,18 +124,17 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	@Override
-	protected void doInit(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws TapCodeException {
 		try {
 			super.doInit(context);
 			checkPollingCDCIfNeed();
 		} catch (Throwable e) {
-			//Notify error for task.
-			throw errorHandle(e, "init failed");
+			throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
 		}
 	}
 
 	@Override
-	protected void doInitWithDisableNode(@NotNull Context context) throws Exception {
+	protected void doInitWithDisableNode(@NotNull Context context) throws TapCodeException {
 		super.doInitWithDisableNode(context);
 		if (getNode().disabledNode() && isRunning()) {
 			Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
@@ -261,8 +260,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		executeAspect(new SnapshotReadBeginAspect().dataProcessorContext(dataProcessorContext).tables(tableList));
 		syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
 
-		// count the data size of the tables;
-		doCount(tableList);
+		BatchCountFunction batchCountFunction = getConnectorNode().getConnectorFunctions().getBatchCountFunction();
+		if (null == batchCountFunction) {
+			setDefaultRowSizeMap();
+			obsLogger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+		}
 
 		BatchReadFunction batchReadFunction = getConnectorNode().getConnectorFunctions().getBatchReadFunction();
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
@@ -278,13 +280,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				while (isRunning()) {
 					for (String tableName : tableList) {
 						firstBatch.set(true);
-						// wait until we count the table
-						while (isRunning() && (null == snapshotRowSizeMap || !snapshotRowSizeMap.containsKey(tableName))) {
-							try {
-								TimeUnit.MILLISECONDS.sleep(500);
-							} catch (InterruptedException ignored) {
-							}
-						}
 						try {
 							executeAspect(new SnapshotReadTableBeginAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
 							while (isRunning()) {
@@ -309,7 +304,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							obsLogger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
 
 							PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-							try {
+							try (AutoCloseable ignoreTableCountCloseable = doAsyncTableCount(batchCountFunction, tableName)) {
 							executeDataFuncAspect(
 									BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
 											.eventBatchSize(readBatchSize)
@@ -432,7 +427,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						if (CollectionUtils.isNotEmpty(newTables)) {
 							tableList.clear();
 							tableList.addAll(newTables);
-							doCount(tableList);
 							newTables.clear();
 						} else {
 							this.endSnapshotLoop.set(true);
@@ -663,7 +657,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			return connectorNode.getConnectorFunctions().getStreamReadMultiConnectionFunction();
 		}).orElse(null);
 
-		int batchSize = 1;
 		String streamReadFunctionName = null;
 		CommonUtils.AnyError anyError = null;
 		List<String> tables = new ArrayList<>();
@@ -680,7 +673,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			streamReadFunctionName = streamReadMultiConnectionFunction.getClass().getSimpleName();
 			anyError = () -> {
 				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
-						syncProgress.getStreamOffsetObj(), batchSize, streamReadConsumer);
+						syncProgress.getStreamOffsetObj(), increaseReadSize, streamReadConsumer);
 			};
 		} else {
 			RawDataCallbackFilterFunction rawDataCallbackFilterFunction = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
@@ -716,7 +709,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
 					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
-							syncProgress.getStreamOffsetObj(), batchSize, streamReadConsumer);
+							syncProgress.getStreamOffsetObj(), increaseReadSize, streamReadConsumer);
 				};
 			}
 		}
@@ -731,7 +724,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							.dataProcessorContext(getDataProcessorContext())
 							.streamReadFunction(finalStreamReadFunctionName)
 							.tables(tables)
-							.eventBatchSize(batchSize)
+							.eventBatchSize(increaseReadSize)
 							.offsetState(syncProgress.getStreamOffsetObj())
 							.start(),
 					streamReadFuncAspect -> {
@@ -1130,7 +1123,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		TapCodecsFilterManager connecotrCodecsFilterManger = getConnectorNode().getCodecsFilterManager();
 		toTapValue(tablePollingCDCOffset, tapEvent.getTableId(), connecotrCodecsFilterManger);
-		fromTapValue(tablePollingCDCOffset, connecotrCodecsFilterManger);
+		fromTapValue(tablePollingCDCOffset, connecotrCodecsFilterManger, getTgtTableNameFromTapEvent(tapEvent));
 	}
 
 	private Long getCdcStartTs() {
@@ -1146,7 +1139,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		try {
 			CommonUtils.handleAnyError(() -> {
 				if (null != shareCdcReader) {

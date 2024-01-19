@@ -26,9 +26,12 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
+import io.tapdata.flow.engine.V2.schedule.TapDataTaskSchedulerUtil;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -43,11 +46,13 @@ import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
+import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -66,6 +71,7 @@ import java.util.concurrent.TimeUnit;
  **/
 public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	public static final int DEFAULT_READ_BATCH_SIZE = 2000;
+	public static final int DEFAULT_INCREASE_BATCH_SIZE = 1;
 	private final Logger logger = LogManager.getLogger(HazelcastPdkBaseNode.class);
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
 	protected static final String COMPLETED_INITIAL_SYNC_KEY_PREFIX = "COMPLETED-INITIAL-SYNC-";
@@ -75,9 +81,19 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	private final List<PDKMethodInvoker> pdkMethodInvokerList = new CopyOnWriteArrayList<>();
 
 	protected Integer readBatchSize;
+	protected Integer increaseReadSize;
+	protected TapRecordSkipDetector skipDetector;
+	protected TapRecordSkipDetector getSkipDetector() {
+		return skipDetector;
+	}
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
+	}
+
+	@Override
+	protected void doInit(@NotNull Context context) throws TapCodeException {
+		super.doInit(context);
 		logListener = new TapLogger.LogListener() {
 			@Override
 			public void debug(String log) {
@@ -109,6 +125,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				info(memoryLog);
 			}
 		};
+		skipDetector = getIsomorphism() ? new TapRecordSkipDetector() : null;
 	}
 
 	public PDKMethodInvoker createPdkMethodInvoker() {
@@ -140,16 +157,28 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public void signFunctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), new Update().set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING),
+				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), functionRetryQuery(System.currentTimeMillis(), TapDataTaskSchedulerUtil.signTaskRetryWithTimestamp(taskId, clientMongoOperator)),
 						ConnectorConstant.TASK_COLLECTION), "Failed to sign function retry status");
 	}
 
 	public void clearFunctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() -> {
-			Update update = new Update().set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING)
-					.set("functionRetryEx", System.currentTimeMillis() + 5 * 60 * 1000L);
-			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
+			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), functionRetryQuery(System.currentTimeMillis(), false), ConnectorConstant.TASK_COLLECTION);
 		}, "Failed to sign function retry status");
+	}
+
+	public Update functionRetryQuery(long timestamp, boolean isSign) {
+		Update update = new Update();
+		update.set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING);
+		if (!isSign) {
+			long functionRetryEx = timestamp + 5 * 60 * 1000L;
+			update.set("functionRetryEx", functionRetryEx);
+			update.set("taskRetryStartTimeFlag", 0);
+		} else {
+			update.set("taskRetryStartTime", timestamp);
+			update.set("taskRetryStartTimeFlag", timestamp);
+		}
+		return update;
 	}
 
 	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
@@ -169,7 +198,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Object> connectionConfig = dataProcessorContext.getConnectionConfig();
 		DatabaseTypeEnum.DatabaseType databaseType = dataProcessorContext.getDatabaseType();
 		PdkTableMap pdkTableMap = new PdkTableMap(dataProcessorContext.getTapTableMap());
-		PdkStateMap pdkStateMap = new PdkStateMap(dataProcessorContext.getNode().getId(), hazelcastInstance, taskDto, getNode(), clientMongoOperator, "processor");
+		PdkStateMap pdkStateMap = new PdkStateMap(hazelcastInstance, getNode());
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		Node<?> node = dataProcessorContext.getNode();
 		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
@@ -225,23 +254,32 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	protected void toTapValue(Map<String, Object> data, String tableName, TapCodecsFilterManager tapCodecsFilterManager) {
-		if (MapUtils.isEmpty(data)) {
+		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == tableName) {
 			return;
 		}
-		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
-		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-		tapCodecsFilterManager.transformToTapValueMap(data, nameFieldMap);
+		tapCodecsFilterManager.transformToTapValueMap(data, getTableFiledMap(tableName), getSkipDetector());
 	}
 
-	protected void fromTapValue(Map<String, Object> data, TapCodecsFilterManager tapCodecsFilterManager) {
-		if (MapUtils.isEmpty(data)) {
+	protected LinkedHashMap<String, TapField> getTableFiledMap(String tableName) {
+		if (null == tableName) return new LinkedHashMap<>();
+		DataProcessorContext dataProcessorContext = getDataProcessorContext();
+		if (null == dataProcessorContext) return new LinkedHashMap<>();
+		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		if (null == tapTableMap) return new LinkedHashMap<>();
+		TapTable tapTable = tapTableMap.get(tableName);
+		if (null == tapTable) return new LinkedHashMap<>();
+		return tapTable.getNameFieldMap();
+	}
+
+	protected void fromTapValue(Map<String, Object> data, TapCodecsFilterManager tapCodecsFilterManager, String targetTableName) {
+		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == targetTableName) {
 			return;
 		}
-		tapCodecsFilterManager.transformFromTapValueMap(data);
+		tapCodecsFilterManager.transformFromTapValueMap(data, getTableFiledMap(targetTableName), getSkipDetector());
 	}
 
 	@Override
-	public void doClose() throws Exception {
+	public void doClose() throws TapCodeException {
 		try {
 			CommonUtils.ignoreAnyError(() -> {
 				if (null != pdkMethodInvokerList) {
