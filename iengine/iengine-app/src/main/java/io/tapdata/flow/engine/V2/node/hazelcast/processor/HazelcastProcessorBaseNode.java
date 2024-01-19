@@ -431,7 +431,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			List<BatchEventWrapper> tapdataEvents = new ArrayList<>();
 			try {
 				Queues.drain(tapdataEventQueue, tapdataEvents, batchSize, batchTimeoutMs, TimeUnit.MILLISECONDS);
-			} catch (InterruptedException ignored) {
+			} catch (InterruptedException | NullPointerException ignored) {
 			}
 			return tapdataEvents;
 		}
