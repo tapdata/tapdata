@@ -4,6 +4,7 @@ import com.tapdata.constant.OsUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.validator.ConnectionValidateResult;
 import com.tapdata.validator.ConnectionValidateResultDetail;
+import com.tapdata.validator.ValidatorConstant;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -15,6 +16,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class RocksDBTestConnectionImpl implements TestConnection{
+
+    private boolean connectionFail = false;
     @Override
     public void testConnection(Map event, ConnectionValidateResult connectionValidateResult) {
         List<ConnectionValidateResultDetail> validateResultDetails = new ArrayList<>();
@@ -30,6 +33,10 @@ public class RocksDBTestConnectionImpl implements TestConnection{
         }
         testReadPrivilege(validateResultDetails, dir);
         testWritePrivilege(validateResultDetails, dir);
+        if(connectionFail){
+            connectionValidateResult.setStatus(ValidatorConstant.CONNECTION_STATUS_INVALID);
+        }
+        connectionValidateResult.setStatus(ValidatorConstant.CONNECTION_STATUS_READY);
         connectionValidateResult.setValidateResultDetails(validateResultDetails);
     }
 
@@ -49,9 +56,8 @@ public class RocksDBTestConnectionImpl implements TestConnection{
     public ConnectionValidateResultDetail handleFileReadAndWrite(String dir, String mark) {
         ConnectionValidateResultDetail connectionValidateResultDetail = new ConnectionValidateResultDetail();
         connectionValidateResultDetail.setRequired(true);
-        connectionValidateResultDetail.setShow_msg(mark);
         File file = new File(dir,"testConnect.txt");
-        connectionValidateResultDetail.setShow_msg(dir);
+        connectionValidateResultDetail.setShow_msg(mark);
         String status = "failed";
         if (file.exists()) {
             if ("Write".equals(mark)) {
@@ -81,6 +87,9 @@ public class RocksDBTestConnectionImpl implements TestConnection{
             } finally {
                 file.delete();
             }
+        }
+        if("passed".equals(status)){
+            connectionFail = true;
         }
         connectionValidateResultDetail.setStatus(status);
         return connectionValidateResultDetail;

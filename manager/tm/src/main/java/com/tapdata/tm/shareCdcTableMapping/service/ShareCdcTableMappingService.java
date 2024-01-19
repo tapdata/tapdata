@@ -94,7 +94,7 @@ public class ShareCdcTableMappingService extends BaseService<ShareCdcTableMappin
 				wait2SaveShareCdcTableMappingEntities.add(shareCdcTableMappingEntity);
 			}
 			if (wait2SaveShareCdcTableMappingEntities.size() >= 1000) {
-				bulkUpsert(wait2SaveShareCdcTableMappingEntities, bulkOperations,user);
+				bulkUpsert(wait2SaveShareCdcTableMappingEntities, bulkOperations, user);
 				bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
 				wait2SaveShareCdcTableMappingEntities.clear();
 			}
