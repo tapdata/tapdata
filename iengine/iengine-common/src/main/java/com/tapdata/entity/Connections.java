@@ -8,6 +8,7 @@ import com.tapdata.constant.DataFlowUtil;
 import com.tapdata.constant.FileProperty;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.entity.dataflow.Stage;
+import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.schema.SchemaList;
 import io.tapdata.schema.SchemaMap;
 import io.tapdata.schema.SchemaProxy;
@@ -460,6 +461,7 @@ public class Connections implements Serializable {
 	private Boolean heartbeatEnable;
 	private String multiConnectionInstanceId;
 	private List<String> namespace;
+	private List<Capability> capabilities;
 
 	public Connections() {
 	}
@@ -2344,6 +2346,14 @@ public class Connections implements Serializable {
 
 	public void setDefinitionTags(List<String> definitionTags) {
 		this.definitionTags = definitionTags;
+	}
+
+	public List<Capability> getCapabilities() {
+		return capabilities;
+	}
+
+	public void setCapabilities(List<Capability> capabilities) {
+		this.capabilities = capabilities;
 	}
 }
 
