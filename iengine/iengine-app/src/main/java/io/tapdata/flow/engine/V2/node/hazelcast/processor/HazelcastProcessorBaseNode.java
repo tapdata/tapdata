@@ -421,6 +421,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		}
 
 		boolean offer(BatchEventWrapper batchEventWrapper) throws InterruptedException {
+			if (null == batchEventWrapper) {
+				return true;
+			}
 			return tapdataEventQueue.offer(batchEventWrapper, TimeUnit.SECONDS.toMillis(1L), TimeUnit.MILLISECONDS);
 		}
 
