@@ -171,6 +171,10 @@ public class PartitionConcurrentProcessor {
 										final TapdataEvent event = (TapdataEvent) normalEvent.getEvent();
 										processEvents.add(event);
 									} else if (partitionEvent instanceof WatermarkEvent) {
+										if (CollectionUtils.isNotEmpty(processEvents)) {
+											eventProcessor.accept(processEvents);
+											processEvents.clear();
+										}
 										final CountDownLatch countDownLatch = ((WatermarkEvent) partitionEvent).getCountDownLatch();
 										countDownLatch.countDown();
 									} else {
