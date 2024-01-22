@@ -55,7 +55,6 @@ public class LoadJarLibEventHandler implements WebSocketEventHandler<WebSocketEv
 	private final static Logger logger = LogManager.getLogger(LoadJarLibEventHandler.class);
 
 	private ClientMongoOperator clientMongoOperator;
-	private SettingService settingService;
 
 	/**
 	 * 初始化handler方法
@@ -74,7 +73,6 @@ public class LoadJarLibEventHandler implements WebSocketEventHandler<WebSocketEv
 	@Override
 	public void initialize(ClientMongoOperator clientMongoOperator, SettingService settingService) {
 		this.clientMongoOperator = clientMongoOperator;
-		this.settingService = settingService;
 	}
 
 	@Override
@@ -82,16 +80,20 @@ public class LoadJarLibEventHandler implements WebSocketEventHandler<WebSocketEv
 		WebSocketEventResult result;
 		LoadJarLibRequest req = JSONUtil.map2POJO(event, LoadJarLibRequest.class);
 		ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-
+		String fileId = req.getFileId();
+		String packageName = req.getPackageName();
+		if (StringUtils.isEmpty(fileId) || StringUtils.isEmpty(packageName)) {
+			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.LOAD_JAR_LIB_RESULT, "illegal argument");
+		}
+		//定义类加载器
+		final Path filePath = Paths.get(System.getenv("TAPDATA_WORK_DIR"), "lib", fileId);
+		URL url ;
 		try {
-			String fileId = req.getFileId();
-			String packageName = req.getPackageName();
-			if (StringUtils.isEmpty(fileId) || StringUtils.isEmpty(packageName)) {
-				return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.LOAD_JAR_LIB_RESULT, "illegal argument");
-			}
-
-			//定义类加载器
-			final Path filePath = Paths.get(System.getenv("TAPDATA_WORK_DIR"), "lib", fileId);
+			url = filePath.toUri().toURL();
+		}catch (Exception e){
+			throw new RuntimeException(e);
+		}
+		try (URLClassLoader classLoader = new URLClassLoader(new URL[]{url});){
 			if (Files.notExists(filePath)) {
 				GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
 				try (GridFSDownloadStream gridFSDownloadStream = gridFSBucket.openDownloadStream(new ObjectId(fileId))) {
@@ -102,8 +104,6 @@ public class LoadJarLibEventHandler implements WebSocketEventHandler<WebSocketEv
 					Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
 				}
 			}
-			URL url = filePath.toUri().toURL();
-			URLClassLoader classLoader = new URLClassLoader(new URL[]{url});
 			Thread.currentThread().setContextClassLoader(classLoader);
 
 			Set<Class<?>> classSet = ClassUtil.scanPackage(packageName);

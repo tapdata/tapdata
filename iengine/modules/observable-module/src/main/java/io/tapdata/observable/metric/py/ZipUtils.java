@@ -45,11 +45,7 @@ public class ZipUtils {
 
     public static void zip(File srcDir, OutputStream out, boolean keepdirstructure, boolean zipInsideDirectory)
             throws RuntimeException {
-        long start = System.currentTimeMillis();
-        ZipOutputStream zos = null;
-        try {
-            zos = new ZipOutputStream(out);
-
+        try(ZipOutputStream zos = new ZipOutputStream(out)) {
             if(zipInsideDirectory && srcDir.isDirectory()) {
                 File[] listFiles = srcDir.listFiles();
                 for(File file : listFiles) {
@@ -58,17 +54,8 @@ public class ZipUtils {
             } else {
                 compress(srcDir, zos, srcDir.getName(), keepdirstructure);
             }
-            long end = System.currentTimeMillis();
         } catch (Exception e) {
             throw new RuntimeException("zip error from ZipUtils", e);
-        } finally {
-            if (zos != null) {
-                try {
-                    zos.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
         }
     }
 
@@ -144,7 +131,9 @@ public class ZipUtils {
                     parent.mkdirs();
                 }
                 // 将文件写出到解压的目录
-                IOUtils.copy(fin, new FileOutputStream(curfile));
+                try (FileOutputStream fileOutputStream = new FileOutputStream(curfile)){
+                    IOUtils.copy(fin, fileOutputStream);
+                }
             }
 //            TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(inputStream);
 //            TarArchiveEntry entry;

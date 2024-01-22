@@ -23,6 +23,7 @@ import org.apache.tomcat.websocket.WsSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.util.concurrent.ListenableFuture;
 import org.springframework.web.socket.*;
@@ -133,7 +134,6 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 	private Set<BeanDefinition> fileDetectorDefinition;
 	private final AtomicInteger pingFailTime = new AtomicInteger();
-	private boolean wsAlive;
 	private String currentWsUrl;
 
 	private ThreadPoolExecutor websocketHandleMessageThreadPoolExecutor;
@@ -174,16 +174,14 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 						pingFailTime.set(0);
 						handleWhenPingSucceed();
 					});
-					if (!response) {
-						if (pingFailTime.incrementAndGet() > MAX_PING_FAIL_TIME) {
-							session.release();
-							throw new RuntimeException(String.format("No response was received for %s consecutive websocket heartbeats", MAX_PING_FAIL_TIME));
-						}
+					if (!response && pingFailTime.incrementAndGet() > MAX_PING_FAIL_TIME ) {
+						session.release();
+						throw new RuntimeException(String.format("No response was received for %s consecutive websocket heartbeats", MAX_PING_FAIL_TIME));
 					}
-				} catch (Throwable e) {
+				} catch (Exception e) {
 					logger.error("Websocket heartbeat failed, will reconnect. Error: " + e.getMessage(), e);
 				}
-			} catch (Throwable e) {
+			} catch (Exception e) {
 				logger.error("Websocket heartbeat failed, will reconnect after {}s. Error: {}", PING_INTERVAL, e.getMessage(), e);
 			}
 		}, 0, PING_INTERVAL, TimeUnit.SECONDS);
@@ -222,13 +220,9 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			} else {
 				throw new RuntimeException("Connect web socket failed, invalid base url: " + baseURL);
 			}
-			currentWsUrl = currentWsUrl.replaceAll("/api/", URL_SUFFIX + DESTINATION
+			currentWsUrl = currentWsUrl.replace("/api/", URL_SUFFIX + DESTINATION
 					+ "?agentId={agentId}&access_token={access_token}");
 
-			// 临时处理，连接dfs时，去掉"/console"
-            /*if (((AppType) configCenter.getConfig(ConfigurationCenter.APPTYPE)).isDfs()) {
-				currentWsUrl = currentWsUrl.replace("/console", "");
-			}*/
 
 			WebSocketClient client = new StandardWebSocketClient();
 
@@ -243,7 +237,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			String version = Version.get();
 			if (org.apache.commons.lang3.StringUtils.isNotEmpty(version)) {
 				WebSocketHttpHeaders webSocketHttpHeaders = new WebSocketHttpHeaders();
-				webSocketHttpHeaders.add(WebSocketHttpHeaders.USER_AGENT, version);
+				webSocketHttpHeaders.add(HttpHeaders.USER_AGENT, version);
 				this.listenableFuture = client.doHandshake(this, webSocketHttpHeaders,
 						URI.create(currentWsUrl));
 			} else {
@@ -254,6 +248,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			logger.info("Connect to web socket server success, url {}", currentWsUrl);
 		} catch (Exception e) {
 			logger.error("Create web socket by url {} connection failed {}", currentWsUrl, e.getMessage(), e);
+			Thread.currentThread().interrupt();
 		}
 	}
 
@@ -270,10 +265,10 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 				String payload = (String) message.getPayload();
 
-				WebSocketEvent<Map> event = JSONUtil.json2POJO(payload, new TypeReference<WebSocketEvent>() {
+				WebSocketEvent<Map<Object,Object>> event = JSONUtil.json2POJO(payload, new TypeReference<WebSocketEvent<Map<Object,Object>>>() {
 				});
 
-				Map eventRequestData = event.getData();
+				Map<Object,Object> eventRequestData = event.getData();
 				String messageType = event.getType();
 				if (!StringUtils.equals(messageType, TaskDto.SYNC_TYPE_TEST_RUN)) {
 					messageType = eventRequestData != null && eventRequestData.containsKey("type") && eventRequestData.get("type") != null ?
@@ -290,7 +285,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 				} else {
 					try {
 						eventResult = eventHandler.handle(eventRequestData, (data) -> {
-							WebSocketEvent<WebSocketEventResult> result = new WebSocketEvent();
+							WebSocketEvent<WebSocketEventResult> result = new WebSocketEvent<>();
 							result.setType(event.getType());
 							result.setData(data);
 							result.setReceiver(event.getSender());
@@ -309,7 +304,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 				// if eventResult is null, do not reply
 				if (eventResult != null) {
-					WebSocketEvent<WebSocketEventResult> result = new WebSocketEvent();
+					WebSocketEvent<WebSocketEventResult> result = new WebSocketEvent<>();
 					result.setType(event.getType());
 					result.setData(eventResult);
 					result.setReceiver(event.getSender());
@@ -321,7 +316,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 					sendMessage(new TextMessage(JSONUtil.obj2Json(result)));
 					JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 				}
-			} catch (Throwable e) {
+			} catch (Exception e) {
 				String errorMsg = String.format("Handle websocket event error, message: %s, error: %s", message, e.getMessage());
 				logger.error(errorMsg, e);
 			}
@@ -330,15 +325,15 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		websocketHandleMessageThreadPoolExecutor.execute(runnable);
 	}
 
-	private WebSocketEventHandler eventHandler(String messageType) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
-		WebSocketEventHandler eventHandler = null;
+	private WebSocketEventHandler<WebSocketEventResult> eventHandler(String messageType) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+		WebSocketEventHandler<WebSocketEventResult> eventHandler = null;
 
 		if (StringUtils.isEmpty(messageType)) {
 			return null;
 		}
 
 		for (BeanDefinition beanDefinition : fileDetectorDefinition) {
-			Class<WebSocketEventHandler> aClass = (Class<WebSocketEventHandler>) Class.forName(beanDefinition.getBeanClassName());
+			Class<WebSocketEventHandler<WebSocketEventResult>> aClass = (Class<WebSocketEventHandler<WebSocketEventResult>>) Class.forName(beanDefinition.getBeanClassName());
 			EventHandlerAnnotation[] annotations = aClass.getAnnotationsByType(EventHandlerAnnotation.class);
 			if (annotations != null && annotations.length > 0) {
 				for (EventHandlerAnnotation annotation : annotations) {
@@ -453,7 +448,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 						session.sendMessage(textMessage);
 						break;
-					} catch (Throwable e) {
+					} catch (Exception e) {
 						if (++failTime > retryTime) {
 							throw new RuntimeException("Retried sending " + failTime + " times, duration " + (System.currentTimeMillis() - now) + ", but all failed, cancel retry.", e);
 						}
@@ -461,10 +456,11 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 						release();
 					}
 
-					Thread.sleep(500L);
+					wait(500L);
 				}
 			} catch (InterruptedException e) {
 				logger.warn("Waiting to be interrupted, use {}ms: {}", (System.currentTimeMillis() - now), textMessage, e);
+				Thread.currentThread().interrupt();
 			}
 		}
 

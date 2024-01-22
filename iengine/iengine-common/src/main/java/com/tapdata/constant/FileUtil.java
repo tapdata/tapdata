@@ -142,7 +142,7 @@ public class FileUtil {
 
 	public static String handleFullFilename(String filename) {
 		if (StringUtils.isNotBlank(filename) && filename.contains(".")) {
-			filename = filename.replaceAll("\\.", "_");
+			filename = filename.replace("\\.", "_");
 		}
 
 		return filename;
@@ -153,10 +153,11 @@ public class FileUtil {
 		long lines = 0;
 		if (file.exists()) {
 			long fileLength = file.length();
-			LineNumberReader lineNumberReader = new LineNumberReader(new FileReader(file));
-			lineNumberReader.skip(fileLength);
-			lines = lineNumberReader.getLineNumber();
-			lineNumberReader.close();
+			try (LineNumberReader lineNumberReader = new LineNumberReader(new FileReader(file));){
+				 lineNumberReader.skip(fileLength);
+				 lines = lineNumberReader.getLineNumber();
+			}
+
 		}
 
 		return lines;

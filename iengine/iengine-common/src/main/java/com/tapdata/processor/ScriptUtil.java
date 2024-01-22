@@ -41,6 +41,7 @@ import org.springframework.core.io.ClassPathResource;
 
 import javax.script.*;
 import java.io.File;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.URL;
@@ -65,6 +66,12 @@ public class ScriptUtil {
 	public static final String FUNCTION_NAME = "process";
 
 	public static final String SCRIPT_FUNCTION_NAME = "validate";
+
+	public static final String CACHE_SERVICE ="CacheService";
+
+	private static final String SOURCE = "source";
+
+	private static final String TARGET = "target";
 
 	public static ScriptEngine getScriptEngine(String jsEngineName) {
 		return getScriptEngine(jsEngineName,
@@ -155,11 +162,9 @@ public class ScriptUtil {
 		}
 
 		ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-		try {
-
-			ScriptEngine e = getScriptEngine(jsEngineName,
-					new LoggingOutputStream(logger, Level.INFO),
-					new LoggingOutputStream(logger, Level.ERROR));
+		try(LoggingOutputStream info = new LoggingOutputStream(logger, Level.INFO);
+			LoggingOutputStream error = new LoggingOutputStream(logger, Level.ERROR)) {
+			ScriptEngine e = getScriptEngine(jsEngineName, info,error);
 			final ClassLoader[] externalClassLoader = new ClassLoader[1];
 			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalClassLoader[0] = urlClassLoader, standard);
 			if (externalClassLoader[0] != null) {
@@ -172,17 +177,17 @@ public class ScriptUtil {
 
 			try {
 				e.eval(scripts);
-			} catch (Throwable ex) {
+			} catch (Exception ex) {
 				throw new RuntimeException(String.format("script eval error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
 			}
 			if (source != null) {
-				e.put("source", source);
+				e.put(SOURCE, source);
 			}
 			if (target != null) {
-				e.put("target", target);
+				e.put(TARGET, target);
 			}
 			if (memoryCacheGetter != null) {
-				e.put("CacheService", memoryCacheGetter);
+				e.put(CACHE_SERVICE, memoryCacheGetter);
 			}
 
 			if (logger != null) {
@@ -190,6 +195,8 @@ public class ScriptUtil {
 			}
 
 			return (Invocable) e;
+		} catch (IOException e) {
+			throw new RuntimeException(e);
 		} finally {
 			Thread.currentThread().setContextClassLoader(contextClassLoader);
 		}
@@ -238,6 +245,7 @@ public class ScriptUtil {
 		context.put("event", eventMap);
 		if (engine == null) {
 			logger.error("script engine is null, {}", Arrays.asList(Thread.currentThread().getStackTrace()));
+			return null;
 		}
 
 		((ScriptEngine) engine).put("context", context);
@@ -389,14 +397,21 @@ public class ScriptUtil {
 			}
 			if (CollectionUtils.isNotEmpty(urlList)) {
 				logger.debug("urlClassLoader will load: {}", urlList);
-				final URLClassLoader urlClassLoader = new CustomerClassLoader(urlList.toArray(new URL[0]), ScriptUtil.class.getClassLoader());
-				if (consumer != null) {
-					consumer.accept(urlClassLoader);
-				}
+				urlClassLoader(consumer,urlList);
 			}
 		}
 
 		return buildInMethod.toString();
+	}
+
+	protected static void urlClassLoader(Consumer<URLClassLoader> consumer, List<URL> urlList){
+		try(final URLClassLoader urlClassLoader = new CustomerClassLoader(urlList.toArray(new URL[0]), ScriptUtil.class.getClassLoader());) {
+			if (consumer != null) {
+				consumer.accept(urlClassLoader);
+			}
+		}catch (IOException e){
+			throw new RuntimeException(e);
+		}
 	}
 
 	public static ScriptConnection initScriptConnection(Connections connection) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
@@ -470,9 +485,9 @@ public class ScriptUtil {
 		} catch (Throwable ex) {
 			throw new CoreException(String.format("Incorrect JS code, syntax error found: %s, please check your javascript code", ex.getMessage()));
 		}
-		Optional.ofNullable(source).ifPresent(s -> e.put("source", s));
-		Optional.ofNullable(target).ifPresent(s -> e.put("target", s));
-		Optional.ofNullable(memoryCacheGetter).ifPresent(s -> e.put("CacheService", s));
+		Optional.ofNullable(source).ifPresent(s -> e.put(SOURCE, s));
+		Optional.ofNullable(target).ifPresent(s -> e.put(TARGET, s));
+		Optional.ofNullable(memoryCacheGetter).ifPresent(s -> e.put(CACHE_SERVICE, s));
 		Optional.ofNullable(logger).ifPresent(s -> e.put("log", s));
 		return (Invocable) e;
 	}
@@ -554,10 +569,7 @@ public class ScriptUtil {
 			}
 			if (CollectionUtils.isNotEmpty(urlList)) {
 				logger.debug("urlClassLoader will load: {}", urlList);
-				final URLClassLoader urlClassLoader = new URLClassLoader(urlList.toArray(new URL[0]), Thread.currentThread().getContextClassLoader());
-				if (consumer != null) {
-					consumer.accept(urlClassLoader);
-				}
+				urlClassLoader(consumer,urlList);
 			}
 		}
 		return buildInMethod.toString();
@@ -634,9 +646,9 @@ public class ScriptUtil {
 		} catch (Throwable ex) {
 			throw new CoreException(String.format("Incorrect python code, syntax error found: %s, please check your python code", ex.getMessage()));
 		}
-		Optional.ofNullable(source).ifPresent(s -> e.put("source", s));
-		Optional.ofNullable(target).ifPresent(s -> e.put("target", s));
-		Optional.ofNullable(memoryCacheGetter).ifPresent(s -> e.put("CacheService", s));
+		Optional.ofNullable(source).ifPresent(s -> e.put(SOURCE, s));
+		Optional.ofNullable(target).ifPresent(s -> e.put(TARGET, s));
+		Optional.ofNullable(memoryCacheGetter).ifPresent(s -> e.put(CACHE_SERVICE, s));
 		Optional.ofNullable(logger).ifPresent(s -> e.put("log", s));
 		return (Invocable) e;
 	}
@@ -725,9 +737,12 @@ public class ScriptUtil {
 				urls[0] = (new File("py-lib/jython-standalone-2.7.3.jar")).toURI().toURL();
 			} catch (Exception e) {}
 		}
-		final URLClassLoader urlClassLoader = new URLClassLoader(urls, loader);
-		if (consumer != null) {
-			consumer.accept(urlClassLoader);
+		try(final URLClassLoader urlClassLoader = new URLClassLoader(urls, loader)) {
+			if (consumer != null) {
+				consumer.accept(urlClassLoader);
+			}
+		}catch (IOException e){
+			throw new RuntimeException(e);
 		}
 		return  "import com.tapdata.constant.DateUtil as DateUtil\n" +
 				"import com.tapdata.constant.UUIDGenerator as UUIDGenerator\n" +

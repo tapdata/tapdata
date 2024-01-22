@@ -62,18 +62,17 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 		scriptEngine.put("ScriptExecutorsManager", scriptExecutorsManager);
 	}
 
-	private ScriptEngine initScriptEngine(String jsEngineName, Log log) {
+	protected ScriptEngine initScriptEngine(String jsEngineName, Log log) {
 		JSEngineEnum jsEngineEnum = JSEngineEnum.getByEngineName(jsEngineName);
-		ScriptEngine scriptEngine;
+		ScriptEngine graalJSScriptEngine;
 		ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
 
-		LoggingOutputStream out = new LoggingOutputStream(log, Level.INFO);
-		LoggingOutputStream err = new LoggingOutputStream(log, Level.ERROR);
-		try {
+		try(LoggingOutputStream out = new LoggingOutputStream(log, Level.INFO);
+				LoggingOutputStream err = new LoggingOutputStream(log, Level.ERROR)){
 			//need to change as engine classLoader
 			Thread.currentThread().setContextClassLoader(Application.class.getClassLoader());
 			if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
-				scriptEngine = GraalJSScriptEngine
+				graalJSScriptEngine = GraalJSScriptEngine
 						.create(Engine.newBuilder()
 										.allowExperimentalOptions(true)
 										.option("engine.WarnInterpreterOnly", "false")
@@ -94,16 +93,18 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 				SimpleScriptContext scriptContext = new SimpleScriptContext();
 				scriptContext.setWriter(new OutputStreamWriter(out));
 				scriptContext.setErrorWriter(new OutputStreamWriter(err));
-				scriptEngine.setContext(scriptContext);
+				graalJSScriptEngine.setContext(scriptContext);
 			} else {
-				scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
+				graalJSScriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
 			}
-		} finally {
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}finally {
 			//return pdk classLoader
 			Thread.currentThread().setContextClassLoader(classLoader);
 		}
-		scriptEngine.put("log", log);
-		return scriptEngine;
+		graalJSScriptEngine.put("log", log);
+		return graalJSScriptEngine;
 	}
 
 	@Override
