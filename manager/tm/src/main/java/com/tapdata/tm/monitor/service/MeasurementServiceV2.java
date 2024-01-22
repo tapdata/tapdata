@@ -269,7 +269,7 @@ public class MeasurementServiceV2 {
      * @param end time
      * @return Map
      */
-    private Map<String, Sample> getInstantSamples(MeasurementQueryParam.MeasurementQuerySample querySample, String padding, Long start, Long end) {
+    protected Map<String, Sample> getInstantSamples(MeasurementQueryParam.MeasurementQuerySample querySample, String padding, Long start, Long end) {
         List<String> fields = querySample.getFields();
         Map<String, Sample> data = new HashMap<>();
         if (!StringUtils.equalsAny(querySample.getType(),
@@ -370,7 +370,9 @@ public class MeasurementServiceV2 {
             aggregation = Aggregation.newAggregation( match, sort, limit, limitOperation, projectionOperation);
         } else {
             if(typeIsNode){
-                aggregation = Aggregation.newAggregation(match, sort, projectionOperation);
+                //After sorting, group according to nodeId and get the first latest data.
+                GroupOperation groupOperation = Aggregation.group("tags.nodeId").first("$$ROOT").as("firstRecord");;
+                aggregation = Aggregation.newAggregation(match, sort,groupOperation,Aggregation.replaceRoot().withValueOf("$firstRecord") ,projectionOperation);
             }else {
                 aggregation = Aggregation.newAggregation(match, sort, limitOperation, projectionOperation);
             }

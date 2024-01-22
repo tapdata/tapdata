@@ -20,6 +20,7 @@ import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskClient;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.TaskOperation;
@@ -28,6 +29,7 @@ import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.flow.engine.V2.util.SingleLockWithKey;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -149,6 +151,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		});
 		initScheduleTask();
 		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::resetTaskRetryServiceIfNeed, 1L, 1L, TimeUnit.MINUTES);
+		PDKIntegration.registerMemoryFetcher("taskScheduler", this);
 	}
 
 	private void initScheduleTask() {
@@ -299,19 +302,15 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 	}
 
-	private void startTask(TaskDto taskDto) {
+	protected void startTask(TaskDto taskDto) {
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		final String taskId = taskDto.getId().toHexString();
 		AtomicBoolean isReturn = new AtomicBoolean(false);
 		taskClientMap.computeIfPresent(taskId, (id, taskClient)->{
 			if (taskClientMap.containsKey(taskId)) {
-				if (null != taskClient) {
-					logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
-					if (!TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
-						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
-					}
-				} else {
-					logger.info("The [task {}, id {}] is being executed, ignore the scheduling", taskDto.getName(), taskId);
+				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
+				if (!TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
+					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
 				}
 				isReturn.compareAndSet(false, true);
 			}
@@ -321,17 +320,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return;
 		}
 		try {
-			// todo 后续处理
-//			String checkTaskCanStart = checkTaskCanStart(taskId);
-//			if (StringUtils.isNotBlank(checkTaskCanStart)) {
-//				logger.warn(checkTaskCanStart);
-//				return;
-//			}
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
 			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
-			//threadPoolExecutorEx = AsyncUtils.createThreadPoolExecutor("RootTask-" + taskDto.getName(), 1, new TaskThreadGroup(taskDto), TAG);
-			//hazelcastTaskService.setThreadPoolExecutorEx(threadPoolExecutorEx);
 			final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
 			taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
 		} catch (Exception e) {
@@ -680,15 +671,14 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		DataMap dataMap = DataMap.create();
 		DataMap taskMap = DataMap.create();
 		taskClientMap.forEach((k, v) -> {
-			if (null == v) {
-				taskMap.kv(k, "null");
-			} else {
-				DataMap task = DataMap.create();
-				task.kv("task status", v.getTask().getStatus());
-				task.kv("jet status", v.getStatus());
-				taskMap.kv(v.getTask().getName(), task);
+			DataMap task = DataMap.create();
+			task.kv("task status", v.getTask().getStatus());
+			if (v instanceof HazelcastTaskClient) {
+				task.kv("jet status", ((HazelcastTaskClient) v).getJetStatus());
 			}
+			taskMap.kv(v.getTask().getName(), task);
 		});
+		dataMap.kv("task client map", taskMap);
 		return dataMap;
 	}
 

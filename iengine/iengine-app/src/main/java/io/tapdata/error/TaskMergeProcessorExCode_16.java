@@ -146,8 +146,8 @@ public interface TaskMergeProcessorExCode_16 {
 	String CONNECTION_ID_CANNOT_BE_BLANK = "16024";
 
 	@TapExCode(
-		describe = "The merged source table node not found, please check you config",
-		describeCN = "合并的源表节点不存在，请检查你的配置"
+			describe = "The merged source table node not found, please check you config",
+			describeCN = "合并的源表节点不存在，请检查你的配置"
 	)
 	String TAP_MERGE_TABLE_NODE_NOT_FOUND = "16025";
 
@@ -172,4 +172,154 @@ public interface TaskMergeProcessorExCode_16 {
 			describeCN = "初始化关联键共用关系失败，合并配置字典为空，可能是因为调用顺序错误"
 	)
 	String INIT_SHARE_JOIN_KEYS_FAILED_TABLE_MERGE_MAP_EMPTY = "16029";
+
+	@TapExCode(
+			describe = "Checking whether it is necessary to create a cache to update the join key value failed. The merge configuration dictionary is empty, possibly because the calling order is wrong",
+			describeCN = "检查是否需要建立更新关联键值的缓存失败，合并配置字典为空，可能是因为调用顺序错误"
+	)
+	String CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_FAILED_TABLE_MERGE_MAP_EMPTY = "16030";
+	@TapExCode(
+			describe = "Checking whether it is necessary to establish a cache to update the join key value failed, and the merged configuration could not be obtained based on the ID",
+			describeCN = "检查是否需要建立更新关联键值的缓存失败，无法根据id获取到合并配置"
+	)
+	String CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_FAILED_CANT_GET_MERGE_TABLE_PROPERTIES_BY_ID = "16031";
+	@TapExCode(
+			describe = "Checking whether it is necessary to establish a cache to update the join key value failed. The connection information dictionary is empty, possibly because the calling order is wrong",
+			describeCN = "检查是否需要建立更新关联键值的缓存失败，连接信息字典为空，可能因为调用顺序错误"
+	)
+	String CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_FAILED_SOURCE_CONNECTION_MAP_EMPTY = "16032";
+	@TapExCode(
+			describe = "Checking whether it is necessary to establish a cache to update the join key value failed, and the source connection configuration information could not be obtained based on the ID",
+			describeCN = "检查是否需要建立更新关联键值的缓存失败，无法根据id获取到源端连接配置信息"
+	)
+	String CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_FAILED_CANT_GET_SOURCE_CONNECTION_BY_ID = "16033";
+
+	@TapExCode(
+			describe = "Failed to establish a cache to detect whether the join key value has changed. The node id is empty and the name cannot be constructed",
+			describeCN = "建立检测关联键值是否变更缓存失败，节点id为空，无法构建名称"
+	)
+	String GET_CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_NAME_FAILED_NODE_ID_CANNOT_NULL = "16034";
+
+	@TapExCode(
+			describe = "Failed to establish a cache to detect whether the join key value has changed, and the write signature failed",
+			describeCN = "建立检测关联键值是否变更缓存失败，写入签名失败"
+	)
+	String INIT_CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_WRITE_SIGN_FAILED = "16035";
+	@TapExCode(
+			describe = "Failed to copy external storage, original dto is null",
+			describeCN = "复制外部存储失败，原始对象为空"
+	)
+	String COPY_EXTERNAL_STORAGE_FAILED_SOURCE_IS_NULL = "16036";
+	@TapExCode(
+			describe = "Failed to analyze the reference relationship, and the merged configuration could not be obtained based on the ID",
+			describeCN = "分析引用关系失败，无法根据id获取到合并配置"
+	)
+	String ANALYZE_REFERENCE_FAILED_CANT_GET_MERGE_TABLE_PROPERTIES_BY_ID = "16037";
+	@TapExCode(
+			describe = "Failed to analyze the reference relationship, the merge configuration dictionary is empty, possibly because the calling order is wrong",
+			describeCN = "分析引用关系失败，合并配置字典为空，可能是因为调用顺序错误"
+	)
+	String ANALYZE_REFERENCE_FAILED_TABLE_MERGE_MAP_EMPTY = "16038";
+	@TapExCode(
+			describe = "Failed to get and update the join key cache, unable to get the IMAP",
+			describeCN = "获取并更新关联键缓存失败，无法获取IMAP"
+	)
+	String GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP = "16039";
+	@TapExCode(
+			describe = "Failed to get and update the join key cache, unable to get after data",
+			describeCN = "获取并更新关联键缓存失败，无法获取after数据"
+	)
+	String GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_AFTER_IS_EMPTY = "16040";
+	@TapExCode(
+			describe = "Failed to get and update the join key cache, failed to find by PK",
+			describeCN = "获取并更新关联键缓存失败，根据PK查找失败"
+	)
+	String GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_FIND_BY_PK_FAILED = "16041";
+	@TapExCode(
+			describe = "Failed to get and update the join key cache, upsert failed",
+			describeCN = "获取并更新关联键缓存失败，更新after数据失败"
+	)
+	String GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_UPSERT_FAILED = "16042";
+	@TapExCode(
+			describe = "Failed to update the join key, unable to get after data",
+			describeCN = "更新关联键失败，无法获取after数据"
+	)
+	String HANDLE_UPDATE_JOIN_KEY_FAILED_AFTER_IS_EMPTY = "16043";
+	@TapExCode(
+			describe = "Failed to merge properties, merge properties map is null",
+			describeCN = "合并属性失败，合并属性字典为空"
+	)
+	String INIT_MERGE_PROPERTY_RREFERENCE_FAILED_MERGE_PROPERTIES_MAP_IS_NULL = "16044";
+	@TapExCode(
+			describe = "Failed to analyze the reference relationship, and the merged configuration could not be obtained based on the ID",
+			describeCN = "分析引用关系失败，无法根据id获取到合并配置"
+	)
+	String ANALYZE_CHILD_REFERENCE_FAILED_CANT_GET_MERGE_TABLE_PROPERTIES_BY_ID = "16045";
+	@TapExCode(
+			describe = "Failed to analyze the reference relationship, the merge configuration dictionary is empty, possibly because the calling order is wrong",
+			describeCN = "分析引用关系失败，合并配置字典为空，可能是因为调用顺序错误"
+	)
+	String ANALYZE_CHILD_REFERENCE_FAILED_TABLE_MERGE_MAP_EMPTY = "16046";
+	@TapExCode(
+			describe = "Failed to get the pre node, unable to get the pre node by id",
+			describeCN = "获取上个节点失败，无法根据id获取上个节点"
+	)
+	String CANNOT_GET_PRENODE_BY_ID = "16047";
+	@TapExCode(
+			describe = "Building and updating the join key cache failed because there is a field that is both an join key and a primary key",
+			describeCN = "构建更新关联键缓存失败，因为有字段同时是关联键和主键，无法构建缓存名称"
+	)
+	String BUILD_CHECK_UPDATE_JOIN_KEY_CACHE_FAILED_JOIN_KEY_INCLUDE_PK = "16048";
+	@TapExCode(
+			describe = "Failed to get and update the join key cache, the source must have before data",
+			describeCN = "获取并更新关联键缓存失败，源端必须有before数据",
+			solution = "1. If MongoDB is the source and the version is 6.0 or above, you need to turn on the 'Document Preimages' function",
+			solutionCN = "1. 如果是MongoDB作为源头，并且版本是6.0及以上，则需要打开'文档原像'功能"
+	)
+	String GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_HAVE_BEFORE = "16049";
+	@TapExCode(
+			describe = "Failed to get and update the join key cache, unable to find before data",
+			describeCN = "获取并更新关联键缓存失败，无法找到before数据"
+	)
+	String GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_CANNOT_FIND_BEFORE = "16050";
+	@TapExCode(
+			describe = "Failed to insert the join key cache, unable to get IMAP",
+			describeCN = "插入关联键缓存失败，无法获取IMAP"
+	)
+	String INSERT_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP = "16051";
+	@TapExCode(
+			describe = "Failed to insert the join key cache, insert failed",
+			describeCN = "插入关联键缓存失败，写入失败"
+	)
+	String INSERT_JOIN_KEY_CACHE_FAILED_UPSERT_FAILED = "16052";
+	@TapExCode(
+			describe = "Failed to delete the join key cache, unable to get IMAP",
+			describeCN = "删除关联键缓存失败，无法获取IMAP"
+	)
+	String DELETE_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP = "16053";
+	@TapExCode(
+			describe = "Failed to delete the join key cache, delete failed",
+			describeCN = "删除关联键缓存失败，删除失败"
+	)
+	String DELETE_JOIN_KEY_CACHE_FAILED_UPSERT_FAILED = "16054";
+	@TapExCode(
+			describe = "Delete merge cache failed, lookup cache failed",
+			describeCN = "删除合并缓存失败，查找缓存失败"
+	)
+	String REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_FIND_CACHE_ERROR = "16055";
+	@TapExCode(
+			describe = "Delete merge cache failed, delete cache failed",
+			describeCN = "删除合并缓存失败，删除缓存失败"
+	)
+	String REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_DELETE_CACHE_ERROR = "16056";
+	@TapExCode(
+			describe = "Delete merge cache failed, update cache failed",
+			describeCN = "删除合并缓存失败，更新缓存失败"
+	)
+	String REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_UPDATE_CACHE_ERROR = "16057";
+	@TapExCode(
+			describe = "Clear and destroy cache failed",
+			describeCN = "清理并销毁缓存失败"
+	)
+	String CLEAR_AND_DESTROY_CACHE_FAILED = "16058";
 }

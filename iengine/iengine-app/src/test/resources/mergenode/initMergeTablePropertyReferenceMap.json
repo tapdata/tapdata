@@ -1,0 +1,65 @@
+[
+  {
+    "mergeType": "updateOrInsert",
+    "tableName": "a",
+    "id": "1",
+    "enableUpdateJoinKeyValue": true,
+    "children": [
+      {
+        "mergeType": "updateWrite",
+        "joinKeys": [
+          {
+            "source": "b_id",
+            "target": "a_id"
+          }
+        ],
+        "tableName": "b",
+        "targetPath": "b",
+        "id": "2",
+        "children": [
+          {
+            "mergeType": "updateWrite",
+            "joinKeys": [
+              {
+                "source": "d_id",
+                "target": "b.b_id"
+              },
+              {
+                "source": "d_id1",
+                "target": "a_id"
+              },
+              {
+                "source": "d_id2",
+                "target": "a_id1"
+              }
+            ],
+            "tableName": "d",
+            "targetPath": "",
+            "id": "4",
+            "children": [],
+            "isArray": false,
+            "enableUpdateJoinKeyValue": true
+          }
+        ],
+        "isArray": false,
+        "enableUpdateJoinKeyValue": true
+      },
+      {
+        "mergeType": "updateWrite",
+        "joinKeys": [
+          {
+            "source": "c_id",
+            "target": "a_id"
+          }
+        ],
+        "tableName": "c",
+        "targetPath": "c",
+        "id": "3",
+        "children": [],
+        "isArray": false,
+        "enableUpdateJoinKeyValue": false
+      }
+    ],
+    "isArray": false
+  }
+]
