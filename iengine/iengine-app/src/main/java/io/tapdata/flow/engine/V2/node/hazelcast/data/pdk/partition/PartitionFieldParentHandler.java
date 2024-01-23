@@ -21,6 +21,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
 import io.tapdata.pdk.core.utils.LoggerUtils;
+import org.apache.commons.collections.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -164,7 +165,7 @@ public class PartitionFieldParentHandler {
 		if (batchReadFuncAspect != null)
 			AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
 
-		if (CollectionUtil.isNotEmpty(tapdataEvents)) {
+		if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 //			long time = System.currentTimeMillis();
 			tapdataEvents.forEach(tapdataEvent -> {
 				if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {

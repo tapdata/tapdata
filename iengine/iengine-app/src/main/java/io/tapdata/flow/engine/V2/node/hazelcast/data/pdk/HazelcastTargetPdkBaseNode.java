@@ -735,7 +735,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void flushShareCdcTableMetrics(TapdataEvent tapdataEvent) {
 		if (tapdataEvent.getType().equals(SyncProgress.Type.LOG_COLLECTOR)) {
-			Object connIdObj = tapdataEvent.getInfo(TapdataStartedCdcEvent.CONNECTION_ID_INFO_KEY);
+			Object connIdObj = tapdataEvent.getInfo(TapdataEvent.CONNECTION_ID_INFO_KEY);
 			String connectionId = "";
 			if (connIdObj instanceof String) {
 				connectionId = (String) connIdObj;
