@@ -699,8 +699,8 @@ public class ProxyController extends BaseController {
 
         UserDetail userDetail = getLoginUser();
         boolean isCloud = false;
-		productList.forEach(key -> {
-			log.debug("product list {} ", key);
+		productList.forEach(product -> {
+			TapLogger.debug(TAG, "product list {} ", product);
 		});
         if (productList != null && productList.contains("dfs")) { //is cloud env
             isCloud = true;
