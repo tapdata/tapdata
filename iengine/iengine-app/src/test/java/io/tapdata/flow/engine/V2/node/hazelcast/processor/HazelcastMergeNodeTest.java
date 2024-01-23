@@ -15,25 +15,31 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapStringValue;
 import io.tapdata.error.TaskMergeProcessorExCode_16;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
+import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.MapUtils;
+import org.bson.BsonType;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -67,6 +73,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		mergeTableNode = new MergeTableNode();
 		mergeTableNode.setMergeProperties(new ArrayList<>());
 		when(dataProcessorContext.getNode()).thenReturn((Node) mergeTableNode);
+		CommonUtils.setProperty("app_type", "DAAS");
 		hazelcastMergeNode = new HazelcastMergeNode(dataProcessorContext);
 		ReflectionTestUtils.setField(hazelcastMergeNode, "obsLogger", mockObsLogger);
 		ReflectionTestUtils.setField(hazelcastMergeNode, "clientMongoOperator", mockClientMongoOperator);
@@ -1462,6 +1469,141 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 
 			mockHazelcastMergeNode.deleteJoinKeyCache(tapdataEvent);
 			verify(constructIMap, times(0)).delete(anyString());
+		}
+	}
+
+	@Nested
+	@DisplayName("transformToTapValue method test")
+	class transformToTapValueTest {
+		private HazelcastMergeNode mockHazelcastMergeNode;
+
+		@BeforeEach
+		void setUp() {
+			mockHazelcastMergeNode = spy(hazelcastMergeNode);
+		}
+
+		@Test
+		@DisplayName("main process test")
+		void testMainProcess() {
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			MergeInfo mergeInfo = new MergeInfo();
+			List<MergeLookupResult> mergeLookupResult = new ArrayList<>();
+			mergeInfo.setMergeLookupResults(mergeLookupResult);
+			TapEvent tapEvent = mock(TapEvent.class);
+			when(tapEvent.getInfo(MergeInfo.EVENT_INFO_KEY)).thenReturn(mergeInfo);
+			tapdataEvent.setTapEvent(tapEvent);
+			doAnswer(invocationOnMock -> null).when(mockHazelcastMergeNode).recursiveMergeInfoTransformToTapValue(mergeLookupResult);
+
+			mockHazelcastMergeNode.transformToTapValue(tapdataEvent, null, null, null);
+
+			verify(mockHazelcastMergeNode, times(1)).recursiveMergeInfoTransformToTapValue(mergeLookupResult);
+		}
+
+		@Test
+		@DisplayName("when TapEvent not have MergeInfo")
+		void testNotHaveMergeInfo() {
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			TapEvent tapEvent = mock(TapEvent.class);
+			when(tapEvent.getInfo(MergeInfo.EVENT_INFO_KEY)).thenReturn(null);
+			tapdataEvent.setTapEvent(tapEvent);
+
+			mockHazelcastMergeNode.transformToTapValue(tapdataEvent, null, null, null);
+			verify(mockHazelcastMergeNode, times(0)).recursiveMergeInfoTransformToTapValue(any());
+		}
+	}
+
+	@Nested
+	@DisplayName("recursiveMergeInfoTransformToTapValue method test")
+	class recursiveMergeInfoTransformToTapValueTest {
+		private HazelcastMergeNode mockHazelcastMergeNode;
+
+		@BeforeEach
+		void setUp() {
+			mockHazelcastMergeNode = spy(hazelcastMergeNode);
+			AllLayerMapIterator mapIterator = new AllLayerMapIterator();
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "mapIterator", mapIterator);
+		}
+
+		@Test
+		void testMainProcess() {
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			TapTable tapTable = new TapTable();
+			tapTable.putField("_id", new TapField("_id", BsonType.OBJECT_ID.name()));
+			tapTable.putField("name", new TapField("name", BsonType.STRING.name()));
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn("1");
+			doReturn(node).when(mockHazelcastMergeNode).getPreNode("1");
+			when(tapTableMap.get("1")).thenReturn(tapTable);
+			List<MergeLookupResult> mergeLookupResults = new ArrayList<>();
+			MergeLookupResult mergeLookupResult = new MergeLookupResult();
+			mergeLookupResults.add(mergeLookupResult);
+			String id = new ObjectId().toHexString();
+			Map<String, Object> data = new HashMap<String, Object>() {{
+				put("_id", id);
+				put("name", "test");
+			}};
+			mergeLookupResult.setData(data);
+			io.tapdata.pdk.apis.entity.merge.MergeTableProperties mergeTableProperties = new io.tapdata.pdk.apis.entity.merge.MergeTableProperties();
+			mergeTableProperties.setId("1");
+			mergeLookupResult.setProperty(mergeTableProperties);
+			List<MergeLookupResult> childMergeLookupResults = new ArrayList<>();
+			MergeLookupResult childMergeLookupResult = new MergeLookupResult();
+			childMergeLookupResults.add(childMergeLookupResult);
+			Map<String, Object> childData = new HashMap<>(data);
+			childMergeLookupResult.setData(childData);
+			io.tapdata.pdk.apis.entity.merge.MergeTableProperties childMergeTableProperties = new io.tapdata.pdk.apis.entity.merge.MergeTableProperties();
+			childMergeTableProperties.setId("1");
+			childMergeLookupResult.setProperty(childMergeTableProperties);
+			mergeLookupResult.setMergeLookupResults(childMergeLookupResults);
+
+			mockHazelcastMergeNode.recursiveMergeInfoTransformToTapValue(mergeLookupResults);
+			assertInstanceOf(TapStringValue.class, data.get("_id"));
+			TapStringValue tapStringValue = (TapStringValue) data.get("_id");
+			assertEquals(id, tapStringValue.getValue());
+			TapString tapType = tapStringValue.getTapType();
+			assertEquals(24L, tapType.getBytes());
+			assertTrue(tapType.getFixed());
+			assertEquals(BsonType.OBJECT_ID.name(), tapStringValue.getOriginType());
+			assertNull(tapStringValue.getOriginValue());
+			assertInstanceOf(String.class, data.get("name"));
+			assertEquals("test", data.get("name"));
+			assertInstanceOf(TapStringValue.class, childData.get("_id"));
+			tapStringValue = (TapStringValue) childData.get("_id");
+			assertEquals(id, tapStringValue.getValue());
+			tapType = tapStringValue.getTapType();
+			assertEquals(24L, tapType.getBytes());
+			assertTrue(tapType.getFixed());
+			assertEquals(BsonType.OBJECT_ID.name(), tapStringValue.getOriginType());
+			assertNull(tapStringValue.getOriginValue());
+		}
+
+		@Test
+		@DisplayName("when name fields map is empty")
+		void fieldsEmpty() {
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			TapTable tapTable = new TapTable();
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn("1");
+			doReturn(node).when(mockHazelcastMergeNode).getPreNode("1");
+			when(tapTableMap.get("1")).thenReturn(tapTable);
+			List<MergeLookupResult> mergeLookupResults = new ArrayList<>();
+			MergeLookupResult mergeLookupResult = new MergeLookupResult();
+			mergeLookupResults.add(mergeLookupResult);
+			String id = new ObjectId().toHexString();
+			Map<String, Object> data = new HashMap<String, Object>() {{
+				put("_id", id);
+			}};
+			mergeLookupResult.setData(data);
+			io.tapdata.pdk.apis.entity.merge.MergeTableProperties mergeTableProperties = new io.tapdata.pdk.apis.entity.merge.MergeTableProperties();
+			mergeTableProperties.setId("1");
+			mergeLookupResult.setProperty(mergeTableProperties);
+
+			mockHazelcastMergeNode.recursiveMergeInfoTransformToTapValue(mergeLookupResults);
+			assertInstanceOf(String.class, data.get("_id"));
+			assertEquals(id, data.get("_id"));
 		}
 	}
 }

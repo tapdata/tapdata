@@ -176,14 +176,10 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             WorkerDto workerDto = workerService.findByProcessId(taskDto.getAgentId(), user, "user_id", "agentTags", "process_id");
             int limitTaskNum = workerService.getLimitTaskNum(workerDto, user);
             int runningNum = taskService.subCronOrPlanNum(taskDto, taskService.runningTaskNum(taskDto.getAgentId(), user));
-            if (runningNum >= limitTaskNum) {
-                if (!limitNum) {
-                    StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
-                    if (stateMachineResult.isOk()) {
-                        handleScheduleLimit(workerDto,finalUser);
-                    }
-                } else {
-                    handleScheduleLimit(workerDto,finalUser);
+            if (runningNum > limitTaskNum && !limitNum) {
+                StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
+                if (stateMachineResult.isOk()) {
+                    throw new BizException("Task.ScheduleLimit");
                 }
 
             }

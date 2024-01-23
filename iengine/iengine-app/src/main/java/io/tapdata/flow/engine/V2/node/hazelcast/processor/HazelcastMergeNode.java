@@ -11,6 +11,8 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import io.tapdata.construct.constructImpl.ConstructIMap;
+import io.tapdata.entity.codec.ToTapValueCodec;
+import io.tapdata.entity.codec.filter.EntryFilter;
 import io.tapdata.entity.codec.filter.MapIteratorEx;
 import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
 import io.tapdata.entity.event.TapEvent;
@@ -24,7 +26,11 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskMergeProcessorExCode_16;
@@ -45,6 +51,7 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.BsonType;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
@@ -1427,6 +1434,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			}
 			io.tapdata.pdk.apis.entity.merge.MergeTableProperties copyMergeTableProperty = copyMergeTableProperty(childMergeProperty);
 			boolean mockData = false;
+			Node<?> preNode = getPreNode(childMergeProperty.getId());
+			String tableName = getTableName(preNode);
+			TapTable tapTable = processorBaseContext.getTapTableMap().get(tableName);
 			if (MergeTableProperties.MergeType.updateWrite == mergeType) {
 				MergeLookupResult mergeLookupResult = new MergeLookupResult();
 				Set<String> shareJoinKeys = shareJoinKeysMap.get(copyMergeTableProperty.getId());
@@ -1454,6 +1464,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				mergeLookupResult.setProperty(copyMergeTableProperty);
 				mergeLookupResult.setData(lookupData);
 				mergeLookupResult.setDataExists(!mockData);
+				mergeLookupResult.setTapTable(tapTable);
 				mergeLookupResult.setMergeLookupResults(recursiveLookup(childMergeProperty, lookupData, mergeLookupResult.isDataExists()));
 				mergeLookupResults.add(mergeLookupResult);
 			} else if (MergeTableProperties.MergeType.updateIntoArray == mergeType) {
@@ -1471,6 +1482,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 					mergeLookupResult.setProperty(copyMergeTableProperty);
 					mergeLookupResult.setData((Map<String, Object>) arrayData);
 					mergeLookupResult.setDataExists(!mockData);
+					mergeLookupResult.setTapTable(tapTable);
 					mergeLookupResult.setMergeLookupResults(recursiveLookup(childMergeProperty, (Map<String, Object>) arrayData, true));
 					mergeLookupResults.add(mergeLookupResult);
 				}
@@ -2028,6 +2040,51 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 
 		public boolean isEnableChildren() {
 			return enableChildren;
+		}
+	}
+
+	@Override
+	protected void transformToTapValue(TapdataEvent tapdataEvent, TapTableMap<String, TapTable> tapTableMap, String tableName, TapValueTransform tapValueTransform) {
+		super.transformToTapValue(tapdataEvent, tapTableMap, tableName, tapValueTransform);
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		Object mergeInfoObj = tapEvent.getInfo(MergeInfo.EVENT_INFO_KEY);
+		if (mergeInfoObj instanceof MergeInfo) {
+			MergeInfo mergeInfo = (MergeInfo) mergeInfoObj;
+			List<MergeLookupResult> mergeLookupResults = mergeInfo.getMergeLookupResults();
+			recursiveMergeInfoTransformToTapValue(mergeLookupResults);
+		}
+	}
+
+	protected void recursiveMergeInfoTransformToTapValue(List<MergeLookupResult> mergeLookupResults) {
+		if (CollectionUtils.isEmpty(mergeLookupResults)) return;
+		TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
+		for (MergeLookupResult mergeLookupResult : mergeLookupResults) {
+			Map<String, Object> data = mergeLookupResult.getData();
+			String id = mergeLookupResult.getProperty().getId();
+			Node<?> preNode = getPreNode(id);
+			String tableName = getTableName(preNode);
+			LinkedHashMap<String, TapField> nameFieldMap = tapTableMap.get(tableName).getNameFieldMap();
+			if (MapUtils.isNotEmpty(data)) {
+				mapIterator.iterate(data, (key, value, recursive) -> {
+					if (null == nameFieldMap) {
+						return value;
+					}
+					TapField tapField = nameFieldMap.get(key);
+					if (null != tapField
+							&& BsonType.OBJECT_ID.name().equals(tapField.getDataType())
+							&& value instanceof String
+					) {
+						return new TapStringValue(value.toString())
+								.tapType(new TapString(24L, true))
+								.originType(BsonType.OBJECT_ID.name());
+					}
+					return value;
+				});
+			}
+			List<MergeLookupResult> childMergeLookupResults = mergeLookupResult.getMergeLookupResults();
+			if (CollectionUtils.isNotEmpty(childMergeLookupResults)) {
+				recursiveMergeInfoTransformToTapValue(childMergeLookupResults);
+			}
 		}
 	}
 }
