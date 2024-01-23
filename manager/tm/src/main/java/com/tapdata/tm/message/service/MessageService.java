@@ -751,6 +751,9 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         Boolean sendWeChat = false;
         if (null != notification) {
             Object eventType = BeanUtil.getProperty(notification, msgType);
+            if (eventType == null) {
+                eventType = BeanUtil.getProperty(notification, "connected");
+            }
             sendEmail = BeanUtil.getProperty(eventType, "email");
             sendSms = BeanUtil.getProperty(eventType, "sms");
             sendWeChat = BeanUtil.getProperty(eventType, "weChat");
@@ -787,6 +790,55 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                 title = "实例 " + metadataName + "已离线";
                 content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
                 weChatContent = "实例:" + metadataName + " 已离线，请及时处理";
+            } else if (MsgTypeEnum.EXPIRING.getValue().equals(msgType)) {
+
+                cn.hutool.json.JSONObject metadata = JSONUtil.parseObj(messageDto.getMessageMetadata());
+                String notifyType = metadata.getStr("notifyType");
+                String paymentMethod = metadata.getStr("paymentMethod");
+                String subscribeType = metadata.getStr("subscribeType");
+                int expiringDays = -1;
+                if ("NOTIFY_7_DAY".equalsIgnoreCase(notifyType) ){
+                    expiringDays = 7;
+                } else if ("NOTIFY_1_DAY".equalsIgnoreCase(notifyType)) {
+                    expiringDays = 1;
+                }
+                if (expiringDays == -1) {
+                    return;
+                }
+                if ("one_time".equals(subscribeType)) { // 一次性订阅
+                    subject = String.format("The instance (%s) you subscribed to will expire in %s days to avoid affecting the running of your tasks. Please renew in time.", metadataName, expiringDays);
+                    emailTip = subject;
+                    smsContent = String.format("尊敬的用户，你好，您在Tapdata Cloud上订阅的实例:%s 还有%s天到期，避免影响您的任务正常运行，请及时续订", metadataName, expiringDays);
+                    title = String.format("您订阅的实例(%s)，还有 %s 天到期，避免影响您的任务正常运行，请及时续订", metadataName, expiringDays);
+                    content = String.format("尊敬的用户，你好，您在 Tapdata Cloud上订阅的实例(%s)，还有 %s 天到期，避免影响您的任务正常运行，请及时续订", metadataName, expiringDays);
+                    weChatContent = String.format("您订阅的实例(%s)，还有 %s 天到期，请及时续订", metadataName, expiringDays);
+                } else {
+                    // 连续订阅或者其他未知订阅方法取消通知
+                    return;
+                }
+            } else if (MsgTypeEnum.EXPIRED.getValue().equals(msgType)) {
+                cn.hutool.json.JSONObject metadata = JSONUtil.parseObj(messageDto.getMessageMetadata());
+                String paymentMethod = metadata.getStr("paymentMethod");
+                String subscribeType = metadata.getStr("subscribeType");
+
+                if ("one_time".equals(subscribeType)) { // 一次性订阅
+                    subject = String.format("The instance (%s) you subscribed to has expired and will be released in 1 day.", metadataName);
+                    emailTip = subject;
+                    smsContent = String.format("尊敬的用户，你好，您在Tapdata Cloud上订阅的实例:%s 已经到期，实例将在1天以后释放，如需继续使使用请及时续订", metadataName);
+                    title = String.format("您订阅的实例(%s)已经到期，实例将在1天以后释放，如需继续使使用请及时续订，请及时续订", metadataName);
+                    // content = String.format("尊敬的用户，你好，您在Tapdata Cloud上订阅的实例(%s)已经到期，实例将在1天以后释放，如需继续使使用请及时续订，请及时续订", metadataName);
+                    content = subject;
+                    weChatContent = String.format("您订阅的实例(%s)，已经到期，实例将在1天以后释放，请及时续订", metadataName);
+                } else {
+                    // 连续订阅
+                    subject = String.format("The instance (%s) you subscribed to has expired. Please keep your auto-renewal account with sufficient balance and the system will automatically renew it for you. If the renewal is not completed, please contact customer service for assistance.", metadataName);
+                    emailTip = subject;
+                    smsContent = String.format("尊敬的用户，你好，您在Tapdata Cloud上订阅的实例:%s 已经到期，请保持自动续订账户余额充足，系统将会自动为您续订；如果没有完成续订请联系客服协助处理", metadataName);
+                    title = String.format("您订阅的实例(%s)已经到期，请保持自动续订账户余额充足，系统将会自动为您续订；如果没有完成续订请联系客服协助处理", metadataName);
+                    //content = String.format("尊敬的用户，你好，您在Tapdata Cloud上订阅的实例(%s)已经到期，请保持自动续订账户余额充足，系统将会自动为您续订；如果没有完成续订请联系客服协助处理", metadataName);
+                    content = subject;
+                    weChatContent = String.format("您订阅的实例(%s)，已经到期，，请保持自动续订账户余额充足，系统将会自动为您续订；如果没有完成续订请联系客服协助处理", metadataName);
+                }
             }
         } else {
             if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
