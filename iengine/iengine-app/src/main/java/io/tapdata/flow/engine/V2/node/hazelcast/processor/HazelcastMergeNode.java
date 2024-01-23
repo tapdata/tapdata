@@ -1843,6 +1843,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				continue;
 			}
 			Map<String, Object> beforeReferenceJoinKey = filterByJoinKey(before, referenceJoinKeys.keySet());
+			System.out.println(1);
 			Map<String, Object> afterReferenceJoinKey = filterByJoinKey(after, referenceJoinKeys.keySet());
 			if (joinKeyValueNotEquals(beforeReferenceJoinKey, afterReferenceJoinKey)) {
 				MergeTableProperties mergeTableProperties = this.mergeTablePropertiesMap.get(preNodeId);
