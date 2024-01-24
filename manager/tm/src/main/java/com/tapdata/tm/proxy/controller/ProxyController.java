@@ -698,7 +698,8 @@ public class ProxyController extends BaseController {
 			throw new BizException("Missing method");
 
         UserDetail userDetail = getLoginUser();
-        boolean isCloud = false;
+		log.info("product list: {}", productList);
+		boolean isCloud = false;
         if (productList != null && productList.contains("dfs")) { //is cloud env
             isCloud = true;
         }
