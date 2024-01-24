@@ -70,6 +70,8 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 	private ClientMongoOperator clientMongoOperator;
 	private SettingService settingService;
 
+	private String IS_EXTERNAL_STORAGE_ID = "isExternalStorage";
+
 	/**
 	 * 初始化handler方法
 	 *
@@ -184,9 +186,9 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 					}
 				}
 
-				if (event.containsKey("isExternalStorage")) {
+				if (event.containsKey(IS_EXTERNAL_STORAGE_ID)) {
 					try {
-						isExternalStorage = Boolean.parseBoolean(event.get("isExternalStorage").toString());
+						isExternalStorage = Boolean.parseBoolean(event.get(IS_EXTERNAL_STORAGE_ID).toString());
 						collection = ConnectorConstant.EXTERNAL_STORAGE_COLLECTION + "/set";
 						connection.setName(event.getOrDefault("name", "").toString());
 					} catch (Exception ignore) {
@@ -221,7 +223,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 				}
 
 				// PDK connection test
-				if(StringUtils.isBlank(connection.getPdkType()) && (Boolean)event.get("isExternalStorage")){
+				if(StringUtils.isBlank(connection.getPdkType()) && (Boolean)event.get(IS_EXTERNAL_STORAGE_ID)){
 				   handleNoPdkTestConnection(sendMessage,event);
 				   return;
 				}
