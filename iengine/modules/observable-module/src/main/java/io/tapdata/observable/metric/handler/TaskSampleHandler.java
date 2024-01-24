@@ -52,6 +52,7 @@ public class TaskSampleHandler extends AbstractHandler {
 
     SpeedSampler inputSpeed;
     SpeedSampler outputSpeed;
+    SpeedSampler cdcInputSpeed;
     AverageSampler timeCostAverage;
 
     private CounterSampler createTableTotal;
@@ -101,6 +102,7 @@ public class TaskSampleHandler extends AbstractHandler {
                 Constants.OUTPUT_DELETE_TOTAL,
                 Constants.OUTPUT_OTHERS_TOTAL,
                 Constants.INPUT_QPS,
+                Constants.CDC_INPUT_QPS,
                 Constants.OUTPUT_QPS,
                 Constants.TIME_COST_AVG,
                 Constants.REPLICATE_LAG,
@@ -122,7 +124,8 @@ public class TaskSampleHandler extends AbstractHandler {
                 Constants.OUTPUT_SIZE_QPS,
                 Constants.QPS_TYPE,
                 Constants.OUTPUT_SIZE_QPS_MAX,
-                Constants.OUTPUT_SIZE_QPS_AVG
+                Constants.OUTPUT_SIZE_QPS_AVG,
+                Constants.CDC_INPUT_SIZE_QPS
         );
     }
 
@@ -150,6 +153,7 @@ public class TaskSampleHandler extends AbstractHandler {
 
         inputSpeed = collector.getSpeedSampler(Constants.INPUT_QPS);
         outputSpeed = collector.getSpeedSampler(Constants.OUTPUT_QPS);
+        cdcInputSpeed = collector.getSpeedSampler(Constants.CDC_INPUT_QPS);
         timeCostAverage = collector.getAverageSampler(Constants.TIME_COST_AVG);
 
         collector.addSampler(Constants.CURR_EVENT_TS, () -> {
@@ -324,8 +328,8 @@ public class TaskSampleHandler extends AbstractHandler {
         inputDeleteCounter.inc(recorder.getDeleteTotal());
         inputDdlCounter.inc(recorder.getDdlTotal());
         inputOthersCounter.inc(recorder.getOthersTotal());
-        inputSizeSpeed.add(recorder.getMemorySize());
-        inputSpeed.add(recorder.getTotal());
+        cdcInputSpeed.add(recorder.getTotal());
+        cdcInputSizeSpeed.add(recorder.getMemorySize());
     }
 
     public void addTargetNodeHandler(String nodeId, DataNodeSampleHandler handler) {

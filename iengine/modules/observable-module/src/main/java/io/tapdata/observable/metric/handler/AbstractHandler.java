@@ -21,6 +21,7 @@ public abstract class AbstractHandler {
     @Getter
     SampleCollector collector;
     protected SpeedSampler inputSizeSpeed;
+    protected SpeedSampler cdcInputSizeSpeed;
     protected SpeedSampler outputSizeSpeed;
     private Double outputSizeQpsMax;
     private Double outputSizeQpsAvg;
@@ -64,6 +65,7 @@ public abstract class AbstractHandler {
     void doInit(Map<String, Number> values){
         inputSizeSpeed = collector.getSpeedSampler(Constants.INPUT_SIZE_QPS);
         outputSizeSpeed = collector.getSpeedSampler(Constants.OUTPUT_SIZE_QPS);
+        cdcInputSizeSpeed = collector.getSpeedSampler(Constants.CDC_INPUT_SIZE_QPS);
         collector.addSampler(Constants.QPS_TYPE, () -> qpsType);
         collector.addSampler(Constants.INPUT_SIZE_QPS, () -> inputSizeSpeed.value());
         collector.addSampler(Constants.OUTPUT_SIZE_QPS, () -> outputSizeSpeed.value());
