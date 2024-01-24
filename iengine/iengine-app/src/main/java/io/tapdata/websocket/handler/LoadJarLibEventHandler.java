@@ -95,18 +95,19 @@ public class LoadJarLibEventHandler implements WebSocketEventHandler<WebSocketEv
 			throw new CoreException(String.format("FilePath conversion failed: %s", e.getMessage()));
 		}
 		try (URLClassLoader classLoader = new URLClassLoader(new URL[]{url});){
-			if (Files.notExists(filePath)) {
-				GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
-				try (GridFSDownloadStream gridFSDownloadStream = gridFSBucket.openDownloadStream(new ObjectId(fileId))) {
-					if (Files.notExists(filePath.getParent())) {
-						Files.createDirectories(filePath.getParent());
+			synchronized (filePath){
+				if (Files.notExists(filePath)) {
+					GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
+					try (GridFSDownloadStream gridFSDownloadStream = gridFSBucket.openDownloadStream(new ObjectId(fileId))) {
+						if (Files.notExists(filePath.getParent())) {
+							Files.createDirectories(filePath.getParent());
+						}
+						Files.createFile(filePath);
+						Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
 					}
-					Files.createFile(filePath);
-					Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
 				}
 			}
 			Thread.currentThread().setContextClassLoader(classLoader);
-
 			Set<Class<?>> classSet = ClassUtil.scanPackage(packageName);
 			List<LoadJarLibResponse> resList = getMethodList(classSet);
 

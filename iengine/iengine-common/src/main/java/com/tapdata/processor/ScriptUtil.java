@@ -13,14 +13,15 @@ import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.processor.context.ProcessContext;
 import com.tapdata.processor.context.ProcessContextEvent;
+import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import io.tapdata.annotation.DatabaseTypeAnnotation;
 import io.tapdata.annotation.DatabaseTypeAnnotations;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.js.connector.base.JsUtil;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -178,7 +179,7 @@ public class ScriptUtil {
 			try {
 				e.eval(scripts);
 			} catch (Exception ex) {
-				throw new RuntimeException(String.format("script eval error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
+				throw new TapCodeException(ScriptProcessorExCode_30.INVOKE_SCRIPT_FAILED,String.format("script eval error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader),ex);
 			}
 			if (source != null) {
 				e.put(SOURCE, source);
@@ -196,7 +197,7 @@ public class ScriptUtil {
 
 			return (Invocable) e;
 		} catch (IOException e) {
-			throw new CoreException(String.format("Failed to get script engine: %s", e.getMessage()));
+			throw new TapCodeException(ScriptProcessorExCode_30.GET_SCRIPT_ENGINE_ERROR,String.format("Failed to get script engine: %s", e.getMessage()),e);
 		} finally {
 			Thread.currentThread().setContextClassLoader(contextClassLoader);
 		}
@@ -245,7 +246,7 @@ public class ScriptUtil {
 		context.put("event", eventMap);
 		if (engine == null) {
 			logger.error("script engine is null, {}", Arrays.asList(Thread.currentThread().getStackTrace()));
-			return null;
+			throw new TapCodeException(ScriptProcessorExCode_30.INVOKE_SCRIPT_FAILED,"script engine is null");
 		}
 
 		((ScriptEngine) engine).put("context", context);
@@ -259,8 +260,8 @@ public class ScriptUtil {
 			} else {
 				o = engine.invokeFunction(functionName, record);
 			}
-		} catch (Throwable e) {
-			throw new RuntimeException(String.format("Invoke function %s error: %s", functionName, e.getMessage(), e), e);
+		} catch (Exception e) {
+			throw new TapCodeException(ScriptProcessorExCode_30.INVOKE_SCRIPT_FAILED,String.format("Invoke function %s error: %s", functionName, e.getMessage()),e);
 		}
 
 		return o;
@@ -371,7 +372,7 @@ public class ScriptUtil {
 							if (clientMongoOperator instanceof HttpClientMongoOperator) {
 								File file = ((HttpClientMongoOperator) clientMongoOperator).downloadFile(null, "file/" + fileId, filePath.toString(), true);
 								if (null == file) {
-									throw new RuntimeException("not found");
+									throw new TapCodeException(ScriptProcessorExCode_30.INIT_BUILD_IN_METHOD_FAILED,"not found");
 								}
 							} else {
 								GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
@@ -382,7 +383,7 @@ public class ScriptUtil {
 									Files.createFile(filePath);
 									Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
 								} catch (Exception e) {
-									throw new RuntimeException(String.format("create function jar file '%s' error: %s", filePath, e.getMessage()), e);
+									throw new TapCodeException(ScriptProcessorExCode_30.INIT_BUILD_IN_METHOD_FAILED,String.format("create function jar file '%s' error: %s", filePath, e.getMessage()),e);
 								}
 							}
 						}
@@ -390,7 +391,7 @@ public class ScriptUtil {
 							URL url = filePath.toUri().toURL();
 							urlList.add(url);
 						} catch (Exception e) {
-							throw new RuntimeException(String.format("create function jar file '%s' error: %s", filePath, e.getMessage()), e);
+							throw new TapCodeException(ScriptProcessorExCode_30.INIT_BUILD_IN_METHOD_FAILED,String.format("create function jar file '%s' error: %s", filePath, e.getMessage()), e);
 						}
 					}
 				}
@@ -410,7 +411,7 @@ public class ScriptUtil {
 				consumer.accept(urlClassLoader);
 			}
 		}catch (IOException e){
-			throw new CoreException(String.format("Url class loader failed: %s", e.getMessage()));
+			throw new TapCodeException(ScriptProcessorExCode_30.URL_CLASS_LOADER_ERROR,String.format("Url class loader failed: %s", e.getMessage()),e);
 		}
 	}
 
@@ -470,7 +471,7 @@ public class ScriptUtil {
 		try {
 			e.eval("tapLog.info('Init standardized JS engine...');");
 		}catch (Exception es){
-			throw new RuntimeException(String.format("Can not init standardized JS engine, %s", es.getMessage()), es);
+			throw new TapCodeException(ScriptProcessorExCode_30.GET_SCRIPT_STANDARDIZATION_ENGINE_FAILED,String.format("Can not init standardized JS engine, %s", es.getMessage()),es);
 		}
 		evalImportSources(e,
 				"js/csvUtils.js",
@@ -482,7 +483,7 @@ public class ScriptUtil {
 				"js/log.js");
 		try {
 			e.eval(scripts);
-		} catch (Throwable ex) {
+		} catch (Exception ex) {
 			throw new CoreException(String.format("Incorrect JS code, syntax error found: %s, please check your javascript code", ex.getMessage()));
 		}
 		Optional.ofNullable(source).ifPresent(s -> e.put(SOURCE, s));
@@ -543,7 +544,7 @@ public class ScriptUtil {
 							if (clientMongoOperator instanceof HttpClientMongoOperator) {
 								File file = ((HttpClientMongoOperator) clientMongoOperator).downloadFile(null, "file/" + fileId, filePath.toString(), true);
 								if (null == file) {
-									throw new RuntimeException("not found");
+									throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,"not found");
 								}
 							} else {
 								GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
@@ -554,7 +555,7 @@ public class ScriptUtil {
 									Files.createFile(filePath);
 									Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
 								} catch (Exception e) {
-									throw new RuntimeException(String.format("create function jar file '%s' error: %s", filePath, e.getMessage()), e);
+									throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("create function jar file '%s' error: %s", filePath, e.getMessage()),e);
 								}
 							}
 						}
@@ -562,7 +563,7 @@ public class ScriptUtil {
 							URL url = filePath.toUri().toURL();
 							urlList.add(url);
 						} catch (Exception e) {
-							throw new RuntimeException(String.format("create function jar file '%s' error: %s", filePath, e.getMessage()), e);
+							throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("create function jar file '%s' error: %s", filePath, e.getMessage()),e);
 						}
 					}
 				}
@@ -643,7 +644,7 @@ public class ScriptUtil {
 		}catch (Exception ignore){}
 		try {
 			e.eval(scripts);
-		} catch (Throwable ex) {
+		} catch (Exception ex) {
 			throw new CoreException(String.format("Incorrect python code, syntax error found: %s, please check your python code", ex.getMessage()));
 		}
 		Optional.ofNullable(source).ifPresent(s -> e.put(SOURCE, s));
@@ -658,78 +659,6 @@ public class ScriptUtil {
 			ClientMongoOperator clientMongoOperator,
 			ClassLoader loader,
 			Consumer<URLClassLoader> consumer) {
-		//Expired, will be ignored in the near future
-		//buildInMethod.append("global DateUtil = Java.type(\"com.tapdata.constant.DateUtil\")\n");
-		//buildInMethod.append("global UUIDGenerator = Java.type(\"com.tapdata.constant.UUIDGenerator\")\n");
-		//buildInMethod.append("global idGen = Java.type(\"com.tapdata.constant.UUIDGenerator\")\n");
-		//buildInMethod.append("global HashMap = Java.type(\"java.util.HashMap\")\n");
-		//buildInMethod.append("global LinkedHashMap = Java.type(\"java.util.LinkedHashMap\")\n");
-		//buildInMethod.append("global ArrayList = Java.type(\"java.util.ArrayList\")\n");
-		//buildInMethod.append("global uuid = UUIDGenerator.uuid\n");
-		//buildInMethod.append("global JSONUtil = Java.type('com.tapdata.constant.JSONUtil')\n");
-		//buildInMethod.append("global HanLPUtil = Java.type(\"com.tapdata.constant.HanLPUtil\")\n");
-		//buildInMethod.append("global split_chinese = HanLPUtil.hanLPParticiple\n");
-		//buildInMethod.append("global util = Java.type(\"com.tapdata.processor.util.Util\")\n");
-		//buildInMethod.append("global MD5Util = Java.type(\"com.tapdata.constant.MD5Util\")\n");
-		//buildInMethod.append("def MD5(str):\n\treturn MD5Util.crypt(str, true)\n");
-		//buildInMethod.append("global Collections = Java.type(\"java.util.Collections\")\n");
-		//buildInMethod.append("global MapUtils = Java.type(\"com.tapdata.constant.MapUtil\")\n");
-		//buildInMethod.append("def sleep(ms):\n\tJava.type(\"java.lang.Thread\").sleep(ms)\n\n");
-		//buildInMethod.append("global networkUtil = Java.type(\"com.tapdata.constant.NetworkUtil\")\n");
-		//buildInMethod.append("global rest = Java.type(\"com.tapdata.processor.util.CustomRest\")\n");
-		//buildInMethod.append("global httpUtil = Java.type(\"cn.hutool.http.HttpUtil\")\n");
-		//buildInMethod.append("global tcp = Java.type(\"com.tapdata.processor.util.CustomTcp\")\n");
-		//buildInMethod.append("global mongo = Java.type(\"com.tapdata.processor.util.CustomMongodb\")\n");
-		//@todo initPythonBuildInMethod and add python function from mongo db
-		//if (CollectionUtils.isNotEmpty(javaScriptFunctions)) {
-		//	List<URL> urlList = new ArrayList<>();
-		//	for (JavaScriptFunctions javaScriptFunction : javaScriptFunctions) {
-		//		if (javaScriptFunction.isSystem()) {
-		//			continue;
-		//		}
-		//		String jsFunction = javaScriptFunction.getJSFunction();
-		//		if (StringUtils.isNotBlank(jsFunction)) {
-		//			buildInMethod.append(jsFunction).append("\n");
-		//			if (javaScriptFunction.isJar() && AppType.init().isDaas()) {
-		//				//定义类加载器
-		//				String fileId = javaScriptFunction.getFileId();
-		//				final Path filePath = Paths.get(System.getenv("TAPDATA_WORK_DIR"), "lib", fileId);
-		//				if (Files.notExists(filePath)) {
-		//					if (clientMongoOperator instanceof HttpClientMongoOperator) {
-		//						File file = ((HttpClientMongoOperator) clientMongoOperator).downloadFile(null, "file/" + fileId, filePath.toString(), true);
-		//						if (null == file) {
-		//							throw new RuntimeException("not found");
-		//						}
-		//					} else {
-		//						GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
-		//						try (GridFSDownloadStream gridFSDownloadStream = gridFSBucket.openDownloadStream(new ObjectId(javaScriptFunction.getFileId()))) {
-		//							if (Files.notExists(filePath.getParent())) {
-		//								Files.createDirectories(filePath.getParent());
-		//							}
-		//							Files.createFile(filePath);
-		//							Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
-		//						} catch (Exception e) {
-		//							throw new RuntimeException(String.format("create function jar file '%s' error: %s", filePath, e.getMessage()), e);
-		//						}
-		//					}
-		//				}
-		//				try {
-		//					URL url = filePath.toUri().toURL();
-		//					urlList.add(url);
-		//				} catch (Exception e) {
-		//					throw new RuntimeException(String.format("create function jar file '%s' error: %s", filePath, e.getMessage()), e);
-		//				}
-		//			}
-		//		}
-		//	}
-		//	if (CollectionUtils.isNotEmpty(urlList)) {
-		//		logger.debug("urlClassLoader will load: {}", urlList);
-		//		final URLClassLoader urlClassLoader = new URLClassLoader(urlList.toArray(new URL[0]), Thread.currentThread().getContextClassLoader());
-		//		if (consumer != null) {
-		//			consumer.accept(urlClassLoader);
-		//		}
-		//	}
-		//}
 		URL[] urls = new URL[1];
 		urls[0] = loader.getResource("BOOT-INF/lib/jython-standalone-2.7.3.jar");
 		if (null == urls[0]) {
@@ -742,7 +671,7 @@ public class ScriptUtil {
 				consumer.accept(urlClassLoader);
 			}
 		}catch (IOException e){
-			throw new CoreException(String.format("Init python build in method failed: %s", e.getMessage()));
+			throw new TapCodeException(ScriptProcessorExCode_30.INIT_PYTHON_METHOD_ERROR,String.format("Init python build in method failed: %s", e.getMessage()),e);
 		}
 		return  "import com.tapdata.constant.DateUtil as DateUtil\n" +
 				"import com.tapdata.constant.UUIDGenerator as UUIDGenerator\n" +
@@ -779,14 +708,9 @@ public class ScriptUtil {
 			throw new CoreException("Python process function is non compliant, error script: " + script);
 		}
 
-		String scriptItem = split[split.length-1];//script.substring(script.indexOf("def process(record, context):") + 29);
+		String scriptItem = split[split.length-1];
 		char[] chars = scriptItem.toCharArray();
 		StringBuilder builder = new StringBuilder();
-//		if (split.length > 1){
-//			for (int index = 0; index < split.length - 1; index++) {
-//				builder.append(split[index]);
-//			}
-//		}
 		for (char aChar : chars) {
 			builder.append(aChar);
 			if (aChar == '\n') {
@@ -808,8 +732,8 @@ public class ScriptUtil {
 		try {
 			ClassPathResource classPathResource = new ClassPathResource(fileClassPath);
 			engine.eval(IOUtils.toString(classPathResource.getInputStream(), StandardCharsets.UTF_8));
-		}catch (Throwable ex){
-			throw new RuntimeException(String.format("script eval js util error: %s, %s", fileClassPath, ex.getMessage()), ex);
+		}catch (Exception ex){
+			throw new TapCodeException(ScriptProcessorExCode_30.EVAL_SOURCE_ERROR,String.format("script eval js util error: %s, %s", fileClassPath, ex.getMessage()), ex);
 		}
 	}
 
@@ -825,41 +749,9 @@ public class ScriptUtil {
 
 
 	public static void main(String[] args) throws ScriptException, NoSuchMethodException, JsonProcessingException {
-//		String script = initBuildInMethod(null, null);
 		Pattern p = Pattern.compile("(def\\s+)(.*)(\\()(.*)(\\))(\\s*)(:)");
 		Matcher m = p.matcher("def declare(tapTable):\n\treturn tapTable");
 		System.out.println(m.find());
 		System.out.println(p.matcher("dsef process(record, context):\n\treturn record").find());
-//		script += "function process(record){\n" +
-//			"var cDate = DateUtil.toCalendar(Date.from(record.instant));\n" +
-//			"record.year = cDate.get(1)\n" +
-//			"record.month = cDate.get(2) + 1;\n" +
-//			"record.day = cDate.get(5);\n" +
-//			"record.undefined = record.undefined.toString();" +
-//			"record.keys = {};" +
-//			"for(var key in record){record.keys[key] = key}\n" +
-//			"return record;\n" +
-//			"\n}";
-
-//		script += "function process(record){\n" +
-//				"    return record;\n" +
-//				"}";
-
-//    String s = JSONUtil.obj2Json(new HashMap() {{
-//      put("a", 1);
-//      put("instant", Instant.now());
-//      put("undefined", new BsonUndefined());
-//    }});
-//
-//    System.out.println(s);
-
-//		Invocable scriptEngine = getScriptEngine(JSEngineEnum.NASHORN.getEngineName(), script, null, null, null, null, null, logger);
-//		Object a = scriptEngine.invokeFunction(FUNCTION_NAME, new HashMap() {{
-//			put("a", 1);
-//			put("instant", Instant.now());
-//			put("undefined", new BsonUndefined());
-//		}});
-//
-//		System.out.println(a);
 	}
 }

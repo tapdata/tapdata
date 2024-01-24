@@ -181,12 +181,12 @@ public class HazelcastUtil {
 			// write keystore, truststore file to local
 			String keystorePath = keystoreDir.getAbsolutePath() + File.separator + keyFilename + KEYSTORE_SUFFIX;
 			keystoreFile = new File(keystorePath);
-			FileUtil.createAndOverwriteFile(keystoreFile, Base64.getDecoder().decode(sslKey), StandardCharsets.US_ASCII);
+			//FileUtil.createAndOverwriteFile(keystoreFile, Base64.getDecoder().decode(sslKey), StandardCharsets.US_ASCII);
 			logger.info("Create and write keystore to local file: " + keystoreFile.getAbsolutePath());
 
 			String truststorePath = keystoreDir.getAbsolutePath() + File.separator + keyFilename + TRUSTSTORE_SUFFIX;
 			truststoreFile = new File(truststorePath);
-			FileUtil.createAndOverwriteFile(truststoreFile, Base64.getDecoder().decode(sslCA), StandardCharsets.US_ASCII);
+			//FileUtil.createAndOverwriteFile(truststoreFile, Base64.getDecoder().decode(sslCA), StandardCharsets.US_ASCII);
 			logger.info("Create and write truststore to local file: " + truststoreFile.getAbsolutePath());
 
 			Properties props = new Properties();
