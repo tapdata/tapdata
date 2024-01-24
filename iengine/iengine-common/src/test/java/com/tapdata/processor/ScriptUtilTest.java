@@ -8,9 +8,11 @@ import com.tapdata.entity.MessageEntity;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.sdk.util.AppType;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.exception.TapCodeException;
 import org.apache.logging.log4j.core.Logger;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.runner.RunWith;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -23,6 +25,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 
@@ -40,10 +43,10 @@ public class ScriptUtilTest {
 
     }
     @Test
-    public void testInvokeScript() throws Exception {
-        Object result = ScriptUtil.invokeScript(null,"functionName", mock(MessageEntity.class)
-                , mock(Connections.class), mock(Connections.class), mock(Job.class),new HashMap<>(), mock(Logger.class));
-        Assert.assertNull(result);
+    public void testInvokeScript()  {
+        Map<String,Object> input = new HashMap<>();
+        Assertions.assertThrows(TapCodeException.class,()-> ScriptUtil.invokeScript(null,"functionName", mock(MessageEntity.class)
+                , mock(Connections.class), mock(Connections.class), mock(Job.class),input, mock(Logger.class)));
     }
     @Test
     public void testUrlClassLoader(){
