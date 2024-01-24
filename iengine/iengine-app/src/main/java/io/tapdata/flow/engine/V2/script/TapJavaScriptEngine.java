@@ -11,6 +11,7 @@ import com.tapdata.processor.LoggingOutputStream;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
 import io.tapdata.Application;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
@@ -126,7 +127,7 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 		try {
 			return callable.call();
 		} catch (Exception e) {
-			throw new RuntimeException(e);
+			throw new CoreException(String.format("Apply classloader context failed : %s", e.getMessage()));
 		} finally {
 			Thread.currentThread().setContextClassLoader(classLoader);
 		}

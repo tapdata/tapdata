@@ -196,7 +196,7 @@ public class ScriptUtil {
 
 			return (Invocable) e;
 		} catch (IOException e) {
-			throw new RuntimeException(e);
+			throw new CoreException(String.format("Failed to get script engine: %s", e.getMessage()));
 		} finally {
 			Thread.currentThread().setContextClassLoader(contextClassLoader);
 		}
@@ -410,7 +410,7 @@ public class ScriptUtil {
 				consumer.accept(urlClassLoader);
 			}
 		}catch (IOException e){
-			throw new RuntimeException(e);
+			throw new CoreException(String.format("Url class loader failed: %s", e.getMessage()));
 		}
 	}
 
@@ -742,7 +742,7 @@ public class ScriptUtil {
 				consumer.accept(urlClassLoader);
 			}
 		}catch (IOException e){
-			throw new RuntimeException(e);
+			throw new CoreException(String.format("Init python build in method failed: %s", e.getMessage()));
 		}
 		return  "import com.tapdata.constant.DateUtil as DateUtil\n" +
 				"import com.tapdata.constant.UUIDGenerator as UUIDGenerator\n" +
