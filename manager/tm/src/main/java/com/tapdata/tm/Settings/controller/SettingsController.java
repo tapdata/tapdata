@@ -47,7 +47,7 @@ public class SettingsController extends BaseController {
             filter = new Filter();
         }
         List<SettingsDto> settingList = new ArrayList<>();
-        if(!settingsService.isCloud() || isAgentReq()){
+        if(!settingsService.isCloud()){
             settingList = settingsService.findALl(decode, filter);
         }
         return success(settingList);
