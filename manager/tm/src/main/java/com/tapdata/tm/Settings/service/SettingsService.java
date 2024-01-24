@@ -178,9 +178,12 @@ public class SettingsService {
             Settings settings = mongoTemplate.findOne(Query.query(Criteria.where("id").is(id)), Settings.class);
             settingsList.add(settings);
         } else {
-            settingsList = settingsRepository.findAll();
+            if(isCloud()){
+                settingsList = findAll(Query.query(Criteria.where("key").in("buildProfile","threshold","logLevel","job_cdc_record")));
+            }else {
+                settingsList = settingsRepository.findAll();
+            }
         }
-
         if ("1".equals(decode)) {
             //todo 解密方法
             //settingsList.stream().filter(settings -> {
