@@ -62,6 +62,8 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	private final Map<String, Object> customCommand;
 
 	private final  ExecuteCommandFunction executeCommandFunction;
+
+	public static String PARAMS = "params";
 	public PdkResult(List<String> sortColumns, Connections connections, String tableName, Set<String> columns, ConnectorNode connectorNode, boolean fullMatch, List<String> dataKeys, List<List<Object>> diffKeyValues, List<QueryOperator> conditions,
 					 boolean enableCustomCommand,Map<String, Object> customCommand) {
 		super(sortColumns, connections, tableName);
@@ -158,7 +160,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 			if(enableCustomCommand && MapUtil.isNotEmpty(customCommand) && executeCommandFunction !=null){
 				Map<String, Object> customCountCommand = TableRowCountInspectJob.setCommandCountParam(customCommand,connectorNode,tapTable);
 				TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
-						.command((String) customCountCommand.get("command")).params((Map<String, Object>) customCountCommand.get("params"));
+						.command((String) customCountCommand.get("command")).params((Map<String, Object>) customCountCommand.get(PARAMS));
 				List<Map<String, Object>> maps = TableRowCountInspectJob.executeCommand(executeCommandFunction,tapExecuteCommand,connectorNode);
 				if (CollectionUtils.isNotEmpty(maps)) {
 					total = maps.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
@@ -187,7 +189,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	public static void setCommandQueryParam(Map<String, Object> customCommand, ConnectorNode connectorNode, TapTable table,
 											List<SortOn> sortOnList, Projection projection) {
 		try {
-			Map<String, Object> params = (Map<String, Object>) customCommand.get("params");
+			Map<String, Object> params = (Map<String, Object>) customCommand.get(PARAMS);
 			if (!connectorNode.getTapNodeInfo().getTapNodeSpecification().getId().contains("mongodb")) {
 				Object value = params.get("sql");
 				if (value != null) {
@@ -316,7 +318,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 						if (enableCustomCommand && MapUtil.isNotEmpty(customCommand) && CollectionUtils.isEmpty(diffKeyValues)) {
 							setCommandQueryParam(customCommand,connectorNode,tapTable,sortOnList,projection);
 							TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
-									.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params"));
+									.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get(PARAMS));
 							executeQueryCommand(tapExecuteCommand);
 						}else {
 							PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,

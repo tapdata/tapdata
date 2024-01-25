@@ -67,9 +67,10 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 		ScriptEngine scriptEngine;
 		ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
 
-		LoggingOutputStream out = new LoggingOutputStream(log, Level.INFO);
-		LoggingOutputStream err = new LoggingOutputStream(log, Level.ERROR);
-		try {
+
+		try(LoggingOutputStream out = new LoggingOutputStream(log, Level.INFO);
+			LoggingOutputStream err = new LoggingOutputStream(log, Level.ERROR)) {
+
 			//need to change as engine classLoader
 			Thread.currentThread().setContextClassLoader(Application.class.getClassLoader());
 			if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
@@ -98,6 +99,8 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 			} else {
 				scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
 			}
+		} catch (IOException e) {
+			throw new RuntimeException("LoggingOutputStream failed:" + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 		} finally {
 			//return pdk classLoader
 			Thread.currentThread().setContextClassLoader(classLoader);
