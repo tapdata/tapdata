@@ -51,7 +51,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	private final AtomicBoolean running;
 	private final TapCodecsFilterManager codecsFilterManager;
 	private final TapCodecsFilterManager defaultCodecsFilterManager;
-	private final Projection projection;
+	private     Projection projection;
 	private int diffKeyIndex;
 	private final List<String> dataKeys;
 	private final List<List<Object>> diffKeyValues;
@@ -63,7 +63,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 
 	private final  ExecuteCommandFunction executeCommandFunction;
 
-	public static String PARAMS = "params";
+	public static final String PARAMS = "params";
 	public PdkResult(List<String> sortColumns, Connections connections, String tableName, Set<String> columns, ConnectorNode connectorNode, boolean fullMatch, List<String> dataKeys, List<List<Object>> diffKeyValues, List<QueryOperator> conditions,
 					 boolean enableCustomCommand,Map<String, Object> customCommand) {
 		super(sortColumns, connections, tableName);
@@ -75,6 +75,41 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 		}
 		this.executeCommandFunction = connectorNode.getConnectorFunctions().getExecuteCommandFunction();
 		this.queryByAdvanceFilterFunction = connectorNode.getConnectorFunctions().getQueryByAdvanceFilterFunction();
+
+		supportFunction();
+
+		this.tapTable = connectorNode.getConnectorContext().getTableMap().get(tableName);
+		if (null == tapTable) {
+			throw new RuntimeException("Table '" + connections.getName() + "'.'" + tableName + "' not exists.");
+		}
+		this.hasNext = new AtomicBoolean(true);
+		this.running = new AtomicBoolean(true);
+		this.codecsFilterManager = connectorNode.getCodecsFilterManager();
+		this.defaultCodecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+		assignProjection(fullMatch,sortColumns,columns);
+		this.dataKeys = dataKeys;
+		this.diffKeyValues = diffKeyValues;
+		this.conditions = conditions;
+
+		if (null != diffKeyValues && !diffKeyValues.isEmpty()) {
+			Map<String, Object> keyMap;
+			for (List<Object> keyValues : diffKeyValues) {
+				if (dataKeys.size() != keyValues.size()) {
+					throw new RuntimeException(String.format("The key name size and value size not equals, keys: %s, values: %s", dataKeys, keyValues));
+				}
+
+				keyMap = new LinkedHashMap<>();
+
+				handleDataKeys(keyMap,keyValues);
+
+				keyValues.clear();
+				keyValues.addAll(keyMap.values());
+			}
+		}
+		initTotal();
+	}
+
+	private void supportFunction(){
 		if(enableCustomCommand && MapUtil.isNotEmpty(customCommand)){
 			if (null == executeCommandFunction) {
 				throw new RuntimeException("Connector does not support customCommand function: " + connectorNode.getConnectorContext().getSpecification().getId());
@@ -84,14 +119,9 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 				throw new RuntimeException("Connector does not support query by filter function: " + connectorNode.getConnectorContext().getSpecification().getId());
 			}
 		}
-		this.tapTable = connectorNode.getConnectorContext().getTableMap().get(tableName);
-		if (null == tapTable) {
-			throw new RuntimeException("Table '" + connections.getName() + "'.'" + tableName + "' not exists.");
-		}
-		this.hasNext = new AtomicBoolean(true);
-		this.running = new AtomicBoolean(true);
-		this.codecsFilterManager = connectorNode.getCodecsFilterManager();
-		this.defaultCodecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+	}
+
+	private void assignProjection(boolean fullMatch, List<String> sortColumns, Set<String> columns) {
 		if (!fullMatch) {
 			projection = new Projection();
 			sortColumns.forEach(projection::include);
@@ -104,44 +134,31 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 		} else {
 			projection = null;
 		}
-		this.dataKeys = dataKeys;
-		this.diffKeyValues = diffKeyValues;
-		this.conditions = conditions;
 
-		if (null != diffKeyValues && !diffKeyValues.isEmpty()) {
-			Map<String, Object> keyMap;
-			for (List<Object> keyValues : diffKeyValues) {
-				if (dataKeys.size() != keyValues.size()) {
-					throw new RuntimeException(String.format("The key name size and value size not equals, keys: %s, values: %s", dataKeys, keyValues));
-				}
+	}
 
-				int i = 0;
-				keyMap = new LinkedHashMap<>();
-				for (String s : dataKeys) {
-					keyMap.put(s, keyValues.get(i++));
+	private void handleDataKeys(Map<String, Object> keyMap,List<Object> keyValues){
+		int i =0;
+		for (String s : dataKeys) {
+			keyMap.put(s, keyValues.get(i++));
 
-					TapField tapField = tapTable.getNameFieldMap().get(s);
-					if (null != tapField.getDataType()) {
-						switch (tapField.getDataType()) {
-							case "OBJECT_ID":
-								try {
-									Class<?> clz = connectorNode.getConnectorClassLoader().loadClass("org.bson.types.ObjectId");
-									Constructor<?> constructor = clz.getConstructor(String.class);
-									keyMap.put(s, constructor.newInstance(keyMap.get(s)));
-								} catch (Exception e) {
-									logger.warn("Convert filed '{}' value '{}' failed: {}", s, keyMap.get(s), e.getMessage());
-								}
-								break;
-							default:
-								break;
+			TapField tapField = tapTable.getNameFieldMap().get(s);
+			if (null != tapField.getDataType()) {
+				switch (tapField.getDataType()) {
+					case "OBJECT_ID":
+						try {
+							Class<?> clz = connectorNode.getConnectorClassLoader().loadClass("org.bson.types.ObjectId");
+							Constructor<?> constructor = clz.getConstructor(String.class);
+							keyMap.put(s, constructor.newInstance(keyMap.get(s)));
+						} catch (Exception e) {
+							logger.warn("Convert filed '{}' value '{}' failed: {}", s, keyMap.get(s), e.getMessage());
 						}
-					}
+						break;
+					default:
+						break;
 				}
-				keyValues.clear();
-				keyValues.addAll(keyMap.values());
 			}
 		}
-		initTotal();
 	}
 
 	private void initTotal() {
@@ -151,22 +168,12 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 			CountByPartitionFilterFunction countByPartitionFilterFunction = connectorFunctions.getCountByPartitionFilterFunction();
 			ExecuteCommandFunction executeCommandFunction = connectorFunctions.getExecuteCommandFunction();
 
-			if ((null == batchCountFunction && null == countByPartitionFilterFunction && executeCommandFunction ==null)
-					|| (CollectionUtils.isNotEmpty(conditions) && null == countByPartitionFilterFunction)
-			        || (enableCustomCommand && MapUtil.isNotEmpty(customCommand) && executeCommandFunction ==null)) {
+			if (judgeExistFunction(batchCountFunction,countByPartitionFilterFunction,executeCommandFunction)) {
 				total = 0L;
 				return;
 			}
 			if(enableCustomCommand && MapUtil.isNotEmpty(customCommand) && executeCommandFunction !=null){
-				Map<String, Object> customCountCommand = TableRowCountInspectJob.setCommandCountParam(customCommand,connectorNode,tapTable);
-				TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
-						.command((String) customCountCommand.get("command")).params((Map<String, Object>) customCountCommand.get(PARAMS));
-				List<Map<String, Object>> maps = TableRowCountInspectJob.executeCommand(executeCommandFunction,tapExecuteCommand,connectorNode);
-				if (CollectionUtils.isNotEmpty(maps)) {
-					total = maps.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
-				}else {
-					total =0L;
-				}
+				customCommandCount();
 			}else if (null != countByPartitionFilterFunction) {
 				TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
 				tapAdvanceFilter.setOperators(conditions);
@@ -184,6 +191,29 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 		} else {
 			total = diffKeyValues.size();
 		}
+	}
+
+	private void customCommandCount(){
+		Map<String, Object> customCountCommand = TableRowCountInspectJob.setCommandCountParam(customCommand,connectorNode,tapTable);
+		TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
+				.command((String) customCountCommand.get("command")).params((Map<String, Object>) customCountCommand.get(PARAMS));
+		List<Map<String, Object>> maps = TableRowCountInspectJob.executeCommand(executeCommandFunction,tapExecuteCommand,connectorNode);
+		if (CollectionUtils.isNotEmpty(maps)) {
+			total = maps.get(0).values().stream().mapToLong(value -> Long.parseLong(value.toString())).sum();
+		}else {
+			total =0L;
+		}
+	}
+	private boolean judgeExistFunction(BatchCountFunction batchCountFunction,
+									   CountByPartitionFilterFunction countByPartitionFilterFunction,
+									   ExecuteCommandFunction executeCommandFunction) {
+		if ((null == batchCountFunction && null == countByPartitionFilterFunction && executeCommandFunction == null)
+				|| (CollectionUtils.isNotEmpty(conditions) && null == countByPartitionFilterFunction)
+				|| (enableCustomCommand && MapUtil.isNotEmpty(customCommand) && executeCommandFunction == null)) {
+			return true;
+		}
+		return false;
+
 	}
 
 	public static void setCommandQueryParam(Map<String, Object> customCommand, ConnectorNode connectorNode, TapTable table,
@@ -321,26 +351,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 									.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get(PARAMS));
 							executeQueryCommand(tapExecuteCommand);
 						}else {
-							PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-									() -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
-										Throwable error = filterResults.getError();
-										if (null != error) throwable = error;
-
-										List<Map<String, Object>> results = filterResults.getResults();
-										if (CollectionUtils.isEmpty(results)) return;
-										for (Map<String, Object> result : results) {
-											if (!isRunning()) break;
-											while (isRunning()) {
-												try {
-													if (queue.offer(result, 100L, TimeUnit.MILLISECONDS)) {
-														break;
-													}
-												} catch (InterruptedException e) {
-													return;
-												}
-											}
-										}
-									}), TAG);
+							tapAdvanceFilter(tapAdvanceFilter);
 						}
 						if (null == diffKeyValues || diffKeyIndex >= diffKeyValues.size()) {
 							hasNext.set(false);
@@ -358,6 +369,21 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 		}
 	}
 
+	public void tapAdvanceFilter(TapAdvanceFilter tapAdvanceFilter){
+		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
+				() -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
+					Throwable error = filterResults.getError();
+					if (null != error) throwable = error;
+
+					List<Map<String, Object>> results = filterResults.getResults();
+					if (CollectionUtils.isEmpty(results)) return;
+
+					handleQueryData(results);
+				}), TAG);
+
+
+	}
+
 	public void executeQueryCommand(TapExecuteCommand tapExecuteCommand) {
 		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
 				() -> executeCommandFunction.execute(connectorNode.getConnectorContext(), tapExecuteCommand, executeResult -> {
@@ -369,19 +395,23 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 					if (CollectionUtils.isEmpty(results)) {
 						return;
 					}
-					for (Map<String, Object> result : results) {
-						if (!isRunning()) break;
-						while (isRunning()) {
-							try {
-								if (queue.offer(result, 100L, TimeUnit.MILLISECONDS)) {
-									break;
-								}
-							} catch (InterruptedException e) {
-								return;
-							}
-						}
-					}
+					handleQueryData(results);
 				}), TAG);
+	}
+
+    private void handleQueryData(List<Map<String, Object>> results){
+		for (Map<String, Object> result : results) {
+			if (!isRunning()) break;
+			while (isRunning()) {
+				try {
+					if (queue.offer(result, 100L, TimeUnit.MILLISECONDS)) {
+						break;
+					}
+				} catch (InterruptedException e) {
+					return;
+				}
+			}
+		}
 	}
 
 
