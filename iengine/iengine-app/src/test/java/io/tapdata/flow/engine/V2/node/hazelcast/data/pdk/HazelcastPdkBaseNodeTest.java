@@ -214,7 +214,7 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				when(tapCodecsFilterManager.transformFromTapValueMap(data, fields, skipDetector)).thenReturn(null);
 				when(tapCodecsFilterManager.transformFromTapValueMap(null, fields, skipDetector)).thenReturn(null);
 				doCallRealMethod().when(hazelcastPdkBaseNode).fromTapValue(data, tapCodecsFilterManager, targetTableName);
-				doCallRealMethod().when(hazelcastPdkBaseNode).fromTapValue(data, tapCodecsFilterManager, null);
+				doCallRealMethod().when(hazelcastPdkBaseNode).fromTapValue(data, tapCodecsFilterManager, "");
 				doCallRealMethod().when(hazelcastPdkBaseNode).fromTapValue(data, null, targetTableName);
 				doCallRealMethod().when(hazelcastPdkBaseNode).fromTapValue(null, tapCodecsFilterManager, targetTableName);
 			}
