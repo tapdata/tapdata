@@ -1060,7 +1060,7 @@ public class LogCollectorService {
             taskSaveService.supplementAlarm(taskDto, user);
             taskDto = taskService.create(taskDto, user);
             taskDto = taskService.confirmById(taskDto, user, true);
-			shareCdcTableMappingService.genShareCdcTableMappingsByLogCollectorTask(taskDto, true);
+			shareCdcTableMappingService.genShareCdcTableMappingsByLogCollectorTask(taskDto, true,user);
 
             //保存新增挖掘任务id到子任务中
             for (String id : ids) {
@@ -1132,7 +1132,7 @@ public class LogCollectorService {
         if (logCollectorNode.getLogCollectorConnConfigs() == null || logCollectorNode.getLogCollectorConnConfigs().size() != 0) {
             logCollectorNode.setTableNames(new ArrayList<>(finalTableNames));
         }
-		shareCdcTableMappingService.genShareCdcTableMappingsByLogCollectorTask(oldLogCollectorTask, false);
+		shareCdcTableMappingService.genShareCdcTableMappingsByLogCollectorTask(oldLogCollectorTask, false, user);
         taskService.updateById(oldLogCollectorTask, user);
         updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
 
@@ -1211,7 +1211,7 @@ public class LogCollectorService {
 					exclusionTables.removeIf(collect::contains);
 				}
 				logCollectorNode.setTableNames(collect);
-                shareCdcTableMappingService.genShareCdcTableMappingsByLogCollectorTask(oldLogCollectorTask, false);
+                shareCdcTableMappingService.genShareCdcTableMappingsByLogCollectorTask(oldLogCollectorTask, false,user);
         taskService.updateById(oldLogCollectorTask, user);
         updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
 

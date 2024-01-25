@@ -28,7 +28,12 @@ public enum MsgTypeEnum {
 
     STOPPED_BY_ERROR("stoppedByError"),
 
-    ALARM("alarm");
+    ALARM("alarm"),
+    // 已经过期
+    EXPIRED("expired"),
+    // 即将过期
+    EXPIRING("expiring"),
+    ;
 
 
     private final String value;

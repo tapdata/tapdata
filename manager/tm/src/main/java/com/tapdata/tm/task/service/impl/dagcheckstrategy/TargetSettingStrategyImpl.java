@@ -222,7 +222,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             }
         } else if (node instanceof TableNode) {
             Map<String, Object> nodeConfig = ((TableNode) node).getNodeConfig();
-            if (nodeConfig.containsKey(FINAL_SYNC_INDEX) && (Boolean) nodeConfig.get(FINAL_SYNC_INDEX)) {
+            if (null != nodeConfig && nodeConfig.containsKey(FINAL_SYNC_INDEX) && (Boolean) nodeConfig.get(FINAL_SYNC_INDEX)) {
                 TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SYNCINDEX"), name);
                 result.add(log);
             }

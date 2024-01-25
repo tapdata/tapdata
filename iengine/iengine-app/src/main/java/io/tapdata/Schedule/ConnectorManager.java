@@ -327,13 +327,20 @@ public class ConnectorManager {
 		stopJobThreadPool = new ThreadPoolExecutor(0, Integer.MAX_VALUE,
 				0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
 
-		SchemaProxy.schemaProxy = schemaProxy;
+		setSchemaProxy(schemaProxy);
 
-		ConnectorConstant.clientMongoOperator = clientMongoOperator;
+		setClientMongoOperator(clientMongoOperator);
 
 		GlobalConstant.getInstance().configurationCenter(configCenter);
 	}
 
+	private static void setSchemaProxy(SchemaProxy schemaProxy) {
+		SchemaProxy.schemaProxy = schemaProxy;
+	}
+
+	private static void setClientMongoOperator(ClientMongoOperator clientMongoOperator) {
+		ConnectorConstant.clientMongoOperator = clientMongoOperator;
+	}
 	protected CheckEngineValidResultDto checkLicenseEngineLimit() {
 		CheckEngineValidResultDto resultDto = null;
 		if (!appType.isCloud()) {
@@ -1773,7 +1780,7 @@ public class ConnectorManager {
 			}
 		}
 		this.instanceNo = processId;
-		ConfigurationCenter.processId = processId;
+		setProcessId(processId);
 
 		this.jobTags = CommonUtils.getenv("jobTags");
 		if (appType.isDrs() && StringUtils.isNotBlank(jobTags)) {
@@ -1795,6 +1802,9 @@ public class ConnectorManager {
 		);
 	}
 
+	private static void setProcessId(String processId) {
+		ConfigurationCenter.processId = processId;
+	}
 
 	public String getInstanceNo() {
 		return instanceNo;

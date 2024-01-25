@@ -231,7 +231,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 	protected void checkDDL(Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, String name, DataParentNode dataParentNode) {
 		Boolean enableDDL = dataParentNode.getEnableDDL();
 		String nodeId = dataParentNode.getId();
-		if (enableDDL) {
+		if (Boolean.TRUE.equals(enableDDL)) {
 			dataParentNode.getDag().getTargets().forEach(target -> {
 				if (target instanceof DataParentNode) {
 					DataParentNode dataParentTargetNode = (DataParentNode) target;

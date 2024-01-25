@@ -121,7 +121,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					Query query = new Query(rescheduleCriteria);
 					query.fields().include("id").include("status");
 					final List<TaskDto> subTaskDtos = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
-					if (CollectionUtil.isNotEmpty(subTaskDtos)) {
+					if (CollectionUtils.isNotEmpty(subTaskDtos)) {
 						internalStopTaskClientMap.put(taskId, subTaskDtoTaskClient);
 						removeTask(taskId);
 					} else {
@@ -564,7 +564,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		Query query = new Query(timeoutCriteria);
 		query.fields().include("id").include("status");
 		final List<TaskDto> subTaskDtos = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
-		return CollectionUtil.isNotEmpty(subTaskDtos) ? subTaskDtos.get(0) : null;
+		return CollectionUtils.isNotEmpty(subTaskDtos) ? subTaskDtos.get(0) : null;
 	}
 
 	public boolean stopTaskCallAssignApi(TaskClient<TaskDto> taskClient, StopTaskResource stopTaskResource) {

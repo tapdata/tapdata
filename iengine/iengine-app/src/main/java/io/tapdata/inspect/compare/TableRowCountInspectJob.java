@@ -1,6 +1,7 @@
 package io.tapdata.inspect.compare;
 
 import cn.hutool.core.map.MapUtil;
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.tapdata.constant.ConnectorConstant;
@@ -50,6 +51,13 @@ public class TableRowCountInspectJob extends InspectJob {
 		super(inspectTaskContext);
 	}
 
+	public static String COUNT = "count";
+
+	public static String COMMAND = "command";
+
+	public static String PARAMS = "params";
+
+
 	@Override
 	protected void doRun() {
 		try {
@@ -78,7 +86,7 @@ public class TableRowCountInspectJob extends InspectJob {
 						}
 						Map<String, Object> customCountCommand = setCommandCountParam(inspectTask.getSource().getCustomCommand(),this.sourceNode,srcTable);
 						TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
-								.command((String) customCountCommand.get("command")).params((Map<String, Object>) customCountCommand.get("params"));
+								.command((String) customCountCommand.get(COMMAND)).params((Map<String, Object>) customCountCommand.get(PARAMS));
 						List<Map<String, Object>> maps = executeCommand(executeCommandFunction, tapExecuteCommand,this.sourceNode);
 						long count = 0l;
 						if (CollectionUtils.isNotEmpty(maps)) {
@@ -116,7 +124,7 @@ public class TableRowCountInspectJob extends InspectJob {
 						}
 						Map<String, Object> customCountCommand = setCommandCountParam(inspectTask.getTarget().getCustomCommand(), this.targetNode, tgtTable);
 						TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
-								.command((String) customCountCommand.get("command")).params((Map<String, Object>) customCountCommand.get("params"));
+								.command((String) customCountCommand.get(COMMAND)).params((Map<String, Object>) customCountCommand.get(PARAMS));
 						List<Map<String, Object>> maps = executeCommand(executeCommandFunction, tapExecuteCommand,this.targetNode);
 						long count = 0l;
 						if (CollectionUtils.isNotEmpty(maps)) {
@@ -216,7 +224,7 @@ public class TableRowCountInspectJob extends InspectJob {
 						if (executeResult.getResult() instanceof Long) {
 							List<Map<String, Object>> countList = new ArrayList<>();
 							Map<String, Object> map = new LinkedHashMap<>();
-							map.put("count",executeResult.getResult());
+							map.put(COUNT,executeResult.getResult());
 							countList.add(map);
 							maps.set(countList);
 						} else{
@@ -233,7 +241,7 @@ public class TableRowCountInspectJob extends InspectJob {
 		Map<String, Object> copyCustomCommand = new LinkedHashMap<>();
 		try {
 			com.tapdata.constant.MapUtil.copyToNewMap(customCommand, copyCustomCommand);
-			Map<String, Object> params = (Map<String, Object>) copyCustomCommand.get("params");
+			Map<String, Object> params = (Map<String, Object>) copyCustomCommand.get(PARAMS);
 			if (!node.getTapNodeInfo().getTapNodeSpecification().getId().contains("mongodb")) {
 				Object value = params.get("sql");
 				if (value != null) {
@@ -241,14 +249,14 @@ public class TableRowCountInspectJob extends InspectJob {
 					params.put("sql", sql);
 				}
 			} else {
-				if ("aggregate".equals(customCommand.get("command"))) {
-					JSONArray jsonArray = (JSONArray) JSONArray.parse(params.get("pipeline").toString());
+				if ("aggregate".equals(customCommand.get(COMMAND))) {
+					JSONArray jsonArray = (JSONArray) JSON.parse(params.get("pipeline").toString());
 					JSONObject jsonObject = new JSONObject();
-					jsonObject.put("$count", "count");
+					jsonObject.put("$count", COUNT);
 					jsonArray.add(jsonObject);
 					params.put("pipeline", jsonArray.toString());
 				} else {
-					copyCustomCommand.put("command", "count");
+					copyCustomCommand.put(COMMAND, COUNT);
 				}
 				params.put("collection", tgtTable.getId());
 			}

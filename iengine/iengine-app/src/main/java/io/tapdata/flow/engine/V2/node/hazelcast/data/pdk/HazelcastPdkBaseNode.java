@@ -83,6 +83,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	protected Integer readBatchSize;
 	protected Integer increaseReadSize;
 	protected TapRecordSkipDetector skipDetector;
+	private PdkStateMap pdkStateMap;
+
 	protected TapRecordSkipDetector getSkipDetector() {
 		return skipDetector;
 	}
@@ -198,7 +200,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Object> connectionConfig = dataProcessorContext.getConnectionConfig();
 		DatabaseTypeEnum.DatabaseType databaseType = dataProcessorContext.getDatabaseType();
 		PdkTableMap pdkTableMap = new PdkTableMap(dataProcessorContext.getTapTableMap());
-		PdkStateMap pdkStateMap = new PdkStateMap(hazelcastInstance, getNode());
+		pdkStateMap = new PdkStateMap(hazelcastInstance, getNode());
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		Node<?> node = dataProcessorContext.getNode();
 		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
@@ -278,6 +280,13 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		tapCodecsFilterManager.transformFromTapValueMap(data, getTableFiledMap(targetTableName), getSkipDetector());
 	}
 
+	protected void fromTapValue(Map<String, Object> data, TapCodecsFilterManager tapCodecsFilterManager, TapTable tapTable) {
+		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == tapTable) {
+			return;
+		}
+		tapCodecsFilterManager.transformFromTapValueMap(data, tapTable.getNameFieldMap(), getSkipDetector());
+	}
+
 	@Override
 	public void doClose() throws TapCodeException {
 		try {
@@ -295,6 +304,9 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 							PDKInvocationMonitor.stop(getConnectorNode());
 							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
 						});
+				if (null != pdkStateMap) {
+					pdkStateMap.reset();
+				}
 				obsLogger.info("PDK connector node stopped: " + associateId);
 			}, err -> {
 				obsLogger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
