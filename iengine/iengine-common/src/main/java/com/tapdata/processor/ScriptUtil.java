@@ -748,7 +748,7 @@ public class ScriptUtil {
 
 
 
-	public static void main(String[] args) throws ScriptException, NoSuchMethodException, JsonProcessingException, MalformedURLException {
+	public static void main(String[] args) throws ScriptException, NoSuchMethodException, JsonProcessingException {
 		Pattern p = Pattern.compile("(def\\s+)(.*)(\\()(.*)(\\))(\\s*)(:)");
 		Matcher m = p.matcher("def declare(tapTable):\n\treturn tapTable");
 		System.out.println(m.find());
