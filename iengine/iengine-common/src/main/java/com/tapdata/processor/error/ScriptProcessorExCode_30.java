@@ -21,4 +21,8 @@ public interface ScriptProcessorExCode_30 {
     String INIT_BUILD_IN_METHOD_FAILED = "30007";
     @TapExCode
     String EVAL_SOURCE_ERROR = "30008";
+    @TapExCode
+    String INIT_SCRIPT_ENGINE_FAILED = "30009";
+    @TapExCode
+    String APPLY_CLASS_LOADER_CONTEXT_FAILED = "30010";
 }

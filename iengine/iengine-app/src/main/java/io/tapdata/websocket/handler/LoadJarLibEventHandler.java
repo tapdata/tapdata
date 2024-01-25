@@ -18,10 +18,11 @@ import com.tapdata.processor.util.CustomRest;
 import com.tapdata.processor.util.CustomTcp;
 import com.tapdata.processor.util.Util;
 import io.tapdata.common.SettingService;
-import io.tapdata.entity.error.CoreException;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
+import io.tapdata.websocket.error.WebSocketHandlerExCode_32;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -92,7 +93,7 @@ public class LoadJarLibEventHandler implements WebSocketEventHandler<WebSocketEv
 		try {
 			url = filePath.toUri().toURL();
 		}catch (Exception e){
-			throw new CoreException(String.format("FilePath conversion failed: %s", e.getMessage()));
+			throw new TapCodeException(WebSocketHandlerExCode_32.PATH_TO_URL_FAILED,String.format("Failed to convert path to URL: %s", e.getMessage()),e);
 		}
 		try (URLClassLoader classLoader = new URLClassLoader(new URL[]{url});){
 			synchronized (filePath){

@@ -10,10 +10,11 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.processor.LoggingOutputStream;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
+import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import io.tapdata.Application;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.script.ScriptOptions;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.logging.log4j.Level;
@@ -99,7 +100,7 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 				graalJSScriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
 			}
 		} catch (IOException e) {
-			throw new RuntimeException(e);
+			throw new TapCodeException(ScriptProcessorExCode_30.INIT_SCRIPT_ENGINE_FAILED,String.format("Init Script Engine failed : %s", e.getMessage()),e);
 		}finally {
 			//return pdk classLoader
 			Thread.currentThread().setContextClassLoader(classLoader);
@@ -127,7 +128,7 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 		try {
 			return callable.call();
 		} catch (Exception e) {
-			throw new CoreException(String.format("Apply classloader context failed : %s", e.getMessage()));
+			throw new TapCodeException(ScriptProcessorExCode_30.APPLY_CLASS_LOADER_CONTEXT_FAILED,String.format("Apply classloader context failed : %s", e.getMessage()),e);
 		} finally {
 			Thread.currentThread().setContextClassLoader(classLoader);
 		}
