@@ -39,6 +39,8 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
 
     private final String FINAL_SYNC_INDEX="syncIndex";
 
+    private final String FINAL_STRING_DROPTABLE = "dropTable";
+
     private MetadataInstancesService metadataInstancesService;
     private TaskDagCheckLogService taskDagCheckLogService;
 
@@ -212,17 +214,18 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
 
         return result;
     }
+
     protected void checkNodeSyncIndex(Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, Node node, String name) {
         String nodeId = node.getId();
         if(node instanceof DatabaseNode){
             Map<String, Object> nodeConfig = ((DatabaseNode) node).getNodeConfig();
-            if (nodeConfig.containsKey(FINAL_SYNC_INDEX) && (Boolean) nodeConfig.get(FINAL_SYNC_INDEX)) {
+            if (nodeConfig != null && Boolean.TRUE.equals(nodeConfig.get(FINAL_SYNC_INDEX))) {
                 TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SYNCINDEX"), name);
                 result.add(log);
             }
         } else if (node instanceof TableNode) {
             Map<String, Object> nodeConfig = ((TableNode) node).getNodeConfig();
-            if (nodeConfig.containsKey(FINAL_SYNC_INDEX) && (Boolean) nodeConfig.get(FINAL_SYNC_INDEX)) {
+            if (nodeConfig != null && Boolean.TRUE.equals(nodeConfig.get(FINAL_SYNC_INDEX))) {
                 TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SYNCINDEX"), name);
                 result.add(log);
             }
@@ -231,13 +234,13 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
 
     protected void checkNodeExistDataMode(Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, Node node, String name) {
         String nodeId = node.getId();
-        if(node instanceof DatabaseNode){
-            if (((DatabaseNode)node).getExistDataProcessMode().equals("dropTable")){
+        if (node instanceof DatabaseNode) {
+            if (FINAL_STRING_DROPTABLE.equals(((DatabaseNode) node).getExistDataProcessMode())) {
                 TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_EXISTDATAMODE"), name);
                 result.add(log);
             }
-        }else if(node instanceof TableNode){
-            if (((TableNode)node).getExistDataProcessMode().equals("dropTable")){
+        } else if (node instanceof TableNode) {
+            if (FINAL_STRING_DROPTABLE.equals(((TableNode) node).getExistDataProcessMode())) {
                 TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_EXISTDATAMODE"), name);
                 result.add(log);
             }
