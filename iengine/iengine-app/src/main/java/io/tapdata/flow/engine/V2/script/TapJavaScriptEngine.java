@@ -100,7 +100,7 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 				graalJSScriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
 			}
 		} catch (IOException e) {
-			throw new TapCodeException(ScriptProcessorExCode_30.INIT_SCRIPT_ENGINE_FAILED,String.format("Init Script Engine failed : %s", e.getMessage()),e);
+			throw new TapCodeException(ScriptProcessorExCode_30.INIT_SCRIPT_ENGINE_FAILED,e);
 		}finally {
 			//return pdk classLoader
 			Thread.currentThread().setContextClassLoader(classLoader);
@@ -128,7 +128,7 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 		try {
 			return callable.call();
 		} catch (Exception e) {
-			throw new TapCodeException(ScriptProcessorExCode_30.APPLY_CLASS_LOADER_CONTEXT_FAILED,String.format("Apply classloader context failed : %s", e.getMessage()),e);
+			throw new TapCodeException(ScriptProcessorExCode_30.APPLY_CLASS_LOADER_CONTEXT_FAILED,e);
 		} finally {
 			Thread.currentThread().setContextClassLoader(classLoader);
 		}

@@ -93,7 +93,7 @@ public class LoadJarLibEventHandler implements WebSocketEventHandler<WebSocketEv
 		try {
 			url = filePath.toUri().toURL();
 		}catch (Exception e){
-			throw new TapCodeException(WebSocketHandlerExCode_32.PATH_TO_URL_FAILED,String.format("Failed to convert path to URL: %s", e.getMessage()),e);
+			throw new TapCodeException(WebSocketHandlerExCode_32.PATH_TO_URL_FAILED,String.format("FileId: %s,FilePath: %s",fileId,filePath),e);
 		}
 		try (URLClassLoader classLoader = new URLClassLoader(new URL[]{url});){
 			synchronized (filePath){

@@ -57,7 +57,7 @@ public class ZipUtils {
                 compress(srcDir, zos, srcDir.getName(), keepdirstructure);
             }
         } catch (Exception e) {
-            throw new TapCodeException(PythonScriptProcessorExCode_31.PYTHON_SCRIPT_ZIP_FAILED,String.format("zip error from ZipUtils failed: %s", e.getMessage()));
+            throw new TapCodeException(PythonScriptProcessorExCode_31.PYTHON_SCRIPT_ZIP_FAILED,String.format("zip error from ZipUtils failed,fileName:%s,filePath:%s", srcDir.getName(),srcDir.getPath()));
         }
     }
 
