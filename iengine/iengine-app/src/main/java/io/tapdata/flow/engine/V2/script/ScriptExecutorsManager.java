@@ -122,6 +122,7 @@ public class ScriptExecutorsManager {
 		private final Log scriptLogger;
 
 		private final boolean trialRun;
+		private PdkStateMap pdkStateMap;
 
 		private ScriptExecutor() {
 			this.connectorNode = null;
@@ -140,7 +141,7 @@ public class ScriptExecutorsManager {
 
 			Map<String, Object> connectionConfig = connections.getConfig();
 			DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-			PdkStateMap pdkStateMap = new PdkStateMap(TAG, hazelcastInstance);
+			pdkStateMap = new PdkStateMap(TAG, hazelcastInstance);
 			PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 			this.tapTableMap = TapTableMap.create("ScriptExecutor", TAG);
 			PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
@@ -267,6 +268,9 @@ public class ScriptExecutorsManager {
 							PDKInvocationMonitor.stop(connectorNode);
 							PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
 						});
+				if (null != pdkStateMap) {
+					pdkStateMap.reset();
+				}
 				scriptLogger.info("PDK connector node stopped: " + associateId);
 			}, err -> scriptLogger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId)));
 			CommonUtils.handleAnyError(() -> {
