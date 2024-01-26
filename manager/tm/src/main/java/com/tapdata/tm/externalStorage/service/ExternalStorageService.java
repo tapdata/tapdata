@@ -203,7 +203,7 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		} else {
 			externalStorageDtoPage = super.find(filter, userDetail);
 		}
-		if (null == filter.getWhere() || filter.getWhere().isEmpty()) {
+		if (null == filter.getWhere() || filter.getWhere().isEmpty() || (settingsService.isCloud())) {
 			List<ExternalStorageEntity> initExternalStorages = repository.findAll(Query.query(Criteria.where("init").is(true)
 					.and("status").is(DataSourceConnectionDto.STATUS_READY)));
 			List<ExternalStorageDto> items = externalStorageDtoPage.getItems();
