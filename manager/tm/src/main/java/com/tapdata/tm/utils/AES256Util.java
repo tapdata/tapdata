@@ -1,6 +1,8 @@
 package com.tapdata.tm.utils;
 
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import javax.crypto.Cipher;
@@ -24,6 +26,8 @@ public class AES256Util {
 	private final static String KEY = "dGcrwE7FobpZMjNKvkolwc9qxWagTQEPK8VPZxXmwC6DDDB5uGfQc3NQOYKFJSw0";
 
 	private final static String CHARSET = "UTF-8";
+
+	private final static Logger logger = LogManager.getLogger(AES256Util.class);
 
 	public static String Aes256Encode(String str) {
 		initialize();
@@ -83,8 +87,8 @@ public class AES256Util {
 		return ret;
 	}
 
-	private static String parseByte2HexStr(byte buf[]) {
-		StringBuffer sb = new StringBuffer();
+	protected static String parseByte2HexStr(byte buf[]) {
+		StringBuilder sb = new StringBuilder();
 		for (int i = 0; i < buf.length; i++) {
 			String hex = Integer.toHexString(buf[i] & 0xFF);
 			if (hex.length() == 1) {

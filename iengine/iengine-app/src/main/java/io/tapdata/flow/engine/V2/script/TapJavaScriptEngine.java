@@ -10,9 +10,11 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.processor.LoggingOutputStream;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
+import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import io.tapdata.Application;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.script.ScriptOptions;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.logging.log4j.Level;
@@ -62,19 +64,17 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 		scriptEngine.put("ScriptExecutorsManager", scriptExecutorsManager);
 	}
 
-	private ScriptEngine initScriptEngine(String jsEngineName, Log log) {
+	protected ScriptEngine initScriptEngine(String jsEngineName, Log log) {
 		JSEngineEnum jsEngineEnum = JSEngineEnum.getByEngineName(jsEngineName);
-		ScriptEngine scriptEngine;
+		ScriptEngine graalJSScriptEngine;
 		ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
 
-
 		try(LoggingOutputStream out = new LoggingOutputStream(log, Level.INFO);
-			LoggingOutputStream err = new LoggingOutputStream(log, Level.ERROR)) {
-
+				LoggingOutputStream err = new LoggingOutputStream(log, Level.ERROR)){
 			//need to change as engine classLoader
 			Thread.currentThread().setContextClassLoader(Application.class.getClassLoader());
 			if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
-				scriptEngine = GraalJSScriptEngine
+				graalJSScriptEngine = GraalJSScriptEngine
 						.create(Engine.newBuilder()
 										.allowExperimentalOptions(true)
 										.option("engine.WarnInterpreterOnly", "false")
@@ -95,18 +95,18 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 				SimpleScriptContext scriptContext = new SimpleScriptContext();
 				scriptContext.setWriter(new OutputStreamWriter(out));
 				scriptContext.setErrorWriter(new OutputStreamWriter(err));
-				scriptEngine.setContext(scriptContext);
+				graalJSScriptEngine.setContext(scriptContext);
 			} else {
-				scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
+				graalJSScriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
 			}
 		} catch (IOException e) {
-			throw new RuntimeException("LoggingOutputStream failed:" + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-		} finally {
+			throw new TapCodeException(ScriptProcessorExCode_30.INIT_SCRIPT_ENGINE_FAILED,e);
+		}finally {
 			//return pdk classLoader
 			Thread.currentThread().setContextClassLoader(classLoader);
 		}
-		scriptEngine.put("log", log);
-		return scriptEngine;
+		graalJSScriptEngine.put("log", log);
+		return graalJSScriptEngine;
 	}
 
 	@Override
@@ -128,7 +128,7 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 		try {
 			return callable.call();
 		} catch (Exception e) {
-			throw new RuntimeException(e);
+			throw new TapCodeException(ScriptProcessorExCode_30.APPLY_CLASS_LOADER_CONTEXT_FAILED,e);
 		} finally {
 			Thread.currentThread().setContextClassLoader(classLoader);
 		}

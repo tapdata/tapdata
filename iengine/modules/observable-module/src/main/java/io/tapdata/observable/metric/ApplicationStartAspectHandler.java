@@ -3,7 +3,6 @@ package io.tapdata.observable.metric;
 import com.sun.management.OperatingSystemMXBean;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
-import com.tapdata.constant.FileUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
 import io.tapdata.aspect.ApplicationStartAspect;
@@ -18,7 +17,6 @@ import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.observable.metric.py.PythonUtils;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.io.FileUtils;
 
 import javax.script.ScriptEngine;

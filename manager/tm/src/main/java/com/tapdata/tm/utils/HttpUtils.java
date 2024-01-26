@@ -17,6 +17,8 @@ import java.util.Map;
 
 @Slf4j
 public class HttpUtils {
+    private static final String UTF_8 ="utf-8";
+
 
     /**
      * get请求传输数据
@@ -29,15 +31,12 @@ public class HttpUtils {
         log.info("request tcm, path：{}，headMap：{}  ",path,headMap);
         String result = "";
         CloseableHttpResponse response =null;
-        try {
-            // 创建httpclient对象
-            CloseableHttpClient httpClient = HttpClients.createDefault();
-
+        try(CloseableHttpClient httpClient = HttpClients.createDefault()) {
             // 创建get方式请求对象
             HttpGet httpGet = new HttpGet(path);
             if (null != headMap) {
-                for (String key : headMap.keySet()) {
-                    httpGet.addHeader(key, headMap.get(key));
+                for (Map.Entry<String,String> entry : headMap.entrySet()) {
+                    httpGet.addHeader(entry.getKey(), entry.getValue());
                 }
             }
             // 通过请求对象获取响应对象
@@ -46,12 +45,10 @@ public class HttpUtils {
             // 获取结果实体
             // 判断网络连接状态码是否正常(0--200都数正常)
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                result = EntityUtils.toString(response.getEntity(), "utf-8");
+                result = EntityUtils.toString(response.getEntity(), UTF_8);
             } else {
                 log.error("get请求传输 异常.url:{}, headMap:{}", path, headMap);
             }
-            // 释放链接
-
         } catch (ClientProtocolException e) {
             log.error("get请求传输 异常 ", e);
             log.error("get请求传输 异常.path:{}, headMap:{}", path, headMap);
@@ -76,9 +73,8 @@ public class HttpUtils {
         log.info("request tcm, path：{}，bodyJson：{}  ",path,bodyJson);
         String result = "";
         CloseableHttpResponse response =null;
-        try {
+        try(CloseableHttpClient httpClient = HttpClients.createDefault()) {
             // 创建httpclient对象
-            CloseableHttpClient httpClient = HttpClients.createDefault();
             StringEntity entity = new StringEntity(bodyJson, Charset.forName("UTF-8"));
             entity.setContentType("application/json");
             // 创建post方式请求对象
@@ -90,7 +86,7 @@ public class HttpUtils {
             // 获取结果实体
             // 判断网络连接状态码是否正常(0--200都数正常)
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                result = EntityUtils.toString(response.getEntity(), "utf-8");
+                result = EntityUtils.toString(response.getEntity(), UTF_8);
             } else {
                 log.error("post请求传输 异常.url:{}, bodyJson:{}", path, bodyJson);
             }
@@ -121,9 +117,8 @@ public class HttpUtils {
         log.info("request tcm, path：{}，bodyJson：{}  ",path,bodyJson);
         String result = "";
         CloseableHttpResponse response =null;
-        try {
+        try (CloseableHttpClient httpClient = HttpClients.createDefault()){
             // 创建httpclient对象
-            CloseableHttpClient httpClient = HttpClients.createDefault();
             StringEntity entity = new StringEntity(bodyJson, Charset.forName("UTF-8"));
             entity.setContentType("application/json");
             // 创建post方式请求对象
@@ -135,7 +130,7 @@ public class HttpUtils {
             // 获取结果实体
             // 判断网络连接状态码是否正常(0--200都数正常)
             if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                result = EntityUtils.toString(response.getEntity(), "utf-8");
+                result = EntityUtils.toString(response.getEntity(), UTF_8);
             } else {
                 log.error("post请求传输 异常.url:{}, bodyJson:{}", path, bodyJson);
             }

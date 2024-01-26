@@ -1,12 +1,27 @@
 package io.tapdata.websocket;
 
+import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.tm.sdk.util.AppType;
+import com.tapdata.tm.sdk.util.CloudSignUtil;
+import com.tapdata.tm.sdk.util.Version;
+import com.tapdata.tm.worker.WorkerSingletonLock;
+import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.util.concurrent.ListenableFuture;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -85,6 +100,44 @@ class ManagementWebsocketHandlerTest {
                 doAnswer(w -> when(option.isOpen()).thenReturn(false)).when(handler).connect(anyString());
                 Assertions.assertThrows(RuntimeException.class, () -> assertVerify(3, 1, 1, 1, 1));
             }
+        }
+    }
+
+    @Nested
+    class connectTest {
+        ManagementWebsocketHandler managementWebsocketHandlerTest = new ManagementWebsocketHandler();
+
+        @BeforeEach
+        void init() {
+            ConfigurationCenter configurationCenter = new ConfigurationCenter();
+            configurationCenter.putConfig("token","test");
+            configurationCenter.putConfig((ConfigurationCenter.BASR_URLS), Arrays.asList("test"));
+            configurationCenter.putConfig(ConfigurationCenter.AGENT_ID,"agentId");
+            configurationCenter.putConfig(ConfigurationCenter.RETRY_TIME,3);
+            ReflectionTestUtils.setField(managementWebsocketHandlerTest,"agentId","test");
+            ReflectionTestUtils.setField(managementWebsocketHandlerTest,"configCenter",configurationCenter);
+        }
+        @Test
+        void connectTest_error(){
+            try(MockedStatic<WorkerSingletonLock> mockedStatic = Mockito.mockStatic(WorkerSingletonLock.class);
+                MockedStatic<AppType> appTypeMockedStatic = Mockito.mockStatic(AppType.class);
+                MockedStatic<Version> versionMockedStatic = Mockito.mockStatic(Version.class)){
+                mockedStatic.when(()->WorkerSingletonLock.addTag2WsUrl(anyString())).thenReturn("ws://test:8080/ws/agent?agentId=test&access_token=test");
+                appTypeMockedStatic.when(AppType::init).thenReturn(AppType.DAAS);
+                versionMockedStatic.when(Version::get).thenReturn("test");
+                managementWebsocketHandlerTest.connect("http://test:8080/api/");
+                ListenableFuture<WebSocketSession> listenableFuture = (ListenableFuture<WebSocketSession>) ReflectionTestUtils.getField(managementWebsocketHandlerTest,"listenableFuture");
+                Assertions.assertNotNull(listenableFuture);
+            }
+        }
+        @Test
+        void SessionOptionTest_Error(){
+            ReflectionTestUtils.setField(managementWebsocketHandlerTest,"retryTime",2);
+            ManagementWebsocketHandler.SessionOption sessionOption = managementWebsocketHandlerTest.new SessionOption();
+            WebSocketSession webSocketSession = Mockito.mock(WebSocketSession.class);
+            sessionOption.setSession(webSocketSession);
+            TextMessage textMessage = new TextMessage("test");
+            Assertions.assertThrows(RuntimeException.class,()->sessionOption.sendMessage(textMessage));
         }
     }
 }
