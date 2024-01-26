@@ -61,6 +61,8 @@ import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import io.tapdata.pdk.apis.entity.merge.MergeInfo;
+import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.*;
@@ -735,7 +737,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void flushShareCdcTableMetrics(TapdataEvent tapdataEvent) {
 		if (tapdataEvent.getType().equals(SyncProgress.Type.LOG_COLLECTOR)) {
-			Object connIdObj = tapdataEvent.getInfo(TapdataStartedCdcEvent.CONNECTION_ID_INFO_KEY);
+			Object connIdObj = tapdataEvent.getInfo(TapdataEvent.CONNECTION_ID_INFO_KEY);
 			String connectionId = "";
 			if (connIdObj instanceof String) {
 				connectionId = (String) connIdObj;
@@ -823,7 +825,32 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		String targetTableName = getTgtTableNameFromTapEvent(tapRecordEvent);
 		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager, targetTableName);
 		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
+		fromTapValueMergeInfo(tapdataEvent);
 		return tapRecordEvent;
+	}
+
+	protected void fromTapValueMergeInfo(TapdataEvent tapdataEvent) {
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		Object mergeInfoObj = tapEvent.getInfo(MergeInfo.EVENT_INFO_KEY);
+		if (mergeInfoObj instanceof MergeInfo) {
+			MergeInfo mergeInfo = (MergeInfo) mergeInfoObj;
+			List<MergeLookupResult> mergeLookupResults = mergeInfo.getMergeLookupResults();
+			recursiveMergeInfoTransformFromTapValue(mergeLookupResults);
+		}
+	}
+
+	protected void recursiveMergeInfoTransformFromTapValue(List<MergeLookupResult> mergeLookupResults) {
+		if (CollectionUtils.isEmpty(mergeLookupResults)) return;
+		for (MergeLookupResult mergeLookupResult : mergeLookupResults) {
+			Map<String, Object> data = mergeLookupResult.getData();
+			if (MapUtils.isNotEmpty(data)) {
+				fromTapValue(data, codecsFilterManager, mergeLookupResult.getTapTable());
+			}
+			List<MergeLookupResult> childMergeLookupResults = mergeLookupResult.getMergeLookupResults();
+			if (CollectionUtils.isNotEmpty(childMergeLookupResults)) {
+				recursiveMergeInfoTransformFromTapValue(childMergeLookupResults);
+			}
+		}
 	}
 
 	private boolean handleExactlyOnceWriteCacheIfNeed(TapdataEvent tapdataEvent, List<TapRecordEvent> exactlyOnceWriteCache) {

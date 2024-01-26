@@ -110,7 +110,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 
 											List<Map<String, Object>> results = filterResults.getResults();
 											List<TapEvent> events = wrapTapEvent(results, tapTable.getId());
-											if (CollectionUtil.isNotEmpty(events)) {
+											if (CollectionUtils.isNotEmpty(events)) {
 												events.forEach(tapEvent -> {
 													tapRecordToTapValue(tapEvent, codecsFilterManager);
 													//Simulate null data

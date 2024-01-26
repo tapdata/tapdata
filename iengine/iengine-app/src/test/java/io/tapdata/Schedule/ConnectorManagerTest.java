@@ -11,6 +11,8 @@ import com.tapdata.tm.worker.WorkerSingletonLock;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.metric.MetricManager;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.schema.SchemaProxy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -302,6 +304,70 @@ class ConnectorManagerTest extends BaseTest {
             ArgumentCaptor<Boolean> captor = ArgumentCaptor.forClass(Boolean.class);
             verify(beforeExit).accept(captor.capture());
             assertEquals(false, captor.getValue());
+        }
+    }
+
+    @Test
+    public void testInitStaticStatsAssign() throws Exception {
+        connectorManager = spy(ConnectorManager.class);
+        ReflectionTestUtils.setField(connectorManager,"appType",AppType.DRS);
+
+        List<String> baseURLs = new ArrayList<>();
+        baseURLs.add("http:localhost:3030");
+        ReflectionTestUtils.setField(connectorManager,"baseURLs",baseURLs);
+
+        ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+        ReflectionTestUtils.setField(connectorManager,"clientMongoOperator",clientMongoOperator);
+        when(clientMongoOperator.getMongoTemplate()).thenReturn(mock(MongoTemplate.class));
+
+        ConfigurationCenter configCenter = mock(ConfigurationCenter.class);
+        ReflectionTestUtils.setField(connectorManager,"configCenter",configCenter);
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("accesscode", null);
+        RestTemplateOperator restTemplateOperator = mock(RestTemplateOperator.class);
+        ReflectionTestUtils.setField(connectorManager,"restTemplateOperator",restTemplateOperator);
+        LoginResp loginResp =  new LoginResp();
+        loginResp.setCreated("2024-01-23 18:07:53");
+        loginResp.setTtl(100L);
+        when(restTemplateOperator.postOne(params,"users/generatetoken",LoginResp.class)).thenReturn(loginResp);
+
+        ReflectionTestUtils.setField(connectorManager, "appType", AppType.DAAS);
+        SettingService settingService = mock(SettingService.class);
+        ReflectionTestUtils.setField(connectorManager,"settingService",settingService);
+
+        SchemaProxy schemaProxy = mock(SchemaProxy.class);
+        ReflectionTestUtils.setField(connectorManager,"schemaProxy",schemaProxy);
+
+
+        try (MockedStatic<WorkerSingletonLock> singletonLock = mockStatic(WorkerSingletonLock.class)){
+            singletonLock.when(()->WorkerSingletonLock.check(any(),any())).thenAnswer(answer ->{
+                return null;
+            });
+            when(settingService.getSetting("buildProfile")).thenReturn(mock(Setting.class));
+            connectorManager.init();
+
+            SchemaProxy actualSchemaProxy =schemaProxy;
+            ClientMongoOperator actualClientMongoOperator =clientMongoOperator;
+            assertEquals(SchemaProxy.schemaProxy,actualSchemaProxy);
+            assertEquals(ConnectorConstant.clientMongoOperator,actualClientMongoOperator);
+
+        }
+
+    }
+    @Test
+    public void testInitRestTemplateStaticStatsAssign(){
+        try (MockedStatic<com.tapdata.tm.sdk.util.AppType> t1 = mockStatic(com.tapdata.tm.sdk.util.AppType.class)) {
+            t1.when(com.tapdata.tm.sdk.util.AppType::init).thenReturn(com.tapdata.tm.sdk.util.AppType.DAAS);
+            try (MockedStatic<AppType> t2 = mockStatic(AppType.class)) {
+                t2.when(AppType::init).thenReturn(AppType.DAAS);
+                try (MockedStatic<io.tapdata.pdk.core.utils.CommonUtils> commonUtil = mockStatic(io.tapdata.pdk.core.utils.CommonUtils.class)) {
+                    String process_id = "test12345";
+                    when(CommonUtils.getenv("process_id")).thenReturn(process_id);
+                    connectorManager.initRestTemplate();
+                    assertEquals(ConfigurationCenter.processId,process_id);
+                }
+            }
         }
     }
 }
