@@ -357,6 +357,34 @@ public class QueryNextBatchTest extends ConnectorNodeBase {
 
     }
 
+    @Test
+    public void testHandleDataKeyException() throws Throwable {
+        // init param
+        MockAdvanceFilterQueryFunction mockAdvanceFilterQueryFunction = new MockAdvanceFilterQueryFunction();
+        Map<String, Object> customCommand = new HashMap<>();
+        customCommand.put("test", "select * from test");
+        List<List<Object>> diffKeyValues = new ArrayList<>();
+        List<Object> objects = new ArrayList<>();
+        String objectId = "64ba64a";
+        objects.add(objectId);
+        diffKeyValues.add(objects);
+        List<String> dataKey = new ArrayList<>();
+        dataKey.add("_id");
+
+        LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap();
+        TapField tapField = new TapField();
+        tapField.setDataType("OBJECT_ID");
+        nameFieldMap.put("_id", tapField);
+        myTapTable.setNameFieldMap(nameFieldMap);
+
+        PdkResult pdkResult = handleMockAdvanceFilterFunction(mockAdvanceFilterQueryFunction, diffKeyValues, dataKey, customCommand,
+                true, new ArrayList<>(), new HashSet<>(), new ArrayList<>());
+        List actualData = (List) ReflectionTestUtils.getField(pdkResult, "diffKeyValues");
+        // output results
+        Assert.assertEquals(objectId, ((ArrayList) actualData.get(0)).get(0).toString());
+
+    }
+
 
     @Test
     public void testCustomCommandCount() throws Throwable {
@@ -366,6 +394,7 @@ public class QueryNextBatchTest extends ConnectorNodeBase {
         customCommand.put("command", "aggregate");
         Map<String, Object> customParam = new LinkedHashMap<>();
         customCommand.put("params", customParam);
+
         PdkResult pdkResult = handleMockAdvanceFilterFunction(mockAdvanceFilterQueryFunction, null, new ArrayList<>(), customCommand,
                 true, new ArrayList<>(), new HashSet<>(), new ArrayList<>());
 
@@ -384,8 +413,13 @@ public class QueryNextBatchTest extends ConnectorNodeBase {
         customCommand.put("command", "aggregate");
         Map<String, Object> customParam = new LinkedHashMap<>();
         customCommand.put("params", customParam);
+        List<QueryOperator> conditions = new ArrayList<>();
+        QueryOperator queryOperator = new QueryOperator();
+        queryOperator.setValue("test");
+        queryOperator.setKey("test");
+        conditions.add(queryOperator);
         PdkResult pdkResult = handleMockAdvanceFilterFunction(mockAdvanceFilterQueryFunction, new ArrayList<>(), new ArrayList<>(), customCommand,
-                true, new ArrayList<>(), new HashSet<>(), new ArrayList<>());
+                true, new ArrayList<>(), new HashSet<>(), conditions);
 
         ReflectionTestUtils.invokeMethod(pdkResult,"queryNextBatch",null);
 
