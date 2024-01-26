@@ -19,6 +19,7 @@ import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +46,10 @@ public class SettingsController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        List<SettingsDto> settingList = settingsService.findALl(decode, filter);
+        List<SettingsDto> settingList = new ArrayList<>();
+        if(!settingsService.isCloud() || isAgentReq()){
+            settingList = settingsService.findALl(decode, filter);
+        }
         return success(settingList);
     }
 
