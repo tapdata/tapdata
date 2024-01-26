@@ -4,7 +4,9 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
 import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
@@ -13,12 +15,16 @@ import com.tapdata.tm.permissions.service.DataPermissionService;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.beans.BeanUtils;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 
@@ -49,22 +55,30 @@ public class ExternalStorageServiceTest {
         List<ExternalStorageEntity> list = new ArrayList<>();
         ExternalStorageEntity externalStorage = new ExternalStorageEntity();
         externalStorage.setName(mark);
+        externalStorage.setUri("http://test.com");
+        ExternalStorageDto externalStorageDto = new ExternalStorageDto();
+        BeanUtils.copyProperties(externalStorage,externalStorageDto);
         list.add(externalStorage);
         UserDetail userDetail = Mockito.mock(UserDetail.class);
         when(settingsService.isCloud()).thenReturn(cloud);
         if (cloud) {
-            when(repository.findAll(filter, userDetail)).thenReturn(list);
-
+            when(repository.findAll(filter, userDetail)).thenReturn(new ArrayList<>());
         } else {
             when(repository.findAll(filter)).thenReturn(list);
         }
+        when(repository.findAll(Query.query(Criteria.where("init").is(true)
+                .and("status").is(DataSourceConnectionDto.STATUS_READY)), userDetail)).thenReturn(new ArrayList<>());
         when(repository.count(where, userDetail)).thenReturn(1L);
         try (MockedStatic<DataPermissionService> data = Mockito
                 .mockStatic(DataPermissionService.class)) {
             data.when(() -> DataPermissionService.isCloud()).thenReturn(cloud);
             Page<ExternalStorageDto> externalStorageDtoPage = externalStorageService.find(filter, userDetail);
+            if (!cloud) {
             String actualData = externalStorageDtoPage.getItems().get(0).getName();
             assertEquals(mark, actualData);
+            }else {
+                assertEquals(1,externalStorageDtoPage.getTotal());
+            }
         }
     }
 }
