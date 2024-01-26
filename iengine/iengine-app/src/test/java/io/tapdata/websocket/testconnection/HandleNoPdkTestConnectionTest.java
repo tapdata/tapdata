@@ -8,7 +8,6 @@ import io.tapdata.websocket.SendMessage;
 import io.tapdata.websocket.WebSocketEventResult;
 import io.tapdata.websocket.handler.TestConnectionHandler;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -17,10 +16,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
-import static org.awaitility.Awaitility.await;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 class HandleNoPdkTestConnectionTest {
 
