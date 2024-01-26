@@ -18,9 +18,11 @@ import com.tapdata.processor.util.CustomRest;
 import com.tapdata.processor.util.CustomTcp;
 import com.tapdata.processor.util.Util;
 import io.tapdata.common.SettingService;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
+import io.tapdata.websocket.error.WebSocketHandlerExCode_32;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -55,7 +57,6 @@ public class LoadJarLibEventHandler implements WebSocketEventHandler<WebSocketEv
 	private final static Logger logger = LogManager.getLogger(LoadJarLibEventHandler.class);
 
 	private ClientMongoOperator clientMongoOperator;
-	private SettingService settingService;
 
 	/**
 	 * 初始化handler方法
@@ -74,7 +75,6 @@ public class LoadJarLibEventHandler implements WebSocketEventHandler<WebSocketEv
 	@Override
 	public void initialize(ClientMongoOperator clientMongoOperator, SettingService settingService) {
 		this.clientMongoOperator = clientMongoOperator;
-		this.settingService = settingService;
 	}
 
 	@Override
@@ -82,30 +82,33 @@ public class LoadJarLibEventHandler implements WebSocketEventHandler<WebSocketEv
 		WebSocketEventResult result;
 		LoadJarLibRequest req = JSONUtil.map2POJO(event, LoadJarLibRequest.class);
 		ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-
+		String fileId = req.getFileId();
+		String packageName = req.getPackageName();
+		if (StringUtils.isEmpty(fileId) || StringUtils.isEmpty(packageName)) {
+			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.LOAD_JAR_LIB_RESULT, "illegal argument");
+		}
+		//定义类加载器
+		final Path filePath = Paths.get(System.getenv("TAPDATA_WORK_DIR"), "lib", fileId);
+		URL url ;
 		try {
-			String fileId = req.getFileId();
-			String packageName = req.getPackageName();
-			if (StringUtils.isEmpty(fileId) || StringUtils.isEmpty(packageName)) {
-				return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.LOAD_JAR_LIB_RESULT, "illegal argument");
-			}
-
-			//定义类加载器
-			final Path filePath = Paths.get(System.getenv("TAPDATA_WORK_DIR"), "lib", fileId);
-			if (Files.notExists(filePath)) {
-				GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
-				try (GridFSDownloadStream gridFSDownloadStream = gridFSBucket.openDownloadStream(new ObjectId(fileId))) {
-					if (Files.notExists(filePath.getParent())) {
-						Files.createDirectories(filePath.getParent());
+			url = filePath.toUri().toURL();
+		}catch (Exception e){
+			throw new TapCodeException(WebSocketHandlerExCode_32.PATH_TO_URL_FAILED,String.format("FileId: %s,FilePath: %s",fileId,filePath),e);
+		}
+		try (URLClassLoader classLoader = new URLClassLoader(new URL[]{url});){
+			synchronized (filePath){
+				if (Files.notExists(filePath)) {
+					GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
+					try (GridFSDownloadStream gridFSDownloadStream = gridFSBucket.openDownloadStream(new ObjectId(fileId))) {
+						if (Files.notExists(filePath.getParent())) {
+							Files.createDirectories(filePath.getParent());
+						}
+						Files.createFile(filePath);
+						Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
 					}
-					Files.createFile(filePath);
-					Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
 				}
 			}
-			URL url = filePath.toUri().toURL();
-			URLClassLoader classLoader = new URLClassLoader(new URL[]{url});
 			Thread.currentThread().setContextClassLoader(classLoader);
-
 			Set<Class<?>> classSet = ClassUtil.scanPackage(packageName);
 			List<LoadJarLibResponse> resList = getMethodList(classSet);
 
