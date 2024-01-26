@@ -6,7 +6,9 @@ import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.schema.TapTableMap;
 import org.bson.Document;
 import org.junit.jupiter.api.*;
@@ -27,7 +29,7 @@ import static org.mockito.Mockito.*;
  * @Description
  * @create 2023-11-22 10:28
  **/
-@DisplayName("HazelcastPdkBaseNode CLass Test")
+@DisplayName("HazelcastPdkBaseNode Class Test")
 class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	HazelcastPdkBaseNode hazelcastPdkBaseNode;
 
@@ -41,6 +43,7 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	@Nested
 	class FunctionRetryQueryTest {
 		long timestamp;
+
 		@BeforeEach
 		void init() {
 			hazelcastPdkBaseNode = mock(HazelcastPdkBaseNode.class);
@@ -48,7 +51,9 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			when(hazelcastPdkBaseNode.functionRetryQuery(anyLong(), anyBoolean())).thenCallRealMethod();
 		}
 
-		/**signFunction*/
+		/**
+		 * signFunction
+		 */
 		@Test
 		void functionRetryQueryNormal() {
 			Update update = hazelcastPdkBaseNode.functionRetryQuery(timestamp, true);
@@ -57,7 +62,9 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertEquals(timestamp, document.get("taskRetryStartTime"));
 		}
 
-		/**clearFunction*/
+		/**
+		 * clearFunction
+		 */
 		@Test
 		void functionRetryQueryNotSingle() {
 			Update update = hazelcastPdkBaseNode.functionRetryQuery(timestamp, false);
@@ -126,12 +133,13 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
-	class ToTapValueOrFromTapValueTest{
+	class ToTapValueOrFromTapValueTest {
 		Map<String, Object> data;
 		LinkedHashMap<String, TapField> fields;
 		TapCodecsFilterManager tapCodecsFilterManager;
 		TapRecordSkipDetector skipDetector;
 		String lastTableName;
+
 		@BeforeEach
 		void init() {
 			lastTableName = "LastTableName";
@@ -199,6 +207,7 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		@Nested
 		class FromTapValueTest {
 			String targetTableName;
+
 			@BeforeEach
 			void init() {
 				targetTableName = "targetTableName";
@@ -224,7 +233,7 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			@Test
 			void testToTapValueNullDataMap() {
 				doCallRealMethod().when(hazelcastPdkBaseNode).fromTapValue(null, tapCodecsFilterManager, targetTableName);
-				assertVerify(0,  null, tapCodecsFilterManager);
+				assertVerify(0, null, tapCodecsFilterManager);
 			}
 
 			@Test
@@ -314,10 +323,10 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 
 		LinkedHashMap<String, TapField> assertVerify(String tableNameTemp,
-															 int getDataProcessorContextTimes,
-															 int getTapTableMapTimes,
-															 int getTimes,
-															 int getNameFieldMapTimes) {
+													 int getDataProcessorContextTimes,
+													 int getTapTableMapTimes,
+													 int getTimes,
+													 int getNameFieldMapTimes) {
 			LinkedHashMap<String, TapField> tableFiledMap = hazelcastPdkBaseNode.getTableFiledMap(tableNameTemp);
 			verify(hazelcastPdkBaseNode, times(getDataProcessorContextTimes)).getDataProcessorContext();
 			verify(dataProcessorContext, times(getTapTableMapTimes)).getTapTableMap();
@@ -327,4 +336,31 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("doClose method test")
+	class doCloseTest {
+
+		private HazelcastPdkBaseNode spyHazelcastPdkBaseNode;
+
+		@BeforeEach
+		void setUp() {
+			spyHazelcastPdkBaseNode = spy(hazelcastPdkBaseNode);
+			ReflectionTestUtils.setField(spyHazelcastPdkBaseNode, "obsLogger", mockObsLogger);
+		}
+
+		@Test
+		@DisplayName("test pdk state map should be reset")
+		void testPdkStateMapReset() {
+			PdkStateMap pdkStateMap = mock(PdkStateMap.class);
+			ReflectionTestUtils.setField(spyHazelcastPdkBaseNode, "pdkStateMap", pdkStateMap);
+			spyHazelcastPdkBaseNode.doClose();
+			verify(pdkStateMap, times(1)).reset();
+		}
+
+		@Test
+		@DisplayName("test pdk state map is null when do close")
+		void testPdkStateMapIsNull() {
+			assertDoesNotThrow(() -> spyHazelcastPdkBaseNode.doClose());
+		}
+	}
 }

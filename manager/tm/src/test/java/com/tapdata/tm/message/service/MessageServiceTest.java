@@ -1,6 +1,8 @@
 package com.tapdata.tm.message.service;
 
+import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSONObject;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
@@ -30,6 +32,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -484,6 +487,93 @@ class MessageServiceTest {
         verify(mockMailUtils,times(0)).sendHtmlMail("【Tapdata】","test@test.com", "Hi, : ", "name",null,"Instance online");
     }
     @Test
+    void testInformUser_SendingEmailOnAgentExpiring() throws InvocationTargetException, IllegalAccessException{
+        Notification notification = new Notification();
+        notification.setConnected(new Connected(true,false,false));
+        userDetail.setNotification(notification);
+        when(mockSettingsService.isCloud()).thenReturn(true);
+        when(mockUserService.loadUserById(new ObjectId("62bc5008d4958d013d97c7a6"))).thenReturn(userDetail);
+        when(mockRepository.count(any(Query.class))).thenReturn(9L);
+        
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("endAt", new Date().getTime() + 7 * 24 * 60 * 60 * 1000);
+        metadata.put("startAt", new Date().getTime());
+        metadata.put("notifyType", "NOTIFY_7_DAY");
+        metadata.put("paymentMethod", "Stripe");
+        metadata.put("subscribeType", "one_time");
+        metadata.put("name", "agent-xxxxxx");
+        metadata.put("id", "agent-xxxxx");
+        MessageDto messageDto = new MessageDto();
+        messageDto.setSystem("agent");
+        messageDto.setMessageMetadata(JsonUtil.toJson(metadata));
+        messageDto.setUserId("62bc5008d4958d013d97c7a6");
+        messageDto.setSourceModule("agent");
+        messageDto.setMsg("expiring");
+
+        informUser2.invoke(messageServiceUnderTest,messageDto);
+        verify(mockMailUtils,times(1)).sendHtmlMail(
+                "The instance (agent-xxxxxx) you subscribed to will expire in 7 days to avoid affecting the running of your tasks. Please renew in time.【Tapdata】",
+                "test@test.com",
+                "Hi, : ",
+                "agent-xxxxxx",null,
+                "The instance (agent-xxxxxx) you subscribed to will expire in 7 days to avoid affecting the running of your tasks. Please renew in time.");
+
+        metadata.put("notifyType", "NOTIFY_1_DAY");
+        messageDto.setMessageMetadata(JsonUtil.toJson(metadata));
+        informUser2.invoke(messageServiceUnderTest,messageDto);
+        verify(mockMailUtils,times(1)).sendHtmlMail(
+                "The instance (agent-xxxxxx) you subscribed to will expire in 1 days to avoid affecting the running of your tasks. Please renew in time.【Tapdata】",
+                "test@test.com",
+                "Hi, : ",
+                "agent-xxxxxx",null,
+                "The instance (agent-xxxxxx) you subscribed to will expire in 1 days to avoid affecting the running of your tasks. Please renew in time.");
+
+    }
+    @Test
+    void testInformUser_SendingEmailOnAgentExpired() throws InvocationTargetException, IllegalAccessException{
+        Notification notification = new Notification();
+        notification.setConnected(new Connected(true,false,false));
+        userDetail.setNotification(notification);
+        when(mockSettingsService.isCloud()).thenReturn(true);
+        when(mockUserService.loadUserById(new ObjectId("62bc5008d4958d013d97c7a6"))).thenReturn(userDetail);
+        when(mockRepository.count(any(Query.class))).thenReturn(9L);
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("endAt", new Date().getTime() + 7 * 24 * 60 * 60 * 1000);
+        metadata.put("startAt", new Date().getTime());
+        metadata.put("notifyType", "NOTIFY_0_DAY");
+        metadata.put("paymentMethod", "Stripe");
+        metadata.put("subscribeType", "one_time");
+        metadata.put("name", "agent-xxxxxx");
+        metadata.put("id", "agent-xxxxx");
+        MessageDto messageDto = new MessageDto();
+        messageDto.setSystem("agent");
+        messageDto.setMessageMetadata(JsonUtil.toJson(metadata));
+        messageDto.setUserId("62bc5008d4958d013d97c7a6");
+        messageDto.setSourceModule("agent");
+        messageDto.setMsg("expired");
+
+        informUser2.invoke(messageServiceUnderTest,messageDto);
+        verify(mockMailUtils,times(1)).sendHtmlMail(
+                "The instance (agent-xxxxxx) you subscribed to has expired and will be released in 1 day.【Tapdata】",
+                "test@test.com",
+                "Hi, : ",
+                "agent-xxxxxx",null,
+                "The instance (agent-xxxxxx) you subscribed to has expired and will be released in 1 day.");
+
+        metadata.put("subscribeType", "recurring");
+        messageDto.setMessageMetadata(JsonUtil.toJson(metadata));
+
+        informUser2.invoke(messageServiceUnderTest,messageDto);
+        verify(mockMailUtils,times(1)).sendHtmlMail(
+                "The instance (agent-xxxxxx) you subscribed to has expired. Please keep your auto-renewal account with sufficient balance and the system will automatically renew it for you. If the renewal is not completed, please contact customer service for assistance.【Tapdata】",
+                "test@test.com",
+                "Hi, : ",
+                "agent-xxxxxx",null,
+                "The instance (agent-xxxxxx) you subscribed to has expired. Please keep your auto-renewal account with sufficient balance and the system will automatically renew it for you. If the renewal is not completed, please contact customer service for assistance.");
+
+    }
+    @Test
     void testCheckSending(){
         when(mockSettingsService.isCloud()).thenReturn(false);
         boolean result = messageServiceUnderTest.checkSending(userDetail);
@@ -710,5 +800,16 @@ class MessageServiceTest {
                 mailUtilsMockedStatic.verify(()->MailUtils.sendHtmlEmail(any(),anyList(),anyString(),anyString()),times(0));
             }
         }
+    }
+
+    @Test
+    public void testParseMessageMetadata() {
+        String json = "{\"subscribeType\":\"subscribeType\",\"name\":\"xxxx\"}";
+        MessageMetadata messageMetadata = JSONUtil.toBean(json, MessageMetadata.class);
+
+        Assertions.assertNotNull(messageMetadata.getName());
+        Assertions.assertEquals("xxxx",messageMetadata.getName());
+
+
     }
 }

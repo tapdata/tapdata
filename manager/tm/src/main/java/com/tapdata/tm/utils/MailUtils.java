@@ -414,14 +414,11 @@ public class MailUtils {
      * @throws Exception
      */
     public static String readHtmlToString(String htmlFileName) {
-        InputStream is = null;
-        Reader reader = null;
-        try {
-            is = MailUtils.class.getClassLoader().getResourceAsStream(htmlFileName);
+        InputStream is = MailUtils.class.getClassLoader().getResourceAsStream(htmlFileName);
+        try(Reader reader = new InputStreamReader(is, "UTF-8");) {
             if (is == null) {
                 log.error("未找到模板文件");
             }
-            reader = new InputStreamReader(is, "UTF-8");
             StringBuilder sb = new StringBuilder();
             int bufferSize = 1024;
             char[] buffer = new char[bufferSize];
@@ -430,25 +427,8 @@ public class MailUtils {
                 sb.append(buffer, 0, length);
             }
             return sb.toString();
-        } catch (UnsupportedEncodingException e) {
-            log.error("发送邮件异常", e);
         } catch (IOException e) {
             log.error("发送邮件异常", e);
-        } finally {
-            try {
-                if (is != null) {
-                    is.close();
-                }
-            } catch (IOException e) {
-                log.error("关闭io流异常", e);
-            }
-            try {
-                if (reader != null) {
-                    reader.close();
-                }
-            } catch (IOException e) {
-                log.error("关闭io流异常", e);
-            }
         }
         return "";
     }

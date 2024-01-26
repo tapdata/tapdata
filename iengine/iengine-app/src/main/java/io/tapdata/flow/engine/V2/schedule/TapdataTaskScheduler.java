@@ -13,11 +13,14 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskClient;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.TaskOperation;
@@ -26,6 +29,7 @@ import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.flow.engine.V2.util.SingleLockWithKey;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -50,6 +54,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -60,7 +65,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  */
 @Component
 @DependsOn("connectorManager")
-public class TapdataTaskScheduler {
+public class TapdataTaskScheduler implements MemoryFetcher {
 	public static final String TAG = TapdataTaskScheduler.class.getSimpleName();
 	private Logger logger = LogManager.getLogger(TapdataTaskScheduler.class);
 	private Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
@@ -116,7 +121,7 @@ public class TapdataTaskScheduler {
 					Query query = new Query(rescheduleCriteria);
 					query.fields().include("id").include("status");
 					final List<TaskDto> subTaskDtos = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
-					if (CollectionUtil.isNotEmpty(subTaskDtos)) {
+					if (CollectionUtils.isNotEmpty(subTaskDtos)) {
 						internalStopTaskClientMap.put(taskId, subTaskDtoTaskClient);
 						removeTask(taskId);
 					} else {
@@ -146,6 +151,7 @@ public class TapdataTaskScheduler {
 		});
 		initScheduleTask();
 		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::resetTaskRetryServiceIfNeed, 1L, 1L, TimeUnit.MINUTES);
+		PDKIntegration.registerMemoryFetcher("taskScheduler", this);
 	}
 
 	private void initScheduleTask() {
@@ -296,33 +302,27 @@ public class TapdataTaskScheduler {
 		}
 	}
 
-	private void startTask(TaskDto taskDto) {
+	protected void startTask(TaskDto taskDto) {
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		final String taskId = taskDto.getId().toHexString();
-		if (taskClientMap.containsKey(taskId)) {
-			TaskClient<TaskDto> taskClient = taskClientMap.get(taskId);
-			if (null != taskClient) {
+		AtomicBoolean isReturn = new AtomicBoolean(false);
+		taskClientMap.computeIfPresent(taskId, (id, taskClient)->{
+			if (taskClientMap.containsKey(taskId)) {
 				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
 				if (!TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
 					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
 				}
-			} else {
-				logger.info("The [task {}, id {}] is being executed, ignore the scheduling", taskDto.getName(), taskId);
+				isReturn.compareAndSet(false, true);
 			}
+			return taskClient;
+		});
+		if (isReturn.get()) {
 			return;
 		}
 		try {
-			// todo 后续处理
-//			String checkTaskCanStart = checkTaskCanStart(taskId);
-//			if (StringUtils.isNotBlank(checkTaskCanStart)) {
-//				logger.warn(checkTaskCanStart);
-//				return;
-//			}
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
 			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
-			//threadPoolExecutorEx = AsyncUtils.createThreadPoolExecutor("RootTask-" + taskDto.getName(), 1, new TaskThreadGroup(taskDto), TAG);
-			//hazelcastTaskService.setThreadPoolExecutorEx(threadPoolExecutorEx);
 			final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
 			taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
 		} catch (Exception e) {
@@ -564,7 +564,7 @@ public class TapdataTaskScheduler {
 		Query query = new Query(timeoutCriteria);
 		query.fields().include("id").include("status");
 		final List<TaskDto> subTaskDtos = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
-		return CollectionUtil.isNotEmpty(subTaskDtos) ? subTaskDtos.get(0) : null;
+		return CollectionUtils.isNotEmpty(subTaskDtos) ? subTaskDtos.get(0) : null;
 	}
 
 	public boolean stopTaskCallAssignApi(TaskClient<TaskDto> taskClient, StopTaskResource stopTaskResource) {
@@ -664,6 +664,22 @@ public class TapdataTaskScheduler {
 
 	public Map<String, TaskClient<TaskDto>> getTaskClientMap() {
 		return taskClientMap;
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		DataMap dataMap = DataMap.create();
+		DataMap taskMap = DataMap.create();
+		taskClientMap.forEach((k, v) -> {
+			DataMap task = DataMap.create();
+			task.kv("task status", v.getTask().getStatus());
+			if (v instanceof HazelcastTaskClient) {
+				task.kv("jet status", ((HazelcastTaskClient) v).getJetStatus());
+			}
+			taskMap.kv(v.getTask().getName(), task);
+		});
+		dataMap.kv("task client map", taskMap);
+		return dataMap;
 	}
 
 	private enum StopTaskResource {

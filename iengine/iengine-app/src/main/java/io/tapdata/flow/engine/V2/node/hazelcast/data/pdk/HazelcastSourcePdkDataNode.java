@@ -346,7 +346,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																if (batchReadFuncAspect != null)
 																	AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
 
-																if (CollectionUtil.isNotEmpty(tapdataEvents)) {
+																if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 																	tapdataEvents.forEach(this::enqueue);
 
 																	if (batchReadFuncAspect != null)

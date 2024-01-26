@@ -1,6 +1,8 @@
 package io.tapdata.observable.metric.py;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.exception.TapCodeException;
+import io.tapdata.observable.metric.py.error.PythonScriptProcessorExCode_31;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -44,12 +46,8 @@ public class ZipUtils {
     }
 
     public static void zip(File srcDir, OutputStream out, boolean keepdirstructure, boolean zipInsideDirectory)
-            throws RuntimeException {
-        long start = System.currentTimeMillis();
-        ZipOutputStream zos = null;
-        try {
-            zos = new ZipOutputStream(out);
-
+            throws TapCodeException {
+        try(ZipOutputStream zos = new ZipOutputStream(out)) {
             if(zipInsideDirectory && srcDir.isDirectory()) {
                 File[] listFiles = srcDir.listFiles();
                 for(File file : listFiles) {
@@ -58,17 +56,8 @@ public class ZipUtils {
             } else {
                 compress(srcDir, zos, srcDir.getName(), keepdirstructure);
             }
-            long end = System.currentTimeMillis();
         } catch (Exception e) {
-            throw new RuntimeException("zip error from ZipUtils", e);
-        } finally {
-            if (zos != null) {
-                try {
-                    zos.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
+            throw new TapCodeException(PythonScriptProcessorExCode_31.PYTHON_SCRIPT_ZIP_FAILED,String.format("zip error from ZipUtils failed,fileName:%s,filePath:%s", srcDir.getName(),srcDir.getPath()));
         }
     }
 
@@ -144,28 +133,10 @@ public class ZipUtils {
                     parent.mkdirs();
                 }
                 // 将文件写出到解压的目录
-                IOUtils.copy(fin, new FileOutputStream(curfile));
+                try (FileOutputStream fileOutputStream = new FileOutputStream(curfile)){
+                    IOUtils.copy(fin, fileOutputStream);
+                }
             }
-//            TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(inputStream);
-//            TarArchiveEntry entry;
-//            while ((entry = tarArchiveInputStream.getNextTarEntry()) != null) {
-//                File outputFile = new File(targetDirectoryPath, entry.getName());
-//                if (entry.isDirectory()) {
-//                    if (!outputFile.exists()) {
-//                        outputFile.mkdirs();
-//                    }
-//                    continue;
-//                }
-//                outputFile.getParentFile().mkdirs();
-//                try (OutputStream outputStream = new FileOutputStream(outputFile)) {
-//                    byte[] buffer = new byte[4096];
-//                    int len;
-//                    while ((len = tarArchiveInputStream.read(buffer)) != -1) {
-//                        outputStream.write(buffer, 0, len);
-//                    }
-//                }
-//            }
-//            tarArchiveInputStream.close();
         } catch (Exception e){
             throw new CoreException(PDKRunnerErrorCodes.CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none, " + e.getMessage());
         }

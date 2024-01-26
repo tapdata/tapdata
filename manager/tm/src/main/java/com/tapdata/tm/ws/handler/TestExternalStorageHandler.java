@@ -98,9 +98,14 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 	public MessageInfo wrapMessageInfo(UserDetail userDetail, Map<String, Object> externalStorageConfig, MessageType testConnectionType) {
 		// 将 ExternalStorage 配置转换成 Connections 配置
 		String externalStorageId = (String) externalStorageConfig.get("id");
-		Map<String, Object> testConnectionConfig = newMongoDBConnections(userDetail);
-		if (null == testConnectionConfig) {
-			throw new TestExternalStorageException(String.format("Can not found storage by id '%s', please check the datasource 'MongoDB' is exists", externalStorageId), "NotFoundStorage");
+		ExternalStorageService externalStorageService = SpringContextHelper.getBean(ExternalStorageService.class);
+		ExternalStorageDto dto = externalStorageService.findNotCheckById(externalStorageId);
+		Map<String, Object> testConnectionConfig = new HashMap<>();
+		if (ExternalStorageType.mongodb.name().equals(dto.getType())) {
+			testConnectionConfig = newMongoDBConnections(userDetail);
+			if (null == testConnectionConfig) {
+				throw new TestExternalStorageException(String.format("Can not found storage by id '%s', please check the datasource 'MongoDB' is exists", externalStorageId), "NotFoundStorage");
+			}
 		}
 		Map<String, Object> connectorConfig = (Map<String, Object>) testConnectionConfig.computeIfAbsent("config", s -> new LinkedHashMap<>());
 		if (null == externalStorageId) {
@@ -122,12 +127,6 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 			externalStorageConfig.compute("checkServerIdentity", boolSetter);
 		} else {
 			// 已存在配置
-			ExternalStorageService externalStorageService = SpringContextHelper.getBean(ExternalStorageService.class);
-			ExternalStorageDto dto = externalStorageService.findNotCheckById(externalStorageId);
-			if (!ExternalStorageType.mongodb.name().equals(dto.getType())) {
-				return null;
-			}
-
 			fillString(connectorConfig, externalStorageConfig, "id", dto::getId);
 			fillString(connectorConfig, externalStorageConfig, "uri", dto::getUri);
 			fillBoolean(connectorConfig, externalStorageConfig, "ssl", dto::isSsl);
@@ -137,13 +136,15 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 			fillBoolean(connectorConfig, externalStorageConfig, "sslValidate", dto::isSslValidate);
 			fillBoolean(connectorConfig, externalStorageConfig, "checkServerIdentity", dto::isCheckServerIdentity);
 			testConnectionConfig.put("name", dto.getName());
+
 		}
 		connectorConfig.put("__connectionType", testConnectionConfig.get("connection_type"));
-
+		testConnectionConfig.put("testType",dto.getType());
 		MessageInfo testConnectionMessageInfo = new MessageInfo();
 		testConnectionMessageInfo.setType(testConnectionType.getType());
 		testConnectionConfig.put("externalStorageId", externalStorageId);
 		testConnectionConfig.put("isExternalStorage", true);
+		testConnectionConfig.put("accessNodeType", "AUTOMATIC_PLATFORM_ALLOCATION");
 		testConnectionMessageInfo.setData(testConnectionConfig);
 		return testConnectionMessageInfo;
 	}
