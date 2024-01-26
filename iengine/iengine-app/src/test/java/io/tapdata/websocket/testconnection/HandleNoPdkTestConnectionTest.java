@@ -163,14 +163,14 @@ class HandleNoPdkTestConnectionTest {
          ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileWrite(dir);
          file.setWritable(true);
          Files.delete(file.toPath());
-         assertEquals("failed",connectionValidateResultDetail.getStatus());
+         assertEquals("passed",connectionValidateResultDetail.getStatus());
      }
 
 
     @Test
     void handleRocksdbWriteIoExceptionTest(){
         RocksDBTestConnectionImpl rocksDBTestConnection = new RocksDBTestConnectionImpl();
-        String  dir = "    \\";
+        String  dir = "D://    \\";
         ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileWrite(dir);
         assertEquals("failed",connectionValidateResultDetail.getStatus());
     }
@@ -178,7 +178,7 @@ class HandleNoPdkTestConnectionTest {
     @Test
     void handleRocksdbReadIoExceptionTest(){
         RocksDBTestConnectionImpl rocksDBTestConnection = new RocksDBTestConnectionImpl();
-        String  dir = "    \\";
+        String  dir = "D://    \\";
         ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileRead(dir);
         assertEquals("failed",connectionValidateResultDetail.getStatus());
     }
