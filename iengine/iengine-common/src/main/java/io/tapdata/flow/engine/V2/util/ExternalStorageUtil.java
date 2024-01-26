@@ -258,7 +258,8 @@ public class ExternalStorageUtil {
 		}
 		Criteria criteria = new Criteria().orOperator(
 				// Get system inner config with constant name. Reference: manager/tm/src/main/resources/init/idaas/2.10-1.json
-				where("name").is(ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME),
+				where("name").in(ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME,
+						ConnectorConstant.TAPDATA_ROCKS_DB_EXTERNAL_STORAGE_NAME),
 				// Get default config
 				where("defaultStorage").is(true),
 				where("_id").in(ids)

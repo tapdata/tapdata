@@ -352,4 +352,7 @@ public class ConnectorConstant {
 
 	public static final String JUNIT_TEST_PROP_KEY = "JUNIT_TEST";
 
+	public static final String TAPDATA_ROCKS_DB_EXTERNAL_STORAGE_NAME = "Tapdata RocksDb External Storage";
+
+
 }
