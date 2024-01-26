@@ -25,7 +25,7 @@ import static org.junit.Assert.*;
 class HandleNoPdkTestConnectionTest {
 
     @Test
-    void handleRocksdbTest() {
+    void handleRocksdbTest() throws InterruptedException {
 
         TestConnectionHandler testConnectionHandler = new TestConnectionHandler();
         Map event = new HashMap();
@@ -52,7 +52,7 @@ class HandleNoPdkTestConnectionTest {
             }
         };
         testConnectionHandler.handle(event,sendMessage);
-        await().atMost(5, TimeUnit.SECONDS);
+        Thread.sleep(5000L);
     }
 
 
