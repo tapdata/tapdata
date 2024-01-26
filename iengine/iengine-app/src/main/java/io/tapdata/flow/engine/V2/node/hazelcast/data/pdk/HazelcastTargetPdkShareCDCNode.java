@@ -334,7 +334,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			return;
 		}
 		String fromTable = logContent.getFromTable();
-		String fullTableName = ShareCdcUtil.joinNamespaces(logContent.getTableNamespaces());
+		String fullTableName = CollectionUtils.isNotEmpty(logContent.getTableNamespaces()) ?
+				ShareCdcUtil.joinNamespaces(logContent.getTableNamespaces()) : fromTable;
 		Document document = logContent2Document(logContent);
 		HazelcastConstruct<Document> construct = getConstruct(fullTableName, fromTable, document.getString("connectionId"));
 		try {
