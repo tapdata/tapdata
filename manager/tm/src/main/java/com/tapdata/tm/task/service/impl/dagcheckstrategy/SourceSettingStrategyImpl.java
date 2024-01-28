@@ -123,7 +123,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 						return false;
 					}).orElse(false);
 					if (isPollingCDC) {
-						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_POLLINGCDC"));
+						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_POLLINGCDC"),name);
 						result.add(log);
 					}
 					List<String> capList = dto.getCapabilities().stream().map(Capability::getId).filter(id -> {
@@ -223,7 +223,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 	protected void checkIsFilterOrCustomCommand(Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, String name, DataParentNode node) {
 		String nodeId = node.getId();
 		if (node instanceof TableNode && (((TableNode) node).getIsFilter() || ((TableNode) node).isEnableCustomCommand())) {
-			TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_ISFILTER"));
+			TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_ISFILTER"), name);
 			result.add(log);
 		}
 	}
