@@ -15,7 +15,6 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.inspect.InspectJob;
 import io.tapdata.inspect.InspectTaskContext;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.TapExecuteCommand;
@@ -29,7 +28,6 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.beans.BeanUtils;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
