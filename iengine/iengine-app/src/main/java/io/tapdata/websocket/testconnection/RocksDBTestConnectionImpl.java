@@ -5,6 +5,8 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.validator.ConnectionValidateResult;
 import com.tapdata.validator.ConnectionValidateResultDetail;
 import com.tapdata.validator.ValidatorConstant;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -16,6 +18,8 @@ import java.util.Map;
 
 @Component
 public class RocksDBTestConnectionImpl implements TestConnection{
+
+    private static Logger logger = LogManager.getLogger(RocksDBTestConnectionImpl.class);
 
     private boolean connectionFail = false;
 
@@ -112,7 +116,7 @@ public class RocksDBTestConnectionImpl implements TestConnection{
             try {
                 Files.delete(file.toPath());
             } catch (Exception e) {
-
+                logger.warn("Delete file failed:{}", file.getName());
             }
         }
         connectionFail = status;

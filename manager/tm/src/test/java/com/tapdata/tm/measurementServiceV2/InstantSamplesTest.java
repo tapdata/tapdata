@@ -7,7 +7,8 @@ import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.task.service.TaskService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mockito;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
@@ -20,13 +21,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class InstantSamplesTest {
+ class InstantSamplesTest {
 
     public static MeasurementServiceV2 measurementServiceV2;
 
     public static MockMongoTemplate mongoTemplate;
     @BeforeAll
-    public static void init() throws ExecutionException, InterruptedException {
+     static void init() throws ExecutionException, InterruptedException {
         CompletableFuture<MongoTemplate> mongoOperations = new CompletableFuture<>();
         MongoClient mongoClient = Mockito.mock(MongoClient.class);
         mongoTemplate = new MockMongoTemplate(mongoClient, "test");
@@ -41,58 +42,19 @@ public class InstantSamplesTest {
      * 单侧testGetInstantSamp 方法，用一个MockMongoTemplate获取查询的的值。来判断type不一样查询中 LimitOperation输入
      * 本方法是测试node。期望是不存在限制
      */
-    @Test
-    public void testGetInstantSamplesForNode() {
+    @ParameterizedTest
+    @CsvSource({"node,false", "engine,true", "task,true"})
+    void testGetInstantSamples(String type,boolean expectedData) {
         // exec function
-        boolean actualData = execFunction("node");
-
-        // expected data
-        boolean expectedData = false;
+        System.out.println(type+"---"+expectedData);
+        boolean actualData = execFunction(type);
 
         // compare result
         Assertions.assertEquals(expectedData, actualData);
 
     }
 
-
-    /**
-     * 单侧testGetInstantSamp 方法，用一个MockMongoTemplate获取查询的的值。来判断type不一样查询中 LimitOperation输入
-     * 本方法是测试engine。期望是存在限制
-     */
-    @Test
-    public void testGetInstantSamplesForEngine() {
-
-        // exec function
-        boolean actualData = execFunction("engine");
-
-        // expected data
-        boolean expectedData = true;
-
-        // compare result
-        Assertions.assertEquals(expectedData, actualData);
-
-    }
-
-    /**
-     * 单侧testGetInstantSamp 方法，用一个MockMongoTemplate获取查询的的值。来判断type不一样查询中 LimitOperation输入
-     * 本方法是测试task。期望是存在限制
-     */
-    @Test
-    public void testGetInstantSamplesForTask(){
-
-        // exec function
-        boolean actualData = execFunction("task");
-
-        // expected data
-        boolean expectedData = true;
-
-        // compare result
-        Assertions.assertEquals(expectedData, actualData);
-
-    }
-
-
-    public boolean execFunction(String type) {
+     boolean execFunction(String type) {
         // input query param
         MeasurementQueryParam.MeasurementQuerySample querySample = new MeasurementQueryParam.MeasurementQuerySample();
         Map<String, String> tags = new LinkedHashMap<>();

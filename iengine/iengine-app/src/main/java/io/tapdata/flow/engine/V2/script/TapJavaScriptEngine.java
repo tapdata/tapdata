@@ -13,6 +13,8 @@ import com.tapdata.processor.constant.JSEngineEnum;
 import io.tapdata.Application;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.script.ScriptOptions;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.logging.log4j.Level;
@@ -100,7 +102,8 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
 				scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
 			}
 		} catch (IOException e) {
-			throw new RuntimeException("LoggingOutputStream failed:" + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+			throw new TapCodeException(TaskProcessorExCode_11.SCRIPT_RESOURCE_FAILED,
+					"LoggingOutputStream failed:" + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 		} finally {
 			//return pdk classLoader
 			Thread.currentThread().setContextClassLoader(classLoader);

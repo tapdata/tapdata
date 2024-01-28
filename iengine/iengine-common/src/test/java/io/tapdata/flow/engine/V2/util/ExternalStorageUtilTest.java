@@ -9,10 +9,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class ExternalStorageUtilTest {
+ class ExternalStorageUtilTest {
 
     @Test
-    public void getRocksDBConfigTest(){
+     void getRocksDBConfigTest(){
         ExternalStorageDto externalStorageDto = new ExternalStorageDto();
         String rocksdbPath = "/data/test/tt";
         externalStorageDto.setUri(rocksdbPath);

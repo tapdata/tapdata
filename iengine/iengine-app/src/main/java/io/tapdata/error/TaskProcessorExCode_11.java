@@ -104,4 +104,7 @@ public interface TaskProcessorExCode_11 {
 	String INIT_SCRIPT_ENGINE_FAILED = "11019";
 	@TapExCode
 	String ERROR_HANDLE_FAILED = "11020";
+
+	@TapExCode
+	String SCRIPT_RESOURCE_FAILED = "11021";
 }

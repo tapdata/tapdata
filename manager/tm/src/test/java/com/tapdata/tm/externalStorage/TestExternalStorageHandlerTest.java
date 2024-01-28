@@ -46,7 +46,7 @@ public class TestExternalStorageHandlerTest {
 
 
     @BeforeAll
-    public static void init() {
+     static void init() {
         messageQueueService = Mockito.mock(MessageQueueService.class);
         dataSourceService = Mockito.mock(DataSourceService.class);
         userService = Mockito.mock(UserService.class);
@@ -58,7 +58,7 @@ public class TestExternalStorageHandlerTest {
 
 
     @Test
-    public void wrapMessageInfoMongodbTest() {
+     void wrapMessageInfoMongodbTest() {
 
         TestExternalStorageHandler testExternalStorageHandler = new TestExternalStorageHandler(messageQueueService,
                 dataSourceService, userService, workerService, dataSourceDefinitionService);
@@ -90,7 +90,7 @@ public class TestExternalStorageHandlerTest {
     }
 
     @Test
-    public void wrapMessageInfoRocksDbTest() {
+     void wrapMessageInfoRocksDbTest() {
         TestExternalStorageHandler testExternalStorageHandler = new TestExternalStorageHandler(messageQueueService,
                 dataSourceService, userService, workerService, dataSourceDefinitionService);
 
@@ -110,7 +110,7 @@ public class TestExternalStorageHandlerTest {
     }
 
     @Test
-    public void handleMessageNoPdkHashTest() throws Exception {
+     void handleMessageNoPdkHashTest() throws Exception {
         DataSourceDefinitionRepository repository = Mockito.mock(DataSourceDefinitionRepository.class);
         MockDataSourceDefinitionService dataSourceDefinitionService = new MockDataSourceDefinitionService(repository);
         TestConnectionHandler testConnectionHandler = new TestConnectionHandler(messageQueueService,
@@ -129,7 +129,7 @@ public class TestExternalStorageHandlerTest {
 
 
     @Test
-    public void handleMessagePdkHashTest() throws Exception {
+     void handleMessagePdkHashTest() throws Exception {
         MessageQueueService messageQueueService = Mockito.mock(MessageQueueService.class);
         DataSourceService dataSourceService = Mockito.mock(DataSourceService.class);
         UserService userService = Mockito.mock(UserService.class);

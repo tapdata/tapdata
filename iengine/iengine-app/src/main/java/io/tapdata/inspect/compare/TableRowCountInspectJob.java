@@ -10,6 +10,8 @@ import com.tapdata.entity.inspect.InspectStatus;
 import com.tapdata.tm.commons.util.MetaType;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.error.TaskInspectExCode_27;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.inspect.InspectJob;
 import io.tapdata.inspect.InspectTaskContext;
@@ -73,7 +75,8 @@ public class TableRowCountInspectJob extends InspectJob {
 						CountByPartitionFilterFunction srcCountByPartitionFilterFunction = this.sourceNode.getConnectorFunctions().getCountByPartitionFilterFunction();
 						if (null == srcCountByPartitionFilterFunction) {
 							retry = 3;
-							throw new RuntimeException("Source node does not support count with filter function: " + sourceNode.getConnectorContext().getSpecification().getId());
+							throw new TapCodeException(TaskInspectExCode_27.CONNECTOR_NOT_SUPPORT_FUNCTION,
+									"Source node does not support count with filter function: " + sourceNode.getConnectorContext().getSpecification().getId());
 						}
 						TapAdvanceFilter tapAdvanceFilter = wrapFilter(srcConditions);
 						PDKInvocationMonitor.invoke(this.sourceNode, PDKMethod.COUNT_BY_PARTITION_FILTER,
@@ -82,7 +85,8 @@ public class TableRowCountInspectJob extends InspectJob {
 						ExecuteCommandFunction executeCommandFunction = this.sourceNode.getConnectorFunctions().getExecuteCommandFunction();
 						if (null == executeCommandFunction) {
 							retry = 3;
-							throw new RuntimeException("Source node does not support execute command function: " + sourceNode.getConnectorContext().getSpecification().getId());
+							throw new TapCodeException(TaskInspectExCode_27.CONNECTOR_NOT_SUPPORT_FUNCTION,
+									"Source node does not support execute command function: " + sourceNode.getConnectorContext().getSpecification().getId());
 						}
 						Map<String, Object> customCountCommand = setCommandCountParam(inspectTask.getSource().getCustomCommand(),this.sourceNode,srcTable);
 						TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
@@ -98,7 +102,8 @@ public class TableRowCountInspectJob extends InspectJob {
 						BatchCountFunction srcBatchCountFunction = this.sourceNode.getConnectorFunctions().getBatchCountFunction();
 						if (null == srcBatchCountFunction) {
 							retry = 3;
-							throw new RuntimeException("Source node does not support batch count function: " + sourceNode.getConnectorContext().getSpecification().getId());
+							throw new TapCodeException(TaskInspectExCode_27.CONNECTOR_NOT_SUPPORT_FUNCTION,
+									"Source node does not support batch count function: " + sourceNode.getConnectorContext().getSpecification().getId());
 						}
 						PDKInvocationMonitor.invoke(this.sourceNode, PDKMethod.SOURCE_BATCH_COUNT,
 								() -> sourceCount.set(srcBatchCountFunction.count(this.sourceNode.getConnectorContext(), srcTable)),
@@ -111,7 +116,8 @@ public class TableRowCountInspectJob extends InspectJob {
 						CountByPartitionFilterFunction tgtCountByPartitionFilterFunction = this.targetNode.getConnectorFunctions().getCountByPartitionFilterFunction();
 						if (null == tgtCountByPartitionFilterFunction) {
 							retry = 3;
-							throw new RuntimeException("Target node does not support count with filter function: " + targetNode.getConnectorContext().getSpecification().getId());
+							throw new TapCodeException(TaskInspectExCode_27.CONNECTOR_NOT_SUPPORT_FUNCTION,
+									"Target node does not support count with filter function: " + targetNode.getConnectorContext().getSpecification().getId());
 						}
 						TapAdvanceFilter tapAdvanceFilter = wrapFilter(tgtConditions);
 						PDKInvocationMonitor.invoke(this.targetNode, PDKMethod.COUNT_BY_PARTITION_FILTER,
@@ -120,7 +126,8 @@ public class TableRowCountInspectJob extends InspectJob {
 						ExecuteCommandFunction executeCommandFunction = this.targetNode.getConnectorFunctions().getExecuteCommandFunction();
 						if (null == executeCommandFunction) {
 							retry = 3;
-							throw new RuntimeException("Source node does not support execute command function: " + targetNode.getConnectorContext().getSpecification().getId());
+							throw new TapCodeException(TaskInspectExCode_27.CONNECTOR_NOT_SUPPORT_FUNCTION,
+									"Target node does not support execute command function: " + targetNode.getConnectorContext().getSpecification().getId());
 						}
 						Map<String, Object> customCountCommand = setCommandCountParam(inspectTask.getTarget().getCustomCommand(), this.targetNode, tgtTable);
 						TapExecuteCommand tapExecuteCommand = TapExecuteCommand.create()
@@ -135,7 +142,8 @@ public class TableRowCountInspectJob extends InspectJob {
 						BatchCountFunction tgtBatchCountFunction = this.targetNode.getConnectorFunctions().getBatchCountFunction();
 						if (null == tgtBatchCountFunction) {
 							retry = 3;
-							throw new RuntimeException("Target node does not support batch count function: " + targetNode.getConnectorContext().getSpecification().getId());
+							throw new TapCodeException(TaskInspectExCode_27.CONNECTOR_NOT_SUPPORT_FUNCTION,
+									"Target node does not support batch count function: " + targetNode.getConnectorContext().getSpecification().getId());
 						}
 						PDKInvocationMonitor.invoke(this.targetNode, PDKMethod.SOURCE_BATCH_COUNT,
 								() -> targetCount.set(tgtBatchCountFunction.count(this.targetNode.getConnectorContext(), tgtTable)),
@@ -261,7 +269,7 @@ public class TableRowCountInspectJob extends InspectJob {
 				params.put("collection", tgtTable.getId());
 			}
 		} catch (Exception e) {
-			throw new RuntimeException("setCommandCountParam error: " + e.getMessage()
+			throw new TapCodeException(TaskInspectExCode_27.PARAM_ERROR,"setCommandCountParam error: " + e.getMessage()
 					+ " customCommand : " + customCommand);
 		}
 		return copyCustomCommand;

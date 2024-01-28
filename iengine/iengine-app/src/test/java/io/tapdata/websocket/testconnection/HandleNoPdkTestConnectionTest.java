@@ -16,14 +16,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 
+import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 class HandleNoPdkTestConnectionTest {
 
     @Test
-    void handleRocksdbTest() throws InterruptedException {
+    void handleRocksdbTest(){
 
         TestConnectionHandler testConnectionHandler = new TestConnectionHandler();
         Map event = new HashMap();
@@ -32,7 +35,7 @@ class HandleNoPdkTestConnectionTest {
         Map config = new HashMap();
         config.put("uri","/data/test");
         event.put("config",config);
-
+        final String[] mark = {""};
         SendMessage sendMessage = new SendMessage() {
             @Override
             public void send(WebSocketEventResult data) throws IOException {
@@ -45,18 +48,20 @@ class HandleNoPdkTestConnectionTest {
                 if (OsUtil.isWindows()) {
                     dir = dir.replace("/", "\\");
                 }
+                mark[0] = "return";
                 File file = new File(dir);
                 assertTrue(file.exists());
             }
         };
         testConnectionHandler.handle(event,sendMessage);
-        Thread.sleep(5000L);
+        await().atMost(15, TimeUnit.SECONDS).until(() -> mark[0] == "return");
+
     }
 
 
 
     @Test
-    void handleOtherTypeTest() throws InterruptedException {
+    void handleOtherTypeTest() {
 
         TestConnectionHandler testConnectionHandler = new TestConnectionHandler();
         ClientMongoOperator clientMongoOperator = Mockito.mock(ClientMongoOperator.class);
@@ -68,25 +73,27 @@ class HandleNoPdkTestConnectionTest {
         Map config = new HashMap();
         config.put("uri","/data/test");
         event.put("config",config);
+        final String[] mark = {""};
 
         SendMessage sendMessage = new SendMessage() {
             @Override
             public void send(WebSocketEventResult data){
                String actualData =  data.getError();
                 String errorAlarm = "TestType not found instance '" + testType + "'";
+                mark[0] = "return";
                 assertTrue(actualData.contains(errorAlarm));
             }
 
 
         };
         testConnectionHandler.handle(event,sendMessage);
-        Thread.sleep(3000L);
+        await().atMost(15, TimeUnit.SECONDS).until(() -> mark[0] == "return");
+
     }
 
 
     @Test
-    void handlePdkTypeTest() throws InterruptedException {
-
+    void handlePdkTypeTest() {
         TestConnectionHandler testConnectionHandler = new TestConnectionHandler();
         ClientMongoOperator clientMongoOperator = Mockito.mock(ClientMongoOperator.class);
         ReflectionTestUtils.setField(testConnectionHandler,"clientMongoOperator",clientMongoOperator);
@@ -97,17 +104,21 @@ class HandleNoPdkTestConnectionTest {
         config.put("uri","/data/test");
         event.put("config",config);
         event.put("pdkType","mongodb");
+        final String[] mark = {""};
         SendMessage sendMessage = new SendMessage() {
             @Override
             public void send(WebSocketEventResult data){
                 String actualData =  data.getError();
                 String errorAlarm = "Unknown database type";
+                mark[0] = "return";
                 assertTrue(actualData.contains(errorAlarm));
             }
 
         };
         testConnectionHandler.handle(event,sendMessage);
-        Thread.sleep(13000L);
+        await().atMost(15, TimeUnit.SECONDS).until(() -> mark[0] == "return");
+
+
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.tapdata.tm.schedule;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.worker.service.WorkerService;
+import jdk.nashorn.internal.ir.annotations.Ignore;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -11,13 +12,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import java.util.concurrent.TimeUnit;
+
+import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.*;
 
 
 @SpringBootTest( classes = {AgentUpdateScheduleTest.class, AgentUpdateScheduleTest.TestConfig.class} )
-@Disabled
-public class AgentUpdateScheduleTest {
+ class AgentUpdateScheduleTest {
 
     @MockBean
     private ClusterOperationService clusterOperationService;
@@ -28,18 +32,21 @@ public class AgentUpdateScheduleTest {
 
 
     @Test
-    public void testAgentUpdateScheduleCron() {
-        try {
-            Thread.sleep(10000L);
-            verify(clusterOperationService, times(1)).sendOperation();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+     void testAgentUpdateScheduleCron() {
+        long startTime = System.currentTimeMillis();
+        await().atMost(30, TimeUnit.SECONDS).until(() ->
+                verify(settingsService, times(1)).
+                        getByCategoryAndKey("System", "buildProfile"));
+        long endTime = System.currentTimeMillis();
+        long useTime = endTime-startTime;
+        System.out.println(useTime);
+        assertTrue(useTime < 21000);
+
     }
 
     @Configuration
     @EnableScheduling
-    public static class TestConfig {
+    static class TestConfig {
         @Bean
         public AgentUpdateSchedule getScheduleTask() {
             return new AgentUpdateSchedule();

@@ -7,6 +7,8 @@ import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.error.TaskInspectExCode_27;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -51,7 +53,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	private final AtomicBoolean running;
 	private final TapCodecsFilterManager codecsFilterManager;
 	private final TapCodecsFilterManager defaultCodecsFilterManager;
-	private     Projection projection;
+	private Projection projection;
 	private int diffKeyIndex;
 	private final List<String> dataKeys;
 	private final List<List<Object>> diffKeyValues;
@@ -80,7 +82,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 
 		this.tapTable = connectorNode.getConnectorContext().getTableMap().get(tableName);
 		if (null == tapTable) {
-			throw new RuntimeException("Table '" + connections.getName() + "'.'" + tableName + "' not exists.");
+			throw new TapCodeException(TaskInspectExCode_27.TABLE_NO_EXISTS, "Table '" + connections.getName() + "'.'" + tableName + "' not exists.");
 		}
 		this.hasNext = new AtomicBoolean(true);
 		this.running = new AtomicBoolean(true);
@@ -95,7 +97,8 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 			Map<String, Object> keyMap;
 			for (List<Object> keyValues : diffKeyValues) {
 				if (dataKeys.size() != keyValues.size()) {
-					throw new RuntimeException(String.format("The key name size and value size not equals, keys: %s, values: %s", dataKeys, keyValues));
+					throw new TapCodeException(TaskInspectExCode_27.PARAM_ERROR,
+							String.format("The key name size and value size not equals, keys: %s, values: %s", dataKeys, keyValues));
 				}
 
 				keyMap = new LinkedHashMap<>();
@@ -112,11 +115,13 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	private void supportFunction(){
 		if(enableCustomCommand && MapUtil.isNotEmpty(customCommand)){
 			if (null == executeCommandFunction) {
-				throw new RuntimeException("Connector does not support customCommand function: " + connectorNode.getConnectorContext().getSpecification().getId());
+				throw new TapCodeException(TaskInspectExCode_27.CONNECTOR_NOT_SUPPORT_FUNCTION,
+						"Connector does not support customCommand function: " + connectorNode.getConnectorContext().getSpecification().getId());
 			}
 		}else {
 			if (null == queryByAdvanceFilterFunction) {
-				throw new RuntimeException("Connector does not support query by filter function: " + connectorNode.getConnectorContext().getSpecification().getId());
+				throw new TapCodeException(TaskInspectExCode_27.CONNECTOR_NOT_SUPPORT_FUNCTION
+						,"Connector does not support query by filter function: " + connectorNode.getConnectorContext().getSpecification().getId());
 			}
 		}
 	}
@@ -166,13 +171,13 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 			ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 			BatchCountFunction batchCountFunction = connectorFunctions.getBatchCountFunction();
 			CountByPartitionFilterFunction countByPartitionFilterFunction = connectorFunctions.getCountByPartitionFilterFunction();
-			ExecuteCommandFunction executeCommandFunction = connectorFunctions.getExecuteCommandFunction();
+			ExecuteCommandFunction executeCommand = connectorFunctions.getExecuteCommandFunction();
 
-			if (judgeExistFunction(batchCountFunction,countByPartitionFilterFunction,executeCommandFunction)) {
+			if (judgeExistFunction(batchCountFunction,countByPartitionFilterFunction,executeCommand)) {
 				total = 0L;
 				return;
 			}
-			if(enableCustomCommand && MapUtil.isNotEmpty(customCommand) && executeCommandFunction !=null){
+			if(enableCustomCommand && MapUtil.isNotEmpty(customCommand) && executeCommand !=null){
 				customCommandCount();
 			}else if (null != countByPartitionFilterFunction) {
 				TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
@@ -244,8 +249,8 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 				params.put("sort", sortMap);
 			}
 		} catch (Exception e) {
-			throw new RuntimeException("SetCommandQueryParam error: " + e.getMessage()+" customCommand : "+
-					customCommand);
+			throw new TapCodeException(TaskInspectExCode_27.PARAM_ERROR,
+					"SetCommandQueryParam error: " + e.getMessage()+" customCommand : "+customCommand);
 		}
 	}
 	private static String getSelectSql(String customSql,List<SortOn> sortOnList) {
@@ -379,6 +384,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 					if (CollectionUtils.isEmpty(results)) return;
 
 					handleQueryData(results);
+
 				}), TAG);
 
 
@@ -396,6 +402,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 						return;
 					}
 					handleQueryData(results);
+
 				}), TAG);
 	}
 
@@ -408,6 +415,8 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 						break;
 					}
 				} catch (InterruptedException e) {
+					logger.warn("Query data has Interrupted");
+					Thread.currentThread().interrupt();
 					return;
 				}
 			}
