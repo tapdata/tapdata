@@ -9,6 +9,8 @@ import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.alarmMail.dto.AlarmMailDto;
+import com.tapdata.tm.alarmMail.service.AlarmMailService;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.service.EventsService;
@@ -90,6 +92,8 @@ class MessageServiceTest {
     private UserDetail userDetail;
     @Mock
     private ScheduledExecutorService scheduledExecutorService;
+    @Mock
+    private AlarmMailService alarmMailService;
 
     @BeforeEach
     void setUp() throws NoSuchMethodException {
@@ -98,6 +102,7 @@ class MessageServiceTest {
         ReflectionTestUtils.setField(messageServiceUnderTest, "mpService", mockMpService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "circuitBreakerRecoveryService", circuitBreakerRecoveryService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "scheduledExecutorService", scheduledExecutorService);
+        ReflectionTestUtils.setField(messageServiceUnderTest, "alarmMailService", alarmMailService);
         messageServiceUnderTest.messageRepository = mockMessageRepository;
         messageServiceUnderTest.userService = mockUserService;
         messageServiceUnderTest.taskRepository = mockTaskRepository;
@@ -178,7 +183,7 @@ class MessageServiceTest {
                 userDetail);
 
         // Verify the results，method call once
-        verify(mockMailUtils,times(1)).sendHtmlMail("test@test.com","username", "serverName", SystemEnum.SYNC, MsgTypeEnum.STARTED, "sourceId");
+        verify(mockMailUtils,times(1)).sendHtmlMail(Arrays.asList("test@test.com"),"username", "serverName", SystemEnum.SYNC, MsgTypeEnum.STARTED, "sourceId");
     }
 
     /**
@@ -237,7 +242,7 @@ class MessageServiceTest {
         messageServiceUnderTest.addSync("serverName", "sourceId", MsgTypeEnum.STARTED, "title", Level.RECOVERY,
                 userDetail);
         // Verify the results，method not called
-        verify(mockMailUtils,times(0)).sendHtmlMail("test@test.com","username", "serverName", SystemEnum.SYNC, MsgTypeEnum.STARTED, "sourceId");
+        verify(mockMailUtils,times(0)).sendHtmlMail(Arrays.asList("test@test.com"),"username", "serverName", SystemEnum.SYNC, MsgTypeEnum.STARTED, "sourceId");
     }
 
     @Test
@@ -293,7 +298,7 @@ class MessageServiceTest {
         messageServiceUnderTest.addSync("serverName", "sourceId", MsgTypeEnum.STARTED, "title", Level.RECOVERY,
                 userDetail);
         // Verify the results，method not called
-        verify(mockMailUtils,times(0)).sendHtmlMail("test@test.com","username", "serverName", SystemEnum.SYNC, MsgTypeEnum.STARTED, "sourceId");
+        verify(mockMailUtils,times(0)).sendHtmlMail(Arrays.asList("test@test.com"),"username", "serverName", SystemEnum.SYNC, MsgTypeEnum.STARTED, "sourceId");
     }
     /**
      * Use case for CheckMessageLimit
@@ -349,7 +354,7 @@ class MessageServiceTest {
     void testInformUserEmail_SendingEmail() throws InvocationTargetException, IllegalAccessException {
         when(mockSettingsService.isCloud()).thenReturn(true);
         privateMethod.invoke(messageServiceUnderTest,MsgTypeEnum.STARTED,SystemEnum.SYNC,"serverName","sourceId","messageId",userDetail);
-        verify(mockMailUtils,times(1)).sendHtmlMail("test@test.com","Hi, username: ", "serverName", null,SystemEnum.SYNC, MsgTypeEnum.STARTED);
+        verify(mockMailUtils,times(1)).sendHtmlMail(Arrays.asList("test@test.com"),"Hi, username: ", "serverName", null,SystemEnum.SYNC, MsgTypeEnum.STARTED);
     }
     /**
      * Use case for email sending limit
@@ -360,7 +365,7 @@ class MessageServiceTest {
         //More than 10 times
         when(mockRepository.count(any(Query.class))).thenReturn(11L);
         privateMethod.invoke(messageServiceUnderTest,MsgTypeEnum.STARTED,SystemEnum.SYNC,"serverName","sourceId","messageId",userDetail);
-        verify(mockMailUtils,times(0)).sendHtmlMail("test@test.com","Hi, username: ", "serverName", null,SystemEnum.SYNC, MsgTypeEnum.STARTED);
+        verify(mockMailUtils,times(0)).sendHtmlMail(Arrays.asList("test@test.com"),"Hi, username: ", "serverName", null,SystemEnum.SYNC, MsgTypeEnum.STARTED);
     }
 
     @Test
@@ -369,14 +374,14 @@ class MessageServiceTest {
         //More than 10 times
         when(mockRepository.count(any(Query.class))).thenReturn(Long.valueOf(CommonUtils.getPropertyInt("cloud_mail_limit",MailUtils.CLOUD_MAIL_LIMIT)));
         privateMethod.invoke(messageServiceUnderTest,MsgTypeEnum.STARTED,SystemEnum.SYNC,"serverName","sourceId","messageId",userDetail);
-        verify(mockMailUtils,times(0)).sendHtmlMail("test@test.com","Hi, username: ", "serverName", null,SystemEnum.SYNC, MsgTypeEnum.STARTED);
+        verify(mockMailUtils,times(0)).sendHtmlMail(Arrays.asList("test@test.com"),"Hi, username: ", "serverName", null,SystemEnum.SYNC, MsgTypeEnum.STARTED);
     }
 
     @Test
     void testInformUserEmail_SendingEmailByDass() throws InvocationTargetException, IllegalAccessException {
         when(mockSettingsService.isCloud()).thenReturn(false);
         privateMethod.invoke(messageServiceUnderTest,MsgTypeEnum.STARTED,SystemEnum.SYNC,"serverName","sourceId","messageId",userDetail);
-        verify(mockMailUtils,times(1)).sendHtmlMail("test@test.com","Hi, username: ", "serverName", null,SystemEnum.SYNC, MsgTypeEnum.STARTED);
+        verify(mockMailUtils,times(1)).sendHtmlMail(Arrays.asList("test@test.com"),"Hi, username: ", "serverName", null,SystemEnum.SYNC, MsgTypeEnum.STARTED);
     }
 
     /**
@@ -390,7 +395,7 @@ class MessageServiceTest {
         when(mockSettingsService.isCloud()).thenReturn(true);
         informUser.invoke(messageServiceUnderTest,MsgTypeEnum.CONNECTED,SystemEnum.SYNC,new MessageMetadata("name","id"),"sourceId","messageId",userDetail);
         String resultClickHref = null + "monitor?id=" + "sourceId" + "{sourceId}&isMoniting=true&mapping=cluster-clone";
-        verify(mockMailUtils,times(1)).sendHtmlMail("test@test.com","Hi, username: ", "name", resultClickHref,SystemEnum.SYNC, MsgTypeEnum.CONNECTED);
+        verify(mockMailUtils,times(1)).sendHtmlMail(Arrays.asList("test@test.com"),"Hi, username: ", "name", resultClickHref,SystemEnum.SYNC, MsgTypeEnum.CONNECTED);
     }
     /**
      * Use case for email sending limit
@@ -405,7 +410,7 @@ class MessageServiceTest {
         informUser.invoke(messageServiceUnderTest,MsgTypeEnum.CONNECTED,SystemEnum.SYNC,new MessageMetadata("name","id"),"sourceId","messageId",userDetail);
         String resultClickHref = null + "monitor?id=" + "sourceId" + "{sourceId}&isMoniting=true&mapping=cluster-clone";
         //More than 10 times
-        verify(mockMailUtils,times(0)).sendHtmlMail("test@test.com","Hi, username: ", "name", resultClickHref,SystemEnum.SYNC, MsgTypeEnum.CONNECTED);
+        verify(mockMailUtils,times(0)).sendHtmlMail(Arrays.asList("test@test.com"),"Hi, username: ", "name", resultClickHref,SystemEnum.SYNC, MsgTypeEnum.CONNECTED);
     }
 
     @Test
@@ -418,7 +423,7 @@ class MessageServiceTest {
         informUser.invoke(messageServiceUnderTest,MsgTypeEnum.CONNECTED,SystemEnum.SYNC,new MessageMetadata("name","id"),"sourceId","messageId",userDetail);
         String resultClickHref = null + "monitor?id=" + "sourceId" + "{sourceId}&isMoniting=true&mapping=cluster-clone";
         //More than 10 times
-        verify(mockMailUtils,times(0)).sendHtmlMail("test@test.com","Hi, username: ", "name", resultClickHref,SystemEnum.SYNC, MsgTypeEnum.CONNECTED);
+        verify(mockMailUtils,times(0)).sendHtmlMail(Arrays.asList("test@test.com"),"Hi, username: ", "name", resultClickHref,SystemEnum.SYNC, MsgTypeEnum.CONNECTED);
     }
 
     /**
@@ -432,7 +437,7 @@ class MessageServiceTest {
         when(mockSettingsService.isCloud()).thenReturn(false);
         informUser.invoke(messageServiceUnderTest,MsgTypeEnum.CONNECTED,SystemEnum.SYNC,new MessageMetadata("name","id"),"sourceId","messageId",userDetail);
         String resultClickHref = null + "monitor?id=" + "sourceId" + "{sourceId}&isMoniting=true&mapping=cluster-clone";
-        verify(mockMailUtils,times(1)).sendHtmlMail("test@test.com","Hi, username: ", "name", resultClickHref,SystemEnum.SYNC, MsgTypeEnum.CONNECTED);
+        verify(mockMailUtils,times(1)).sendHtmlMail(Arrays.asList("test@test.com"),"Hi, username: ", "name", resultClickHref,SystemEnum.SYNC, MsgTypeEnum.CONNECTED);
     }
     @Test
     void testInformUser_SendingEmailByMessageDto() throws InvocationTargetException, IllegalAccessException{
@@ -448,7 +453,7 @@ class MessageServiceTest {
         messageDto.setSourceModule("agent");
         when(mockUserService.loadUserById(new ObjectId("62bc5008d4958d013d97c7a6"))).thenReturn(userDetail);
         informUser2.invoke(messageServiceUnderTest,messageDto);
-        verify(mockMailUtils,times(1)).sendHtmlMail("Your deployed Agent name is online【Tapdata】","test@test.com", "Hi, : ", "name",null,"Agent online");
+        verify(mockMailUtils,times(1)).sendHtmlMail("Your deployed Agent name is online【Tapdata】",Arrays.asList("test@test.com"), "Hi, : ", "name",null,"Agent online");
     }
 
     @Test
@@ -466,7 +471,7 @@ class MessageServiceTest {
         when(mockUserService.loadUserById(new ObjectId("62bc5008d4958d013d97c7a6"))).thenReturn(userDetail);
         when(mockRepository.count(any(Query.class))).thenReturn(11L);
         informUser2.invoke(messageServiceUnderTest, messageDto);
-        verify(mockMailUtils, times(0)).sendHtmlMail("【Tapdata】", "test@test.com", "Hi, : ", "name", null, "Instance online");
+        verify(mockMailUtils, times(0)).sendHtmlMail("【Tapdata】", Arrays.asList("test@test.com"), "Hi, : ", "name", null, "Instance online");
 
     }
     @Test
@@ -484,7 +489,7 @@ class MessageServiceTest {
         when(mockUserService.loadUserById(new ObjectId("62bc5008d4958d013d97c7a6"))).thenReturn(userDetail);
         when(mockRepository.count(any(Query.class))).thenReturn(Long.valueOf(CommonUtils.getPropertyInt("cloud_mail_limit",MailUtils.CLOUD_MAIL_LIMIT)));
         informUser2.invoke(messageServiceUnderTest,messageDto);
-        verify(mockMailUtils,times(0)).sendHtmlMail("【Tapdata】","test@test.com", "Hi, : ", "name",null,"Instance online");
+        verify(mockMailUtils,times(0)).sendHtmlMail("【Tapdata】",Arrays.asList("test@test.com"), "Hi, : ", "name",null,"Instance online");
     }
     @Test
     void testInformUser_SendingEmailOnAgentExpiring() throws InvocationTargetException, IllegalAccessException{
@@ -513,7 +518,7 @@ class MessageServiceTest {
         informUser2.invoke(messageServiceUnderTest,messageDto);
         verify(mockMailUtils,times(1)).sendHtmlMail(
                 "The instance (agent-xxxxxx) you subscribed to will expire in 7 days to avoid affecting the running of your tasks. Please renew in time.【Tapdata】",
-                "test@test.com",
+                Arrays.asList("test@test.com"),
                 "Hi, : ",
                 "agent-xxxxxx",null,
                 "The instance (agent-xxxxxx) you subscribed to will expire in 7 days to avoid affecting the running of your tasks. Please renew in time.");
@@ -523,7 +528,7 @@ class MessageServiceTest {
         informUser2.invoke(messageServiceUnderTest,messageDto);
         verify(mockMailUtils,times(1)).sendHtmlMail(
                 "The instance (agent-xxxxxx) you subscribed to will expire in 1 days to avoid affecting the running of your tasks. Please renew in time.【Tapdata】",
-                "test@test.com",
+                Arrays.asList("test@test.com"),
                 "Hi, : ",
                 "agent-xxxxxx",null,
                 "The instance (agent-xxxxxx) you subscribed to will expire in 1 days to avoid affecting the running of your tasks. Please renew in time.");
@@ -556,7 +561,7 @@ class MessageServiceTest {
         informUser2.invoke(messageServiceUnderTest,messageDto);
         verify(mockMailUtils,times(1)).sendHtmlMail(
                 "The instance (agent-xxxxxx) you subscribed to has expired and will be released in 1 day.【Tapdata】",
-                "test@test.com",
+                Arrays.asList("test@test.com"),
                 "Hi, : ",
                 "agent-xxxxxx",null,
                 "The instance (agent-xxxxxx) you subscribed to has expired and will be released in 1 day.");
@@ -567,7 +572,7 @@ class MessageServiceTest {
         informUser2.invoke(messageServiceUnderTest,messageDto);
         verify(mockMailUtils,times(1)).sendHtmlMail(
                 "The instance (agent-xxxxxx) you subscribed to has expired. Please keep your auto-renewal account with sufficient balance and the system will automatically renew it for you. If the renewal is not completed, please contact customer service for assistance.【Tapdata】",
-                "test@test.com",
+                Arrays.asList("test@test.com"),
                 "Hi, : ",
                 "agent-xxxxxx",null,
                 "The instance (agent-xxxxxx) you subscribed to has expired. Please keep your auto-renewal account with sufficient balance and the system will automatically renew it for you. If the renewal is not completed, please contact customer service for assistance.");
