@@ -124,12 +124,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		if (AppType.init().isCloud())
-			externalStorageDto = ExternalStorageUtil.getTargetNodeExternalStorage(
-					processorBaseContext.getNode(),
-					processorBaseContext.getEdges(),
-					clientMongoOperator,
-					processorBaseContext.getNodes());
 	}
 
 	private void selfCheckNode(Node node) {
