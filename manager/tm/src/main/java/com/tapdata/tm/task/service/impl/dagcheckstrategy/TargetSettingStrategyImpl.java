@@ -1,16 +1,18 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import cn.hutool.core.date.DateUtil;
-import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Sets;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
@@ -19,7 +21,9 @@ import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
+import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.entity.conversion.PossibleDataTypes;
+import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -37,8 +41,14 @@ import java.util.stream.Collectors;
 public class TargetSettingStrategyImpl implements DagLogStrategy {
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.TARGET_NODE_CHECK;
 
+    private final String FINAL_SYNC_INDEX="syncIndex";
+
+    private final String FINAL_STRING_DROPTABLE = "dropTable";
+
     private MetadataInstancesService metadataInstancesService;
     private TaskDagCheckLogService taskDagCheckLogService;
+
+    private DataSourceService dataSourceService;
 
     @Override
     public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
@@ -78,7 +88,6 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 DatabaseNode databaseNode = (DatabaseNode) node;
                 Optional.ofNullable(databaseNode.getSyncObjects()).ifPresent(list -> tableNames.set(list.get(0).getObjectNames()));
-
 //                if (existDataModeList.contains(databaseNode.getExistDataProcessMode())) {
 //                    keepTargetSchema = true;
 //                }
@@ -87,7 +96,6 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
 //                if (existDataModeList.contains(tableNode.getExistDataProcessMode())) {
 //                    keepTargetSchema = true;
 //                }
-
                 tableNames.set(Lists.newArrayList(tableNode.getTableName()));
                 if ("updateOrInsert".equals(tableNode.getWriteStrategy())) {
                     List<String> updateConditionFields = tableNode.getUpdateConditionFields();
@@ -140,7 +148,9 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
 //                    result.add(log);
 //                }
 //            }
-
+            checkNodeExistDataMode(locale, taskId, result, userId, node, name);
+            checkNodeSyncIndex(locale, taskId, result, userId, node, name);
+            checkTargetUpdateField(locale, taskId ,result , userId ,node , name ,connectionId);
             if (CollectionUtils.isEmpty(tableNames.get())) {
                 TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NOT_SELECT_TB"), name);
                 result.add(log);
@@ -208,5 +218,50 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
         });
 
         return result;
+    }
+
+    protected void checkTargetUpdateField(Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, Node node, String name, String connectionId) {
+        DataSourceConnectionDto connectionDto = dataSourceService.findByIdByCheck(MongoUtils.toObjectId(connectionId));
+        Optional.ofNullable(connectionDto).ifPresent(dto -> {
+            if (CollectionUtils.isNotEmpty(dto.getCapabilities())) {
+                boolean canCreateIndex = dto.getCapabilities().stream().map(Capability::getId).anyMatch("create_index_function"::equals);
+                if(canCreateIndex){
+                    TaskDagCheckLog updateFieldLog = taskDagCheckLogService.createLog(taskId, node.getId(), userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_WRAN_UPDATEFIELD"), name);
+                    result.add(updateFieldLog);
+                }
+            }
+        });
+    }
+
+    protected void checkNodeSyncIndex(Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, Node node, String name) {
+        String nodeId = node.getId();
+        if(node instanceof DatabaseNode){
+            Map<String, Object> nodeConfig = ((DatabaseNode) node).getNodeConfig();
+            if (nodeConfig != null && Boolean.TRUE.equals(nodeConfig.get(FINAL_SYNC_INDEX))) {
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SYNCINDEX"), name);
+                result.add(log);
+            }
+        } else if (node instanceof TableNode) {
+            Map<String, Object> nodeConfig = ((TableNode) node).getNodeConfig();
+            if (nodeConfig != null && Boolean.TRUE.equals(nodeConfig.get(FINAL_SYNC_INDEX))) {
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SYNCINDEX"), name);
+                result.add(log);
+            }
+        }
+    }
+
+    protected void checkNodeExistDataMode(Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, Node node, String name) {
+        String nodeId = node.getId();
+        if (node instanceof DatabaseNode) {
+            if (FINAL_STRING_DROPTABLE.equals(((DatabaseNode) node).getExistDataProcessMode())) {
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_EXISTDATAMODE"), name);
+                result.add(log);
+            }
+        } else if (node instanceof TableNode) {
+            if (FINAL_STRING_DROPTABLE.equals(((TableNode) node).getExistDataProcessMode())) {
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_EXISTDATAMODE"), name);
+                result.add(log);
+            }
+        }
     }
 }

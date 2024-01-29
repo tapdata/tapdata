@@ -105,10 +105,12 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 				result.add(log);
 			}
 			nameSet.add(name);
+			checkDDL(locale, taskId, result, userId, name, dataParentNode);
 
 			// check schema
 			String connectionId = dataParentNode.getConnectionId();
 			DataSourceConnectionDto connectionDto = dataSourceService.findByIdByCheck(MongoUtils.toObjectId(connectionId));
+			checkIsFilterOrCustomCommand(locale, taskId,  result,  userId,  name,  dataParentNode);
 			Optional.ofNullable(connectionDto).ifPresent(dto -> {
 				List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
 
@@ -120,6 +122,10 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 						}
 						return false;
 					}).orElse(false);
+					if (isPollingCDC) {
+						TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_POLLINGCDC"),name);
+						result.add(log);
+					}
 					List<String> capList = dto.getCapabilities().stream().map(Capability::getId).filter(id -> {
 						if (isPollingCDC) {
 							return Lists.of("stream_read_function", "batch_read_function", "query_by_advance_filter_function").contains(id);
@@ -212,6 +218,37 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 			}
 		});
 		return result;
+	}
+
+	protected void checkIsFilterOrCustomCommand(Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, String name, DataParentNode node) {
+		String nodeId = node.getId();
+		if (node instanceof TableNode && (((TableNode) node).getIsFilter() || ((TableNode) node).isEnableCustomCommand())) {
+			TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_ISFILTER"), name);
+			result.add(log);
+		}
+	}
+
+	protected void checkDDL(Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, String name, DataParentNode dataParentNode) {
+		Boolean enableDDL = dataParentNode.getEnableDDL();
+		String nodeId = dataParentNode.getId();
+		if (Boolean.TRUE.equals(enableDDL)) {
+			dataParentNode.getDag().getTargets().forEach(target -> {
+				if (target instanceof DataParentNode) {
+					DataParentNode dataParentTargetNode = (DataParentNode) target;
+					String connectionId = dataParentTargetNode.getConnectionId();
+					DataSourceConnectionDto connectionDto = dataSourceService.findByIdByCheck(MongoUtils.toObjectId(connectionId));
+					Optional.ofNullable(connectionDto).ifPresent(dto -> {
+						List<String> collect = dto.getCapabilities().stream().map(Capability::getId).filter(id -> {
+							return Lists.of("alter_field_name_function", "drop_field_function", "new_field_function", "alter_field_attributes_function").contains(id);
+						}).collect(Collectors.toList());
+						if (collect.size() > 0 && enableDDL != null && enableDDL) {
+							TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_ISDDL"), name);
+							result.add(log);
+						}
+					});
+				}
+			});
+		}
 	}
 
 	private void checkSourceSupportCdcByTestConnectionResult(TaskDto taskDto, Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, Node node, String nodeId, DataSourceConnectionDto dto, List<String> capList) {
