@@ -22,10 +22,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
-import javax.mail.Message;
-import javax.mail.MessagingException;
-import javax.mail.Session;
-import javax.mail.Transport;
+import javax.mail.*;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.io.*;
@@ -114,15 +111,14 @@ public class MailUtils {
             //初始化发送邮件配置
             this.initMailConfig();
             message.setFrom(new InternetAddress(this.sendAddress));// 设置发件人的地址
-            InternetAddress[] internetAddressList = (InternetAddress[]) notInBlacklistAddress.stream().map((to)-> {
-                try {
-                    return new InternetAddress(to,this.user);
-                } catch (UnsupportedEncodingException e) {
-                    log.warn("Address transcoding failed");
-                }
-                return null;
-            }).toArray();
-            message.setRecipients(Message.RecipientType.TO,internetAddressList);// 设置收件人,并设置其接收类型为TO
+            List<InternetAddress> addressList = new ArrayList<>();
+            for(String address : notInBlacklistAddress){
+               InternetAddress internetAddress =  new InternetAddress(address,this.user);
+               addressList.add(internetAddress);
+            }
+            InternetAddress[] internetAddressList = addressList.toArray(new InternetAddress[notInBlacklistAddress.size()]);
+            log.info("address list:{}",addressList);
+            message.setRecipients(Message.RecipientType.TO, internetAddressList);// 设置收件人,并设置其接收类型为TO
             message.setSubject(subject);// 设置标题
             message.setContent(result, "text/html;charset=UTF-8"); // 设置邮件内容类型为html
             message.setSentDate(new Date());// 设置发信时间
@@ -201,14 +197,13 @@ public class MailUtils {
             //初始化发送邮件配置
             this.initMailConfig();
             message.setFrom(new InternetAddress(this.sendAddress));// 设置发件人的地址
-            InternetAddress[] internetAddressList = (InternetAddress[]) notInBlacklistAddress.stream().map((to)-> {
-                try {
-                    return new InternetAddress(to,this.user);
-                } catch (UnsupportedEncodingException e) {
-                    log.warn("Address transcoding failed");
-                }
-                return null;
-            }).toArray();
+            List<InternetAddress> addressList = new ArrayList<>();
+            for(String address : notInBlacklistAddress){
+                InternetAddress internetAddress =  new InternetAddress(address,this.user);
+                addressList.add(internetAddress);
+            }
+            InternetAddress[] internetAddressList = addressList.toArray(new InternetAddress[notInBlacklistAddress.size()]);
+            log.info("address list:{}",addressList);
             message.setRecipients(Message.RecipientType.TO, internetAddressList);// 设置收件人,并设置其接收类型为TO
 
             String title = getMailTitle(systemEnum, msgTypeEnum);
@@ -292,14 +287,13 @@ public class MailUtils {
             //初始化发送邮件配置
             this.initMailConfig();
             message.setFrom(new InternetAddress(this.sendAddress));// 设置发件人的地址
-            InternetAddress[] internetAddressList = (InternetAddress[]) notInBlacklistAddress.stream().map((to)-> {
-                try {
-                    return new InternetAddress(to,this.user);
-                } catch (UnsupportedEncodingException e) {
-                    log.warn("Address transcoding failed");
-                }
-                return null;
-            }).toArray();
+            List<InternetAddress> addressList = new ArrayList<>();
+            for(String address : notInBlacklistAddress){
+                InternetAddress internetAddress =  new InternetAddress(address,this.user);
+                addressList.add(internetAddress);
+            }
+            InternetAddress[] internetAddressList = addressList.toArray(new InternetAddress[notInBlacklistAddress.size()]);
+            log.info("address list:{}",addressList);
             message.setRecipients(Message.RecipientType.TO, internetAddressList);// 设置收件人,并设置其接收类型为TO
 
             String title = getMailTitle(systemEnum, msgTypeEnum);
