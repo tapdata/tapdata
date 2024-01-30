@@ -4910,6 +4910,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public int runningTaskNum(String processId, UserDetail userDetail) {
         long workNum = count(Query.query(Criteria.where("agentId").is(processId)
                 .and("is_deleted").ne(true).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
                         .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
                                 Criteria.where("planStartDateFlag").is(true),
                                 Criteria.where("crontabExpressionFlag").is(true)

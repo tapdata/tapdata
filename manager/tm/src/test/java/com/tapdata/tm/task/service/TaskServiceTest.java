@@ -834,5 +834,24 @@ public class TaskServiceTest {
             assertTrue(flag);
         }
     }
+    @Nested
+    class RunningTaskNumWithProcessIdTest{
+        @Test
+        void testRunningTaskNumWithProcessId(){
+            TaskRepository taskRepository = mock(TaskRepository.class);
+            taskService = new TaskService(taskRepository);
+            long except = 5L;
+            UserDetail userDetail = mock(UserDetail.class);
+            when(taskRepository.count(Query.query(Criteria.where("agentId").is("111")
+                    .and("is_deleted").ne(true).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
+                    .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
+                            Criteria.where("planStartDateFlag").is(true),
+                            Criteria.where("crontabExpressionFlag").is(true)
+                    )), userDetail)).thenReturn(except);
+            long result = taskService.runningTaskNum("111", userDetail);
+            assertEquals(except,result);
+        }
+    }
 
 }
