@@ -13,19 +13,19 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/AlarmMail")
+@RequestMapping("/api/alarmMail")
 @Setter(onMethod_ = {@Autowired})
 public class AlarmMailController extends BaseController {
     private AlarmMailService alarmMailService;
-    @Operation(summary = "Find all instances of the model matched by filter from the data source")
+    @Operation(summary = "Find the user’s default alarm recipient")
     @GetMapping
     public ResponseMessage<AlarmMailDto> findOne() {
         return success(alarmMailService.findOne(new Filter(),getLoginUser()));
     }
 
-    @Operation(summary = "alarm save")
+    @Operation(summary = "Add user default recipient")
     @PostMapping("/save")
-    public ResponseMessage<Void> alarmSave(@RequestBody AlarmMailDto alarmMailDto) {
+    public ResponseMessage<Void> alarmMailSave(@RequestBody AlarmMailDto alarmMailDto) {
         UserDetail userDetail = getLoginUser();
         alarmMailService.upsert(new Query(),alarmMailDto, userDetail);
         return success();

@@ -123,7 +123,6 @@ public class SettingsService {
             if(alarmMailDto != null && alarmMailDto.getEmailAddressList() != null){
                 receiverList.get().addAll(alarmMailDto.getEmailAddressList());
             }
-            log.info("receiverList:{}",receiverList);
         } else {
             String receivers = (String) collect.get("email.receivers");
             if (StringUtils.isNotBlank(receivers)) {

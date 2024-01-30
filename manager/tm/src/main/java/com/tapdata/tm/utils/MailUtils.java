@@ -117,7 +117,6 @@ public class MailUtils {
                addressList.add(internetAddress);
             }
             InternetAddress[] internetAddressList = addressList.toArray(new InternetAddress[notInBlacklistAddress.size()]);
-            log.info("address list:{}",addressList);
             message.setRecipients(Message.RecipientType.TO, internetAddressList);// 设置收件人,并设置其接收类型为TO
             message.setSubject(subject);// 设置标题
             message.setContent(result, "text/html;charset=UTF-8"); // 设置邮件内容类型为html
@@ -203,7 +202,6 @@ public class MailUtils {
                 addressList.add(internetAddress);
             }
             InternetAddress[] internetAddressList = addressList.toArray(new InternetAddress[notInBlacklistAddress.size()]);
-            log.info("address list:{}",addressList);
             message.setRecipients(Message.RecipientType.TO, internetAddressList);// 设置收件人,并设置其接收类型为TO
 
             String title = getMailTitle(systemEnum, msgTypeEnum);
@@ -293,7 +291,6 @@ public class MailUtils {
                 addressList.add(internetAddress);
             }
             InternetAddress[] internetAddressList = addressList.toArray(new InternetAddress[notInBlacklistAddress.size()]);
-            log.info("address list:{}",addressList);
             message.setRecipients(Message.RecipientType.TO, internetAddressList);// 设置收件人,并设置其接收类型为TO
 
             String title = getMailTitle(systemEnum, msgTypeEnum);
