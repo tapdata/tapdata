@@ -236,19 +236,45 @@ public abstract class JdbcContext implements AutoCloseable {
             hikariDataSource = new HikariDataSource();
             //need 4 attributes
             hikariDataSource.setDriverClassName(config.getJdbcDriver());
-            hikariDataSource.setJdbcUrl(config.getDatabaseUrl());
+            String databaseUrl = config.getDatabaseUrl();
+            hikariDataSource.setJdbcUrl(databaseUrl);
             hikariDataSource.setUsername(config.getUser());
             hikariDataSource.setPassword(config.getPassword());
+            hikariDataSource.setMinimumIdle(getInteger(databaseUrl, "Min Idle",20));
+            hikariDataSource.setMaximumPoolSize(getInteger(databaseUrl, "Max Pool Size",20));
             if (EmptyKit.isNotNull(config.getProperties())) {
                 hikariDataSource.setDataSourceProperties(config.getProperties());
             }
-            hikariDataSource.setMinimumIdle(1);
-            hikariDataSource.setMaximumPoolSize(20);
             hikariDataSource.setAutoCommit(false);
             hikariDataSource.setIdleTimeout(60 * 1000L);
             hikariDataSource.setKeepaliveTime(60 * 1000L);
             hikariDataSource.setMaxLifetime(600 * 1000L);
             return hikariDataSource;
+        }
+
+        private static String getParamFromUrl(String databaseUrl, String tag){
+            if (null == databaseUrl || null == tag) return null;
+            if (databaseUrl.contains(tag)) {
+                int index = databaseUrl.indexOf(tag) + tag.length();
+                int end = databaseUrl.indexOf(";", index);
+                if (end < 0) {
+                    end = databaseUrl.length();
+                }
+                String substring = databaseUrl.substring(index, end);
+                substring = substring.replaceAll("=", "").replaceAll(" ", "");
+                return substring;
+            }
+            return null;
+        }
+
+        private static int getInteger(String databaseUrl, String tag, int defaultValue) {
+            try {
+                String poolSize = getParamFromUrl(databaseUrl, tag);
+                if (null != poolSize && !"".equals(poolSize)) {
+                    return Integer.parseInt(poolSize);
+                }
+            } catch (Exception ignore) { }
+            return defaultValue;
         }
     }
 }
