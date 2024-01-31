@@ -329,7 +329,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		return null;
 	}
 
-	private void writeLogContent(LogContent logContent) {
+	protected void writeLogContent(LogContent logContent) {
 		if (null == logContent) {
 			return;
 		}
@@ -340,7 +340,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		try {
 			construct.insert(document);
 		} catch (Exception e) {
-			throw new TapCodeException(TaskProcessorExCode_11.WRITE_ONE_SHARE_LOG_FAILED, "Write document failed: %s", e);
+			throw new TapCodeException(TaskProcessorExCode_11.WRITE_ONE_SHARE_LOG_FAILED, String.format("Write document failed: %s", document), e);
 		}
 	}
 
@@ -479,9 +479,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		return shareCdcTtlDay;
 	}
 
-	private HazelcastConstruct<Document> getConstruct(String fullTableName, String tableName, String connectionId) {
+	protected HazelcastConstruct<Document> getConstruct(String fullTableName, String tableName, String connectionId) {
 		return constructMap.computeIfAbsent(fullTableName, k -> {
-			String taskId = processorBaseContext.getTaskDto().getId().toHexString();
 			String sign = ShareCdcTableMappingDto.genSign(connectionId, tableName);
 			Query query = Query.query(Criteria.where("sign").is(sign));
 			ShareCdcTableMappingDto shareCdcTableMappingDto = clientMongoOperator.findOne(query, ConnectorConstant.SHARE_CDC_TABLE_MAPPING_COLLECTION, ShareCdcTableMappingDto.class);
