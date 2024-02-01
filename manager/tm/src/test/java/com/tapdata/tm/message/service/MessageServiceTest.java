@@ -817,4 +817,25 @@ class MessageServiceTest {
 
 
     }
+
+    @Test
+    void testGetMailAddressList(){
+        AlarmMailDto alarmMailDto = new AlarmMailDto();
+        List<String> expect = new ArrayList<>();
+        expect.add("test1@qq.com");
+        expect.add("test2@qq.com");
+        alarmMailDto.setEmailAddressList(expect);
+        when(alarmMailService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(alarmMailDto);
+        List<String> result = messageServiceUnderTest.getMailAddressList(userDetail);
+        expect.add(userDetail.getEmail());
+        Assertions.assertEquals(expect,result);
+    }
+
+    @Test
+    void testGetMailAddressList_AlarmMailDtoIsNUll(){
+        List<String> expect = new ArrayList<>();
+        List<String> result = messageServiceUnderTest.getMailAddressList(userDetail);
+        expect.add(userDetail.getEmail());
+        Assertions.assertEquals(expect,result);
+    }
 }

@@ -1043,7 +1043,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         return !settingsService.isCloud() || checkMessageLimit(userDetail) < CommonUtils.getPropertyInt("cloud_mail_limit",MailUtils.CLOUD_MAIL_LIMIT);
     }
 
-    private List<String> getMailAddressList(UserDetail userDetail){
+    protected List<String> getMailAddressList(UserDetail userDetail){
         AlarmMailDto alarmMailDto = alarmMailService.findOne(new Query(),userDetail);
         List<String> addressList = new ArrayList<>();
         if(alarmMailDto != null && alarmMailDto.getEmailAddressList() != null){
