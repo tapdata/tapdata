@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+
 @RestController
 @RequestMapping("/api/alarmMail")
 @Setter(onMethod_ = {@Autowired})
@@ -20,7 +22,12 @@ public class AlarmMailController extends BaseController {
     @Operation(summary = "Find the user’s default alarm recipient")
     @GetMapping
     public ResponseMessage<AlarmMailDto> findOne() {
-        return success(alarmMailService.findOne(new Filter(),getLoginUser()));
+        AlarmMailDto alarmMailDto = alarmMailService.findOne(new Filter(),getLoginUser());
+        if(alarmMailDto == null){
+            alarmMailDto = new AlarmMailDto();
+            alarmMailDto.setEmailAddressList(new ArrayList<>());
+        }
+        return success(alarmMailDto);
     }
 
     @Operation(summary = "Add user default recipient")
