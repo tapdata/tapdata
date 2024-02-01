@@ -1,0 +1,21 @@
+[
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "category": "License",
+        "key": "license_alarm",
+        "value": "10",
+        "default_value": "10",
+        "documentation": "License expiry email reminder.",
+        "last_update": {
+          "$numberLong": "0"
+        },
+        "key_label": "license_alarm",
+        "user_visible": true,
+        "hot_reloading": false,
+        "_class": "com.tapdata.tm.Settings.dto.SettingsDto"
+      }
+    ]
+  }
+]
