@@ -1046,7 +1046,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     protected List<String> getMailAddressList(UserDetail userDetail){
         AlarmMailDto alarmMailDto = alarmMailService.findOne(new Query(),userDetail);
         List<String> addressList = new ArrayList<>();
-        if(alarmMailDto != null && alarmMailDto.getEmailAddressList() != null){
+        if(alarmMailDto != null && CollectionUtils.isNotEmpty(alarmMailDto.getEmailAddressList())){
             addressList = alarmMailDto.getEmailAddressList();
         }
         addressList.add(userDetail.getEmail());
