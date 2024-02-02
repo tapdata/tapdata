@@ -1,8 +1,11 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.sharecdc.LogContent;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.HazelcastConstruct;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import lombok.SneakyThrows;
@@ -16,8 +19,7 @@ import org.mockito.MockedStatic;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -93,6 +95,42 @@ class HazelcastTargetPdkShareCDCNodeTest {
 				assertEquals(TaskProcessorExCode_11.WRITE_ONE_SHARE_LOG_FAILED, tapCodeException.getCode());
 				assertEquals(runtimeException, tapCodeException.getCause());
 			}
+		}
+	}
+	@Nested
+	@DisplayName("wrapLogContent method test")
+	class WrapLogContentMethodTest{
+		private final String CLAIMID="CL_000000001";
+		private final String POLICYID="PC_000000001";
+		@BeforeEach
+		void setUp() {
+			doCallRealMethod().when(hazelcastTargetPdkShareCDCNode).wrapLogContent(any(TapdataShareLogEvent.class));
+
+		}
+		@DisplayName("TapUpdateRecordEvent is replace event")
+		@Test
+		void test1(){
+			TapdataShareLogEvent shareLogEvent=new TapdataShareLogEvent();
+			Map<String,Object> after = new Document();
+			after.put("CLAIM_ID",CLAIMID);
+			after.put("POLICY_ID",POLICYID);
+			TapUpdateRecordEvent tapEvent= new TapUpdateRecordEvent().table("test").referenceTime(System.currentTimeMillis()).after(after).init();
+			tapEvent.setIsReplaceEvent(true);
+			shareLogEvent.setTapEvent(tapEvent);
+			LogContent logContent = hazelcastTargetPdkShareCDCNode.wrapLogContent(shareLogEvent);
+			assertEquals(Boolean.TRUE,logContent.getReplaceEvent());
+		}
+		@DisplayName("TapUpdateRecordEvent is not replace event")
+		@Test
+		void test2(){
+			TapdataShareLogEvent shareLogEvent=new TapdataShareLogEvent();
+			Map<String,Object> after = new Document();
+			after.put("CLAIM_ID",CLAIMID);
+			after.put("POLICY_ID",POLICYID);
+			TapUpdateRecordEvent tapEvent= new TapUpdateRecordEvent().table("test").referenceTime(System.currentTimeMillis()).after(after).init();
+			shareLogEvent.setTapEvent(tapEvent);
+			LogContent logContent = hazelcastTargetPdkShareCDCNode.wrapLogContent(shareLogEvent);
+			assertEquals(Boolean.FALSE,logContent.getReplaceEvent());
 		}
 	}
 }
