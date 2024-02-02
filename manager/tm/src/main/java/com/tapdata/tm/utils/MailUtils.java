@@ -74,10 +74,9 @@ public class MailUtils {
      * 发送html形式的邮件
      */
     public SendStatus sendHtmlMail(String subject, List<String> toList, String username, String agentName, String emailHref, String maiContent) {
-        List<String> notInBlacklistAddress = toList.stream().filter(to -> !blacklistService.inBlacklist(to)).collect(Collectors.toList());
         SendStatus sendStatus = new SendStatus("false", "");
-        if (CollectionUtils.isEmpty(notInBlacklistAddress)) {
-            sendStatus.setErrorMessage("mail is null");
+        List<String> notInBlacklistAddress = checkNotInBlacklistAddress(toList,sendStatus);
+        if(CollectionUtils.isEmpty(notInBlacklistAddress)){
             return sendStatus;
         }
         // 读取html模板
@@ -111,12 +110,7 @@ public class MailUtils {
             //初始化发送邮件配置
             this.initMailConfig();
             message.setFrom(new InternetAddress(this.sendAddress));// 设置发件人的地址
-            List<InternetAddress> addressList = new ArrayList<>();
-            for(String address : notInBlacklistAddress){
-               InternetAddress internetAddress =  new InternetAddress(address,this.user);
-               addressList.add(internetAddress);
-            }
-            InternetAddress[] internetAddressList = addressList.toArray(new InternetAddress[notInBlacklistAddress.size()]);
+            InternetAddress[] internetAddressList = getInternetAddress(notInBlacklistAddress);
             message.setRecipients(Message.RecipientType.TO, internetAddressList);// 设置收件人,并设置其接收类型为TO
             message.setSubject(subject);// 设置标题
             message.setContent(result, "text/html;charset=UTF-8"); // 设置邮件内容类型为html
@@ -154,13 +148,9 @@ public class MailUtils {
      * 发送html形式的邮件
      */
     public SendStatus sendHtmlMail(List<String> toList, String username, String agentName, String emailHref, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum) {
-
-        List<String> notInBlacklistAddress = toList.stream().filter(to -> !blacklistService.inBlacklist(to)).collect(Collectors.toList());
-
         SendStatus sendStatus = new SendStatus("false", "");
-
-        if (CollectionUtils.isEmpty(notInBlacklistAddress)) {
-            sendStatus.setErrorMessage("mail is null");
+        List<String> notInBlacklistAddress = checkNotInBlacklistAddress(toList,sendStatus);
+        if(CollectionUtils.isEmpty(notInBlacklistAddress)){
             return sendStatus;
         }
         // 读取html模板
@@ -196,12 +186,7 @@ public class MailUtils {
             //初始化发送邮件配置
             this.initMailConfig();
             message.setFrom(new InternetAddress(this.sendAddress));// 设置发件人的地址
-            List<InternetAddress> addressList = new ArrayList<>();
-            for(String address : notInBlacklistAddress){
-                InternetAddress internetAddress =  new InternetAddress(address,this.user);
-                addressList.add(internetAddress);
-            }
-            InternetAddress[] internetAddressList = addressList.toArray(new InternetAddress[notInBlacklistAddress.size()]);
+            InternetAddress[] internetAddressList = getInternetAddress(notInBlacklistAddress);
             message.setRecipients(Message.RecipientType.TO, internetAddressList);// 设置收件人,并设置其接收类型为TO
 
             String title = getMailTitle(systemEnum, msgTypeEnum);
@@ -241,14 +226,11 @@ public class MailUtils {
      * 发送html形式的邮件
      */
     public SendStatus sendHtmlMail(List<String> toList, String username, String agentName, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum, String sourceId) {
-        List<String> notInBlacklistAddress = toList.stream().filter(to -> !blacklistService.inBlacklist(to)).collect(Collectors.toList());
-
         SendStatus sendStatus = new SendStatus("false", "");
-        if (CollectionUtils.isEmpty(notInBlacklistAddress)) {
-            sendStatus.setErrorMessage("mail is null");
+        List<String> notInBlacklistAddress = checkNotInBlacklistAddress(toList,sendStatus);
+        if(CollectionUtils.isEmpty(notInBlacklistAddress)){
             return sendStatus;
         }
-
         // 读取html模板
         String html = readHtmlToString("mailTemplate.html");
 
@@ -285,12 +267,7 @@ public class MailUtils {
             //初始化发送邮件配置
             this.initMailConfig();
             message.setFrom(new InternetAddress(this.sendAddress));// 设置发件人的地址
-            List<InternetAddress> addressList = new ArrayList<>();
-            for(String address : notInBlacklistAddress){
-                InternetAddress internetAddress =  new InternetAddress(address,this.user);
-                addressList.add(internetAddress);
-            }
-            InternetAddress[] internetAddressList = addressList.toArray(new InternetAddress[notInBlacklistAddress.size()]);
+            InternetAddress[] internetAddressList = getInternetAddress(notInBlacklistAddress);
             message.setRecipients(Message.RecipientType.TO, internetAddressList);// 设置收件人,并设置其接收类型为TO
 
             String title = getMailTitle(systemEnum, msgTypeEnum);
@@ -675,6 +652,23 @@ public class MailUtils {
                 cloud+"."+
                 "</body>\n" +
                 "</html>";
+    }
+
+    protected List<String> checkNotInBlacklistAddress(List<String> toList,SendStatus sendStatus){
+        List<String> notInBlacklistAddress = toList.stream().filter(to -> !blacklistService.inBlacklist(to)).collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(notInBlacklistAddress)) {
+            sendStatus.setErrorMessage(String.format("Email %s in blacklist.", toList));
+        }
+        return notInBlacklistAddress;
+    }
+
+    protected InternetAddress[] getInternetAddress(List<String> notInBlacklistAddress) throws UnsupportedEncodingException {
+        List<InternetAddress> addressList = new ArrayList<>();
+        for(String address : notInBlacklistAddress){
+            InternetAddress internetAddress =  new InternetAddress(address,this.user);
+            addressList.add(internetAddress);
+        }
+        return addressList.toArray(new InternetAddress[notInBlacklistAddress.size()]);
     }
 
 }

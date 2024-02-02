@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import javax.mail.*;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -68,6 +69,16 @@ class MailUtilsTest {
     }
 
     @Test
+    void testSendHtmlMail_subjectNotNull_notInBlacklistAddressIsNull(){
+        when(blacklistService.inBlacklist(anyString())).thenReturn(true);
+        List<String> addressList = new ArrayList<>();
+        addressList.add("test@qq.com");
+        SendStatus result = mailUtils.sendHtmlMail("",addressList,"test","test","test","test");
+        Assertions.assertEquals("false",result.getStatus());
+        Assertions.assertTrue(result.getErrorMessage().contains("blacklist"));
+    }
+
+    @Test
     void testSendHtmlMail(){
         try(MockedStatic<Session> sessionMockedStatic = Mockito.mockStatic(Session.class)){
             Session mockSession = mock(Session.class);
@@ -88,6 +99,16 @@ class MailUtilsTest {
         } catch (MessagingException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Test
+    void testSendHtmlMail_notInBlacklistAddressIsNull(){
+        when(blacklistService.inBlacklist(anyString())).thenReturn(true);
+        List<String> addressList = new ArrayList<>();
+        addressList.add("test@qq.com");
+        SendStatus result = mailUtils.sendHtmlMail(addressList,"test","test","test", SystemEnum.AGENT, MsgTypeEnum.ALARM);
+        Assertions.assertEquals("false",result.getStatus());
+        Assertions.assertTrue(result.getErrorMessage().contains("blacklist"));
     }
 
     @Test
@@ -115,5 +136,46 @@ class MailUtilsTest {
             throw new RuntimeException(e);
         }
     }
+
+    @Test
+    void testSendHtmlMail_sourceIdNotNull_notInBlacklistAddressIsNull(){
+        when(blacklistService.inBlacklist(anyString())).thenReturn(true);
+        List<String> addressList = new ArrayList<>();
+        addressList.add("test@qq.com");
+        SendStatus result = mailUtils.sendHtmlMail(addressList,"test","test", SystemEnum.AGENT, MsgTypeEnum.ALARM,"test");
+        Assertions.assertEquals("false",result.getStatus());
+        Assertions.assertTrue(result.getErrorMessage().contains("blacklist"));
+    }
+
+    @Test
+    void testCheckNotInBlacklistAddress(){
+        SendStatus sendStatus = new SendStatus("false", "");
+        List<String> toList = new ArrayList<>();
+        toList.add("test@qq.com");
+        when(blacklistService.inBlacklist(anyString())).thenReturn(true);
+        List<String> notInBlacklistAddress = mailUtils.checkNotInBlacklistAddress(toList,sendStatus);
+        Assertions.assertTrue(sendStatus.getErrorMessage().contains("blacklist"));
+        Assertions.assertTrue(notInBlacklistAddress.isEmpty());
+    }
+
+
+    @Test
+    void testCheckNotInBlacklistAddress_notInBlacklistAddressNotNull(){
+        SendStatus sendStatus = new SendStatus("false", "");
+        List<String> toList = new ArrayList<>();
+        toList.add("test@qq.com");
+        when(blacklistService.inBlacklist(anyString())).thenReturn(false);
+        List<String> notInBlacklistAddress = mailUtils.checkNotInBlacklistAddress(toList,sendStatus);
+        Assertions.assertFalse(sendStatus.getErrorMessage().contains("blacklist"));
+        Assertions.assertFalse(notInBlacklistAddress.isEmpty());
+    }
+    @Test
+    void testGetInternetAddress() throws UnsupportedEncodingException {
+        List<String> notInBlacklistAddress = new ArrayList<>();
+        notInBlacklistAddress.add("test@qq.com");
+        InternetAddress[] result = mailUtils.getInternetAddress(notInBlacklistAddress);
+        Assertions.assertEquals(notInBlacklistAddress.size(),result.length);
+    }
+
 
 }

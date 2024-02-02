@@ -109,7 +109,7 @@ public class SettingsService {
         String password = Objects.nonNull(pwd) ? pwd.toString() : null;
         String protocol = (String) collect.get("email.server.tls");
 
-        AtomicReference<List<String>> receiverList = new AtomicReference<>();
+        AtomicReference<List<String>> receiverList = new AtomicReference<>(new ArrayList<>());
 
         boolean isCloud = isCloud();
         if (isCloud) {
@@ -120,7 +120,7 @@ public class SettingsService {
                 }
             });
             AlarmMailDto alarmMailDto = alarmMailService.findOne(new Query(),userDetail);
-            if(alarmMailDto != null && alarmMailDto.getEmailAddressList() != null){
+            if( alarmMailDto != null && CollectionUtils.isNotEmpty(alarmMailDto.getEmailAddressList())){
                 receiverList.get().addAll(alarmMailDto.getEmailAddressList());
             }
         } else {
