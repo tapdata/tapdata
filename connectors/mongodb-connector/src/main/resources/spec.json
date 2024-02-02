@@ -287,7 +287,8 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "x-decorator-props": {
-            "layout": "horizontal"
+            "layout": "horizontal",
+            "tooltip": "${syncIndexTip}"
           },
           "default": false,
           "x-reactions": {
@@ -419,6 +420,7 @@
       "skipDeletedEventsOnFillingTips": "The following conditions can cause delta exceptions when shutting down:\n1. Tasks use non-_id to make business judgments;\n2. Change the source field type to subdocument and modify the corresponding attributes;\n3. The source changes the field type to an embedded array and has a 'pull' operation;",
       "noCursorTimeout": "No Cursor Timeout",
       "syncIndex": "Sync Index",
+      "syncIndexTip": "Enabling this capability will automatically synchronize the source index to the target. This action may impact the target database, so please enable it with caution.",
       "schemaLimit": "Fields Load Limit For Each Collection"
     },
     "zh_CN": {
@@ -452,6 +454,7 @@
       "skipDeletedEventsOnFillingTips": "关闭时以下情况会导致增量异常：\n1. 任务使用非 _id 做业务判断；\n2. 源变更字段类型为子文档，并修改对应属性；\n3. 源变更字段类型为内嵌数组，并有 'pull' 操作；",
       "noCursorTimeout": "禁用游标超时",
       "syncIndex": "同步索引",
+      "syncIndexTip": "开启该能力后，会自动将源的索引同步到目标，该行为可能会对目标数据库造成影响，请谨慎开启",
       "schemaLimit": "每张表加载的字段数限制"
     },
     "zh_TW": {
@@ -485,6 +488,7 @@
       "skipDeletedEventsOnFillingTips": "關閉時以下情況會導致增量異常：\n1. 任務使用非 _id 做業務判斷；\n2. 來源變更欄位類型為子文檔，並修改對應屬性；\n3. 來源變更欄位類型為內嵌數組，並有 'pull' 操作；",
       "noCursorTimeout": "禁用游標超時",
       "syncIndex": "同步索引",
+      "syncIndexTip": "開啓該能力後，會自動將源的索引同步到目標，該行為可能會對目標數據庫造成影響，請謹慎開啓",
       "schemaLimit": "每张表加載的字段數限制"
 
     }

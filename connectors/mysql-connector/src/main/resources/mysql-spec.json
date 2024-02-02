@@ -237,7 +237,8 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "x-decorator-props": {
-            "layout": "horizontal"
+            "layout": "horizontal",
+            "tooltip": "${syncIndexTip}"
           },
           "default": false,
           "x-reactions": {
@@ -270,7 +271,8 @@
       "timezone": "timezone",
       "timezoneTip": "Specify the time zone, otherwise the database time zone will be used by default",
       "doc": "docs/mysql_en_US.md",
-      "syncIndex": "Sync Index"
+      "syncIndex": "Sync Index",
+      "syncIndexTip": "Enabling this capability will automatically synchronize the source index to the target. This action may impact the target database, so please enable it with caution."
     },
     "zh_CN": {
       "host": "地址",
@@ -286,7 +288,8 @@
       "timezone": "时区",
       "timezoneTip": "指定时区，否则默认使用数据库时区",
       "doc": "docs/mysql_zh_CN.md",
-      "syncIndex": "同步索引"
+      "syncIndex": "同步索引",
+      "syncIndexTip": "开启该能力后，会自动将源的索引同步到目标，该行为可能会对目标数据库造成影响，请谨慎开启"
     },
     "zh_TW": {
       "host": "地址",
@@ -302,7 +305,8 @@
       "timezone": "時區",
       "timezoneTip": "指定時區，否則默認使用數據庫時區",
       "doc": "docs/mysql_zh_TW.md",
-      "syncIndex": "同步索引"
+      "syncIndex": "同步索引",
+      "syncIndexTip": "開啓該能力後，會自動將源的索引同步到目標，該行為可能會對目標數據庫造成影響，請謹慎開啓"
     }
   },
   "dataTypes": {
