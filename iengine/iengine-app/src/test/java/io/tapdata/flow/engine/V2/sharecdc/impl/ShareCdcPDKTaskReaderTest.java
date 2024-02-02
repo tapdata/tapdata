@@ -6,17 +6,12 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import org.bson.Document;
-import org.junit.Assert;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 public class ShareCdcPDKTaskReaderTest {
@@ -51,10 +46,10 @@ public class ShareCdcPDKTaskReaderTest {
                 shareCdcPDKTaskReader.shareCdcContext=shareCdcContext;
                 ShareCdcBaseReader.ShareCDCReaderEvent shareCDCReaderEvent = shareCdcPDKTaskReader.tapEventWrapper(document);
                 TapUpdateRecordEvent tapUpdateRecordEvent = (TapUpdateRecordEvent) shareCDCReaderEvent.getTapEvent();
-                Assert.assertEquals(CLAIMID,tapUpdateRecordEvent.getAfter().get("CLAIM_ID"));
-                Assert.assertEquals(POLICYID,tapUpdateRecordEvent.getAfter().get("POLICY_ID"));
+                assertEquals(CLAIMID,tapUpdateRecordEvent.getAfter().get("CLAIM_ID"));
+                assertEquals(POLICYID,tapUpdateRecordEvent.getAfter().get("POLICY_ID"));
                 List<String> removedFields = tapUpdateRecordEvent.getRemovedFields();
-                Assert.assertEquals("age",removedFields.get(0));
+                assertEquals("age",removedFields.get(0));
             }
         }
         @DisplayName("Test TapUpdateEvent removeField is null")
@@ -67,10 +62,10 @@ public class ShareCdcPDKTaskReaderTest {
                 shareCdcPDKTaskReader.shareCdcContext=shareCdcContext;
                 ShareCdcBaseReader.ShareCDCReaderEvent shareCDCReaderEvent = shareCdcPDKTaskReader.tapEventWrapper(document);
                 TapUpdateRecordEvent tapUpdateRecordEvent = (TapUpdateRecordEvent) shareCDCReaderEvent.getTapEvent();
-                Assert.assertEquals(CLAIMID,tapUpdateRecordEvent.getAfter().get("CLAIM_ID"));
-                Assert.assertEquals(POLICYID,tapUpdateRecordEvent.getAfter().get("POLICY_ID"));
+                assertEquals(CLAIMID,tapUpdateRecordEvent.getAfter().get("CLAIM_ID"));
+                assertEquals(POLICYID,tapUpdateRecordEvent.getAfter().get("POLICY_ID"));
                 List<String> removedFields = tapUpdateRecordEvent.getRemovedFields();
-                Assert.assertNull(removedFields);
+                Assertions.assertNull(removedFields);
             }
         }
         @DisplayName("Test TapupdateEvent replaceEvent is true")
@@ -84,9 +79,9 @@ public class ShareCdcPDKTaskReaderTest {
                 shareCdcPDKTaskReader.shareCdcContext=shareCdcContext;
                 ShareCdcBaseReader.ShareCDCReaderEvent shareCDCReaderEvent = shareCdcPDKTaskReader.tapEventWrapper(document);
                 TapUpdateRecordEvent tapUpdateRecordEvent = (TapUpdateRecordEvent) shareCDCReaderEvent.getTapEvent();
-                Assert.assertEquals(CLAIMID,tapUpdateRecordEvent.getAfter().get("CLAIM_ID"));
-                Assert.assertEquals(POLICYID,tapUpdateRecordEvent.getAfter().get("POLICY_ID"));
-                Assert.assertEquals(Boolean.TRUE,tapUpdateRecordEvent.getIsReplaceEvent());
+                assertEquals(CLAIMID,tapUpdateRecordEvent.getAfter().get("CLAIM_ID"));
+                assertEquals(POLICYID,tapUpdateRecordEvent.getAfter().get("POLICY_ID"));
+                assertEquals(Boolean.TRUE,tapUpdateRecordEvent.getIsReplaceEvent());
             }
         }
         @DisplayName("Test TapupdateEvent replaceEvent is false")
@@ -100,9 +95,9 @@ public class ShareCdcPDKTaskReaderTest {
                 shareCdcPDKTaskReader.shareCdcContext=shareCdcContext;
                 ShareCdcBaseReader.ShareCDCReaderEvent shareCDCReaderEvent = shareCdcPDKTaskReader.tapEventWrapper(document);
                 TapUpdateRecordEvent tapUpdateRecordEvent = (TapUpdateRecordEvent) shareCDCReaderEvent.getTapEvent();
-                Assert.assertEquals(CLAIMID,tapUpdateRecordEvent.getAfter().get("CLAIM_ID"));
-                Assert.assertEquals(POLICYID,tapUpdateRecordEvent.getAfter().get("POLICY_ID"));
-                Assert.assertEquals(Boolean.FALSE,tapUpdateRecordEvent.getIsReplaceEvent());
+                assertEquals(CLAIMID,tapUpdateRecordEvent.getAfter().get("CLAIM_ID"));
+                assertEquals(POLICYID,tapUpdateRecordEvent.getAfter().get("POLICY_ID"));
+                assertEquals(Boolean.FALSE,tapUpdateRecordEvent.getIsReplaceEvent());
             }
         }
         @DisplayName("Test TapUpdateEvent replaceEvent is null")
@@ -116,9 +111,9 @@ public class ShareCdcPDKTaskReaderTest {
                 shareCdcPDKTaskReader.shareCdcContext=shareCdcContext;
                 ShareCdcBaseReader.ShareCDCReaderEvent shareCDCReaderEvent = shareCdcPDKTaskReader.tapEventWrapper(document);
                 TapUpdateRecordEvent tapUpdateRecordEvent = (TapUpdateRecordEvent) shareCDCReaderEvent.getTapEvent();
-                Assert.assertEquals(CLAIMID,tapUpdateRecordEvent.getAfter().get("CLAIM_ID"));
-                Assert.assertEquals(POLICYID,tapUpdateRecordEvent.getAfter().get("POLICY_ID"));
-                Assert.assertEquals(Boolean.FALSE,tapUpdateRecordEvent.getIsReplaceEvent());
+                assertEquals(CLAIMID,tapUpdateRecordEvent.getAfter().get("CLAIM_ID"));
+                assertEquals(POLICYID,tapUpdateRecordEvent.getAfter().get("POLICY_ID"));
+                assertEquals(Boolean.FALSE,tapUpdateRecordEvent.getIsReplaceEvent());
             }
         }
     }

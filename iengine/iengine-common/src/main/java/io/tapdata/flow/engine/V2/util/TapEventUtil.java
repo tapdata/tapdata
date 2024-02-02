@@ -103,6 +103,6 @@ public class TapEventUtil {
 		if (tapEvent instanceof TapUpdateRecordEvent) {
 			return ((TapUpdateRecordEvent) tapEvent).getIsReplaceEvent();
 		}
-		return null;
+		return false;
 	}
 }
