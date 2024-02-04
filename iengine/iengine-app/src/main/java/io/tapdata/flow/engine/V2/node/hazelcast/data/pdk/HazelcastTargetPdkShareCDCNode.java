@@ -40,7 +40,6 @@ import io.tapdata.flow.engine.V2.common.StoreLoggerImpl;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import io.tapdata.modules.api.net.utils.TapEngineUtils;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
@@ -383,7 +382,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		return document;
 	}
 
-	private LogContent wrapLogContent(TapdataShareLogEvent tapdataShareLogEvent) {
+	protected LogContent wrapLogContent(TapdataShareLogEvent tapdataShareLogEvent) {
 		if (null == tapdataShareLogEvent) {
 			return null;
 		}
@@ -418,6 +417,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 					offsetStr,
 					removedFields
 			);
+			logContent.setReplaceEvent(TapEventUtil.getIsReplaceEvent(tapEvent));
 			logContent.setTableNamespaces(TapEventUtil.getNamespaces(tapEvent));
 			logContent.setConnectionId(connectionId);
 		} else if (tapdataShareLogEvent.isDDL()) {

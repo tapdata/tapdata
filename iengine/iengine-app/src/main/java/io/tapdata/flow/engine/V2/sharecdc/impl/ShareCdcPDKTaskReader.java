@@ -640,6 +640,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				((TapUpdateRecordEvent) tapEvent).setAfter(logContent.getAfter());
 				List<String> removeFields = logContent.getRemoveFields();
 				((TapUpdateRecordEvent) tapEvent).setRemovedFields(removeFields);
+				((TapUpdateRecordEvent) tapEvent).setIsReplaceEvent(logContent.getReplaceEvent());
 				break;
 			case DELETE:
 				tapEvent = new TapDeleteRecordEvent().init();
