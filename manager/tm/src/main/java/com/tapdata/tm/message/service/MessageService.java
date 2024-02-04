@@ -14,6 +14,8 @@ import com.tapdata.tm.Settings.dto.NotificationSettingDto;
 import com.tapdata.tm.Settings.dto.RunNotificationDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.alarmMail.dto.AlarmMailDto;
+import com.tapdata.tm.alarmMail.service.AlarmMailService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
@@ -84,6 +86,9 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     private MpService mpService;
     @Autowired
     private CircuitBreakerRecoveryService circuitBreakerRecoveryService;
+
+    @Autowired
+    AlarmMailService alarmMailService;
 
     private final static String MAIL_SUBJECT = "【Tapdata】";
     private final static String MAIL_CONTENT = "尊敬的用户您好，您在Tapdata Cloud上创建的Agent:";
@@ -357,7 +362,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                 if(checkSending(userDetail)){
                     SendStatus sendStatus = new SendStatus("", "false");
                     if (!MsgTypeEnum.DELETED.equals(msgTypeEnum)) {
-                        sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), userDetail.getUsername(), serverName, SystemEnum.SYNC, msgTypeEnum, sourceId);
+                        sendStatus = mailUtils.sendHtmlMail(getMailAddressList(userDetail), userDetail.getUsername(), serverName, SystemEnum.SYNC, msgTypeEnum, sourceId);
                     }
                     eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
                     update(Query.query(Criteria.where("_id").is(saveMessage.getId())),Update.update("isSend",true));
@@ -512,7 +517,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 //        Object hostUrl = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_HREF);
         String clickHref = mailUtils.getHrefClick(sourceId, systemEnum, msgType);
         if(checkSending(userDetail)){
-            SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), username, serverName, clickHref, systemEnum, msgType);
+            SendStatus sendStatus = mailUtils.sendHtmlMail(getMailAddressList(userDetail), username, serverName, clickHref, systemEnum, msgType);
             eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
             update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
         }
@@ -620,7 +625,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             Object hostUrl = settingsService.getByCategoryAndKey("SMTP", "emailHref");
             String clickHref = hostUrl + "monitor?id=" + sourceId + "{sourceId}&isMoniting=true&mapping=cluster-clone";
             if(checkSending(userDetail)){
-                SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), username, metadataName, clickHref, systemEnum, msgType);
+                SendStatus sendStatus = mailUtils.sendHtmlMail(getMailAddressList(userDetail), username, metadataName, clickHref, systemEnum, msgType);
                 eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageId, userDetail.getUserId(), sendStatus, retry, Type.NOTICE_MAIL);
                 update(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(messageId))),Update.update("isSend",true));
             }
@@ -868,7 +873,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             MsgTypeEnum msgTypeEnum = MsgTypeEnum.getEnumByValue(msgType);
             String clickHref = mailUtils.getAgentClick(metadataName, msgTypeEnum);
             if(checkSending(userDetail)){
-                SendStatus sendStatus = mailUtils.sendHtmlMail(subject + MAIL_SUBJECT, userDetail.getEmail(), username, metadataName, clickHref, emailTip);
+                SendStatus sendStatus = mailUtils.sendHtmlMail(subject + MAIL_SUBJECT, getMailAddressList(userDetail), username, metadataName, clickHref, emailTip);
                 eventsService.recordEvents(subject + MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
             }
         }
@@ -1036,6 +1041,16 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
 
     public boolean checkSending(UserDetail userDetail){
         return !settingsService.isCloud() || checkMessageLimit(userDetail) < CommonUtils.getPropertyInt("cloud_mail_limit",MailUtils.CLOUD_MAIL_LIMIT);
+    }
+
+    protected List<String> getMailAddressList(UserDetail userDetail){
+        AlarmMailDto alarmMailDto = alarmMailService.findOne(new Query(),userDetail);
+        List<String> addressList = new ArrayList<>();
+        if(alarmMailDto != null && CollectionUtils.isNotEmpty(alarmMailDto.getEmailAddressList())){
+            addressList = alarmMailDto.getEmailAddressList();
+        }
+        addressList.add(userDetail.getEmail());
+        return addressList;
     }
 
 
