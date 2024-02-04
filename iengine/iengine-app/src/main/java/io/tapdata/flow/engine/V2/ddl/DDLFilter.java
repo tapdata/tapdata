@@ -1,8 +1,12 @@
 package io.tapdata.flow.engine.V2.ddl;
 
+import com.tapdata.tm.commons.dag.DDLConfiguration;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 
 import java.util.List;
 import java.util.function.Predicate;
@@ -14,22 +18,18 @@ import java.util.function.Predicate;
  **/
 public class DDLFilter implements Predicate<TapDDLEvent> {
 
-	private Boolean enableDDL;
 	private List<String> disabledEvents;
 	private Predicate<String> dynamicTableTest;
+
+	private DDLConfiguration configuration;
 
 	private DDLFilter() {
 	}
 
-	public static DDLFilter create(Boolean enableDDL, List<String> disabledEvents) {
+	public static DDLFilter create(List<String> disabledEvents,DDLConfiguration ddlConfiguration) {
 		return new DDLFilter()
-				.enableDDL(enableDDL)
-				.disabledEvents(disabledEvents);
-	}
-
-	public DDLFilter enableDDL(Boolean enableDDL) {
-		this.enableDDL = enableDDL;
-		return this;
+				.disabledEvents(disabledEvents)
+				.ddlConfiguration(ddlConfiguration);
 	}
 
 	public DDLFilter disabledEvents(List<String> disabledEvents) {
@@ -42,17 +42,35 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 		return this;
 	}
 
+	public DDLFilter ddlConfiguration(DDLConfiguration ddlConfiguration) {
+		this.configuration = ddlConfiguration;
+		return this;
+	}
+
 	@Override
 	public boolean test(TapDDLEvent tapDDLEvent) {
-		if (null != enableDDL && enableDDL) {
-			String key = tapDDLEvent.key();
-			if (null != disabledEvents && !disabledEvents.contains(key)) {
-				return true;
-			}
-		}
 		if (null != dynamicTableTest && dynamicTableTest.test(tapDDLEvent.getTableId())) {
 			if (tapDDLEvent instanceof TapCreateTableEvent || tapDDLEvent instanceof TapDropTableEvent) {
 				return true;
+			}
+		}
+		if(null != configuration){
+			switch (configuration){
+				case ERROR:
+					throw new TapCodeException(TaskProcessorExCode_11.ENCOUNTERED_DDL_EVENT_REPORT_ERROR);
+				case FILTER:
+					return false;
+				case SYNCHRONIZATION:
+					if(tapDDLEvent instanceof TapDDLUnknownEvent){
+						throw new TapCodeException(TaskProcessorExCode_11.UNABLE_TO_SYNCHRONIZE_DDL_EVENT);
+					}
+					String key = tapDDLEvent.key();
+					if (null != disabledEvents && !disabledEvents.contains(key)) {
+						return true;
+					}
+					break;
+				default:
+					return false;
 			}
 		}
 		return false;
