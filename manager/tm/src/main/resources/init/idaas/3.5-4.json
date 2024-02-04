@@ -1,20 +1,25 @@
 [
   {
-    "insert": "Settings",
-    "documents": [
+    "update": "Settings",
+    "updates": [
       {
-        "category": "License",
-        "key": "license_alarm",
-        "value": "10",
-        "default_value": "10",
-        "documentation": "License expiry email reminder.",
-        "last_update": {
-          "$numberLong": "0"
+        "q": {
+          "key": "license_alarm"
         },
-        "key_label": "license_alarm",
-        "user_visible": true,
-        "hot_reloading": false,
-        "_class": "com.tapdata.tm.Settings.dto.SettingsDto"
+        "u": {
+          "$set": {
+            "category": "License",
+            "default_value": "10",
+            "documentation": "License expiry email reminder.",
+            "key_label": "license_alarm",
+            "user_visible": true,
+            "hot_reloading": false
+          },
+          "$setOnInsert": {
+            "value": "10"
+          }
+        },
+        "upsert": true
       }
     ]
   }
