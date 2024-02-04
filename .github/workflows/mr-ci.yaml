@@ -123,7 +123,7 @@ jobs:
       - name: Checkout Tapdata Code
         run: |
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }} --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata.git
+          git clone -b ${{ needs.Get-Stable-Branch.outputs.OPENSOURCE_BRANCH }} ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata.git
           cd tapdata && git fetch --tags
       - name: Patch Maven Dependens
         run: |
