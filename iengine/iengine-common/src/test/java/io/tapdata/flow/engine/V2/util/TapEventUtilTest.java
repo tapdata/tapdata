@@ -82,6 +82,6 @@ class TapEventUtilTest {
 	void test3(){
 		TapInsertRecordEvent tapInsertRecordEvent=new TapInsertRecordEvent();
 		Boolean isReplaceEvent = TapEventUtil.getIsReplaceEvent(tapInsertRecordEvent);
-		assertNull(isReplaceEvent);
+		assertEquals(Boolean.FALSE,isReplaceEvent);
 	}
 }
