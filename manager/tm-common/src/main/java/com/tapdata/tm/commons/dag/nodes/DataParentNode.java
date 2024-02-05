@@ -1,9 +1,6 @@
 package com.tapdata.tm.commons.dag.nodes;
 
-import com.tapdata.tm.commons.dag.DmlPolicy;
-import com.tapdata.tm.commons.dag.EqField;
-import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.SchemaTransformerResult;
+import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
@@ -61,6 +58,8 @@ public abstract class DataParentNode<S> extends Node<S> {
     private DmlPolicy dmlPolicy;
 
     private Boolean enableDDL;
+
+    private DDLConfiguration ddlConfiguration;
 
     private ReadPartitionOptions readPartitionOptions;
     private List<String> disabledEvents;

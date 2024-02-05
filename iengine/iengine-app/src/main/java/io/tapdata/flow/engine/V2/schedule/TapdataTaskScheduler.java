@@ -15,6 +15,7 @@ import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.exception.RestDoNotRetryException;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -308,9 +309,16 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		AtomicBoolean isReturn = new AtomicBoolean(false);
 		taskClientMap.computeIfPresent(taskId, (id, taskClient)->{
 			if (taskClientMap.containsKey(taskId)) {
-				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
-				if (!TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
+				String status = taskClient.getStatus();
+				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, status);
+				try {
 					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
+				} catch (Exception e) {
+					if (e instanceof RestDoNotRetryException && "Transition.Not.Supported".equals(((RestDoNotRetryException) e).getCode())) {
+						// ignored Transition.Not.Supported error
+					} else {
+						throw e;
+					}
 				}
 				isReturn.compareAndSet(false, true);
 			}

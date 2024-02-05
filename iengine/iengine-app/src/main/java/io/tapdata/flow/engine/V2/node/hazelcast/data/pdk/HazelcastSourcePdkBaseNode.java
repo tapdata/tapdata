@@ -13,6 +13,7 @@ import com.tapdata.tm.commons.cdcdelay.CdcDelayDisable;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
+import com.tapdata.tm.commons.dag.DDLConfiguration;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -331,9 +332,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private void initDDLFilter() {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node.isDataNode()) {
-			Boolean enableDDL = ((DataParentNode<?>) node).getEnableDDL();
 			List<String> disabledEvents = ((DataParentNode<?>) node).getDisabledEvents();
-			this.ddlFilter = DDLFilter.create(enableDDL, disabledEvents).dynamicTableTest(this::needDynamicTable);
+			DDLConfiguration ddlConfiguration = ((DataParentNode<?>) node).getDdlConfiguration();
+			this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration).dynamicTableTest(this::needDynamicTable);
 		}
 	}
 

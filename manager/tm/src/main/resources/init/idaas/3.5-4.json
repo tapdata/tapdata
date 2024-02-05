@@ -1,0 +1,26 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "license_alarm"
+        },
+        "u": {
+          "$set": {
+            "category": "License",
+            "default_value": "10",
+            "documentation": "License expiry email reminder.",
+            "key_label": "license_alarm",
+            "user_visible": true,
+            "hot_reloading": false
+          },
+          "$setOnInsert": {
+            "value": "10"
+          }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]

@@ -105,6 +105,26 @@ public interface TaskProcessorExCode_11 {
 	@TapExCode
 	String ERROR_HANDLE_FAILED = "11020";
 
+	@TapExCode(
+			describe = "Unable to handle DDL events.\n" +
+					"Reason\n1. DDL synchronization on the source node is configured so that the task will report an error and stop when encountering a DDL event.",
+			solution = "1. Optional other synchronization configurations, such as ignoring all DDL events or synchronizing DDL events.",
+			describeCN = "无法处理DDL事件\n" +
+					"原因\n1. 在源节点的DDL同步配置为遇到DDL事件任务将报错停止",
+			solutionCN = "1. 可选其他同步配置，如忽略所有DDL事件或者同步DDL事件"
+	)
+	String ENCOUNTERED_DDL_EVENT_REPORT_ERROR = "11021";
+
+	@TapExCode(
+			describe = "This DDL event is not recognized.\n" +
+					"Reason\n1. Tapdata does not currently support this type of DDL event",
+			solution = "1. You can choose to ignore all DDL events in the source node DDL synchronization configuration to prevent the task from reporting an error and stopping.",
+			describeCN = "无法识别此DDL事件\n" +
+					"原因\n1. Tapdata 暂不支持此类型的DDL事件",
+			solutionCN = "1. 可在源节点DDL同步配置选择忽略所有DDL事件，防止任务报错停止"
+	)
+	String UNABLE_TO_SYNCHRONIZE_DDL_EVENT = "11022";
+
 	@TapExCode
 	String SCRIPT_RESOURCE_FAILED = "11021";
 }
