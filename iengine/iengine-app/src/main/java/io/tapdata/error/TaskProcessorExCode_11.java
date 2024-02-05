@@ -125,6 +125,4 @@ public interface TaskProcessorExCode_11 {
 	)
 	String UNABLE_TO_SYNCHRONIZE_DDL_EVENT = "11022";
 
-	@TapExCode
-	String SCRIPT_RESOURCE_FAILED = "11021";
 }
