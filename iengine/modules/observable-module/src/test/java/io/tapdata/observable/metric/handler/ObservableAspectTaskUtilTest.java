@@ -14,10 +14,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
@@ -29,7 +28,7 @@ public class ObservableAspectTaskUtilTest {
     List<TapEvent> events;
     SyncGetMemorySizeHandler syncGetMemorySizeHandler;
     String nodeId;
-    Map<String, DataNodeSampleHandler> dataNodeSampleHandlers;
+    final Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new ConcurrentHashMap<>();
     TaskSampleHandler taskSampleHandler;
     List<TapdataEvent> es;
     DataNodeSampleHandler dataNodeSampleHandler;
@@ -41,7 +40,6 @@ public class ObservableAspectTaskUtilTest {
         nodeId = UUID.randomUUID().toString();
         future = CompletableFuture.runAsync(() -> {});
         syncGetMemorySizeHandler = new SyncGetMemorySizeHandler(new AtomicLong(-1));
-        dataNodeSampleHandlers = new HashMap<>();
         dataNodeSampleHandler = mock(DataNodeSampleHandler.class);
         dataNodeSampleHandlers.put(nodeId, dataNodeSampleHandler);
     }
@@ -55,7 +53,7 @@ public class ObservableAspectTaskUtilTest {
         }
         @Test
         void testStreamReadCompleteNormal() {
-            TapUpdateRecordEvent tapEvent = new  TapUpdateRecordEvent();
+            TapUpdateRecordEvent tapEvent = new TapUpdateRecordEvent();
             HashMap<String, Object> after = new HashMap<>();
             after.put("id", "ddd");
             tapEvent.after(after);
@@ -72,13 +70,15 @@ public class ObservableAspectTaskUtilTest {
                     nodeId,
                     dataNodeSampleHandlers,
                     taskSampleHandler, mockTimestamp);
-            verify(dataNodeSampleHandler, times(1)).handleStreamReadReadComplete(mockTimestamp, record);
-            verify(taskSampleHandler, times(1)).handleStreamReadAccept(record);
+            future.whenComplete((v, t) -> {
+                verify(dataNodeSampleHandler, times(1)).handleStreamReadReadComplete(mockTimestamp, record);
+                verify(taskSampleHandler, times(1)).handleStreamReadAccept(record);
+            });
         }
         @Test
         void testStreamReadCompleteWithNullDataNodeSampleHandler() {
             dataNodeSampleHandlers.remove(nodeId);
-            TapUpdateRecordEvent tapEvent = new  TapUpdateRecordEvent();
+            TapUpdateRecordEvent tapEvent = new TapUpdateRecordEvent();
             HashMap<String, Object> after = new HashMap<>();
             after.put("id", "ddd");
             tapEvent.after(after);
@@ -95,8 +95,10 @@ public class ObservableAspectTaskUtilTest {
                     nodeId,
                     dataNodeSampleHandlers,
                     taskSampleHandler, mockTimestamp);
-            verify(dataNodeSampleHandler, times(0)).handleStreamReadReadComplete(mockTimestamp, record);
-            verify(taskSampleHandler, times(1)).handleStreamReadAccept(record);
+            future.whenComplete((v, t) -> {
+                verify(dataNodeSampleHandler, times(0)).handleStreamReadReadComplete(mockTimestamp, record);
+                verify(taskSampleHandler, times(1)).handleStreamReadAccept(record);
+            });
         }
         @Test
         void testStreamReadCompleteEmptyEvent() {
@@ -108,9 +110,11 @@ public class ObservableAspectTaskUtilTest {
                     record,
                     nodeId,
                     dataNodeSampleHandlers,
-                    taskSampleHandler,mockTimestamp);
-            verify(dataNodeSampleHandler, times(0)).handleStreamReadReadComplete(mockTimestamp, record);
-            verify(taskSampleHandler, times(0)).handleStreamReadAccept(record);
+                    taskSampleHandler, mockTimestamp);
+            future.whenComplete((v, t) -> {
+                verify(dataNodeSampleHandler, times(0)).handleStreamReadReadComplete(mockTimestamp, record);
+                verify(taskSampleHandler, times(0)).handleStreamReadAccept(record);
+            });
         }
         @Test
         void testStreamReadCompleteNullEvent() {
@@ -122,9 +126,11 @@ public class ObservableAspectTaskUtilTest {
                     record,
                     nodeId,
                     dataNodeSampleHandlers,
-                    taskSampleHandler,mockTimestamp);
-            verify(dataNodeSampleHandler, times(0)).handleStreamReadReadComplete(mockTimestamp, record);
-            verify(taskSampleHandler, times(0)).handleStreamReadAccept(record);
+                    taskSampleHandler, mockTimestamp);
+            future.whenComplete((v, t) -> {
+                verify(dataNodeSampleHandler, times(0)).handleStreamReadReadComplete(mockTimestamp, record);
+                verify(taskSampleHandler, times(0)).handleStreamReadAccept(record);
+            });
         }
     }
 
@@ -138,7 +144,7 @@ public class ObservableAspectTaskUtilTest {
         @Test
         void testStreamReadProcessCompleteNormal() {
             TapdataEvent e = new TapdataEvent();
-            TapUpdateRecordEvent tapEvent = new  TapUpdateRecordEvent();
+            TapUpdateRecordEvent tapEvent = new TapUpdateRecordEvent();
             HashMap<String, Object> after = new HashMap<>();
             after.put("id", "ddd");
             tapEvent.after(after);
@@ -153,8 +159,10 @@ public class ObservableAspectTaskUtilTest {
                     es,
                     record,
                     nodeId,
-                    dataNodeSampleHandlers,mockTimestamp);
-            verify(dataNodeSampleHandler, times(1)).handleStreamReadProcessComplete(mockTimestamp, record);
+                    dataNodeSampleHandlers, mockTimestamp);
+            future.whenComplete((v, t) -> {
+                verify(dataNodeSampleHandler, times(1)).handleStreamReadProcessComplete(mockTimestamp, record);
+            });
         }
         @Test
         void testStreamReadProcessCompleteEmptyEvent() {
@@ -164,8 +172,10 @@ public class ObservableAspectTaskUtilTest {
                     es,
                     record,
                     nodeId,
-                    dataNodeSampleHandlers,mockTimestamp);
-            verify(dataNodeSampleHandler, times(0)).handleStreamReadProcessComplete(mockTimestamp, record);
+                    dataNodeSampleHandlers, mockTimestamp);
+            future.whenComplete((v, t) -> {
+                verify(dataNodeSampleHandler, times(0)).handleStreamReadProcessComplete(mockTimestamp, record);
+            });
         }
         @Test
         void testStreamReadProcessCompleteNullEvent() {
@@ -175,8 +185,10 @@ public class ObservableAspectTaskUtilTest {
                     null,
                     record,
                     nodeId,
-                    dataNodeSampleHandlers,mockTimestamp);
-            verify(dataNodeSampleHandler, times(0)).handleStreamReadProcessComplete(mockTimestamp, record);
+                    dataNodeSampleHandlers, mockTimestamp);
+            future.whenComplete((v, t) -> {
+                verify(dataNodeSampleHandler, times(0)).handleStreamReadProcessComplete(mockTimestamp, record);
+            });
         }
     }
 
@@ -189,7 +201,7 @@ public class ObservableAspectTaskUtilTest {
         }
         @Test
         void testBatchReadCompleteNormal() {
-            TapUpdateRecordEvent tapEvent = new  TapUpdateRecordEvent();
+            TapUpdateRecordEvent tapEvent = new TapUpdateRecordEvent();
             HashMap<String, Object> after = new HashMap<>();
             after.put("id", "ddd");
             tapEvent.after(after);
@@ -205,15 +217,17 @@ public class ObservableAspectTaskUtilTest {
                     record,
                     nodeId,
                     dataNodeSampleHandlers,
-                    taskSampleHandler,mockTimestamp);
-            verify(taskSampleHandler, times(1)).handleBatchReadAccept(record);
-            verify(dataNodeSampleHandler, times(1)).handleBatchReadReadComplete(mockTimestamp, record);
+                    taskSampleHandler, mockTimestamp);
+            future.whenComplete((v, t) -> {
+                verify(taskSampleHandler, times(1)).handleBatchReadAccept(record);
+                verify(dataNodeSampleHandler, times(1)).handleBatchReadReadComplete(mockTimestamp, record);
+            });
         }
 
         @Test
         void testBatchReadCompleteWithNullDataNodeSampleHandler() {
             dataNodeSampleHandlers.remove(nodeId);
-            TapUpdateRecordEvent tapEvent = new  TapUpdateRecordEvent();
+            TapUpdateRecordEvent tapEvent = new TapUpdateRecordEvent();
             HashMap<String, Object> after = new HashMap<>();
             after.put("id", "ddd");
             tapEvent.after(after);
@@ -229,9 +243,11 @@ public class ObservableAspectTaskUtilTest {
                     record,
                     nodeId,
                     dataNodeSampleHandlers,
-                    taskSampleHandler,mockTimestamp);
-            verify(taskSampleHandler, times(1)).handleBatchReadAccept(record);
-            verify(dataNodeSampleHandler, times(0)).handleBatchReadReadComplete(mockTimestamp, record);
+                    taskSampleHandler, mockTimestamp);
+            future.whenComplete((v, t) -> {
+                verify(taskSampleHandler, times(1)).handleBatchReadAccept(record);
+                verify(dataNodeSampleHandler, times(0)).handleBatchReadReadComplete(mockTimestamp, record);
+            });
         }
         @Test
         void testBatchReadCompleteEmptyEvent() {
@@ -243,9 +259,11 @@ public class ObservableAspectTaskUtilTest {
                     record,
                     nodeId,
                     dataNodeSampleHandlers,
-                    taskSampleHandler,mockTimestamp);
-            verify(dataNodeSampleHandler, times(0)).handleBatchReadReadComplete(mockTimestamp, record);
-            verify(taskSampleHandler, times(0)).handleStreamReadAccept(record);
+                    taskSampleHandler, mockTimestamp);
+            future.whenComplete((v, t) -> {
+                verify(dataNodeSampleHandler, times(0)).handleBatchReadReadComplete(mockTimestamp, record);
+                verify(taskSampleHandler, times(0)).handleStreamReadAccept(record);
+            });
         }
         @Test
         void testBatchReadCompleteNullEvent() {
@@ -257,9 +275,11 @@ public class ObservableAspectTaskUtilTest {
                     record,
                     nodeId,
                     dataNodeSampleHandlers,
-                    taskSampleHandler,mockTimestamp);
-            verify(dataNodeSampleHandler, times(0)).handleBatchReadReadComplete(mockTimestamp, record);
-            verify(taskSampleHandler, times(0)).handleStreamReadAccept(record);
+                    taskSampleHandler, mockTimestamp);
+            future.whenComplete((v, t) -> {
+                verify(dataNodeSampleHandler, times(0)).handleBatchReadReadComplete(mockTimestamp, record);
+                verify(taskSampleHandler, times(0)).handleStreamReadAccept(record);
+            });
         }
     }
 
@@ -290,7 +310,9 @@ public class ObservableAspectTaskUtilTest {
                     record,
                     nodeId,
                     dataNodeSampleHandlers,mockTimestamp);
-            verify(dataNodeSampleHandler, times(1)).handleBatchReadProcessComplete(mockTimestamp, record);
+            future.whenComplete((v, t) -> {
+                verify(dataNodeSampleHandler, times(1)).handleBatchReadProcessComplete(mockTimestamp, record);
+            });
         }
         @Test
         void testBatchReadProcessCompleteEmptyEvent() {
@@ -301,7 +323,9 @@ public class ObservableAspectTaskUtilTest {
                     record,
                     nodeId,
                     dataNodeSampleHandlers,mockTimestamp);
-            verify(dataNodeSampleHandler, times(0)).handleBatchReadProcessComplete(mockTimestamp, record);
+            future.whenComplete((v, t) -> {
+                verify(dataNodeSampleHandler, times(0)).handleBatchReadProcessComplete(mockTimestamp, record);
+            });
         }
         @Test
         void testBatchReadProcessCompleteNullEvent() {
@@ -312,7 +336,9 @@ public class ObservableAspectTaskUtilTest {
                     record,
                     nodeId,
                     dataNodeSampleHandlers,mockTimestamp);
-            verify(dataNodeSampleHandler, times(0)).handleBatchReadProcessComplete(mockTimestamp, record);
+            future.whenComplete((v, t) -> {
+                verify(dataNodeSampleHandler, times(0)).handleBatchReadProcessComplete(mockTimestamp, record);
+            });
         }
     }
 }
