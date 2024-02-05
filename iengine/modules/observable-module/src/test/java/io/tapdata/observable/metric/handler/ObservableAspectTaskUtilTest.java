@@ -28,7 +28,7 @@ public class ObservableAspectTaskUtilTest {
     List<TapEvent> events;
     SyncGetMemorySizeHandler syncGetMemorySizeHandler;
     String nodeId;
-    final Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new ConcurrentHashMap<>();
+    Map<String, DataNodeSampleHandler> dataNodeSampleHandlers;
     TaskSampleHandler taskSampleHandler;
     List<TapdataEvent> es;
     DataNodeSampleHandler dataNodeSampleHandler;
@@ -37,6 +37,7 @@ public class ObservableAspectTaskUtilTest {
 
     @BeforeEach
     void init() {
+        dataNodeSampleHandlers = new HashMap<>();
         nodeId = UUID.randomUUID().toString();
         future = CompletableFuture.runAsync(() -> {});
         syncGetMemorySizeHandler = new SyncGetMemorySizeHandler(new AtomicLong(-1));
