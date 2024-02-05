@@ -21,4 +21,7 @@ public interface TaskInspectExCode_27 {
 
 	@TapExCode
 	String PARAM_ERROR = "27004";
+
+	@TapExCode
+	String COMMAND_COUNT_PARAM_ERROR = "27005";
 }

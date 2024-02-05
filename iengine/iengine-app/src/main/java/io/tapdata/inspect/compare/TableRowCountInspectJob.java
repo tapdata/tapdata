@@ -267,8 +267,7 @@ public class TableRowCountInspectJob extends InspectJob {
 				params.put("collection", tgtTable.getId());
 			}
 		} catch (Exception e) {
-			throw new TapCodeException(TaskInspectExCode_27.PARAM_ERROR,"setCommandCountParam error: " + e.getMessage()
-					+ " customCommand : " + customCommand);
+			throw new TapCodeException(TaskInspectExCode_27.COMMAND_COUNT_PARAM_ERROR, e);
 		}
 		return copyCustomCommand;
 	}
