@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.util.MetaType;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.error.TaskInspectExCode_27;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.inspect.compare.TableRowCountInspectJob;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -292,7 +293,7 @@ import static org.mockito.Mockito.when;
          try {
              TableRowCountInspectJob.setCommandCountParam(new HashMap<>(), new ConnectorNode(), new TapTable());
          } catch (TapCodeException tapCodeException) {
-             Assertions.assertEquals("27004", tapCodeException.getCode());
+             Assertions.assertEquals(TaskInspectExCode_27.COMMAND_COUNT_PARAM_ERROR, tapCodeException.getCode());
          }
      }
 
