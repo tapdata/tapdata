@@ -26,18 +26,20 @@ public class ScriptCacheService implements ICacheGetter {
 	private final String nodeId;
 	private final ClientMongoOperator clientMongoOperator;
 	private final ICacheService supperCacheService;
+	private final boolean normalTask;
 
 	public ScriptCacheService(ClientMongoOperator clientMongoOperator, DataProcessorContext dataProcessorContext) {
 		this.taskId = dataProcessorContext.getTaskDto().getId().toHexString();
 		this.nodeId = dataProcessorContext.getNode().getId();
 		this.clientMongoOperator = clientMongoOperator;
 		this.supperCacheService = dataProcessorContext.getCacheService();
+		this.normalTask = dataProcessorContext.getTaskDto().isNormalTask();
 	}
 
 	private final Set<String> useInfo = new HashSet<>();
 
-	private void setTaskUsedInfo(String cacheName) {
-		if (!useInfo.contains(cacheName)) {
+	protected void setTaskUsedInfo(String cacheName) {
+		if (!useInfo.contains(cacheName) && normalTask) {
 			useInfo.add(cacheName);
 			Update update = new Update();
 			update.addToSet(String.format("attrs.%s.%s", TaskDto.ATTRS_USED_SHARE_CACHE, cacheName), nodeId);
