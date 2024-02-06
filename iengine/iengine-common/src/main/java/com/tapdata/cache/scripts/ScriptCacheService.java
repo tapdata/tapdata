@@ -38,7 +38,7 @@ public class ScriptCacheService implements ICacheGetter {
 
 	private final Set<String> useInfo = new HashSet<>();
 
-	private void setTaskUsedInfo(String cacheName) {
+	protected void setTaskUsedInfo(String cacheName) {
 		if (!useInfo.contains(cacheName) && normalTask) {
 			useInfo.add(cacheName);
 			Update update = new Update();
