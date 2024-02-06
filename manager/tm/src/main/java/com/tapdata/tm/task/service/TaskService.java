@@ -3659,7 +3659,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .set("agentTags", null)
                 .set("scheduleTimes", null)
                 .set("scheduleTime", null)
-                .set("messages", null);
+                .set("messages", null)
+                .set("timeDifference",0);
 
 
         if (taskDto.getAttrs() != null) {

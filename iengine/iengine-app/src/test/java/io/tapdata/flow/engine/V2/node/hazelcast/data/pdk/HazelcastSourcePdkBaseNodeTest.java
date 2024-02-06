@@ -5,6 +5,8 @@ import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
+import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
@@ -21,22 +23,33 @@ import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.exception.ManagementException;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
+import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.node.pdk.ConnectorNodeService;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.source.GetCurrentTimestampFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -343,6 +356,150 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 				doCallRealMethod().when(mockInstance).ddlSchemaHandler();
 				assertEquals(handler,mockInstance.ddlSchemaHandler());
 			}
+		}
+	}
+	@Nested
+	class initSourceAndEngineTimeDifferenceTest{
+		HazelcastSourcePdkBaseNode spyInstance;
+		HttpClientMongoOperator clientMongoOperator;
+		@BeforeEach
+		void beforeEach() {
+			spyInstance = Mockito.spy(instance);
+			clientMongoOperator = Mockito.mock(HttpClientMongoOperator.class);
+			ReflectionTestUtils.setField(spyInstance,"clientMongoOperator",clientMongoOperator);
+		}
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Source and Engine Time difference is too big ")
+		void testInitSourceAndEngineTimeDifferenceBig (){
+			TaskConfig taskConfig = TaskConfig.create();
+			taskConfig.taskRetryConfig(TaskRetryConfig.create());
+			taskConfig.getTaskRetryConfig().retryIntervalSecond(1000L);
+			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
+
+			ConnectorNode connectorNode = new ConnectorNode();
+			ConnectorFunctions connectorFunctions = new ConnectorFunctions();
+			GetCurrentTimestampFunction getCurrentTimestampFunction = mock(GetCurrentTimestampFunction.class);
+			connectorFunctions.supportGetCurrentTimestampFunction(getCurrentTimestampFunction);
+			connectorNode.init(null,null,connectorFunctions);
+			long time = new Date().getTime() - 2000L;
+			when(getCurrentTimestampFunction.now(null)).thenReturn(time);
+			doReturn(connectorNode).when(spyInstance).getConnectorNode();
+			when(clientMongoOperator.update(any(Query.class),any(Update.class),anyString())).thenAnswer(invocationOnMock -> {
+				Update update = invocationOnMock.getArgument(1);
+				Document set = (Document) update.getUpdateObject().get("$set");
+				Long timeDifference = (Long)set.get("timeDifference");
+				Assertions.assertTrue(timeDifference > 1000);
+				return null;
+			});
+			spyInstance.initSourceAndEngineTimeDifference();
+
+		}
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Source and Engine Time difference ")
+		void testInitSourceAndEngineTimeDifference(){
+			TaskConfig taskConfig = TaskConfig.create();
+			taskConfig.taskRetryConfig(TaskRetryConfig.create());
+			taskConfig.getTaskRetryConfig().retryIntervalSecond(1000L);
+			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
+
+			ConnectorNode connectorNode = new ConnectorNode();
+			ConnectorFunctions connectorFunctions = new ConnectorFunctions();
+			GetCurrentTimestampFunction getCurrentTimestampFunction = mock(GetCurrentTimestampFunction.class);
+			connectorFunctions.supportGetCurrentTimestampFunction(getCurrentTimestampFunction);
+			connectorNode.init(null,null,connectorFunctions);
+			long time = new Date().getTime() + 1000L;
+			when(getCurrentTimestampFunction.now(null)).thenReturn(time);
+			doReturn(connectorNode).when(spyInstance).getConnectorNode();
+			when(clientMongoOperator.update(any(Query.class),any(Update.class),anyString())).thenAnswer(invocationOnMock -> {
+				Update update = invocationOnMock.getArgument(1);
+				Document set = (Document) update.getUpdateObject().get("$set");
+				assertEquals(0, (int) set.get("timeDifference"));
+				return null;
+			});
+			spyInstance.initSourceAndEngineTimeDifference();
+		}
+
+		@Test
+		@DisplayName("throw exception test")
+		void testThrowException() throws Throwable {
+			TaskConfig taskConfig = TaskConfig.create();
+			taskConfig.taskRetryConfig(TaskRetryConfig.create());
+			taskConfig.getTaskRetryConfig().retryIntervalSecond(1000L);
+			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
+
+			ConnectorNode connectorNode = new ConnectorNode();
+			ConnectorFunctions connectorFunctions = new ConnectorFunctions();
+			GetCurrentTimestampFunction getCurrentTimestampFunction = mock(GetCurrentTimestampFunction.class);
+			connectorFunctions.supportGetCurrentTimestampFunction(getCurrentTimestampFunction);
+			connectorNode.init(null,null,connectorFunctions);
+			when(getCurrentTimestampFunction.now(null)).thenThrow(new Throwable());
+			doReturn(connectorNode).when(spyInstance).getConnectorNode();
+			Assertions.assertThrows(NodeException.class,()->spyInstance.initSourceAndEngineTimeDifference());
+		}
+
+		@Test
+		@DisplayName("throw exception update test")
+		void testUpdateThrowException() throws Throwable {
+			TaskConfig taskConfig = TaskConfig.create();
+			taskConfig.taskRetryConfig(TaskRetryConfig.create());
+			taskConfig.getTaskRetryConfig().retryIntervalSecond(1000L);
+			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
+
+			ConnectorNode connectorNode = new ConnectorNode();
+			ConnectorFunctions connectorFunctions = new ConnectorFunctions();
+			GetCurrentTimestampFunction getCurrentTimestampFunction = mock(GetCurrentTimestampFunction.class);
+			connectorFunctions.supportGetCurrentTimestampFunction(getCurrentTimestampFunction);
+			connectorNode.init(null,null,connectorFunctions);
+			long time = new Date().getTime() + 1000L;
+			when(getCurrentTimestampFunction.now(null)).thenReturn(time);
+			doReturn(connectorNode).when(spyInstance).getConnectorNode();
+			when(clientMongoOperator.update(any(Query.class),any(Update.class),anyString())).thenThrow(new ManagementException());
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(spyInstance,"obsLogger",obsLogger);
+			spyInstance.initSourceAndEngineTimeDifference();
+			verify(obsLogger,times(1)).warn("Failed to save engine and source time difference errors: {}",null);
+		}
+
+		@Test
+		@DisplayName("ConnectorNode is Null test")
+		void testConnectorNodeIsNull(){
+			spyInstance.initSourceAndEngineTimeDifference();
+			verify(clientMongoOperator,times(0)).update(any(Query.class),any(Update.class),anyString());
+		}
+
+		@Test
+		@DisplayName("CurrentTimestampFunction is Null test")
+		void testCurrentTimestampFunctionIsNull(){
+			TaskConfig taskConfig = TaskConfig.create();
+			taskConfig.taskRetryConfig(TaskRetryConfig.create());
+			taskConfig.getTaskRetryConfig().retryIntervalSecond(1000L);
+			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
+			ConnectorNode connectorNode = new ConnectorNode();
+			ConnectorFunctions connectorFunctions = new ConnectorFunctions();
+			connectorNode.init(null,null,connectorFunctions);
+			spyInstance.initSourceAndEngineTimeDifference();
+			verify(clientMongoOperator,times(0)).update(any(Query.class),any(Update.class),anyString());
+		}
+
+		@Test
+		@DisplayName("SourceTimestamp is Null test")
+		void testSourceTimestampIsNull() throws Throwable {
+			TaskConfig taskConfig = TaskConfig.create();
+			taskConfig.taskRetryConfig(TaskRetryConfig.create());
+			taskConfig.getTaskRetryConfig().retryIntervalSecond(1000L);
+			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
+			ConnectorNode connectorNode = new ConnectorNode();
+			ConnectorFunctions connectorFunctions = new ConnectorFunctions();
+			GetCurrentTimestampFunction getCurrentTimestampFunction = mock(GetCurrentTimestampFunction.class);
+			connectorFunctions.supportGetCurrentTimestampFunction(getCurrentTimestampFunction);
+			connectorNode.init(null,null,connectorFunctions);
+			when(getCurrentTimestampFunction.now(null)).thenReturn(0L);
+			spyInstance.initSourceAndEngineTimeDifference();
+			verify(clientMongoOperator,times(0)).update(any(Query.class),any(Update.class),anyString());
 		}
 	}
 }

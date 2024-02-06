@@ -66,13 +66,17 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.node.pdk.ConnectorNodeService;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.source.GetCurrentTimestampFunction;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -87,13 +91,16 @@ import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
@@ -352,6 +359,43 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
 				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
 				logger.info("Handle dynamic add/remove table thread started, interval: " + PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT + " seconds");
+			}
+		}
+	}
+
+	protected void initSourceAndEngineTimeDifference(){
+		ConnectorNode connectorNode = getConnectorNode();
+		if (null == connectorNode) {
+			return;
+		}
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		GetCurrentTimestampFunction currentTimestampFunction = connectorFunctions.getGetCurrentTimestampFunction();
+		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+		if(null != currentTimestampFunction){
+			AtomicLong sourceTimestamp = new AtomicLong();
+			try {
+				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.GET_CURRENT_TIMESTAMP,
+						 pdkMethodInvoker.runnable(() -> sourceTimestamp.set(currentTimestampFunction.now(connectorNode.getConnectorContext()))));
+			} catch (Throwable e) {
+					throw new NodeException("Failed to query source timestamp" + e.getMessage(), e)
+							.context(getProcessorBaseContext());
+			} finally {
+				removePdkMethodInvoker(pdkMethodInvoker);
+			}
+			if(sourceTimestamp.get() != 0){
+				long engineTimestamp = System.currentTimeMillis();
+				long timeDifference = Math.abs(engineTimestamp - sourceTimestamp.get());
+				TaskDto taskDto = dataProcessorContext.getTaskDto();
+				String taskId = taskDto.getId().toHexString();
+				try {
+					if(timeDifference > 1000){
+						clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))),new Update().set("timeDifference",timeDifference),ConnectorConstant.TASK_COLLECTION);
+					}else{
+						clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))),new Update().set("timeDifference",0),ConnectorConstant.TASK_COLLECTION);
+					}
+				}catch (Exception e){
+					obsLogger.warn("Failed to save engine and source time difference errors: {}", e.getMessage());
+				}
 			}
 		}
 	}

@@ -580,6 +580,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		Node<?> node = dataProcessorContext.getNode();
+		initSourceAndEngineTimeDifference();
 		if (isPollingCDC(node)) {
 			doPollingCDC();
 		} else {

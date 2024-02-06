@@ -2,9 +2,11 @@ package com.tapdata.tm.task.service;
 
 import cn.hutool.extra.cglib.CglibUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.MutiResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -29,11 +31,10 @@ import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
+import org.bson.BsonValue;
+import org.bson.Document;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -853,6 +854,43 @@ public class TaskServiceTest {
             long result = taskService.runningTaskNum("111", userDetail);
             assertEquals(except,result);
         }
+    }
+    @Nested
+    class testRenewNotSendMq{
+        @Test
+        void testRenewNotSendMq(){
+            TaskRepository taskRepository = mock(TaskRepository.class);
+            taskService = new TaskService(taskRepository);
+            UserDetail userDetail = mock(UserDetail.class);
+            TaskDto taskDto = new TaskDto();
+            taskDto.setDag(mock(DAG.class));
+            UpdateResult result = new UpdateResult() {
+                @Override
+                public boolean wasAcknowledged() {
+                    return false;
+                }
+                @Override
+                public long getMatchedCount() {
+                    return 0;
+                }
+                @Override
+                public long getModifiedCount() {
+                    return 0;
+                }
+                @Override
+                public BsonValue getUpsertedId() {
+                    return null;
+                }
+            };
+            when(taskRepository.update(any(Query.class),any(Update.class),any(UserDetail.class))).thenAnswer(invocationOnMock -> {
+                Update update = invocationOnMock.getArgument(1);
+                Integer timeDifference = (Integer)((Document) update.getUpdateObject().get("$set")).get("timeDifference");
+                Assertions.assertEquals(0,timeDifference);
+                return result;
+            });
+            taskService.renewNotSendMq(taskDto,userDetail);
+        }
+
     }
 
 }
