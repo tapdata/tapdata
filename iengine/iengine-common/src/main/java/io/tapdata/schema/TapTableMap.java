@@ -46,6 +46,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	protected final Map<K, String> tableNameAndQualifiedNameMap;
 	private final Lock lock = new ReentrantLock();
 	private TaskConfig taskConfig;
+	private String nodeName;
 	private final Logger logger = LogManager.getLogger(TapTableMap.class);
 	public static final String PRELOAD_SCHEMA_WAIT_TIME = System.getenv().getOrDefault("PRELOAD_SCHEMA_WAIT_TIME","10");
 	private TapLogger.LogListener logListener;
@@ -154,6 +155,9 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	public void buildTaskRetryConfig(TaskConfig taskConfig){
 		this.taskConfig = taskConfig;
 	}
+	public void buildNodeName(String nodeName){
+		this.nodeName = nodeName;
+	}
 	@Override
 	public final V get(Object key) {
 		if (null == taskConfig || null == taskConfig.getTaskRetryConfig()){
@@ -174,28 +178,28 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	private CompletableFuture<Void> future = null;
 	private ExecutorService executorService = null;
 	public void preLoadSchema() {
-		logListener.info("Node ["+this.nodeId+"]"  + " start preload schema,table counts: " + tableNameAndQualifiedNameMap.size());
+		logListener.info(String.format("Node %s[%s] start preload schema,table counts: %d", this.nodeName, this.nodeId, tableNameAndQualifiedNameMap.size()));
+		long start = System.currentTimeMillis();
 		List<String> tableNames = new ArrayList<>(tableNameAndQualifiedNameMap.keySet());
 		AtomicInteger index = new AtomicInteger(0);
 		AtomicLong allCostTs = new AtomicLong(0L);
-		int cursor = preLoadSchema(tableNames, index.get(), costTs -> allCostTs.addAndGet(costTs) > TimeUnit.SECONDS.toMillis(Long.parseLong(PRELOAD_SCHEMA_WAIT_TIME)));
+		int cursor = preLoadSchema(tableNames, index.get(), costTs -> allCostTs.addAndGet(costTs) > TimeUnit.SECONDS.toMillis(Long.parseLong(PRELOAD_SCHEMA_WAIT_TIME)), start);
 		index.set(cursor);
 		if (index.get() == size()) return;
-		logListener.info("Node ["+this.nodeId+"]"  + " preload schema will fork continue, remind counts:" + (tableNameAndQualifiedNameMap.size()-index.get()));
+		logListener.info(String.format("Node %s[%s] preload schema will fork continue, remind counts: %d", this.nodeName, this.nodeId, tableNameAndQualifiedNameMap.size()-index.get()));
 		executorService = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
 		future = CompletableFuture.runAsync(() -> {
 			try {
 				Thread.currentThread().setName("Node ["+this.nodeId+"]"  + "-preload-schema-runner");
-				preLoadSchema(tableNames, index.get(), null);
+				preLoadSchema(tableNames, index.get(), null, start);
 			}catch (Exception e){
-				logListener.error("Node ["+this.nodeId+"]"  + " preload schema error");
-				logger.error("preload schema error",e.getStackTrace());
+				logListener.warn(String.format("Node %s[%s] preload schema failed: %s", this.nodeName, this.nodeId, e.getMessage()));
 			}finally {
 				executorService.shutdown();
 			}
 		}, executorService);
 	}
-	protected int preLoadSchema(List<String> tableNames, int index, Function<Long, Boolean> costInterceptor) {
+	protected int preLoadSchema(List<String> tableNames, int index, Function<Long, Boolean> costInterceptor, long start) {
 		for (int i = index; i < tableNames.size(); i++) {
 			if (Thread.currentThread().isInterrupted()) {
 				break;
@@ -214,7 +218,8 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 			}
 		}
 		if (index == tableNames.size()){
-			logListener.info("Node ["+this.nodeId+"]" + " preload schema finished");
+			long end = System.currentTimeMillis();
+			logListener.info(String.format("Node %s[%s] preload schema finished, cost %d ms", this.nodeName, this.nodeId, end-start));
 		}
 		return index;
 	}
