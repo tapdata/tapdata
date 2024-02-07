@@ -1,0 +1,17 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "max_retry_time_minute"
+        },
+        "u": {
+          "$set": {
+            "min": "1"
+          }
+        }
+      }
+    ]
+  }
+]

@@ -33,9 +33,9 @@ public class MigrateDagSchedule {
         taskService.startPlanCronTask();
     }
 
-    @Scheduled(fixedDelay = 3 * 60 * 1000)
-    @SchedulerLock(name = "clearFunctionRetry", lockAtMostFor = "PT3M", lockAtLeastFor = "PT3M")
-    public void clearFunctionRetry() {
-        taskExtendService.clearFunctionRetry();
-    }
+//    @Scheduled(fixedDelay = 3 * 60 * 1000)
+//    @SchedulerLock(name = "clearFunctionRetry", lockAtMostFor = "PT3M", lockAtLeastFor = "PT3M")
+//    public void clearFunctionRetry() {
+//        taskExtendService.clearFunctionRetry();
+//    }
 }

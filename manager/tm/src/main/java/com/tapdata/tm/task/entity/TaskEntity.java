@@ -163,6 +163,8 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
     private Long planStartDate;
     private boolean planStartDateFlag;
 
+    private Long taskRetryStartTimeFlag;
+
     /**
      * 界面展示的任务开始时间
      */
@@ -249,8 +251,6 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
     private Boolean fdmMain;
 
     private String functionRetryStatus;
-    private Long functionRetryEx;
-    private String taskRetryStatus;
     private Long taskRetryStartTime;
 
     /** 使用的共享挖掘任务停止 */

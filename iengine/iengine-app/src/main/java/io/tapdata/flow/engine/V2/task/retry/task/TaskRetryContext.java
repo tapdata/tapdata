@@ -27,7 +27,6 @@ public class TaskRetryContext extends RetryContext implements Serializable {
 		} else {
 			this.retryDurationMs = 0L;
 		}
-		this.methodRetryTime = DEFAULT_METHOD_RETRY_TIME;
 	}
 
 	static TaskRetryContext create(TaskDto taskDto) {
