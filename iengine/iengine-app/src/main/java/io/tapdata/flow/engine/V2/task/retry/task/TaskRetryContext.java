@@ -12,7 +12,6 @@ import java.io.Serializable;
  **/
 public class TaskRetryContext extends RetryContext implements Serializable {
 	private static final long serialVersionUID = 2391970602675804135L;
-	private static final long DEFAULT_METHOD_RETRY_TIME = 3;
 	private final TaskDto taskDto;
 	private final Long retryDurationMs;
 	private Long methodRetryTime;
