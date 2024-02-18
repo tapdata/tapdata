@@ -2956,11 +2956,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (foreignKey == null) {
                     continue;
                 }
-                if (((String)foreignKey.get("table")).equals(tpTable)) {
+                if (((String) foreignKey.get("table")).equals(tpTable)) {
                     Map<String, String> joinKey = new HashMap<>();
-                    joinKey.put("source", parentRenameFields.get(((String) foreignKey.get("column"))).get("target").toString());
+                    joinKey.put("source", renameFields.get(tpTable).get(((String) foreignKey.get("column"))).get("target").toString());
                     if (parent.get("targetPath").equals("")) {
-                        joinKey.put("target", currentRenameFields.get((String) foreignKey.get("column")).get("target").toString());
+                        joinKey.put("target", parentRenameFields.get(columnKey).get("target").toString());
                     } else {
                         joinKey.put("target", parent.get("targetPath") + "." + currentRenameFields.get((String) foreignKey.get("column")).get("target").toString());
                     }
