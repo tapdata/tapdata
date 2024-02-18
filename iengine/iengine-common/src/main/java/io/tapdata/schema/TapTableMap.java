@@ -2,6 +2,7 @@ package io.tapdata.schema;
 
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
@@ -193,7 +194,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 				Thread.currentThread().setName("Node ["+this.nodeId+"]"  + "-preload-schema-runner");
 				preLoadSchema(tableNames, index.get(), null, start);
 			}catch (Exception e){
-				logListener.warn(String.format("Node %s[%s] preload schema failed: %s", this.nodeName, this.nodeId, e.getMessage()));
+				logListener.warn(String.format("Node %s[%s] preload schema failed: %s\n%s", this.nodeName, this.nodeId, e.getMessage(),Log4jUtil.getStackString(e)));
 			}finally {
 				executorService.shutdown();
 			}
