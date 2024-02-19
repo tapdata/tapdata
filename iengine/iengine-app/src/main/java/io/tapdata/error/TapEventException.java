@@ -51,7 +51,7 @@ public class TapEventException extends TapCodeException {
 
 	@Override
 	public String getMessage() {
-		StringBuilder stringBuilder = new StringBuilder(super.getMessage());
+		StringBuilder stringBuilder = new StringBuilder(super.toString());
 		if (CollectionUtils.isNotEmpty(events)) {
 			events.forEach(event -> stringBuilder.append("\n - ").append(event.toString()));
 		}
