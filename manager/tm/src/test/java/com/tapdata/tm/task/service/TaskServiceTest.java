@@ -943,6 +943,34 @@ public class TaskServiceTest {
         }
     }
     @Nested
+    class GetEmbeddedDocumentPathTest{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskService taskService=spy(new TaskService(taskRepository));
+        @DisplayName("test parent path is empty string,use embeddedPath")
+        @Test
+        void test1(){
+            Map<String,String> setting=new HashMap<>();
+            setting.put("embeddedPath","abc");
+            String targetPath = taskService.getEmbeddedDocumentPath("", setting);
+            assertEquals("abc",targetPath);
+        }
+        @DisplayName("test parent path is not empty string,embeddedPath is null")
+        @Test
+        void test2(){
+            Map<String,String> setting=new HashMap<>();
+            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
+            assertEquals("parentPath",targetPath);
+        }
+        @DisplayName("test parent path is not empty string,embeddedPath is not null")
+        @Test
+        void test3(){
+            Map<String,String> setting=new HashMap<>();
+            setting.put("embeddedPath","abc");
+            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
+            assertEquals("parentPath.abc",targetPath);
+        }
+    }
+    @Nested
     class RunningTaskNumWithProcessIdTest{
         @Test
         void testRunningTaskNumWithProcessId(){

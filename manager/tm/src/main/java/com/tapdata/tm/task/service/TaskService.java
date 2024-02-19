@@ -2897,11 +2897,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 targetPath = parentTargetPath;
             }
             if ("EMBEDDED_DOCUMENT".equals(setting.get("type"))) {
-                if (parentTargetPath.equals("")) {
-                    targetPath = setting.get("embeddedPath");
-                } else {
-                    targetPath = parentTargetPath + "." + setting.get("embeddedPath");
-                }
+                targetPath = getEmbeddedDocumentPath(parentTargetPath, setting);
             }
             if ("EMBEDDED_DOCUMENT_ARRAY".equals(setting.get("type"))) {
                 if (parentTargetPath.equals("")) {
@@ -2956,6 +2952,20 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             childrenNode.add(childNode);
         }
         parent.put("children", childrenNode);
+    }
+
+    protected String getEmbeddedDocumentPath(String parentTargetPath, Map<String, String> setting) {
+        String targetPath;
+        if (parentTargetPath.equals("")) {
+            targetPath = setting.get("embeddedPath");
+        } else {
+            if (null == setting.get("embeddedPath")) {
+                targetPath = parentTargetPath;
+            } else {
+                targetPath = parentTargetPath + "." + setting.get("embeddedPath");
+            }
+        }
+        return targetPath;
     }
 
     protected void parentColumnsFindJoinKeys(Map<String, Object> parent, Map<String, Map<String, Map<String, Object>>> renameFields, Map<String, Object> parentColumns, String tpTable, List<Map<String, String>> joinKeys) {
