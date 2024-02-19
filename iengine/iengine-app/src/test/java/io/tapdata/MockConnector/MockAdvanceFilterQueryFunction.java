@@ -14,13 +14,20 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public class MockAdvanceFilterQueryFunction  implements QueryByAdvanceFilterFunction {
-
+    protected Object data;
     private boolean flag;
     private TapAdvanceFilter tapAdvanceFilter;
     @Override
     public void query(TapConnectorContext tapConnectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable tapTable, Consumer<FilterResults> consumer) throws Throwable {
         this.flag = true;
         this.tapAdvanceFilter = tapAdvanceFilter;
+        FilterResults filterResults = new FilterResults();
+        if(data instanceof Exception) {
+            filterResults.setError((Throwable) data);
+        }else {
+            filterResults.setResults((List<Map<String, Object>>)data);
+        }
+        consumer.accept(filterResults);
     }
 
     public TapAdvanceFilter getTapAdvanceFilter() {
@@ -37,5 +44,13 @@ public class MockAdvanceFilterQueryFunction  implements QueryByAdvanceFilterFunc
 
     public void setFlag(boolean flag) {
         this.flag = flag;
+    }
+
+    public Object getData() {
+        return data;
+    }
+
+    public void setData(Object data) {
+        this.data = data;
     }
 }

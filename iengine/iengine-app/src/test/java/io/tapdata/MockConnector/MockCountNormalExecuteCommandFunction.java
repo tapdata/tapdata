@@ -11,11 +11,13 @@ import java.util.function.Consumer;
 
 public class MockCountNormalExecuteCommandFunction extends MockExecuteCommandFunction implements ExecuteCommandFunction {
 
-
     @Override
     public void execute(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> consumer) throws Throwable {
+        super.flag =true;
         ExecuteResult executeResult = new ExecuteResult<List<Map<String, Object>>>().result((List<Map<String, Object>>) data);
         consumer.accept(executeResult);
     }
+
+
 
 }

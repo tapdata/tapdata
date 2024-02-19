@@ -25,8 +25,6 @@ import io.tapdata.common.SettingService;
 import io.tapdata.entity.BaseConnectionValidateResult;
 import io.tapdata.exception.ConnectionException;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
-import io.tapdata.indices.IIndices;
-import io.tapdata.indices.IndicesUtil;
 import io.tapdata.threadgroup.DisposableThreadGroup;
 import io.tapdata.threadgroup.utils.DisposableType;
 import io.tapdata.websocket.EventHandlerAnnotation;
@@ -468,12 +466,12 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 
 	}
 
-	private <T> TestConnection getInstance(String testType) {
+	private TestConnection getInstance(String testType) {
 		switch (testType) {
 			case "rocksdb":
 				return new RocksDBTestConnectionImpl();
 			default:
-				throw new RuntimeException("TestType not found instance '" + testType + "'");
+				throw new ConnectionException("TestType not found instance '" + testType + "'");
 		}
 	}
 
