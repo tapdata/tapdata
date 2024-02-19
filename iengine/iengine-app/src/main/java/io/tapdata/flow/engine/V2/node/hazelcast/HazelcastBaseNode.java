@@ -199,6 +199,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			if (null != processorBaseContext && null != processorBaseContext.getTapTableMap()) {
 				buildLogListener();
 				processorBaseContext.getTapTableMap().buildTaskRetryConfig(processorBaseContext.getTaskConfig());
+				processorBaseContext.getTapTableMap().buildNodeName(processorBaseContext.getNode().getName());
 				processorBaseContext.getTapTableMap().preLoadSchema();
 			}
 			if (!getNode().disabledNode()) {
