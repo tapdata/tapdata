@@ -2897,11 +2897,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 targetPath = parentTargetPath;
             }
             if ("EMBEDDED_DOCUMENT".equals(setting.get("type"))) {
-                if (parentTargetPath.equals("")) {
-                    targetPath = setting.get("embeddedPath");
-                } else {
-                    targetPath = parentTargetPath + "." + setting.get("embeddedPath");
-                }
+                targetPath = getEmbeddedDocumentPath(parentTargetPath, setting);
             }
             if ("EMBEDDED_DOCUMENT_ARRAY".equals(setting.get("type"))) {
                 if (parentTargetPath.equals("")) {
@@ -2950,28 +2946,48 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     joinKeys.add(joinKey);
                 }
             }
-            for (String columnKey : parentColumns.keySet()) {
-                Map<String, Object> column = (Map<String, Object>) parentColumns.get(columnKey);
-                Map<String, Object> foreignKey = (Map<String, Object>) column.get("foreignKey");
-                if (foreignKey == null) {
-                    continue;
-                }
-                if (((String) foreignKey.get("table")).equals(tpTable)) {
-                    Map<String, String> joinKey = new HashMap<>();
-                    joinKey.put("source", renameFields.get(tpTable).get(((String) foreignKey.get("column"))).get("target").toString());
-                    if (parent.get("targetPath").equals("")) {
-                        joinKey.put("target", parentRenameFields.get(columnKey).get("target").toString());
-                    } else {
-                        joinKey.put("target", parent.get("targetPath") + "." + currentRenameFields.get((String) foreignKey.get("column")).get("target").toString());
-                    }
-                    joinKeys.add(joinKey);
-                }
-            }
+            parentColumnsFindJoinKeys(parent, renameFields, parentColumns, tpTable, joinKeys);
             childNode.put("joinKeys", joinKeys);
             genProperties(childNode, contentMapping, relationshipsMapping, full, sourceToJS, renameFields);
             childrenNode.add(childNode);
         }
         parent.put("children", childrenNode);
+    }
+
+    protected String getEmbeddedDocumentPath(String parentTargetPath, Map<String, String> setting) {
+        String targetPath;
+        if (parentTargetPath.equals("")) {
+            targetPath = setting.get("embeddedPath");
+        } else {
+            if (null == setting.get("embeddedPath")) {
+                targetPath = parentTargetPath;
+            } else {
+                targetPath = parentTargetPath + "." + setting.get("embeddedPath");
+            }
+        }
+        return targetPath;
+    }
+
+    protected void parentColumnsFindJoinKeys(Map<String, Object> parent, Map<String, Map<String, Map<String, Object>>> renameFields, Map<String, Object> parentColumns, String tpTable, List<Map<String, String>> joinKeys) {
+        Map<String, Map<String, Object>> parentRenameFields = renameFields.get((String) parent.get("tableName"));
+        for (String columnKey : parentColumns.keySet()) {
+            Map<String, Object> column = (Map<String, Object>) parentColumns.get(columnKey);
+            Map<String, Object> foreignKey = (Map<String, Object>) column.get("foreignKey");
+            if (foreignKey == null) {
+                continue;
+            }
+
+            if (((String) foreignKey.get("table")).equals(tpTable)) {
+                Map<String, String> joinKey = new HashMap<>();
+                joinKey.put("source", renameFields.get(tpTable).get(((String) foreignKey.get("column"))).get("target").toString());
+                if (parent.get("targetPath").equals("")) {
+                    joinKey.put("target", parentRenameFields.get(columnKey).get("target").toString());
+                } else {
+                    joinKey.put("target", parent.get("targetPath") + "." + parentRenameFields.get(columnKey).get("target").toString());
+                }
+                joinKeys.add(joinKey);
+            }
+        }
     }
 
     private String replaceId(String id, Map<String, String> globalIdMap) {
