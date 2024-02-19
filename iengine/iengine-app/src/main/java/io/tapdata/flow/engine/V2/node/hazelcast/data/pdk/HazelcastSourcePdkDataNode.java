@@ -1105,11 +1105,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			return;
 		}
 		TapEvent lastEvent = tapEvents.get(tapEvents.size() - 1);
-		flushPollingCDCOffset((TapRecordEvent) lastEvent);
+		flushPollingCDCOffset(lastEvent);
 	}
 
-	private void flushPollingCDCOffset(TapRecordEvent tapEvent) {
+	private void flushPollingCDCOffset(TapEvent tapEvent) {
 		if (!isPollingCDC(getNode())) {
+			return;
+		}
+		if (!(tapEvent instanceof TapRecordEvent)) {
 			return;
 		}
 		TableNode node = (TableNode) getNode();
@@ -1132,7 +1135,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			tablePollingCDCOffset.put(conditionField, value);
 		}
 		TapCodecsFilterManager connecotrCodecsFilterManger = getConnectorNode().getCodecsFilterManager();
-		toTapValue(tablePollingCDCOffset, tapEvent.getTableId(), connecotrCodecsFilterManger);
+		toTapValue(tablePollingCDCOffset, ((TapRecordEvent)tapEvent).getTableId(), connecotrCodecsFilterManger);
 		fromTapValue(tablePollingCDCOffset, connecotrCodecsFilterManger, getTgtTableNameFromTapEvent(tapEvent));
 	}
 
