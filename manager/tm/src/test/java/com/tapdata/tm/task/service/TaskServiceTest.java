@@ -968,6 +968,14 @@ public class TaskServiceTest {
             String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
             assertEquals("parentPath.abc",targetPath);
         }
+        @DisplayName("test parent path is not empty string,embeddedPaht is empty str")
+        @Test
+        void test4(){
+            Map<String,String> setting=new HashMap<>();
+            setting.put("embeddedPath","");
+            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
+            assertEquals("parentPath",targetPath);
+        }
     }
 
 
