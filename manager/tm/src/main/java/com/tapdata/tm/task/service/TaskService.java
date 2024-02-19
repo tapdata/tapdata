@@ -2959,7 +2959,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (parentTargetPath.equals("")) {
             targetPath = setting.get("embeddedPath");
         } else {
-            if (null == setting.get("embeddedPath")) {
+            if (StringUtils.isBlank(setting.get("embeddedPath"))) {
                 targetPath = parentTargetPath;
             } else {
                 targetPath = parentTargetPath + "." + setting.get("embeddedPath");
