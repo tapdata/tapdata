@@ -11,8 +11,6 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import io.tapdata.construct.constructImpl.ConstructIMap;
-import io.tapdata.entity.codec.ToTapValueCodec;
-import io.tapdata.entity.codec.filter.EntryFilter;
 import io.tapdata.entity.codec.filter.MapIteratorEx;
 import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
 import io.tapdata.entity.event.TapEvent;
@@ -27,10 +25,8 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapString;
-import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapStringValue;
-import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskMergeProcessorExCode_16;
@@ -1254,10 +1250,11 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			if (value instanceof NotExistsNode) {
 				throw new TapCodeException(TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_NOT_EXISTS, String.format("- Map name: %s\n- Join key: %s\n- Data: %s", hazelcastConstruct.getName(), joinKey, data));
 			}
-			if (value instanceof Number) {
-				values.add(new BigDecimal(String.valueOf(value)).stripTrailingZeros().toPlainString());
-			} else {
-				values.add(String.valueOf(value));
+			try {
+				values.add(convertJoinKeyValue2String(value));
+			} catch (JoinKeyValueConvertNumberException e) {
+				throw new TapCodeException(TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_CONVERT_NUMBER_FAILED, String.format("- Merge table: %s%n- Map name: %s%n- Join key: %s%n- Data: %s(%s)",
+						mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, null == value ? "null" : value.getClass().getName()));
 			}
 		}
 		return String.join("_", values);
@@ -1281,13 +1278,35 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			if (value instanceof NotExistsNode) {
 				return null;
 			}
-			if (value instanceof Number) {
-				values.add(new BigDecimal(String.valueOf(value)).stripTrailingZeros().toPlainString());
-			} else {
-				values.add(String.valueOf(value));
+			try {
+				values.add(convertJoinKeyValue2String(value));
+			} catch (JoinKeyValueConvertNumberException e) {
+				throw new TapCodeException(TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_CONVERT_NUMBER_FAILED, String.format("- Merge table: %s%n- Map name: %s%n- Join key: %s%n- Data: %s(%s)",
+						mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, null == value ? "null" : value.getClass().getName()));
 			}
 		}
 		return String.join("_", values);
+	}
+
+	private static String convertJoinKeyValue2String(Object value) throws JoinKeyValueConvertNumberException {
+		if (null == value) {
+			return "";
+		}
+		if (value instanceof Number) {
+			try {
+				return new BigDecimal(String.valueOf(value)).stripTrailingZeros().toPlainString();
+			} catch (Exception e) {
+				throw new JoinKeyValueConvertNumberException(e);
+			}
+		} else {
+			return String.valueOf(value);
+		}
+	}
+
+	private static class JoinKeyValueConvertNumberException extends Exception {
+		public JoinKeyValueConvertNumberException(Throwable cause) {
+			super(cause);
+		}
 	}
 
 	private String encode(String str) {
@@ -1393,12 +1412,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		List<MergeLookupResult> mergeLookupResults;
 		try {
 			mergeLookupResults = recursiveLookup(currentMergeTableProperty, after, true);
+		} catch (TapCodeException e) {
+			throw new TapEventException(e.getCode(), e.getMessage(), e).addEvent(tapdataEvent.getTapEvent());
 		} catch (Exception e) {
-			if (e instanceof TapCodeException) {
-				throw new TapEventException(((TapCodeException) e).getCode(), e.getMessage(), e.getCause()).addEvent(tapdataEvent.getTapEvent());
-			} else {
-				throw e;
-			}
+			throw new TapEventException(TaskMergeProcessorExCode_16.LOOK_UP_UNKNOWN_ERROR, e).addEvent(tapdataEvent.getTapEvent());
 		}
 		return mergeLookupResults;
 	}
