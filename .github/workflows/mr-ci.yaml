@@ -153,7 +153,7 @@ jobs:
           find ./ -name jacoco | grep iengine
           find ./ -name jacoco | grep manager
       - name: Install Dependens
-        if: !contains(github.event.pull_request.base.ref, 'release-v3.')
+        if: "!contains(github.event.pull_request.base.ref, 'release-v3.')"
         run: |
           apt install -y jq
       - name: SonarQube Quality Gate check
