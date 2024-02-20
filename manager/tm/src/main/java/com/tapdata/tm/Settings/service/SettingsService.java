@@ -21,6 +21,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -43,7 +44,6 @@ public class SettingsService {
     private SettingsRepository settingsRepository;
     private MongoTemplate mongoTemplate;
 
-    private UserService userService;
 
     /**
      * 有value 则返回value, 没有则返回default_value
@@ -109,6 +109,7 @@ public class SettingsService {
 
         boolean isCloud = isCloud();
         if (isCloud) {
+            UserService userService = SpringContextHelper.getBean(UserService.class);
             UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
             Optional.ofNullable(userDetail).ifPresent(u -> {
                 if (StringUtils.isNotBlank(u.getEmail())) {

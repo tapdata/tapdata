@@ -2,6 +2,7 @@ package com.tapdata.tm.message.service;
 
 import com.alibaba.fastjson.JSONObject;
 import com.tapdata.tm.utils.HttpUtils;
+import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.service.WorkerService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -45,50 +46,65 @@ class CircuitBreakerRecoveryTest {
 
     @Test
     void testCheckAvailableAgentCount(){
-        long beforeAvailableAgentCount = 100;
-        long mockAvailableAgentCount = 100;
-        when(mockWorkerService.getAvailableAgentCount()).thenReturn(mockAvailableAgentCount);
-        boolean result = circuitBreakerRecoveryUnderTest.checkAvailableAgentCount(beforeAvailableAgentCount);
-        Assertions.assertTrue(result);
+        try(MockedStatic<SpringContextHelper> springContextHelperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)){
+            springContextHelperMockedStatic.when(()->SpringContextHelper.getBean(WorkerService.class)).thenReturn(mockWorkerService);
+            long beforeAvailableAgentCount = 100;
+            long mockAvailableAgentCount = 100;
+            when(mockWorkerService.getAvailableAgentCount()).thenReturn(mockAvailableAgentCount);
+            boolean result = circuitBreakerRecoveryUnderTest.checkAvailableAgentCount(beforeAvailableAgentCount);
+            Assertions.assertTrue(result);
+        }
     }
 
     @Test
     void testCheckAvailableAgentCount_fail(){
-        long beforeAvailableAgentCount = 100;
-        long mockAvailableAgentCount = 10;
-        when(mockWorkerService.getAvailableAgentCount()).thenReturn(mockAvailableAgentCount);
-        boolean result = circuitBreakerRecoveryUnderTest.checkAvailableAgentCount(beforeAvailableAgentCount);
-        Assertions.assertFalse(result);
+        try(MockedStatic<SpringContextHelper> springContextHelperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)){
+            springContextHelperMockedStatic.when(()->SpringContextHelper.getBean(WorkerService.class)).thenReturn(mockWorkerService);
+            long beforeAvailableAgentCount = 100;
+            long mockAvailableAgentCount = 10;
+            when(mockWorkerService.getAvailableAgentCount()).thenReturn(mockAvailableAgentCount);
+            boolean result = circuitBreakerRecoveryUnderTest.checkAvailableAgentCount(beforeAvailableAgentCount);
+            Assertions.assertFalse(result);
+        }
     }
 
     @Test
     void testCheckAvailableAgentCount_customThreshold(){
-        long beforeAvailableAgentCount = 100;
-        long mockAvailableAgentCount = 10;
-        System.setProperty("circuit_breaker_recovery_threshold","0.1");
-        when(mockWorkerService.getAvailableAgentCount()).thenReturn(mockAvailableAgentCount);
-        boolean result = circuitBreakerRecoveryUnderTest.checkAvailableAgentCount(beforeAvailableAgentCount);
-        Assertions.assertTrue(result);
+        try(MockedStatic<SpringContextHelper> springContextHelperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
+            springContextHelperMockedStatic.when(() -> SpringContextHelper.getBean(WorkerService.class)).thenReturn(mockWorkerService);
+            long beforeAvailableAgentCount = 100;
+            long mockAvailableAgentCount = 10;
+            System.setProperty("circuit_breaker_recovery_threshold", "0.1");
+            when(mockWorkerService.getAvailableAgentCount()).thenReturn(mockAvailableAgentCount);
+            boolean result = circuitBreakerRecoveryUnderTest.checkAvailableAgentCount(beforeAvailableAgentCount);
+            Assertions.assertTrue(result);
+        }
     }
 
     @Test
     void testCheckAvailableAgentCount_customThresholdMorethanOne(){
-        long beforeAvailableAgentCount = 100;
-        long mockAvailableAgentCount = 10;
-        System.setProperty("circuit_breaker_recovery_threshold","2");
-        when(mockWorkerService.getAvailableAgentCount()).thenReturn(mockAvailableAgentCount);
-        boolean result = circuitBreakerRecoveryUnderTest.checkAvailableAgentCount(beforeAvailableAgentCount);
-        Assertions.assertFalse(result);
+        try(MockedStatic<SpringContextHelper> springContextHelperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
+            springContextHelperMockedStatic.when(() -> SpringContextHelper.getBean(WorkerService.class)).thenReturn(mockWorkerService);
+            long beforeAvailableAgentCount = 100;
+            long mockAvailableAgentCount = 10;
+            System.setProperty("circuit_breaker_recovery_threshold","2");
+            when(mockWorkerService.getAvailableAgentCount()).thenReturn(mockAvailableAgentCount);
+            boolean result = circuitBreakerRecoveryUnderTest.checkAvailableAgentCount(beforeAvailableAgentCount);
+            Assertions.assertFalse(result);
+        }
     }
 
     @Test
     void testCheckAvailableAgentCount_customThresholdIsString(){
-        long beforeAvailableAgentCount = 100;
-        long mockAvailableAgentCount = 10;
-        System.setProperty("circuit_breaker_recovery_threshold","ssss");
-        when(mockWorkerService.getAvailableAgentCount()).thenReturn(mockAvailableAgentCount);
-        boolean result = circuitBreakerRecoveryUnderTest.checkAvailableAgentCount(beforeAvailableAgentCount);
-        Assertions.assertFalse(result);
+        try(MockedStatic<SpringContextHelper> springContextHelperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
+            springContextHelperMockedStatic.when(() -> SpringContextHelper.getBean(WorkerService.class)).thenReturn(mockWorkerService);
+            long beforeAvailableAgentCount = 100;
+            long mockAvailableAgentCount = 10;
+            System.setProperty("circuit_breaker_recovery_threshold","ssss");
+            when(mockWorkerService.getAvailableAgentCount()).thenReturn(mockAvailableAgentCount);
+            boolean result = circuitBreakerRecoveryUnderTest.checkAvailableAgentCount(beforeAvailableAgentCount);
+            Assertions.assertFalse(result);
+        }
     }
 
     @Test
@@ -97,7 +113,9 @@ class CircuitBreakerRecoveryTest {
         long mockAvailableAgentCount = 100;
         ScheduledFuture scheduledFuture = mock(ScheduledFuture.class);
         ReflectionTestUtils.setField(circuitBreakerRecoveryUnderTest,"scheduledFuture",scheduledFuture);
-        try (MockedStatic<HttpUtils> httpUtilsMockedStatic = Mockito.mockStatic(HttpUtils.class)){
+        try (MockedStatic<HttpUtils> httpUtilsMockedStatic = Mockito.mockStatic(HttpUtils.class);
+             MockedStatic<SpringContextHelper> springContextHelperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)){
+            springContextHelperMockedStatic.when(() -> SpringContextHelper.getBean(WorkerService.class)).thenReturn(mockWorkerService);
             Map<String,String> mockMap = new HashMap<>();
             String content = "熔断恢复，服务已恢复正常";
             mockMap.put("title", "服务熔断恢复提醒");
@@ -117,7 +135,9 @@ class CircuitBreakerRecoveryTest {
         long mockAvailableAgentCount = 10;
         ScheduledFuture scheduledFuture = mock(ScheduledFuture.class);
         ReflectionTestUtils.setField(circuitBreakerRecoveryUnderTest,"scheduledFuture",scheduledFuture);
-        try (MockedStatic<HttpUtils> httpUtilsMockedStatic = Mockito.mockStatic(HttpUtils.class)){
+        try (MockedStatic<HttpUtils> httpUtilsMockedStatic = Mockito.mockStatic(HttpUtils.class);
+             MockedStatic<SpringContextHelper> springContextHelperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)){
+            springContextHelperMockedStatic.when(() -> SpringContextHelper.getBean(WorkerService.class)).thenReturn(mockWorkerService);
             Map<String,String> mockMap = new HashMap<>();
             String content = "熔断恢复，服务已恢复正常";
             mockMap.put("title", "服务熔断恢复提醒");
