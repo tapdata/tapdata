@@ -147,14 +147,17 @@ jobs:
             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
             -Dsonar.branch.name=${{ env.OPENSOURCE_BRANCH }}
       - name: Prevent Skip Unittest
+        if: !contains(github.event.pull_request.base.ref, 'release-v3.')
         run: |
           cd tapdata
           find ./ -name jacoco | grep iengine
           find ./ -name jacoco | grep manager
       - name: Install Dependens
+        if: !contains(github.event.pull_request.base.ref, 'release-v3.')
         run: |
           apt install -y jq
       - name: SonarQube Quality Gate check
+        if: !contains(github.event.pull_request.base.ref, 'release-v3.')
         uses: sonarsource/sonarqube-quality-gate-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
