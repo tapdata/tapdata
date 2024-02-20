@@ -3159,7 +3159,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 renameNode.put("name", "Rename " + tpTable);
                 renameNode.put("processorThreadNum", 1);
                 renameNode.put("type", "field_rename_processor");
-                List<Map<String, Object>> operations = new ArrayList<>();
+                List<Map<String, Object>> renameOperations = new ArrayList<>();
 
                 // 增加 删除 处理器
                 Map<String, Object> deleteNode = new HashMap<>();
@@ -3177,18 +3177,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     Map<String, Object> fieldMap = (Map<String, Object>) fields.get(field);
                     Map<String, Object> source = (Map<String, Object>) fieldMap.get("source");
                     Map<String, Object> target = (Map<String, Object>) fieldMap.get("target");
-                    Map<String, Object> newName = new HashMap<>();
-                    newName.put("target", target.get("name").toString());
-                    newName.put("isPrimaryKey", (Boolean)source.get("isPrimaryKey"));
+                    Map<String, Object> newName = getNewNameMap(target, source);
                     tableRenameFields.put(source.get("name").toString(), newName);
 
                     if (!(Boolean)target.get("included")) {
-                        Map<String, Object> deleteOperation = new HashMap<>();
-                        deleteOperation.put("id", UUID.randomUUID().toString().toLowerCase());
-                        deleteOperation.put("field", source.get("name"));
-                        deleteOperation.put("op", "REMOVE");
-                        deleteOperation.put("operand", "true");
-                        deleteOperation.put("label", source.get("name"));
+                        Map<String, Object> deleteOperation = getDeleteOperation(source);
                         deleteOperations.add(deleteOperation);
                         continue;
                     }
@@ -3196,19 +3189,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     if (source.get("name").equals(target.get("name"))) {
                         continue;
                     }
-                    if (!(Boolean)target.get("included")) {
-                        continue;
-                    }
 
-                    Map<String, Object> fieldRenameNode = new HashMap<>();
-                    fieldRenameNode.put("id", UUID.randomUUID().toString().toLowerCase());
-                    fieldRenameNode.put("field", source.get("name"));
-                    fieldRenameNode.put("op", "RENAME");
-                    fieldRenameNode.put("operand", target.get("name"));
-                    operations.add(fieldRenameNode);
+                    Map<String, Object> renameOperation = getRenameOperation(source, target);
+                    renameOperations.add(renameOperation);
                 }
 
-                renameNode.put("operations", operations);
+                renameNode.put("operations", renameOperations);
                 deleteNode.put("operations", deleteOperations);
 
                 renameFields.put(tpTable, tableRenameFields);
@@ -3240,7 +3226,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     sourceId = deleteId;
                 }
 
-                if (!operations.isEmpty()) {
+                if (!renameOperations.isEmpty()) {
                     nodes.add(renameNode);
                     Map<String, Object> edge = new HashMap<>();
                     edge.put("source", sourceId);
@@ -3371,6 +3357,32 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             parsedTpTasks.put((String) task.get("id"), JsonUtil.toJson(task));
         }
         return parsedTpTasks;
+    }
+
+    protected Map<String, Object> getDeleteOperation(Map<String, Object> source) {
+        Map<String, Object> deleteOperation = new HashMap<>();
+        deleteOperation.put("id", UUID.randomUUID().toString().toLowerCase());
+        deleteOperation.put("field", source.get("name"));
+        deleteOperation.put("op", "REMOVE");
+        deleteOperation.put("operand", "true");
+        deleteOperation.put("label", source.get("name"));
+        return deleteOperation;
+    }
+
+    protected Map<String, Object> getRenameOperation(Map<String, Object> source, Map<String, Object> target) {
+        Map<String, Object> fieldRenameNode = new HashMap<>();
+        fieldRenameNode.put("id", UUID.randomUUID().toString().toLowerCase());
+        fieldRenameNode.put("field", source.get("name"));
+        fieldRenameNode.put("op", "RENAME");
+        fieldRenameNode.put("operand", target.get("name"));
+        return fieldRenameNode;
+    }
+
+    protected Map<String, Object> getNewNameMap(Map<String, Object> target, Map<String, Object> source) {
+        Map<String, Object> newName = new HashMap<>();
+        newName.put("target", target.get("name").toString());
+        newName.put("isPrimaryKey", (Boolean) source.get("isPrimaryKey"));
+        return newName;
     }
 
     public void importRmProject(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags, String source, String sink) throws IOException {

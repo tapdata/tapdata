@@ -977,6 +977,68 @@ public class TaskServiceTest {
             assertEquals("parentPath",targetPath);
         }
     }
+    @Nested
+    class GetNewNameMapTest{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskService taskService=spy(new TaskService(taskRepository));
+        @DisplayName("test get newname map is pk")
+        @Test
+        void test1(){
+            Map<String,Object> target=new HashMap<>();
+            target.put("name","employeeId");
+            target.put("included",true);
+            Map<String,Object> source=new HashMap<>();
+            source.put("name","EmployeeId");
+            source.put("isPrimaryKey",true);
+            Map<String, Object> newNameMap = taskService.getNewNameMap(target, source);
+            assertEquals("employeeId",newNameMap.get("target"));
+            assertEquals(true,newNameMap.get("isPrimaryKey"));
+        }
+        @DisplayName("test get newname map is not pk")
+        @Test
+        void test2(){
+            Map<String,Object> target=new HashMap<>();
+            target.put("name","employeeId");
+            target.put("included",true);
+            Map<String,Object> source=new HashMap<>();
+            source.put("name","EmployeeId");
+            source.put("isPrimaryKey",false);
+            Map<String, Object> newNameMap = taskService.getNewNameMap(target, source);
+            assertEquals("employeeId",newNameMap.get("target"));
+            assertEquals(false,newNameMap.get("isPrimaryKey"));
+        }
+    }
+    @Nested
+    class GetOperationTest{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskService taskService=spy(new TaskService(taskRepository));
+        @DisplayName("test get deleteOperation")
+        @Test
+        void test1(){
+            Map<String,Object> source=new HashMap<>();
+            source.put("name","EmployeeId");
+            source.put("isPrimaryKey",false);
+            Map<String, Object> deleteOperation = taskService.getDeleteOperation(source);
+            assertEquals("EmployeeId",deleteOperation.get("field"));
+            assertEquals("REMOVE",deleteOperation.get("op"));
+            assertEquals("true",deleteOperation.get("operand"));
+            assertEquals("EmployeeId",deleteOperation.get("label"));
+        }
+        @DisplayName("test get renameOperation")
+        @Test
+        void test2(){
+            Map<String,Object> target=new HashMap<>();
+            target.put("name","employeeId");
+            target.put("included",true);
+            Map<String,Object> source=new HashMap<>();
+            source.put("name","EmployeeId");
+            source.put("isPrimaryKey",false);
+            Map<String, Object> renameOperation = taskService.getRenameOperation(source, target);
+            assertEquals("EmployeeId",renameOperation.get("field"));
+            assertEquals("RENAME",renameOperation.get("op"));
+            assertEquals("employeeId",renameOperation.get("operand"));
+        }
+    }
 
 
 }
