@@ -3148,29 +3148,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 String script = "";
                 String declareScript = "";
 
-                // 增加 重命名 处理器
-                Map<String, Object> renameNode = new HashMap<>();
-                String renameId = UUID.randomUUID().toString().toLowerCase();
-                renameNode.put("id", renameId);
-                renameNode.put("catalog", "processor");
-                renameNode.put("elementType", "Node");
-                renameNode.put("fieldsNameTransform", "");
-                renameNode.put("isTransformed", false);
-                renameNode.put("name", "Rename " + tpTable);
-                renameNode.put("processorThreadNum", 1);
-                renameNode.put("type", "field_rename_processor");
                 List<Map<String, Object>> renameOperations = new ArrayList<>();
 
-                // 增加 删除 处理器
-                Map<String, Object> deleteNode = new HashMap<>();
-                String deleteId = UUID.randomUUID().toString().toLowerCase();
-                deleteNode.put("id", deleteId);
-                deleteNode.put("catalog", "processor");
-                deleteNode.put("deleteAllFields", false);
-                deleteNode.put("elementType", "Node");
-                deleteNode.put("name", "Delete " + tpTable);
-                deleteNode.put("type", "field_add_del_processor");
-                deleteNode.put("processorThreadNum", 1);
                 List<Map<String, Object>> deleteOperations = new ArrayList<>();
 
                 for (String field : fields.keySet()) {
@@ -3194,9 +3173,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     renameOperations.add(renameOperation);
                 }
 
-                renameNode.put("operations", renameOperations);
-                deleteNode.put("operations", deleteOperations);
-
                 renameFields.put(tpTable, tableRenameFields);
 
                 Map<String, Object> calculatedFields = (Map<String, Object>) contentMappingzValue.get("calculatedFields");
@@ -3216,23 +3192,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 jsNode.put("script", script);
                 jsNode.put("declareScript", declareScript);
                 String sourceId = (String) node.get("id");
-
+                //add delete processor node
                 if (!deleteOperations.isEmpty()) {
-                    nodes.add(deleteNode);
-                    Map<String, Object> edge = new HashMap<>();
-                    edge.put("source", sourceId);
-                    edge.put("target", deleteId);
-                    edges.add(edge);
-                    sourceId = deleteId;
+                    sourceId = addDeleteNode(tpTable, deleteOperations,  sourceId,nodes, edges);
                 }
-
+                //add rename processor node
                 if (!renameOperations.isEmpty()) {
-                    nodes.add(renameNode);
-                    Map<String, Object> edge = new HashMap<>();
-                    edge.put("source", sourceId);
-                    edge.put("target", renameId);
-                    edges.add(edge);
-                    sourceId = renameId;
+                    sourceId = addRenameNode(tpTable,  renameOperations, sourceId,nodes, edges);
                 }
 
                 if (!script.equals("")) {
@@ -3359,6 +3325,47 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return parsedTpTasks;
     }
 
+    protected String addRenameNode(String tpTable,  List<Map<String, Object>> renameOperations, String sourceId,List<Map<String, Object>> nodes, List<Map<String, Object>> edges) {
+        Map<String, Object> renameNode = new HashMap<>();
+        String renameId = UUID.randomUUID().toString().toLowerCase();
+        renameNode.put("id", renameId);
+        renameNode.put("catalog", "processor");
+        renameNode.put("elementType", "Node");
+        renameNode.put("fieldsNameTransform", "");
+        renameNode.put("isTransformed", false);
+        renameNode.put("name", "Rename " + tpTable);
+        renameNode.put("processorThreadNum", 1);
+        renameNode.put("type", "field_rename_processor");
+        nodes.add(renameNode);
+        renameNode.put("operations", renameOperations);
+        Map<String, Object> edge = new HashMap<>();
+        edge.put("source", sourceId);
+        edge.put("target", renameId);
+        edges.add(edge);
+        sourceId = renameId;
+        return sourceId;
+    }
+
+    protected String addDeleteNode(String tpTable, List<Map<String, Object>> deleteOperations,  String sourceId,List<Map<String, Object>> nodes, List<Map<String, Object>> edges) {
+        Map<String, Object> deleteNode = new HashMap<>();
+        String deleteId = UUID.randomUUID().toString().toLowerCase();
+        deleteNode.put("id", deleteId);
+        deleteNode.put("catalog", "processor");
+        deleteNode.put("deleteAllFields", false);
+        deleteNode.put("elementType", "Node");
+        deleteNode.put("name", "Delete " + tpTable);
+        deleteNode.put("type", "field_add_del_processor");
+        deleteNode.put("processorThreadNum", 1);
+        deleteNode.put("operations", deleteOperations);
+        nodes.add(deleteNode);
+        Map<String, Object> edge = new HashMap<>();
+        edge.put("source", sourceId);
+        edge.put("target", deleteId);
+        edges.add(edge);
+        sourceId = deleteId;
+        return sourceId;
+    }
+
     protected Map<String, Object> getDeleteOperation(Map<String, Object> source) {
         Map<String, Object> deleteOperation = new HashMap<>();
         deleteOperation.put("id", UUID.randomUUID().toString().toLowerCase());
@@ -3370,12 +3377,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     protected Map<String, Object> getRenameOperation(Map<String, Object> source, Map<String, Object> target) {
-        Map<String, Object> fieldRenameNode = new HashMap<>();
-        fieldRenameNode.put("id", UUID.randomUUID().toString().toLowerCase());
-        fieldRenameNode.put("field", source.get("name"));
-        fieldRenameNode.put("op", "RENAME");
-        fieldRenameNode.put("operand", target.get("name"));
-        return fieldRenameNode;
+        Map<String, Object> fieldRenameOperation = new HashMap<>();
+        fieldRenameOperation.put("id", UUID.randomUUID().toString().toLowerCase());
+        fieldRenameOperation.put("field", source.get("name"));
+        fieldRenameOperation.put("op", "RENAME");
+        fieldRenameOperation.put("operand", target.get("name"));
+        return fieldRenameOperation;
     }
 
     protected Map<String, Object> getNewNameMap(Map<String, Object> target, Map<String, Object> source) {
