@@ -28,22 +28,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 
-public class ExternalStorageServiceTest {
+ class ExternalStorageServiceTest {
 
 
     @Test
-    public void findForCloudTest() {
+     void findForCloudTest() {
         testFilter("cloud", true);
 
     }
 
     @Test
-    public void findForDaasTest() {
+     void findForDaasTest() {
         testFilter("daas", false);
     }
 
 
-    public void testFilter(String mark, boolean cloud) {
+     void testFilter(String mark, boolean cloud) {
         ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
         ExternalStorageService externalStorageService = new ExternalStorageService(repository);
         Filter filter = new Filter();

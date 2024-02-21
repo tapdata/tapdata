@@ -124,4 +124,5 @@ public interface TaskProcessorExCode_11 {
 			solutionCN = "1. 可在源节点DDL同步配置选择忽略所有DDL事件，防止任务报错停止"
 	)
 	String UNABLE_TO_SYNCHRONIZE_DDL_EVENT = "11022";
+
 }

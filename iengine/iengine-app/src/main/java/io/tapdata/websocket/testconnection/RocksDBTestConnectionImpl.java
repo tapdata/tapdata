@@ -5,10 +5,13 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.validator.ConnectionValidateResult;
 import com.tapdata.validator.ConnectionValidateResultDetail;
 import com.tapdata.validator.ValidatorConstant;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -16,9 +19,13 @@ import java.util.Map;
 @Component
 public class RocksDBTestConnectionImpl implements TestConnection{
 
+    private static Logger logger = LogManager.getLogger(RocksDBTestConnectionImpl.class);
+
     private boolean connectionFail = false;
 
     private static String PASS ="passed";
+
+    private static String FAILED ="failed";
 
     private static String WRITE = "Write";
     @Override
@@ -50,7 +57,7 @@ public class RocksDBTestConnectionImpl implements TestConnection{
     }
 
 
-    private void testWritePrivilege(List<ConnectionValidateResultDetail> validateResultDetails,String dir) {
+    private void testWritePrivilege(List<ConnectionValidateResultDetail> validateResultDetails,String dir){
         ConnectionValidateResultDetail connectionValidateResultDetail = handleFileWrite(dir);
         validateResultDetails.add(connectionValidateResultDetail);
     }
@@ -61,28 +68,14 @@ public class RocksDBTestConnectionImpl implements TestConnection{
         connectionValidateResultDetail.setRequired(true);
         File file = new File(dir, "testConnect.txt");
         connectionValidateResultDetail.setShow_msg(WRITE);
-        String status = "failed";
         if (file.exists()) {
+            connectionValidateResultDetail.setStatus(FAILED);
             if (file.canWrite()) {
-                status = PASS;
+                connectionValidateResultDetail.setStatus(PASS);
             }
         } else {
-            try {
-                file.getParentFile().mkdirs();
-                file.createNewFile();
-                if (file.canWrite()) {
-                    status = PASS;
-                }
-            } catch (IOException e) {
-                connectionValidateResultDetail.failed(e.getMessage());
-            } finally {
-                file.delete();
-            }
+            handleCreateFile(connectionValidateResultDetail, file, WRITE);
         }
-        if (PASS.equals(status)) {
-            connectionFail = true;
-        }
-        connectionValidateResultDetail.setStatus(status);
         return connectionValidateResultDetail;
     }
 
@@ -92,28 +85,42 @@ public class RocksDBTestConnectionImpl implements TestConnection{
         connectionValidateResultDetail.setRequired(true);
         File file = new File(dir, "testConnect.txt");
         connectionValidateResultDetail.setShow_msg("Read");
-        String status = "failed";
         if (file.exists()) {
+            connectionValidateResultDetail.setStatus(FAILED);
             if (file.canRead()) {
-                status = PASS;
+                connectionValidateResultDetail.setStatus(PASS);
             }
         } else {
-            try {
-                file.getParentFile().mkdirs();
-                file.createNewFile();
-                if (file.canRead()) {
-                    status = PASS;
+            handleCreateFile(connectionValidateResultDetail, file, "Read");
+        }
+
+        return connectionValidateResultDetail;
+    }
+
+    public void handleCreateFile(ConnectionValidateResultDetail connectionValidateResultDetail, File file,
+                                 String mark) {
+        boolean status = false;
+        try {
+            file.getParentFile().mkdirs();
+            if (file.createNewFile()) {
+                if (WRITE.equals(mark)) {
+                    status = file.canWrite();
+                } else {
+                    status = file.canRead();
                 }
-            } catch (IOException e) {
-                connectionValidateResultDetail.failed(e.getMessage());
-            } finally {
-                file.delete();
+
+            }
+        } catch (IOException e) {
+            connectionValidateResultDetail.failed(e.getMessage());
+        } finally {
+            try {
+                Files.delete(file.toPath());
+            } catch (Exception e) {
+                logger.warn("Delete file failed:{}", file.getName());
             }
         }
-        if (PASS.equals(status)) {
-            connectionFail = true;
-        }
-        connectionValidateResultDetail.setStatus(status);
-        return connectionValidateResultDetail;
+        connectionFail = status;
+        String result = status ? PASS : FAILED;
+        connectionValidateResultDetail.setStatus(result);
     }
 }

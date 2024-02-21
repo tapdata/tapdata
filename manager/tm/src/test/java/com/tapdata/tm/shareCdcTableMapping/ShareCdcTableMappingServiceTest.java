@@ -26,10 +26,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ShareCdcTableMappingServiceTest {
+ class ShareCdcTableMappingServiceTest {
 
     @Test
-    public void genShareCdcTableMappingsByLogCollectorTaskAddUserTest() {
+     void genShareCdcTableMappingsByLogCollectorTaskAddUserTest() {
         ShareCdcTableMappingRepository shareCdcTableMappingRepository = Mockito.mock(ShareCdcTableMappingRepository.class);
 
         ShareCdcTableMappingService shareCdcTableMappingService = new ShareCdcTableMappingService(shareCdcTableMappingRepository);

@@ -270,13 +270,9 @@ public class TaskRestartSchedule {
         }
 
         Map<String, UserDetail> userMap = this.getUserDetailMap(all);
-        Map<String, List<Worker>> userWorkMap = this.getUserWorkMap();
         for (TaskDto taskDto : all) {
             UserDetail user = userMap.get(taskDto.getUserId());
             if (Objects.isNull(user)) {
-                continue;
-            }
-            if (CollectionUtils.isEmpty(userWorkMap.get(user.getUserId()))) {
                 continue;
             }
 

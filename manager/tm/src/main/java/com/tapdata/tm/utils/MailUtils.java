@@ -70,11 +70,12 @@ public class MailUtils {
         productList = versionList;
     }
 
+    public final static String SEND_STATUS_FALSE = "false";
     /**
      * 发送html形式的邮件
      */
     public SendStatus sendHtmlMail(String subject, List<String> toList, String username, String agentName, String emailHref, String maiContent) {
-        SendStatus sendStatus = new SendStatus("false", "");
+        SendStatus sendStatus = new SendStatus(SEND_STATUS_FALSE, "");
         List<String> notInBlacklistAddress = checkNotInBlacklistAddress(toList,sendStatus);
         if(CollectionUtils.isEmpty(notInBlacklistAddress)){
             return sendStatus;
@@ -148,7 +149,7 @@ public class MailUtils {
      * 发送html形式的邮件
      */
     public SendStatus sendHtmlMail(List<String> toList, String username, String agentName, String emailHref, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum) {
-        SendStatus sendStatus = new SendStatus("false", "");
+        SendStatus sendStatus = new SendStatus(SEND_STATUS_FALSE, "");
         List<String> notInBlacklistAddress = checkNotInBlacklistAddress(toList,sendStatus);
         if(CollectionUtils.isEmpty(notInBlacklistAddress)){
             return sendStatus;
@@ -226,7 +227,7 @@ public class MailUtils {
      * 发送html形式的邮件
      */
     public SendStatus sendHtmlMail(List<String> toList, String username, String agentName, SystemEnum systemEnum, MsgTypeEnum msgTypeEnum, String sourceId) {
-        SendStatus sendStatus = new SendStatus("false", "");
+        SendStatus sendStatus = new SendStatus(SEND_STATUS_FALSE, "");
         List<String> notInBlacklistAddress = checkNotInBlacklistAddress(toList,sendStatus);
         if(CollectionUtils.isEmpty(notInBlacklistAddress)){
             return sendStatus;
@@ -307,7 +308,7 @@ public class MailUtils {
      */
     public SendStatus sendHtmlMail(String to, String username, String serverName, String title, String mailContent ) {
         if (blacklistService.inBlacklist(to)) {
-            return new SendStatus("false", String.format("Email %s in blacklist.", to));
+            return new SendStatus(SEND_STATUS_FALSE, String.format("Email %s in blacklist.", to));
         }
         return new SendStatus("true", "");
     }
