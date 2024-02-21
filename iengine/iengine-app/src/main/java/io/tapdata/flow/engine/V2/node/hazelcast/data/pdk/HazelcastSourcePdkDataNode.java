@@ -1100,7 +1100,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		return convertValue;
 	}
 
-	private void flushPollingCDCOffset(List<TapEvent> tapEvents) {
+	void flushPollingCDCOffset(List<TapEvent> tapEvents) {
 		if (CollectionUtils.isEmpty(tapEvents)) {
 			return;
 		}
