@@ -150,6 +150,9 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, TaskRepository> {
+    protected static final String PROCESSOR_THREAD_NUM="processorThreadNum";
+    protected static final String CATALOG="catalog";
+    protected static final String ELEMENT_TYEP="elementType";
     private MessageService messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private InspectService inspectService;
@@ -3142,9 +3145,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 jsNode.put("name", tpTable);
                 jsNode.put("id", jsId);
                 jsNode.put("jsType", 1);
-                jsNode.put("processorThreadNum", 1);
-                jsNode.put("catalog", "processor");
-                jsNode.put("elementType", "Node");
+                jsNode.put(PROCESSOR_THREAD_NUM, 1);
+                jsNode.put(CATALOG, "processor");
+                jsNode.put(ELEMENT_TYEP, "Node");
                 String script = "";
                 String declareScript = "";
 
@@ -3256,7 +3259,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             mergeNode.put("type", "merge_table_processor");
             mergeNode.put("name", "merge");
             mergeNode.put("id", mergeNodeId);
-            mergeNode.put("catalog", "processor");
+            mergeNode.put(CATALOG, "processor");
             mergeNode.put("mergeMode", "main_table_first");
             mergeNode.put("isTransformed", false);
             Map<String, Object> rootProperties = new HashMap<>();
@@ -3329,12 +3332,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Map<String, Object> renameNode = new HashMap<>();
         String renameId = UUID.randomUUID().toString().toLowerCase();
         renameNode.put("id", renameId);
-        renameNode.put("catalog", "processor");
-        renameNode.put("elementType", "Node");
+        renameNode.put(CATALOG, "processor");
+        renameNode.put(ELEMENT_TYEP, "Node");
         renameNode.put("fieldsNameTransform", "");
         renameNode.put("isTransformed", false);
         renameNode.put("name", "Rename " + tpTable);
-        renameNode.put("processorThreadNum", 1);
+        renameNode.put(PROCESSOR_THREAD_NUM, 1);
         renameNode.put("type", "field_rename_processor");
         nodes.add(renameNode);
         renameNode.put("operations", renameOperations);
@@ -3350,12 +3353,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Map<String, Object> deleteNode = new HashMap<>();
         String deleteId = UUID.randomUUID().toString().toLowerCase();
         deleteNode.put("id", deleteId);
-        deleteNode.put("catalog", "processor");
+        deleteNode.put(CATALOG, "processor");
         deleteNode.put("deleteAllFields", false);
-        deleteNode.put("elementType", "Node");
+        deleteNode.put(ELEMENT_TYEP, "Node");
         deleteNode.put("name", "Delete " + tpTable);
         deleteNode.put("type", "field_add_del_processor");
-        deleteNode.put("processorThreadNum", 1);
+        deleteNode.put(PROCESSOR_THREAD_NUM, 1);
         deleteNode.put("operations", deleteOperations);
         nodes.add(deleteNode);
         Map<String, Object> edge = new HashMap<>();
@@ -4632,7 +4635,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public TaskDto findByCacheName(String cacheName, UserDetail user) {
-        Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where("catalog").is("memCache").and("cacheName").is(cacheName));
+        Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where(CATALOG).is("memCache").and("cacheName").is(cacheName));
         Query query = new Query(taskCriteria);
 
         return findOne(query, user);
