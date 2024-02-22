@@ -21,7 +21,10 @@ import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
@@ -1102,11 +1105,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			return;
 		}
 		TapEvent lastEvent = tapEvents.get(tapEvents.size() - 1);
-		flushPollingCDCOffset((TapInsertRecordEvent) lastEvent);
+		flushPollingCDCOffset(lastEvent);
 	}
 
-	private void flushPollingCDCOffset(TapInsertRecordEvent tapEvent) {
+	private void flushPollingCDCOffset(TapEvent tapEvent) {
 		if (!isPollingCDC(getNode())) {
+			return;
+		}
+		if (!(tapEvent instanceof TapRecordEvent)) {
 			return;
 		}
 		TableNode node = (TableNode) getNode();
@@ -1116,13 +1122,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			streamOffsetMap.put(tableName, new HashMap<>());
 		}
 		Map tablePollingCDCOffset = (Map) streamOffsetMap.get(tableName);
-		Map<String, Object> after = tapEvent.getAfter();
+		Map<String, Object> data;
+		if (tapEvent instanceof TapInsertRecordEvent) {
+			data = ((TapInsertRecordEvent) tapEvent).getAfter();
+		} else if (tapEvent instanceof TapUpdateRecordEvent) {
+			data = ((TapUpdateRecordEvent) tapEvent).getAfter();
+		} else {
+			data = ((TapDeleteRecordEvent) tapEvent).getBefore();
+		}
 		for (String conditionField : conditionFields) {
-			Object value = after.get(conditionField);
+			Object value = data.get(conditionField);
 			tablePollingCDCOffset.put(conditionField, value);
 		}
 		TapCodecsFilterManager connecotrCodecsFilterManger = getConnectorNode().getCodecsFilterManager();
-		toTapValue(tablePollingCDCOffset, tapEvent.getTableId(), connecotrCodecsFilterManger);
+		toTapValue(tablePollingCDCOffset, ((TapRecordEvent)tapEvent).getTableId(), connecotrCodecsFilterManger);
 		fromTapValue(tablePollingCDCOffset, connecotrCodecsFilterManger, getTgtTableNameFromTapEvent(tapEvent));
 	}
 

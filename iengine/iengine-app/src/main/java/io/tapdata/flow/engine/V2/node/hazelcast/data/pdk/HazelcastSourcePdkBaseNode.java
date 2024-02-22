@@ -461,7 +461,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
 						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode()));
 					} else {
-						initStreamOffsetFromTime(null);
+						if (syncType == SyncTypeEnum.INITIAL_SYNC_CDC || syncType == SyncTypeEnum.CDC) {
+							initStreamOffsetFromTime(null);
+						}
 					}
 					break;
 				case SHARE_CDC:
