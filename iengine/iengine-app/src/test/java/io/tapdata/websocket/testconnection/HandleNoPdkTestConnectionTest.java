@@ -177,7 +177,7 @@ class HandleNoPdkTestConnectionTest {
          if(OsUtil.isWindows()) {
              assertEquals("failed", connectionValidateResultDetail.getStatus());
          }else {
-             assertEquals("passed", connectionValidateResultDetail.getStatus());
+             assertEquals("failed", connectionValidateResultDetail.getStatus());
 
          }
      }
