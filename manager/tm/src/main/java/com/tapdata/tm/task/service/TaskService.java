@@ -153,6 +153,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     protected static final String PROCESSOR_THREAD_NUM="processorThreadNum";
     protected static final String CATALOG="catalog";
     protected static final String ELEMENT_TYEP="elementType";
+    protected static final String PROCESSOR="processor";
     private MessageService messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private InspectService inspectService;
@@ -3146,7 +3147,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 jsNode.put("id", jsId);
                 jsNode.put("jsType", 1);
                 jsNode.put(PROCESSOR_THREAD_NUM, 1);
-                jsNode.put(CATALOG, "processor");
+                jsNode.put(CATALOG, PROCESSOR);
                 jsNode.put(ELEMENT_TYEP, "Node");
                 String script = "";
                 String declareScript = "";
@@ -3259,7 +3260,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             mergeNode.put("type", "merge_table_processor");
             mergeNode.put("name", "merge");
             mergeNode.put("id", mergeNodeId);
-            mergeNode.put(CATALOG, "processor");
+            mergeNode.put(CATALOG, PROCESSOR);
             mergeNode.put("mergeMode", "main_table_first");
             mergeNode.put("isTransformed", false);
             Map<String, Object> rootProperties = new HashMap<>();
@@ -3332,7 +3333,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Map<String, Object> renameNode = new HashMap<>();
         String renameId = UUID.randomUUID().toString().toLowerCase();
         renameNode.put("id", renameId);
-        renameNode.put(CATALOG, "processor");
+        renameNode.put(CATALOG, PROCESSOR);
         renameNode.put(ELEMENT_TYEP, "Node");
         renameNode.put("fieldsNameTransform", "");
         renameNode.put("isTransformed", false);
@@ -3353,7 +3354,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Map<String, Object> deleteNode = new HashMap<>();
         String deleteId = UUID.randomUUID().toString().toLowerCase();
         deleteNode.put("id", deleteId);
-        deleteNode.put(CATALOG, "processor");
+        deleteNode.put(CATALOG, PROCESSOR);
         deleteNode.put("deleteAllFields", false);
         deleteNode.put(ELEMENT_TYEP, "Node");
         deleteNode.put("name", "Delete " + tpTable);
