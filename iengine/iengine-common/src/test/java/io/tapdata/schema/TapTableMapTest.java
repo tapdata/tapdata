@@ -143,12 +143,13 @@ public class TapTableMapTest {
         void test2(){
             tapTableMap = spy(new TapTableMap<>("111",1L,tableNameAndQualifiedNameMap));
             tapTableMap.initLogListener();
+            tapTableMap.buildNodeName("AA");
             Logger log = mock(Logger.class);
             ReflectionTestUtils.setField(tapTableMap,"logger",log);
-            doReturn(1).when(tapTableMap).preLoadSchema(anyList(),anyInt(),any());
+            doReturn(1).when(tapTableMap).preLoadSchema(anyList(),anyInt(),any(),anyLong());
             doReturn(mock(TapTable.class)).when(tapTableMap).findSchema(anyString());
             tapTableMap.preLoadSchema();
-            verify(log).info("Node [111] start preload schema,table counts: 3");
+            verify(log).info("Node AA[111] start preload schema,table counts: 3");
         }
     }
     @Nested
@@ -159,8 +160,9 @@ public class TapTableMapTest {
         void test1(){
             doCallRealMethod().when(tapTableMap).initLogListener();
             tapTableMap.initLogListener();
-            doCallRealMethod().when(tapTableMap).preLoadSchema(tableNames, 0,null);
-            int actual = tapTableMap.preLoadSchema(tableNames,0, null);
+            long start = System.currentTimeMillis();
+            doCallRealMethod().when(tapTableMap).preLoadSchema(tableNames,0,null,start);
+            int actual = tapTableMap.preLoadSchema(tableNames,0,null,start);
             assertEquals(3,actual);
         }
         @Test
@@ -169,8 +171,9 @@ public class TapTableMapTest {
             doCallRealMethod().when(tapTableMap).initLogListener();
             tapTableMap.initLogListener();
             Function<Long, Boolean> costInterceptor = mock(Function.class);
-            doCallRealMethod().when(tapTableMap).preLoadSchema(tableNames,0, costInterceptor);
-            int actual = tapTableMap.preLoadSchema(tableNames,0,costInterceptor);
+            long start = System.currentTimeMillis();
+            doCallRealMethod().when(tapTableMap).preLoadSchema(tableNames,0,costInterceptor,start);
+            int actual = tapTableMap.preLoadSchema(tableNames,0,costInterceptor,start);
             assertEquals(3,actual);
         }
         @Test
@@ -182,8 +185,9 @@ public class TapTableMapTest {
                     return true;
                 }
             };
-            doCallRealMethod().when(tapTableMap).preLoadSchema(tableNames,0, costInterceptor);
-            int actual = tapTableMap.preLoadSchema(tableNames,0,costInterceptor);
+            long start = System.currentTimeMillis();
+            doCallRealMethod().when(tapTableMap).preLoadSchema(tableNames,0, costInterceptor,start);
+            int actual = tapTableMap.preLoadSchema(tableNames,0,costInterceptor,start);
             assertEquals(1,actual);
         }
     }

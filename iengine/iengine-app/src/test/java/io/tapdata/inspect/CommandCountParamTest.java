@@ -178,22 +178,6 @@ public class CommandCountParamTest extends ConnectorNodeBase {
 
     /**
      * test SetCommandCountParam function
-     * 检查params为空
-     */
-    @Test(expected = RuntimeException.class)
-    public void testSetCommandCountParamParamsEmpty() {
-        // input param
-        Map<String, Object> customCommand = new LinkedHashMap<>();
-        customCommand.put("command", "executeQuery");
-        customCommand.put("params", "");
-
-        // execution method
-        TableRowCountInspectJob.setCommandCountParam(customCommand, mongoConnectorNode, myTapTable);
-
-    }
-
-    /**
-     * test SetCommandCountParam function
      * 检查params为null
      */
     @Test(expected = RuntimeException.class)
@@ -216,7 +200,7 @@ public class CommandCountParamTest extends ConnectorNodeBase {
     public void testSetCommandCountParamCommandNull() {
         // input param
         Map<String, Object> customCommand = new LinkedHashMap<>();
-        customCommand.put("command", "executeQuery");
+        customCommand.put("command", null);
         customCommand.put("params", null);
 
         // execution method

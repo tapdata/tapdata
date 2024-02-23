@@ -181,9 +181,7 @@ system has 3 jobs
 
 
 ## 开源 License
-Tapdata 使用复合 License
-
-整个项目使用 Server Side Public License, 数据源连接相关的子项目使用 Apache V2 License
+Tapdata 使用 Apache V2 License
 
 ## 加入我们
 - 微信

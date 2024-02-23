@@ -2,10 +2,10 @@ package com.tapdata.tm.message.service;
 
 import com.alibaba.fastjson.JSONObject;
 import com.tapdata.tm.utils.HttpUtils;
+import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -17,8 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Component
 @Slf4j
 public class CircuitBreakerRecoveryService {
-    @Autowired
-    private WorkerService workerService;
+
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
 
     private ScheduledFuture<?> scheduledFuture;
@@ -36,6 +35,7 @@ public class CircuitBreakerRecoveryService {
 
     protected boolean checkAvailableAgentCount(Long count) {
         //当前活跃的引擎数
+        WorkerService workerService = SpringContextHelper.getBean(WorkerService.class);
         Long availableAgentCount = workerService.getAvailableAgentCount();
         String threshold = CommonUtils.getProperty("circuit_breaker_recovery_threshold", "0.95");
         double result;

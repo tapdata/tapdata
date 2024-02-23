@@ -24,6 +24,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SendStatus;
+import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -57,9 +58,6 @@ public class EventsService extends BaseService<EventsDto, Events, ObjectId, Even
     @Autowired
     @Lazy
     MessageService messageService;
-
-    @Autowired
-    UserService userService;
 
     @Autowired
     SettingsService settingsService;
@@ -219,6 +217,7 @@ public class EventsService extends BaseService<EventsDto, Events, ObjectId, Even
      */
     public void completeInform() {
         List<EventsDto> allFailedEvents = findFailEvent();
+        UserService userService = SpringContextHelper.getBean(UserService.class);
 
         if (CollectionUtils.isEmpty(allFailedEvents)) {
             log.info("没有需要重发的邮件");

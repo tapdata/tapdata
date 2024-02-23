@@ -49,7 +49,7 @@ Before starting the task, please ensure that you can see the following content t
 
 
 ## License
-Defaults to Server Side Public License.
+Defaults to Apache V2 License.
 
 For Connectors, the license is Apache V2.
 

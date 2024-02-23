@@ -836,6 +836,141 @@ public class TaskServiceTest {
         }
     }
     @Nested
+    class ParentColumnsFindJoinKeysClass{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskService taskService=spy(new TaskService(taskRepository));
+        Map<String, Object> parent;
+        Map<String, Map<String, Map<String, Object>>> renameFields;
+
+
+        @BeforeEach
+        void beforeSetUp(){
+            parent = new HashMap<>();
+            parent.put("rm_id", "rm_id -> eb1243b6-e7dc-4b84-b094-e719f9275512");
+            parent.put("tableName", "Orders");
+            renameFields = new HashMap<>();
+
+            Map<String,Map<String,Object>> orderFieldMap=new HashMap<>();
+            Map<String,Object> idAttrs=new HashMap<>();
+            idAttrs.put("isPrimaryKey", false);
+            idAttrs.put("target","_id");
+            Map<String,Object> orderIdAttrs=new HashMap<>();
+            orderIdAttrs.put("isPrimaryKey",true);
+            orderIdAttrs.put("target","orderId");
+            Map<String,Object> shipViaAttrs=new HashMap<>();
+            shipViaAttrs.put("target","shipVia");
+            shipViaAttrs.put("isPrimaryKey",false);
+            orderFieldMap.put("ShipVia",shipViaAttrs);
+            orderFieldMap.put("_id",idAttrs);
+            orderFieldMap.put("OrderID",orderIdAttrs);
+
+            Map<String,Map<String,Object>> shipperFieldMap=new HashMap<>();
+            Map<String,Object> shipperIdAttrs=new HashMap<>();
+            shipperIdAttrs.put("target","shipperId");
+            shipperIdAttrs.put("isPrimaryKey",true);
+            shipperFieldMap.put("ShipperID",shipperIdAttrs);
+
+            renameFields.put("Shippers",shipperFieldMap);
+            renameFields.put("Orders",orderFieldMap);
+        }
+        @DisplayName("test parent column have foreignKey,and foreignKey table is child table")
+        @Test
+        void test1(){
+            parent.put("targetPath", "");
+            List<Map<String, String>> joinKeys=new ArrayList<>();
+            Map<String, Object> parentColumns=new HashMap<>();
+            Map<String, Object> columnsAttrs=new HashMap<>();
+            Map<String,Object> foreignKeyAttrs=new HashMap<>();
+            foreignKeyAttrs.put("name","FK_Orders_Shippers");
+            foreignKeyAttrs.put("table","Shippers");
+            foreignKeyAttrs.put("column","ShipperID");
+            columnsAttrs.put("foreignKey",foreignKeyAttrs);
+            parentColumns.put("ShipVia",columnsAttrs);
+            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys);
+            assertEquals(1,joinKeys.size());
+            Map<String, String> stringStringMap = joinKeys.get(0);
+            String sourceJoinKey = stringStringMap.get("source");
+            String targetJoinKey = stringStringMap.get("target");
+            assertEquals("shipperId",sourceJoinKey);
+            assertEquals("shipVia",targetJoinKey);
+        }
+        @DisplayName("test parent column have foreignKey,foreignKey table is child table and have targetPath")
+        @Test
+        void test2(){
+            parent.put("targetPath", "orders");
+            List<Map<String, String>> joinKeys=new ArrayList<>();
+            Map<String, Object> parentColumns=new HashMap<>();
+            Map<String, Object> columnsAttrs=new HashMap<>();
+            Map<String,Object> foreignKeyAttrs=new HashMap<>();
+            foreignKeyAttrs.put("name","FK_Orders_Shippers");
+            foreignKeyAttrs.put("table","Shippers");
+            foreignKeyAttrs.put("column","ShipperID");
+            columnsAttrs.put("foreignKey",foreignKeyAttrs);
+            parentColumns.put("ShipVia",columnsAttrs);
+            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys);
+            assertEquals(1,joinKeys.size());
+            Map<String, String> stringStringMap = joinKeys.get(0);
+            String sourceJoinKey = stringStringMap.get("source");
+            String targetJoinKey = stringStringMap.get("target");
+            assertEquals("shipperId",sourceJoinKey);
+            assertEquals("orders.shipVia",targetJoinKey);
+        }
+        @DisplayName("test parent column no have foreignKey")
+        @Test
+        void test3(){
+            List<Map<String, String>> joinKeys=new ArrayList<>();
+            Map<String, Object> parentColumns=new HashMap<>();
+            Map<String, Object> columnsAttrs=new HashMap<>();
+            parentColumns.put("ShipVia",columnsAttrs);
+            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys);
+            assertEquals(0,joinKeys.size());
+        }
+        @DisplayName("test parnet column table is not child table")
+        @Test
+        void test4(){
+            parent.put("targetPath", "");
+            List<Map<String, String>> joinKeys=new ArrayList<>();
+            Map<String, Object> parentColumns=new HashMap<>();
+            Map<String, Object> columnsAttrs=new HashMap<>();
+            Map<String,Object> foreignKeyAttrs=new HashMap<>();
+            foreignKeyAttrs.put("name","FK_Orders_Shippers");
+            foreignKeyAttrs.put("table","testTable");
+            foreignKeyAttrs.put("column","ShipperID");
+            columnsAttrs.put("foreignKey",foreignKeyAttrs);
+            parentColumns.put("ShipVia",columnsAttrs);
+            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys);
+            assertEquals(0,joinKeys.size());
+        }
+    }
+    @Nested
+    class GetEmbeddedDocumentPathTest{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskService taskService=spy(new TaskService(taskRepository));
+        @DisplayName("test parent path is empty string,use embeddedPath")
+        @Test
+        void test1(){
+            Map<String,String> setting=new HashMap<>();
+            setting.put("embeddedPath","abc");
+            String targetPath = taskService.getEmbeddedDocumentPath("", setting);
+            assertEquals("abc",targetPath);
+        }
+        @DisplayName("test parent path is not empty string,embeddedPath is null")
+        @Test
+        void test2(){
+            Map<String,String> setting=new HashMap<>();
+            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
+            assertEquals("parentPath",targetPath);
+        }
+        @DisplayName("test parent path is not empty string,embeddedPath is not null")
+        @Test
+        void test3(){
+            Map<String,String> setting=new HashMap<>();
+            setting.put("embeddedPath","abc");
+            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
+            assertEquals("parentPath.abc",targetPath);
+        }
+    }
+    @Nested
     class RunningTaskNumWithProcessIdTest{
         @Test
         void testRunningTaskNumWithProcessId(){
