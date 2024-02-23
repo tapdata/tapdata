@@ -69,8 +69,6 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     @Autowired
     MessageRepository messageRepository;
     @Autowired
-    UserService userService;
-    @Autowired
     TaskRepository taskRepository;
     @Autowired
     MailUtils mailUtils;
@@ -739,6 +737,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         String userId = messageDto.getUserId();
         String system = messageDto.getSystem();
         update(Query.query(Criteria.where("_id").is(messageDto.getId())),Update.update("isSend",true));
+        UserService userService = SpringContextHelper.getBean(UserService.class);
         UserDetail userDetail = userService.loadUserById(new ObjectId(userId));
 
 //        UserInfoDto userInfoDto = tcmService.getUserInfo(userDetail.getExternalUserId());
