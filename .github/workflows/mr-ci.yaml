@@ -217,7 +217,7 @@ jobs:
           echo "::set-output name=PORT::$PORT"
 
   MRCI:
-    runs-on: ubuntu-latest
+    runs-on: office-scan
     if: ${{ github.event_name == 'schedule' || inputs.mrci_run }}
     concurrency:
       group: staging_environment
