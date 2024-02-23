@@ -161,7 +161,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		}
 		AtomicReference<V> res = new AtomicReference<>();
 		PDKMethodInvoker invoker = PDKMethodInvoker.create()
-				.logTag(TapTableMap.class.getSimpleName())
+				.logTag(TapTableMap.class.getName())
 				.logListener(logListener)
 				.retryPeriodSeconds(taskConfig.getTaskRetryConfig().getRetryIntervalSecond())
 				.maxRetryTimeMinute(taskConfig.getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
