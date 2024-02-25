@@ -1,0 +1,19 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "max_retry_time_minute",
+          "value": 2880
+        },
+        "u": {
+          "$set": {
+            "value": "15",
+            "default_value": "15"
+          }
+        }
+      }
+    ]
+  }
+]
