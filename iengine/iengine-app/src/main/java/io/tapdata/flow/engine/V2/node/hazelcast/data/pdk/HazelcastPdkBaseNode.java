@@ -135,6 +135,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		long retryIntervalMs = TimeUnit.SECONDS.toMillis(retryIntervalSecond);
 		Long maxRetryTimeSecond = taskConfig.getTaskRetryConfig().getMaxRetryTime(TimeUnit.SECONDS);
 		long retryDurationMs = TimeUnit.SECONDS.toMillis(maxRetryTimeSecond);
+		logger.info("test maxRetryTimeSecond {} s ",maxRetryTimeSecond);
+		logger.info("test retryDurationMs {} s",retryDurationMs);
 		long retryTimes = maxRetryTimeSecond / retryIntervalSecond;
 		TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskDto, retryDurationMs,retryTimes);
 		if (maxRetryTimeSecond > 0) {
