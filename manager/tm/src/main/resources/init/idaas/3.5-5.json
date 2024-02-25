@@ -5,7 +5,7 @@
       {
         "q": {
           "key": "max_retry_time_minute",
-          "value": 2880
+          "value": "2880"
         },
         "u": {
           "$set": {
