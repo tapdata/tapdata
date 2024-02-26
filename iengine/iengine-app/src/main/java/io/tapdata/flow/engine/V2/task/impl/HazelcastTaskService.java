@@ -899,7 +899,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				.externalStorageDtoMap(ExternalStorageUtil.getExternalStorageMap(taskDto, clientMongoOperator));
 	}
 
-	private TaskRetryConfig getTaskRetryConfig() {
+	protected TaskRetryConfig getTaskRetryConfig() {
 		long retryIntervalSecond = settingService.getLong("retry_interval_second", 60L);
 		long maxRetryTimeMinute = settingService.getLong("max_retry_time_minute", 15L);
 		long maxRetryTimeSecond = maxRetryTimeMinute * 60;
