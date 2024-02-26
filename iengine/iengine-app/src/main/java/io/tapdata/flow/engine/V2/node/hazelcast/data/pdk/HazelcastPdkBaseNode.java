@@ -62,6 +62,8 @@ import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
+import static io.tapdata.pdk.core.utils.RetryUtils.DEFAULT_RETRY_PERIOD_SECONDS;
+
 /**
  * @author samuel
  * @Description
@@ -83,7 +85,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	protected TapRecordSkipDetector skipDetector;
 	private PdkStateMap pdkStateMap;
 
-	protected static final long DEFAULT_FUNCTION_RETRY_TIME_SECOND = 900L;
+	public static final long DEFAULT_FUNCTION_RETRY_TIME_SECOND = 900L;
 
 	protected TapRecordSkipDetector getSkipDetector() {
 		return skipDetector;
@@ -137,6 +139,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		long retryIntervalMs = TimeUnit.SECONDS.toMillis(retryIntervalSecond);
 		Long maxRetryTimeSecond = taskConfig.getTaskRetryConfig().getMaxRetryTime(TimeUnit.SECONDS);
 		long retryDurationMs = TimeUnit.SECONDS.toMillis(maxRetryTimeSecond);
+		retryIntervalSecond = retryIntervalSecond <= 0 ? DEFAULT_RETRY_PERIOD_SECONDS : retryIntervalSecond;
 		long retryTimes = DEFAULT_FUNCTION_RETRY_TIME_SECOND / retryIntervalSecond;
 		TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskDto, retryDurationMs,retryTimes);
 		if (maxRetryTimeSecond > 0) {

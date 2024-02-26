@@ -381,6 +381,15 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(0L,pdkMethodInvoker.getMaxRetryTimeMinute());
 			assertEquals(60L,pdkMethodInvoker.getRetryPeriodSeconds());
 		}
+		@DisplayName("retryIntervalSecond less than 0")
+		@Test
+		void test3(){
+			TaskRetryConfig taskRetryConfig = TaskRetryConfig.create().maxRetryTimeSecond(900L).retryIntervalSecond(-60L);
+			TaskConfig taskConfig = TaskConfig.create().taskDto(taskDto).taskRetryConfig(taskRetryConfig);
+			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
+			PDKMethodInvoker pdkMethodInvoker = spyhazelcastPdkBaseNode.createPdkMethodInvoker();
+			assertEquals(60L,pdkMethodInvoker.getRetryPeriodSeconds());
+		}
 	}
 
 }
