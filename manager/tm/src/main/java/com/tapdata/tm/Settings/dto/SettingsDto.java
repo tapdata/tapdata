@@ -37,5 +37,4 @@ public class SettingsDto{
     private boolean hot_reloading;
     private List<String> enums;
 
-
 }
