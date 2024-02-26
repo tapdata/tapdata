@@ -151,7 +151,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				.startRetry(taskRetryService::start)
 				.resetRetry(taskRetryService::reset)
 				.signFunctionRetry(() -> signFunctionRetry(taskDto.getId().toHexString()))
-				.clearFunctionRetry(() -> cleanFuctionRetry(taskDto.getId().toHexString()));
+				.cleanFunctionRetry(() -> cleanFuctionRetry(taskDto.getId().toHexString()));
 		this.pdkMethodInvokerList.add(pdkMethodInvoker);
 		return pdkMethodInvoker;
 	}
