@@ -34,6 +34,5 @@ public class Settings {
     private List<String> values;
     private Boolean isArray;
     private List<String> enums;
-    private Integer min;
 
 }
