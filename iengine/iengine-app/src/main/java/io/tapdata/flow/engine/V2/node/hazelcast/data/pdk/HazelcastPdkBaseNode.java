@@ -83,6 +83,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	protected TapRecordSkipDetector skipDetector;
 	private PdkStateMap pdkStateMap;
 
+	protected static final long DEFAULT_FUNCTION_RETRY_TIME_SECOND = 900L;
+
 	protected TapRecordSkipDetector getSkipDetector() {
 		return skipDetector;
 	}
@@ -135,7 +137,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		long retryIntervalMs = TimeUnit.SECONDS.toMillis(retryIntervalSecond);
 		Long maxRetryTimeSecond = taskConfig.getTaskRetryConfig().getMaxRetryTime(TimeUnit.SECONDS);
 		long retryDurationMs = TimeUnit.SECONDS.toMillis(maxRetryTimeSecond);
-		long retryTimes = maxRetryTimeSecond / retryIntervalSecond;
+		long retryTimes = DEFAULT_FUNCTION_RETRY_TIME_SECOND / retryIntervalSecond;
 		TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskDto, retryDurationMs,retryTimes);
 		if (maxRetryTimeSecond > 0) {
 			long methodRetryDurationMs = taskRetryService.getMethodRetryDurationMs(retryIntervalMs);

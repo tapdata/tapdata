@@ -901,7 +901,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 	protected TaskRetryConfig getTaskRetryConfig() {
 		long retryIntervalSecond = settingService.getLong("retry_interval_second", 60L);
-		long maxRetryTimeMinute = settingService.getLong("max_retry_time_minute", 15L);
+		long maxRetryTimeMinute = settingService.getLong("max_retry_time_minute", 60L);
 		long maxRetryTimeSecond = maxRetryTimeMinute * 60;
 		return TaskRetryConfig.create()
 				.retryIntervalSecond(retryIntervalSecond)

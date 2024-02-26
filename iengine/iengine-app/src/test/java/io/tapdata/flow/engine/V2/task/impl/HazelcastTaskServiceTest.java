@@ -26,11 +26,11 @@ public class HazelcastTaskServiceTest {
         void test1(){
             SettingService settingService = mock(SettingService.class);
             when(settingService.getLong(eq("retry_interval_second"), eq(60L))).thenReturn(60L);
-            when(settingService.getLong(eq("max_retry_time_minute"), eq(15L))).thenReturn(15L);
+            when(settingService.getLong(eq("max_retry_time_minute"), eq(60L))).thenReturn(60L);
             ReflectionTestUtils.setField(hazelcastTaskService, "settingService", settingService);
             TaskRetryConfig taskRetryConfig = hazelcastTaskService.getTaskRetryConfig();
             assertEquals(60L, taskRetryConfig.getRetryIntervalSecond());
-            assertEquals(15L * 60, taskRetryConfig.getMaxRetryTimeSecond());
+            assertEquals(60L * 60, taskRetryConfig.getMaxRetryTimeSecond());
         }
     }
 }
