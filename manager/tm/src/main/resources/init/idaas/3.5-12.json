@@ -4,6 +4,7 @@
     "updates": [
       {
         "q": {
+          "is_deleted": false,
           "dag.nodes.enableDDL": true
         },
         "u": {
@@ -22,6 +23,7 @@
     "updates": [
       {
         "q": {
+          "is_deleted": false,
           "dag.nodes.enableDDL": false
         },
         "u": {
