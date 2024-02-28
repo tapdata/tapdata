@@ -367,7 +367,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 					return tmp;
 				});
 			} catch (Exception e) {
-				throw new RuntimeException("Find schema failed, message: " + e.getMessage(), e);
+				throw new RuntimeException(e);
 			}
 		}
 		return tapTable;
@@ -396,7 +396,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 				qualifiedName = TapTableUtil.getHeartbeatQualifiedName(nodeId);
 			}
 			if (StringUtils.isBlank(qualifiedName)) {
-				throw new RuntimeException("Table name \"" + k + "\" not exists, qualified name: " + qualifiedName
+				throw new TapCodeException(TapTableMapExCode_29.SCHEMA_NOT_EXISTS, "Table name \"" + k + "\" not exists, qualified name: " + qualifiedName
 					+ " tableNameAndQualifiedNameMap: " + tableNameAndQualifiedNameMap);
 			}
 		}
