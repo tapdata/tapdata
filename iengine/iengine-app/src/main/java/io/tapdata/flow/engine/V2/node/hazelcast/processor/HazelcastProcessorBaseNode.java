@@ -116,7 +116,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				errorHandle(e);
 			}
 		});
-		obsLogger.info("Node %s(%s) enable initial batch", getNode().getId(), getNode().getName());
+		obsLogger.info(String.format("Node %s(%s) enable initial batch", getNode().getId(), getNode().getName()));
 	}
 
 	private void batchProcess(List<BatchEventWrapper> cacheBatchEvents, List<TapdataEvent> tapdataEvents) {
