@@ -1282,7 +1282,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				values.add(convertJoinKeyValue2String(value));
 			} catch (JoinKeyValueConvertNumberException e) {
 				throw new TapCodeException(TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_CONVERT_NUMBER_FAILED, String.format("- Merge table: %s%n- Map name: %s%n- Join key: %s%n- Data: %s(%s)",
-						mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, null == value ? "null" : value.getClass().getName()));
+						mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, null == value ? "null" : value.getClass().getName()), e);
 			}
 		}
 		return String.join("_", values);
@@ -1294,6 +1294,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 		if (value instanceof Number) {
 			try {
+				if (value instanceof Double && Double.isNaN((Double) value)) {
+					return "";
+				}
 				return new BigDecimal(String.valueOf(value)).stripTrailingZeros().toPlainString();
 			} catch (Exception e) {
 				throw new JoinKeyValueConvertNumberException(e);
