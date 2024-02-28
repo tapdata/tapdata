@@ -440,7 +440,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				}
 			} finally {
 				if (isRunning()) {
-					enqueue(new TapdataCompleteSnapshotEvent());
+					enqueue(new TapdataCompleteSnapshotEvent(getNode().getName(), getNode().getId()));
 					//AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 				}
 				AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));

@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.alibaba.fastjson.JSON;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.entity.TapdataCompleteSnapshotEvent;
 import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -83,8 +84,8 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
 	}
 
 	@Override
-	protected void handleTapdataCompleteSnapshotEvent() {
-		super.handleTapdataCompleteSnapshotEvent();
+	protected void handleTapdataCompleteSnapshotEvent(TapdataCompleteSnapshotEvent tapdataCompleteSnapshotEvent) {
+		super.handleTapdataCompleteSnapshotEvent(tapdataCompleteSnapshotEvent);
 		isInitialed.set(true);
 	}
 

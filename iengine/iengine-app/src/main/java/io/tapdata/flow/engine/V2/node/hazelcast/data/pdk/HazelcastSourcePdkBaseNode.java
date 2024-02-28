@@ -559,6 +559,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 			TapdataEvent dataEvent = null;
 			if (!isRunning()) {
+				obsLogger.info(String.format("[%s]Source node is not running, will complete. Running: %s, Jet running: %s",
+						getNode().getName(), running.get(), isJetJobRunning()));
 				return true;
 			}
 			if (getNode().disabledNode()) {
@@ -596,9 +598,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
 				if (obj instanceof AtomicInteger) {
 					if (((AtomicInteger) obj).get() <= 0) {
+						obsLogger.info(String.format("[%s]Source initial counter is zero, set running to false", getNode().getName()));
 						this.running.set(false);
 					}
 				} else {
+					obsLogger.info(String.format("[%s]Source runner is done, and all data has been output to the target, set running to false", getNode().getName()));
 					this.running.set(false);
 				}
 			}
