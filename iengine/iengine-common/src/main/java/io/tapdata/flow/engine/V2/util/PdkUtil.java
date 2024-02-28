@@ -18,12 +18,16 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.net.util.Base64;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.math.BigInteger;
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,6 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PdkUtil {
 
 	private static final Map<String, Object> pdkHashDownloadLockMap = new ConcurrentHashMap<>();
+	private static Map<String, String> fileMd5Map = new ConcurrentHashMap();
 	private static final String TAG;
 
 	static {
@@ -74,6 +79,18 @@ public class PdkUtil {
 
 				filePath.append(".jar");
 				File theFilePath = new File(filePath.toString());
+				String theFilePathMD5 = getFileMD5(theFilePath);
+				boolean fileIncomplete = false;
+				if (null != theFilePathMD5){
+					fileMd5Map.putIfAbsent(filePath.toString(), theFilePathMD5);
+					if (fileMd5Map.containsKey(filePath.toString()) && null != fileMd5Map.get(filePath.toString()) && !fileMd5Map.get(filePath.toString()).equals(theFilePathMD5)){
+						fileIncomplete = true;
+					}
+				}
+				if (theFilePath.exists() && fileIncomplete){
+					fileMd5Map.put(theFilePath.toString(),theFilePathMD5);
+					FileUtils.deleteQuietly(theFilePath);
+				}
 				if(callback != null)callback.needDownloadPdkFile(!theFilePath.isFile());
 				if (!theFilePath.isFile()) {
 					httpClientMongoOperator.downloadFile(
@@ -99,6 +116,28 @@ public class PdkUtil {
 		}
 	}
 
+	public static String getFileMD5(File file){
+		if(!file.isFile()){
+			return null;
+		}
+		MessageDigest digest = null;
+		FileInputStream in = null;
+		byte buffer[] = new byte[1024];
+		int len;
+		try{
+			digest = MessageDigest.getInstance("MD5");
+			in = new FileInputStream(file);
+			while(-1 != (len = in.read(buffer,0,1024))){
+				digest.update(buffer,0,len);
+			}
+			in.close();
+		}catch(Exception e){
+			e.printStackTrace();
+			return null;
+		}
+		BigInteger bigInt = new BigInteger(1, digest.digest());
+		return bigInt.toString(16);
+	}
 	@NotNull
 	public static String encodeOffset(Object offsetObject) {
 		if (null != offsetObject) {
