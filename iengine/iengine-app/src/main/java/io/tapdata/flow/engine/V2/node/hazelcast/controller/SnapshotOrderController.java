@@ -208,6 +208,7 @@ public class SnapshotOrderController implements Serializable {
 			Node<?> node = nodeController.getNode();
 			if (node != null) {
 				tableNode.setId(node.getId());
+				tableNode.setName(node.getName());
 				nodeController.setNode(tableNode);
 			}
 		});
