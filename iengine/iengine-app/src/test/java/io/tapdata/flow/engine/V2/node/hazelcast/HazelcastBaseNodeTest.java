@@ -46,10 +46,12 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -1797,5 +1799,28 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(dag, times(getTaskDtoIsomorphismTimes)).getTaskDtoIsomorphism(anyList());
 			verify(taskDto, times(setIsomorphismTimes)).setIsomorphism(anyBoolean());
 		}
+	}
+	@Nested
+	class IsInitialSyncTaskTest{
+		private HazelcastBaseNode mockHazelcastBaseNode;
+		@BeforeEach
+		void setUp(){
+			mockHazelcastBaseNode=spy(hazelcastBaseNode);
+		}
+		@Test
+		@DisplayName("test INITIAL_SYNC task")
+		void test1(){
+			processorBaseContext.getTaskDto().setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			boolean initialSyncTask = mockHazelcastBaseNode.isInitialSyncTask();
+			assertEquals(true,initialSyncTask);
+		}
+		@Test
+		@DisplayName("test cdc task")
+		void test2(){
+			processorBaseContext.getTaskDto().setType(SyncTypeEnum.INITIAL_SYNC_CDC.getSyncType());
+			boolean initialSyncTask = mockHazelcastBaseNode.isInitialSyncTask();
+			assertEquals(false,initialSyncTask);
+		}
+
 	}
 }
