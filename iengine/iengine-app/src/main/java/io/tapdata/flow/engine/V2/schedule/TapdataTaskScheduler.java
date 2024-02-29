@@ -16,6 +16,7 @@ import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.RestDoNotRetryException;
+import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -210,7 +211,11 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				}
 				logger.info("Handled task operation: {}", taskOperation);
 			} catch (Exception e) {
-				logger.error("Handle task operation error", e);
+				if (TmUnavailableException.isInstance(e)) {
+					logger.warn("Handle task operation failed because TM unavailable: {}", e.getMessage());
+				} else {
+					logger.error("Handle task operation error", e);
+				}
 			}
 		});
 	}
@@ -334,8 +339,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
 			taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
 		} catch (Exception e) {
-			logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
+			if (TmUnavailableException.isInstance(e)) {
+				logger.warn("Start task {} failed because TM unavailable: {}", taskDto.getName(), e.getMessage());
+			} else {
+				logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
+			}
 		} finally {
 			ThreadContext.clearAll();
 		}

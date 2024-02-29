@@ -25,6 +25,7 @@ import io.tapdata.entity.Converter;
 import io.tapdata.entity.Lib;
 import io.tapdata.entity.LibSupported;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -434,6 +435,7 @@ public class ConnectorManager {
 	}
 
 	private void login() throws InterruptedException {
+		int waitSeconds = 60;
 		LoginResp loginResp = null;
 		while (loginResp == null) {
 			try {
@@ -482,12 +484,16 @@ public class ConnectorManager {
 							.baseUrls(restTemplateOperator.getBaseURLs())
 							.user(user));
 				} else {
-					logger.warn("Login fail response {}, waiting 60(s) retry.", loginResp);
-					Thread.sleep(60000L);
+					logger.warn("Login fail response {}, waiting {}(s) retry.", loginResp, waitSeconds);
+					TimeUnit.SECONDS.sleep(waitSeconds);
 				}
 			} catch (Exception e) {
-				logger.error("Login fail {}, waiting 60(s) retry.", e.getMessage(), e);
-				Thread.sleep(60000L);
+				if (TmUnavailableException.isInstance(e)) {
+					logger.warn("Login fail TM unavailable, waiting {}(s) retry.", waitSeconds);
+				} else {
+					logger.error("Login fail {}, waiting {}(s) retry.", e.getMessage(), waitSeconds, e);
+				}
+				TimeUnit.SECONDS.sleep(waitSeconds);
 			}
 		}
 
@@ -617,7 +623,9 @@ public class ConnectorManager {
 		try {
 			dbUser = clientMongoOperator.findOne(new Query(), sb.toString(), User.class);
 		} catch (Exception e) {
-			logger.error("Check token status failed {} then to refresh token info.", e.getMessage(), e);
+			if (TmUnavailableException.notInstance(e)) {
+				logger.error("Check token status failed {} then to refresh token info.", e.getMessage(), e);
+			}
 		}
 		if (dbUser == null) {
 			login();
@@ -1126,7 +1134,15 @@ public class ConnectorManager {
 	@Scheduled(fixedDelay = 60000L)
 	public void loadSettings() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.LOAD_SETTINGS_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
-		settingService.loadSettings();
+		try {
+			settingService.loadSettings();
+		} catch (Exception e) {
+			if (TmUnavailableException.isInstance(e)) {
+				logger.warn("Reload settings failed because TM unavailable: {}", e.getMessage());
+			} else {
+				logger.error("Reload settings failed {}.", e.getMessage(), e);
+			}
+		}
     /*HazelcastInstance hazelcastInstance = HazelcastUtil.getInstance(configCenter);
     Optional.ofNullable(hazelcastInstance).ifPresent(instance -> ShareCdcUtil.initHazelcastPersistenceStorage(
       instance.getConfig(),
@@ -1201,7 +1217,9 @@ public class ConnectorManager {
 //						v -> pingClientMongoOperator.insertOne(v, ConnectorConstant.WORKER_COLLECTION + "/health"));
 			});
 		} catch (Exception e) {
-			logger.error("Worker heart beat failed {}.", e.getMessage(), e);
+			if (TmUnavailableException.notInstance(e)) {
+				logger.error("Worker heart beat failed {}.", e.getMessage(), e);
+			}
 		}
 	}
 

@@ -11,10 +11,7 @@ import com.tapdata.tm.sdk.available.CloudRestTemplate;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import com.tapdata.tm.sdk.interceptor.VersionHeaderInterceptor;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
-import io.tapdata.exception.ManagementException;
-import io.tapdata.exception.RestAuthException;
-import io.tapdata.exception.RestDoNotRetryException;
-import io.tapdata.exception.RestException;
+import io.tapdata.exception.*;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.FileUtils;
@@ -623,10 +620,7 @@ public class RestTemplateOperator {
 		if (TmStatusService.isEnable()) {
 			if ((TmStatusService.isNotAvailable() ||
 					(responseBody != null && StringUtils.containsAny(responseBody.getCode(), ResponseCode.UN_AVAILABLE.getCode())))) {
-				if (logCount.incrementAndGet() % 1000 == 0) {
-					logger.warn("tm unavailable...");
-				}
-				return;
+                throw new TmUnavailableException(uri, method, param, responseBody);
 			}
 		}
 		if (responseBody == null) {
@@ -735,7 +729,7 @@ public class RestTemplateOperator {
 					baseURL = retryInfo.baseURL; // Change it to an available URL
 				}
 				return result;
-			} catch (RestDoNotRetryException e) {
+			} catch (RestDoNotRetryException | TmUnavailableException e) {
 				throw e;
 			} catch (HttpMessageConversionException | InterruptedException ignored) {
 				break;
@@ -745,12 +739,6 @@ public class RestTemplateOperator {
 					// If the parameter is incorrect, no retry will be performed
 					if (404 == ((HttpClientErrorException) e).getRawStatusCode()) {
 						throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "not found url: " + retryInfo.reqURL), e);
-					}
-					if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
-						throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);
-					}
-					if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
-						throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);
 					}
 					if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
 						throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);

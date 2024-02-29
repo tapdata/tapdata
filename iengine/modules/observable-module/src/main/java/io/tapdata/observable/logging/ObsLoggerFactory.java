@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.exception.TmUnavailableException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -99,7 +100,11 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 					return taskLogger;
 				});
 			} catch (Throwable throwable) {
-				this.logger.warn("Failed to renew task logger setting for task {}: {}", taskId, throwable.getMessage(), throwable);
+				if (TmUnavailableException.isInstance(throwable)) {
+					this.logger.warn("Failed to renew task logger setting for task {}: TM unavailable: {}", taskId, throwable.getMessage());
+				} else {
+					this.logger.warn("Failed to renew task logger setting for task {}: {}", taskId, throwable.getMessage(), throwable);
+				}
 			}
 		}
 	}

@@ -24,6 +24,7 @@ import io.tapdata.aspect.supervisor.entity.ConnectionTestEntity;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.BaseConnectionValidateResult;
 import io.tapdata.exception.ConnectionException;
+import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.threadgroup.DisposableThreadGroup;
 import io.tapdata.threadgroup.utils.DisposableType;
@@ -257,10 +258,18 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 				}
 			} catch (Exception e) {
 				Optional.of(event).ifPresent(map -> map.remove("config"));
-				String errMsg = String.format("Test connection %s failed, data: %s, err: %s", connName, event, e.getMessage());
-				logger.error(errMsg, e);
+				String errMsg = null;
 				try {
-					sendMessage.send(WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_CONNECTION_RESULT, errMsg, e));
+					if (TmUnavailableException.isInstance(e)) {
+						connection = null;
+						errMsg = String.format("Test connection '%s' failed because TM unavailable, eventId: '%s', err: %s", connName, event.get("id"), e.getMessage());
+						logger.warn(errMsg);
+						sendMessage.send(WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_CONNECTION_RESULT, errMsg));
+					} else {
+						errMsg = String.format("Test connection %s failed, data: %s, err: %s", connName, event, e.getMessage());
+						logger.error(errMsg, e);
+						sendMessage.send(WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_CONNECTION_RESULT, errMsg, e));
+					}
 				} catch (IOException ioException) {
 					logger.error(String.format("Send error test connection result to websocket failed, msg: %s, root exception: %s", ioException.getMessage(), errMsg), ioException);
 				}

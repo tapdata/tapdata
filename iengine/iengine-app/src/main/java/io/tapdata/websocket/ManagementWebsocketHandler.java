@@ -12,6 +12,7 @@ import com.tapdata.tm.sdk.util.Version;
 import com.tapdata.tm.worker.WorkerSingletonLock;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.executor.ThreadFactory;
+import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.websocket.handler.PongHandler;
@@ -277,7 +278,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 				WebSocketEventHandler<WebSocketEventResult> eventHandler = eventHandler(messageType);
 
-				WebSocketEventResult eventResult;
+				WebSocketEventResult eventResult = null;
 				if (eventHandler == null) {
 					String errorMsg = String.format("Cannot find web socket event handler, type %s", messageType);
 					logger.warn(errorMsg);
@@ -295,9 +296,14 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 							sendMessage(new TextMessage(JSONUtil.obj2Json(result)));
 						});
 					} catch (Exception e) {
-						String errorMsg = String.format("Handle websocket event error, event: %s, message: %s",
-								event, e.getMessage());
-						logger.error(errorMsg, e);
+						String errorMsg;
+						if (TmUnavailableException.isInstance(e)) {
+							errorMsg = String.format("Handle websocket event error because TM unavailable, event: %s, message: %s", event, e.getMessage());
+							logger.warn(errorMsg);
+						} else {
+							errorMsg = String.format("Handle websocket event error, event: %s, message: %s", event, e.getMessage());
+							logger.error(errorMsg, e);
+						}
 						eventResult = WebSocketEventResult.handleFailed(HANDLE_EVENT_ERROR_RESULT, errorMsg);
 					}
 				}

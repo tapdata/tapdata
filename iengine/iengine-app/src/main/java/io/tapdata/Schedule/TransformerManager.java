@@ -21,6 +21,7 @@ import io.tapdata.common.TapdataLog4jFilter;
 import io.tapdata.common.WarningEmailEventExecutor;
 import io.tapdata.common.WarningMaker;
 import io.tapdata.dao.MessageDao;
+import io.tapdata.exception.TmUnavailableException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
@@ -801,7 +802,9 @@ public class TransformerManager {
 //					value,
 //					v -> pingClientMongoOperator.insertOne(v, ConnectorConstant.WORKER_COLLECTION + "/health"));
 		} catch (Exception e) {
-			logger.error("Transformer heartbeat failed {}", e.getMessage(), e);
+			if (TmUnavailableException.notInstance(e)) {
+				logger.error("Transformer heartbeat failed {}", e.getMessage(), e);
+			}
 		}
 	}
 
