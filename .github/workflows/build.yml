@@ -108,6 +108,7 @@ jobs:
     runs-on: office-scan
     timeout-minutes: 60
     needs:
+      - Set-Branch
       - Sync-Code-to-Internal-Repo
     steps:
       - name: Checkout Tapdata Repo
