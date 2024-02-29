@@ -139,6 +139,7 @@ jobs:
           version: 7.30.5
       - name: Build Frontend
         run: |
+          pnpm config set registry https://registry.npmmirror.com
           cd tapdata-application && bash build/build.sh -c tapdata-enterprise-web -u false -m productioin -t v3.12-open
       - name: compile opensource tapdata
         run: |
