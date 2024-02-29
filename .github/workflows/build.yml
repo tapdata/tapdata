@@ -153,11 +153,12 @@ jobs:
       - name: Log in to the Container registry
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ${{ secrets.TAPDATA_REGISTRY }}
+          username: ${{ secrets.TAPDATA_REGISTRY_USERNAME }}
+          password: ${{ secrets.TAPDATA_REGISTRY_PASSWORD }}
       - name: Push Image
         run: |
           docker_tag=`cat tapdata/build/image/tag`
-          docker push $docker_tag
+          docker tag $docker_tag ${{ secrets.TAPDATA_REGISTRY }}/tapdata/tapdata:v3.12-open
+          docker push ${{ secrets.TAPDATA_REGISTRY }}/tapdata/tapdata:v3.12-open
 
