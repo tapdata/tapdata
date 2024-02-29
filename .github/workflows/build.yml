@@ -129,14 +129,6 @@ jobs:
           rm -rf tapdata-application
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
           git clone -b main --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-application.git
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16.20.0'
-      - name: Setup Pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 7.30.5
       - name: Build Frontend
         run: |
           pnpm config set registry https://registry.npmmirror.com
