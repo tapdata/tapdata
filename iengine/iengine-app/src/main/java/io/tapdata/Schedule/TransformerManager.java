@@ -758,6 +758,7 @@ public class TransformerManager {
 	 */
 	@Scheduled(fixedDelay = 5000L)
 	public void workerHeartBeat() {
+        Thread.currentThread().setName(getClass().getSimpleName() + "-workerHeartBeat");
 		Thread.currentThread().setName(String.format(ConnectorConstant.WORKER_HEART_BEAT_THREAD, TRANSFORMER, instanceNo.substring(instanceNo.length() - 6)));
 		try {
 			String hostname = SystemUtil.getHostName();
@@ -919,6 +920,7 @@ public class TransformerManager {
 
 	@Scheduled(fixedDelay = 5000L)
 	public void changeLogLevel() {
+        Thread.currentThread().setName(getClass().getSimpleName() + "-changeLogLevel");
 
 		Setting levelSetting = settingService.getSetting("logLevel");
 		String scriptEngineHttpApender = settingService.getString("scriptEngineHttpAppender", "false");

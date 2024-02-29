@@ -279,6 +279,7 @@ public class LogServiceElastic {
     @Scheduled(cron = "${task.log.cron:0 0 0 * * ?}")
     @SchedulerLock(name="cleanUpLogs", lockAtLeastFor = "PT10M", lockAtMostFor = "PT10M")
     public void deleteExpiredLogs() {
+        Thread.currentThread().setName(getClass().getSimpleName() + "-deleteExpiredLogs");
 
         //IndexCoordinates index = IndexCoordinates.of("logs-leon");
         IndexCoordinates index = getIndexCoordinates();

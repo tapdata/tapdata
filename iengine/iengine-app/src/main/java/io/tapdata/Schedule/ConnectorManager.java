@@ -1139,6 +1139,7 @@ public class ConnectorManager {
 	 */
 	@Scheduled(fixedDelay = 5000L)
 	public void workerHeartBeat() {
+        Thread.currentThread().setName(getClass().getSimpleName() + "-workerHeartBeat");
 		Thread.currentThread().setName(String.format(ConnectorConstant.WORKER_HEART_BEAT_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
 		try {
 			String hostname = SystemUtil.getHostName();

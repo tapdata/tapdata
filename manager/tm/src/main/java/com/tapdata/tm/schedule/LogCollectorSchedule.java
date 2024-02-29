@@ -16,12 +16,14 @@ public class LogCollectorSchedule {
 	@Scheduled(cron = "0 0 0/2 * * ?")
 	@SchedulerLock(name ="task_log_collector_clear", lockAtMostFor = "10s", lockAtLeastFor = "10s")
 	public void schedule() {
+		Thread.currentThread().setName(getClass().getSimpleName() + "-schedule");
 		logCollectorService.clear();
 	}
 
 	@Scheduled(cron = "0 0/30 * * * ?")
 	@SchedulerLock(name ="task_log_collector_remove", lockAtMostFor = "10s", lockAtLeastFor = "10s")
 	public void removeTaskSchedule() {
+		Thread.currentThread().setName(getClass().getSimpleName() + "-removeTaskSchedule");
 		logCollectorService.removeTask();
 	}
 }
