@@ -332,7 +332,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																	if (null == event.getTime()) {
 																		throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
 																	}
-																	event.addInfo(TAPEVENT_INFO_EVENT_ID_KEY, UUID.randomUUID().toString());
 																	return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
 																}).collect(Collectors.toList());
 
@@ -989,7 +988,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 													.table(tableName)
 													.referenceTime(System.currentTimeMillis())
 													.init();
-											tapInsertRecordEvent.addInfo(TAPEVENT_INFO_EVENT_ID_KEY, UUID.randomUUID().toString());
 											if (streamReadFuncAspect != null) {
 												AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), Collections.singletonList(tapInsertRecordEvent));
 											}
