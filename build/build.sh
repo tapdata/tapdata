@@ -9,7 +9,7 @@ FRONTEND_DIR=$sourcepath/../tapdata-enterprise-web
 
 ulimit -c unlimited
 
-if [[ $tapdata_build_env == "docker" && $_in_docker == "" ]]; then
+if [[ $tapdata_build_env == "docker" ]]; then
     which docker &> /dev/null
     if [[ $? -ne 0 ]]; then
         error "no docker found, please install it before build package"
@@ -21,9 +21,6 @@ if [[ $tapdata_build_env == "docker" && $_in_docker == "" ]]; then
 fi
 
 cd $basepath
-if [[ $_in_docker == "" ]]; then
-    notice "tapdata live data platform start building..."
-fi
 
 image=`cat $basepath/image/tag`
 is_build="false"
@@ -80,7 +77,6 @@ tapdata build image:  $tapdata_build_image
 tapdata build output: $output
 is_build:             $is_build
 is_package:           $is_package
-_in_docker:           $_in_docker
 
 _END_
 
@@ -107,11 +103,10 @@ build() {
   # Run `mvn clean install -DskipTests` to build project in local and in docker.
   # You can set env variable in env.sh file. Explanation of Environment Variables Used here:
   #   $tapdata_build_env: docker or local
-  #   $_in_docker: if in docker, this variable will be set to yes
   #   $tapdata_build_image: the docker build image which cached all dependencies
 
   # 1. Build project in docker.
-  if [[ $tapdata_build_env == "docker" && $_in_docker == "" ]]; then
+  if [[ $tapdata_build_env == "docker" ]]; then
     # if tapdata-build-container not running
     docker ps | grep tapdata-build-container &> /dev/null
     if [[ $? -ne 0 ]]; then
@@ -237,17 +232,17 @@ make_image() {
   mkdir -p $sourcepath/dist/image
   cp -r $sourcepath/build/image/* $sourcepath/dist/
   # 3. Make docker image.
-  cd $sourcepath/dist && bash build.sh
+  cd $sourcepath/dist && bash build.sh || exit 1
 }
 
 if [[ $is_build == "true" ]]; then
     build
 fi
 
-if [[ $is_package == "true" && $_in_docker == "" ]]; then
+if [[ $is_package == "true" ]]; then
     package_outputs
 fi
 
-if [[ $output == "image" && $_in_docker == "" ]]; then
+if [[ $output == "image" ]]; then
     make_image
 fi
