@@ -105,7 +105,7 @@ jobs:
             bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata-application --gogs-project-name=tapdata-application
 
   Build:
-    runs-on: office-build
+    runs-on: office-scan
     timeout-minutes: 60
     needs:
       - Sync-Code-to-Internal-Repo
