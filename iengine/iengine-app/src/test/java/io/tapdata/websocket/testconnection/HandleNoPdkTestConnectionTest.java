@@ -28,35 +28,33 @@ import static org.junit.Assert.assertTrue;
 class HandleNoPdkTestConnectionTest {
 
     @Test
-    void handleRocksdbTest(){
+    void handleRocksdbTest() {
 
         TestConnectionHandler testConnectionHandler = new TestConnectionHandler();
-        Map event = new HashMap();
-        event.put("isExternalStorage",true);
-        event.put("testType","rocksdb");
-        Map config = new HashMap();
-        config.put("uri","/data/test");
-        event.put("config",config);
+        Map<String, Object> event = new HashMap();
+        event.put("isExternalStorage", true);
+        event.put("testType", "rocksdb");
+        Map<String, Object> config = new HashMap();
+        config.put("uri", "/data/test");
+        event.put("config", config);
         final String[] mark = {""};
-        SendMessage sendMessage = new SendMessage() {
-            @Override
-            public void send(WebSocketEventResult data) throws IOException {
-                String tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
-                if (StringUtils.isBlank(tapdataWorkDir)) {
-                    tapdataWorkDir = System.getProperty("user.dir");
-                }
-                String path = config.get("uri").toString();
-                String  dir = tapdataWorkDir + path;
-                if (OsUtil.isWindows()) {
-                    dir = dir.replace("/", "\\");
-                }
-                mark[0] = "return";
-                File file = new File(dir);
-                assertTrue(file.exists());
+        SendMessage sendMessage = data -> {
+            String tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
+            if (StringUtils.isBlank(tapdataWorkDir)) {
+                tapdataWorkDir = System.getProperty("user.dir");
             }
+            String path = config.get("uri").toString();
+            String dir = tapdataWorkDir + path;
+            if (OsUtil.isWindows()) {
+                dir = dir.replace("/", "\\");
+            }
+            mark[0] = "return";
+            File file = new File(dir);
+            assertTrue(file.exists());
+
         };
-        testConnectionHandler.handle(event,sendMessage);
-        await().atMost(15, TimeUnit.SECONDS).until(() -> mark[0] == "return");
+        testConnectionHandler.handle(event, sendMessage);
+        await().atMost(15, TimeUnit.SECONDS).until(() -> mark[0].equals("return"));
 
     }
 
@@ -68,28 +66,24 @@ class HandleNoPdkTestConnectionTest {
         TestConnectionHandler testConnectionHandler = new TestConnectionHandler();
         ClientMongoOperator clientMongoOperator = Mockito.mock(ClientMongoOperator.class);
         ReflectionTestUtils.setField(testConnectionHandler,"clientMongoOperator",clientMongoOperator);
-        Map event = new HashMap();
+        Map<String, Object> event= new HashMap();
         event.put("isExternalStorage",true);
         String testType = "rock";
         event.put("testType",testType);
-        Map config = new HashMap();
+        Map<String, Object> config = new HashMap();
         config.put("uri","/data/test");
         event.put("config",config);
         final String[] mark = {""};
 
-        SendMessage sendMessage = new SendMessage() {
-            @Override
-            public void send(WebSocketEventResult data){
+        SendMessage sendMessage = data ->  {
                String actualData =  data.getError();
                 String errorAlarm = "TestType not found instance '" + testType + "'";
                 mark[0] = "return";
                 assertTrue(actualData.contains(errorAlarm));
-            }
-
 
         };
         testConnectionHandler.handle(event,sendMessage);
-        await().atMost(15, TimeUnit.SECONDS).until(() -> mark[0] == "return");
+        await().atMost(15, TimeUnit.SECONDS).until(() -> mark[0].equals("return"));
 
     }
 
@@ -99,26 +93,23 @@ class HandleNoPdkTestConnectionTest {
         TestConnectionHandler testConnectionHandler = new TestConnectionHandler();
         ClientMongoOperator clientMongoOperator = Mockito.mock(ClientMongoOperator.class);
         ReflectionTestUtils.setField(testConnectionHandler,"clientMongoOperator",clientMongoOperator);
-        Map event = new HashMap();
+        Map<String, Object> event= new HashMap();
         String testType = "rock";
         event.put("testType",testType);
-        Map config = new HashMap();
+        Map<String, Object> config = new HashMap();
         config.put("uri","/data/test");
         event.put("config",config);
         event.put("pdkType","mongodb");
         final String[] mark = {""};
-        SendMessage sendMessage = new SendMessage() {
-            @Override
-            public void send(WebSocketEventResult data){
+        SendMessage sendMessage =data -> {
                 String actualData =  data.getError();
                 String errorAlarm = "Unknown database type";
                 mark[0] = "return";
                 assertTrue(actualData.contains(errorAlarm));
-            }
 
         };
         testConnectionHandler.handle(event,sendMessage);
-        await().atMost(15, TimeUnit.SECONDS).until(() -> mark[0] == "return");
+        await().atMost(15, TimeUnit.SECONDS).until(() -> mark[0].equals("return"));
 
 
     }
@@ -138,6 +129,7 @@ class HandleNoPdkTestConnectionTest {
         file.getParentFile().mkdirs();
         file.createNewFile();
         ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileWrite(dir);
+        Files.delete(file.toPath());
         assertEquals("passed",connectionValidateResultDetail.getStatus());
     }
 
@@ -156,6 +148,7 @@ class HandleNoPdkTestConnectionTest {
         file.getParentFile().mkdirs();
         file.createNewFile();
         ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileRead(dir);
+        Files.delete(file.toPath());
         assertEquals("passed",connectionValidateResultDetail.getStatus());
     }
 
