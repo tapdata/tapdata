@@ -157,29 +157,36 @@ class HandleNoPdkTestConnectionTest {
         ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileRead(dir);
         assertEquals("passed",connectionValidateResultDetail.getStatus());
     }
-     @Test
-     void handleRocksdbWriteExceptionTest() throws IOException {
-         RocksDBTestConnectionImpl rocksDBTestConnection = new RocksDBTestConnectionImpl();
-         String tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
-         if (StringUtils.isBlank(tapdataWorkDir)) {
-             tapdataWorkDir = System.getProperty("user.dir");
-         }
-         String  dir = tapdataWorkDir;
-         if (OsUtil.isWindows()) {
-             dir = dir.replace("/", "\\");
-         }
-         File file = new File(dir, "testConnect.txt");
-         if (!OsUtil.isWindows()) {
-             file.setWritable(false, false);
-         }
-         file.getParentFile().mkdirs();
-         file.createNewFile();
-         file.setWritable(false, false);
-         ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileWrite(dir);
-         file.setWritable(true);
-         Files.delete(file.toPath());
-         assertEquals("failed", connectionValidateResultDetail.getStatus());
-     }
+
+    @Test
+    void handleRocksdbWriteExceptionTest() throws IOException, InterruptedException {
+        RocksDBTestConnectionImpl rocksDBTestConnection = new RocksDBTestConnectionImpl();
+        String tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
+        if (StringUtils.isBlank(tapdataWorkDir)) {
+            tapdataWorkDir = System.getProperty("user.dir");
+        }
+        String dir = tapdataWorkDir;
+        if (OsUtil.isWindows()) {
+            dir = dir.replace("/", "\\");
+        }
+        File file = new File(dir, "testConnect.txt");
+        file.getParentFile().mkdirs();
+        file.createNewFile();
+        file.setWritable(false, false);
+        if (OsUtil.isLinux()) {
+            ProcessBuilder processBuilder = new ProcessBuilder("chmod", "755", file.getPath());
+            int exitCode = processBuilder.start().waitFor();
+            if (exitCode == 0) {
+                System.out.println("文件权限已成功更新！");
+            } else {
+                System.err.println("无法更新文件权限。退出码为：" + exitCode);
+            }
+        }
+        ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileWrite(dir);
+        file.setWritable(true);
+        Files.delete(file.toPath());
+        assertEquals("failed", connectionValidateResultDetail.getStatus());
+    }
 
 
     @Test
