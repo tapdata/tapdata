@@ -4,6 +4,7 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
+import com.tapdata.tm.utils.PdkSourceUtils;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
@@ -24,10 +25,7 @@ import org.apache.commons.net.util.Base64;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.math.BigInteger;
-import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -79,18 +77,6 @@ public class PdkUtil {
 
 				filePath.append(".jar");
 				File theFilePath = new File(filePath.toString());
-				String theFilePathMD5 = getFileMD5(theFilePath);
-				boolean fileIncomplete = false;
-				if (null != theFilePathMD5){
-					fileMd5Map.putIfAbsent(filePath.toString(), theFilePathMD5);
-					if (fileMd5Map.containsKey(filePath.toString()) && null != fileMd5Map.get(filePath.toString()) && !fileMd5Map.get(filePath.toString()).equals(theFilePathMD5)){
-						fileIncomplete = true;
-					}
-				}
-				if (theFilePath.exists() && fileIncomplete){
-					fileMd5Map.put(theFilePath.toString(),theFilePathMD5);
-					FileUtils.deleteQuietly(theFilePath);
-				}
 				if(callback != null)callback.needDownloadPdkFile(!theFilePath.isFile());
 				if (!theFilePath.isFile()) {
 					httpClientMongoOperator.downloadFile(
@@ -108,6 +94,7 @@ public class PdkUtil {
 				} else if (!PDKIntegration.hasJar(theFilePath.getName())) {
 					PDKIntegration.refreshJars(filePath.toString());
 				}
+				reDownloadIfNeed(httpClientMongoOperator,pdkHash,fileName,theFilePath,resourceId,callback);
 			} catch (IOException e) {
 				throw new RuntimeException(e);
 			} finally {
@@ -116,24 +103,23 @@ public class PdkUtil {
 		}
 	}
 
-	public static String getFileMD5(File file){
-		if(!file.isFile()){
-			return null;
+	public static void reDownloadIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, File theFilePath, String resourceId, RestTemplateOperator.Callback callback){
+		String md5 = null;
+		if (fileMd5Map.containsKey(pdkHash)){
+			md5 = fileMd5Map.get(pdkHash);
+		} else {
+			 md5 = httpClientMongoOperator.findOne(
+					new HashMap<String, Object>(1) {{
+						put("pdkHash", pdkHash);
+						put("fileName", fileName);
+					}}, "/pdk/checkMd5", String.class);
+			 fileMd5Map.put(pdkHash, md5);
 		}
-		MessageDigest digest = null;
-		byte buffer[] = new byte[1024];
-		int len;
-		try (FileInputStream in = new FileInputStream(file)){
-			digest = MessageDigest.getInstance("MD5");
-			while(-1 != (len = in.read(buffer,0,1024))){
-				digest.update(buffer,0,len);
-			}
-		}catch(Exception e){
-			e.printStackTrace();
-			return null;
+		String theFilePathMd5 = PdkSourceUtils.getFileMD5(theFilePath);
+		if (null != md5 && !md5.equals(theFilePathMd5)){
+			FileUtils.deleteQuietly(theFilePath);
+			downloadPdkFileIfNeed(httpClientMongoOperator,pdkHash,fileName,resourceId,callback);
 		}
-		BigInteger bigInt = new BigInteger(1, digest.digest());
-		return bigInt.toString(16);
 	}
 	@NotNull
 	public static String encodeOffset(Object offsetObject) {

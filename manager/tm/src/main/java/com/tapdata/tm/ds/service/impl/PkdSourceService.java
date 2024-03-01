@@ -2,6 +2,7 @@ package com.tapdata.tm.ds.service.impl;
 
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
+import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
@@ -11,11 +12,7 @@ import com.tapdata.tm.ds.dto.PdkVersionCheckDto;
 import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.tcm.service.TcmService;
-import com.tapdata.tm.utils.FunctionUtils;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MessageUtil;
-import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.OEMReplaceUtil;
+import com.tapdata.tm.utils.*;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -31,7 +28,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.commons.CommonsMultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -125,8 +125,12 @@ public class PkdSourceService {
 			Map<String, String> langMap = Maps.newHashMap();
 			try {
 				Map<String, Object> fileInfo = Maps.newHashMap();
+				File file = new File(jarFile.getName());
+				inputStreamToFile(jarFile.getInputStream(),file);
+				String md5 = PdkSourceUtils.getFileMD5(file);
 				fileInfo.put("pdkHash", pdkHash);
 				fileInfo.put("pdkAPIBuildNumber", pdkAPIBuildNumber);
+				fileInfo.put("md5", md5);
 
 				// 1. upload jar file, only update once
 				jarObjectId = fileService.storeFile(jarFile.getInputStream(), jarFile.getOriginalFilename(), null, fileInfo);
@@ -219,6 +223,40 @@ public class PkdSourceService {
 			});
 
 		}
+	}
+	protected static void inputStreamToFile(InputStream ins, File file) {
+		FileOutputStream os = null;
+		try {
+			os = new FileOutputStream(file);
+			int bytesRead = 0;
+			byte[] buffer = new byte[1024];
+			while ((bytesRead = ins.read(buffer)) != -1) {
+				os.write(buffer, 0, bytesRead);
+			}
+		} catch (Exception e) {
+			throw new RuntimeException("inputStream to file failed: " +e.getMessage());
+		}finally {
+			try {
+				if (os != null) {
+					os.close();
+				}
+				if (ins != null) {
+					ins.close();
+				}
+			} catch (Exception e) {
+				throw new RuntimeException("inputStream to file failed: " +e.getMessage());
+			}
+		}
+	}
+	public String checkJarMD5(String pdkHash, String fileName){
+		String md5 = null;
+		Criteria criteria = Criteria.where("metadata.pdkHash").is(pdkHash).and("filename").is(fileName);
+		Query query = new Query(criteria);
+		GridFSFile gridFSFile = fileService.findOne(query);
+		if(null != gridFSFile && null != gridFSFile.getMetadata()){
+			md5 = (String) gridFSFile.getMetadata().get("md5");
+		}
+		return md5;
 	}
 
 	public void uploadAndView(String pdkHash, Integer pdkBuildNumber, UserDetail user, PdkFileTypeEnum type, HttpServletResponse response) {
