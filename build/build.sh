@@ -4,6 +4,9 @@ sourcepath=$(cd `dirname $0`/../; pwd)
 . $basepath/log.sh
 . $basepath/env.sh
 
+CONNECTOR_DIR=$sourcepath/../tapdata-connectors
+FRONTEND_DIR=$sourcepath/../tapdata-enterprise-web
+
 ulimit -c unlimited
 
 if [[ $tapdata_build_env == "docker" && $_in_docker == "" ]]; then
@@ -151,7 +154,7 @@ make_manager_dist() {
   #
   # Collect all the outputs from Manager and copy them to the "dist" directory.
   MANAGER_PATH=$sourcepath/manager  # manager path
-  MANAGER_SBIN_FILE="tm-*.jar"  # manager sbin file
+  MANAGER_SBIN_FILE="tm-*-exec.jar"  # manager sbin file
   # make manager dist
   cd $MANAGER_PATH && mkdir -p dist dist/bin dist/lib dist/conf dist/logs
   cd $MANAGER_PATH && cp "tm/target/classes/logback.xml" dist/conf
@@ -163,7 +166,10 @@ make_manager_dist() {
 
 make_connector_dist() {
   # Collect Connector outputs and make a tarball.
-  cd $sourcepath/connectors && tar czf dist.tar.gz dist && cd -
+  mv $CONNECTOR_DIR/connectors/dist $CONNECTOR_DIR/connectors/tmp && mkdir $CONNECTOR_DIR/connectors/dist
+  ls $CONNECTOR_DIR/connectors/tmp/ | grep -E "^(mongodb-connector|mysql-connector|postgres-connector|kafka-connector)" | xargs -I {} cp $CONNECTOR_DIR/connectors/tmp/{} $CONNECTOR_DIR/connectors/dist/
+  cd $CONNECTOR_DIR/connectors && tar czf dist.tar.gz dist && cd -
+  mv $CONNECTOR_DIR/connectors/tmp $CONNECTOR_DIR/connectors/dist
 }
 
 make_dist() {
@@ -189,23 +195,26 @@ package_outputs() {
   # 3. Package Manager outputs.
   # 4. Package Connector outputs.
   # 5. package pdk.jar outputs.
-  # 6. Print cost time.
+  # 6. package frontend outputs
+  # 7. Print cost time.
   #
   # Package all the outputs from various components and copy them to the "dist" directory to make a tarball or docker image.
 
   # 1. Make dist directory.
   START_TIME=`date '+%s'`
   make_dist
-  mkdir -p $sourcepath/dist $sourcepath/dist/iengine $sourcepath/dist/manager $sourcepath/dist/connectors
+  mkdir -p $sourcepath/dist $sourcepath/dist/iengine $sourcepath/dist/manager $sourcepath/dist/connectors $sourcepath/dist/components/webroot
   # 2. Package Iengine outputs.
   cp -r $sourcepath/iengine/dist/* $sourcepath/dist/iengine/
   # 3. Package Manager outputs.
   cp -r $sourcepath/manager/dist/* $sourcepath/dist/manager/
   # 4. Package Connector outputs.
-  cp -r $sourcepath/connectors/dist.tar.gz $sourcepath/dist/connectors/
+  cp -r $CONNECTOR_DIR/connectors/dist.tar.gz $sourcepath/dist/connectors/
   # 5. package pdk.jar outputs.
   cp -r $sourcepath/tapdata-cli/target/pdk.jar $sourcepath/dist/
-  # 6. Print cost time.
+  # 6. package frontend outputs
+  cp -r $FRONTEND_DIR/dist/* $sourcepath/dist/components/webroot/
+  # 7. Print cost time.
   END_TIME=`date '+%s'`
   DURATION=`expr $END_TIME - $START_TIME`
   info "package outputs success, cost time: $DURATION seconds"

@@ -1,71 +1,109 @@
 name: Docker Image Construction
 
 on:
-  push:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
-  pull_request:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
+  workflow_dispatch:
+    inputs:
+      frontend_branch:
+        description: 'Tapdata-Enterprise-Web Repo Branch:'
+        required: true
+        type: string
+        default: 'develop'
+      connectors_branch:
+        description: 'Tapdata-Connectors Repo Branch:'
+        required: true
+        type: string
+        default: 'main'
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
-    Build:
-      runs-on: ubuntu-latest
-      timeout-minutes: 60
-      steps:
-        - name: Set Env if Push
-          if: ${{ github.event_name == 'push' }}
-          run: |
-            echo "CURRENT_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
-        - name: Set Env if Pull Request
-          if: ${{ github.event_name == 'pull_request' }}
-          run: |
-            echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
-        - name: Checkout Frontend Repo
-          uses: actions/checkout@v3
-          with:
-              fetch-depth: 0
-              repository: tapdata/tapdata-enterprise-web
-              ref: ${{ env.CURRENT_BRANCH }}
-              token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-              path: tapdata-enterprise-web
-        - name: Checkout Opensource Repo
-          uses: actions/checkout@v3
-          with:
-              fetch-depth: 0
-              ref: ${{ env.CURRENT_BRANCH }}
-              token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-              path: tapdata
-        - name: Setup Node
-          uses: actions/setup-node@v3
-          with:
-            node-version: '16.20.0'
-        - name: Setup Pnpm
-          uses: pnpm/action-setup@v2
-          with:
-            version: 7.30.5
-        - name: Build Frontend
-          run: |
-            cd tapdata-enterprise-web && bash build/build.sh
-        - name: COPY Frontend Artifact
-          run: |
-            mkdir -p tapdata/manager/tm/src/main/resources/static/
-            rsync -avt tapdata-enterprise-web/dist/. tapdata/manager/tm/src/main/resources/static/
-        - name: compile opensource tapdata
-          run: |
-            cd tapdata && bash build/build.sh -c true
-        - name: Build Image
-          run: |
-            cd tapdata && build/build.sh -p true -o image
-        - name: Log in to the Container registry
-          uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
-          with:
-            registry: ${{ env.REGISTRY }}
-            username: ${{ github.actor }}
-            password: ${{ secrets.GITHUB_TOKEN }}
-        - name: Push Image
-          run: |
-            docker_tag=`cat tapdata/build/image/tag`
-            docker push $docker_tag
+
+  Set-Branch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      TAPDATA_BRANCH: ${{ steps.set-outputs.outputs.TAPDATA_BRANCH }}
+    steps:
+      - name: Set Env if Push
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          echo "TAPDATA_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Set Env if Pull Request
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          echo "TAPDATA_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
+      - name: Set Outpus
+        id: set-outputs
+        run: |
+          echo "::set-output name=TAPDATA_BRANCH::${TAPDATA_BRANCH}"
+
+  Sync-Code-to-Internal-Repo:
+    uses: tapdata/tapdata-application/.github/workflows/sync-code-to-office.yaml@main
+    needs:
+      - Set-Branch
+    with:
+      tapdata: ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }}
+      tapdata-connectors: ${{ inputs.connectors_branch }}
+      tapdata-enterprise-web: ${{ inputs.frontend_branch }}
+    secrets:
+      TAPDATA_ENT_CICD_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+
+  Build:
+    runs-on: office-build
+    timeout-minutes: 60
+    steps:
+      - name: Checkout Tapdata Repo
+        run: |
+          rm -rf tapdata
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          cd tapdata && git fetch --tags
+      - name: Checkout Connectors Code
+        run: |
+          rm -rf tapdata-connectors
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b ${{ inputs.connectors_branch }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-connectors.git
+          cd tapdata-connectors && git fetch --tags
+      - name: Checkout Frontend Code
+        run: |
+          rm -rf tapdata-enterprise-web
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b ${{ inputs.frontend_branch }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-enterprise-web.git
+          cd tapdata-enterprise-web && git fetch --tags
+      - name: Checkout Tapdata Application
+        run: |
+          rm -rf tapdata-application
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b main --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-application.git
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16.20.0'
+      - name: Setup Pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 7.30.5
+      - name: Build Frontend
+        run: |
+          cd tapdata-application && bash build/build.sh -c tapdata-enterprise-web -u false -m productioin -t v3.12-open
+      - name: compile opensource tapdata
+        run: |
+          cd tapdata-application && bash build/build.sh -c tapdata -P true -l "-Dmaven.compile.fork=true -P idaas"
+      - name: compile tapdata connectors
+        run: |
+          cd tapdata-application && bash build/build.sh -c opensource-connectors -u false -P true -l "-Dmaven.compile.fork=true"
+      - name: Build Image
+        run: |
+          cd tapdata && bash build/build.sh -p true -o image
+      - name: Log in to the Container registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push Image
+        run: |
+          docker_tag=`cat tapdata/build/image/tag`
+          docker push $docker_tag
 
