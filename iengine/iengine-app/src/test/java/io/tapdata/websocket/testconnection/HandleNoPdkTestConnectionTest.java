@@ -174,7 +174,7 @@ class HandleNoPdkTestConnectionTest {
          }
          file.getParentFile().mkdirs();
          file.createNewFile();
-         file.setWritable(false);
+         file.setWritable(false, false);
          ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileWrite(dir);
          file.setWritable(true);
          Files.delete(file.toPath());
@@ -185,16 +185,18 @@ class HandleNoPdkTestConnectionTest {
     @Test
     void handleRocksdbWriteIoExceptionTest() {
         RocksDBTestConnectionImpl rocksDBTestConnection = new RocksDBTestConnectionImpl();
-        String errorPath = OsUtil.isWindows() ? "D://    \\" : "/" + UUID.randomUUID() + UUID.randomUUID();
-        ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileWrite(errorPath);
+        String toLongPathName = UUID.randomUUID().toString();
+        for (int i = 0; i < 5; i++) toLongPathName += toLongPathName;
+        ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileWrite(toLongPathName);
         assertEquals("failed", connectionValidateResultDetail.getStatus());
     }
 
     @Test
     void handleRocksdbReadIoExceptionTest(){
         RocksDBTestConnectionImpl rocksDBTestConnection = new RocksDBTestConnectionImpl();
-        String errorPath = OsUtil.isWindows() ? "D://    \\":"/" + UUID.randomUUID()+UUID.randomUUID();
-        ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileRead(errorPath);
+        String toLongPathName = UUID.randomUUID().toString();
+        for (int i = 0; i < 5; i++) toLongPathName += toLongPathName;
+        ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileRead(toLongPathName);
         assertEquals("failed", connectionValidateResultDetail.getStatus());
     }
 
