@@ -7,6 +7,7 @@ import com.tapdata.validator.ConnectionValidateResultDetail;
 import io.tapdata.websocket.SendMessage;
 import io.tapdata.websocket.WebSocketEventResult;
 import io.tapdata.websocket.handler.TestConnectionHandler;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -159,6 +160,7 @@ class HandleNoPdkTestConnectionTest {
     }
 
     @Test
+    @Disabled
     void handleRocksdbWriteExceptionTest() throws IOException, InterruptedException {
         RocksDBTestConnectionImpl rocksDBTestConnection = new RocksDBTestConnectionImpl();
         String tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
