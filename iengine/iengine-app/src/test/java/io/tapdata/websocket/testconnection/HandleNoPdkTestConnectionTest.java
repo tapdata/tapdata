@@ -174,7 +174,7 @@ class HandleNoPdkTestConnectionTest {
         file.createNewFile();
         file.setWritable(false, false);
         if (OsUtil.isLinux()) {
-            ProcessBuilder processBuilder = new ProcessBuilder("chmod", "755", file.getPath());
+            ProcessBuilder processBuilder = new ProcessBuilder("chmod", "555", file.getPath());
             int exitCode = processBuilder.start().waitFor();
             if (exitCode == 0) {
                 System.out.println("文件权限已成功更新！");
