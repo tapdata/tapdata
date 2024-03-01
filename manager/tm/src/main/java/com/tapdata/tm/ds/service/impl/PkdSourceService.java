@@ -13,6 +13,7 @@ import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.utils.*;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -225,9 +226,7 @@ public class PkdSourceService {
 		}
 	}
 	protected static void inputStreamToFile(InputStream ins, File file) {
-		FileOutputStream os = null;
-		try {
-			os = new FileOutputStream(file);
+		try (FileOutputStream os = new FileOutputStream(file)){
 			int bytesRead = 0;
 			byte[] buffer = new byte[1024];
 			while ((bytesRead = ins.read(buffer)) != -1) {
@@ -237,14 +236,11 @@ public class PkdSourceService {
 			throw new RuntimeException("inputStream to file failed: " +e.getMessage());
 		}finally {
 			try {
-				if (os != null) {
-					os.close();
-				}
 				if (ins != null) {
 					ins.close();
 				}
 			} catch (Exception e) {
-				throw new RuntimeException("inputStream to file failed: " +e.getMessage());
+				log.error("inputStream to file failed: " +e.getMessage());
 			}
 		}
 	}
