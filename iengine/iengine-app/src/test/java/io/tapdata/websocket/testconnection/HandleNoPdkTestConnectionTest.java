@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -168,45 +169,33 @@ class HandleNoPdkTestConnectionTest {
              dir = dir.replace("/", "\\");
          }
          File file = new File(dir, "testConnect.txt");
+         if (!OsUtil.isWindows()) {
+             file.setWritable(false, false);
+         }
          file.getParentFile().mkdirs();
          file.createNewFile();
          file.setWritable(false);
          ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileWrite(dir);
          file.setWritable(true);
          Files.delete(file.toPath());
-         if(OsUtil.isWindows()) {
-             assertEquals("failed", connectionValidateResultDetail.getStatus());
-         }else {
-             assertEquals("passed", connectionValidateResultDetail.getStatus());
-
-         }
+         assertEquals("failed", connectionValidateResultDetail.getStatus());
      }
 
 
     @Test
-    void handleRocksdbWriteIoExceptionTest(){
+    void handleRocksdbWriteIoExceptionTest() {
         RocksDBTestConnectionImpl rocksDBTestConnection = new RocksDBTestConnectionImpl();
-        String  dir = "D://    \\";
-        ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileWrite(dir);
-        if(OsUtil.isWindows()) {
-            assertEquals("failed", connectionValidateResultDetail.getStatus());
-        }else {
-            assertEquals("passed", connectionValidateResultDetail.getStatus());
-
-        }    }
+        String errorPath = OsUtil.isWindows() ? "D://    \\" : "/" + UUID.randomUUID() + UUID.randomUUID();
+        ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileWrite(errorPath);
+        assertEquals("failed", connectionValidateResultDetail.getStatus());
+    }
 
     @Test
     void handleRocksdbReadIoExceptionTest(){
         RocksDBTestConnectionImpl rocksDBTestConnection = new RocksDBTestConnectionImpl();
-        String  dir = "D://    \\";
-        ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileRead(dir);
-        if(OsUtil.isWindows()) {
-            assertEquals("failed", connectionValidateResultDetail.getStatus());
-        }else {
-            assertEquals("passed", connectionValidateResultDetail.getStatus());
-
-        }
-
+        String errorPath = OsUtil.isWindows() ? "D://    \\":"/" + UUID.randomUUID()+UUID.randomUUID();
+        ConnectionValidateResultDetail connectionValidateResultDetail = rocksDBTestConnection.handleFileRead(errorPath);
+        assertEquals("failed", connectionValidateResultDetail.getStatus());
     }
 
 }
