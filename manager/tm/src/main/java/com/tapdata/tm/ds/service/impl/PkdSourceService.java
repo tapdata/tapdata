@@ -124,10 +124,10 @@ public class PkdSourceService {
 			ObjectId jarObjectId = null;
 			ObjectId iconObjectId = null;
 			Map<String, String> langMap = Maps.newHashMap();
-			try {
+			try (InputStream ins = jarFile.getInputStream()){
 				Map<String, Object> fileInfo = Maps.newHashMap();
 				File file = new File(jarFile.getName());
-				inputStreamToFile(jarFile.getInputStream(),file);
+				inputStreamToFile(ins,file);
 				String md5 = PdkSourceUtils.getFileMD5(file);
 				fileInfo.put("pdkHash", pdkHash);
 				fileInfo.put("pdkAPIBuildNumber", pdkAPIBuildNumber);
@@ -225,22 +225,12 @@ public class PkdSourceService {
 
 		}
 	}
-	protected static void inputStreamToFile(InputStream ins, File file) {
+	protected static void inputStreamToFile(InputStream ins, File file) throws IOException{
 		try (FileOutputStream os = new FileOutputStream(file)){
 			int bytesRead = 0;
 			byte[] buffer = new byte[1024];
 			while ((bytesRead = ins.read(buffer)) != -1) {
 				os.write(buffer, 0, bytesRead);
-			}
-		} catch (Exception e) {
-			throw new RuntimeException("inputStream to file failed: " +e.getMessage());
-		}finally {
-			try {
-				if (ins != null) {
-					ins.close();
-				}
-			} catch (Exception e) {
-				log.error("inputStream to file failed: " +e.getMessage());
 			}
 		}
 	}
