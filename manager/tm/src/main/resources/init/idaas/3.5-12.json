@@ -1,0 +1,40 @@
+[
+  {
+    "update": "Task",
+    "updates": [
+      {
+        "q": {
+          "is_deleted": false,
+          "dag.nodes.enableDDL": true
+        },
+        "u": {
+          "$set": {
+            "dag.nodes.$.ddlConfiguration": "SYNCHRONIZATION"
+          },
+          "$unset": {
+            "dag.nodes.$.enableDDL": ""
+          }
+        }
+      }
+    ]
+  },
+  {
+    "update": "Task",
+    "updates": [
+      {
+        "q": {
+          "is_deleted": false,
+          "dag.nodes.enableDDL": false
+        },
+        "u": {
+          "$set": {
+            "dag.nodes.$.ddlConfiguration": "FILTER"
+          },
+          "$unset": {
+            "dag.nodes.$.enableDDL": ""
+          }
+        }
+      }
+    ]
+  }
+]
