@@ -915,6 +915,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
 		if (TaskDto.TYPE_INITIAL_SYNC.equals(type) || CollectionUtils.isNotEmpty(GraphUtil.findMergeNode(taskDto))) {
 			taskGlobalVariable.put(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY, new AtomicInteger(sourceNodes.size()));
+			ObsLoggerFactory.getInstance().getObsLogger(taskDto).info("Initial sync task, set source initial counter to " + taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY));
 		}
 	}
 }

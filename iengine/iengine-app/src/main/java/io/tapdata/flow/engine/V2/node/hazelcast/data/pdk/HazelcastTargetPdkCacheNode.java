@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.construct.constructImpl.DocumentIMap;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
@@ -141,4 +142,8 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
+	@Override
+	protected void fromTapValue(Map<String, Object> data, TapCodecsFilterManager tapCodecsFilterManager, String targetTableName) {
+		// do nothing
+	}
 }

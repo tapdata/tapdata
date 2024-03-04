@@ -560,7 +560,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				if (tapdataEvent instanceof TapdataHeartbeatEvent) {
 					handleTapdataHeartbeatEvent(tapdataEvent);
 				} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
-					handleTapdataCompleteSnapshotEvent();
+					handleTapdataCompleteSnapshotEvent((TapdataCompleteSnapshotEvent) tapdataEvent);
 				} else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
 					handleTapdataStartCdcEvent(tapdataEvent);
 				} else if (tapdataEvent instanceof TapdataStartedCdcEvent) {
@@ -790,11 +790,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		saveToSnapshot();
 	}
 
-	protected void handleTapdataCompleteSnapshotEvent() {
+	protected void handleTapdataCompleteSnapshotEvent(TapdataCompleteSnapshotEvent tapdataCompleteSnapshotEvent) {
 		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
 		Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
 		if (obj instanceof AtomicInteger) {
 			((AtomicInteger) obj).decrementAndGet();
+			obsLogger.info(String.format("Source node [%s(%s)] finished initial sync, will decrement source initial counter: %s",
+					tapdataCompleteSnapshotEvent.getNodeName(), tapdataCompleteSnapshotEvent.getNodeId(), obj));
 		}
 		executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
         syncMetricCollector.snapshotCompleted();

@@ -12,4 +12,6 @@ public interface TapTableMapExCode_29 {
             recoverable = true
     )
     String FIND_SCHEMA_FAILED = "29002";
+    @TapExCode
+    String SCHEMA_NOT_EXISTS = "29003";
 }
