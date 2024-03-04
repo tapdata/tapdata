@@ -119,7 +119,8 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 				.databaseType(String.valueOf(event.get("database_type")));
 		String threadName = String.format("TEST-CONNECTION-%s", Optional.ofNullable(event.get("name")).orElse(""));
 		DisposableThreadGroup threadGroup = new DisposableThreadGroup(DisposableType.CONNECTION_TEST, threadName);
-		Runnable runnable = AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(connectionId, threadGroup, entity), () -> {
+
+		AspectRunnableUtil.aspectAndStart(new DisposableThreadGroupAspect<>(connectionId, threadGroup, entity), () -> {
 			Connections connection = null;
 			Schema schema;
 			try {
@@ -281,8 +282,6 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 				}
 			}
 		});
-		Thread thread = new Thread(threadGroup, runnable, threadName);
-		thread.start();
 		return null;
 	}
 
