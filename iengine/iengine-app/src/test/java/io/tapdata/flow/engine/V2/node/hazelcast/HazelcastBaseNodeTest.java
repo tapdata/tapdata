@@ -12,6 +12,7 @@ import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.config.TaskConfig;
+import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -54,6 +55,9 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastM
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.task.retry.RetryContext;
+import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryContext;
+import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
@@ -1796,6 +1800,69 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(context, times(getNodesTimes)).getNodes();
 			verify(dag, times(getTaskDtoIsomorphismTimes)).getTaskDtoIsomorphism(anyList());
 			verify(taskDto, times(setIsomorphismTimes)).setIsomorphism(anyBoolean());
+		}
+	}
+	@Nested
+	class GetRetryTimesTest{
+		private HazelcastBaseNode mockHazelcastBaseNode;
+		@BeforeEach
+		void beforeSetUp(){
+			mockHazelcastBaseNode=spy(hazelcastBaseNode);
+
+		}
+		@DisplayName("Test get retryTime when retryIntervalSecond is 60L")
+		@Test
+		void test1(){
+			long retryTimes = mockHazelcastBaseNode.getRetryTimes(60L);
+			assertEquals(15L,retryTimes);
+		}
+		@DisplayName("Test get retryTime when retryIntervalSecond is 0L")
+		@Test
+		void test2(){
+			long retryTimes = mockHazelcastBaseNode.getRetryTimes(0);
+			assertEquals(15L,retryTimes);
+		}
+	}
+
+	@Nested
+	class TestGetTaskRetryService {
+		private HazelcastBaseNode mockHazelcastBaseNode;
+
+		@BeforeEach
+		void beforeSetUp() {
+			mockHazelcastBaseNode=spy(hazelcastBaseNode);
+		}
+
+		@DisplayName("Test Get RetryService When RetryTimeSecond is 900 and IntervalSecond is 60")
+		@Test
+		void test1() {
+			TaskConfig taskConfig = new TaskConfig();
+			when(processorBaseContext.getTaskConfig()).thenReturn(taskConfig);
+			TaskRetryConfig taskRetryConfig = new TaskRetryConfig();
+			taskRetryConfig.maxRetryTimeSecond(900L);
+			taskRetryConfig.retryIntervalSecond(60L);
+			taskConfig.taskRetryConfig(taskRetryConfig);
+			TaskRetryService taskRetryService = mockHazelcastBaseNode.getTaskRetryService();
+			TaskRetryContext retryContext = (TaskRetryContext) taskRetryService.getRetryContext();
+			assertEquals(900000, retryContext.getRetryDurationMs());
+			assertEquals(60000, retryContext.getRetryIntervalMs());
+			assertEquals(15L, retryContext.getMethodRetryTime());
+		}
+
+		@DisplayName("Test Get RetryService When RetryTimeSecond is 900 and IntervalSecond is 60")
+		@Test
+		void test2() {
+			TaskConfig taskConfig = new TaskConfig();
+			when(processorBaseContext.getTaskConfig()).thenReturn(taskConfig);
+			TaskRetryConfig taskRetryConfig = new TaskRetryConfig();
+			taskRetryConfig.maxRetryTimeSecond(0L);
+			taskRetryConfig.retryIntervalSecond(0L);
+			taskConfig.taskRetryConfig(taskRetryConfig);
+			TaskRetryService taskRetryService = mockHazelcastBaseNode.getTaskRetryService();
+			TaskRetryContext retryContext = (TaskRetryContext) taskRetryService.getRetryContext();
+			assertEquals(0, retryContext.getRetryDurationMs());
+			assertEquals(60000, retryContext.getRetryIntervalMs());
+			assertEquals(15L, retryContext.getMethodRetryTime());
 		}
 	}
 }

@@ -30,17 +30,17 @@ public class TaskRetryFactory extends RetryFactory implements Serializable {
 
 	@Nonnull
 	public TaskRetryService getTaskRetryService(@Nonnull TaskDto taskDto, Long retryDurationMs) {
-		return getTaskRetryService(taskDto, retryDurationMs, null);
+		return getTaskRetryService(taskDto, retryDurationMs,null, null);
 	}
 
 	@Nonnull
-	public TaskRetryService getTaskRetryService(@Nonnull TaskDto taskDto, Long retryDurationMs, Long methodRetryTime) {
+	public TaskRetryService getTaskRetryService(@Nonnull TaskDto taskDto, Long retryDurationMs, Long retryIntervalMs, Long methodRetryTime) {
 		if (null == taskDto.getId()) {
 			throw new IllegalArgumentException("Task id cannot be null");
 		}
 		String taskId = taskDto.getId().toHexString();
 		return taskRetryServiceMap.computeIfAbsent(taskId, k -> {
-			TaskRetryContext taskRetryContext = TaskRetryContext.create(taskDto, retryDurationMs);
+			TaskRetryContext taskRetryContext = TaskRetryContext.create(taskDto, retryDurationMs, retryIntervalMs);
 			if (null != methodRetryTime && methodRetryTime.compareTo(0L) > 0) {
 				taskRetryContext.setMethodRetryTime(methodRetryTime);
 			}

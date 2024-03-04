@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -50,11 +51,11 @@ public class TaskRetryService extends RetryService implements Serializable {
 		}
 	}
 
-	public long getMethodRetryDurationMs(long retryIntervalMs) {
+	public long getMethodRetryDurationMs() {
 		if (((TaskRetryContext) retryContext).getRetryDurationMs().compareTo(0L) <= 0) {
 			return 0L;
 		}
-		long methodRetryDurationMs = retryIntervalMs * ((TaskRetryContext) retryContext).getMethodRetryTime();
+		long methodRetryDurationMs = ((TaskRetryContext) retryContext).getRetryIntervalMs() * ((TaskRetryContext) retryContext).getMethodRetryTime();
 		if (null != endRetryTimeMs) {
 			long currentTimeMillis = System.currentTimeMillis();
 			if (currentTimeMillis > endRetryTimeMs) {
@@ -72,6 +73,18 @@ public class TaskRetryService extends RetryService implements Serializable {
 		}
 		return Math.max(0L, methodRetryDurationMs);
 	}
+
+	public long getMethodRetryDurationMinutes() {
+		long methodRetryDurationMinutes;
+		if (((TaskRetryContext) retryContext).getRetryDurationMs() > 0) {
+			long methodRetryDurationMs = this.getMethodRetryDurationMs();
+			methodRetryDurationMinutes = Math.max(TimeUnit.MILLISECONDS.toMinutes(methodRetryDurationMs), 1L);
+		} else {
+			methodRetryDurationMinutes = 0L;
+		}
+		return methodRetryDurationMinutes;
+	}
+
 
 	public TaskRetryResult canTaskRetry() {
 		if (((TaskRetryContext) retryContext).getRetryDurationMs().compareTo(0L) <= 0) {
