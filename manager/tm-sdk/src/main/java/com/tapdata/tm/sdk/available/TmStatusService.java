@@ -16,15 +16,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class TmStatusService {
 
-  private final static AppType appType = AppType.init();
-  private final static AtomicBoolean available = new AtomicBoolean(true);
-
-  private final static Map<String, AtomicBoolean> taskReportStatusMap = new ConcurrentHashMap<>();
-
-  private final static List<Runnable> toAvailableHandler = new ArrayList<>();
+  private static AppType appType;
+  private static final AtomicBoolean available = new AtomicBoolean(true);
+  private static final Map<String, AtomicBoolean> taskReportStatusMap = new ConcurrentHashMap<>();
+  private static final List<Runnable> toAvailableHandler = new ArrayList<>();
 
   public static boolean isEnable() {
-    return appType.isCloud();
+		if (null != appType) {
+			return appType.isCloud();
+		}
+
+		synchronized (TmStatusService.class) {
+			if (null == appType) {
+				appType = AppType.init();
+			}
+		}
+		return appType.isCloud();
   }
 
   public static boolean isNotEnable() {
