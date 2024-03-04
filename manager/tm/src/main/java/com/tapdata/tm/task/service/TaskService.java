@@ -150,6 +150,10 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, TaskRepository> {
+    protected static final String PROCESSOR_THREAD_NUM="processorThreadNum";
+    protected static final String CATALOG="catalog";
+    protected static final String ELEMENT_TYEP="elementType";
+    protected static final String PROCESSOR="processor";
     private MessageService messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private InspectService inspectService;
@@ -2959,7 +2963,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (parentTargetPath.equals("")) {
             targetPath = setting.get("embeddedPath");
         } else {
-            if (null == setting.get("embeddedPath")) {
+            if (StringUtils.isBlank(setting.get("embeddedPath"))) {
                 targetPath = parentTargetPath;
             } else {
                 targetPath = parentTargetPath + "." + setting.get("embeddedPath");
@@ -3142,33 +3146,39 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 jsNode.put("name", tpTable);
                 jsNode.put("id", jsId);
                 jsNode.put("jsType", 1);
-                jsNode.put("processorThreadNum", 1);
-                jsNode.put("catalog", "processor");
-                jsNode.put("elementType", "Node");
+                jsNode.put(PROCESSOR_THREAD_NUM, 1);
+                jsNode.put(CATALOG, PROCESSOR);
+                jsNode.put(ELEMENT_TYEP, "Node");
                 String script = "";
                 String declareScript = "";
+
+                List<Map<String, Object>> renameOperations = new ArrayList<>();
+
+                List<Map<String, Object>> deleteOperations = new ArrayList<>();
 
                 for (String field : fields.keySet()) {
                     Map<String, Object> fieldMap = (Map<String, Object>) fields.get(field);
                     Map<String, Object> source = (Map<String, Object>) fieldMap.get("source");
                     Map<String, Object> target = (Map<String, Object>) fieldMap.get("target");
-                    Map<String, Object> newName = new HashMap<>();
-                    newName.put("target", target.get("name").toString());
-                    newName.put("isPrimaryKey", (Boolean)source.get("isPrimaryKey"));
+                    Map<String, Object> newName = getNewNameMap(target, source);
                     tableRenameFields.put(source.get("name").toString(), newName);
+
+                    if (!(Boolean)target.get("included")) {
+                        Map<String, Object> deleteOperation = getDeleteOperation(source);
+                        deleteOperations.add(deleteOperation);
+                        continue;
+                    }
+
                     if (source.get("name").equals(target.get("name"))) {
                         continue;
                     }
-                    script += "    record[\"" + target.get("name") + "\"] = record[\"" + source.get("name") + "\"];\n";
-                    script += "    delete(record[\"" + source.get("name") + "\"]);\n";
-                    declareScript += "    TapModelDeclare.removeField(tapTable, '" + source.get("name") + "');\n";
 
-                    if ((Boolean)source.get("isPrimaryKey")) {
-                        declareScript += "    TapModelDeclare.setPk(tapTable, '" + target.get("name") + "');\n";
-                    }
+                    Map<String, Object> renameOperation = getRenameOperation(source, target);
+                    renameOperations.add(renameOperation);
                 }
 
                 renameFields.put(tpTable, tableRenameFields);
+
                 Map<String, Object> calculatedFields = (Map<String, Object>) contentMappingzValue.get("calculatedFields");
                 for (String field : calculatedFields.keySet()) {
                     Map<String, Object> fieldMap = (Map<String, Object>) calculatedFields.get(field);
@@ -3177,6 +3187,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     newFieldeExpression = newFieldeExpression.replace("columns[", "record[");
                     script += "    record[\"" + newFieldName + "\"] = " + newFieldeExpression + ";\n";
                 }
+
                 if (!script.equals("") || !declareScript.equals("")) {
                     script = "function process(record){" + script;
                     script += "    return record;\n";
@@ -3185,13 +3196,22 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 jsNode.put("script", script);
                 jsNode.put("declareScript", declareScript);
                 String sourceId = (String) node.get("id");
+                //add delete processor node
+                if (!deleteOperations.isEmpty()) {
+                    sourceId = addDeleteNode(tpTable, deleteOperations,  sourceId,nodes, edges);
+                }
+                //add rename processor node
+                if (!renameOperations.isEmpty()) {
+                    sourceId = addRenameNode(tpTable,  renameOperations, sourceId,nodes, edges);
+                }
+
                 if (!script.equals("")) {
                     nodes.add(jsNode);
-                    sourceId = jsId;
                     Map<String, Object> edge = new HashMap<>();
-                    edge.put("source",(String) node.get("id"));
+                    edge.put("source", sourceId);
                     edge.put("target", jsId);
                     edges.add(edge);
+                    sourceId = jsId;
                 }
 
                 // 记录映射
@@ -3240,7 +3260,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             mergeNode.put("type", "merge_table_processor");
             mergeNode.put("name", "merge");
             mergeNode.put("id", mergeNodeId);
-            mergeNode.put("catalog", "processor");
+            mergeNode.put(CATALOG, PROCESSOR);
             mergeNode.put("mergeMode", "main_table_first");
             mergeNode.put("isTransformed", false);
             Map<String, Object> rootProperties = new HashMap<>();
@@ -3307,6 +3327,73 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             parsedTpTasks.put((String) task.get("id"), JsonUtil.toJson(task));
         }
         return parsedTpTasks;
+    }
+
+    protected String addRenameNode(String tpTable,  List<Map<String, Object>> renameOperations, String sourceId,List<Map<String, Object>> nodes, List<Map<String, Object>> edges) {
+        Map<String, Object> renameNode = new HashMap<>();
+        String renameId = UUID.randomUUID().toString().toLowerCase();
+        renameNode.put("id", renameId);
+        renameNode.put(CATALOG, PROCESSOR);
+        renameNode.put(ELEMENT_TYEP, "Node");
+        renameNode.put("fieldsNameTransform", "");
+        renameNode.put("isTransformed", false);
+        renameNode.put("name", "Rename " + tpTable);
+        renameNode.put(PROCESSOR_THREAD_NUM, 1);
+        renameNode.put("type", "field_rename_processor");
+        nodes.add(renameNode);
+        renameNode.put("operations", renameOperations);
+        Map<String, Object> edge = new HashMap<>();
+        edge.put("source", sourceId);
+        edge.put("target", renameId);
+        edges.add(edge);
+        sourceId = renameId;
+        return sourceId;
+    }
+
+    protected String addDeleteNode(String tpTable, List<Map<String, Object>> deleteOperations,  String sourceId,List<Map<String, Object>> nodes, List<Map<String, Object>> edges) {
+        Map<String, Object> deleteNode = new HashMap<>();
+        String deleteId = UUID.randomUUID().toString().toLowerCase();
+        deleteNode.put("id", deleteId);
+        deleteNode.put(CATALOG, PROCESSOR);
+        deleteNode.put("deleteAllFields", false);
+        deleteNode.put(ELEMENT_TYEP, "Node");
+        deleteNode.put("name", "Delete " + tpTable);
+        deleteNode.put("type", "field_add_del_processor");
+        deleteNode.put(PROCESSOR_THREAD_NUM, 1);
+        deleteNode.put("operations", deleteOperations);
+        nodes.add(deleteNode);
+        Map<String, Object> edge = new HashMap<>();
+        edge.put("source", sourceId);
+        edge.put("target", deleteId);
+        edges.add(edge);
+        sourceId = deleteId;
+        return sourceId;
+    }
+
+    protected Map<String, Object> getDeleteOperation(Map<String, Object> source) {
+        Map<String, Object> deleteOperation = new HashMap<>();
+        deleteOperation.put("id", UUID.randomUUID().toString().toLowerCase());
+        deleteOperation.put("field", source.get("name"));
+        deleteOperation.put("op", "REMOVE");
+        deleteOperation.put("operand", "true");
+        deleteOperation.put("label", source.get("name"));
+        return deleteOperation;
+    }
+
+    protected Map<String, Object> getRenameOperation(Map<String, Object> source, Map<String, Object> target) {
+        Map<String, Object> fieldRenameOperation = new HashMap<>();
+        fieldRenameOperation.put("id", UUID.randomUUID().toString().toLowerCase());
+        fieldRenameOperation.put("field", source.get("name"));
+        fieldRenameOperation.put("op", "RENAME");
+        fieldRenameOperation.put("operand", target.get("name"));
+        return fieldRenameOperation;
+    }
+
+    protected Map<String, Object> getNewNameMap(Map<String, Object> target, Map<String, Object> source) {
+        Map<String, Object> newName = new HashMap<>();
+        newName.put("target", target.get("name").toString());
+        newName.put("isPrimaryKey", (Boolean) source.get("isPrimaryKey"));
+        return newName;
     }
 
     public void importRmProject(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags, String source, String sink) throws IOException {
@@ -4546,7 +4633,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public TaskDto findByCacheName(String cacheName, UserDetail user) {
-        Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where("catalog").is("memCache").and("cacheName").is(cacheName));
+        Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where(CATALOG).is("memCache").and("cacheName").is(cacheName));
         Query query = new Query(taskCriteria);
 
         return findOne(query, user);
