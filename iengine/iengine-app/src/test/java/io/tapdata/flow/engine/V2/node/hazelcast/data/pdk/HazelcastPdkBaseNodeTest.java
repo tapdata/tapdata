@@ -13,6 +13,7 @@ import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.schema.TapTableMap;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -375,6 +376,7 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		@Test
 		void test2(){
 			TaskRetryConfig taskRetryConfig = TaskRetryConfig.create().maxRetryTimeSecond(-900L).retryIntervalSecond(60L);
+			taskDto.setId(new ObjectId("65aa211475a5ac694df51c69"));
 			TaskConfig taskConfig = TaskConfig.create().taskDto(taskDto).taskRetryConfig(taskRetryConfig);
 			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
 			PDKMethodInvoker pdkMethodInvoker = spyhazelcastPdkBaseNode.createPdkMethodInvoker();
@@ -384,6 +386,7 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("retryIntervalSecond less than 0")
 		@Test
 		void test3(){
+			taskDto.setId(new ObjectId("65aa220c75a5ac694df51d04"));
 			TaskRetryConfig taskRetryConfig = TaskRetryConfig.create().maxRetryTimeSecond(900L).retryIntervalSecond(-60L);
 			TaskConfig taskConfig = TaskConfig.create().taskDto(taskDto).taskRetryConfig(taskRetryConfig);
 			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);

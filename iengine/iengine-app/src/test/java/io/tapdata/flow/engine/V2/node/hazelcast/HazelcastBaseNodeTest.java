@@ -19,6 +19,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
@@ -1836,6 +1837,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("Test Get RetryService When RetryTimeSecond is 900 and IntervalSecond is 60")
 		@Test
 		void test1() {
+			taskDto.setId(new ObjectId("65aa220c75a5ac694df51d04"));
 			TaskConfig taskConfig = new TaskConfig();
 			when(processorBaseContext.getTaskConfig()).thenReturn(taskConfig);
 			TaskRetryConfig taskRetryConfig = new TaskRetryConfig();
@@ -1852,6 +1854,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("Test Get RetryService When RetryTimeSecond is 900 and IntervalSecond is 60")
 		@Test
 		void test2() {
+			taskDto.setId(new ObjectId("65aa211475a5ac694df51c69"));
 			TaskConfig taskConfig = new TaskConfig();
 			when(processorBaseContext.getTaskConfig()).thenReturn(taskConfig);
 			TaskRetryConfig taskRetryConfig = new TaskRetryConfig();
