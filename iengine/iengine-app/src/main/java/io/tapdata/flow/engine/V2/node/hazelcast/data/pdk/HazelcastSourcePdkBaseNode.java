@@ -387,7 +387,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	//TODO Aplomb should NOT create stream offset at very beginning.
-	private void initBatchAndStreamOffset(TaskDto taskDto) {
+	protected void initBatchAndStreamOffset(TaskDto taskDto) {
 		if (syncProgress == null) {
 			syncProgress = new SyncProgress();
 			// null present current
@@ -462,7 +462,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
 						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode()));
 					} else {
-						initStreamOffsetFromTime(null);
+						if (syncType == SyncTypeEnum.INITIAL_SYNC_CDC || syncType == SyncTypeEnum.CDC) {
+							initStreamOffsetFromTime(null);
+						}
 					}
 					break;
 				case SHARE_CDC:
