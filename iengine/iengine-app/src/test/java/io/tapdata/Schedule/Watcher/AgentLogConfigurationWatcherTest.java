@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.when;
@@ -35,7 +36,8 @@ public class AgentLogConfigurationWatcherTest {
     void updateConfigTest(){
         AgentLogConfigurationWatcher agentLogConfigurationWatcher=new AgentLogConfigurationWatcher();
         LogConfiguration logConfiguration = new LogConfiguration(180, 100, 10);
-        agentLogConfigurationWatcher.updateConfig(logConfiguration);
+
+        assertDoesNotThrow(()->{agentLogConfigurationWatcher.updateConfig(logConfiguration);});
     }
     @DisplayName("test Update Config normal")
     @Test
