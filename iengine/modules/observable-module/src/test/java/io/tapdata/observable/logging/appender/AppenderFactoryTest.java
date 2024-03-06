@@ -34,7 +34,7 @@ public class AppenderFactoryTest {
         IllegalArgumentException illegalArgumentException = assertThrows(IllegalArgumentException.class, () -> {
             AppenderFactory.getInstance().getDeleteAction(-3, "./workDir/agent", glob, configuration);
         });
-        assertEquals("Text cannot be parsed to a Duration: -3m",illegalArgumentException.getMessage());
+        assertEquals("Text cannot be parsed to a Duration: -3d",illegalArgumentException.getMessage());
     }
     @DisplayName("test AppenderFactory getCompositeTriggeringPolicyTest normal")
     @Test
