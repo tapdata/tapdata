@@ -17,6 +17,8 @@ import org.apache.commons.lang3.StringUtils;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,52 +65,63 @@ public class CustomSchema {
         if (StringUtils.isNotBlank(script)) {
             LoadSchemaCore core = new LoadSchemaCore();
             assert scriptFactory != null;
-            ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
-            scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(script, false));
-            scriptEngine.put("core", core);
+            ScriptEngine scriptEngine = null;
+            try{
+                scriptEngine=scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+                scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(script, false));
+                scriptEngine.put("core", core);
 //            scriptEngine.put("log", new CustomLog());
-            Thread t = new Thread(ScriptUtil.createScriptRunnable(scriptEngine, ScriptUtil.SOURCE_FUNCTION_NAME));
-            TapLogger.info(TAG, "Running script, try to get data and build schema. \n {}", script);
-            t.start();
-            int time = 0;
-            while (time < LOAD_SCHEMA_RETRY_TIME) {
-                TapSimplify.sleep(1000);
-                if (EmptyKit.isNotEmpty(core.getData())) {
-                    Map<String, Object> data = core.getData();
-                    data.forEach((k, v) -> {
-                        TapField field = new TapField();
-                        field.setName(k.trim());
-                        if (v == null) {
-                            field.dataType("String");
-                        } else {
-                            //long String => Text
-                            if (v instanceof String && ((String) v).length() > 200) {
-                                field.dataType("Text");
-                            } else if (v instanceof Map) {
-                                field.dataType("Map");
-                            } else if (v instanceof List) {
-                                field.dataType("List");
+                Thread t = new Thread(ScriptUtil.createScriptRunnable(scriptEngine, ScriptUtil.SOURCE_FUNCTION_NAME));
+                TapLogger.info(TAG, "Running script, try to get data and build schema. \n {}", script);
+                t.start();
+                int time = 0;
+                while (time < LOAD_SCHEMA_RETRY_TIME) {
+                    TapSimplify.sleep(1000);
+                    if (EmptyKit.isNotEmpty(core.getData())) {
+                        Map<String, Object> data = core.getData();
+                        data.forEach((k, v) -> {
+                            TapField field = new TapField();
+                            field.setName(k.trim());
+                            if (v == null) {
+                                field.dataType("String");
                             } else {
-                                field.dataType(v.getClass().getSimpleName());
+                                //long String => Text
+                                if (v instanceof String && ((String) v).length() > 200) {
+                                    field.dataType("Text");
+                                } else if (v instanceof Map) {
+                                    field.dataType("Map");
+                                } else if (v instanceof List) {
+                                    field.dataType("List");
+                                } else {
+                                    field.dataType(v.getClass().getSimpleName());
+                                }
                             }
-                        }
-                        if (uniqueKeysMap.containsKey(k.trim())) {
-                            field.setPrimaryKey(true);
-                            field.setPrimaryKeyPos(uniqueKeysMap.get(k.trim()));
-                            uniqueKeysMap.remove(k.trim());
-                        }
-                        tapTable.add(field);
-                    });
-                    break;
+                            if (uniqueKeysMap.containsKey(k.trim())) {
+                                field.setPrimaryKey(true);
+                                field.setPrimaryKeyPos(uniqueKeysMap.get(k.trim()));
+                                uniqueKeysMap.remove(k.trim());
+                            }
+                            tapTable.add(field);
+                        });
+                        break;
+                    }
+                    time++;
                 }
-                time++;
-            }
-            if (t.isAlive()) {
-                TapLogger.info(TAG, "Running script timeout(10 seconds), stop javascript engine, cannot load any schema from data");
-                t.stop();
-            }
-            if (EmptyKit.isEmpty(tapTable.getNameFieldMap())) {
-                TapLogger.info(TAG, "Cannot load schema from script data, Please check that the script is correct。");
+                if (t.isAlive()) {
+                    TapLogger.info(TAG, "Running script timeout(10 seconds), stop javascript engine, cannot load any schema from data");
+                    t.stop();
+                }
+                if (EmptyKit.isEmpty(tapTable.getNameFieldMap())) {
+                    TapLogger.info(TAG, "Cannot load schema from script data, Please check that the script is correct。");
+                }
+            }finally {
+                if (scriptEngine instanceof Closeable) {
+                    try {
+                        ((Closeable) scriptEngine).close();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
             }
         }
         return tapTable;
