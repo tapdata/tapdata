@@ -5,7 +5,6 @@ import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
-import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.RollingFileAppender;
 import org.junit.Test;
 import org.mockito.MockedStatic;

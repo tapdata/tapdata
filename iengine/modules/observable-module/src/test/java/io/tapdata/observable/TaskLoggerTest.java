@@ -1,8 +1,6 @@
 package io.tapdata.observable;
 
-import ch.qos.logback.core.ConsoleAppender;
 import io.tapdata.observable.logging.TaskLogger;
-import io.tapdata.observable.logging.appender.Appender;
 import io.tapdata.observable.logging.appender.AppenderFactory;
 import io.tapdata.observable.logging.appender.FileAppender;
 import io.tapdata.observable.logging.appender.ObsHttpTMAppender;
@@ -41,7 +39,8 @@ public class TaskLoggerTest {
                     .withPolicy(timeBasedTriggeringPolicy)
                     .build();
             FileAppender fileAppender = mock(FileAppender.class);
-            when(fileAppender.getRollingFileAppender()).thenReturn(rollingFileAppender);
+            ReflectionTestUtils.setField(fileAppender,"rollingFileAppender",rollingFileAppender);
+            doCallRealMethod().when(fileAppender).getRollingFileAppender();
             tapObsAppenders.add(fileAppender);
             ReflectionTestUtils.setField(taskLogger,"tapObsAppenders",tapObsAppenders);
             ReflectionTestUtils.setField(taskLogger,"logAppendFactory",appenderFactory);

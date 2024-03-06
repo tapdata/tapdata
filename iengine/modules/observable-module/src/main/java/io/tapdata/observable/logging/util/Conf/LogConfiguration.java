@@ -1,9 +1,9 @@
 package io.tapdata.observable.logging.util.Conf;
 
-import jnr.ffi.annotations.In;
-import lombok.Data;
 
-@Data
+import lombok.Getter;
+
+@Getter
 public class LogConfiguration {
     private Integer logSaveTime;
     private Integer logSaveSize;
