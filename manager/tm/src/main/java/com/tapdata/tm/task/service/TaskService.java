@@ -3847,6 +3847,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .unset("snapshotDoneAt")
                 .unset("scheduleDate")
                 .unset("stopedDate")
+                .unset("functionRetryEx")
+                .unset("taskRetryStatus")
                 .unset("functionRetryStatus");
         return update;
     }

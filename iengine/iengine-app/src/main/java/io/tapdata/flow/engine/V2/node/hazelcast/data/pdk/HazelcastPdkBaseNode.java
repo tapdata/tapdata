@@ -30,6 +30,7 @@ import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
+import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryContext;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -85,7 +86,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	protected TapRecordSkipDetector skipDetector;
 	private PdkStateMap pdkStateMap;
 
-	public static final long DEFAULT_FUNCTION_RETRY_TIME_SECOND = 900L;
 
 	protected TapRecordSkipDetector getSkipDetector() {
 		return skipDetector;
@@ -133,25 +133,15 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	public PDKMethodInvoker createPdkMethodInvoker() {
-		TaskDto taskDto = dataProcessorContext.getTaskDto();
-		TaskConfig taskConfig = dataProcessorContext.getTaskConfig();
-		Long retryIntervalSecond = taskConfig.getTaskRetryConfig().getRetryIntervalSecond();
-		long retryIntervalMs = TimeUnit.SECONDS.toMillis(retryIntervalSecond);
-		Long maxRetryTimeSecond = taskConfig.getTaskRetryConfig().getMaxRetryTime(TimeUnit.SECONDS);
-		long retryDurationMs = TimeUnit.SECONDS.toMillis(maxRetryTimeSecond);
-		retryIntervalSecond = retryIntervalSecond <= 0 ? DEFAULT_RETRY_PERIOD_SECONDS : retryIntervalSecond;
-		long retryTimes = DEFAULT_FUNCTION_RETRY_TIME_SECOND / retryIntervalSecond;
-		TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskDto, retryDurationMs,retryTimes);
-		if (maxRetryTimeSecond > 0) {
-			long methodRetryDurationMs = taskRetryService.getMethodRetryDurationMs(retryIntervalMs);
-			maxRetryTimeSecond = Math.max(TimeUnit.MILLISECONDS.toMinutes(methodRetryDurationMs), 1L);
-		} else {
-			maxRetryTimeSecond = 0L;
-		}
+		TaskRetryService taskRetryService = getTaskRetryService();
+		TaskRetryContext retryContext = (TaskRetryContext) taskRetryService.getRetryContext();
+		TaskDto taskDto = retryContext.getTaskDto();
+		long retryIntervalSecond = TimeUnit.MILLISECONDS.toSeconds(retryContext.getRetryIntervalMs());
+		long methodRetryTimeMintues = taskRetryService.getMethodRetryDurationMinutes();
 		PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create()
 				.logTag(TAG)
 				.retryPeriodSeconds(retryIntervalSecond)
-				.maxRetryTimeMinute(maxRetryTimeSecond)
+				.maxRetryTimeMinute(methodRetryTimeMintues)
 				.logListener(logListener)
 				.startRetry(taskRetryService::start)
 				.resetRetry(taskRetryService::reset)

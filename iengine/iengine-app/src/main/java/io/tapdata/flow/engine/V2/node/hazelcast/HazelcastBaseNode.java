@@ -12,6 +12,7 @@ import com.tapdata.entity.Stats;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.RuntimeThroughput;
 import com.tapdata.entity.dataflow.StageRuntimeStats;
+import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -53,6 +54,8 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastM
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
+import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -77,6 +80,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static io.tapdata.pdk.core.utils.RetryUtils.DEFAULT_RETRY_PERIOD_SECONDS;
+
 /**
  * @author jackin
  * @date 2021/12/7 3:25 PM
@@ -84,6 +89,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class HazelcastBaseNode extends AbstractProcessor {
 	public static final String TARGET_TAG = "target";
 	public static final String SOURCE_TAG = "source";
+	public static final long DEFAULT_FUNCTION_RETRY_TIME_SECOND = 900L;
 	/**
 	 * [sub task id]-[node id]
 	 */
@@ -854,5 +860,20 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	public ObsLogger getObsLogger() {
 		return obsLogger;
+	}
+	public long getRetryTimes(long retryIntervalSecond) {
+		retryIntervalSecond = retryIntervalSecond <= 0 ? DEFAULT_RETRY_PERIOD_SECONDS : retryIntervalSecond;
+		return DEFAULT_FUNCTION_RETRY_TIME_SECOND / retryIntervalSecond;
+	}
+
+	public TaskRetryService getTaskRetryService() {
+		TaskDto taskDto = processorBaseContext.getTaskDto();
+		TaskConfig taskConfig = processorBaseContext.getTaskConfig();
+		Long retryIntervalSecond = taskConfig.getTaskRetryConfig().getRetryIntervalSecond();
+		long retryIntervalMs = TimeUnit.SECONDS.toMillis(retryIntervalSecond);
+		Long taskRetryTimeSecond = taskConfig.getTaskRetryConfig().getMaxRetryTime(TimeUnit.SECONDS);
+		long taskRetryDurationMs = TimeUnit.SECONDS.toMillis(taskRetryTimeSecond);
+		TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskDto, taskRetryDurationMs, retryIntervalMs, getRetryTimes(retryIntervalSecond));
+		return taskRetryService;
 	}
 }
