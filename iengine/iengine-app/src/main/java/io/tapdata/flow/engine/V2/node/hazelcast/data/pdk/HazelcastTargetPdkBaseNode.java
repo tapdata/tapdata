@@ -621,7 +621,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						transactionCommit();
 					}
 				} catch (Exception e) {
-					transactionRollback();
+					if (checkExactlyOnceWriteEnableResult.getEnable() && hasExactlyOnceWriteCache) {
+						transactionRollback();
+					}
 					throw e;
 				}
 				flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
