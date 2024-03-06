@@ -1,6 +1,8 @@
 package io.tapdata.observable.logging.appender;
 
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -9,8 +11,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.RollingFileAppender;
 import org.apache.logging.log4j.core.appender.rolling.CompositeTriggeringPolicy;
 import org.apache.logging.log4j.core.appender.rolling.DefaultRolloverStrategy;
-import org.apache.logging.log4j.core.appender.rolling.SizeBasedTriggeringPolicy;
-import org.apache.logging.log4j.core.appender.rolling.TimeBasedTriggeringPolicy;
+import org.apache.logging.log4j.core.appender.rolling.action.*;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.layout.PatternLayout;
@@ -25,9 +26,18 @@ import java.util.List;
 public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 	public static final String LOGGER_NAME_PREFIX = "job-file-log-";
 	public static final String LOG_PATH = "logs" + File.separator + "jobs";
-	public static final String ONE_GB = "1G";
+
+	private ObsLoggerFactory obsLoggerFactory=ObsLoggerFactory.getInstance();
 	private final Logger logger;
 	private final String workDir;
+
+	private String logsPath;
+
+	public RollingFileAppender getRollingFileAppender() {
+		return rollingFileAppender;
+	}
+
+	private RollingFileAppender rollingFileAppender;
 
 	private FileAppender(String workDir, String taskId) {
 		super(taskId);
@@ -69,6 +79,10 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 		}
 	}
 
+	public String getLogsPath() {
+		return logsPath;
+	}
+
 	@Override
 	public void start() {
 		StringBuilder logsPath = new StringBuilder();
@@ -77,7 +91,8 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 		} else {
 			logsPath.append(LOG_PATH);
 		}
-
+		this.logsPath = logsPath.toString();
+		LogConfiguration logConfiguration = obsLoggerFactory.getLogConfiguration("task");
 		final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
 		final Configuration config = ctx.getConfiguration();
 		PatternLayout patternLayout = PatternLayout.newBuilder()
@@ -85,20 +100,24 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 				.withConfiguration(config)
 				.build();
 
-		TimeBasedTriggeringPolicy timeBasedTriggeringPolicy = TimeBasedTriggeringPolicy.newBuilder().withInterval(1).withModulate(true).build();
-		SizeBasedTriggeringPolicy sizeBasedTriggeringPolicy = SizeBasedTriggeringPolicy.createPolicy(ONE_GB);
-		CompositeTriggeringPolicy compositeTriggeringPolicy = CompositeTriggeringPolicy.createPolicy(timeBasedTriggeringPolicy, sizeBasedTriggeringPolicy);
+		CompositeTriggeringPolicy compositeTriggeringPolicy = AppenderFactory.getInstance().getCompositeTriggeringPolicy(logConfiguration.getLogSaveSize().toString());
+		String golb = taskId + "-*.log.*.gz";
+		DeleteAction deleteAction = AppenderFactory.getInstance().getDeleteAction(logConfiguration.getLogSaveTime(), logsPath.toString(), golb, config);
+		Action[] actions = {deleteAction};
 		DefaultRolloverStrategy strategy = DefaultRolloverStrategy.newBuilder()
+				.withMax(logConfiguration.getLogSaveCount().toString())
+				.withCustomActions(actions)
 				.withConfig(config).build();
 
 		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
 				.setName("rollingFileAppender-" + taskId)
 				.withFileName(logsPath + File.separator + taskId + ".log")
-				.withFilePattern(logsPath + File.separator + taskId + ".log.%d{yyyyMMdd}-%i.gz")
+				.withFilePattern(logsPath + File.separator + taskId + "-%i.log.%d{yyyyMMdd}.gz")
 				.setLayout(patternLayout)
 				.withPolicy(compositeTriggeringPolicy)
 				.withStrategy(strategy)
 				.build();
+		this.rollingFileAppender = rollingFileAppender;
 		rollingFileAppender.start();
 		org.apache.logging.log4j.core.Logger coreLogger = (org.apache.logging.log4j.core.Logger) logger;
 		coreLogger.addAppender(rollingFileAppender);

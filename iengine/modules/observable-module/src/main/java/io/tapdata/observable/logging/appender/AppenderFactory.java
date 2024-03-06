@@ -15,7 +15,11 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
+import org.apache.logging.log4j.core.appender.rolling.CompositeTriggeringPolicy;
+import org.apache.logging.log4j.core.appender.rolling.SizeBasedTriggeringPolicy;
+import org.apache.logging.log4j.core.appender.rolling.TimeBasedTriggeringPolicy;
+import org.apache.logging.log4j.core.appender.rolling.action.*;
+import org.apache.logging.log4j.core.config.Configuration;
 import java.io.File;
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
@@ -203,5 +207,20 @@ public class AppenderFactory implements Serializable {
 
 	private <T> T nullStringProcess(String inputString, Supplier<T> nullSupplier, Supplier<T> getResult) {
 		return "null".equals(inputString) || null == inputString ? nullSupplier.get() : getResult.get();
+	}
+
+	public CompositeTriggeringPolicy getCompositeTriggeringPolicy(String logFileSaveSize) {
+		TimeBasedTriggeringPolicy timeBasedTriggeringPolicy = TimeBasedTriggeringPolicy.newBuilder().withInterval(1).withModulate(true).build();
+		SizeBasedTriggeringPolicy sizeBasedTriggeringPolicy = SizeBasedTriggeringPolicy.createPolicy(logFileSaveSize + "M");
+		CompositeTriggeringPolicy compositeTriggeringPolicy = CompositeTriggeringPolicy.createPolicy(timeBasedTriggeringPolicy, sizeBasedTriggeringPolicy);
+		return compositeTriggeringPolicy;
+	}
+
+	public DeleteAction getDeleteAction(Integer LogFileSaveTime, String logPath, String golb, Configuration config) {
+		IfLastModified ifLastModified = IfLastModified.createAgeCondition(Duration.parse(LogFileSaveTime + "d"), null);
+		IfFileName ifFileName = IfFileName.createNameCondition(golb, null);
+		PathCondition[] pathConditions = {ifFileName, ifLastModified};
+		DeleteAction deleteAction = DeleteAction.createDeleteAction(logPath + "/", false, 2, false, null, pathConditions, null, config);
+		return deleteAction;
 	}
 }

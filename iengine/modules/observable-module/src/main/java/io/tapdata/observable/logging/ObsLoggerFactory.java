@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -80,6 +81,10 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	private final Map<String, Map<String, TaskLoggerNodeProxy>> taskLoggerNodeProxyMap = new ConcurrentHashMap<>();
 
 	private final ScheduledExecutorService scheduleExecutorService;
+
+	public Map<String, TaskLogger> getTaskLoggersMap() {
+		return taskLoggersMap;
+	}
 
 	private void renewTaskLogSetting() {
 		Thread.currentThread().setName("Renew-Task-Logger-Setting-Scheduler");
@@ -246,6 +251,13 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 			}
 		}
 		return null;
+	}
+	public LogConfiguration getLogConfiguration(String logConfigPrefix) {
+		int agentLogFileSaveTime = settingService.getInt(logConfigPrefix + "_log_file_save_time", 180);
+		int agentLogFileSaveSize = settingService.getInt(logConfigPrefix + "_log_file_save_size", 10);
+		int agentLogFileSaveCount = settingService.getInt(logConfigPrefix + "_log_file_save_count", 100);
+		LogConfiguration agentLogConfiguration = new LogConfiguration(agentLogFileSaveTime, agentLogFileSaveSize, agentLogFileSaveCount);
+		return agentLogConfiguration;
 	}
 
 	@Override

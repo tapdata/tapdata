@@ -7,18 +7,21 @@ import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.observable.logging.appender.*;
+import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import io.tapdata.observable.logging.with.WithAppender;
 import lombok.Getter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.RollingFileAppender;
+import org.apache.logging.log4j.core.appender.rolling.*;
+import org.apache.logging.log4j.core.appender.rolling.action.*;
+import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -26,7 +29,7 @@ import java.util.function.BiConsumer;
 /**
  * @author Dexter
  **/
-class TaskLogger extends ObsLogger {
+public class TaskLogger extends ObsLogger {
 	private static final Long RECORD_CEILING_DEFAULT = 500L;
 	private static final Long INTERVAL_CEILING_DEFAULT = 500L;
 	private static final long serialVersionUID = -5640539419072201312L;
@@ -324,5 +327,26 @@ class TaskLogger extends ObsLogger {
 			this.logAppendFactory.removeAppenders(taskId);
 		}
 		tapObsAppenders.forEach(Appender::stop);
+	}
+
+	public void refreshFileAppender(LogConfiguration logConfiguration) {
+		Configuration config = LoggerContext.getContext(false).getConfiguration();
+		for (io.tapdata.observable.logging.appender.Appender<?> appender : tapObsAppenders) {
+			if (appender instanceof FileAppender) {
+				RollingFileAppender rollingFileAppender = ((FileAppender) appender).getRollingFileAppender();
+				RollingFileManager manager = rollingFileAppender.getManager();
+				CompositeTriggeringPolicy compositeTriggeringPolicy = logAppendFactory.getCompositeTriggeringPolicy(logConfiguration.getLogSaveSize().toString());
+				String golb = taskId + "-*.log.*.gz";
+				DeleteAction deleteAction = logAppendFactory.getDeleteAction(logConfiguration.getLogSaveTime(), ((FileAppender) appender).getLogsPath(), golb, config);
+				Action[] actions = {deleteAction};
+				DefaultRolloverStrategy strategy = DefaultRolloverStrategy.newBuilder()
+						.withMax(logConfiguration.getLogSaveCount().toString())
+						.withCustomActions(actions)
+						.withConfig(config)
+						.build();
+				manager.setRolloverStrategy(strategy);
+				manager.setTriggeringPolicy(compositeTriggeringPolicy);
+			}
+		}
 	}
 }

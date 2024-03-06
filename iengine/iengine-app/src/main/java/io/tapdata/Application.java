@@ -14,10 +14,9 @@ import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.JetExceptionFilter;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.script.ScriptFactory;
-import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
+import io.tapdata.observable.logging.appender.AppenderFactory;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -27,10 +26,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.RollingFileAppender;
-import org.apache.logging.log4j.core.appender.rolling.CompositeTriggeringPolicy;
-import org.apache.logging.log4j.core.appender.rolling.DefaultRolloverStrategy;
-import org.apache.logging.log4j.core.appender.rolling.SizeBasedTriggeringPolicy;
-import org.apache.logging.log4j.core.appender.rolling.TimeBasedTriggeringPolicy;
+import org.apache.logging.log4j.core.appender.rolling.*;
+import org.apache.logging.log4j.core.appender.rolling.action.*;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.core.util.IOUtils;
@@ -50,8 +47,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 import org.yaml.snakeyaml.Yaml;
-
-import javax.script.ScriptEngine;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -88,8 +83,12 @@ public class Application {
 	private static final String TAG = Application.class.getSimpleName();
 	public static final String LOG_PATH = "logs" + File.separator + "agent";
 	public static final String ROLLING_FILE_APPENDER = "rollingFileAppender";
-	private static String logsPath = LOG_PATH;
+	public static String logsPath = LOG_PATH;
 	private static Level defaultLogLevel = Level.INFO;
+
+	private static Integer DEFAULT_LOG_SAVE_TIME=180;
+	private static String DEFAULT_LOG_SAVE_SIZE="10";
+	private static String DEFAULT_LOG_SAVE_COUNT="100";
 	private static Logger logger = LogManager.getLogger(Application.class);
 	private static Logger pdkLogger = LogManager.getLogger("PDK");
 
@@ -239,7 +238,7 @@ public class Application {
 		return scheduler;
 	}
 
-	private static void addRollingFileAppender(String tapdataWorkDir) {
+	protected static void addRollingFileAppender(String tapdataWorkDir) {
 
 		Level defaultLogLevel = Level.INFO;
 		String debug = System.getenv("DEBUG");
@@ -271,18 +270,20 @@ public class Application {
 				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n")
 				.build();
 
-		TimeBasedTriggeringPolicy timeBasedTriggeringPolicy = TimeBasedTriggeringPolicy.newBuilder().withInterval(1).withModulate(true).build();
-		SizeBasedTriggeringPolicy sizeBasedTriggeringPolicy = SizeBasedTriggeringPolicy.createPolicy("1GB");
-		CompositeTriggeringPolicy compositeTriggeringPolicy = CompositeTriggeringPolicy.createPolicy(timeBasedTriggeringPolicy, sizeBasedTriggeringPolicy);
+		CompositeTriggeringPolicy compositeTriggeringPolicy = AppenderFactory.getInstance().getCompositeTriggeringPolicy(DEFAULT_LOG_SAVE_SIZE);
+		String glob="tapdata-agent-*.log.*.gz";
+		DeleteAction deleteAction = AppenderFactory.getInstance().getDeleteAction(DEFAULT_LOG_SAVE_TIME, logsPath.toString(), glob, config);
+		Action[] actions = {deleteAction};
 		DefaultRolloverStrategy strategy = DefaultRolloverStrategy.newBuilder()
-				.withMax("30")
+				.withMax(DEFAULT_LOG_SAVE_COUNT)
+				.withCustomActions(actions)
 				.withConfig(config).build();
 
 		JetExceptionFilter jetExceptionFilter = new JetExceptionFilter.TapLogBuilder().build();
 		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
 				.setName(ROLLING_FILE_APPENDER)
 				.withFileName(logsPath + "/tapdata-agent.log")
-				.withFilePattern(logsPath + "/tapdata-agent.log.%d{yyyyMMdd}.gz")
+				.withFilePattern(logsPath + "/tapdata-agent-%i.log.%d{yyyyMMdd}.gz")
 				.setLayout(patternLayout)
 				.withPolicy(compositeTriggeringPolicy)
 				.withStrategy(strategy)
