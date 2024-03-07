@@ -45,21 +45,13 @@ public class TaskRetryFactory extends RetryFactory implements Serializable {
 			throw new IllegalArgumentException("Task id cannot be null");
 		}
 		String taskId = taskDto.getId().toHexString();
-		synchronized (taskRetryServiceMap) {
-			TaskRetryService taskRetryService = taskRetryServiceMap.get(taskId);
+		return taskRetryServiceMap.computeIfAbsent(taskId, k -> {
 			TaskRetryContext taskRetryContext = TaskRetryContext.create(taskDto, retryDurationMs, retryIntervalMs);
 			if (null != methodRetryTime && methodRetryTime.compareTo(0L) > 0) {
 				taskRetryContext.setMethodRetryTime(methodRetryTime);
 			}
-			if (taskRetryService == null) {
-				TaskRetryService taskRetryService1 = TaskRetryService.create(taskRetryContext);
-				taskRetryServiceMap.put(taskId,taskRetryService1);
-				return taskRetryService1;
-			}else{
-				taskRetryService.setRetryContext(taskRetryContext);
-				return taskRetryService;
-			}
-		}
+			return TaskRetryService.create(taskRetryContext);
+		});
 	}
 
 	public Optional<TaskRetryService> getTaskRetryService(String taskId) {

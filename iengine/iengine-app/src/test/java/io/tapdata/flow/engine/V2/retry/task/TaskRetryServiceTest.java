@@ -125,6 +125,8 @@ class TaskRetryServiceTest {
         @DisplayName("Test get methodRetryDurationMinutes when methodRetryDurationMinutes less than 0")
         @Test
         void test2(){
+            ObjectId objectId = new ObjectId();
+            taskDto.setId(objectId);
             TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskDto, 0L, 60000L, 15L);
             long methodRetryDurationMinutes = taskRetryService.getMethodRetryDurationMinutes();
             assertEquals(0,methodRetryDurationMinutes);

@@ -32,8 +32,8 @@ public class TaskRetryService extends RetryService implements Serializable {
 	private final Object lock = new Object();
 	private Long startRetryTimeMs;
 	private Long endRetryTimeMs;
-	public static final long DEFAULT_FUNCTION_RETRY_TIME_SECOND = 900L;
 
+	public static final long DEFAULT_FUNCTION_RETRY_TIME_SECOND = TimeUnit.MINUTES.toSeconds(15L);
 
 	protected TaskRetryService(TaskRetryContext taskRetryContext) {
 		super(taskRetryContext);
