@@ -63,7 +63,6 @@ import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
-import static io.tapdata.pdk.core.utils.RetryUtils.DEFAULT_RETRY_PERIOD_SECONDS;
 
 /**
  * @author samuel
@@ -133,7 +132,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	public PDKMethodInvoker createPdkMethodInvoker() {
-		TaskRetryService taskRetryService = getTaskRetryService();
+		TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(processorBaseContext);
 		TaskRetryContext retryContext = (TaskRetryContext) taskRetryService.getRetryContext();
 		TaskDto taskDto = retryContext.getTaskDto();
 		long retryIntervalSecond = TimeUnit.MILLISECONDS.toSeconds(retryContext.getRetryIntervalMs());

@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.retry.task;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import org.bson.types.ObjectId;
@@ -14,6 +15,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.spy;
+
 class TaskRetryServiceTest {
     private TaskRetryFactory taskRetryFactory;
     private TaskDto taskDto;
@@ -125,6 +128,23 @@ class TaskRetryServiceTest {
             TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskDto, 0L, 60000L, 15L);
             long methodRetryDurationMinutes = taskRetryService.getMethodRetryDurationMinutes();
             assertEquals(0,methodRetryDurationMinutes);
+        }
+    }
+    @Nested
+    class GetRetryTimesTest{
+
+
+        @DisplayName("Test get retryTime when retryIntervalSecond is 60L")
+        @Test
+        void test1(){
+            long retryTimes = TaskRetryService.getRetryTimes(60L);
+            assertEquals(15L,retryTimes);
+        }
+        @DisplayName("Test get retryTime when retryIntervalSecond is 0L")
+        @Test
+        void test2(){
+            long retryTimes = TaskRetryService.getRetryTimes(0);
+            assertEquals(15L,retryTimes);
         }
     }
 }

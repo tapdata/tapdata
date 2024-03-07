@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.task.retry.task;
 
+import com.tapdata.entity.task.config.TaskConfig;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.task.retry.RetryFactory;
 import org.apache.commons.lang3.StringUtils;
@@ -9,6 +11,9 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+
+import static io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService.getRetryTimes;
 
 /**
  * @author samuel
@@ -69,6 +74,16 @@ public class TaskRetryFactory extends RetryFactory implements Serializable {
 			return;
 		}
 		taskRetryServiceMap.remove(taskId);
+	}
+	public TaskRetryService getTaskRetryService(ProcessorBaseContext processorBaseContext) {
+		TaskDto taskDto = processorBaseContext.getTaskDto();
+		TaskConfig taskConfig = processorBaseContext.getTaskConfig();
+		Long retryIntervalSecond = taskConfig.getTaskRetryConfig().getRetryIntervalSecond();
+		long retryIntervalMs = TimeUnit.SECONDS.toMillis(retryIntervalSecond);
+		Long taskRetryTimeSecond = taskConfig.getTaskRetryConfig().getMaxRetryTime(TimeUnit.SECONDS);
+		long taskRetryDurationMs = TimeUnit.SECONDS.toMillis(taskRetryTimeSecond);
+		TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskDto, taskRetryDurationMs, retryIntervalMs, getRetryTimes(retryIntervalSecond));
+		return taskRetryService;
 	}
 
 	private enum SingleTon {
