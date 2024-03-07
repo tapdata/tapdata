@@ -36,7 +36,10 @@ public enum NodeEnum {
     standard_migrate_js_processor("标准JS节点"),
     union_processor("Union节点"),
     migrate_field_mod_type_filter_processor("类型过滤节点"),
-    unwind_processor("Unwind节点");
+    unwind_processor("Unwind节点"),
+    add_date_field_processor("增加时间字段节点"),
+    migrate_add_date_field_processor("增加时间字段节点");
+
     @Getter
     private String nodeName;
 
