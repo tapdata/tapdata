@@ -1694,4 +1694,29 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(true,result);
 		}
 	}
+	@Nested
+	class InitMergeCacheTest{
+		private HazelcastMergeNode mockHazelcastMergeNode;
+		@BeforeEach
+		void setUp(){
+			mockHazelcastMergeNode=spy(hazelcastMergeNode);
+		}
+		@Test
+		void test1(){
+			processorBaseContext.getTaskDto().setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			mockHazelcastMergeNode.initMergeCache();
+			Map<String, ConstructIMap<Document>> cacheMap= (Map<String, ConstructIMap<Document>>) ReflectionTestUtils.getField(mockHazelcastMergeNode, "mergeCacheMap");
+			when(mockHazelcastMergeNode.isSubTableFirstMode()).thenReturn(false);
+			assertEquals(null,cacheMap);
+		}
+		@Test
+		void test2(){
+			processorBaseContext.getTaskDto().setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			when(mockHazelcastMergeNode.isSubTableFirstMode()).thenReturn(true);
+			mockHazelcastMergeNode.initMergeCache();
+			Map<String, ConstructIMap<Document>> cacheMap = (Map<String, ConstructIMap<Document>>) ReflectionTestUtils.getField(mockHazelcastMergeNode, "mergeCacheMap");
+			boolean mapIsNull = cacheMap != null;
+			assertEquals(true,mapIsNull);
+		}
+	}
 }
