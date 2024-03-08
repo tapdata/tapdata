@@ -115,10 +115,11 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 		long expectedValue = 99;
 		TapTable testTable = new TapTable("testTable");
-		BatchCountFunction mockBatchCountFunction = mock(BatchCountFunction.class);
+		BatchCountFunction mockBatchCountFunction;
 
 		@BeforeEach
 		void beforeEach() {
+			mockBatchCountFunction= mock(BatchCountFunction.class);
 		}
 
 		@Test
@@ -134,7 +135,6 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(instance);
 			doReturn(new ConnectorNode()).when(spyInstance).getConnectorNode();
-
 			try {
 				spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
 			} catch (Exception e) {
