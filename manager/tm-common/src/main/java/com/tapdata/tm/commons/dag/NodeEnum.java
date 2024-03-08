@@ -37,8 +37,8 @@ public enum NodeEnum {
     union_processor("Union节点"),
     migrate_field_mod_type_filter_processor("类型过滤节点"),
     unwind_processor("Unwind节点"),
-    add_date_field_processor("增加时间字段节点"),
-    migrate_add_date_field_processor("增加时间字段节点");
+    ADD_DATE_FIELD_PROCESSOR("增加时间字段节点"),
+    MIGRATE_ADD_DATE_FIELD_PROCESSOR("增加时间字段节点");
 
     @Getter
     private String nodeName;
