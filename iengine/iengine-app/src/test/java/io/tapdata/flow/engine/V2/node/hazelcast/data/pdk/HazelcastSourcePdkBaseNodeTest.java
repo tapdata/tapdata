@@ -34,14 +34,15 @@ import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
-
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -135,9 +136,9 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			taskConfig.getTaskRetryConfig().retryIntervalSecond(1000L);
 			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
 
-			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(instance);
+			HazelcastSourcePdkBaseNode spyInstance = spy(instance);
 			doReturn(new ConnectorNode()).when(spyInstance).getConnectorNode();
-			assertThrows(RuntimeException.class, () -> {
+			RuntimeException runtimeException = assertThrows(RuntimeException.class, () -> {
 				spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
 			});
 		}
