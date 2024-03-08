@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
+import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.logger.TapLogger;
@@ -324,7 +325,9 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		private HttpClientMongoOperator mongoCollection;
 		@BeforeEach
         public void setUp(){
-			spyhazelcastPdkBaseNode=spy(hazelcastPdkBaseNode);
+			HazelcastPdkBaseNode mockHazelcastPdkBaseNode = new HazelcastPdkBaseNode(dataProcessorContext) {
+			};
+			spyhazelcastPdkBaseNode=spy(mockHazelcastPdkBaseNode);
 			mongoCollection=mock(HttpClientMongoOperator.class);
 			ReflectionTestUtils.setField(spyhazelcastPdkBaseNode,"clientMongoOperator",mongoCollection);
 		}
@@ -360,6 +363,8 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		private HazelcastPdkBaseNode spyhazelcastPdkBaseNode;
 		@BeforeEach
 		void setUp(){
+			HazelcastPdkBaseNode hazelcastPdkBaseNode = new HazelcastPdkBaseNode(dataProcessorContext) {
+			};
 			spyhazelcastPdkBaseNode=spy(hazelcastPdkBaseNode);
 		}
 		@DisplayName("MaxRetryTimeMinute Greater than 0")
