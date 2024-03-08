@@ -13,6 +13,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.tapdata.tm.commons.schema.SchemaUtils.createField;
 
@@ -32,15 +33,19 @@ public class AddDateFieldProcessorNode extends ProcessorNode{
     public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
         Schema outputSchema = super.mergeSchema(inputSchemas, schema, options);
         if (StringUtils.isNotBlank(dateFieldName)) {
-            FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
-            fieldOperation.setType("Date");
-            fieldOperation.setField(dateFieldName);
-            fieldOperation.setOp("CREATE");
-            fieldOperation.setTableName(outputSchema.getName());
-            Field field = createField(this.getId(), outputSchema.getOriginalName(), fieldOperation);
-            field.setSource("job_analyze");
-            field.setTapType(FieldModTypeProcessorNode.calTapType(field.getDataType()));
-            outputSchema.getFields().add(field);
+            List<String> fieldNames = outputSchema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
+            boolean fieldExistFlag = fieldNames.stream().anyMatch((fieldName) -> dateFieldName.equals(fieldName));
+            if (!fieldExistFlag) {
+                FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
+                fieldOperation.setType("Date");
+                fieldOperation.setField(dateFieldName);
+                fieldOperation.setOp("CREATE");
+                fieldOperation.setTableName(outputSchema.getName());
+                Field field = createField(this.getId(), outputSchema.getOriginalName(), fieldOperation);
+                field.setSource("job_analyze");
+                field.setTapType(FieldModTypeProcessorNode.calTapType(field.getDataType()));
+                outputSchema.getFields().add(field);
+            }
         }
         return outputSchema;
     }

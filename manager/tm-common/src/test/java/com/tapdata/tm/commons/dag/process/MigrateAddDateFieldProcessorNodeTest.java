@@ -22,11 +22,6 @@ import static org.mockito.Mockito.*;
 public class MigrateAddDateFieldProcessorNodeTest {
     private MigrateAddDateFieldProcessorNode migrateAddDateFieldProcessorNode=new MigrateAddDateFieldProcessorNode();
 
-    @Test
-    void loadSchemaTest(){
-        List<Schema> schemaList = migrateAddDateFieldProcessorNode.loadSchema(null);
-        assertEquals(null,schemaList);
-    }
     public List<Field> getFields() {
         Field field = new Field();
         field.setFieldName("name");
@@ -37,59 +32,6 @@ public class MigrateAddDateFieldProcessorNodeTest {
         List<Field> list=new ArrayList<>();
         list.add(field);
         return list;
-    }
-    @Test
-    void getConnectIdTest(){
-        MigrateAddDateFieldProcessorNode mockMigrateAddDateFieldProcessorNode = mock(MigrateAddDateFieldProcessorNode.class);
-        doCallRealMethod().when(mockMigrateAddDateFieldProcessorNode).getConnectId();
-        DatabaseNode databaseNode = new DatabaseNode();
-        databaseNode.setConnectionId("123");
-        List<DatabaseNode> databaseNodes=new ArrayList<>();
-        databaseNodes.add(databaseNode);
-        when(mockMigrateAddDateFieldProcessorNode.getSourceNode()).thenReturn(databaseNodes);
-        String connectId = mockMigrateAddDateFieldProcessorNode.getConnectId();
-        assertEquals("123",connectId);
-    }
-
-    @Test
-    void saveSchemaTest(){
-        Schema schema = new Schema();
-        List<Field> fields = getFields();
-        schema.setFields(fields);
-        List<Schema> schemaList=new ArrayList<>();
-        schemaList.add(schema);
-        DAGDataService dagDataService = mock(DAGDataService.class);
-        doAnswer(invocationOnMock -> {
-            List<Schema> argument = (List<Schema>) invocationOnMock.getArgument(2);
-            argument.forEach(schema1 -> {
-                assertEquals("123",schema1.getNodeId());
-            });
-            return null;
-        }).when(dagDataService).createOrUpdateSchema(any(),any(),any(),any(),any());
-        DAG dag = mock(DAG.class);
-        ReflectionTestUtils.setField(dag,"ownerId","123");
-        migrateAddDateFieldProcessorNode.setDag(dag);
-        migrateAddDateFieldProcessorNode.setService(dagDataService);
-        migrateAddDateFieldProcessorNode.saveSchema(null,"123",schemaList,null);
-    }
-    @DisplayName("test Clone Schema normal")
-    @Test
-    void cloneSchemaTest(){
-        try(MockedStatic<SchemaUtils> schemaUtilsMockedStatic = mockStatic(SchemaUtils.class)){
-            Schema schema = new Schema();
-            List<Field> fields = getFields();
-            schema.setFields(fields);
-            List<Schema> schemaList=new ArrayList<>();
-            schemaList.add(schema);
-            when(SchemaUtils.cloneSchema(anyList())).thenReturn(schemaList);
-            assertDoesNotThrow(()->{migrateAddDateFieldProcessorNode.cloneSchema(schemaList);});
-        }
-    }
-    @DisplayName("test Clone Schema null")
-    @Test
-    void cloneSchemaTest2(){
-        List<Schema> schemaList = migrateAddDateFieldProcessorNode.cloneSchema(null);
-        assertEquals(0,schemaList.size());
     }
 
     @Nested
@@ -137,8 +79,30 @@ public class MigrateAddDateFieldProcessorNodeTest {
                 assertEquals("createTime",resultField.get(1).getId());
                 assertEquals("Date",resultField.get(1).getDataType());
             }
-
         }
 
+        @DisplayName("test mergeSchema have exist Field")
+        @Test
+        void mergeSchemaTest4() {
+            migrateAddDateFieldProcessorNode.setDateFieldName("name");
+            try (MockedStatic<SchemaUtils> schemaUtilsMockedStatic = mockStatic(SchemaUtils.class)) {
+                Schema schema = new Schema();
+                List<Field> fields = getFields();
+                schema.setFields(fields);
+                List<Schema> schemaList = new ArrayList<>();
+                schemaList.add(schema);
+                List<List<Schema>> inputSchema = new ArrayList<>();
+                inputSchema.add(schemaList);
+
+                Field dateField = new Field();
+                dateField.setId("name");
+                dateField.setDataType("Date");
+                dateField.setFieldName("createTime");
+                when(SchemaUtils.createField(any(), any(), any())).thenReturn(dateField);
+                List<Schema> schemaList1 = migrateAddDateFieldProcessorNode.mergeSchema(inputSchema, null, null);
+                List<Field> resultField = schemaList1.get(0).getFields();
+                assertEquals(1, resultField.size());
+            }
+        }
     }
 }

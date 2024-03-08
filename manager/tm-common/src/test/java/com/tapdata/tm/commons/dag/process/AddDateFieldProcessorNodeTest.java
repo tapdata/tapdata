@@ -79,5 +79,33 @@ public class AddDateFieldProcessorNodeTest {
                 assertEquals(1,resultSchema.getFields().size());
             }
         }
+        @Test
+        void test3(){
+            try(MockedStatic<SchemaUtils> schemaUtilsMockedStatic = mockStatic(SchemaUtils.class)){
+                addDateFieldProcessorNode.setDateFieldName("timeCreate");
+                Schema schema = new Schema();
+
+                Field field = new Field();
+                field.setFieldName("timeCreate");
+                field.setDataType("String");
+                field.setColumnSize(100);
+                field.setOriPrecision(100);
+                field.setSource("manual");
+                List<Field> list=new ArrayList<>();
+                list.add(field);
+                schema.setFields(list);
+                List<Schema> schemaList=new ArrayList<>();
+                schemaList.add(schema);
+                when(SchemaUtils.mergeSchema(schemaList,schema)).thenReturn(schema);
+                Field dateField = new Field();
+                dateField.setId("timeCreate");
+                dateField.setDataType("Date");
+                dateField.setFieldName("createTime");
+                when(SchemaUtils.createField(any(),any(),any())).thenReturn(dateField);
+
+                Schema resultSchema = addDateFieldProcessorNode.mergeSchema(Arrays.asList(schema), schema, null);
+                assertEquals(1,resultSchema.getFields().size());
+            }
+        }
     }
 }

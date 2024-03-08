@@ -39,7 +39,9 @@ public class HazelcastAddDateFieldProcessNode extends HazelcastProcessorBaseNode
         if (MapUtils.isEmpty(record) && MapUtils.isNotEmpty(TapEventUtil.getBefore(tapEvent))) {
             record = TapEventUtil.getBefore(tapEvent);
         }
-        record.put(dateFieldName, new DateTime(System.currentTimeMillis()));
+        if (!record.containsKey(dateFieldName)) {
+            record.put(dateFieldName, new DateTime(System.currentTimeMillis()));
+        }
         consumer.accept(tapdataEvent, processResult);
     }
 }

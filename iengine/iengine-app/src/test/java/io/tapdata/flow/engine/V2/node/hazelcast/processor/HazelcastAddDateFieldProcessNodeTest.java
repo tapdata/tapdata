@@ -86,5 +86,24 @@ public class HazelcastAddDateFieldProcessNodeTest extends BaseHazelcastNodeTest 
             return null;
         }).when(consumer).accept(any(),any());
     }
+    @DisplayName("test tryProcess when tapEvent is Dml event and event has will add field")
+    @Test
+    void test4(){
+        BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult> consumer = mock(BiConsumer.class);
+        TapdataEvent tapdataEvent = new TapdataEvent();
+        TapUpdateRecordEvent tapUpdateRecordEvent = TapUpdateRecordEvent.create();
+        tapUpdateRecordEvent.putAfterValue("dateTime","wim");
+        tapdataEvent.setTapEvent(tapUpdateRecordEvent);
+        addDateFieldProcessNode.tryProcess(tapdataEvent,consumer);
+        doAnswer(invocationOnMock -> {
+            TapdataEvent tapdataEvent1 = (TapdataEvent) invocationOnMock.getArgument(0);
+            TapUpdateRecordEvent tapEvent = (TapUpdateRecordEvent) tapdataEvent1.getTapEvent();
+            Map<String, Object> after = tapEvent.getAfter();
+            assertEquals(1,after.size());
+            assertEquals(true,after.containsKey("dateTime"));
+            assertEquals("wim",after.get("name"));
+            return null;
+        }).when(consumer).accept(any(),any());
+    }
 
 }

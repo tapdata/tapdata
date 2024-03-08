@@ -18,6 +18,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId;
 import static com.tapdata.tm.commons.schema.SchemaUtils.createField;
@@ -40,51 +41,26 @@ public class MigrateAddDateFieldProcessorNode extends MigrateProcessorNode{
             return Lists.newArrayList();
         }
         List<Schema> outputSchemas = inputSchemas.get(0);
-        if(StringUtils.isBlank(dateFieldName)){
+        if (StringUtils.isBlank(dateFieldName)) {
             return outputSchemas;
         }
         outputSchemas.forEach(schema -> {
-            FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
-            fieldOperation.setType("Date");
-            fieldOperation.setField(dateFieldName);
-            fieldOperation.setOp("CREATE");
-            fieldOperation.setTableName(schema.getName());
-            Field field = createField(this.getId(), schema.getOriginalName(), fieldOperation);
-            field.setSource("job_analyze");
-            field.setTapType(FieldModTypeProcessorNode.calTapType(field.getDataType()));
-            schema.getFields().add(field);
+            List<String> fieldNames = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
+            boolean fieldExistFlag = fieldNames.stream().anyMatch((fieldName) -> dateFieldName.equals(fieldName));
+            if (!fieldExistFlag) {
+                FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
+                fieldOperation.setType("Date");
+                fieldOperation.setField(dateFieldName);
+                fieldOperation.setOp("CREATE");
+                fieldOperation.setTableName(schema.getName());
+                Field field = createField(this.getId(), schema.getOriginalName(), fieldOperation);
+                field.setSource("job_analyze");
+                field.setTapType(FieldModTypeProcessorNode.calTapType(field.getDataType()));
+                schema.getFields().add(field);
+            }
         });
         return outputSchemas;
     }
 
-    @Override
-    protected List<Schema> loadSchema(List<String> includes) {
-        return null;
-    }
 
-    @Override
-    protected List<Schema> saveSchema(Collection<String> predecessors, String nodeId, List<Schema> schema, DAG.Options options) {
-
-        schema.forEach(s -> {
-            //s.setTaskId(taskId);
-            s.setNodeId(nodeId);
-        });
-
-        return service.createOrUpdateSchema(ownerId(), toObjectId(getConnectId()), schema, options, this);
-    }
-
-    @Override
-    protected List<Schema> cloneSchema(List<Schema> schemas) {
-        if (schemas == null) {
-            return Collections.emptyList();
-        }
-        return SchemaUtils.cloneSchema(schemas);
-    }
-
-    protected String getConnectId() {
-        AtomicReference<String> connectionId = new AtomicReference<>("");
-
-        getSourceNode().stream().findFirst().ifPresent(node -> connectionId.set(node.getConnectionId()));
-        return connectionId.get();
-    }
 }
