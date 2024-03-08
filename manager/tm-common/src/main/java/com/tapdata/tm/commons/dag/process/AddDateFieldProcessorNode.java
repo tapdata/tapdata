@@ -31,7 +31,7 @@ public class AddDateFieldProcessorNode extends ProcessorNode{
     @Override
     public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
         Schema outputSchema = super.mergeSchema(inputSchemas, schema, options);
-        if(StringUtils.isNotBlank(dateFieldName)){
+        if (StringUtils.isNotBlank(dateFieldName)) {
             FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
             fieldOperation.setType("Date");
             fieldOperation.setField(dateFieldName);

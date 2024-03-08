@@ -72,6 +72,7 @@ public class MigrateAddDateFieldProcessorNodeTest {
         migrateAddDateFieldProcessorNode.setService(dagDataService);
         migrateAddDateFieldProcessorNode.saveSchema(null,"123",schemaList,null);
     }
+    @DisplayName("test Clone Schema normal")
     @Test
     void cloneSchemaTest(){
         try(MockedStatic<SchemaUtils> schemaUtilsMockedStatic = mockStatic(SchemaUtils.class)){
@@ -84,6 +85,13 @@ public class MigrateAddDateFieldProcessorNodeTest {
             assertDoesNotThrow(()->{migrateAddDateFieldProcessorNode.cloneSchema(schemaList);});
         }
     }
+    @DisplayName("test Clone Schema null")
+    @Test
+    void cloneSchemaTest2(){
+        List<Schema> schemaList = migrateAddDateFieldProcessorNode.cloneSchema(null);
+        assertEquals(0,schemaList.size());
+    }
+
     @Nested
     class MergeSchemaTest{
         private MigrateAddDateFieldProcessorNode migrateAddDateFieldProcessorNode=new MigrateAddDateFieldProcessorNode();
