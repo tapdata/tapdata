@@ -11,6 +11,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -196,6 +197,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			nodeConfig = ((TableNode) node).getNodeConfig();
 		} else if (node instanceof DatabaseNode) {
 			nodeConfig = ((DatabaseNode) node).getNodeConfig();
+		} else if (node instanceof LogCollectorNode) {
+			nodeConfig = ((LogCollectorNode) node).getNodeConfig();
 		}
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
 				PdkUtil.createNode(taskDto.getId().toHexString(),
