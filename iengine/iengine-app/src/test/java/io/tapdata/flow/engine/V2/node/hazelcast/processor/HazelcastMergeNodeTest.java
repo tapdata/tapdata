@@ -4,7 +4,7 @@ import base.hazelcast.BaseHazelcastNodeTest;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.core.Processor;
-import com.tapdata.entity.AppType;
+import io.tapdata.utils.AppType;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -93,11 +93,11 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			AppType appType = AppType.DFS;
 			ExternalStorageDto externalStorageDto = mock(ExternalStorageDto.class);
 			try (
-					MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class);
+					MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class, CALLS_REAL_METHODS);
 					MockedStatic<ExternalStorageUtil> externalStorageUtilMockedStatic = mockStatic(ExternalStorageUtil.class);
 					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class)
 			) {
-				appTypeMockedStatic.when(AppType::init).thenReturn(appType);
+				appTypeMockedStatic.when(AppType::currentType).thenReturn(appType);
 				externalStorageUtilMockedStatic.when(() -> ExternalStorageUtil.getTargetNodeExternalStorage(
 						dataProcessorContext.getNode(),
 						dataProcessorContext.getEdges(),
@@ -124,11 +124,11 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			AppType appType = AppType.DAAS;
 			ExternalStorageDto externalStorageDto = mock(ExternalStorageDto.class);
 			try (
-					MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class);
+					MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class, CALLS_REAL_METHODS);
 					MockedStatic<ExternalStorageUtil> externalStorageUtilMockedStatic = mockStatic(ExternalStorageUtil.class);
 					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class)
 			) {
-				appTypeMockedStatic.when(AppType::init).thenReturn(appType);
+				appTypeMockedStatic.when(AppType::currentType).thenReturn(appType);
 				externalStorageUtilMockedStatic.when(() -> ExternalStorageUtil.getTargetNodeExternalStorage(
 						dataProcessorContext.getNode(),
 						dataProcessorContext.getEdges(),

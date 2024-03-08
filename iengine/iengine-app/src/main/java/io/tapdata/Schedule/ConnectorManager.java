@@ -31,6 +31,7 @@ import io.tapdata.metric.MetricManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.task.TapdataTaskScheduler;
+import io.tapdata.utils.AppType;
 import io.tapdata.websocket.ManagementWebsocketHandler;
 import io.tapdata.websocket.WebSocketEvent;
 import io.tapdata.websocket.handler.PongHandler;
@@ -161,8 +162,6 @@ public class ConnectorManager {
 	private final String stopJobThreadName = "Stop Connector runner Thread-%s-[%s]";
 	private ConcurrentHashMap<String, ConnectorStopJob> stopJobMap = new ConcurrentHashMap<>();
 
-	private AppType appType;
-
 	@Autowired
 	private MetricManager metricManager;
 
@@ -182,7 +181,7 @@ public class ConnectorManager {
 
     private final Supplier<Long> getRetryTimeoutSupplier = () -> {
         // change 60s to 300s, because DFS fault usually lasts longer than 1 minute
-        long defRestApiTimeout = CommonUtils.getPropertyLong("DEFAULT_REST_API_TIMEOUT", appType.isCloud() ? 300000L : 60000L);
+        long defRestApiTimeout = CommonUtils.getPropertyLong("DEFAULT_REST_API_TIMEOUT", AppType.currentType().isCloud() ? 300000L : 60000L);
         long minRestApiTimeout = CommonUtils.getPropertyLong("MINIMUM_REST_API_TIMEOUT", 30000L);
         long jobHeartTimeout = settingService.getLong("jobHeartTimeout", defRestApiTimeout);
         return Math.max((long) (jobHeartTimeout * 0.8), minRestApiTimeout);
@@ -270,7 +269,7 @@ public class ConnectorManager {
 
 				clientMongoOperator.updateAndParam(params, updateData, ConnectorConstant.WORKER_COLLECTION);
 			}
-		} else if (CollectionUtils.isEmpty(workers) && appType.isDrs()) {
+		} else if (CollectionUtils.isEmpty(workers) && AppType.currentType().isDrs()) {
 			String err = "Not found worker with params: " + params + ", will exit progress";
 			throw new RuntimeException(err);
 		}
@@ -289,7 +288,7 @@ public class ConnectorManager {
 		libs = classScanner.initLibs();
 		converters = classScanner.loadConverters();
 
-		if (!appType.isCloud()) {
+		if (!AppType.currentType().isCloud()) {
 			// init database type(s)
 //			initDatabaseTypes();
 
@@ -313,8 +312,8 @@ public class ConnectorManager {
 		configCenter.putConfig(ConfigurationCenter.BASR_URLS, baseURLs);
 		configCenter.putConfig(ConfigurationCenter.RETRY_TIME, restRetryTime);
 		configCenter.putConfig(ConfigurationCenter.AGENT_ID, instanceNo);
-		configCenter.putConfig(ConfigurationCenter.APPTYPE, null == appType ? AppType.DAAS : appType);
-		configCenter.putConfig(ConfigurationCenter.IS_CLOUD, appType.isCloud());
+		configCenter.putConfig(ConfigurationCenter.APPTYPE, AppType.currentType());
+		configCenter.putConfig(ConfigurationCenter.IS_CLOUD, AppType.currentType().isCloud());
 		configCenter.putConfig(ConfigurationCenter.WORK_DIR, null == tapdataWorkDir ? "" : tapdataWorkDir);
 		Optional.ofNullable(jobTags).ifPresent(j -> configCenter.putConfig(ConfigurationCenter.JOB_TAGS, jobTags));
 		Optional.ofNullable(region).ifPresent(j -> configCenter.putConfig(ConfigurationCenter.REGION, region));
@@ -344,7 +343,7 @@ public class ConnectorManager {
 	}
 	protected CheckEngineValidResultDto checkLicenseEngineLimit() {
 		CheckEngineValidResultDto resultDto = null;
-		if (!appType.isCloud()) {
+		if (!AppType.currentType().isCloud()) {
 			try {
 				Map<String, Object> processId = new HashMap<>();
 				processId.put("processId", instanceNo);
@@ -365,7 +364,7 @@ public class ConnectorManager {
 	}
 
 	private String checkCloudOneAgent() {
-		if (appType.isDfs()) {
+		if (AppType.currentType().isDfs()) {
 			String userId = (String) configCenter.getConfig(ConfigurationCenter.USER_ID);
 			if (StringUtils.isNotBlank(userId)) {
 				Query query = new Query(Criteria.where("ping_time")
@@ -440,7 +439,7 @@ public class ConnectorManager {
 		while (loginResp == null) {
 			try {
 
-				if (!appType.isCloud()) {
+				if (!AppType.currentType().isCloud()) {
 
 					MongoTemplate mongoTemplate = clientMongoOperator.getMongoTemplate();
 					List<User> users = mongoTemplate.find(new Query(where("role").is(1)), User.class, "User");
@@ -756,7 +755,7 @@ public class ConnectorManager {
 //          Connector connector = ConnectorJobManager.prepare(runningJob, clientMongoOperator, sourceConn,
 //            messageQueue, targetConn, baseURLs, (String) configCenter.getConfig(ConfigurationCenter.ACCESS_CODE),
 //            dataRulesMap, restRetryTime, settingService, user.getId(), user.getRole(), debugProcessor,
-//            messageDao.getCacheService(), tapdataShareContext, appType.isCloud(),
+//            messageDao.getCacheService(), tapdataShareContext, AppType.currentType().isCloud(),
 //            milestoneJobService, configCenter);
 //          if (connector != null) {
 //            // start connector threads
@@ -833,7 +832,7 @@ public class ConnectorManager {
 					}
 				});
 			} else {
-				if (MapUtils.isNotEmpty(ERR_JOB_MAP) && !appType.isCloud()) {
+				if (MapUtils.isNotEmpty(ERR_JOB_MAP) && !AppType.currentType().isCloud()) {
 					logger.warn("Stopping all connectors, because of all rest api call failed");
 					ERR_JOB_MAP.forEach((jobId, job) -> stopJob(job, true, true, false));
 					ERR_JOB_MAP.clear();
@@ -1209,7 +1208,7 @@ public class ConnectorManager {
 					value.put("ping_time", 1);
 				}
 				pingClientMongoOperator.insertOne(value, ConnectorConstant.WORKER_COLLECTION + "/health");
-				if (isExit && appType.isDaas()) {
+				if (isExit && AppType.currentType().isDaas()) {
 					exit(instanceNo);
 				}
 //				sendWorkerHeartbeat(
@@ -1284,7 +1283,7 @@ public class ConnectorManager {
 		Worker worker = workers.get(0);
 		String exitInfo = "";
 		boolean isExit = false;
-		switch (appType){
+		switch (AppType.currentType()){
 			case DFS:
 				if (worker.isDeleted() || worker.isStopping()) {
 						exitInfo = "Flow engine will stop, cause: ";
@@ -1331,7 +1330,7 @@ public class ConnectorManager {
 		// 缓存节点需要全局共享，因此需要再所有flow engine都运行缓存任务
 		// 暂时只支持企业版，dfs、drs需要管理端调度配合
 
-		if (appType.isDaas()) {
+		if (AppType.currentType().isDaas()) {
 			List<String> jobIds = new ArrayList<>(JOB_MAP.keySet());
 			Criteria need2RunCacheJob = where("_id").nin(jobIds)
 					.and("stages.type").is(Stage.StageTypeEnum.MEM_CACHE.getType())
@@ -1777,7 +1776,7 @@ public class ConnectorManager {
 		}
 
 		try {
-			this.appType = AppType.init();
+			AppType.currentType();
 		} catch (Exception e) {
 			logger.error("Please check app_type in env and try again, message: {}", e.getMessage(), e);
 			System.exit(1);
@@ -1802,7 +1801,7 @@ public class ConnectorManager {
 		setProcessId(processId);
 
 		this.jobTags = CommonUtils.getenv("jobTags");
-		if (appType.isDrs() && StringUtils.isNotBlank(jobTags)) {
+		if (AppType.currentType().isDrs() && StringUtils.isNotBlank(jobTags)) {
 			String[] jobTagsSplit = jobTags.split(",");
 			if (jobTagsSplit.length < 2) {
 				logger.error("Job tags is invalid: {}, after split by ',' length should be 2", jobTags);
@@ -1816,7 +1815,7 @@ public class ConnectorManager {
 						"\n - mongodbConnParams: {}\n - baseURLs: {}\n - accessCode: {}\n - restRetryTime: {}\n - mode: {}\n - app_type: {}" +
 						"\n - process id: {}\n - job tags: {}\n - region: {}\n - zone: {}\n - worker dir: {}",
 				MongodbUtil.maskUriPassword(this.mongoURI), this.ssl, this.sslCA, this.sslPEM, this.mongodbConnParams,
-				this.baseURLs, this.accessCode, this.restRetryTime, this.mode, this.appType, this.instanceNo, this.jobTags, this.region, this.zone,
+				this.baseURLs, this.accessCode, this.restRetryTime, this.mode, AppType.currentType(), this.instanceNo, this.jobTags, this.region, this.zone,
 				this.tapdataWorkDir
 		);
 	}

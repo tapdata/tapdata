@@ -143,7 +143,7 @@
         <dependency>
             <groupId>com.tapdata</groupId>
             <artifactId>tm-sdk</artifactId>
-            <version>1.0.3-SNAPSHOT</version>
+            <version>1.0.4-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
         <dependency>

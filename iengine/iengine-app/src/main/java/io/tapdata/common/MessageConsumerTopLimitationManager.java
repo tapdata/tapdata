@@ -1,6 +1,6 @@
 package io.tapdata.common;
 
-import com.tapdata.entity.AppType;
+import io.tapdata.utils.AppType;
 import com.tapdata.entity.MessageEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -49,8 +49,7 @@ public class MessageConsumerTopLimitationManager {
 			// set initial topLimitation to 0(no speed limit) for other kinds of products(DAAS, DFS)
 			topLimitationTotal = 0;
 			// read the limitation from env only for drs
-			AppType app_type = AppType.init();
-			if (app_type.isDrs()) {
+			if (AppType.currentType().isDrs()) {
 				String envVal = System.getenv(CONSUMER_SPEED_TOTAL);
 				topLimitationTotal = Integer.parseInt(envVal.trim());
 			}

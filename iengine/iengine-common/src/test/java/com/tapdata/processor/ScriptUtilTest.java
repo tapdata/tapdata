@@ -2,11 +2,9 @@ package com.tapdata.processor;
 
 import com.tapdata.cache.ICacheGetter;
 import com.tapdata.entity.Connections;
-import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.entity.Job;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.tm.sdk.util.AppType;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.exception.TapCodeException;
 import org.apache.logging.log4j.core.Logger;
@@ -14,13 +12,9 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 import org.junit.runner.RunWith;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
-import org.springframework.data.mongodb.core.MongoTemplate;
 
 import javax.script.Invocable;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;

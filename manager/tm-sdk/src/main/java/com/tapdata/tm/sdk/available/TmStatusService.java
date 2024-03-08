@@ -1,7 +1,7 @@
 package com.tapdata.tm.sdk.available;
 
 
-import com.tapdata.tm.sdk.util.AppType;
+import io.tapdata.utils.AppType;
 import org.apache.logging.log4j.ThreadContext;
 import org.springframework.util.StringUtils;
 
@@ -16,22 +16,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class TmStatusService {
 
-  private static AppType appType;
   private static final AtomicBoolean available = new AtomicBoolean(true);
   private static final Map<String, AtomicBoolean> taskReportStatusMap = new ConcurrentHashMap<>();
   private static final List<Runnable> toAvailableHandler = new ArrayList<>();
 
   public static boolean isEnable() {
-		if (null != appType) {
-			return appType.isCloud();
-		}
-
-		synchronized (TmStatusService.class) {
-			if (null == appType) {
-				appType = AppType.init();
-			}
-		}
-		return appType.isCloud();
+		return AppType.currentType().isCloud();
   }
 
   public static boolean isNotEnable() {

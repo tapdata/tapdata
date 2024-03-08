@@ -3,7 +3,7 @@ package io.tapdata.flow.engine.V2.schedule;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.entity.AppType;
+import io.tapdata.utils.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -88,7 +88,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private MessageDao messageDao;
 	@Autowired
 	private TaskScheduler taskScheduler;
-	private final AppType appType = AppType.init();
 	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(100);
 	private final ExecutorService taskOperationThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors() + 1, Runtime.getRuntime().availableProcessors() + 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
@@ -134,7 +133,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				logger.error("Scan reschedule task failed {}", e.getMessage(), e);
 			}
 		});
-		if (appType.isCloud()) {
+		if (AppType.currentType().isCloud()) {
 			taskScheduler.scheduleAtFixedRate(this::internalStopTask, Duration.ofSeconds(10));
 		}
 		taskOperationThreadPool.submit(() -> {
@@ -296,7 +295,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	 * Run task(s) already started, find clause: status=running and agentID={@link TapdataTaskScheduler#instanceNo}
 	 */
 	public void runTaskIfNeedWhenEngineStart() {
-		if (!appType.isCloud()) return;
+		if (!AppType.currentType().isCloud()) return;
 		Query query = new Query(
 				new Criteria("agentId").is(instanceNo)
 						.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)
@@ -375,7 +374,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				}
 			}
 
-			if (!appType.isCloud()) {
+			if (!AppType.currentType().isCloud()) {
 				List<TaskDto> timeoutStoppingTasks = findStoppingTasks();
 				for (TaskDto timeoutStoppingTask : timeoutStoppingTasks) {
 					final String taskId = timeoutStoppingTask.getId().toHexString();

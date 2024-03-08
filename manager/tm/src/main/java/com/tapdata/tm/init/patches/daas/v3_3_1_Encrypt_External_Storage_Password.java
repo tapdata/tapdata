@@ -8,7 +8,7 @@ import com.tapdata.tm.init.PatchType;
 import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.init.patches.AbsPatch;
 import com.tapdata.tm.init.patches.PatchAnnotation;
-import com.tapdata.tm.sdk.util.AppType;
+import io.tapdata.utils.AppType;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.SpringContextHelper;
 import org.apache.commons.lang3.StringUtils;

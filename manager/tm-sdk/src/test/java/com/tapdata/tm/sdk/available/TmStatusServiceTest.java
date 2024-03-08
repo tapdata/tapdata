@@ -1,13 +1,15 @@
 package com.tapdata.tm.sdk.available;
 
-import com.tapdata.tm.sdk.util.AppType;
-import com.tapdata.tm.sdk.util.AppTypeTest;
+import io.tapdata.utils.AppType;
+import io.tapdata.utils.UnitTestUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
-import java.lang.reflect.Field;
-import java.util.concurrent.Callable;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -15,28 +17,32 @@ import java.util.concurrent.Callable;
  */
 public class TmStatusServiceTest {
 
-    public static <T> T callInType(Callable<T> callable, AppType appType, AppType... otherTypes) throws Exception {
-        synchronized (TmStatusService.class) {
-            Field field = TmStatusService.class.getDeclaredField("appType");
-            field.setAccessible(true);
-            field.set(null, null);
-            return AppTypeTest.callInType(callable, appType, otherTypes);
-        }
-    }
-
-
     @Nested
     class IsEnable {
+
         @Test
-        void testFalse() throws Exception {
-            Boolean result = callInType(TmStatusService::isEnable, AppType.DAAS);
+        void testDAAS() {
+            boolean result = TmStatusService.isEnable();
             Assertions.assertFalse(result, "Can't open TmStatus.");
         }
 
         @Test
-        void testTrue() throws Exception {
-            Boolean result = callInType(TmStatusService::isEnable, AppType.DFS);
-            Assertions.assertTrue(result, "Need to open TmStatus.");
+        void testDFS() {
+            try (MockedStatic<AppType> mocked = Mockito.mockStatic(AppType.class, CALLS_REAL_METHODS)) {
+                mocked.when(AppType::currentType).thenReturn(AppType.DFS);
+
+                boolean result = TmStatusService.isEnable();
+                Assertions.assertTrue(result, "Need to open TmStatus.");
+            }
+        }
+
+        @Test
+        void testNotFoundAppType() {
+            try (MockedStatic<UnitTestUtils> mocked = Mockito.mockStatic(UnitTestUtils.class)) {
+                mocked.when(UnitTestUtils::isTesting).thenReturn(false);
+                boolean result = TmStatusService.isEnable();
+                Assertions.assertFalse(result, "Can't open TmStatus.");
+            }
         }
     }
 }

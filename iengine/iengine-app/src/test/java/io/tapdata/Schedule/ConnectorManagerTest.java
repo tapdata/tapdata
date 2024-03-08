@@ -3,7 +3,10 @@ package io.tapdata.Schedule;
 import base.BaseTest;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.entity.*;
+import com.tapdata.entity.LoginResp;
+import com.tapdata.entity.Setting;
+import com.tapdata.entity.User;
+import com.tapdata.entity.Worker;
 import com.tapdata.entity.values.CheckEngineValidResultDto;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
@@ -13,20 +16,23 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.metric.MetricManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
+import io.tapdata.utils.AppType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
-import org.mockito.internal.verification.Times;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.HttpClientErrorException;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -41,14 +47,8 @@ class ConnectorManagerTest extends BaseTest {
     class TestInitRestTemplate {
         @Test
         void testInitRestTemplateNotNull() {
-            try (MockedStatic<com.tapdata.tm.sdk.util.AppType> t1 = mockStatic(com.tapdata.tm.sdk.util.AppType.class)) {
-                t1.when(com.tapdata.tm.sdk.util.AppType::init).thenReturn(com.tapdata.tm.sdk.util.AppType.DAAS);
-                try (MockedStatic<AppType> t2 = mockStatic(AppType.class)) {
-                    t2.when(AppType::init).thenReturn(AppType.DAAS);
-                    assertNotNull(connectorManager.initRestTemplate());
-                }
-            }
-        }
+					assertNotNull(connectorManager.initRestTemplate());
+				}
 
         @Test
         void testGetRetryTimeoutSupplier() {
@@ -58,7 +58,6 @@ class ConnectorManagerTest extends BaseTest {
             final long defDAAS = 60000L;
 
             connectorManager = spy(ConnectorManager.class);
-            ReflectionTestUtils.setField(connectorManager, "appType", AppType.DAAS);
             SettingService settingService = mock(SettingService.class);
             when(settingService.getLong("jobHeartTimeout", defDAAS)).thenReturn(3100L, defDAAS);
             when(settingService.getLong("jobHeartTimeout", defDFS)).thenReturn(defDFS);
@@ -69,10 +68,12 @@ class ConnectorManagerTest extends BaseTest {
             assertNotNull(getRetryTimeout);
 
             // settings less 3 seconds
+					try (MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class, CALLS_REAL_METHODS)) {
             assertEquals(getRetryTimeout.get(), minTimeout);
-            assertEquals(getRetryTimeout.get(), (long) (defDAAS * scale));
-            ReflectionTestUtils.setField(connectorManager, "appType", AppType.DFS);
-            assertEquals(getRetryTimeout.get(), (long) (defDFS * scale));
+						assertEquals(getRetryTimeout.get(), (long) (defDAAS * scale));
+						appTypeMockedStatic.when(AppType::currentType).thenReturn(AppType.DFS);
+						assertEquals(getRetryTimeout.get(), (long) (defDFS * scale));
+					}
         }
     }
     @Nested
@@ -85,7 +86,6 @@ class ConnectorManagerTest extends BaseTest {
             baseURLs = new ArrayList<>();
             baseURLs.add("url1");
             ReflectionTestUtils.setField(connectorManager,"baseURLs",baseURLs);
-            ReflectionTestUtils.setField(connectorManager,"appType",AppType.DAAS);
             ReflectionTestUtils.setField(connectorManager,"tapdataWorkDir","c:/");
             ClientMongoOperator clientMongoOperator = spy(new ClientMongoOperator());
             mongoTemplate = mock(MongoTemplate.class);
@@ -153,14 +153,12 @@ class ConnectorManagerTest extends BaseTest {
         @Test
         void testCheckLicenseEngineLimitWithCloud(){
             connectorManager = mock(ConnectorManager.class);
-            ReflectionTestUtils.setField(connectorManager,"appType",AppType.DFS);
             CheckEngineValidResultDto actual = connectorManager.checkLicenseEngineLimit();
             assertEquals(null,actual);
         }
         @Test
         void testCheckLicenseEngineLimitWithDaas(){
             connectorManager = spy(ConnectorManager.class);
-            ReflectionTestUtils.setField(connectorManager,"appType",AppType.DAAS);
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
             ReflectionTestUtils.setField(connectorManager,"clientMongoOperator",clientMongoOperator);
             CheckEngineValidResultDto excepted = mock(CheckEngineValidResultDto.class);
@@ -171,7 +169,6 @@ class ConnectorManagerTest extends BaseTest {
         @Test
         void testCheckLicenseEngineLimitWithEx(){
             connectorManager = spy(ConnectorManager.class);
-            ReflectionTestUtils.setField(connectorManager,"appType",AppType.DAAS);
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
             ReflectionTestUtils.setField(connectorManager,"clientMongoOperator",clientMongoOperator);
             HttpClientErrorException ex = mock(HttpClientErrorException.class);
@@ -200,8 +197,6 @@ class ConnectorManagerTest extends BaseTest {
                 singletonLock.when(WorkerSingletonLock::getCurrentTag).thenReturn("tag");
             }
             ReflectionTestUtils.setField(connectorManager,"metricManager",metricManager);
-            ReflectionTestUtils.setField(connectorManager,"appType",AppType.DAAS);
-            ReflectionTestUtils.setField(connectorManager,"appType",AppType.DAAS);
             //isExit true --> false
             List<Worker> workers = new ArrayList<>();
             Consumer<Boolean> beforeExit = mock(Consumer.class);
@@ -230,35 +225,38 @@ class ConnectorManagerTest extends BaseTest {
         @Test
         void testCheckAndExitWithDFSDeleted(){
             connectorManager = spy(ConnectorManager.class);
-            ReflectionTestUtils.setField(connectorManager,"appType",AppType.DFS);
-            Worker worker = new Worker();
-            worker.setDeleted(true);
-            List<Worker> workers = new ArrayList<>();
-            workers.add(worker);
-            Consumer<Boolean> beforeExit = mock(Consumer.class);
-            connectorManager.checkAndExit(workers,beforeExit);
-            ArgumentCaptor<Boolean> captor = ArgumentCaptor.forClass(Boolean.class);
-            verify(beforeExit).accept(captor.capture());
-            assertEquals(true, captor.getValue());
+					try (MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class, CALLS_REAL_METHODS)) {
+						appTypeMockedStatic.when(AppType::currentType).thenReturn(AppType.DFS);
+						Worker worker = new Worker();
+						worker.setDeleted(true);
+						List<Worker> workers = new ArrayList<>();
+						workers.add(worker);
+						Consumer<Boolean> beforeExit = mock(Consumer.class);
+						connectorManager.checkAndExit(workers,beforeExit);
+						ArgumentCaptor<Boolean> captor = ArgumentCaptor.forClass(Boolean.class);
+						verify(beforeExit).accept(captor.capture());
+						assertEquals(true, captor.getValue());
+					}
         }
         @Test
         void testCheckAndExitWithDFSStopping(){
             connectorManager = spy(ConnectorManager.class);
-            ReflectionTestUtils.setField(connectorManager,"appType",AppType.DFS);
-            Worker worker = new Worker();
-            worker.setStopping(true);
-            List<Worker> workers = new ArrayList<>();
-            workers.add(worker);
-            Consumer<Boolean> beforeExit = mock(Consumer.class);
-            connectorManager.checkAndExit(workers,beforeExit);
-            ArgumentCaptor<Boolean> captor = ArgumentCaptor.forClass(Boolean.class);
-            verify(beforeExit).accept(captor.capture());
-            assertEquals(true, captor.getValue());
+					try (MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class, CALLS_REAL_METHODS)) {
+						appTypeMockedStatic.when(AppType::currentType).thenReturn(AppType.DFS);
+						Worker worker = new Worker();
+						worker.setStopping(true);
+						List<Worker> workers = new ArrayList<>();
+						workers.add(worker);
+						Consumer<Boolean> beforeExit = mock(Consumer.class);
+						connectorManager.checkAndExit(workers, beforeExit);
+						ArgumentCaptor<Boolean> captor = ArgumentCaptor.forClass(Boolean.class);
+						verify(beforeExit).accept(captor.capture());
+						assertEquals(true, captor.getValue());
+					}
         }
         @Test
         void testCheckAndExitWithDAAS(){
             connectorManager = spy(ConnectorManager.class);
-            ReflectionTestUtils.setField(connectorManager,"appType",AppType.DAAS);
             Worker worker = new Worker();
             List<Worker> workers = new ArrayList<>();
             workers.add(worker);
@@ -276,7 +274,6 @@ class ConnectorManagerTest extends BaseTest {
         @Test
         void testCheckAndExitWithDAASId(){
             connectorManager = spy(ConnectorManager.class);
-            ReflectionTestUtils.setField(connectorManager,"appType",AppType.DAAS);
             Worker worker = new Worker();
             List<Worker> workers = new ArrayList<>();
             workers.add(worker);
@@ -295,79 +292,77 @@ class ConnectorManagerTest extends BaseTest {
         @Test
         void testCheckAndExitWithDRS(){
             connectorManager = spy(ConnectorManager.class);
-            ReflectionTestUtils.setField(connectorManager,"appType",AppType.DRS);
-            Worker worker = new Worker();
-            List<Worker> workers = new ArrayList<>();
-            workers.add(worker);
-            Consumer<Boolean> beforeExit = mock(Consumer.class);
-            connectorManager.checkAndExit(workers,beforeExit);
-            ArgumentCaptor<Boolean> captor = ArgumentCaptor.forClass(Boolean.class);
-            verify(beforeExit).accept(captor.capture());
-            assertEquals(false, captor.getValue());
+					try (MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class, CALLS_REAL_METHODS)) {
+						appTypeMockedStatic.when(AppType::currentType).thenReturn(AppType.DRS);
+						Worker worker = new Worker();
+						List<Worker> workers = new ArrayList<>();
+						workers.add(worker);
+						Consumer<Boolean> beforeExit = mock(Consumer.class);
+						connectorManager.checkAndExit(workers, beforeExit);
+						ArgumentCaptor<Boolean> captor = ArgumentCaptor.forClass(Boolean.class);
+						verify(beforeExit).accept(captor.capture());
+						assertEquals(false, captor.getValue());
+					}
         }
     }
 
     @Test
     public void testInitStaticStatsAssign() throws Exception {
-        connectorManager = spy(ConnectorManager.class);
-        ReflectionTestUtils.setField(connectorManager,"appType",AppType.DRS);
+			connectorManager = spy(ConnectorManager.class);
+			ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
 
-        List<String> baseURLs = new ArrayList<>();
-        baseURLs.add("http:localhost:3030");
-        ReflectionTestUtils.setField(connectorManager,"baseURLs",baseURLs);
+			try (MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class, CALLS_REAL_METHODS)) {
+				appTypeMockedStatic.when(AppType::currentType).thenReturn(AppType.DRS);
 
-        ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
-        ReflectionTestUtils.setField(connectorManager,"clientMongoOperator",clientMongoOperator);
-        when(clientMongoOperator.getMongoTemplate()).thenReturn(mock(MongoTemplate.class));
+				List<String> baseURLs = new ArrayList<>();
+				baseURLs.add("http:localhost:3030");
+				ReflectionTestUtils.setField(connectorManager, "baseURLs", baseURLs);
 
-        ConfigurationCenter configCenter = mock(ConfigurationCenter.class);
-        ReflectionTestUtils.setField(connectorManager,"configCenter",configCenter);
+				ReflectionTestUtils.setField(connectorManager, "clientMongoOperator", clientMongoOperator);
+				when(clientMongoOperator.getMongoTemplate()).thenReturn(mock(MongoTemplate.class));
 
-        Map<String, Object> params = new HashMap<>();
-        params.put("accesscode", null);
-        RestTemplateOperator restTemplateOperator = mock(RestTemplateOperator.class);
-        ReflectionTestUtils.setField(connectorManager,"restTemplateOperator",restTemplateOperator);
-        LoginResp loginResp =  new LoginResp();
-        loginResp.setCreated("2024-01-23 18:07:53");
-        loginResp.setTtl(100L);
-        when(restTemplateOperator.postOne(params,"users/generatetoken",LoginResp.class)).thenReturn(loginResp);
+				ConfigurationCenter configCenter = mock(ConfigurationCenter.class);
+				ReflectionTestUtils.setField(connectorManager, "configCenter", configCenter);
 
-        ReflectionTestUtils.setField(connectorManager, "appType", AppType.DAAS);
-        SettingService settingService = mock(SettingService.class);
-        ReflectionTestUtils.setField(connectorManager,"settingService",settingService);
+				Map<String, Object> params = new HashMap<>();
+				params.put("accesscode", null);
+				RestTemplateOperator restTemplateOperator = mock(RestTemplateOperator.class);
+				ReflectionTestUtils.setField(connectorManager, "restTemplateOperator", restTemplateOperator);
+				LoginResp loginResp = new LoginResp();
+				loginResp.setCreated("2024-01-23 18:07:53");
+				loginResp.setTtl(100L);
+				when(restTemplateOperator.postOne(params, "users/generatetoken", LoginResp.class)).thenReturn(loginResp);
+			}
 
-        SchemaProxy schemaProxy = mock(SchemaProxy.class);
-        ReflectionTestUtils.setField(connectorManager,"schemaProxy",schemaProxy);
+			SettingService settingService = mock(SettingService.class);
+			ReflectionTestUtils.setField(connectorManager, "settingService", settingService);
+
+			SchemaProxy schemaProxy = mock(SchemaProxy.class);
+			ReflectionTestUtils.setField(connectorManager, "schemaProxy", schemaProxy);
 
 
-        try (MockedStatic<WorkerSingletonLock> singletonLock = mockStatic(WorkerSingletonLock.class)){
-            singletonLock.when(()->WorkerSingletonLock.check(any(),any())).thenAnswer(answer ->{
-                return null;
-            });
-            when(settingService.getSetting("buildProfile")).thenReturn(mock(Setting.class));
-            connectorManager.init();
+			try (MockedStatic<WorkerSingletonLock> singletonLock = mockStatic(WorkerSingletonLock.class)) {
+				singletonLock.when(() -> WorkerSingletonLock.check(any(), any())).thenAnswer(answer -> {
+					return null;
+				});
+				when(settingService.getSetting("buildProfile")).thenReturn(mock(Setting.class));
+				connectorManager.init();
 
-            SchemaProxy actualSchemaProxy =schemaProxy;
-            ClientMongoOperator actualClientMongoOperator =clientMongoOperator;
-            assertEquals(SchemaProxy.schemaProxy,actualSchemaProxy);
-            assertEquals(ConnectorConstant.clientMongoOperator,actualClientMongoOperator);
+				SchemaProxy actualSchemaProxy = schemaProxy;
+				ClientMongoOperator actualClientMongoOperator = clientMongoOperator;
+				assertEquals(SchemaProxy.schemaProxy, actualSchemaProxy);
+				assertEquals(ConnectorConstant.clientMongoOperator, actualClientMongoOperator);
 
-        }
+			}
 
-    }
+		}
     @Test
     public void testInitRestTemplateStaticStatsAssign(){
-        try (MockedStatic<com.tapdata.tm.sdk.util.AppType> t1 = mockStatic(com.tapdata.tm.sdk.util.AppType.class)) {
-            t1.when(com.tapdata.tm.sdk.util.AppType::init).thenReturn(com.tapdata.tm.sdk.util.AppType.DAAS);
-            try (MockedStatic<AppType> t2 = mockStatic(AppType.class)) {
-                t2.when(AppType::init).thenReturn(AppType.DAAS);
-                try (MockedStatic<io.tapdata.pdk.core.utils.CommonUtils> commonUtil = mockStatic(io.tapdata.pdk.core.utils.CommonUtils.class)) {
-                    String process_id = "test12345";
-                    when(CommonUtils.getenv("process_id")).thenReturn(process_id);
-                    connectorManager.initRestTemplate();
-                    assertEquals(ConfigurationCenter.processId,process_id);
-                }
-            }
-        }
+				try (MockedStatic<io.tapdata.pdk.core.utils.CommonUtils> commonUtil = mockStatic(io.tapdata.pdk.core.utils.CommonUtils.class)) {
+						String process_id = "test12345";
+						when(CommonUtils.getenv("process_id")).thenReturn(process_id);
+						connectorManager.initRestTemplate();
+						assertEquals(ConfigurationCenter.processId,process_id);
+				}
     }
 }

@@ -1,7 +1,7 @@
 package com.tapdata.tm.init.patches;
 
 import com.tapdata.tm.init.PatchTypeEnums;
-import com.tapdata.tm.sdk.util.AppType;
+import io.tapdata.utils.AppType;
 
 import java.lang.annotation.*;
 

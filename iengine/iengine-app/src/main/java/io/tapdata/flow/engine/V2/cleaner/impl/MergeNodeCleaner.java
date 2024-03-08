@@ -2,7 +2,7 @@ package io.tapdata.flow.engine.V2.cleaner.impl;
 
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.entity.AppType;
+import io.tapdata.utils.AppType;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
@@ -50,7 +50,7 @@ public class MergeNodeCleaner extends BaseTaskCleaner {
 			mergeTableNodes.add((MergeTableNode) node);
 		}
 		for (MergeTableNode mergeTableNode : mergeTableNodes) {
-			if (AppType.init().isCloud()) {
+			if (AppType.currentType().isCloud()) {
 				HazelcastMergeNode.clearCache(mergeTableNode, nodes, edges);
 			} else {
 				HazelcastMergeNode.clearCache(mergeTableNode);

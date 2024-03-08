@@ -6,7 +6,7 @@
 
   <groupId>com.tapdata</groupId>
   <artifactId>tm-sdk</artifactId>
-  <version>1.0.3-SNAPSHOT</version>
+  <version>1.0.4-SNAPSHOT</version>
 
   <name>tm-sdk</name>
   <url>https://cloud.tapdata.net</url>
@@ -18,6 +18,13 @@
   </properties>
 
   <dependencies>
+
+		<dependency>
+			<groupId>io.tapdata</groupId>
+			<artifactId>tapdata-api</artifactId>
+			<version>1.3.3-SNAPSHOT</version>
+		</dependency>
+
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>

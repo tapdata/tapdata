@@ -13,6 +13,7 @@ import com.tapdata.tm.sdk.interceptor.VersionHeaderInterceptor;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
 import io.tapdata.exception.*;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.utils.UnitTestUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -752,8 +753,13 @@ public class RestTemplateOperator {
 
 				// Print the first exception message
 				if (null == retryInfo.lastError) {
-					logger.warn("RestApi '{}' failed, use {}ms, retryTime {}ms, retryInterval {}ms, reqURL: {}, reqParams: {}, error message: {}"
+					if (UnitTestUtils.isTesting()) {
+						logger.warn("RestApi '{}' failed, use {}ms, retryTime {}ms, retryInterval {}ms, reqURL: {}, reqParams: {}, error message: {}"
+							, retryInfo.reqId, System.currentTimeMillis() - retryInfo.begin, retryInfo.timeout, retryInterval, retryInfo.reqURL, retryInfo.reqParams, e.getMessage());
+					} else {
+						logger.warn("RestApi '{}' failed, use {}ms, retryTime {}ms, retryInterval {}ms, reqURL: {}, reqParams: {}, error message: {}"
 							, retryInfo.reqId, System.currentTimeMillis() - retryInfo.begin, retryInfo.timeout, retryInterval, retryInfo.reqURL, retryInfo.reqParams, e.getMessage(), e);
+					}
 				}
 
 				try {

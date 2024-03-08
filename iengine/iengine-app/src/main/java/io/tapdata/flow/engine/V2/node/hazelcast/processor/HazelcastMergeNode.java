@@ -45,6 +45,7 @@ import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.utils.AppType;
 import lombok.Getter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -159,7 +160,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
-		if (AppType.init().isCloud())
+		if (AppType.currentType().isCloud())
 			externalStorageDto = ExternalStorageUtil.getTargetNodeExternalStorage(
 					processorBaseContext.getNode(),
 					processorBaseContext.getEdges(),
