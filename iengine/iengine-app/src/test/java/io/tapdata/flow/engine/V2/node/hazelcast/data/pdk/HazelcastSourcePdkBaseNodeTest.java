@@ -24,6 +24,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
+import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
@@ -115,18 +116,19 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 		long expectedValue = 99;
 		TapTable testTable = new TapTable("testTable");
-		BatchCountFunction mockBatchCountFunction;
+		BatchCountFunction mockBatchCountFunction= mock(BatchCountFunction.class);
 
 		@BeforeEach
 		void beforeEach() {
-			mockBatchCountFunction= mock(BatchCountFunction.class);
+
 		}
 
 		@Test
 		@SneakyThrows
 		@DisplayName("Exception test")
 		void testException() {
-			when(mockBatchCountFunction.count(null, testTable)).thenThrow(new TestException());
+			TestException testException = new TestException();
+			when(mockBatchCountFunction.count(null, testTable)).thenThrow(testException);
 
 			TaskConfig taskConfig = TaskConfig.create();
 			taskConfig.taskRetryConfig(TaskRetryConfig.create());
@@ -135,11 +137,13 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(instance);
 			doReturn(new ConnectorNode()).when(spyInstance).getConnectorNode();
-			try {
+			RuntimeException runtimeException = assertThrows(RuntimeException
+					.class, () -> {
 				spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
-			} catch (Exception e) {
-				assertTrue(null != e.getCause() && null != e.getCause().getCause() && (e.getCause().getCause().getCause() instanceof TestException), e.getMessage());
-			}
+			});
+			Throwable cause = runtimeException.getCause().getCause().getCause();
+			assertEquals(true,cause instanceof TestException);
+			assertEquals("throw exception test",cause.getMessage());
 		}
 
 		@Test
