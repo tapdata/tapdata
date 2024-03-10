@@ -253,11 +253,14 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 		return null;
 	}
 	public LogConfiguration getLogConfiguration(String logConfigPrefix) {
-		int agentLogFileSaveTime = settingService.getInt(logConfigPrefix + "_log_file_save_time", 180);
-		int agentLogFileSaveSize = settingService.getInt(logConfigPrefix + "_log_file_save_size", 10);
-		int agentLogFileSaveCount = settingService.getInt(logConfigPrefix + "_log_file_save_count", 100);
-		LogConfiguration agentLogConfiguration = new LogConfiguration(agentLogFileSaveTime, agentLogFileSaveSize, agentLogFileSaveCount);
-		return agentLogConfiguration;
+		int logFileSaveTime = settingService.getInt(logConfigPrefix + "_log_file_save_time", 180);
+		int logFileSaveSize = settingService.getInt(logConfigPrefix + "_log_file_save_size", 10);
+		int logFileSaveCount = settingService.getInt(logConfigPrefix + "_log_file_save_count", 100);
+		LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(logFileSaveTime)
+				.logSaveSize(logFileSaveSize)
+				.logSaveCount(logFileSaveCount)
+				.build();
+		return logConfiguration;
 	}
 
 	@Override

@@ -20,7 +20,7 @@ public class TaskLogConfigurationWatcherTest {
         try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)){
             ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
             when(ObsLoggerFactory.getInstance()).thenReturn(obsLoggerFactory);
-            LogConfiguration logConfiguration = new LogConfiguration(180, 100, 10);
+            LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).build();
             when(obsLoggerFactory.getLogConfiguration("task")).thenReturn(logConfiguration);
             LogConfiguration logConf = taskLogConfigurationWatcher.getLogConfig();
             assertEquals(logConfiguration,logConf);
@@ -30,7 +30,7 @@ public class TaskLogConfigurationWatcherTest {
     @Test
     void updateConfigTest1(){
         TaskLogConfigurationWatcher taskLogConfigurationWatcher = new TaskLogConfigurationWatcher();
-        LogConfiguration logConfiguration = new LogConfiguration(180, 10, 100);
+        LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
         try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)){
             ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
             when(ObsLoggerFactory.getInstance()).thenReturn(obsLoggerFactory);

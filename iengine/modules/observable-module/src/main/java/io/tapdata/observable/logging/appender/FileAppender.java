@@ -3,6 +3,7 @@ package io.tapdata.observable.logging.appender;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.observable.logging.util.Conf.LogConfiguration;
+import io.tapdata.observable.logging.util.LogUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -100,9 +101,9 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 				.withConfiguration(config)
 				.build();
 
-		CompositeTriggeringPolicy compositeTriggeringPolicy = AppenderFactory.getInstance().getCompositeTriggeringPolicy(logConfiguration.getLogSaveSize().toString());
+		CompositeTriggeringPolicy compositeTriggeringPolicy = LogUtil.getCompositeTriggeringPolicy(logConfiguration.getLogSaveSize().toString());
 		String golb = taskId + "-*.log.*.gz";
-		DeleteAction deleteAction = AppenderFactory.getInstance().getDeleteAction(logConfiguration.getLogSaveTime(), logsPath.toString(), golb, config);
+		DeleteAction deleteAction = LogUtil.getDeleteAction(logConfiguration.getLogSaveTime(), logsPath.toString(), golb, config);
 		Action[] actions = {deleteAction};
 		DefaultRolloverStrategy strategy = DefaultRolloverStrategy.newBuilder()
 				.withMax(logConfiguration.getLogSaveCount().toString())

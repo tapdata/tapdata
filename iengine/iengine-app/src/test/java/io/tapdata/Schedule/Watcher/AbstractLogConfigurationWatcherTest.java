@@ -12,23 +12,25 @@ import static org.mockito.Mockito.*;
     @DisplayName("test check logConfiguration modify")
     @Test
     void checkIsModifyTest1(){
-        LogConfiguration logConfiguration=new LogConfiguration(180,10,100);
+        LogConfiguration logConfiguration= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
         AbstractLogConfigurationWatcher logConfigurationWatcher=new AgentLogConfigurationWatcher(logConfiguration);
-        boolean modify = logConfigurationWatcher.checkIsModify(new LogConfiguration(180, 10, 1));
+        LogConfiguration logConfiguration1= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(1).build();
+        boolean modify = logConfigurationWatcher.checkIsModify(logConfiguration1);
         assertEquals(true,modify);
     }
     @DisplayName("test check logConfiguration no modify")
     @Test
     void checkIsModifyTest2(){
-        LogConfiguration logConfiguration=new LogConfiguration(180,10,100);
+        LogConfiguration logConfiguration= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
         AbstractLogConfigurationWatcher logConfigurationWatcher=new AgentLogConfigurationWatcher(logConfiguration);
-        boolean modify = logConfigurationWatcher.checkIsModify(new LogConfiguration(180, 10, 100));
+        LogConfiguration logConfiguration1= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
+        boolean modify = logConfigurationWatcher.checkIsModify(logConfiguration1);
         assertEquals(false,modify);
     }
     @DisplayName("test check modify by null args")
     @Test
     void checkIsModifyTest3(){
-        LogConfiguration logConfiguration=new LogConfiguration(180,10,100);
+        LogConfiguration logConfiguration= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
         AbstractLogConfigurationWatcher logConfigurationWatcher=new AgentLogConfigurationWatcher(logConfiguration);
         boolean modify = logConfigurationWatcher.checkIsModify(null);
         assertEquals(false,modify);
@@ -38,7 +40,7 @@ import static org.mockito.Mockito.*;
     void testOnCheckTest1(){
         AbstractLogConfigurationWatcher logConfigurationWatcher=mock(AgentLogConfigurationWatcher.class);
         doCallRealMethod().when(logConfigurationWatcher).onCheck();
-        LogConfiguration logConfiguration = new LogConfiguration(180, 10, 100);
+        LogConfiguration logConfiguration= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
         when(logConfigurationWatcher.getLogConfig()).thenReturn(logConfiguration);
         logConfigurationWatcher.onCheck();
         verify(logConfigurationWatcher,times(1)).updateConfig(logConfiguration);
@@ -47,8 +49,8 @@ import static org.mockito.Mockito.*;
     @Test
     @DisplayName("test onCheck when logConf modify")
     void testOnCheckTest2(){
-        LogConfiguration logConfiguration = new LogConfiguration(180, 10, 100);
-        LogConfiguration logConfigurationArgs = new LogConfiguration(190, 10, 100);
+        LogConfiguration logConfiguration= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
+        LogConfiguration logConfigurationArgs = LogConfiguration.builder().logSaveTime(190).logSaveSize(10).logSaveCount(100).build();
         AbstractLogConfigurationWatcher logConfigurationWatcher=mock(AgentLogConfigurationWatcher.class);
         when(logConfigurationWatcher.getLogConfig()).thenReturn(logConfigurationArgs);
         doCallRealMethod().when(logConfigurationWatcher).onCheck();

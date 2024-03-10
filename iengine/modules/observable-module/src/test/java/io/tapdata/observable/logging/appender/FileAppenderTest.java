@@ -19,10 +19,9 @@ public class FileAppenderTest {
     @Test
     public void test1(){
         try (MockedStatic<AppenderFactory> appenderFactoryMockedStatic = mockStatic(AppenderFactory.class)) {
-            LogConfiguration logConfiguration = new LogConfiguration(180, 10, 100);
+            LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
             AppenderFactory appenderFactory = mock(AppenderFactory.class);
             when(AppenderFactory.getInstance()).thenReturn(appenderFactory);
-            doCallRealMethod().when(appenderFactory).getCompositeTriggeringPolicy(logConfiguration.getLogSaveSize().toString());
             ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
             Logger test = LogManager.getLogger("test");
             when(obsLoggerFactory.getLogConfiguration("task")).thenReturn(logConfiguration);

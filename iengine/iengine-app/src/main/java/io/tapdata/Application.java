@@ -16,7 +16,7 @@ import io.tapdata.common.JetExceptionFilter;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
-import io.tapdata.observable.logging.appender.AppenderFactory;
+import io.tapdata.observable.logging.util.LogUtil;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -270,9 +270,9 @@ public class Application {
 				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n")
 				.build();
 
-		CompositeTriggeringPolicy compositeTriggeringPolicy = AppenderFactory.getInstance().getCompositeTriggeringPolicy(DEFAULT_LOG_SAVE_SIZE);
+		CompositeTriggeringPolicy compositeTriggeringPolicy = LogUtil.getCompositeTriggeringPolicy(DEFAULT_LOG_SAVE_SIZE);
 		String glob="tapdata-agent-*.log.*.gz";
-		DeleteAction deleteAction = AppenderFactory.getInstance().getDeleteAction(DEFAULT_LOG_SAVE_TIME, logsPath.toString(), glob, config);
+		DeleteAction deleteAction = LogUtil.getDeleteAction(DEFAULT_LOG_SAVE_TIME, logsPath.toString(), glob, config);
 		Action[] actions = {deleteAction};
 		DefaultRolloverStrategy strategy = DefaultRolloverStrategy.newBuilder()
 				.withMax(DEFAULT_LOG_SAVE_COUNT)
