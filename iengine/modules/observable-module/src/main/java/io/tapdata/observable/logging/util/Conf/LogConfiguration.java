@@ -7,7 +7,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
-@Setter
 @Getter
 @Builder
 public class LogConfiguration {
@@ -17,5 +16,11 @@ public class LogConfiguration {
     private String logLevel;
     private String scriptEngineHttpAppender;
 
+    public void setLogLevel(String logLevel) {
+        this.logLevel = logLevel;
+    }
 
+    public void setScriptEngineHttpAppender(String scriptEngineHttpAppender) {
+        this.scriptEngineHttpAppender = scriptEngineHttpAppender;
+    }
 }

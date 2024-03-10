@@ -68,4 +68,28 @@ public class LogUtilTest {
         Level level = LogUtil.logLevel("abc");
         assertEquals(Level.INFO.name(),level.name());
     }
+    @DisplayName("test get Loglevel with info value")
+    @Test
+    void logLevelTest4(){
+        Level level = LogUtil.logLevel("info");
+        assertEquals(Level.INFO.name(),level.name());
+    }
+    @DisplayName("test get Loglevel with debug value")
+    @Test
+    void logLevelTest5(){
+        Level level = LogUtil.logLevel("debug");
+        assertEquals(Level.DEBUG.name(),level.name());
+    }
+    @DisplayName("test get Loglevel with debug value")
+    @Test
+    void logLevelTest6(){
+        Level level = LogUtil.logLevel("trace");
+        assertEquals(Level.TRACE.name(),level.name());
+    }
+    @DisplayName("test get Loglevel with debug value")
+    @Test
+    void logLevelTest7(){
+        Level level = LogUtil.logLevel("error");
+        assertEquals(Level.ERROR.name(),level.name());
+    }
 }
