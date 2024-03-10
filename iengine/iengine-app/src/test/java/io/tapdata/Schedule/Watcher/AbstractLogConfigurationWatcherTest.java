@@ -13,7 +13,7 @@ import static org.mockito.Mockito.*;
     @Test
     void checkIsModifyTest1(){
         LogConfiguration logConfiguration= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
-        AbstractLogConfigurationWatcher logConfigurationWatcher=new AgentLogConfigurationWatcher(logConfiguration);
+        AbstractLogConfigurationWatcher logConfigurationWatcher=new TaskLogConfigurationWatcher(logConfiguration);
         LogConfiguration logConfiguration1= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(1).build();
         boolean modify = logConfigurationWatcher.checkIsModify(logConfiguration1);
         assertEquals(true,modify);
@@ -22,7 +22,7 @@ import static org.mockito.Mockito.*;
     @Test
     void checkIsModifyTest2(){
         LogConfiguration logConfiguration= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
-        AbstractLogConfigurationWatcher logConfigurationWatcher=new AgentLogConfigurationWatcher(logConfiguration);
+        AbstractLogConfigurationWatcher logConfigurationWatcher=new TaskLogConfigurationWatcher(logConfiguration);
         LogConfiguration logConfiguration1= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
         boolean modify = logConfigurationWatcher.checkIsModify(logConfiguration1);
         assertEquals(false,modify);
@@ -31,14 +31,14 @@ import static org.mockito.Mockito.*;
     @Test
     void checkIsModifyTest3(){
         LogConfiguration logConfiguration= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
-        AbstractLogConfigurationWatcher logConfigurationWatcher=new AgentLogConfigurationWatcher(logConfiguration);
+        AbstractLogConfigurationWatcher logConfigurationWatcher=new TaskLogConfigurationWatcher(logConfiguration);
         boolean modify = logConfigurationWatcher.checkIsModify(null);
         assertEquals(false,modify);
     }
     @DisplayName("test onCheck when watcher logConf is null")
     @Test
     void testOnCheckTest1(){
-        AbstractLogConfigurationWatcher logConfigurationWatcher=mock(AgentLogConfigurationWatcher.class);
+        AbstractLogConfigurationWatcher logConfigurationWatcher=mock(TaskLogConfigurationWatcher.class);
         doCallRealMethod().when(logConfigurationWatcher).onCheck();
         LogConfiguration logConfiguration= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
         when(logConfigurationWatcher.getLogConfig()).thenReturn(logConfiguration);
@@ -51,7 +51,7 @@ import static org.mockito.Mockito.*;
     void testOnCheckTest2(){
         LogConfiguration logConfiguration= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
         LogConfiguration logConfigurationArgs = LogConfiguration.builder().logSaveTime(190).logSaveSize(10).logSaveCount(100).build();
-        AbstractLogConfigurationWatcher logConfigurationWatcher=mock(AgentLogConfigurationWatcher.class);
+        AbstractLogConfigurationWatcher logConfigurationWatcher=mock(TaskLogConfigurationWatcher.class);
         when(logConfigurationWatcher.getLogConfig()).thenReturn(logConfigurationArgs);
         doCallRealMethod().when(logConfigurationWatcher).onCheck();
         doCallRealMethod().when(logConfigurationWatcher).checkIsModify(logConfigurationArgs);
