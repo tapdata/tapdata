@@ -47,8 +47,8 @@ public class AgentLogConfigurationWatcher extends AbstractLogConfigurationWatche
 
     @Override
     protected boolean checkIsModify(LogConfiguration logConfiguration) {
-        boolean upperCheck = super.checkIsModify(logConfiguration);
-        return upperCheck && (null != logConfiguration.getLogLevel() && !logConfiguration.getLogLevel().equals(this.logConfiguration.getLogLevel()))
+        boolean upperCheck =  super.checkIsModify(logConfiguration);
+        return upperCheck || (null != logConfiguration.getLogLevel() && !logConfiguration.getLogLevel().equals(this.logConfiguration.getLogLevel()))
                 || (null != logConfiguration.getScriptEngineHttpAppender() && !logConfiguration.getScriptEngineHttpAppender().equals(this.logConfiguration.getScriptEngineHttpAppender()));
     }
 

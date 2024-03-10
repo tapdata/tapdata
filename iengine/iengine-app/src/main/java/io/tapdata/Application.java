@@ -238,7 +238,7 @@ public class Application {
 		return scheduler;
 	}
 
-	protected static void addRollingFileAppender(String tapdataWorkDir) {
+	public static void addRollingFileAppender(String tapdataWorkDir) {
 
 		Level defaultLogLevel = Level.INFO;
 		String debug = System.getenv("DEBUG");

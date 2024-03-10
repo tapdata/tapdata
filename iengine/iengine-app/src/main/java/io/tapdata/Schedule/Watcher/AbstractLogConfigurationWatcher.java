@@ -15,7 +15,7 @@ public abstract class AbstractLogConfigurationWatcher {
 
     public void onCheck() {
         LogConfiguration logConfiguration = getLogConfig();
-        if (null == this.logConfiguration || checkIsModify(logConfiguration)) {
+        if (checkIsModify(logConfiguration)) {
             this.logConfiguration = logConfiguration;
             updateConfig(logConfiguration);
         }
@@ -23,8 +23,8 @@ public abstract class AbstractLogConfigurationWatcher {
     abstract LogConfiguration getLogConfig();
 
     protected boolean checkIsModify(LogConfiguration logConfiguration) {
-        if(null!=logConfiguration){
-            return (null != logConfiguration.getLogSaveCount() && !logConfiguration.getLogSaveCount().equals(this.logConfiguration.getLogSaveCount()))
+        if (null != logConfiguration) {
+            return null == this.logConfiguration || (null != logConfiguration.getLogSaveCount() && !logConfiguration.getLogSaveCount().equals(this.logConfiguration.getLogSaveCount()))
                     || (null != logConfiguration.getLogSaveSize() && !logConfiguration.getLogSaveSize().equals(this.logConfiguration.getLogSaveSize()))
                     || (null != logConfiguration.getLogSaveTime() && !logConfiguration.getLogSaveTime().equals(this.logConfiguration.getLogSaveTime()));
         }

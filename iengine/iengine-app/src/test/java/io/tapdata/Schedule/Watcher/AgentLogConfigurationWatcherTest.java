@@ -120,6 +120,22 @@ public class AgentLogConfigurationWatcherTest {
         LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).logLevel("debug").scriptEngineHttpAppender("true").build();
         agentLogConfigurationWatcher.updateLogLevel(logConfiguration);
         assertEquals("INFO",logger.getLevel().name());
-
+    }
+    @DisplayName("test check is modify agentLogConfig is null")
+    @Test
+    void checkIsModifyTest1(){
+        AgentLogConfigurationWatcher agentLogConfigurationWatcher = new AgentLogConfigurationWatcher();
+        LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).logLevel("debug").scriptEngineHttpAppender("true").build();
+        agentLogConfigurationWatcher.checkIsModify(logConfiguration);
+    }
+    @DisplayName("test check is modify loglevel is modify")
+    @Test
+    void checkIsModifyTest2(){
+        AgentLogConfigurationWatcher agentLogConfigurationWatcher = new AgentLogConfigurationWatcher();
+        LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).logLevel("debug").scriptEngineHttpAppender("true").build();
+        LogConfiguration logConfiguration1 = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).logLevel("debug").scriptEngineHttpAppender("false").build();
+        agentLogConfigurationWatcher.logConfiguration=logConfiguration1;
+        boolean result = agentLogConfigurationWatcher.checkIsModify(logConfiguration);
+        assertEquals(true,result);
     }
 }

@@ -39,8 +39,9 @@ import static org.mockito.Mockito.*;
     @Test
     void testOnCheckTest1(){
         AbstractLogConfigurationWatcher logConfigurationWatcher=mock(TaskLogConfigurationWatcher.class);
-        doCallRealMethod().when(logConfigurationWatcher).onCheck();
         LogConfiguration logConfiguration= LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
+        doCallRealMethod().when(logConfigurationWatcher).checkIsModify(logConfiguration);
+        doCallRealMethod().when(logConfigurationWatcher).onCheck();
         when(logConfigurationWatcher.getLogConfig()).thenReturn(logConfiguration);
         logConfigurationWatcher.onCheck();
         verify(logConfigurationWatcher,times(1)).updateConfig(logConfiguration);
