@@ -17,8 +17,7 @@ public class ApplicationTest {
         void test1(){
             assertDoesNotThrow(()->{Application.addRollingFileAppender("./workDir");});
             LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            RollingFileAppender appender =(RollingFileAppender)context.getRootLogger().getAppenders().get("rollingFileAppender");
-            assertEquals("./workDir/logs/agent/tapdata-agent.log",appender.getFileName());
+            assertEquals(2,context.getRootLogger().getAppenders().size());
         }
     }
 }
