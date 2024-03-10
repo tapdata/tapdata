@@ -16,26 +16,26 @@ import static org.mockito.Mockito.when;
 
 class LoadJarLibEventHandlerTest {
 
-    @Mock
-    private ClientMongoOperator mockClientMongoOperator;
+	@Mock
+	private ClientMongoOperator mockClientMongoOperator;
 
-    private LoadJarLibEventHandler loadJarLibEventHandlerUnderTest;
+	private LoadJarLibEventHandler loadJarLibEventHandlerUnderTest;
 
-    @BeforeEach
-    public void setUp() {
-        mockClientMongoOperator = mock(ClientMongoOperator.class);
-        loadJarLibEventHandlerUnderTest = new LoadJarLibEventHandler();
-        loadJarLibEventHandlerUnderTest.initialize(mockClientMongoOperator);
-    }
+	@BeforeEach
+	public void setUp() {
+		mockClientMongoOperator = mock(ClientMongoOperator.class);
+		loadJarLibEventHandlerUnderTest = new LoadJarLibEventHandler();
+		loadJarLibEventHandlerUnderTest.initialize(mockClientMongoOperator);
+	}
 
-    @Test
-    void testHandle() {
-        final Map<String, String> event = new HashMap<>();
-        event.put("fileId", "656d7741e7cf041007e6fb8a");
-        event.put("packageName", "packageName");
-        GridFSBucket gridFSBucket = mock(GridFSBucket.class);
-        when(mockClientMongoOperator.getGridFSBucket()).thenReturn(gridFSBucket);
-        WebSocketEventResult webSocketEventResult = loadJarLibEventHandlerUnderTest.handle(event);
-        Assert.assertNotNull(webSocketEventResult);
-    }
+	@Test
+	void testHandle() {
+		final Map<String, String> event = new HashMap<>();
+		event.put("fileId", "656d7741e7cf041007e6fb8a");
+		event.put("packageName", "packageName");
+		GridFSBucket gridFSBucket = mock(GridFSBucket.class);
+		when(mockClientMongoOperator.getGridFSBucket()).thenReturn(gridFSBucket);
+		WebSocketEventResult webSocketEventResult = loadJarLibEventHandlerUnderTest.handle(event);
+		Assert.assertNotNull(webSocketEventResult);
+	}
 }
