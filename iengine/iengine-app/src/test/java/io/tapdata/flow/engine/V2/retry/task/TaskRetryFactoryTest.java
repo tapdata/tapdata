@@ -37,6 +37,7 @@ public class TaskRetryFactoryTest {
         @DisplayName("Test Get RetryService When RetryTimeSecond is 900 and IntervalSecond is 60")
         @Test
         void test1() {
+            taskDto.setId(new ObjectId());
             TaskConfig taskConfig = new TaskConfig();
             when(processorBaseContext.getTaskConfig()).thenReturn(taskConfig);
             TaskRetryConfig taskRetryConfig = new TaskRetryConfig();

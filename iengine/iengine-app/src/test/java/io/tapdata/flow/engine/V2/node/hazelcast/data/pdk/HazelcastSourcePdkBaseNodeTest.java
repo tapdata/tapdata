@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.ex.TestException;
 import base.hazelcast.BaseHazelcastNodeTest;
+import com.ibm.icu.impl.coll.BOCSU;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
@@ -26,6 +27,7 @@ import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -128,9 +130,8 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		@SneakyThrows
 		@DisplayName("Exception test")
 		void testException() {
-			TestException testException = new TestException();
-			when(mockBatchCountFunction.count(null, testTable)).thenThrow(testException);
-
+			taskDto.setId(new ObjectId());
+			when(mockBatchCountFunction.count(null, testTable)).thenThrow(new TestException());
 			TaskConfig taskConfig = TaskConfig.create();
 			taskConfig.taskRetryConfig(TaskRetryConfig.create());
 			taskConfig.getTaskRetryConfig().retryIntervalSecond(1000L);
@@ -138,9 +139,11 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			HazelcastSourcePdkBaseNode spyInstance = spy(instance);
 			doReturn(new ConnectorNode()).when(spyInstance).getConnectorNode();
-			RuntimeException runtimeException = assertThrows(RuntimeException.class, () -> {
+			RuntimeException e = assertThrows(RuntimeException.class, () -> {
 				spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
 			});
+			boolean flag = null != e.getCause() && null != e.getCause().getCause() && (e.getCause().getCause().getCause() instanceof TestException);
+			assertEquals(true,flag);
 		}
 
 		@Test
