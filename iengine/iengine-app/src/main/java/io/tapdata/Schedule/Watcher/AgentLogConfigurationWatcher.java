@@ -17,7 +17,6 @@ import org.apache.logging.log4j.core.appender.rolling.DefaultRolloverStrategy;
 import org.apache.logging.log4j.core.appender.rolling.RollingFileManager;
 import org.apache.logging.log4j.core.appender.rolling.action.Action;
 import org.apache.logging.log4j.core.appender.rolling.action.DeleteAction;
-
 import java.util.Collection;
 import java.util.Map;
 
@@ -26,6 +25,7 @@ import static io.tapdata.observable.logging.util.LogUtil.logLevel;
 
 public class AgentLogConfigurationWatcher extends AbstractLogConfigurationWatcher {
     protected LoggerContext context = LoggerContext.getContext(false);
+    protected static final  String HTTPAPPENDER="httpAppender";
 
     public AgentLogConfigurationWatcher(LogConfiguration agentLogConfiguration) {
         super(agentLogConfiguration);
@@ -57,43 +57,40 @@ public class AgentLogConfigurationWatcher extends AbstractLogConfigurationWatche
         updateRollingFileAppender(logConfiguration);
         updateLogLevel(logConfiguration);
     }
+
     public void updateLogLevel(LogConfiguration logConfiguration) {
         String logLevel = logConfiguration.getLogLevel();
         String scriptEngineHttpAppender = logConfiguration.getScriptEngineHttpAppender();
-        if (logLevel != null) {
-            Level level = logLevel(logLevel);
-            String debug = System.getenv("DEBUG");
-            if ("true".equalsIgnoreCase(debug)) {
-                level = Level.DEBUG;
-            }
-            if (level != null) {
-                LoggerContext context = LoggerContext.getContext(false);
-                Collection<Logger> loggers = context.getLoggers();
-                for (org.apache.logging.log4j.core.Logger logger1 : loggers) {
-                    final String loggerName = logger1.getName();
-                    if (
-                            StringUtils.startsWithIgnoreCase(loggerName, "io.tapdata") ||
-                                    StringUtils.startsWithIgnoreCase(loggerName, "com.tapdata")
-                    ) {
-                        logger1.setLevel(level);
-                        if (StringUtils.contains(loggerName, "CustomProcessor")) {
-                            final Map<String, Appender> appenders = logger1.get().getAppenders();
-                            if ("false".equals(scriptEngineHttpAppender)) {
-                                if (appenders.containsKey("httpAppender")) {
-                                    logger1.setAdditive(false);
-                                    final Map<String, Appender> rootAppenders = context.getRootLogger().getAppenders();
-                                    for (Appender appender : rootAppenders.values()) {
-                                        logger1.addAppender(appender);
-                                    }
-                                    logger1.get().removeAppender("httpAppender");
-                                }
-                            } else if (!appenders.containsKey("httpAppender")) {
-                                logger1.setAdditive(true);
-                            }
-                        }
-                    }
+        Level level = logLevel(logLevel);
+
+        Collection<Logger> loggers = context.getLoggers();
+        for (org.apache.logging.log4j.core.Logger logger1 : loggers) {
+            final String loggerName = logger1.getName();
+            if (
+                    StringUtils.startsWithIgnoreCase(loggerName, "io.tapdata") ||
+                            StringUtils.startsWithIgnoreCase(loggerName, "com.tapdata")
+            ) {
+                logger1.setLevel(level);
+                if (StringUtils.contains(loggerName, "CustomProcessor")) {
+                    final Map<String, Appender> appenders = logger1.get().getAppenders();
+                    refreshAppenders(logger1, scriptEngineHttpAppender, appenders);
                 }
             }
+        }
+    }
+
+    protected void refreshAppenders(Logger logger1, String scriptEngineHttpAppender, Map<String, Appender> appenders) {
+        if ("false".equals(scriptEngineHttpAppender)) {
+            if (appenders.containsKey(HTTPAPPENDER)) {
+                logger1.setAdditive(false);
+                final Map<String, Appender> rootAppenders = context.getRootLogger().getAppenders();
+                for (Appender appender : rootAppenders.values()) {
+                    logger1.addAppender(appender);
+                }
+                logger1.get().removeAppender(HTTPAPPENDER);
+            }
+        } else if (!appenders.containsKey(HTTPAPPENDER)) {
+            logger1.setAdditive(true);
         }
     }
 
