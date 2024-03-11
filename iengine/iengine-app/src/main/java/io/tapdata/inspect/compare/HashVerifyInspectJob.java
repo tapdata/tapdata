@@ -92,7 +92,7 @@ public class HashVerifyInspectJob extends InspectJob {
         if (null != sourceHash && null != targetHash && null != sourceHash.getHash()) {
             passed = sourceHash.getHash().equals(targetHash.getHash());
         }
-        logger.debug("",
+        logger.debug("Source table hash: {}, target table hash: {}",
                 null == sourceHash ? "" : sourceHash.getHash(),
                 null == sourceHash ? "" : sourceHash.getHash());
         stats.setEnd(new Date());
