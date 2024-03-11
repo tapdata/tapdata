@@ -1,0 +1,129 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "task_log_file_save_time"
+        },
+        "u": {
+          "$set": {
+            "category": "Log",
+            "default_value": "180",
+            "min": 1,
+            "documentation": "task_log_file_save_time_documentation",
+            "key_label": "task_log_file_save_time",
+            "user_visible": true,
+            "hot_reloading": true
+          },
+          "$setOnInsert": {
+            "value": "180"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "task_log_file_save_size"
+        },
+        "u": {
+          "$set": {
+            "category": "Log",
+            "default_value": "10",
+            "documentation": "task_log_file_save_size_documentation",
+            "key_label": "task_log_file_save_size",
+            "user_visible": true,
+            "hot_reloading": true,
+            "min": 1,
+            "max": 1024
+          },
+          "$setOnInsert": {
+            "value": "10"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "task_log_file_save_count"
+        },
+        "u": {
+          "$set": {
+            "category": "Log",
+            "default_value": "100",
+            "min": 1,
+            "documentation": "task_log_file_save_count_documentation",
+            "key_label": "task_log_file_save_count",
+            "user_visible": true,
+            "hot_reloading": true
+          },
+          "$setOnInsert": {
+            "value": "100"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "agent_log_file_save_time"
+        },
+        "u": {
+          "$set": {
+            "category": "Log",
+            "default_value": "180",
+            "min": 1,
+            "documentation": "agent_log_file_save_time_documentation",
+            "key_label": "agent_log_file_save_time",
+            "user_visible": true,
+            "hot_reloading": true
+          },
+          "$setOnInsert": {
+            "value": "180"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "agent_log_file_save_size"
+        },
+        "u": {
+          "$set": {
+            "category": "Log",
+            "default_value": "10",
+            "documentation": "agent_log_file_save_size_documentation",
+            "key_label": "agent_log_file_save_size",
+            "user_visible": true,
+            "hot_reloading": true,
+            "min": 1,
+            "max": 1024
+          },
+          "$setOnInsert": {
+            "value": "10"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "agent_log_file_save_count"
+        },
+        "u": {
+          "$set": {
+            "category": "Log",
+            "default_value": "100",
+            "min": 1,
+            "documentation": "agent_log_file_save_count_documentation",
+            "key_label": "agent_log_file_save_count",
+            "user_visible": true,
+            "hot_reloading": true
+          },
+          "$setOnInsert": {
+            "value": "100"
+          }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]
