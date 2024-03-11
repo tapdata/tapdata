@@ -48,7 +48,7 @@ public class HashVerifyInspectJob extends InspectJob {
 
                     List<QueryOperator> srcConditions = inspectTask.getSource().getConditions();
                     TapTable srcTable = getTapTable(inspectTask.getSource());
-                        if (CollectionUtils.isNotEmpty(srcConditions) && null != inspectTask.getSource().getIsFilter() && inspectTask.getSource().getIsFilter()) {
+                    //if (CollectionUtils.isNotEmpty(srcConditions) && null != inspectTask.getSource().getIsFilter() && inspectTask.getSource().getIsFilter()) {
                         QueryHashByAdvanceFilterFunction queryHashOfSource = this.sourceNode.getConnectorFunctions().getQueryHashByAdvanceFilterFunction();
                         if (null == queryHashOfSource) {
                             retry = 3;
@@ -58,11 +58,11 @@ public class HashVerifyInspectJob extends InspectJob {
                         TapAdvanceFilter tapAdvanceFilter = wrapFilter(srcConditions);
                         PDKInvocationMonitor.invoke(this.sourceNode, PDKMethod.QUERY_HASH_BY_ADVANCE_FILTER,
                                 () -> queryHashOfSource.query(this.sourceNode.getConnectorContext(), tapAdvanceFilter, srcTable, sourceHash::set), TAG);
-                    }
+                    //}
 
                     List<QueryOperator> tgtConditions = inspectTask.getTarget().getConditions();
                     TapTable tgtTable = getTapTable(inspectTask.getTarget());
-                    if (CollectionUtils.isNotEmpty(tgtConditions) && null != inspectTask.getTarget().getIsFilter() && inspectTask.getTarget().getIsFilter()) {
+                    //if (CollectionUtils.isNotEmpty(tgtConditions) && null != inspectTask.getTarget().getIsFilter() && inspectTask.getTarget().getIsFilter()) {
                         QueryHashByAdvanceFilterFunction queryHashOfTarget = this.targetNode.getConnectorFunctions().getQueryHashByAdvanceFilterFunction();
                         if (null == queryHashOfTarget) {
                             retry = 3;
@@ -70,10 +70,10 @@ public class HashVerifyInspectJob extends InspectJob {
                                     "Target node does not support hash verification with filter function: " + targetNode.getConnectorContext().getSpecification().getId());
                         }
 
-                        TapAdvanceFilter tapAdvanceFilter = wrapFilter(tgtConditions);
+                        TapAdvanceFilter filter = wrapFilter(tgtConditions);
                         PDKInvocationMonitor.invoke(this.targetNode, PDKMethod.QUERY_HASH_BY_ADVANCE_FILTER,
-                                () -> queryHashOfTarget.query(this.targetNode.getConnectorContext(), tapAdvanceFilter, tgtTable, targetHash::set), TAG);
-                    }
+                                () -> queryHashOfTarget.query(this.targetNode.getConnectorContext(), filter, tgtTable, targetHash::set), TAG);
+                    //}
 
                     boolean passed = false;
                     if (null != sourceHash.get() && null != targetHash.get() && null != sourceHash.get().getHash()) {
