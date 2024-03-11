@@ -107,7 +107,7 @@ public class PdkUtilTest {
                     String dir = System.getProperty("user.dir") + File.separator + "dist";
                     File theFilePath = new File(dir + "/mysql__67890__.jar");
                     when(httpClientMongoOperator.findOne(anyMap(), anyString(), any())).thenReturn("123456");
-                    PdkUtil.reDownloadIfNeed(httpClientMongoOperator, pdkHash, fileName, theFilePath, resourceId, callback);
+                    PdkUtil.reDownloadIfNeed(httpClientMongoOperator, pdkHash, fileName, theFilePath);
                     fileUtilsMockedStatic.verify(() -> FileUtils.deleteQuietly(any()), new Times(0));
                 }
             }
@@ -130,7 +130,7 @@ public class PdkUtilTest {
                             String dir = System.getProperty("user.dir") + File.separator + "dist";
                             File theFilePath = new File(dir + "/mysql__67890__.jar");
                             when(httpClientMongoOperator.findOne(anyMap(), anyString(), any())).thenReturn("123456");
-                            PdkUtil.reDownloadIfNeed(httpClientMongoOperator, pdkHash, fileName, theFilePath, resourceId, callback);
+                            PdkUtil.reDownloadIfNeed(httpClientMongoOperator, pdkHash, fileName, theFilePath);
                             fileUtilsMockedStatic.verify(() -> FileUtils.deleteQuietly(any()), new Times(1));
                         }
                     }

@@ -127,7 +127,9 @@ public class PkdSourceService {
 			try (InputStream ins = jarFile.getInputStream()){
 				Map<String, Object> fileInfo = Maps.newHashMap();
 				File file = new File(jarFile.getName());
-				inputStreamToFile(ins,file);
+				if (!file.exists()){
+					inputStreamToFile(ins,file);
+				}
 				String md5 = PdkSourceUtils.getFileMD5(file);
 				fileInfo.put("pdkHash", pdkHash);
 				fileInfo.put("pdkAPIBuildNumber", pdkAPIBuildNumber);

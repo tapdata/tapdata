@@ -63,38 +63,41 @@ public class PdkUtil {
 		synchronized (lock) {
 			try {
 				// create the dir used for storing the pdk jar file if the dir not exists
-				String dir = System.getProperty("user.dir") + File.separator + "dist";
-				File folder = new File(dir);
-				if (!folder.exists()) {
-					folder.mkdirs();
+				boolean needDownload = true;
+				while (needDownload) {
+					String dir = System.getProperty("user.dir") + File.separator + "dist";
+					File folder = new File(dir);
+					if (!folder.exists()) {
+						folder.mkdirs();
+					}
+
+					String filePrefix = fileName.split("\\.jar")[0];
+					StringBuilder filePath = new StringBuilder(dir)
+							.append(File.separator)
+							.append(filePrefix)
+							.append("__").append(resourceId).append("__");
+
+					filePath.append(".jar");
+					File theFilePath = new File(filePath.toString());
+					if (callback != null) callback.needDownloadPdkFile(!theFilePath.isFile());
+					if (!theFilePath.isFile()) {
+						httpClientMongoOperator.downloadFile(
+								new HashMap<String, Object>(1) {{
+									put("pdkHash", pdkHash);
+									put("pdkBuildNumber", CommonUtils.getPdkBuildNumer());
+								}},
+								"pdk/jar/v2",
+								filePath.toString(),
+								false,
+								callback
+						);
+
+						PDKIntegration.refreshJars(filePath.toString());
+					} else if (!PDKIntegration.hasJar(theFilePath.getName())) {
+						PDKIntegration.refreshJars(filePath.toString());
+					}
+					needDownload = reDownloadIfNeed(httpClientMongoOperator, pdkHash, fileName, theFilePath);
 				}
-
-				String filePrefix = fileName.split("\\.jar")[0];
-				StringBuilder filePath = new StringBuilder(dir)
-						.append(File.separator)
-						.append(filePrefix)
-						.append("__").append(resourceId).append("__");
-
-				filePath.append(".jar");
-				File theFilePath = new File(filePath.toString());
-				if(callback != null)callback.needDownloadPdkFile(!theFilePath.isFile());
-				if (!theFilePath.isFile()) {
-					httpClientMongoOperator.downloadFile(
-							new HashMap<String, Object>(1) {{
-								put("pdkHash", pdkHash);
-								put("pdkBuildNumber", CommonUtils.getPdkBuildNumer());
-							}},
-							"pdk/jar/v2",
-							filePath.toString(),
-							false,
-							callback
-					);
-
-					PDKIntegration.refreshJars(filePath.toString());
-				} else if (!PDKIntegration.hasJar(theFilePath.getName())) {
-					PDKIntegration.refreshJars(filePath.toString());
-				}
-				reDownloadIfNeed(httpClientMongoOperator,pdkHash,fileName,theFilePath,resourceId,callback);
 			} catch (IOException e) {
 				throw new RuntimeException(e);
 			} finally {
@@ -103,7 +106,7 @@ public class PdkUtil {
 		}
 	}
 
-	public static void reDownloadIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, File theFilePath, String resourceId, RestTemplateOperator.Callback callback){
+	public static boolean reDownloadIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, File theFilePath){
 		String md5 = null;
 		if (fileMd5Map.containsKey(pdkHash)){
 			md5 = fileMd5Map.get(pdkHash);
@@ -118,8 +121,9 @@ public class PdkUtil {
 		String theFilePathMd5 = PdkSourceUtils.getFileMD5(theFilePath);
 		if (null != md5 && !md5.equals(theFilePathMd5)){
 			FileUtils.deleteQuietly(theFilePath);
-			downloadPdkFileIfNeed(httpClientMongoOperator,pdkHash,fileName,resourceId,callback);
+			return true;
 		}
+		return false;
 	}
 	@NotNull
 	public static String encodeOffset(Object offsetObject) {
