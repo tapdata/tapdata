@@ -85,11 +85,6 @@ public class HashVerifyService {
             errorMsg.add("Inspect status must be scheduling");
         }
 
-        if (inspect.getTasks() == null || !inspect.getTasks().isEmpty()) {
-            errorMsg.add("Inspect sub-task can not be empty.");
-            return errorMsg;
-        }
-
         for (int i = 0; i < inspect.getTasks().size(); i++) {
             com.tapdata.entity.inspect.InspectTask task = inspect.getTasks().get(i);
             if (task == null) {
