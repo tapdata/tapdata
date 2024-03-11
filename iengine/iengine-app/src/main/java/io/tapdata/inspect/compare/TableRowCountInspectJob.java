@@ -24,7 +24,6 @@ import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunc
 import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.utils.UnitTestUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -179,11 +178,7 @@ public class TableRowCountInspectJob extends InspectJob {
 					stats.setEnd(new Date());
 					stats.setResult("failed");
 					progressUpdateCallback.progress(inspectTask, stats, null);
-					if (UnitTestUtils.isTesting()) {
-						logger.error(String.format("Check has an exception and is trying again..., The number of retries: %s", retry));
-					} else {
-						logger.error(String.format("Check has an exception and is trying again..., The number of retries: %s", retry), e);
-					}
+					logger.error(String.format("Check has an exception and is trying again..., The number of retries: %s", retry), e);
 					try {
 						TimeUnit.SECONDS.sleep(5);
 					} catch (InterruptedException interruptedException) {
@@ -192,11 +187,7 @@ public class TableRowCountInspectJob extends InspectJob {
 				}
 			}
 		} catch (Throwable e) {
-			if (UnitTestUtils.isTesting()) {
-				logger.error("Inspect failed {}: {}", name, e.getMessage());
-			} else {
-				logger.error("Inspect failed {}", name, e);
-			}
+			logger.error("Inspect failed " + name, e);
 		}
 	}
 

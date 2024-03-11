@@ -45,9 +45,11 @@ public class TmAvailableRestTemplate extends RestTemplate {
 			try (ClientHttpResponse response = request.execute()) {
 				//long ttl = System.currentTimeMillis() - start;
 				HttpStatus statusCode = response.getStatusCode();
-				if (statusCode.is5xxServerError() && TmStatusService.isAvailable()) {
-					logger.warn("TM unavailable, status code is " + response.getStatusText());
-					TmStatusService.setNotAvailable();
+				if (statusCode.is5xxServerError()) {
+					if (TmStatusService.isAvailable()) {
+						logger.warn("TM unavailable, status code is " + response.getStatusText());
+						TmStatusService.setNotAvailable();
+					}
 				} else if (!TmStatusService.isAvailable()) {
 					TmStatusService.setAvailable();
 					logger.warn("TM available...");

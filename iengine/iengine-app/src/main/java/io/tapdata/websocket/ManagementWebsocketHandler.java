@@ -15,7 +15,6 @@ import io.tapdata.common.executor.ThreadFactory;
 import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskService;
-import io.tapdata.utils.UnitTestUtils;
 import io.tapdata.websocket.handler.PongHandler;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -249,11 +248,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			session.setSession(listenableFuture.get());
 			logger.info("Connect to web socket server success, url {}", currentWsUrl);
 		} catch (Exception e) {
-			if (UnitTestUtils.isTesting()) {
-				logger.error("Create web socket by url {} connection failed {}", currentWsUrl, e.getMessage());
-			} else {
-				logger.error("Create web socket by url {} connection failed {}", currentWsUrl, e.getMessage(), e);
-			}
+			logger.error("Create web socket by url {} connection failed {}", currentWsUrl, e.getMessage(), e);
 			Thread.currentThread().interrupt();
 		}
 	}
@@ -283,7 +278,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 				WebSocketEventHandler<WebSocketEventResult> eventHandler = eventHandler(messageType);
 
-				WebSocketEventResult eventResult = null;
+				WebSocketEventResult eventResult;
 				if (eventHandler == null) {
 					String errorMsg = String.format("Cannot find web socket event handler, type %s", messageType);
 					logger.warn(errorMsg);
@@ -441,11 +436,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 					session.close();
 					session = null;
 				} catch (IOException e) {
-					if (UnitTestUtils.isTesting()) {
-						logger.warn("Close session('{}':{}) failed: {}", session.getId(), session.getUri(), e.getMessage());
-					} else {
-						logger.warn("Close session('{}':{}) failed: {}", session.getId(), session.getUri(), e.getMessage(), e);
-					}
+					logger.warn("Close session('{}':{}) failed: {}", session.getId(), session.getUri(), e.getMessage(), e);
 				}
 			}
 		}
@@ -467,22 +458,14 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 						if (++failTime > retryTime) {
 							throw new RuntimeException("Retried sending " + failTime + " times, duration " + (System.currentTimeMillis() - now) + ", but all failed, cancel retry.", e);
 						}
-						if (UnitTestUtils.isTesting()) {
-							logger.warn("Send websocket message failed, fail time: {}, message: {}, err: {}", failTime, textMessage, e.getMessage());
-						} else {
-							logger.warn("Send websocket message failed, fail time: {}, message: {}, err: {}, stack: {}", failTime, textMessage, e.getMessage(), Log4jUtil.getStackString(e));
-						}
+						logger.warn("Send websocket message failed, fail time: {}, message: {}, err: {}, stack: {}", failTime, textMessage, e.getMessage(), Log4jUtil.getStackString(e));
 						release();
 					}
 
 					wait(500L);
 				}
 			} catch (InterruptedException e) {
-				if (UnitTestUtils.isTesting()) {
-					logger.warn("Waiting to be interrupted, use {}ms: {}", (System.currentTimeMillis() - now), textMessage);
-				} else {
-					logger.warn("Waiting to be interrupted, use {}ms: {}", (System.currentTimeMillis() - now), textMessage, e);
-				}
+				logger.warn("Waiting to be interrupted, use {}ms: {}", (System.currentTimeMillis() - now), textMessage, e);
 				Thread.currentThread().interrupt();
 			}
 		}

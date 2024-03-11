@@ -19,7 +19,6 @@ import com.tapdata.processor.util.CustomTcp;
 import com.tapdata.processor.util.Util;
 import io.tapdata.common.SettingService;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.utils.UnitTestUtils;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
@@ -118,11 +117,7 @@ public class LoadJarLibEventHandler implements WebSocketEventHandler<WebSocketEv
 			}
 			result = WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.LOAD_JAR_LIB_RESULT, resList);
 		} catch (Exception e) {
-			if (UnitTestUtils.isTesting()) {
-				logger.error("load jar class error: {}", e.getMessage());
-			} else {
-				logger.error("load jar class error", e);
-			}
+			logger.error("load jar class error", e);
 			result = WebSocketEventResult.handleFailed(WebSocketEventResult.Type.LOAD_JAR_LIB_RESULT, e.getMessage());
 		} finally {
 			Thread.currentThread().setContextClassLoader(contextClassLoader);

@@ -28,7 +28,6 @@ import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.threadgroup.DisposableThreadGroup;
 import io.tapdata.threadgroup.utils.DisposableType;
-import io.tapdata.utils.UnitTestUtils;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.SendMessage;
 import io.tapdata.websocket.WebSocketEventHandler;
@@ -269,11 +268,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 						sendMessage.send(WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_CONNECTION_RESULT, errMsg));
 					} else {
 						errMsg = String.format("Test connection %s failed, data: %s, err: %s", connName, event, e.getMessage());
-						if (UnitTestUtils.isTesting()) {
-							logger.error(errMsg);
-						} else {
-							logger.error(errMsg, e);
-						}
+						logger.error(errMsg, e);
 						sendMessage.send(WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_CONNECTION_RESULT, errMsg, e));
 					}
 				} catch (IOException ioException) {
