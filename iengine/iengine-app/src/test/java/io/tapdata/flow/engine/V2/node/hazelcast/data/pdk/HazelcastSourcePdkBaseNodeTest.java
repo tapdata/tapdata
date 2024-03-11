@@ -125,6 +125,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		@SneakyThrows
 		@DisplayName("Exception test")
 		void testException() {
+			taskDto.setId(new ObjectId());
 			when(mockBatchCountFunction.count(null, testTable)).thenThrow(new TestException());
 
 			TaskConfig taskConfig = TaskConfig.create();
