@@ -17,6 +17,7 @@ import io.tapdata.inspect.cdc.compare.RowCountInspectCdcJob;
 import io.tapdata.inspect.compare.TableRowContentInspectJob;
 import io.tapdata.inspect.compare.TableRowCountInspectJob;
 import io.tapdata.inspect.compare.TableRowScriptInspectJob;
+import io.tapdata.inspect.stage.HashVerifyService;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -244,6 +245,9 @@ public class InspectService {
 				case CDC_COUNT:
 				case ROW_COUNT:
 					submitTask(executeRowCountInspect(inspect));
+					break;
+				case HASH:
+					submitTask(HashVerifyService.create(clientMongoOperator).inspect(this, inspect));
 					break;
 				default:
 					logger.error("Unsupported comparison method '{}', inspect id '{}': `{}'", inspectMethod, inspect.getId(), inspect.getName());

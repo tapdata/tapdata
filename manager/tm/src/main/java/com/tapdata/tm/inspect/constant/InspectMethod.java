@@ -2,7 +2,8 @@ package com.tapdata.tm.inspect.constant;
 
 public enum InspectMethod {
     FIELD("field"),
-    ROW_COUNT("row_count")  ;
+    ROW_COUNT("row_count") ,
+    HASH("hash")  ;
 
     private final String value;
 
