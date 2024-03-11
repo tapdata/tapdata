@@ -813,7 +813,20 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.build()
 				);
 				break;
-
+			case ADD_DATE_FIELD_PROCESS:
+			case MIGRATE_ADD_DATE_FIELD_PROCESSOR:
+				hazelcastNode = new HazelcastAddDateFieldProcessNode(
+						DataProcessorContext.newBuilder()
+								.withTaskDto(taskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withConfigurationCenter(config)
+								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
+								.build()
+				);
+				break;
 			default:
 				hazelcastNode = new HazelcastBlank(
 						DataProcessorContext.newBuilder()
