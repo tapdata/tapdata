@@ -17,6 +17,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
@@ -127,10 +128,14 @@ public class PkdSourceService {
 			try (InputStream ins = jarFile.getInputStream()){
 				Map<String, Object> fileInfo = Maps.newHashMap();
 				File file = new File(jarFile.getName());
+				String md5 = null;
 				if (!file.exists()){
 					inputStreamToFile(ins,file);
+					md5 = PdkSourceUtils.getFileMD5(file);
+					FileUtils.deleteQuietly(file);
+				}else {
+					md5 = PdkSourceUtils.getFileMD5(file);
 				}
-				String md5 = PdkSourceUtils.getFileMD5(file);
 				fileInfo.put("pdkHash", pdkHash);
 				fileInfo.put("pdkAPIBuildNumber", pdkAPIBuildNumber);
 				fileInfo.put("md5", md5);

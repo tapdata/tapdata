@@ -116,7 +116,9 @@ public class PdkUtil {
 						put("pdkHash", pdkHash);
 						put("fileName", fileName);
 					}}, "/pdk/checkMd5", String.class);
-			 fileMd5Map.put(pdkHash, md5);
+			 if (null != md5){
+				 fileMd5Map.put(pdkHash, md5);
+			 }
 		}
 		String theFilePathMd5 = PdkSourceUtils.getFileMD5(theFilePath);
 		if (null != md5 && !md5.equals(theFilePathMd5)){
