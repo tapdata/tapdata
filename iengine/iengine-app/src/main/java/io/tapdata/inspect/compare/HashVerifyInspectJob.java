@@ -16,7 +16,6 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.common.QueryHashByAdvanceFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.common.vo.TapHashResult;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -26,7 +25,9 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -40,45 +41,44 @@ public class HashVerifyInspectJob extends InspectJob {
     @Override
     protected void doRun() {
         try {
-            int retry = 0;
-            while (retry < 4) {
+            AtomicInteger retry = new AtomicInteger();
+            while (retry.get() < 4) {
                 try {
-                    AtomicReference<TapHashResult> sourceHash = new AtomicReference<>();
-                    AtomicReference<TapHashResult> targetHash = new AtomicReference<>();
-
-                    List<QueryOperator> srcConditions = inspectTask.getSource().getConditions();
-                    TapTable srcTable = getTapTable(inspectTask.getSource());
-                    //if (CollectionUtils.isNotEmpty(srcConditions) && null != inspectTask.getSource().getIsFilter() && inspectTask.getSource().getIsFilter()) {
+                    Boolean passed = CompletableFuture.supplyAsync(() -> {
+                        List<QueryOperator> srcConditions = inspectTask.getSource().getConditions();
+                        TapTable srcTable = getTapTable(inspectTask.getSource());
                         QueryHashByAdvanceFilterFunction queryHashOfSource = this.sourceNode.getConnectorFunctions().getQueryHashByAdvanceFilterFunction();
                         if (null == queryHashOfSource) {
-                            retry = 3;
+                            retry.set(3);
                             throw new TapCodeException(TaskInspectExCode_27.CONNECTOR_NOT_SUPPORT_FUNCTION,
                                     "Source node does not support hash verification with filter function: " + sourceNode.getConnectorContext().getSpecification().getId());
                         }
                         TapAdvanceFilter tapAdvanceFilter = wrapFilter(srcConditions);
+                        AtomicReference<TapHashResult> result = new AtomicReference<>();
                         PDKInvocationMonitor.invoke(this.sourceNode, PDKMethod.QUERY_HASH_BY_ADVANCE_FILTER,
-                                () -> queryHashOfSource.query(this.sourceNode.getConnectorContext(), tapAdvanceFilter, srcTable, sourceHash::set), TAG);
-                    //}
-
-                    List<QueryOperator> tgtConditions = inspectTask.getTarget().getConditions();
-                    TapTable tgtTable = getTapTable(inspectTask.getTarget());
-                    //if (CollectionUtils.isNotEmpty(tgtConditions) && null != inspectTask.getTarget().getIsFilter() && inspectTask.getTarget().getIsFilter()) {
+                                () -> queryHashOfSource.query(this.sourceNode.getConnectorContext(), tapAdvanceFilter, srcTable, result::set), TAG);
+                        return result.get();
+                    }).thenCombine(CompletableFuture.supplyAsync(() -> {
+                        List<QueryOperator> tgtConditions = inspectTask.getTarget().getConditions();
+                        TapTable tgtTable = getTapTable(inspectTask.getTarget());
                         QueryHashByAdvanceFilterFunction queryHashOfTarget = this.targetNode.getConnectorFunctions().getQueryHashByAdvanceFilterFunction();
                         if (null == queryHashOfTarget) {
-                            retry = 3;
+                            retry.set(3);
                             throw new TapCodeException(TaskInspectExCode_27.CONNECTOR_NOT_SUPPORT_FUNCTION,
                                     "Target node does not support hash verification with filter function: " + targetNode.getConnectorContext().getSpecification().getId());
                         }
-
                         TapAdvanceFilter filter = wrapFilter(tgtConditions);
+                        AtomicReference<TapHashResult> result = new AtomicReference<>();
                         PDKInvocationMonitor.invoke(this.targetNode, PDKMethod.QUERY_HASH_BY_ADVANCE_FILTER,
-                                () -> queryHashOfTarget.query(this.targetNode.getConnectorContext(), filter, tgtTable, targetHash::set), TAG);
-                    //}
-
-                    boolean passed = false;
-                    if (null != sourceHash.get() && null != targetHash.get() && null != sourceHash.get().getHash()) {
-                        passed = sourceHash.get().getHash().equals(targetHash.get().getHash());
-                    }
+                                () -> queryHashOfTarget.query(this.targetNode.getConnectorContext(), filter, tgtTable, result::set), TAG);
+                        return result.get();
+                    }), (source, target) -> {
+                        if (null != source && null != target) {
+                            logger.info("source hash: " + source.getHash() + ", target hash: " + target.getHash());
+                            return source.getHash().equals(target.getHash());
+                        }
+                        return false;
+                    }).get();
 
                     stats.setEnd(new Date());
                     stats.setStatus("done");
@@ -86,7 +86,7 @@ public class HashVerifyInspectJob extends InspectJob {
                     stats.setProgress(1);
                     break;
                 } catch (Exception e) {
-                    if (retry >= 3) {
+                    if (retry.get() >= 3) {
                         logger.error(String.format("Failed to compare the hash of rows in table %s.%s and table %s.%s, the taskId is %s",
                                 source.getName(), inspectTask.getSource().getTable(),
                                 target.getName(), inspectTask.getTarget().getTable(), inspectTask.getTaskId()), e);
@@ -97,7 +97,7 @@ public class HashVerifyInspectJob extends InspectJob {
                                 Arrays.stream(e.getStackTrace()).map(StackTraceElement::toString).collect(Collectors.joining("\n")));
                         break;
                     }
-                    retry++;
+                    retry.getAndIncrement();
                     stats.setErrorMsg(String.format("Check has an exception and is trying again..., The number of retries: %s", retry));
                     stats.setStatus(InspectStatus.ERROR.getCode());
                     stats.setEnd(new Date());
