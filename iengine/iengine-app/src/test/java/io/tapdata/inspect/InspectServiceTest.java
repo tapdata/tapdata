@@ -11,8 +11,12 @@ import io.tapdata.inspect.cdc.compare.RowCountInspectCdcJob;
 import io.tapdata.inspect.compare.TableRowContentInspectJob;
 import io.tapdata.inspect.compare.TableRowCountInspectJob;
 import io.tapdata.inspect.compare.TableRowScriptInspectJob;
+import io.tapdata.inspect.stage.HashVerifyService;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.*;
+import org.junit.platform.commons.util.ReflectionUtils;
 import org.junit.runner.RunWith;
+import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.data.domain.Sort;
@@ -285,6 +289,44 @@ class InspectServiceTest extends BaseTest {
             inspectService.startInspect(inspect);
             verify(inspectService, new Times(1))
                     .updateStatus(inspect.getId(), InspectStatus.ERROR, String.join(", ", "Unsupported comparison method"));
+        }
+
+        @Test
+        void testStartInspectWithHashVerify() {
+            InspectService service = mock(InspectService.class);
+            HashVerifyService hashVerifyService = mock(HashVerifyService.class);
+            Inspect inspect = mock(Inspect.class);
+            Logger logger = mock(Logger.class);
+            io.tapdata.inspect.InspectTask task = mock(io.tapdata.inspect.InspectTask.class);
+            ConcurrentHashMap<String, io.tapdata.inspect.InspectTask> runningInspect = mock(ConcurrentHashMap.class);
+
+            when(inspect.getInspectMethod()).thenReturn("hash");
+            when(inspect.getId()).thenReturn("id");
+
+            when(logger.isInfoEnabled()).thenReturn(false);
+            ReflectionTestUtils.setField(service, "logger", logger);
+
+            when(hashVerifyService.inspect(service, inspect)).thenReturn(task);
+
+            doCallRealMethod().when(service).startInspect(inspect);
+            when(service.submitTask(task)).thenReturn(mock(Future.class));
+
+            when(runningInspect.containsKey("id")).thenReturn(false);
+            ReflectionTestUtils.setField(service, "RUNNING_INSPECT", runningInspect);
+
+            ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+            ReflectionTestUtils.setField(service, "clientMongoOperator", clientMongoOperator);
+            try(MockedStatic<HashVerifyService> hvs = mockStatic(HashVerifyService.class)) {
+                hvs.when(() -> HashVerifyService.create(clientMongoOperator)).thenReturn(hashVerifyService);
+                Assertions.assertDoesNotThrow(() -> service.startInspect(inspect));
+                verify(logger, times(1)).isInfoEnabled();
+                verify(runningInspect, times(1)).containsKey("id");
+                verify(inspect, times(2)).getId();
+                verify(inspect, times(2)).getInspectMethod();
+                verify(hashVerifyService, times(1)).inspect(service, inspect);
+                hvs.verify(() -> HashVerifyService.create(clientMongoOperator), times(1));
+                verify(service, times(1)).submitTask(task);
+            }
         }
     }
     @Nested
