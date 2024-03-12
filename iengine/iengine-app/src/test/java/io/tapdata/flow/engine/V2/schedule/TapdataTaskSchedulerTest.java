@@ -415,7 +415,7 @@ public class TapdataTaskSchedulerTest {
 			AtomicBoolean isCallStopTask = new AtomicBoolean(false);
 			TapdataTaskScheduler instance = new TapdataTaskScheduler() {
 				@Override
-				protected void startTask(TaskDto taskDto) {
+				protected void stopTask(String taskId) {
 					isCallStopTask.set(true);
 				}
 			};

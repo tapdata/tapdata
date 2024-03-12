@@ -650,7 +650,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		return settingService.getLong("jobHeartTimeout", 60000L);
 	}
 
-	private void stopTask(String taskId) {
+	protected void stopTask(String taskId) {
 		TaskClient<TaskDto> taskDtoTaskClient = taskClientMap.get(taskId);
 		if (null == taskDtoTaskClient) {
 			try {
