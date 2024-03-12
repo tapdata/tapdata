@@ -1,6 +1,7 @@
 package io.tapdata.aspect.supervisor;
 
 import io.tapdata.aspect.supervisor.entity.DisposableThreadGroupBase;
+import io.tapdata.aspect.utils.AspectUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -17,25 +18,27 @@ class AspectRunnableUtilTest {
 
 	@Test
 	void testAspectRunnable() {
+		CountDownLatch checkRunnableIsCalled = new CountDownLatch(3); // before, runner, after
 		DisposableThreadGroupAspect<DisposableThreadGroupBase> aspect = Mockito.mock(DisposableThreadGroupAspect.class);
-		Mockito.when(aspect.release()).thenReturn(aspect);
+		try (MockedStatic<AspectUtils> aspectUtilsMockedStatic = Mockito.mockStatic(AspectUtils.class)) {
+			aspectUtilsMockedStatic.when(() -> AspectUtils.executeAspect(Mockito.any(), Mockito.any())).thenAnswer(invocationOnMock -> {
+				checkRunnableIsCalled.countDown();
+				return null;
+			});
 
-		CountDownLatch checkRunnableIsCalled = new CountDownLatch(1);
-		Runnable realRunnable = checkRunnableIsCalled::countDown;
+			Runnable realRunnable = checkRunnableIsCalled::countDown;
+			Runnable aspectRunnable = AspectRunnableUtil.aspectRunnable(aspect, realRunnable);
+			Assertions.assertNotNull(aspectRunnable);
+			aspectRunnable.run();
 
-		Runnable aspectRunnable = AspectRunnableUtil.aspectRunnable(aspect, realRunnable);
-		Assertions.assertNotNull(aspectRunnable);
-		aspectRunnable.run();
-
-		try {
-			// 等待子线程被调用一次，最多等待5秒
-			Assertions.assertTrue(checkRunnableIsCalled.await(5, TimeUnit.SECONDS), "Runnable is not called");
-		} catch (InterruptedException ignore) {
-			Thread.currentThread().interrupt();
+			try {
+				// 等待子线程被调用一次，最多等待5秒
+				Assertions.assertTrue(checkRunnableIsCalled.await(100, TimeUnit.MILLISECONDS), "Runnable is not called");
+			} catch (InterruptedException ignore) {
+				Thread.currentThread().interrupt();
+			}
 		}
 
-		// check call release
-		Mockito.verify(aspect, Mockito.times(1)).release();
 	}
 
 	@Test

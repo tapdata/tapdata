@@ -122,6 +122,22 @@ class ConnectorManagerTest extends BaseTest {
                 when(settingService.getSetting("buildProfile")).thenReturn(mock(Setting.class));
                 connectorManager.init();
             }
+
+						// check cloud logic
+					try (
+						MockedStatic<WorkerSingletonLock> singletonLock = mockStatic(WorkerSingletonLock.class);
+						MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class)
+					) {
+						AppType appType = mock(AppType.class);
+						when(appType.isCloud()).thenReturn(true);
+						appTypeMockedStatic.when(AppType::currentType).thenReturn(appType);
+						singletonLock.when(() -> WorkerSingletonLock.check(any(), any())).thenAnswer(answer -> {
+							return null;
+						});
+						when(settingService.getSetting("buildProfile")).thenReturn(mock(Setting.class));
+						connectorManager.init();
+					}
+
         }
         @Test
         void testInitForCheckLicenseEngineLimitWithEx() throws Exception {
