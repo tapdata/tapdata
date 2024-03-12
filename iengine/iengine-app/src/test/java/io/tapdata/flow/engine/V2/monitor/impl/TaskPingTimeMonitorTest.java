@@ -6,6 +6,7 @@ import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.ConsumerImpl;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
 import io.tapdata.utils.AppType;
+import io.tapdata.utils.UnitTestUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,20 +38,10 @@ class TaskPingTimeMonitorTest {
 		clientMongoOperator = mock(HttpClientMongoOperator.class);
 
 		taskPingTimeMonitor = mock(TaskPingTimeMonitor.class, CALLS_REAL_METHODS);
-		inject(taskPingTimeMonitor, TaskPingTimeMonitor.class, "logger", LogManager.getLogger(TaskPingTimeMonitor.class));
-		inject(taskPingTimeMonitor, TaskPingTimeMonitor.class, "stopTask", stopTask);
-		inject(taskPingTimeMonitor, TaskPingTimeMonitor.class, "taskMonitor", taskMonitor);
-		inject(taskPingTimeMonitor, TaskPingTimeMonitor.class, "clientMongoOperator", clientMongoOperator);
-	}
-
-	<T> void inject(T ins, Class<T> clz, String field, Object value) {
-		try {
-			Field declaredField = clz.getDeclaredField(field);
-			declaredField.setAccessible(true);
-			declaredField.set(ins, value);
-		} catch (Exception e) {
-			throw new RuntimeException("Inject value to " + clz.getSimpleName() + "." + field + " failed", e);
-		}
+		UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "logger", LogManager.getLogger(TaskPingTimeMonitor.class));
+		UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "stopTask", stopTask);
+		UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "taskMonitor", taskMonitor);
+		UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "clientMongoOperator", clientMongoOperator);
 	}
 
 	@Nested
@@ -107,7 +98,7 @@ class TaskPingTimeMonitorTest {
 			Update update = mock(Update.class);
 
 			// Ignore log printing for successful use cases
-			inject(taskPingTimeMonitor, TaskPingTimeMonitor.class, "logger", mock(Logger.class));
+			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "logger", mock(Logger.class));
 			taskPingTimeMonitor.taskPingTimeUseHttp(query, update);
 
 			verify(taskMonitor, times(1)).accept(TerminalMode.INTERNAL_STOP);

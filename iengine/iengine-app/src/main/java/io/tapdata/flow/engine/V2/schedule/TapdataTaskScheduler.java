@@ -1,6 +1,5 @@
 package io.tapdata.flow.engine.V2.schedule;
 
-import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import io.tapdata.utils.AppType;
@@ -192,8 +191,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		logger.info("Stop schedule task: " + name);
 	}
 
-	private void handleTaskOperation(TaskOperation taskOperation) {
-		taskOperationThreadPool.submit(() -> {
+	protected Runnable getHandleTaskOperationRunnable(TaskOperation taskOperation) {
+		return () -> {
 			String taskId;
 			try {
 				if (taskOperation instanceof StartTaskOperation) {
@@ -216,7 +215,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					logger.error("Handle task operation error", e);
 				}
 			}
-		});
+		};
+	}
+
+	protected void handleTaskOperation(TaskOperation taskOperation) {
+		Runnable runnable = getHandleTaskOperationRunnable(taskOperation);
+		taskOperationThreadPool.submit(runnable);
 	}
 
 	public void sendStartTask(TaskDto taskDto) {
@@ -374,12 +378,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				}
 			}
 
-			if (!AppType.currentType().isCloud()) {
-				List<TaskDto> timeoutStoppingTasks = findStoppingTasks();
-				for (TaskDto timeoutStoppingTask : timeoutStoppingTasks) {
-					final String taskId = timeoutStoppingTask.getId().toHexString();
-					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
-				}
+			if (AppType.currentType().isCloud()) return;
+
+			List<TaskDto> timeoutStoppingTasks = findStoppingTasks();
+			for (TaskDto timeoutStoppingTask : timeoutStoppingTasks) {
+				final String taskId = timeoutStoppingTask.getId().toHexString();
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
 			}
 		} catch (Exception e) {
 			logger.error("Scan force stopping data flow failed {}", e.getMessage(), e);
@@ -549,7 +553,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	 *
 	 * @return
 	 */
-	private List<TaskDto> findStoppingTasks() {
+	protected List<TaskDto> findStoppingTasks() {
 		long jobHeartTimeout = getJobHeartTimeout();
 		long expiredTimeMillis = System.currentTimeMillis() - jobHeartTimeout;
 		Criteria timeoutCriteria = where("status").is(TaskDto.STATUS_STOPPING)
