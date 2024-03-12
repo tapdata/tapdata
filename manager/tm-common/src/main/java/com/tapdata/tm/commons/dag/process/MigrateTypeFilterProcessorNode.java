@@ -67,34 +67,6 @@ public class MigrateTypeFilterProcessorNode extends MigrateProcessorNode {
         return inputSchemas.get(0);
     }
 
-    @Override
-    protected List<Schema> loadSchema(List<String> includes) {
-        return null;
-    }
 
-    @Override
-    protected List<Schema> saveSchema(Collection<String> predecessors, String nodeId, List<Schema> schema, DAG.Options options) {
-        schema.forEach(s -> {
-            //s.setTaskId(taskId);
-            s.setNodeId(nodeId);
-        });
-
-        return service.createOrUpdateSchema(ownerId(), toObjectId(getConnectId()), schema, options, this);
-    }
-
-    @Override
-    protected List<Schema> cloneSchema(List<Schema> schemas) {
-        if (schemas == null) {
-            return Collections.emptyList();
-        }
-        return SchemaUtils.cloneSchema(schemas);
-    }
-
-    private String getConnectId() {
-        AtomicReference<String> connectionId = new AtomicReference<>("");
-
-        getSourceNode().stream().findFirst().ifPresent(node -> connectionId.set(node.getConnectionId()));
-        return connectionId.get();
-    }
 
 }

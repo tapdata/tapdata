@@ -48,6 +48,8 @@ public enum NodeTypeEnum {
 	PYTHON_PROCESS("python_processor"),
 
 	UNWIND_PROCESS("unwind_processor"),
+	ADD_DATE_FIELD_PROCESS("add_date_field_processor"),
+	MIGRATE_ADD_DATE_FIELD_PROCESSOR("migrate_add_date_field_processor")
 	;
 
 	public final String type;

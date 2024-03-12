@@ -4,6 +4,9 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.task.retry.RetryContext;
 
 import java.io.Serializable;
+import java.util.concurrent.TimeUnit;
+
+import static io.tapdata.pdk.core.utils.RetryUtils.DEFAULT_RETRY_PERIOD_SECONDS;
 
 /**
  * @author samuel
@@ -16,6 +19,11 @@ public class TaskRetryContext extends RetryContext implements Serializable {
 	private final TaskDto taskDto;
 	private final Long retryDurationMs;
 	private Long methodRetryTime;
+	private Long retryIntervalMs;
+
+	public Long getRetryIntervalMs() {
+		return retryIntervalMs;
+	}
 
 	private TaskRetryContext(TaskDto taskDto, Long retryDurationMs) {
 		if (null == taskDto) {
@@ -29,6 +37,14 @@ public class TaskRetryContext extends RetryContext implements Serializable {
 		}
 		this.methodRetryTime = DEFAULT_METHOD_RETRY_TIME;
 	}
+	private TaskRetryContext(TaskDto taskDto, Long retryDurationMs, Long retryIntervalMs) {
+		this(taskDto, retryDurationMs);
+		if (null != retryIntervalMs && retryIntervalMs.compareTo(0L) > 0) {
+			this.retryIntervalMs = retryIntervalMs;
+		} else {
+			this.retryIntervalMs = TimeUnit.SECONDS.toMillis(DEFAULT_RETRY_PERIOD_SECONDS);
+		}
+	}
 
 	static TaskRetryContext create(TaskDto taskDto) {
 		return new TaskRetryContext(taskDto, null);
@@ -36,6 +52,9 @@ public class TaskRetryContext extends RetryContext implements Serializable {
 
 	static TaskRetryContext create(TaskDto taskDto, Long retryDurationMs) {
 		return new TaskRetryContext(taskDto, retryDurationMs);
+	}
+	static TaskRetryContext create(TaskDto taskDto, Long retryDurationMs,Long retryIntervalMs){
+		return new TaskRetryContext(taskDto,retryDurationMs,retryIntervalMs);
 	}
 
 	public TaskDto getTaskDto() {
