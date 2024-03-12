@@ -5,6 +5,7 @@ import com.tapdata.entity.inspect.InspectDataSource;
 import com.tapdata.entity.inspect.InspectResultStats;
 import com.tapdata.entity.inspect.InspectStatus;
 import com.tapdata.entity.inspect.InspectTask;
+import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.inspect.InspectTaskContext;
@@ -53,6 +54,30 @@ public class HashVerifyInspectJobTest {
     HashVerifyInspectJob hashVerifyInspectJob;
     InspectTaskContext inspectTaskContext;
 
+    @Test
+    void testConstructor() {
+        com.tapdata.entity.inspect.InspectTask inspectTask = mock(com.tapdata.entity.inspect.InspectTask.class);
+        when(inspectTask.getTaskId()).thenReturn("id");
+        InspectDataSource mock = mock(InspectDataSource.class);
+        when(inspectTask.getSource()).thenReturn(mock);
+        when(inspectTask.getTarget()).thenReturn(mock);
+
+        Connections connection = mock(Connections.class);
+        when(inspectTask.getTaskId()).thenReturn("taskID");
+        when(connection.getName()).thenReturn("connection");
+        doNothing().when(mock).setConnectionName(anyString());
+
+        when(inspectTaskContext.getClientMongoOperator()).thenReturn(mock(ClientMongoOperator.class));
+        when(inspectTaskContext.getTask()).thenReturn(inspectTask);
+        when(inspectTaskContext.getName()).thenReturn("name");
+        when(inspectTaskContext.getSource()).thenReturn(connection);
+        when(inspectTaskContext.getTarget()).thenReturn(connection);
+        when(inspectTaskContext.getProgressUpdateCallback()).thenReturn(null);
+        when(inspectTaskContext.getInspectResultParentId()).thenReturn(null);
+        when(inspectTaskContext.getSourceConnectorNode()).thenReturn(null);
+        when(inspectTaskContext.getTargetConnectorNode()).thenReturn(null);
+        Assertions.assertDoesNotThrow(() -> new HashVerifyInspectJob(inspectTaskContext));
+    }
     @Test
     void assertParam() {
         Assertions.assertEquals("failed", HashVerifyInspectJob.FAILED_TAG);
