@@ -10,7 +10,6 @@ import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.observable.logging.util.Conf.LogConfiguration;
->>>>>>> develop
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
