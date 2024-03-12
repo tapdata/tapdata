@@ -15,7 +15,7 @@
 	<packaging>pom</packaging>
 
 
-	<name>tm-parent</name>
+	<name>TM Parent</name>
 
 	<description>Tapdata Management Parent</description>
 
@@ -25,6 +25,7 @@
 		<java.version>1.8</java.version>
 		<maven.compiler.source>${java.version}</maven.compiler.source>
 		<maven.compiler.target>${java.version}</maven.compiler.target>
+		<tm.impl.artifactId>tm-oss</tm.impl.artifactId>
 	</properties>
 
 	<modules>
@@ -32,10 +33,40 @@
         <module>tm</module>
         <module>code-gen</module>
 		<module>tm-sdk</module>
-    </modules>
+        <module>tm-api</module>
+		<module>tm-oss</module>
+	</modules>
+
+	<profiles>
+		<profile>
+			<id>oss</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+		</profile>
+		<profile>
+			<id>enterprise</id>
+			<modules>
+				<module>../../tapdata-enterprise/tm-enterprise</module>
+			</modules>
+			<properties>
+				<tm.impl.artifactId>tm-enterprise</tm.impl.artifactId>
+			</properties>
+		</profile>
+	</profiles>
 
 	<dependencyManagement>
 		<dependencies>
+			<dependency>
+				<groupId>com.tapdata</groupId>
+				<artifactId>tm-oss</artifactId>
+				<version>1.0.0-SNAPSHOT</version>
+			</dependency>
+			<dependency>
+				<groupId>com.tapdata</groupId>
+				<artifactId>tm-enterprise</artifactId>
+				<version>1.0.0-SNAPSHOT</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 	<repositories>

@@ -6,8 +6,7 @@
     <groupId>com.tapdata</groupId>
     <artifactId>iengine-common</artifactId>
     <packaging>jar</packaging>
-    <name>iengine-common</name>
-    <url>http://maven.apache.org</url>
+    <name>IENGINE Common</name>
 
     <parent>
         <groupId>com.tapdata</groupId>

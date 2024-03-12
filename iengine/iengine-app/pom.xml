@@ -5,8 +5,7 @@
     <groupId>com.tapdata</groupId>
     <artifactId>iengine-app</artifactId>
     <packaging>jar</packaging>
-    <name>iengine-app</name>
-    <url>http://maven.apache.org</url>
+    <name>IENGINE APP</name>
 
     <parent>
         <groupId>com.tapdata</groupId>
@@ -25,6 +24,10 @@
         <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
     </properties>
     <dependencies>
+        <dependency>
+            <groupId>com.tapdata</groupId>
+            <artifactId>${iengine.impl.artifactId}</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-storage-module</artifactId>
