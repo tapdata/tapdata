@@ -24,7 +24,7 @@ import java.util.Map;
  * */
 public class HashVerifyService {
     private Logger logger = LogManager.getLogger(HashVerifyService.class);
-    private volatile ClientMongoOperator clientMongoOperator;
+    private ClientMongoOperator clientMongoOperator;
     private HashVerifyService() {
 
     }
@@ -75,54 +75,58 @@ public class HashVerifyService {
         List<String> errorMsg = new ArrayList<>();
 
         if (inspect == null) {
-            errorMsg.add("Inspect can not be empty.");
+            errorMsg.add("Inspect(hash verify) can not be empty");
             return errorMsg;
         }
 
         if (!"scheduling".equals(inspect.getStatus())) {
-            errorMsg.add("Inspect status must be scheduling");
+            errorMsg.add("Inspect(hash verify) status must be scheduling");
         }
-
-        for (int i = 0; i < inspect.getTasks().size(); i++) {
-            com.tapdata.entity.inspect.InspectTask task = inspect.getTasks().get(i);
+        List<com.tapdata.entity.inspect.InspectTask> tasks = inspect.getTasks();
+        if (null == tasks || tasks.isEmpty()) {
+            return errorMsg;
+        }
+        final int size = tasks.size();
+        for (int index = 0; index < size; index++) {
+            com.tapdata.entity.inspect.InspectTask task = tasks.get(index);
             if (task == null) {
-                logger.warn("Inspect.tasks[{}] is empty.",i);
+                logger.warn("Inspect(hash verify) tasks[{}] is empty", index);
                 continue;
             }
             if (StringUtils.isEmpty(task.getTaskId())) {
-                errorMsg.add(String.format(InspectService.INSPECT_TASKS_CANNOT_BE_EMPTY,i));
+                errorMsg.add(String.format(InspectService.INSPECT_TASKS_CANNOT_BE_EMPTY, index));
             }
-            List<String> sourceErrorMsg = checkRowCountInspectTaskDataSource(String.format(InspectService.INSPECT_TASKS_PREFIX_SOURCE, i), task.getSource());
+            String source = String.format(InspectService.INSPECT_TASKS_PREFIX_SOURCE, index);
+            List<String> sourceErrorMsg = checkRowCountInspectTaskDataSource(source, task.getSource());
             errorMsg.addAll(sourceErrorMsg);
-            List<String> targetErrorMsg = checkRowCountInspectTaskDataSource(String.format(InspectService.INSPECT_TASKS_PREFIX_TARGET, i), task.getTarget());
+
+            String target = String.format(InspectService.INSPECT_TASKS_PREFIX_TARGET, index);
+            List<String> targetErrorMsg = checkRowCountInspectTaskDataSource(target, task.getTarget());
             errorMsg.addAll(targetErrorMsg);
         }
         return errorMsg;
     }
 
     public void updateStatus(String id, InspectStatus status, String msg) {
-
         Map<String, Object> queryMap = new HashMap<>();
         queryMap.put("id", id);
-
         Map<String, Object> updateMap = new HashMap<>();
         updateMap.put(InspectService.STATUS_FIELD, status.getCode());
         updateMap.put("errorMsg", msg);
-
         clientMongoOperator.upsert(queryMap, updateMap, ConnectorConstant.INSPECT_COLLECTION);
     }
 
     protected List<String> checkRowCountInspectTaskDataSource(String prefix, InspectDataSource dataSource) {
         List<String> errorMsg = new ArrayList<>();
         if (null == dataSource){
-            errorMsg.add(prefix + ".inspectDataSource can not be null.");
+            errorMsg.add(prefix + ".inspectDataSource can not be null");
             return errorMsg;
         }
         if (StringUtils.isEmpty(dataSource.getConnectionId())) {
-            errorMsg.add(prefix + ".connectionId can not be empty.");
+            errorMsg.add(prefix + ".connectionId can not be empty");
         }
         if (StringUtils.isEmpty(dataSource.getTable())) {
-            errorMsg.add(prefix + ".table can not be empty.");
+            errorMsg.add(prefix + ".table can not be empty");
         }
         return errorMsg;
     }
