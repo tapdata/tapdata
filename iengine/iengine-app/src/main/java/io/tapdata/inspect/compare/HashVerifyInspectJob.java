@@ -21,6 +21,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 public class HashVerifyInspectJob extends InspectJob {
     private static final String TAG = HashVerifyInspectJob.class.getSimpleName();
     private static final Logger logger = LogManager.getLogger(HashVerifyInspectJob.class);
+    private final AtomicBoolean lock = new AtomicBoolean(true);
 
     public HashVerifyInspectJob(InspectTaskContext inspectTaskContext) {
         super(inspectTaskContext);
@@ -41,6 +43,13 @@ public class HashVerifyInspectJob extends InspectJob {
                 try {
                     CompletableFuture.supplyAsync(() -> doSourceHash(retry))
                             .thenAcceptBoth(CompletableFuture.supplyAsync(() -> doTargetHash(retry)), this::doHashVerify);
+                    while (lock.get()) {
+                        try {
+                            TimeUnit.MILLISECONDS.sleep(10);
+                        } catch (InterruptedException interruptedException) {
+
+                        }
+                    }
                     break;
                 } catch (Exception e) {
                     if (doWhenException(retry, e)) {
@@ -50,6 +59,8 @@ public class HashVerifyInspectJob extends InspectJob {
             }
         } catch (Throwable e) {
             logger.error("Inspect failed " + name, e);
+        } finally {
+            lock.set(false);
         }
     }
 
@@ -99,6 +110,7 @@ public class HashVerifyInspectJob extends InspectJob {
         stats.setStatus("done");
         stats.setResult(passed ? "passed" : "failed");
         stats.setProgress(1);
+        lock.set(false);
     }
 
     protected boolean doWhenException(final AtomicInteger retry, Exception e) {
