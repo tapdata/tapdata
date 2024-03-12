@@ -59,8 +59,6 @@ public class HashVerifyInspectJob extends InspectJob {
             }
         } catch (Throwable e) {
             logger.error("Inspect failed " + name, e);
-        } finally {
-            lock.set(false);
         }
     }
 
@@ -95,22 +93,24 @@ public class HashVerifyInspectJob extends InspectJob {
         PDKInvocationMonitor.invoke(this.targetNode, PDKMethod.QUERY_HASH_BY_ADVANCE_FILTER,
                 () -> queryHashOfTarget.query(this.targetNode.getConnectorContext(), filter, tgtTable, targetHash::set), TAG);
         return targetHash.get();
-
     }
 
     protected void doHashVerify(TapHashResult sourceHash, TapHashResult targetHash) {
-        boolean passed = false;
-        if (null != sourceHash && null != targetHash && null != sourceHash.getHash()) {
-            passed = sourceHash.getHash().equals(targetHash.getHash());
+        try {
+            boolean passed = false;
+            if (null != sourceHash && null != targetHash && null != sourceHash.getHash()) {
+                passed = sourceHash.getHash().equals(targetHash.getHash());
+            }
+            logger.debug("Source table hash: {}, target table hash: {}",
+                    null == sourceHash ? "" : sourceHash.getHash(),
+                    null == sourceHash ? "" : sourceHash.getHash());
+            stats.setEnd(new Date());
+            stats.setStatus("done");
+            stats.setResult(passed ? "passed" : "failed");
+            stats.setProgress(1);
+        } finally {
+            lock.set(false);
         }
-        logger.debug("Source table hash: {}, target table hash: {}",
-                null == sourceHash ? "" : sourceHash.getHash(),
-                null == sourceHash ? "" : sourceHash.getHash());
-        stats.setEnd(new Date());
-        stats.setStatus("done");
-        stats.setResult(passed ? "passed" : "failed");
-        stats.setProgress(1);
-        lock.set(false);
     }
 
     protected boolean doWhenException(final AtomicInteger retry, Exception e) {
