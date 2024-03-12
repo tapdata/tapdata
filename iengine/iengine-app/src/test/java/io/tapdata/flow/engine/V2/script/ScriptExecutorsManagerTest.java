@@ -2,12 +2,14 @@ package io.tapdata.flow.engine.V2.script;
 
 import base.BaseTest;
 import com.hazelcast.core.HazelcastInstance;
-import com.tapdata.entity.Connections;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.voovan.tools.collection.CacheMap;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 /**
@@ -56,6 +58,45 @@ public class ScriptExecutorsManagerTest extends BaseTest {
 			ReflectionTestUtils.setField(scriptExecutor, "scriptLogger", log);
 
 			Assertions.assertDoesNotThrow(scriptExecutor::close);
+		}
+	}
+	@Nested
+	class getScriptExecutorTest{
+		private CacheMap<String, ScriptExecutorsManager.ScriptExecutor> cacheMap;
+		ScriptExecutorsManager scriptExecutorsManager;
+		@BeforeEach
+		public void setUp(){
+			scriptExecutorsManager = mock(ScriptExecutorsManager.class);
+			this.cacheMap = new CacheMap<String, ScriptExecutorsManager.ScriptExecutor>()
+					.maxSize(10)
+					.autoRemove(true)
+					.expire(600)
+					.destory((k, v) -> {
+						v.close();
+						return -1L;
+					})
+					.create();
+			ReflectionTestUtils.setField(scriptExecutorsManager,"cacheMap",cacheMap);
+			doCallRealMethod().when(scriptExecutorsManager).getScriptExecutor("test123");
+		}
+		@DisplayName("test Get script executor normal")
+		@Test
+		public void testGetScriptExecutorNormal(){
+			ScriptExecutorsManager.DummyScriptExecutor dummyScriptExecutor = new ScriptExecutorsManager.DummyScriptExecutor();
+			when(scriptExecutorsManager.create("test123")).thenReturn(dummyScriptExecutor);
+			ScriptExecutorsManager.ScriptExecutor test123 = scriptExecutorsManager.getScriptExecutor("test123");
+			assertEquals(1,cacheMap.size());
+			assertEquals(test123,dummyScriptExecutor);
+		}
+		@DisplayName("test get script executor exception")
+		@Test
+		public void testGetScriptExecutorNormalException(){
+			when(scriptExecutorsManager.create("test123")).thenThrow(new RuntimeException("Create manager faild"));
+			IllegalArgumentException illegalArgumentException = assertThrows(IllegalArgumentException.class, () -> {
+				ScriptExecutorsManager.ScriptExecutor test123 = scriptExecutorsManager.getScriptExecutor("test123");
+			});
+			assertEquals(0,cacheMap.size());
+			assertEquals("The specified connection source [test123] could not build the executor, please check",illegalArgumentException.getMessage());
 		}
 	}
 }

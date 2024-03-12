@@ -1,6 +1,9 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
+import com.tapdata.entity.task.config.TaskConfig;
+import com.tapdata.entity.task.config.TaskRetryConfig;
+import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.logger.TapLogger;
@@ -9,8 +12,10 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.schema.TapTableMap;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -40,54 +45,6 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		};
 	}
 
-	@Nested
-	class FunctionRetryQueryTest {
-		long timestamp;
-
-		@BeforeEach
-		void init() {
-			hazelcastPdkBaseNode = mock(HazelcastPdkBaseNode.class);
-			timestamp = System.currentTimeMillis();
-			when(hazelcastPdkBaseNode.functionRetryQuery(anyLong(), anyBoolean())).thenCallRealMethod();
-		}
-
-		/**
-		 * signFunction
-		 */
-		@Test
-		void functionRetryQueryNormal() {
-			Update update = hazelcastPdkBaseNode.functionRetryQuery(timestamp, true);
-			Document document = assertResult(update);
-			Assertions.assertTrue(document.containsKey("taskRetryStartTime"));
-			Assertions.assertEquals(timestamp, document.get("taskRetryStartTime"));
-		}
-
-		/**
-		 * clearFunction
-		 */
-		@Test
-		void functionRetryQueryNotSingle() {
-			Update update = hazelcastPdkBaseNode.functionRetryQuery(timestamp, false);
-			Document document = assertResult(update);
-			Assertions.assertTrue(document.containsKey("functionRetryEx"));
-			Assertions.assertEquals(timestamp + 5 * 60 * 1000L, document.get("functionRetryEx"));
-			Assertions.assertTrue(document.containsKey("taskRetryStartTimeFlag"));
-			Assertions.assertEquals(0, document.get("taskRetryStartTimeFlag"));
-		}
-
-		Document assertResult(Update update) {
-			Assertions.assertNotNull(update);
-			Document document = update.getUpdateObject();
-			Assertions.assertNotNull(document);
-			Assertions.assertTrue(document.containsKey("$set"));
-			Object set = document.get("$set");
-			Assertions.assertEquals(Document.class, set.getClass());
-			Document setMap = (Document) set;
-			Assertions.assertTrue(setMap.containsKey("functionRetryStatus"));
-			Assertions.assertEquals(TaskDto.RETRY_STATUS_RUNNING, setMap.get("functionRetryStatus"));
-			return setMap;
-		}
-	}
 
 	@Test
 	@DisplayName("DoInit method test")
@@ -361,6 +318,86 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("test pdk state map is null when do close")
 		void testPdkStateMapIsNull() {
 			assertDoesNotThrow(() -> spyHazelcastPdkBaseNode.doClose());
+		}
+	}
+	@Nested
+	class SignAndCleanFuctionRetryTest{
+		private HazelcastPdkBaseNode spyhazelcastPdkBaseNode;
+		private HttpClientMongoOperator mongoCollection;
+		@BeforeEach
+		public void setUp(){
+			HazelcastPdkBaseNode mockHazelcastPdkBaseNode = new HazelcastPdkBaseNode(dataProcessorContext) {
+			};
+			spyhazelcastPdkBaseNode=spy(mockHazelcastPdkBaseNode);
+			mongoCollection=mock(HttpClientMongoOperator.class);
+			ReflectionTestUtils.setField(spyhazelcastPdkBaseNode,"clientMongoOperator",mongoCollection);
+		}
+
+		@Test
+		void cleanFunctionRetryTest(){
+			when(mongoCollection.update(any(), any(), anyString())).thenAnswer(a -> {
+				Update update = (Update)a.getArgument(1);
+				Document updateObject = (Document)update.getUpdateObject().get("$set");
+				String functionRetryStatus = (String) updateObject.get("functionRetryStatus");
+				Integer taskRetryStartTime = (Integer) updateObject.get("taskRetryStartTime");
+				assertEquals("",functionRetryStatus);
+				assertEquals(0,taskRetryStartTime);
+				return null;
+			});
+			spyhazelcastPdkBaseNode.cleanFuctionRetry("65aa211475a5ac694df51c69");
+		}
+
+		@Test
+		void signFunctionRetryTest(){
+			when(mongoCollection.update(any(), any(), anyString())).thenAnswer(a -> {
+				Update update = (Update)a.getArgument(1);
+				Document updateObject = (Document)update.getUpdateObject().get("$set");
+				String functionRetryStatus = (String) updateObject.get("functionRetryStatus");
+				assertEquals("Retrying",functionRetryStatus);
+				return null;
+			});
+			spyhazelcastPdkBaseNode.signFunctionRetry("65aa211475a5ac694df51c69");
+		}
+	}
+	@Nested
+	class CreatePdkMethodInvokerTest{
+		private HazelcastPdkBaseNode spyhazelcastPdkBaseNode;
+		@BeforeEach
+		void setUp(){
+			HazelcastPdkBaseNode hazelcastPdkBaseNode = new HazelcastPdkBaseNode(dataProcessorContext) {
+			};
+			spyhazelcastPdkBaseNode=spy(hazelcastPdkBaseNode);
+		}
+		@DisplayName("MaxRetryTimeMinute Greater than 0")
+		@Test
+		void test1(){
+			TaskRetryConfig taskRetryConfig = TaskRetryConfig.create().maxRetryTimeSecond(900L).retryIntervalSecond(60L);
+			TaskConfig taskConfig = TaskConfig.create().taskDto(taskDto).taskRetryConfig(taskRetryConfig);
+			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
+			PDKMethodInvoker pdkMethodInvoker = spyhazelcastPdkBaseNode.createPdkMethodInvoker();
+			assertEquals(60L,pdkMethodInvoker.getRetryPeriodSeconds());
+			assertEquals(15L,pdkMethodInvoker.getMaxRetryTimeMinute());
+		}
+		@DisplayName("MaxRetryTimeMinute Less Than 0")
+		@Test
+		void test2(){
+			TaskRetryConfig taskRetryConfig = TaskRetryConfig.create().maxRetryTimeSecond(-900L).retryIntervalSecond(60L);
+			taskDto.setId(new ObjectId("65aa211475a5ac694df51c69"));
+			TaskConfig taskConfig = TaskConfig.create().taskDto(taskDto).taskRetryConfig(taskRetryConfig);
+			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
+			PDKMethodInvoker pdkMethodInvoker = spyhazelcastPdkBaseNode.createPdkMethodInvoker();
+			assertEquals(0L,pdkMethodInvoker.getMaxRetryTimeMinute());
+			assertEquals(60L,pdkMethodInvoker.getRetryPeriodSeconds());
+		}
+		@DisplayName("retryIntervalSecond less than 0")
+		@Test
+		void test3(){
+			taskDto.setId(new ObjectId("65aa220c75a5ac694df51d04"));
+			TaskRetryConfig taskRetryConfig = TaskRetryConfig.create().maxRetryTimeSecond(900L).retryIntervalSecond(-60L);
+			TaskConfig taskConfig = TaskConfig.create().taskDto(taskDto).taskRetryConfig(taskRetryConfig);
+			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
+			PDKMethodInvoker pdkMethodInvoker = spyhazelcastPdkBaseNode.createPdkMethodInvoker();
+			assertEquals(60L,pdkMethodInvoker.getRetryPeriodSeconds());
 		}
 	}
 }

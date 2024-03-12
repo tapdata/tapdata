@@ -18,7 +18,9 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import static io.tapdata.pdk.core.utils.RetryUtils.DEFAULT_RETRY_PERIOD_SECONDS;
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 /**
@@ -31,6 +33,7 @@ public class TaskRetryService extends RetryService implements Serializable {
 	private final Object lock = new Object();
 	private Long startRetryTimeMs;
 	private Long endRetryTimeMs;
+	public static final long DEFAULT_FUNCTION_RETRY_TIME_SECOND = TimeUnit.MINUTES.toSeconds(15L);
 
 	protected TaskRetryService(TaskRetryContext taskRetryContext) {
 		super(taskRetryContext);
@@ -50,11 +53,11 @@ public class TaskRetryService extends RetryService implements Serializable {
 		}
 	}
 
-	public long getMethodRetryDurationMs(long retryIntervalMs) {
+	public long getMethodRetryDurationMs() {
 		if (((TaskRetryContext) retryContext).getRetryDurationMs().compareTo(0L) <= 0) {
 			return 0L;
 		}
-		long methodRetryDurationMs = retryIntervalMs * ((TaskRetryContext) retryContext).getMethodRetryTime();
+		long methodRetryDurationMs = ((TaskRetryContext) retryContext).getRetryIntervalMs() * ((TaskRetryContext) retryContext).getMethodRetryTime();
 		if (null != endRetryTimeMs) {
 			long currentTimeMillis = System.currentTimeMillis();
 			if (currentTimeMillis > endRetryTimeMs) {
@@ -71,6 +74,20 @@ public class TaskRetryService extends RetryService implements Serializable {
 			);
 		}
 		return Math.max(0L, methodRetryDurationMs);
+	}
+	public long getMethodRetryDurationMinutes() {
+		long methodRetryDurationMinutes;
+		if (((TaskRetryContext) retryContext).getRetryDurationMs() > 0) {
+			long methodRetryDurationMs = this.getMethodRetryDurationMs();
+			methodRetryDurationMinutes = Math.max(TimeUnit.MILLISECONDS.toMinutes(methodRetryDurationMs), 1L);
+		} else {
+			methodRetryDurationMinutes = 0L;
+		}
+		return methodRetryDurationMinutes;
+	}
+	public static long getRetryTimes(long retryIntervalSecond) {
+		retryIntervalSecond = retryIntervalSecond <= 0 ? DEFAULT_RETRY_PERIOD_SECONDS : retryIntervalSecond;
+		return DEFAULT_FUNCTION_RETRY_TIME_SECOND / retryIntervalSecond;
 	}
 
 	public TaskRetryResult canTaskRetry() {
