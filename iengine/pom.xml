@@ -169,7 +169,7 @@
         <error-code-scanner.version>1.0-SNAPSHOT</error-code-scanner.version>
         <lucene-core.version>8.11.2</lucene-core.version>
         <junit-jupiter.version>5.8.1</junit-jupiter.version>
-        <mockito-all.version>1.10.19</mockito-all.version>
+        <mockito.version>4.11.0</mockito.version>
     </properties>
 
     <modules>
@@ -420,8 +420,21 @@
 
             <dependency>
                 <groupId>org.mockito</groupId>
-                <artifactId>mockito-all</artifactId>
-                <version>${mockito-all.version}</version>
+                <artifactId>mockito-core</artifactId>
+                <version>${mockito.version}</version>
+                <scope>test</scope>
+            </dependency>
+					<dependency>
+						<groupId>net.bytebuddy</groupId>
+						<artifactId>byte-buddy</artifactId>
+						<version>1.12.23</version>
+						<scope>test</scope>
+					</dependency>
+
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-inline</artifactId>
+                <version>${mockito.version}</version>
                 <scope>test</scope>
             </dependency>
 
