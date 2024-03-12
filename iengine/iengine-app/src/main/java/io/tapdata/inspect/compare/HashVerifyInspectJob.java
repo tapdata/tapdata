@@ -42,7 +42,7 @@ public class HashVerifyInspectJob extends InspectJob {
     protected void doRun() {
         try {
             CompletableFuture.supplyAsync(this::doSourceHash)
-                    .thenAcceptBoth(CompletableFuture.supplyAsync(this::doTargetHash), this::doHashVerify);
+                    .thenAcceptBoth(CompletableFuture.supplyAsync(this::doTargetHash), this::doHashVerify).get();
         } catch (Exception e) {
             doWhenException(e);
         }

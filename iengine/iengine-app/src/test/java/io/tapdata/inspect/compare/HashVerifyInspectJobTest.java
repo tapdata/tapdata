@@ -53,6 +53,12 @@ public class HashVerifyInspectJobTest {
     HashVerifyInspectJob hashVerifyInspectJob;
     InspectTaskContext inspectTaskContext;
 
+    @Test
+    void assertParam() {
+        Assertions.assertEquals("failed", HashVerifyInspectJob.FAILED_TAG);
+        Assertions.assertEquals("passed", HashVerifyInspectJob.SUCCEED_TAG);
+    }
+
     @BeforeEach
     void init() {
         logger = mock(Logger.class);
