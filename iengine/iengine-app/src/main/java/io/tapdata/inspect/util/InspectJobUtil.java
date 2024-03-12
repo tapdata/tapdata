@@ -20,7 +20,9 @@ public class InspectJobUtil {
         tapAdvanceFilter.setOperators(srcConditions);
         DataMap match = new DataMap();
         if (null != srcConditions) {
-            srcConditions.stream().filter(op-> op.getOperator() == 5).forEach(op->match.put(op.getKey(), op.getValue()));
+            srcConditions.stream()
+                    .filter(op-> op.getOperator() == 5)
+                    .forEach(op-> match.put(op.getKey(), op.getValue()));
         }
         tapAdvanceFilter.setMatch(match);
         return tapAdvanceFilter;
@@ -30,10 +32,15 @@ public class InspectJobUtil {
         Map<String, Object> params = new HashMap<>();
         params.put("connectionId", inspectDataSource.getConnectionId());
         params.put("metaType", MetaType.table.name());
-        params.put("tableName", inspectDataSource.getTable());
-        TapTable tapTable = null == inspectTaskContext ? null : inspectTaskContext.getClientMongoOperator().findOne(params, ConnectorConstant.METADATA_INSTANCE_COLLECTION + "/metadata/v2", TapTable.class);
+        String table = inspectDataSource.getTable();
+        params.put("tableName", table);
+        TapTable tapTable = null == inspectTaskContext ?
+                null :
+                inspectTaskContext
+                        .getClientMongoOperator()
+                        .findOne(params, ConnectorConstant.METADATA_INSTANCE_COLLECTION + "/metadata/v2", TapTable.class);
         if (null == tapTable) {
-            tapTable = new TapTable(inspectDataSource.getTable());
+            tapTable = new TapTable(table);
         }
         return tapTable;
     }
