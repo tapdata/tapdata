@@ -3,6 +3,7 @@ package io.tapdata.inspect.compare;
 import com.tapdata.entity.inspect.InspectDataSource;
 import com.tapdata.entity.inspect.InspectStatus;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TaskInspectExCode_27;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.inspect.InspectJob;
@@ -23,7 +24,6 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -65,6 +65,9 @@ public class HashVerifyInspectJob extends InspectJob {
             throw new TapCodeException(TaskInspectExCode_27.CONNECTOR_NOT_SUPPORT_FUNCTION, errorMsg + connectorContext.getSpecification().getId());
         }
         TapAdvanceFilter filter = InspectJobUtil.wrapFilter(conditions);
+        if (Boolean.TRUE.equals(dataSource.isEnableCustomCommand())) {
+            filter.match(DataMap.create().kv("customCommand", dataSource.getCustomCommand()));
+        }
         PDKInvocationMonitor.invoke(node, PDKMethod.QUERY_HASH_BY_ADVANCE_FILTER,
                 () -> hashFunction.query(connectorContext, filter, table, hashResultAtomicReference::set), TAG);
         return hashResultAtomicReference.get();
