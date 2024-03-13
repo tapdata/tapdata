@@ -61,7 +61,6 @@ public class ScriptExecutorsManager {
 		this.clientMongoOperator = clientMongoOperator;
 		this.hazelcastInstance = hazelcastInstance;
 		this.cacheMap = new CacheMap<String, ScriptExecutor>()
-				.supplier(this::create)
 				.maxSize(10)
 				.autoRemove(true)
 				.expire(600)
@@ -74,14 +73,14 @@ public class ScriptExecutorsManager {
 	}
 
 	public ScriptExecutor getScriptExecutor(String connectionName) {
-		ScriptExecutor scriptExecutor = this.cacheMap.get(connectionName);
+		ScriptExecutor scriptExecutor = this.cacheMap.get(connectionName,this::create);
 		if (scriptExecutor == null) {
 			throw new IllegalArgumentException("The specified connection source [" + connectionName + "] could not build the executor, please check");
 		}
 		return scriptExecutor;
 	}
 
-	private ScriptExecutor create(String connectionName) {
+	protected ScriptExecutor create(String connectionName) {
 		Connections connections = clientMongoOperator.findOne(new Query(where("name").is(connectionName)),
 				ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 
