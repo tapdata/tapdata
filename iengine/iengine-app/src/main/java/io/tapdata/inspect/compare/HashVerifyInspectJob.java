@@ -51,16 +51,16 @@ public class HashVerifyInspectJob extends InspectJob {
         }
     }
 
-    protected TapHashResult doSourceHash() {
+    protected TapHashResult<String> doSourceHash() {
         return doGetHash(inspectTask.getSource(), this.sourceNode, "Source node does not support hash verification with filter function: ");
     }
 
-    protected TapHashResult doTargetHash() {
+    protected TapHashResult<String> doTargetHash() {
         return doGetHash(inspectTask.getTarget(), this.targetNode, "Target node does not support hash verification with filter function: ");
     }
 
-    protected TapHashResult doGetHash(InspectDataSource dataSource, ConnectorNode node, String errorMsg) {
-        AtomicReference<TapHashResult> hashResultAtomicReference = new AtomicReference<>();
+    protected TapHashResult<String> doGetHash(InspectDataSource dataSource, ConnectorNode node, String errorMsg) {
+        AtomicReference<TapHashResult<String>> hashResultAtomicReference = new AtomicReference<>();
         List<QueryOperator> conditions = dataSource.getConditions();
         TapTable table = InspectJobUtil.getTapTable(dataSource, inspectTaskContext);
         QueryHashByAdvanceFilterFunction hashFunction = node.getConnectorFunctions().getQueryHashByAdvanceFilterFunction();
@@ -74,7 +74,7 @@ public class HashVerifyInspectJob extends InspectJob {
         return hashResultAtomicReference.get();
     }
 
-    protected void doHashVerify(TapHashResult sourceHash, TapHashResult targetHash) {
+    protected void doHashVerify(TapHashResult<String> sourceHash, TapHashResult<String> targetHash) {
         try {
             boolean passed = false;
             if (null != sourceHash && null != targetHash && null != sourceHash.getHash()) {
@@ -82,7 +82,7 @@ public class HashVerifyInspectJob extends InspectJob {
             }
             if (logger.isDebugEnabled()) {
                 logger.debug("Source table hash: {}, target table hash: {}",
-                        null == sourceHash ? "" : String.valueOf(sourceHash.getHash()),
+                        null == sourceHash ? "" :String.valueOf(sourceHash.getHash()),
                         null == sourceHash ? "" : String.valueOf(sourceHash.getHash()));
             }
             stats.setEnd(new Date());
