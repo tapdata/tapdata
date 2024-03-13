@@ -96,26 +96,15 @@ public class HashVerifyInspectJobTest {
     @Nested
     class DoRunTest {
         CompletableFuture future;
-        AtomicBoolean lock;
 
-        boolean lockOver;
         @BeforeEach
         void init() {
-            lockOver = true;
-            lock = mock(AtomicBoolean.class);
             future = mock(CompletableFuture.class);
             when(hashVerifyInspectJob.doSourceHash()).thenReturn(mock());
             when(hashVerifyInspectJob.doTargetHash()).thenReturn(mock());
             doNothing().when(hashVerifyInspectJob).doHashVerify(any(TapHashResult.class), any(TapHashResult.class));
             doNothing().when(hashVerifyInspectJob).doWhenException(any(Exception.class));
-            doNothing().when(hashVerifyInspectJob).sleep(anyLong());
-            ReflectionTestUtils.setField(hashVerifyInspectJob, "lock", lock);
             doCallRealMethod().when(hashVerifyInspectJob).doRun();
-            when(lock.get()).then(a -> {
-                if (!lockOver) return false;
-                lockOver = false;
-                return true;
-            });
         }
         void assertVerify(int acceptTimes, int bothTimes, int doSourceTimes, int doTargetTimes, int doHashVerify, int doWhenException) {
             when(future.thenAcceptBoth(any(CompletableFuture.class), any(BiConsumer.class))).then(a -> {
@@ -137,8 +126,6 @@ public class HashVerifyInspectJobTest {
             verify(hashVerifyInspectJob, times(doTargetTimes)).doTargetHash();
             verify(hashVerifyInspectJob, times(doHashVerify)).doHashVerify(any(TapHashResult.class), any(TapHashResult.class));
             verify(hashVerifyInspectJob, times(doWhenException)).doWhenException(any(Exception.class));
-            verify(hashVerifyInspectJob, times(1)).sleep(anyLong());
-            verify(lock, times(2)).get();
         }
 
         @Test
@@ -276,15 +263,12 @@ public class HashVerifyInspectJobTest {
         TapHashResult<String> sourceHash;
         TapHashResult<String> targetHash;
         InspectResultStats stats;
-        AtomicBoolean lock;
         @BeforeEach
         void init() {
             sourceHash = mock(TapHashResult.class);
             targetHash = mock(TapHashResult.class);
-            lock = mock(AtomicBoolean.class);
             stats = mock(InspectResultStats.class);
             ReflectionTestUtils.setField(hashVerifyInspectJob, "stats", stats);
-            ReflectionTestUtils.setField(hashVerifyInspectJob, "lock", lock);
             when(logger.isDebugEnabled()).thenReturn(true);
 
             doNothing().when(logger).debug(anyString(), anyString(), anyString());
@@ -293,7 +277,6 @@ public class HashVerifyInspectJobTest {
             doNothing().when(stats).setStatus("done");
             doNothing().when(stats).setResult(anyString());
             doNothing().when(stats).setProgress(1);
-            doNothing().when(lock).set(false);
         }
 
         void assertVerify(TapHashResult<String> s, TapHashResult<String> t, String sHash, String tHash,
@@ -308,7 +291,6 @@ public class HashVerifyInspectJobTest {
             verify(stats, times(1)).setStatus("done");
             verify(stats, times(1)).setResult(anyString());
             verify(stats, times(1)).setProgress(1);
-            verify(lock, times(1)).set(false);
             verify(logger, times(isDebug?1:0)).debug(anyString(), anyString(), anyString());
         }
 
@@ -421,20 +403,6 @@ public class HashVerifyInspectJobTest {
         @Test
         void testTargetInspectDataIsNull() {
             assertVerify(source, target, sourceI, null, 1, 1, 1, 0);
-        }
-    }
-
-    @Nested
-    class SleepTest {
-        @Test
-        void testNormal() {
-            doCallRealMethod().when(hashVerifyInspectJob).sleep(anyLong());
-            Assertions.assertDoesNotThrow(() -> hashVerifyInspectJob.sleep(0));
-        }
-        @Test
-        void testException() {
-            doCallRealMethod().when(hashVerifyInspectJob).sleep(anyLong());
-            Assertions.assertDoesNotThrow(() -> hashVerifyInspectJob.sleep(-1));
         }
     }
 }

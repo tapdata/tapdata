@@ -30,7 +30,6 @@ import java.util.stream.Collectors;
 public class HashVerifyInspectJob extends InspectJob {
     private static String TAG = HashVerifyInspectJob.class.getSimpleName();
     private Logger logger = LogManager.getLogger(HashVerifyInspectJob.class);
-    private final AtomicBoolean lock = new AtomicBoolean(true);
     protected static final String FAILED_TAG = "failed";
     protected static final String SUCCEED_TAG = "passed";
 
@@ -45,9 +44,6 @@ public class HashVerifyInspectJob extends InspectJob {
                     .thenAcceptBoth(CompletableFuture.supplyAsync(this::doTargetHash), this::doHashVerify).get();
         } catch (Exception e) {
             doWhenException(e);
-        }
-        while (lock.get()) {
-            sleep(10);
         }
     }
 
@@ -75,23 +71,19 @@ public class HashVerifyInspectJob extends InspectJob {
     }
 
     protected void doHashVerify(TapHashResult<String> sourceHash, TapHashResult<String> targetHash) {
-        try {
-            boolean passed = false;
-            if (null != sourceHash && null != targetHash && null != sourceHash.getHash()) {
-                passed = sourceHash.getHash().equals(targetHash.getHash());
-            }
-            if (logger.isDebugEnabled()) {
-                logger.debug("Source table hash: {}, target table hash: {}",
-                        null == sourceHash ? "" :String.valueOf(sourceHash.getHash()),
-                        null == sourceHash ? "" : String.valueOf(sourceHash.getHash()));
-            }
-            stats.setEnd(new Date());
-            stats.setStatus("done");
-            stats.setResult(passed ? SUCCEED_TAG : FAILED_TAG);
-            stats.setProgress(1);
-        } finally {
-            lock.set(false);
+        boolean passed = false;
+        if (null != sourceHash && null != targetHash && null != sourceHash.getHash()) {
+            passed = sourceHash.getHash().equals(targetHash.getHash());
         }
+        if (logger.isDebugEnabled()) {
+            logger.debug("Source table hash: {}, target table hash: {}",
+                    null == sourceHash ? "" :String.valueOf(sourceHash.getHash()),
+                    null == sourceHash ? "" : String.valueOf(sourceHash.getHash()));
+        }
+        stats.setEnd(new Date());
+        stats.setStatus("done");
+        stats.setResult(passed ? SUCCEED_TAG : FAILED_TAG);
+        stats.setProgress(1);
     }
 
     protected void doWhenException(Exception e) {
@@ -110,16 +102,5 @@ public class HashVerifyInspectJob extends InspectJob {
                 Arrays.stream(e.getStackTrace())
                         .map(StackTraceElement::toString)
                         .collect(Collectors.joining("\n")));
-    }
-
-    protected void sleep(long times) {
-        if (times < 0) {
-            times = 0;
-        }
-        try {
-            Thread.sleep(times);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 }
