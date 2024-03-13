@@ -371,6 +371,7 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("MaxRetryTimeMinute Greater than 0")
 		@Test
 		void test1(){
+			taskDto.setId(new ObjectId("65aa211475a5ac694df51123"));
 			TaskRetryConfig taskRetryConfig = TaskRetryConfig.create().maxRetryTimeSecond(900L).retryIntervalSecond(60L);
 			TaskConfig taskConfig = TaskConfig.create().taskDto(taskDto).taskRetryConfig(taskRetryConfig);
 			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
