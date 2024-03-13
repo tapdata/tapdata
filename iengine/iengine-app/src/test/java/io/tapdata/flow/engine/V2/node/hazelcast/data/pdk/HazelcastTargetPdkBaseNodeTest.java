@@ -2,8 +2,10 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.tm.commons.schema.Field;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
@@ -13,11 +15,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 /**
@@ -110,5 +110,48 @@ public class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			hazelcastTargetPdkBaseNode.recursiveMergeInfoTransformFromTapValue(mergeLookupResults);
 			verify(hazelcastTargetPdkBaseNode, times(0)).fromTapValue(any(Map.class), any(TapCodecsFilterManager.class), any(TapTable.class));
 		}
+	}
+	@DisplayName("test ignorePksAndIndices normal")
+	@Test
+	void ignorePksAndIndicesTest1(){
+		TapTable tapTable = new TapTable();
+		TapField field = getField("_id");
+		TapField index = getField("index");
+		tapTable.add(field);
+		tapTable.add(index);
+		List<String> list= Arrays.asList("_id","index");
+
+		HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable,list);
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+		TapField idField = nameFieldMap.get("_id");
+		TapField indexField = nameFieldMap.get("index");
+		assertEquals(2,nameFieldMap.size());
+		assertEquals(0,idField.getPrimaryKeyPos());
+		assertEquals(0,indexField.getPrimaryKeyPos());
+		assertEquals(false,indexField.getPrimaryKey());
+		assertEquals(false,idField.getPrimaryKey());
+	}
+	@DisplayName("test ignorePksAndIndices logic primary key is null")
+	@Test
+	void ignorePksAndIndicesTest2(){
+		TapTable tapTable = new TapTable();
+		TapField field = getField("_id");
+		TapField index = getField("index");
+		tapTable.add(field);
+		tapTable.add(index);
+		HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable,null);
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+		TapField idField = nameFieldMap.get("_id");
+		TapField indexField = nameFieldMap.get("index");
+		assertEquals(2,nameFieldMap.size());
+		assertEquals(0,idField.getPrimaryKeyPos());
+		assertEquals(0,indexField.getPrimaryKeyPos());
+		assertEquals(false,indexField.getPrimaryKey());
+		assertEquals(false,idField.getPrimaryKey());
+	}
+	public TapField getField(String name) {
+		TapField field = new TapField();
+		field.setName(name);
+		return field;
 	}
 }

@@ -970,11 +970,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private static void ignorePksAndIndices(TapTable tapTable, List<String> logicPrimaries) {
+	protected static void ignorePksAndIndices(TapTable tapTable, List<String> logicPrimaries) {
 		// fix: #140674 Bulk write data failed, write model list is empty, received record size: 7
 		// The method may be called concurrently, need to clean the 'indexList' and field primaryKey mark after set 'logicPrimaries', because tapTable call the method 'primaryKey(true)' maybe empty
 		tapTable.setLogicPrimaries(logicPrimaries);
 		tapTable.setIndexList(null);
+		tapTable.refreshPrimaryKeys();
 		tapTable.getNameFieldMap().values().forEach(v -> {
 			v.setPrimaryKeyPos(0);
 			v.setPrimaryKey(false);
