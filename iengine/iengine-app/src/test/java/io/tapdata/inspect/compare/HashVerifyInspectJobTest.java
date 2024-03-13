@@ -231,8 +231,8 @@ public class HashVerifyInspectJobTest {
             when(context.getSpecification()).thenReturn(specification);
             when(specification.getId()).thenReturn("id");
             doAnswer(a -> {
-                Consumer<TapHashResult> argument = (Consumer<TapHashResult>) a.getArgument(3, Consumer.class);
-                argument.accept(TapHashResult.create().withHash(100L));
+                Consumer<TapHashResult<String>> argument = (Consumer<TapHashResult<String>>) a.getArgument(3, Consumer.class);
+                argument.accept(TapHashResult.create().withHash("100"));
                 return null;
             }).when(hashFunction).query(any(TapConnectorContext.class), any(TapAdvanceFilter.class), any(TapTable.class), any(Consumer.class));
             try (MockedStatic<InspectJobUtil> iju = mockStatic(InspectJobUtil.class);
@@ -244,7 +244,7 @@ public class HashVerifyInspectJobTest {
                     argument.run();
                     return null;
                 });
-                TapHashResult tapHashResult = hashVerifyInspectJob.doGetHash(dataSource, node, "message");
+                TapHashResult<String> tapHashResult = hashVerifyInspectJob.doGetHash(dataSource, node, "message");
                 iju.verify(() -> InspectJobUtil.getTapTable(any(InspectDataSource.class), any(InspectTaskContext.class)), times(1));
                 iju.verify(() -> InspectJobUtil.wrapFilter(conditions), times(null == f ? 0 : 1));
                 pi.verify(() -> PDKInvocationMonitor.invoke(any(), any(PDKMethod.class), any(CommonUtils.AnyError.class), anyString()), times(null == f ? 0 : 1));
@@ -273,8 +273,8 @@ public class HashVerifyInspectJobTest {
 
     @Nested
     class DoHashVerifyTest {
-        TapHashResult sourceHash;
-        TapHashResult targetHash;
+        TapHashResult<String> sourceHash;
+        TapHashResult<String> targetHash;
         InspectResultStats stats;
         AtomicBoolean lock;
         @BeforeEach
@@ -296,7 +296,7 @@ public class HashVerifyInspectJobTest {
             doNothing().when(lock).set(false);
         }
 
-        void assertVerify(TapHashResult s, TapHashResult t, Long sHash, Long tHash,
+        void assertVerify(TapHashResult<String> s, TapHashResult<String> t, String sHash, String tHash,
                           boolean isDebug) {
             doCallRealMethod().when(hashVerifyInspectJob).doHashVerify(s, t);
             when(sourceHash.getHash()).thenReturn(sHash);
@@ -314,27 +314,27 @@ public class HashVerifyInspectJobTest {
 
         @Test
         void testSourceIsNull() {
-            assertVerify(null, targetHash, 100L, 100L, true);
+            assertVerify(null, targetHash, "100", "100", true);
         }
         @Test
         void testSourceHashIsNull() {
-            assertVerify(sourceHash, targetHash, null, 100L, true);
+            assertVerify(sourceHash, targetHash, null, "100", true);
         }
         @Test
         void testTargetIsNull() {
-            assertVerify(sourceHash, null, 100L, 100L, true);
+            assertVerify(sourceHash, null, "100", "100", true);
         }
         @Test
         void testTargetHashIsNull() {
-            assertVerify(sourceHash, targetHash, 100L, null, true);
+            assertVerify(sourceHash, targetHash, "100", null, true);
         }
         @Test
         void testLoggerIsDebugEnabled() {
-            assertVerify(sourceHash, targetHash, 100L, 100L, true);
+            assertVerify(sourceHash, targetHash, "100", "100", true);
         }
         @Test
         void testLoggerIsNotDebugEnabled() {
-            assertVerify(sourceHash, targetHash, 100L, 100L, false);
+            assertVerify(sourceHash, targetHash, "100", "100", false);
         }
     }
 
