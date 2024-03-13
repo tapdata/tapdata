@@ -7,6 +7,7 @@ import com.tapdata.entity.inspect.InspectStatus;
 import com.tapdata.entity.inspect.InspectTask;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.inspect.InspectTaskContext;
 import io.tapdata.inspect.util.InspectJobUtil;
@@ -31,6 +32,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -206,11 +208,11 @@ public class HashVerifyInspectJobTest {
             specification = mock(TapNodeSpecification.class);
             filter = mock(TapAdvanceFilter.class);
             ReflectionTestUtils.setField(hashVerifyInspectJob, "inspectTaskContext", inspectTaskContext);
-
+            when(dataSource.isEnableCustomCommand()).thenReturn(false);
             when(hashVerifyInspectJob.doGetHash(dataSource, node, "message")).thenCallRealMethod();
         }
 
-        void assertVerify(QueryHashByAdvanceFilterFunction f) throws Throwable {
+        void assertVerify(QueryHashByAdvanceFilterFunction f, boolean isEnableCustomCommand) throws Throwable {
             when(dataSource.getConditions()).thenReturn(conditions);
             when(node.getConnectorFunctions()).thenReturn(functions);
             when(functions.getQueryHashByAdvanceFilterFunction()).thenReturn(f);
@@ -245,16 +247,28 @@ public class HashVerifyInspectJobTest {
             verify(specification, times(null == f ? 1 : 0)).getId();
 
             verify(hashFunction, times(null == f ? 0 : 1)).query(any(TapConnectorContext.class), any(TapAdvanceFilter.class), any(TapTable.class), any(Consumer.class));
+
+            verify(dataSource, times(1)).isEnableCustomCommand();
+            verify(dataSource, times(isEnableCustomCommand?1:0)).getCustomCommand();
+            verify(filter, times(isEnableCustomCommand?1:0)).match(any(DataMap.class));
         }
 
         @Test
         void testNotSupportHashFunction() {
-            Assertions.assertThrows(TapCodeException.class, () -> assertVerify(null));
+            Assertions.assertThrows(TapCodeException.class, () -> assertVerify(null, false));
         }
 
         @Test
         void testSupportHashFunction() {
-            Assertions.assertDoesNotThrow(() -> assertVerify(hashFunction));
+            Assertions.assertDoesNotThrow(() -> assertVerify(hashFunction, false));
+        }
+
+        @Test
+        void testIsEnableCustomCommand() {
+            when(dataSource.isEnableCustomCommand()).thenReturn(true);
+            when(dataSource.getCustomCommand()).thenReturn(mock(Map.class));
+            when(filter.match(any(DataMap.class))).thenReturn(filter);
+            Assertions.assertDoesNotThrow(() -> assertVerify(hashFunction, true));
         }
     }
 
