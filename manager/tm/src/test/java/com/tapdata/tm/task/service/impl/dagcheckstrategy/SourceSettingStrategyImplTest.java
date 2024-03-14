@@ -48,7 +48,7 @@ public class SourceSettingStrategyImplTest {
             taskDagCheckLogService = Mockito.mock(TaskDagCheckLogService.class);
             sourceSettingStrategy.setDataSourceService(dataSourceService);
             sourceSettingStrategy.setTaskDagCheckLogService(taskDagCheckLogService);
-            locale=new Locale("CN");
+            locale = Locale.CHINA;
             taskId="123";
             userId="userId";
             name="123";

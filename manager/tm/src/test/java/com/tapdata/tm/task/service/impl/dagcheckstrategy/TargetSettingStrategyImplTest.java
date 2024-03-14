@@ -11,10 +11,7 @@ import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.pdk.apis.entity.Capability;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.Mockito;
 
 import java.util.*;
@@ -24,7 +21,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
-
 public class TargetSettingStrategyImplTest {
     @Nested
     class CheckSyncIndexAndExistDataModeTest {
@@ -44,7 +40,7 @@ public class TargetSettingStrategyImplTest {
             dataSourceService = Mockito.mock(DataSourceService.class);
             targetSettingStrategy.setTaskDagCheckLogService(taskDagCheckLogService);
             targetSettingStrategy.setDataSourceService(dataSourceService);
-            locale=new Locale("CN");
+            locale = Locale.CHINA;
             taskId="123";
             userId="userId";
             name="123";
