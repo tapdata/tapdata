@@ -14,6 +14,13 @@ public abstract class RetryService {
 		}
 		this.retryContext = retryContext;
 	}
+	public RetryContext getRetryContext() {
+		return retryContext;
+	}
+
+	public void setRetryContext(RetryContext retryContext) {
+		this.retryContext = retryContext;
+	}
 
 	abstract public void start();
 

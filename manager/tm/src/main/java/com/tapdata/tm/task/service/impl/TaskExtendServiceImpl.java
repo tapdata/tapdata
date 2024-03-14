@@ -44,14 +44,5 @@ public class TaskExtendServiceImpl implements TaskExtendService {
         });
     }
 
-    @Override
-    public void clearFunctionRetry() {
-        Query query = Query.query(Criteria.where("functionRetryStatus").is(TaskDto.RETRY_STATUS_RUNNING)
-                        .orOperator(
-                                Criteria.where("functionRetryEx").lt(System.currentTimeMillis()),
-                                Criteria.where("functionRetryEx").exists(false))
-                                );
-        Update update = Update.update("functionRetryStatus", TaskDto.RETRY_STATUS_NONE);
-        taskService.update(query, update);
-    }
+
 }

@@ -813,7 +813,20 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.build()
 				);
 				break;
-
+			case ADD_DATE_FIELD_PROCESS:
+			case MIGRATE_ADD_DATE_FIELD_PROCESSOR:
+				hazelcastNode = new HazelcastAddDateFieldProcessNode(
+						DataProcessorContext.newBuilder()
+								.withTaskDto(taskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withConfigurationCenter(config)
+								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
+								.build()
+				);
+				break;
 			default:
 				hazelcastNode = new HazelcastBlank(
 						DataProcessorContext.newBuilder()
@@ -899,7 +912,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				.externalStorageDtoMap(ExternalStorageUtil.getExternalStorageMap(taskDto, clientMongoOperator));
 	}
 
-	private TaskRetryConfig getTaskRetryConfig() {
+	protected TaskRetryConfig getTaskRetryConfig() {
 		long retryIntervalSecond = settingService.getLong("retry_interval_second", 60L);
 		long maxRetryTimeMinute = settingService.getLong("max_retry_time_minute", 60L);
 		long maxRetryTimeSecond = maxRetryTimeMinute * 60;
