@@ -9,11 +9,11 @@ import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.service.TaskServiceImpl;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
-import org.apache.poi.ss.formula.functions.T;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -54,7 +54,7 @@ public class TestTaskSettingStrategyImpl {
         @Test
         void testGetLogsNoExceed() {
             TaskRepository taskRepository = mock(TaskRepository.class);
-            TaskService taskService = spy(new TaskService(taskRepository));
+            TaskService taskService = spy(new TaskServiceImpl(taskRepository));
             taskSettingStrategy.setTaskService(taskService);
 
             CalculationEngineVo calculationEngineVo = new CalculationEngineVo();

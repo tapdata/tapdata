@@ -3,7 +3,6 @@ package com.tapdata.tm.metadatadefinition.repository;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.reporitory.BaseRepository;
-import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatadefinition.entity.MetadataDefinitionEntity;
 import org.bson.types.ObjectId;
@@ -13,7 +12,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.Assert;
 
-import java.util.Collections;
 import java.util.List;
 
 import static com.tapdata.tm.utils.MongoUtils.*;

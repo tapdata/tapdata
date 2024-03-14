@@ -6,28 +6,13 @@
  */
 package com.tapdata.tm.statemachine.config;
 
-import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
-import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.statemachine.annotation.OnAction;
 import com.tapdata.tm.statemachine.annotation.WithStateMachine;
-import com.tapdata.tm.statemachine.enums.DataFlowEvent;
-import com.tapdata.tm.statemachine.enums.Transitions;
-import com.tapdata.tm.statemachine.model.StateMachineResult;
-import com.tapdata.tm.statemachine.model.TaskStateContext;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.worker.service.WorkerService;
-import java.util.Date;
 
 import lombok.Setter;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
 @Component

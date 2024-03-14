@@ -213,7 +213,7 @@ public class PkdSourceService {
 
 				boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
 				if (!isCloud) {
-					Query query = DataSourceDefinitionService.getQueryByDatasourceType(Lists.of(definitionDto.getType()), user, definitionDto.getId());
+					Query query = DataSourceDefinitionServiceImpl.getQueryByDatasourceType(Lists.of(definitionDto.getType()), user, definitionDto.getId());
 					dataSourceDefinitionService.deleteAll(query);
 				}
 			});

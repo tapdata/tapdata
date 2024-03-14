@@ -19,7 +19,6 @@ import com.tapdata.tm.statemachine.model.DataFlowStateContext;
 import com.tapdata.tm.statemachine.model.StateContext;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
 import java.util.Date;
 import lombok.extern.slf4j.Slf4j;

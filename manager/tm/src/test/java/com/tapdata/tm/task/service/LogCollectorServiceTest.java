@@ -30,12 +30,12 @@ import static org.mockito.Mockito.*;
  **/
 @DisplayName("LogCollectorService Class Test")
 public class LogCollectorServiceTest {
-	private LogCollectorService logCollectorService;
+	private LogCollectorServiceImpl logCollectorService;
 	private UserDetail userDetail;
 
 	@BeforeEach
 	void setUp() {
-		logCollectorService = spy(new LogCollectorService());
+		logCollectorService = spy(new LogCollectorServiceImpl());
 		userDetail = mock(UserDetail.class);
 	}
 

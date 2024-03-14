@@ -49,13 +49,13 @@ class EventsServiceTest {
     @Mock
     private SmsService mockSmsService;
 
-    private EventsService eventsServiceUnderTest;
+    private EventsServiceImpl eventsServiceUnderTest;
 
     private UserDetail userDetail;
 
     @BeforeEach
     void setUp() {
-        eventsServiceUnderTest = new EventsService(mockRepository);
+        eventsServiceUnderTest = new EventsServiceImpl(mockRepository);
         eventsServiceUnderTest.mailUtils = mockMailUtils;
         eventsServiceUnderTest.messageService = mockMessageService;
         eventsServiceUnderTest.settingsService = mockSettingsService;
