@@ -3,20 +3,20 @@ package io.tapdata.Schedule;
 import base.BaseTest;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.entity.LoginResp;
-import com.tapdata.entity.Setting;
-import com.tapdata.entity.User;
-import com.tapdata.entity.Worker;
+import com.tapdata.entity.*;
 import com.tapdata.entity.values.CheckEngineValidResultDto;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
+import com.tapdata.tm.sdk.available.TmStatusService;
 import com.tapdata.tm.worker.WorkerSingletonLock;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.metric.MetricManager;
+import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.utils.AppType;
+import io.tapdata.utils.UnitTestUtils;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -29,10 +29,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.HttpClientErrorException;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -194,37 +192,163 @@ class ConnectorManagerTest extends BaseTest {
             assertEquals(null,connectorManager.checkLicenseEngineLimit());
         }
     }
-    @Nested
-    class TestWorkerHeartBeat{
-        @Test
-        void testWorkerHeartBeat(){
-            connectorManager = spy(ConnectorManager.class);
-            ConfigurationCenter configCenter = mock(ConfigurationCenter.class);
-            ReflectionTestUtils.setField(connectorManager,"configCenter",configCenter);
-            SettingService settingService = mock(SettingService.class);
-            ReflectionTestUtils.setField(connectorManager,"settingService",settingService);
-            ClientMongoOperator pingClientMongoOperator = mock(ClientMongoOperator.class);
-            ReflectionTestUtils.setField(connectorManager,"pingClientMongoOperator",pingClientMongoOperator);
-            MetricManager metricManager = mock(MetricManager.class);
-            WorkerSingletonLock workerSingletonLock = mock(WorkerSingletonLock.class);
-            WorkerSingletonLock instance = mock(WorkerSingletonLock.class);
-            ReflectionTestUtils.setField(workerSingletonLock,"instance",instance);
-            try (MockedStatic<WorkerSingletonLock> singletonLock = mockStatic(WorkerSingletonLock.class)){
-                singletonLock.when(WorkerSingletonLock::getCurrentTag).thenReturn("tag");
-            }
-            ReflectionTestUtils.setField(connectorManager,"metricManager",metricManager);
-            //isExit true --> false
-            List<Worker> workers = new ArrayList<>();
-            Consumer<Boolean> beforeExit = mock(Consumer.class);
-            beforeExit.accept(true);
-            doAnswer(answer -> {
-                beforeExit.accept(true);
-                return null;
-            }).when(connectorManager).checkAndExit(workers,beforeExit);
-            connectorManager.workerHeartBeat();
-            verify(connectorManager).workerHeartBeat();
-        }
-    }
+
+	@Test
+	void testSingletonLockWithServer() {
+		String localLock = "test-lock";
+		String randomLock = "test-lock";
+		String cloudLock = "test-cloud-lock";
+
+		ConnectorManager spyConnectorManager = spy(ConnectorManager.class);
+		try (MockedStatic<UUID> uuidMockedStatic = mockStatic(UUID.class)) {
+			UUID uuid = mock(UUID.class);
+			when(uuid.toString()).thenReturn(randomLock);
+			uuidMockedStatic.when(UUID::randomUUID).thenReturn(uuid);
+
+			ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+			when(clientMongoOperator.upsert(anyMap(), anyMap(), anyString(), any())).thenReturn("ok", "ok", "failed");
+			UnitTestUtils.injectField(ConnectorManager.class, spyConnectorManager, "clientMongoOperator", clientMongoOperator);
+
+			// upsert lock ok
+			assertTrue(randomLock.equals(spyConnectorManager.singletonLockWithServer(localLock)));
+
+			// cloud upsert lock ok
+			when(spyConnectorManager.getCloudSingletonLock()).thenReturn(cloudLock);
+			assertTrue(cloudLock.equals(spyConnectorManager.singletonLockWithServer(localLock)));
+
+			// cloud upsert lock failed
+			when(spyConnectorManager.getCloudSingletonLock()).thenCallRealMethod();
+			assertThrows(RuntimeException.class, ()-> spyConnectorManager.singletonLockWithServer(localLock));
+		}
+	}
+
+	@Nested
+	class WorkerHeartBeatTest {
+
+		private ConnectorManager spyConnectorManager;
+
+		@BeforeEach
+		void beforeSet() {
+			spyConnectorManager = spy(ConnectorManager.class);
+		}
+
+		@Test
+		void whenEmptyWorker() {
+			WorkerHeatBeatReports workerHeatBeatReports = mock(WorkerHeatBeatReports.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "workerHeatBeatReports", workerHeatBeatReports);
+			ClientMongoOperator pingClientMongoOperator = mock(ClientMongoOperator.class);
+			ReflectionTestUtils.setField(spyConnectorManager, "pingClientMongoOperator", pingClientMongoOperator);
+
+			spyConnectorManager.workerHeartBeat();
+			verify(spyConnectorManager).workerHeartBeat();
+			verify(workerHeatBeatReports, times(1)).report(false);
+		}
+
+		@Test
+		void whenDaasAndTmAvailableError() {
+			try (
+				MockedStatic<TmStatusService> tmStatusServiceMockedStatic = mockStatic(TmStatusService.class);
+				MockedStatic<TmUnavailableException> tmUnavailableExceptionMockedStatic = mockStatic(TmUnavailableException.class, CALLS_REAL_METHODS);
+			) {
+				tmStatusServiceMockedStatic.when(TmStatusService::isNotEnable).thenReturn(true);
+				AtomicReference<Object> callNotInstance = new AtomicReference<>();
+				tmUnavailableExceptionMockedStatic.when(() -> TmUnavailableException.notInstance(any())).thenAnswer(invocationOnMock -> {
+					Object value = invocationOnMock.callRealMethod();
+					callNotInstance.set(value);
+					return value;
+				});
+
+				Logger spyLogger = spy(Logger.class);
+
+				doAnswer(invocationOnMock -> {
+					return null;
+				}).when(spyLogger).error(anyString(), anyString(), any(Object.class));
+
+				spyLogger.error("", "", "");
+
+				RuntimeException errorEx = new RuntimeException("tm-available");
+				when(spyConnectorManager.getInstanceNo()).thenThrow(errorEx);
+
+				spyConnectorManager.workerHeartBeat();
+				verify(spyConnectorManager).workerHeartBeat();
+				assertNotNull(callNotInstance.get());
+				assertTrue(callNotInstance.get().equals(true), "Not Cloud TM available should be log");
+			}
+		}
+
+		@Test
+		void whenDaasAndTmUnavailableError() {
+			try (
+				MockedStatic<TmStatusService> tmStatusServiceMockedStatic = mockStatic(TmStatusService.class);
+				MockedStatic<TmUnavailableException> tmUnavailableExceptionMockedStatic = mockStatic(TmUnavailableException.class, CALLS_REAL_METHODS);
+			) {
+				tmStatusServiceMockedStatic.when(TmStatusService::isNotEnable).thenReturn(true);
+				AtomicReference<Object> callNotInstance = new AtomicReference<>();
+				tmUnavailableExceptionMockedStatic.when(() -> TmUnavailableException.notInstance(any())).thenAnswer(invocationOnMock -> {
+					Object value = invocationOnMock.callRealMethod();
+					callNotInstance.set(value);
+					return value;
+				});
+
+				RuntimeException errorEx = new TmUnavailableException("tm-unavailable-exception", "post", null, new ResponseBody());
+				when(spyConnectorManager.getInstanceNo()).thenThrow(errorEx);
+
+				spyConnectorManager.workerHeartBeat();
+				verify(spyConnectorManager).workerHeartBeat();
+				assertNotNull(callNotInstance.get());
+				assertTrue(callNotInstance.get().equals(true), "Not Cloud TM unavailable should be log");
+			}
+		}
+
+		@Test
+		void whenCloudAndTmAvailableError() {
+			try (
+				MockedStatic<TmStatusService> tmStatusServiceMockedStatic = mockStatic(TmStatusService.class);
+				MockedStatic<TmUnavailableException> tmUnavailableExceptionMockedStatic = mockStatic(TmUnavailableException.class, CALLS_REAL_METHODS);
+			) {
+				tmStatusServiceMockedStatic.when(TmStatusService::isNotEnable).thenReturn(false);
+				AtomicReference<Object> callNotInstance = new AtomicReference<>();
+				tmUnavailableExceptionMockedStatic.when(() -> TmUnavailableException.notInstance(any())).thenAnswer(invocationOnMock -> {
+					Object value = invocationOnMock.callRealMethod();
+					callNotInstance.set(value);
+					return value;
+				});
+
+				RuntimeException errorEx = new RuntimeException("tm-available");
+				when(spyConnectorManager.getInstanceNo()).thenThrow(errorEx);
+
+				spyConnectorManager.workerHeartBeat();
+				verify(spyConnectorManager).workerHeartBeat();
+				assertNotNull(callNotInstance.get());
+				assertTrue(callNotInstance.get().equals(true), "Cloud TM available should be log");
+			}
+		}
+
+		@Test
+		void whenCloudAndTmUnavailableError() {
+			try (
+				MockedStatic<TmStatusService> tmStatusServiceMockedStatic = mockStatic(TmStatusService.class);
+				MockedStatic<TmUnavailableException> tmUnavailableExceptionMockedStatic = mockStatic(TmUnavailableException.class, CALLS_REAL_METHODS);
+			) {
+				tmStatusServiceMockedStatic.when(TmStatusService::isNotEnable).thenReturn(false);
+				AtomicReference<Object> callNotInstance = new AtomicReference<>();
+				tmUnavailableExceptionMockedStatic.when(() -> TmUnavailableException.notInstance(any())).thenAnswer(invocationOnMock -> {
+					Object value = invocationOnMock.callRealMethod();
+					callNotInstance.set(value);
+					return value;
+				});
+
+				RuntimeException errorEx = new TmUnavailableException("tm-unavailable-exception", "post", null, new ResponseBody());
+				when(spyConnectorManager.getInstanceNo()).thenThrow(errorEx);
+
+				spyConnectorManager.workerHeartBeat();
+				verify(spyConnectorManager).workerHeartBeat();
+				assertNotNull(callNotInstance.get());
+				assertTrue(callNotInstance.get().equals(false), "Cloud TM unavailable can't be log");
+			}
+		}
+	}
+
     @Nested
     class TestCheckAndExit{
         @Test
@@ -381,4 +505,35 @@ class ConnectorManagerTest extends BaseTest {
 						assertEquals(ConfigurationCenter.processId,process_id);
 				}
     }
+
+	@Nested
+	class SetPlatformInfoTest {
+
+		private ConnectorManager spyConnectorManager;
+
+		@BeforeEach
+		void beforeSet() {
+			spyConnectorManager = spy(ConnectorManager.class);
+		}
+
+		@Test
+		void whenRegionAndZoneAreBlank() {
+			when(spyConnectorManager.getRegion()).thenReturn("");
+			when(spyConnectorManager.getZone()).thenReturn(" 	");
+
+			Map<String, Object> value = new HashMap<>();
+			spyConnectorManager.setPlatformInfo(value);
+			assertFalse(value.containsKey("platformInfo"));
+		}
+
+		@Test
+		void whenRegionAndZoneAreNotBlank() {
+			when(spyConnectorManager.getRegion()).thenReturn("test-region");
+			when(spyConnectorManager.getZone()).thenReturn("test-zone");
+
+			Map<String, Object> value = new HashMap<>();
+			spyConnectorManager.setPlatformInfo(value);
+			assertTrue(value.containsKey("platformInfo"));
+		}
+	}
 }
