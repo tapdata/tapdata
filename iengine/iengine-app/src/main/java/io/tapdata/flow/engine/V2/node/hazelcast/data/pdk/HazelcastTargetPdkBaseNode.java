@@ -502,7 +502,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			Throwable throwableWrapper;
 			Throwable tapCodeEx = CommonUtils.matchThrowable(e, TapCodeException.class);
 			if (!(tapCodeEx instanceof TapCodeException)) {
-				throwableWrapper = new TapCodeException(TaskTargetProcessorExCode_15.UNKNOWN_ERROR, tapCodeEx);
+				throwableWrapper = new TapCodeException(TaskTargetProcessorExCode_15.UNKNOWN_ERROR, e);
 			} else {
 				throwableWrapper = tapCodeEx;
 			}
@@ -621,7 +621,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						transactionCommit();
 					}
 				} catch (Exception e) {
-					transactionRollback();
+					if (checkExactlyOnceWriteEnableResult.getEnable() && hasExactlyOnceWriteCache) {
+						transactionRollback();
+					}
 					throw e;
 				}
 				flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);

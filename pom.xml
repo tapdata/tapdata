@@ -26,6 +26,7 @@
             **/*Enum.java,
             iengine/iengine-common/src/main/java/com/tapdata/entity/*,
         </sonar.coverage.exclusions>
+        <sonar.test.exclusions>**/src/test/**</sonar.test.exclusions>
     </properties>
 
     <build>
