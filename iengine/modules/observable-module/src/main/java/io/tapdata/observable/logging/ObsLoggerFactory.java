@@ -9,6 +9,7 @@ import io.tapdata.common.SettingService;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.TmUnavailableException;
+import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -81,7 +82,9 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	private final Map<String, Map<String, TaskLoggerNodeProxy>> taskLoggerNodeProxyMap = new ConcurrentHashMap<>();
 
 	private final ScheduledExecutorService scheduleExecutorService;
-
+	public Map<String, TaskLogger> getTaskLoggersMap() {
+		return taskLoggersMap;
+	}
 	private void renewTaskLogSetting() {
 		Thread.currentThread().setName("Renew-Task-Logger-Setting-Scheduler");
 		for (String taskId : taskLoggersMap.keySet()) {
@@ -251,6 +254,16 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 			}
 		}
 		return null;
+	}
+	public LogConfiguration getLogConfiguration(String logConfigPrefix) {
+		int logFileSaveTime = settingService.getInt(logConfigPrefix + "_log_file_save_time", 180);
+		int logFileSaveSize = settingService.getInt(logConfigPrefix + "_log_file_save_size", 10);
+		int logFileSaveCount = settingService.getInt(logConfigPrefix + "_log_file_save_count", 100);
+		LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(logFileSaveTime)
+				.logSaveSize(logFileSaveSize)
+				.logSaveCount(logFileSaveCount)
+				.build();
+		return logConfiguration;
 	}
 
 	@Override

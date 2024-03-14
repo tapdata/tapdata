@@ -4,14 +4,13 @@ import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
-import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.dataflow.SyncProgress;
-import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -31,7 +30,7 @@ import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
-import io.tapdata.flow.engine.V2.schedule.TapDataTaskSchedulerUtil;
+import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryContext;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -131,57 +130,43 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	public PDKMethodInvoker createPdkMethodInvoker() {
-		TaskDto taskDto = dataProcessorContext.getTaskDto();
-		TaskConfig taskConfig = dataProcessorContext.getTaskConfig();
-		Long retryIntervalSecond = taskConfig.getTaskRetryConfig().getRetryIntervalSecond();
-		long retryIntervalMs = TimeUnit.SECONDS.toMillis(retryIntervalSecond);
-		Long maxRetryTimeSecond = taskConfig.getTaskRetryConfig().getMaxRetryTime(TimeUnit.SECONDS);
-		long retryDurationMs = TimeUnit.SECONDS.toMillis(maxRetryTimeSecond);
-		TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskDto, retryDurationMs);
-		if (maxRetryTimeSecond > 0) {
-			long methodRetryDurationMs = taskRetryService.getMethodRetryDurationMs(retryIntervalMs);
-			maxRetryTimeSecond = Math.max(TimeUnit.MILLISECONDS.toMinutes(methodRetryDurationMs), 1L);
-		} else {
-			maxRetryTimeSecond = 0L;
-		}
+		TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(processorBaseContext);
+		TaskRetryContext retryContext = (TaskRetryContext) taskRetryService.getRetryContext();
+		TaskDto taskDto = retryContext.getTaskDto();
+		long retryIntervalSecond = TimeUnit.MILLISECONDS.toSeconds(retryContext.getRetryIntervalMs());
+		long methodRetryTimeMintues = taskRetryService.getMethodRetryDurationMinutes();
 		PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create()
 				.logTag(TAG)
 				.retryPeriodSeconds(retryIntervalSecond)
-				.maxRetryTimeMinute(maxRetryTimeSecond)
+				.maxRetryTimeMinute(methodRetryTimeMintues)
 				.logListener(logListener)
 				.startRetry(taskRetryService::start)
 				.resetRetry(taskRetryService::reset)
 				.signFunctionRetry(() -> signFunctionRetry(taskDto.getId().toHexString()))
-				.clearFunctionRetry(() -> clearFunctionRetry(taskDto.getId().toHexString()));
+				.clearFunctionRetry(() -> cleanFuctionRetry(taskDto.getId().toHexString()));
 		this.pdkMethodInvokerList.add(pdkMethodInvoker);
 		return pdkMethodInvoker;
 	}
 
 	public void signFunctionRetry(String taskId) {
-		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), functionRetryQuery(System.currentTimeMillis(), TapDataTaskSchedulerUtil.signTaskRetryWithTimestamp(taskId, clientMongoOperator)),
-						ConnectorConstant.TASK_COLLECTION), "Failed to sign function retry status");
-	}
-
-	public void clearFunctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() -> {
-			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), functionRetryQuery(System.currentTimeMillis(), false), ConnectorConstant.TASK_COLLECTION);
-		}, "Failed to sign function retry status");
+			Update update = new Update();
+			update.set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING);
+			update.set("taskRetryStartTime", System.currentTimeMillis());
+			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
+		}, "Faild to sign function retry status");
 	}
 
-	public Update functionRetryQuery(long timestamp, boolean isSign) {
-		Update update = new Update();
-		update.set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING);
-		if (!isSign) {
-			long functionRetryEx = timestamp + 5 * 60 * 1000L;
-			update.set("functionRetryEx", functionRetryEx);
-			update.set("taskRetryStartTimeFlag", 0);
-		} else {
-			update.set("taskRetryStartTime", timestamp);
-			update.set("taskRetryStartTimeFlag", timestamp);
-		}
-		return update;
+	public void cleanFuctionRetry(String taskId) {
+		CommonUtils.ignoreAnyError(() -> {
+			Update update = new Update();
+			update.set("functionRetryStatus", TaskDto.RETRY_STATUS_NONE);
+			update.set("taskRetryStartTime", 0);
+			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
+		}, "Faild to clean function retry status");
 	}
+
+
 
 	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
 		if (null == pdkMethodInvoker) return;
@@ -210,6 +195,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			nodeConfig = ((TableNode) node).getNodeConfig();
 		} else if (node instanceof DatabaseNode) {
 			nodeConfig = ((DatabaseNode) node).getNodeConfig();
+		} else if (node instanceof LogCollectorNode) {
+			nodeConfig = ((LogCollectorNode) node).getNodeConfig();
 		}
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
 				PdkUtil.createNode(taskDto.getId().toHexString(),
