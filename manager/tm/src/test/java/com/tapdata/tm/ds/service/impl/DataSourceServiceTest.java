@@ -14,12 +14,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -34,13 +32,13 @@ import static org.mockito.Mockito.when;
 class DataSourceServiceTest {
     private DataSourceService dataSourceServiceUnderTest;
     @Mock
-    private DataSourceDefinitionService dataSourceDefinitionService;
+    private DataSourceDefinitionServiceImpl dataSourceDefinitionService;
     @Mock
     private DataSourceRepository dataSourceRepository;
 
     @BeforeEach
     void setUp() {
-        dataSourceServiceUnderTest = new DataSourceService(dataSourceRepository);
+        dataSourceServiceUnderTest = new DataSourceServiceImpl(dataSourceRepository);
         ReflectionTestUtils.setField(dataSourceServiceUnderTest,"dataSourceDefinitionService",dataSourceDefinitionService);
     }
 

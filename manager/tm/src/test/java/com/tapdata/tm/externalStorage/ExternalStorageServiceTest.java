@@ -4,13 +4,13 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
 import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
+import com.tapdata.tm.externalStorage.service.ExternalStorageServiceImpl;
 import com.tapdata.tm.permissions.service.DataPermissionService;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -31,7 +31,9 @@ import static org.mockito.Mockito.when;
  class ExternalStorageServiceTest {
 
 
-    @Test
+     private String actualData;
+
+     @Test
      void findForCloudTest() {
         testFilter("cloud", true);
 
@@ -45,7 +47,7 @@ import static org.mockito.Mockito.when;
 
      void testFilter(String mark, boolean cloud) {
         ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
-        ExternalStorageService externalStorageService = new ExternalStorageService(repository);
+        ExternalStorageServiceImpl externalStorageService = new ExternalStorageServiceImpl(repository);
         Filter filter = new Filter();
         Where where = new Where();
         where.and("id", mark);

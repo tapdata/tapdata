@@ -16,10 +16,8 @@ import com.tapdata.tm.behavior.BehaviorCode;
 import com.tapdata.tm.behavior.service.BehaviorService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
-import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.*;
 import com.tapdata.tm.dataflow.service.DataFlowService;
-import com.tapdata.tm.dataflow.service.DataflowChartService;
 import com.tapdata.tm.dataflowrecord.dto.DataFlowRecordDto;
 import com.tapdata.tm.dataflowrecord.service.DataFlowRecordService;
 import com.tapdata.tm.message.constant.Level;
@@ -46,9 +44,7 @@ import lombok.Setter;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.IntFunction;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import lombok.extern.slf4j.Slf4j;
@@ -60,11 +56,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 

@@ -2,7 +2,6 @@ package com.tapdata.tm.transform.repository;
 
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.reporitory.BaseRepository;
-import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.transform.entity.MetadataTransformerItemEntity;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoTemplate;

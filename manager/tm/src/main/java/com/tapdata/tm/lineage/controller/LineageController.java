@@ -2,7 +2,6 @@ package com.tapdata.tm.lineage.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
-import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.lineage.dto.LineageDto;
 import com.tapdata.tm.lineage.dto.TableLineageDto;
 import com.tapdata.tm.lineage.service.LineageService;
@@ -16,7 +15,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 

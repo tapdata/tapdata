@@ -1,8 +1,6 @@
 package com.tapdata.tm.lock.service;
 
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.lock.annotation.Lock;
-import com.tapdata.tm.lock.constant.LockType;
 
 public interface LockControlService {
 

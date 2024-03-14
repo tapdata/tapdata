@@ -2,19 +2,17 @@ package com.tapdata.tm.task.service;
 
 import cn.hutool.extra.cglib.CglibUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.Settings.service.SettingsServiceImpl;
 import com.tapdata.tm.base.dto.MutiResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.permissions.service.DataPermissionService;
@@ -39,12 +37,12 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.BeanUtils;
-import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.data.mongodb.core.query.UpdateDefinition;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -53,7 +51,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -63,12 +60,12 @@ import static org.springframework.beans.BeanUtils.*;
 
 @ExtendWith(MockitoExtension.class)
 public class TaskServiceTest {
-    private TaskService taskService;
+    private TaskServiceImpl taskService;
 
     @Test
     void testFindRunningTasksByAgentIdWithoutId() {
         TaskRepository repository = mock(TaskRepository.class);
-        taskService = spy(new TaskService(repository));
+        taskService = spy(new TaskServiceImpl(repository));
         String processId = "  ";
         assertThrows(IllegalArgumentException.class, () -> taskService.findRunningTasksByAgentId(processId));
     }
@@ -76,7 +73,7 @@ public class TaskServiceTest {
     @Test
     void testFindRunningTasksByAgentIdWithId() {
         TaskRepository repository = mock(TaskRepository.class);
-        taskService = spy(new TaskService(repository));
+        taskService = spy(new TaskServiceImpl(repository));
         String processId = "111";
         Query query = Query.query(Criteria.where("agentId").is(processId).and("status").is("running"));
         when(taskService.findAll(query)).thenReturn(new ArrayList<>());
@@ -92,7 +89,7 @@ public class TaskServiceTest {
         @Test
         void testCheckIsCronOrPlanTaskWithNullTask() {
             TaskRepository repository = mock(TaskRepository.class);
-            taskService = spy(new TaskService(repository));
+            taskService = spy(new TaskServiceImpl(repository));
             assertThrows(IllegalArgumentException.class, () -> {
                 taskService.checkIsCronOrPlanTask(null);
             });
@@ -104,7 +101,7 @@ public class TaskServiceTest {
         @Test
         void testCheckIsCronOrPlanTaskWithNullCronTask() {
             TaskRepository repository = mock(TaskRepository.class);
-            taskService = spy(new TaskService(repository));
+            taskService = spy(new TaskServiceImpl(repository));
             TaskDto taskDto = new TaskDto();
             boolean result = taskService.checkIsCronOrPlanTask(taskDto);
             assertEquals(false, result);
@@ -116,7 +113,7 @@ public class TaskServiceTest {
         @Test
         void testCheckIsCronOrPlanTaskWithTruePlanTask() {
             TaskRepository repository = mock(TaskRepository.class);
-            taskService = spy(new TaskService(repository));
+            taskService = spy(new TaskServiceImpl(repository));
             TaskDto taskDto = new TaskDto();
             taskDto.setPlanStartDateFlag(true);
             boolean result = taskService.checkIsCronOrPlanTask(taskDto);
@@ -129,7 +126,7 @@ public class TaskServiceTest {
         @Test
         void testCheckIsCronOrPlanTaskWithFalsePlanTask() {
             TaskRepository repository = mock(TaskRepository.class);
-            taskService = spy(new TaskService(repository));
+            taskService = spy(new TaskServiceImpl(repository));
             TaskDto taskDto = new TaskDto();
             taskDto.setPlanStartDateFlag(false);
             boolean result = taskService.checkIsCronOrPlanTask(taskDto);
@@ -142,7 +139,7 @@ public class TaskServiceTest {
         @Test
         void testCheckIsCronOrPlanTaskWithTrueCronTask() {
             TaskRepository repository = mock(TaskRepository.class);
-            taskService = spy(new TaskService(repository));
+            taskService = spy(new TaskServiceImpl(repository));
             TaskDto taskDto = new TaskDto();
             taskDto.setCrontabExpressionFlag(true);
             boolean result = taskService.checkIsCronOrPlanTask(taskDto);
@@ -155,7 +152,7 @@ public class TaskServiceTest {
         @Test
         void testCheckIsCronOrPlanTaskWithFalseCronTask() {
             TaskRepository repository = mock(TaskRepository.class);
-            taskService = spy(new TaskService(repository));
+            taskService = spy(new TaskServiceImpl(repository));
             TaskDto taskDto = new TaskDto();
             taskDto.setCrontabExpressionFlag(false);
             boolean result = taskService.checkIsCronOrPlanTask(taskDto);
@@ -169,7 +166,7 @@ public class TaskServiceTest {
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
         TaskRepository repository;
         ArrayList<TaskEntity> taskEntities = new ArrayList<>();
-        SettingsService settingsService;
+        SettingsServiceImpl settingsService;
         List<ObjectId> ids;
         Query query;
         TaskEntity taskEntity;
@@ -179,8 +176,8 @@ public class TaskServiceTest {
         @BeforeEach
         void beforeEach() {
             repository = mock(TaskRepository.class);
-            taskService = spy(new TaskService(repository));
-            settingsService = mock(SettingsService.class);
+            taskService = spy(new TaskServiceImpl(repository));
+            settingsService = mock(SettingsServiceImpl.class);
             when(settingsService.isCloud()).thenReturn(true);
             taskService.setSettingsService(settingsService);
             ids = Arrays.asList("6324562fc5c0a4052d821d90").stream().map(ObjectId::new).collect(Collectors.toList());
@@ -242,20 +239,20 @@ public class TaskServiceTest {
         final UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
         TaskRepository repository;
-        SettingsService settingsService;
+        SettingsServiceImpl settingsService;
         TaskEntity taskEntity;
         TaskScheduleService taskScheduleService;
 
         @BeforeEach
         void beforeEach() {
             repository=mock(TaskRepository.class);
-            taskService = spy(new TaskService(repository));
+            taskService = spy(new TaskServiceImpl(repository));
             taskEntity=new TaskEntity();
             taskEntity.setUserId("6393f084c162f518b18165c3");
             taskEntity.setAgentId("632327dd287a904778c0a13c-1gd0l7dvk");
             taskEntity.setName("test");
             taskEntity.setId(MongoUtils.toObjectId("6324562fc5c0a4052d821d90"));
-            settingsService=mock(SettingsService.class);
+            settingsService=mock(SettingsServiceImpl.class);
             when(settingsService.isCloud()).thenReturn(true);
             taskService.setSettingsService(settingsService);
             taskScheduleService=mock(TaskScheduleService.class);
@@ -320,7 +317,7 @@ public class TaskServiceTest {
             taskDto=new TaskDto();
             BeanUtils.copyProperties(taskEntity,taskDto);
             taskRepository = mock(TaskRepository.class);
-            taskService=spy(new TaskService(taskRepository));
+            taskService=spy(new TaskServiceImpl(taskRepository));
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()));
             query.fields().include("planStartDateFlag", "crontabExpressionFlag");
             when(taskRepository.findOne(query)).thenReturn(Optional.ofNullable(taskEntity));
@@ -349,7 +346,7 @@ public class TaskServiceTest {
     class TestCheckCloudTaskLimit {
         TaskRepository taskRepository = mock(TaskRepository.class);
 
-        SettingsService settingsService = mock(SettingsService.class);
+        SettingsServiceImpl settingsService = mock(SettingsServiceImpl.class);
 
         TaskScheduleService taskScheduleService = mock(TaskScheduleService.class);
         WorkerService workerService = mock(WorkerService.class);
@@ -358,7 +355,7 @@ public class TaskServiceTest {
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
         @BeforeEach
         void beforeEach() {
-            taskService = new TaskService(taskRepository);
+            taskService = new TaskServiceImpl(taskRepository);
             taskService.setSettingsService(settingsService);
             taskService.setTaskScheduleService(taskScheduleService);
             ReflectionTestUtils.setField(taskService,"workerService",workerService);
@@ -454,7 +451,7 @@ public class TaskServiceTest {
     class TestCopy{
         TaskRepository taskRepository = mock(TaskRepository.class);
 
-        SettingsService settingsService = mock(SettingsService.class);
+        SettingsServiceImpl settingsService = mock(SettingsServiceImpl.class);
 
         TaskScheduleService taskScheduleService = mock(TaskScheduleService.class);
 
@@ -466,7 +463,7 @@ public class TaskServiceTest {
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
         @BeforeEach
         void beforeEach() {
-            taskService = new TaskService(taskRepository);
+            taskService = new TaskServiceImpl(taskRepository);
             taskService.setSettingsService(settingsService);
             taskService.setTaskScheduleService(taskScheduleService);
             taskService.setUserLogService(serLogService);
@@ -497,8 +494,8 @@ public class TaskServiceTest {
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
-                TaskService mockTaskService = mock(TaskService.class);
-                helperMockedStatic.when(()->SpringContextHelper.getBean(TaskService.class)).thenReturn(mockTaskService);
+                TaskServiceImpl mockTaskService = mock(TaskServiceImpl.class);
+                helperMockedStatic.when(()->SpringContextHelper.getBean(TaskServiceImpl.class)).thenReturn(mockTaskService);
                 when(mockTaskService.confirmById(any(TaskDto.class),any(UserDetail.class),any(Boolean.class))).thenAnswer(invocationOnMock -> {
                     return invocationOnMock.<TaskDto>getArgument(0);
                 });
@@ -531,8 +528,8 @@ public class TaskServiceTest {
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
-                TaskService mockTaskService = mock(TaskService.class);
-                helperMockedStatic.when(()->SpringContextHelper.getBean(TaskService.class)).thenReturn(mockTaskService);
+                TaskServiceImpl mockTaskService = mock(TaskServiceImpl.class);
+                helperMockedStatic.when(()->SpringContextHelper.getBean(TaskServiceImpl.class)).thenReturn(mockTaskService);
                 when(mockTaskService.confirmById(any(TaskDto.class),any(UserDetail.class),any(Boolean.class))).thenAnswer(invocationOnMock -> {
                     return invocationOnMock.<TaskDto>getArgument(0);
                 });
@@ -564,8 +561,8 @@ public class TaskServiceTest {
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
-                TaskService mockTaskService = mock(TaskService.class);
-                helperMockedStatic.when(()->SpringContextHelper.getBean(TaskService.class)).thenReturn(mockTaskService);
+                TaskServiceImpl mockTaskService = mock(TaskServiceImpl.class);
+                helperMockedStatic.when(()->SpringContextHelper.getBean(TaskServiceImpl.class)).thenReturn(mockTaskService);
                 when(mockTaskService.confirmById(any(TaskDto.class),any(UserDetail.class),any(Boolean.class))).thenAnswer(invocationOnMock -> {
                     return invocationOnMock.<TaskDto>getArgument(0);
                 });
@@ -582,7 +579,7 @@ public class TaskServiceTest {
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
         @BeforeEach
         void beforeEach() {
-            taskService = new TaskService(taskRepository);
+            taskService = new TaskServiceImpl(taskRepository);
         }
         @Test
         void testRunningTaskNum(){
@@ -606,7 +603,7 @@ public class TaskServiceTest {
             try (MockedStatic<DataPermissionService> mb = Mockito
                     .mockStatic(DataPermissionService.class)) {
                 mb.when(DataPermissionService::isCloud).thenReturn(true);
-                taskService = spy(new TaskService(taskRepository));
+                taskService = spy(new TaskServiceImpl(taskRepository));
                 UserDetail user = mock(UserDetail.class);
                 DataPermissionMenuEnums permission = mock(DataPermissionMenuEnums.class);
                 List<TaskDto> taskDtoList = new ArrayList<>();
@@ -650,7 +647,7 @@ public class TaskServiceTest {
     @Nested
     class importRmProjectTest{
         TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskService taskService=spy(new TaskService(taskRepository));
+        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
         UserDetail userDetail;
         FileInputStream fileInputStream;
         @BeforeEach
@@ -815,7 +812,7 @@ public class TaskServiceTest {
     @Nested
     class ParentColumnsFindJoinKeysClass{
         TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskService taskService=spy(new TaskService(taskRepository));
+        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
         Map<String, Object> parent;
         Map<String, Map<String, Map<String, Object>>> renameFields;
 
@@ -922,7 +919,7 @@ public class TaskServiceTest {
     @Nested
     class GetEmbeddedDocumentPathTest{
         TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskService taskService=spy(new TaskService(taskRepository));
+        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
         @DisplayName("test parent path is empty string,use embeddedPath")
         @Test
         void test1(){
@@ -960,7 +957,7 @@ public class TaskServiceTest {
         @Test
         void testRunningTaskNumWithProcessId(){
             TaskRepository taskRepository = mock(TaskRepository.class);
-            taskService = new TaskService(taskRepository);
+            taskService = new TaskServiceImpl(taskRepository);
             long except = 5L;
             UserDetail userDetail = mock(UserDetail.class);
             when(taskRepository.count(Query.query(Criteria.where("agentId").is("111")
@@ -977,7 +974,7 @@ public class TaskServiceTest {
     @Nested
     class GetNewNameMapTest{
         TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskService taskService=spy(new TaskService(taskRepository));
+        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
         @DisplayName("test get newname map is pk")
         @Test
         void test1(){
@@ -1008,7 +1005,7 @@ public class TaskServiceTest {
     @Nested
     class GetOperationTest{
         TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskService taskService=spy(new TaskService(taskRepository));
+        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
         @DisplayName("test get deleteOperation")
         @Test
         void test1(){
@@ -1039,7 +1036,7 @@ public class TaskServiceTest {
     @Nested
     class AddProcessorNodeTest{
         TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskService taskService=spy(new TaskService(taskRepository));
+        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
         @DisplayName("test add delete node")
         @Test
         void test1(){
