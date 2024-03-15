@@ -1,5 +1,6 @@
 package com.tapdata.entity;
 
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
 
 /**
@@ -28,7 +29,7 @@ public enum AppType {
 	}
 
 	public static AppType init() {
-		String appTypeStr = System.getenv("app_type");
+		String appTypeStr = CommonUtils.getProperty("app_type");
 		if (StringUtils.isBlank(appTypeStr)) {
 			throw new RuntimeException("app_type is blank");
 		}
