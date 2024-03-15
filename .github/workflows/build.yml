@@ -135,7 +135,7 @@ jobs:
           cd tapdata-application && bash build/build.sh -c tapdata-enterprise-web -u false -m productioin -t v3.12-open
       - name: compile opensource tapdata
         run: |
-          cd tapdata-application && bash build/build.sh -c tapdata -P true -u false -l "-Dmaven.compile.fork=true -P idaas"
+          cd tapdata-application && bash build/build.sh -c tapdata -P true -u false -l "-Dmaven.compile.fork=true -P idaas -P oss"
       - name: compile tapdata connectors
         run: |
           cd tapdata-application && bash build/build.sh -c opensource-connectors -u false -P true -l "-Dmaven.compile.fork=true"
