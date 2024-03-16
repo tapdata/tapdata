@@ -11,6 +11,8 @@ import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.repository.SettingsRepository;
 import com.tapdata.tm.Settings.service.util.SettingServiceUtil;
+import com.tapdata.tm.alarmMail.dto.AlarmMailDto;
+import com.tapdata.tm.alarmMail.service.AlarmMailService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 import java.util.*;
@@ -44,6 +46,7 @@ public class SettingsService {
     private SettingsRepository settingsRepository;
     private MongoTemplate mongoTemplate;
 
+    private AlarmMailService alarmMailService;
 
     /**
      * 有value 则返回value, 没有则返回default_value
@@ -105,7 +108,7 @@ public class SettingsService {
         String password = Objects.nonNull(pwd) ? pwd.toString() : null;
         String protocol = (String) collect.get("email.server.tls");
 
-        AtomicReference<List<String>> receiverList = new AtomicReference<>();
+        AtomicReference<List<String>> receiverList = new AtomicReference<>(new ArrayList<>());
 
         boolean isCloud = isCloud();
         if (isCloud) {
@@ -116,6 +119,10 @@ public class SettingsService {
                     receiverList.set(Lists.newArrayList(u.getEmail()));
                 }
             });
+            AlarmMailDto alarmMailDto = alarmMailService.findOne(new Query(),userDetail);
+            if( alarmMailDto != null && CollectionUtils.isNotEmpty(alarmMailDto.getEmailAddressList())){
+                receiverList.get().addAll(alarmMailDto.getEmailAddressList());
+            }
         } else {
             String receivers = (String) collect.get("email.receivers");
             if (StringUtils.isNotBlank(receivers)) {

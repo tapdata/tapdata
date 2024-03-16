@@ -1,6 +1,5 @@
 package io.tapdata.flow.engine.V2.schedule;
 
-import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.AppType;
@@ -15,6 +14,7 @@ import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.exception.RestDoNotRetryException;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -30,13 +30,11 @@ import io.tapdata.flow.engine.V2.util.SingleLockWithKey;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.domain.Sort;
@@ -308,9 +306,16 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		AtomicBoolean isReturn = new AtomicBoolean(false);
 		taskClientMap.computeIfPresent(taskId, (id, taskClient)->{
 			if (taskClientMap.containsKey(taskId)) {
-				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
-				if (!TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
+				String status = taskClient.getStatus();
+				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, status);
+				try {
 					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
+				} catch (Exception e) {
+					if (e instanceof RestDoNotRetryException && "Transition.Not.Supported".equals(((RestDoNotRetryException) e).getCode())) {
+						// ignored Transition.Not.Supported error
+					} else {
+						throw e;
+					}
 				}
 				isReturn.compareAndSet(false, true);
 			}
@@ -397,7 +402,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 							if(taskClient.stop()){
 								clearTaskCacheAfterStopped(taskClient);
 								clearTaskRetryCache(taskId);
-								clearTaskRetry(taskId);
 							}
 						} else {
 							logger.warn("Task status to error: {}", terminalMode);
@@ -413,7 +417,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 										long retryStartTime = System.currentTimeMillis();
 										sendStartTask(taskDto);
 										taskRetryTimeMap.put(taskId,retryStartTime);
-										signTaskRetry(taskId, retryStartTime);
 									}
 								} else {
 									stopTaskResource = StopTaskResource.RUN_ERROR;
@@ -440,18 +443,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 	}
 
-	private void signTaskRetry(String taskId, long retryStartTime) {
-		CommonUtils.ignoreAnyError(() ->
-			clientMongoOperator.update(TapDataTaskSchedulerUtil.signTaskRetryQuery(taskId), TapDataTaskSchedulerUtil.signTaskRetryUpdate(TapDataTaskSchedulerUtil.signTaskRetryWithTimestamp(taskId, clientMongoOperator), retryStartTime), ConnectorConstant.TASK_COLLECTION), "Failed to sign task retry status");
-	}
 
-	public void clearTaskRetry(String taskId) {
-		CommonUtils.ignoreAnyError(() ->
-				clientMongoOperator.update(
-						Query.query(Criteria.where("_id").is(new ObjectId(taskId))),
-						new Update().set("taskRetryStatus", TaskDto.RETRY_STATUS_NONE).set("taskRetryStartTime", 0),
-						ConnectorConstant.TASK_COLLECTION), "Failed to clear task retry status");
-	}
+
 
 	private void internalStopTask() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.CLOUD_INTERNAL_STOP_TASK_THREAD, instanceNo));
@@ -507,7 +500,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 							obsLogger.info(String.format("Reset task [%s] retry time", taskDtoTaskClient.getTask().getName()));
 						}
 					}
-					clearTaskRetry(taskId);
 					iterator.remove();
 				}
 			}
@@ -650,7 +642,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		if (stopTaskCallAssignApi(taskDtoTaskClient, stopped)) {
 			clearTaskCacheAfterStopped(taskDtoTaskClient);
 			clearTaskRetryCache(taskId);
-			clearTaskRetry(taskId);
 			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDtoTaskClient.getTask());
 		}
 	}

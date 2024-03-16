@@ -6,7 +6,6 @@ import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -18,6 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Component
 @Slf4j
 public class CircuitBreakerRecoveryService {
+
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
 
     private ScheduledFuture<?> scheduledFuture;

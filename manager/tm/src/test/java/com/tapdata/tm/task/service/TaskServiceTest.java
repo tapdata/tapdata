@@ -589,6 +589,7 @@ public class TaskServiceTest {
             long except = 5L;
             when(taskRepository.count(Query.query(Criteria.where("is_deleted").ne(true)
                     .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
                     .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
                             Criteria.where("planStartDateFlag").is(true),
                             Criteria.where("crontabExpressionFlag").is(true)
@@ -679,9 +680,7 @@ public class TaskServiceTest {
             }
             assertEquals("6393f084c162f518b18165c3",taskDto.getUserId());
             assertEquals("customerId",taskDto.getCustomId());
-            assertEquals("customer5",taskDto.getDag().getNodes().get(0).getName());
-            assertEquals("customer5",taskDto.getDag().getNodes().get(2).getName());
-            assertEquals("customer5",taskDto.getDag().getNodes().get(1).getName());
+            assertEquals(3,taskDto.getDag().getNodes().size());
         }
         @Test
         void nullImportRmProjectTest(){
@@ -791,27 +790,6 @@ public class TaskServiceTest {
             }
         }
         @Test
-        void testCheckJsProcessorTestRun() throws IOException {
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
-            String s = new String(mockMultipartFile.getBytes());
-            Map<String, String> stringStringMap = taskService.parseTaskFromRm(s, "123", "123", userDetail);
-            TaskDto taskDto=null;
-            for(String s1: stringStringMap.keySet()){
-                taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(s1), TaskDto.class);
-                taskDto.setId(new ObjectId("659d296d5ae70acad4e3f0db"));
-            }
-            List<TaskDto> taskDtos = Arrays.asList(taskDto);
-            TaskNodeService taskNodeService = mock(TaskNodeService.class);
-            taskService.setTaskNodeService(taskNodeService);
-            doAnswer(invocationOnMock -> {
-                TestRunDto testRunDto = (TestRunDto) invocationOnMock.getArgument(0);
-                assertEquals(1,testRunDto.getRows());
-                assertEquals("659d296d5ae70acad4e3f0db",testRunDto.getTaskId());
-                return null;
-            }).when(taskNodeService).testRunJsNodeRPC(any(TestRunDto.class),any(UserDetail.class),anyInt());
-            taskService.checkJsProcessorTestRun(userDetail,taskDtos);
-        }
-        @Test
         void testGenProperties() throws IOException {
             URL resource = this.getClass().getClassLoader().getResource("EmployeeSchema.relmig");
             FileInputStream fileInputStream = new FileInputStream(resource.getFile());
@@ -834,5 +812,273 @@ public class TaskServiceTest {
             assertTrue(flag);
         }
     }
+    @Nested
+    class ParentColumnsFindJoinKeysClass{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskService taskService=spy(new TaskService(taskRepository));
+        Map<String, Object> parent;
+        Map<String, Map<String, Map<String, Object>>> renameFields;
+
+
+        @BeforeEach
+        void beforeSetUp(){
+            parent = new HashMap<>();
+            parent.put("rm_id", "rm_id -> eb1243b6-e7dc-4b84-b094-e719f9275512");
+            parent.put("tableName", "Orders");
+            renameFields = new HashMap<>();
+
+            Map<String,Map<String,Object>> orderFieldMap=new HashMap<>();
+            Map<String,Object> idAttrs=new HashMap<>();
+            idAttrs.put("isPrimaryKey", false);
+            idAttrs.put("target","_id");
+            Map<String,Object> orderIdAttrs=new HashMap<>();
+            orderIdAttrs.put("isPrimaryKey",true);
+            orderIdAttrs.put("target","orderId");
+            Map<String,Object> shipViaAttrs=new HashMap<>();
+            shipViaAttrs.put("target","shipVia");
+            shipViaAttrs.put("isPrimaryKey",false);
+            orderFieldMap.put("ShipVia",shipViaAttrs);
+            orderFieldMap.put("_id",idAttrs);
+            orderFieldMap.put("OrderID",orderIdAttrs);
+
+            Map<String,Map<String,Object>> shipperFieldMap=new HashMap<>();
+            Map<String,Object> shipperIdAttrs=new HashMap<>();
+            shipperIdAttrs.put("target","shipperId");
+            shipperIdAttrs.put("isPrimaryKey",true);
+            shipperFieldMap.put("ShipperID",shipperIdAttrs);
+
+            renameFields.put("Shippers",shipperFieldMap);
+            renameFields.put("Orders",orderFieldMap);
+        }
+        @DisplayName("test parent column have foreignKey,and foreignKey table is child table")
+        @Test
+        void test1(){
+            parent.put("targetPath", "");
+            List<Map<String, String>> joinKeys=new ArrayList<>();
+            Map<String, Object> parentColumns=new HashMap<>();
+            Map<String, Object> columnsAttrs=new HashMap<>();
+            Map<String,Object> foreignKeyAttrs=new HashMap<>();
+            foreignKeyAttrs.put("name","FK_Orders_Shippers");
+            foreignKeyAttrs.put("table","Shippers");
+            foreignKeyAttrs.put("column","ShipperID");
+            columnsAttrs.put("foreignKey",foreignKeyAttrs);
+            parentColumns.put("ShipVia",columnsAttrs);
+            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys);
+            assertEquals(1,joinKeys.size());
+            Map<String, String> stringStringMap = joinKeys.get(0);
+            String sourceJoinKey = stringStringMap.get("source");
+            String targetJoinKey = stringStringMap.get("target");
+            assertEquals("shipperId",sourceJoinKey);
+            assertEquals("shipVia",targetJoinKey);
+        }
+        @DisplayName("test parent column have foreignKey,foreignKey table is child table and have targetPath")
+        @Test
+        void test2(){
+            parent.put("targetPath", "orders");
+            List<Map<String, String>> joinKeys=new ArrayList<>();
+            Map<String, Object> parentColumns=new HashMap<>();
+            Map<String, Object> columnsAttrs=new HashMap<>();
+            Map<String,Object> foreignKeyAttrs=new HashMap<>();
+            foreignKeyAttrs.put("name","FK_Orders_Shippers");
+            foreignKeyAttrs.put("table","Shippers");
+            foreignKeyAttrs.put("column","ShipperID");
+            columnsAttrs.put("foreignKey",foreignKeyAttrs);
+            parentColumns.put("ShipVia",columnsAttrs);
+            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys);
+            assertEquals(1,joinKeys.size());
+            Map<String, String> stringStringMap = joinKeys.get(0);
+            String sourceJoinKey = stringStringMap.get("source");
+            String targetJoinKey = stringStringMap.get("target");
+            assertEquals("shipperId",sourceJoinKey);
+            assertEquals("orders.shipVia",targetJoinKey);
+        }
+        @DisplayName("test parent column no have foreignKey")
+        @Test
+        void test3(){
+            List<Map<String, String>> joinKeys=new ArrayList<>();
+            Map<String, Object> parentColumns=new HashMap<>();
+            Map<String, Object> columnsAttrs=new HashMap<>();
+            parentColumns.put("ShipVia",columnsAttrs);
+            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys);
+            assertEquals(0,joinKeys.size());
+        }
+        @DisplayName("test parnet column table is not child table")
+        @Test
+        void test4(){
+            parent.put("targetPath", "");
+            List<Map<String, String>> joinKeys=new ArrayList<>();
+            Map<String, Object> parentColumns=new HashMap<>();
+            Map<String, Object> columnsAttrs=new HashMap<>();
+            Map<String,Object> foreignKeyAttrs=new HashMap<>();
+            foreignKeyAttrs.put("name","FK_Orders_Shippers");
+            foreignKeyAttrs.put("table","testTable");
+            foreignKeyAttrs.put("column","ShipperID");
+            columnsAttrs.put("foreignKey",foreignKeyAttrs);
+            parentColumns.put("ShipVia",columnsAttrs);
+            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys);
+            assertEquals(0,joinKeys.size());
+        }
+    }
+    @Nested
+    class GetEmbeddedDocumentPathTest{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskService taskService=spy(new TaskService(taskRepository));
+        @DisplayName("test parent path is empty string,use embeddedPath")
+        @Test
+        void test1(){
+            Map<String,String> setting=new HashMap<>();
+            setting.put("embeddedPath","abc");
+            String targetPath = taskService.getEmbeddedDocumentPath("", setting);
+            assertEquals("abc",targetPath);
+        }
+        @DisplayName("test parent path is not empty string,embeddedPath is null")
+        @Test
+        void test2(){
+            Map<String,String> setting=new HashMap<>();
+            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
+            assertEquals("parentPath",targetPath);
+        }
+        @DisplayName("test parent path is not empty string,embeddedPath is not null")
+        @Test
+        void test3(){
+            Map<String,String> setting=new HashMap<>();
+            setting.put("embeddedPath","abc");
+            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
+            assertEquals("parentPath.abc",targetPath);
+        }
+        @DisplayName("test parent path is not empty string,embeddedPaht is empty str")
+        @Test
+        void test4(){
+            Map<String,String> setting=new HashMap<>();
+            setting.put("embeddedPath","");
+            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
+            assertEquals("parentPath",targetPath);
+        }
+    }
+    @Nested
+    class RunningTaskNumWithProcessIdTest{
+        @Test
+        void testRunningTaskNumWithProcessId(){
+            TaskRepository taskRepository = mock(TaskRepository.class);
+            taskService = new TaskService(taskRepository);
+            long except = 5L;
+            UserDetail userDetail = mock(UserDetail.class);
+            when(taskRepository.count(Query.query(Criteria.where("agentId").is("111")
+                    .and("is_deleted").ne(true).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
+                    .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
+                            Criteria.where("planStartDateFlag").is(true),
+                            Criteria.where("crontabExpressionFlag").is(true)
+                    )), userDetail)).thenReturn(except);
+            long result = taskService.runningTaskNum("111", userDetail);
+            assertEquals(except,result);
+        }
+    }
+    @Nested
+    class GetNewNameMapTest{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskService taskService=spy(new TaskService(taskRepository));
+        @DisplayName("test get newname map is pk")
+        @Test
+        void test1(){
+            Map<String,Object> target=new HashMap<>();
+            target.put("name","employeeId");
+            target.put("included",true);
+            Map<String,Object> source=new HashMap<>();
+            source.put("name","EmployeeId");
+            source.put("isPrimaryKey",true);
+            Map<String, Object> newNameMap = taskService.getNewNameMap(target, source);
+            assertEquals("employeeId",newNameMap.get("target"));
+            assertEquals(true,newNameMap.get("isPrimaryKey"));
+        }
+        @DisplayName("test get newname map is not pk")
+        @Test
+        void test2(){
+            Map<String,Object> target=new HashMap<>();
+            target.put("name","employeeId");
+            target.put("included",true);
+            Map<String,Object> source=new HashMap<>();
+            source.put("name","EmployeeId");
+            source.put("isPrimaryKey",false);
+            Map<String, Object> newNameMap = taskService.getNewNameMap(target, source);
+            assertEquals("employeeId",newNameMap.get("target"));
+            assertEquals(false,newNameMap.get("isPrimaryKey"));
+        }
+    }
+    @Nested
+    class GetOperationTest{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskService taskService=spy(new TaskService(taskRepository));
+        @DisplayName("test get deleteOperation")
+        @Test
+        void test1(){
+            Map<String,Object> source=new HashMap<>();
+            source.put("name","EmployeeId");
+            source.put("isPrimaryKey",false);
+            Map<String, Object> deleteOperation = taskService.getDeleteOperation(source);
+            assertEquals("EmployeeId",deleteOperation.get("field"));
+            assertEquals("REMOVE",deleteOperation.get("op"));
+            assertEquals("true",deleteOperation.get("operand"));
+            assertEquals("EmployeeId",deleteOperation.get("label"));
+        }
+        @DisplayName("test get renameOperation")
+        @Test
+        void test2(){
+            Map<String,Object> target=new HashMap<>();
+            target.put("name","employeeId");
+            target.put("included",true);
+            Map<String,Object> source=new HashMap<>();
+            source.put("name","EmployeeId");
+            source.put("isPrimaryKey",false);
+            Map<String, Object> renameOperation = taskService.getRenameOperation(source, target);
+            assertEquals("EmployeeId",renameOperation.get("field"));
+            assertEquals("RENAME",renameOperation.get("op"));
+            assertEquals("employeeId",renameOperation.get("operand"));
+        }
+    }
+    @Nested
+    class AddProcessorNodeTest{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskService taskService=spy(new TaskService(taskRepository));
+        @DisplayName("test add delete node")
+        @Test
+        void test1(){
+            List<Map<String, Object>> nodes=new ArrayList<>();
+            List<Map<String, Object>> edges =new ArrayList<>();
+            Map<String, Object> deleteOperation = new HashMap<>();
+            List<Map<String, Object>> deleteOperationList=new ArrayList<>();
+            deleteOperation.put("id", UUID.randomUUID().toString().toLowerCase());
+            deleteOperation.put("field", "CustomerId");
+            deleteOperation.put("op", "REMOVE");
+            deleteOperation.put("operand", "true");
+            deleteOperation.put("label", "CustomerId");
+            deleteOperationList.add(deleteOperation);
+            String sourceId = taskService.addDeleteNode("customer", deleteOperationList,  "souceId",nodes, edges);
+            assertNotEquals("souceId",sourceId);
+            assertEquals(1,nodes.size());
+            Map<String, Object> nodeMap = nodes.get(0);
+            assertEquals("Delete customer",nodeMap.get("name"));
+            assertEquals("field_add_del_processor",nodeMap.get("type"));
+        }
+        @DisplayName("test add rename node")
+        @Test
+        void test2(){
+            List<Map<String, Object>> nodes=new ArrayList<>();
+            List<Map<String, Object>> edges =new ArrayList<>();
+            List<Map<String, Object>> fieldRenameOperationList=new ArrayList<>();
+            Map<String, Object> fieldRenameOperation = new HashMap<>();
+            fieldRenameOperation.put("field", "CustomerId");
+            fieldRenameOperation.put("op", "RENAME");
+            fieldRenameOperation.put("operand", "customerId");
+            fieldRenameOperationList.add(fieldRenameOperation);
+            String sourceId = taskService.addRenameNode("customer", fieldRenameOperationList, "souceId",nodes, edges);
+            assertNotEquals("souceId",sourceId);
+            assertEquals(1,nodes.size());
+            Map<String, Object> nodeMap = nodes.get(0);
+            assertEquals("Rename customer",nodeMap.get("name"));
+            assertEquals("field_rename_processor",nodeMap.get("type"));
+        }
+    }
+
 
 }

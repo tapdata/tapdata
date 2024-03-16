@@ -40,7 +40,6 @@ import io.tapdata.flow.engine.V2.common.StoreLoggerImpl;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import io.tapdata.modules.api.net.utils.TapEngineUtils;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
@@ -329,18 +328,18 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		return null;
 	}
 
-	private void writeLogContent(LogContent logContent) {
+	protected void writeLogContent(LogContent logContent) {
 		if (null == logContent) {
 			return;
 		}
 		String fromTable = logContent.getFromTable();
-		String fullTableName = ShareCdcUtil.joinNamespaces(logContent.getTableNamespaces());
+		String tableId = ShareCdcUtil.getTableId(logContent);
 		Document document = logContent2Document(logContent);
-		HazelcastConstruct<Document> construct = getConstruct(fullTableName, fromTable, document.getString("connectionId"));
+		HazelcastConstruct<Document> construct = getConstruct(tableId, fromTable, document.getString("connectionId"));
 		try {
 			construct.insert(document);
 		} catch (Exception e) {
-			throw new TapCodeException(TaskProcessorExCode_11.WRITE_ONE_SHARE_LOG_FAILED, "Write document failed: %s", e);
+			throw new TapCodeException(TaskProcessorExCode_11.WRITE_ONE_SHARE_LOG_FAILED, String.format("Write document failed: %s", document), e);
 		}
 	}
 
@@ -383,7 +382,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		return document;
 	}
 
-	private LogContent wrapLogContent(TapdataShareLogEvent tapdataShareLogEvent) {
+	protected LogContent wrapLogContent(TapdataShareLogEvent tapdataShareLogEvent) {
 		if (null == tapdataShareLogEvent) {
 			return null;
 		}
@@ -418,6 +417,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 					offsetStr,
 					removedFields
 			);
+			logContent.setReplaceEvent(TapEventUtil.getIsReplaceEvent(tapEvent));
 			logContent.setTableNamespaces(TapEventUtil.getNamespaces(tapEvent));
 			logContent.setConnectionId(connectionId);
 		} else if (tapdataShareLogEvent.isDDL()) {
@@ -479,9 +479,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		return shareCdcTtlDay;
 	}
 
-	private HazelcastConstruct<Document> getConstruct(String fullTableName, String tableName, String connectionId) {
+	protected HazelcastConstruct<Document> getConstruct(String fullTableName, String tableName, String connectionId) {
 		return constructMap.computeIfAbsent(fullTableName, k -> {
-			String taskId = processorBaseContext.getTaskDto().getId().toHexString();
 			String sign = ShareCdcTableMappingDto.genSign(connectionId, tableName);
 			Query query = Query.query(Criteria.where("sign").is(sign));
 			ShareCdcTableMappingDto shareCdcTableMappingDto = clientMongoOperator.findOne(query, ConnectorConstant.SHARE_CDC_TABLE_MAPPING_COLLECTION, ShareCdcTableMappingDto.class);

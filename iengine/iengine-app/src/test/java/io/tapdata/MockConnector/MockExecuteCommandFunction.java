@@ -10,7 +10,7 @@ import java.util.function.Consumer;
 public class MockExecuteCommandFunction implements ExecuteCommandFunction {
 
     protected Object data;
-
+    protected boolean flag;
 
     @Override
     public void execute(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> consumer) throws Throwable {
@@ -18,5 +18,9 @@ public class MockExecuteCommandFunction implements ExecuteCommandFunction {
 
     public void setData(Object data) {
         this.data = data;
+    }
+
+    public boolean isFlag() {
+        return flag;
     }
 }

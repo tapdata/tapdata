@@ -18,6 +18,7 @@ public class ConnectorNodeBase {
     public void initConnectorNode(ConnectorNode connectorNode,TapNodeSpecification tapNodeSpecification) throws NoSuchFieldException, IllegalAccessException {
         TapNodeInfo tapNodeInfo = new TapNodeInfo();
         tapNodeInfo.setTapNodeSpecification(tapNodeSpecification);
+        tapNodeInfo.setNodeClass(TapNodeInfo.class);
         invokeValueForFiled(ConnectorNode.class,"tapNodeInfo",connectorNode,tapNodeInfo,true);
     }
 

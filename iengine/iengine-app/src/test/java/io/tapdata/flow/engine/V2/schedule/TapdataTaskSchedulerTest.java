@@ -5,6 +5,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.exception.RestDoNotRetryException;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskClient;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
@@ -174,20 +175,57 @@ public class TapdataTaskSchedulerTest {
 				taskDto.setId(taskId);
 				Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
 				TaskClient taskClient = mock(TaskClient.class);
-				when(taskClient.getStatus()).thenReturn(TaskDto.STATUS_RUNNING);
 				taskClientMap.put(taskId.toString(), taskClient);
 				ReflectionTestUtils.setField(taskScheduler, "taskClientMap", taskClientMap);
 				Logger logger = mock(Logger.class);
 				ReflectionTestUtils.setField(taskScheduler, "logger", logger);
-
-				doCallRealMethod().when(taskScheduler).startTask(taskDto);
-				assertDoesNotThrow(() -> taskScheduler.startTask(taskDto));
-
 				ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
 				ReflectionTestUtils.setField(taskScheduler, "clientMongoOperator", clientMongoOperator);
+				doCallRealMethod().when(taskScheduler).startTask(taskDto);
+
+				when(taskClient.getStatus()).thenReturn(TaskDto.STATUS_RUNNING);
+				assertDoesNotThrow(() -> taskScheduler.startTask(taskDto));
+
 				when(taskClient.getStatus()).thenReturn(TaskDto.STATUS_STOPPING);
 				assertDoesNotThrow(() -> taskScheduler.startTask(taskDto));
+				verify(clientMongoOperator, times(2)).updateById(any(Update.class), eq(ConnectorConstant.TASK_COLLECTION + "/running"), eq(taskId.toString()), eq(TaskDto.class));
+			}
+		}
+
+		@Test
+		@DisplayName("start task when task exists, throw error when call tm rest api")
+		void testStartTaskWhenTaskExistsAndThrowError() {
+			ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+			try (
+					MockedStatic obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)
+			) {
+				obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+				ObjectId taskId = new ObjectId();
+				TaskDto taskDto = new TaskDto();
+				taskDto.setId(taskId);
+				Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
+				TaskClient taskClient = mock(TaskClient.class);
+				taskClientMap.put(taskId.toString(), taskClient);
+				ReflectionTestUtils.setField(taskScheduler, "taskClientMap", taskClientMap);
+				Logger logger = mock(Logger.class);
+				ReflectionTestUtils.setField(taskScheduler, "logger", logger);
+				ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+				RestDoNotRetryException restDoNotRetryException = mock(RestDoNotRetryException.class);
+				when(restDoNotRetryException.getCode()).thenReturn("Transition.Not.Supported");
+				when(clientMongoOperator.updateById(any(Update.class), eq(ConnectorConstant.TASK_COLLECTION + "/running"), eq(taskId.toString()), eq(TaskDto.class)))
+						.thenThrow(restDoNotRetryException);
+				ReflectionTestUtils.setField(taskScheduler, "clientMongoOperator", clientMongoOperator);
+				doCallRealMethod().when(taskScheduler).startTask(taskDto);
+
+				when(taskClient.getStatus()).thenReturn(TaskDto.STATUS_RUNNING);
+				assertDoesNotThrow(() -> taskScheduler.startTask(taskDto));
 				verify(clientMongoOperator, times(1)).updateById(any(Update.class), eq(ConnectorConstant.TASK_COLLECTION + "/running"), eq(taskId.toString()), eq(TaskDto.class));
+
+				RuntimeException runtimeException = new RuntimeException("test");
+				when(clientMongoOperator.updateById(any(Update.class), eq(ConnectorConstant.TASK_COLLECTION + "/running"), eq(taskId.toString()), eq(TaskDto.class)))
+						.thenThrow(runtimeException);
+				RuntimeException actual = assertThrows(RuntimeException.class, () -> taskScheduler.startTask(taskDto));
+				assertEquals(actual, runtimeException);
 			}
 		}
 	}

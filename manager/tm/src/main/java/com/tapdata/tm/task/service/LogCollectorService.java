@@ -1609,9 +1609,10 @@ public class LogCollectorService {
     }
 
     @NotNull
-    private Page<ShareCdcTableInfo> getShareCdcTableInfoPage(Map<String, String> tableNameConnectionIdMap, Integer page, Integer size, UserDetail user, String keyword, String nodeId, String taskId) {
-        int limit = (page - 1) * size;
+    protected Page<ShareCdcTableInfo> getShareCdcTableInfoPage(Map<String, String> tableNameConnectionIdMap, Integer page, Integer size, UserDetail user, String keyword, String nodeId, String taskId) {
+        int skip = (page - 1) * size;
         List<String> tableNames = new ArrayList<>(tableNameConnectionIdMap.keySet());
+        tableNames = tableNames.stream().sorted().collect(Collectors.toList());
         if (StringUtils.isNotEmpty(keyword)) {
             tableNames = tableNames.stream().filter(tableName -> StringUtils.containsAnyIgnoreCase(tableName, keyword)).collect(Collectors.toList());
         }
@@ -1621,8 +1622,8 @@ public class LogCollectorService {
         field.put("_id", true);
         field.put("name", true);
         List<ShareCdcTableInfo> shareCdcTableInfos = new ArrayList<>();
-        for (int i = limit; i< size; i++) {
-            if (tableCount <= i) {
+        for (int i = skip; i< tableCount; i++) {
+            if (shareCdcTableInfos.size() >= size) {
                 break;
             }
             String tableName = tableNames.get(i);
@@ -1646,7 +1647,7 @@ public class LogCollectorService {
     }
 
 
-    private void setShareTableInfo(ShareCdcTableInfo shareCdcTableInfo, UserDetail user, String taskId, String nodeId) {
+    protected void setShareTableInfo(ShareCdcTableInfo shareCdcTableInfo, UserDetail user, String taskId, String nodeId) {
         Criteria criteria = Criteria.where("taskId").is(taskId)
                 .and("tableName").is(shareCdcTableInfo.getName())
                 .and("nodeId").is(nodeId)

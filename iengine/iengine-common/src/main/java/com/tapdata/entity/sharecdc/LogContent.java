@@ -43,7 +43,17 @@ public class LogContent implements Serializable {
 
 	private List<String> removeFields;
 
+	private Boolean isReplaceEvent = false;
+
 	public LogContent() {
+	}
+
+	public Boolean getReplaceEvent() {
+		return isReplaceEvent;
+	}
+
+	public void setReplaceEvent(Boolean replaceEvent) {
+		isReplaceEvent = replaceEvent;
 	}
 
 	public static LogContent createStartTimeSign() {
@@ -255,6 +265,7 @@ public class LogContent implements Serializable {
 		if(removeFields instanceof List){
 			logContent.setRemoveFields((List<String>) removeFields);
 		}
+		logContent.setReplaceEvent(document.getBoolean("isReplaceEvent", false));
 		logContent.setTimestamp(document.getLong("timestamp"));
 		logContent.setOp(document.getOrDefault("op", "").toString());
 		logContent.setOffsetString(document.getOrDefault("offsetString", "").toString());

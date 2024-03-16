@@ -45,6 +45,7 @@ import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
@@ -199,6 +200,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			if (null != processorBaseContext && null != processorBaseContext.getTapTableMap()) {
 				buildLogListener();
 				processorBaseContext.getTapTableMap().buildTaskRetryConfig(processorBaseContext.getTaskConfig());
+				processorBaseContext.getTapTableMap().buildNodeName(processorBaseContext.getNode().getName());
 				processorBaseContext.getTapTableMap().preLoadSchema();
 			}
 			if (!getNode().disabledNode()) {
@@ -837,7 +839,14 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			return after;
 		}
 	}
-
+	protected boolean isInitialSyncTask() {
+		SyncTypeEnum syncType = SyncTypeEnum.get(processorBaseContext.getTaskDto().getType());
+		if (SyncTypeEnum.INITIAL_SYNC == syncType) {
+			return true;
+		} else {
+			return false;
+		}
+	}
 	@Nullable
 	protected JobStatus getJetJobStatus() {
 		if (null == jetJobStatusMonitor) {

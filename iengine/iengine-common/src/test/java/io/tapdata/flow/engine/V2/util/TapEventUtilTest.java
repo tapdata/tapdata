@@ -2,14 +2,12 @@ package io.tapdata.flow.engine.V2.util;
 
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import org.junit.Assert;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
@@ -56,8 +54,31 @@ class TapEventUtilTest {
 	}
 	@Test
 	void testNullEvent(){
-		TapUpdateRecordEvent tapUpdateRecordEvent = null;
 		List<String> removeFields = TapEventUtil.getRemoveFields(null);
 		assertNull(removeFields);
+	}
+
+	@Test
+	@DisplayName("get TapUpdateEvent IsReplaceEvent is true")
+	void test1(){
+		TapUpdateRecordEvent tapUpdateRecordEvent=new TapUpdateRecordEvent();
+		tapUpdateRecordEvent.setIsReplaceEvent(true);
+		Boolean isReplaceEvent = TapEventUtil.getIsReplaceEvent(tapUpdateRecordEvent);
+		assertEquals(Boolean.TRUE,isReplaceEvent);
+	}
+	@Test
+	@DisplayName("get TapUpdateEvent IsReplaceEvent is fales")
+	void test2(){
+		TapUpdateRecordEvent tapUpdateRecordEvent=new TapUpdateRecordEvent();
+		tapUpdateRecordEvent.setIsReplaceEvent(false);
+		Boolean isReplaceEvent = TapEventUtil.getIsReplaceEvent(tapUpdateRecordEvent);
+		assertEquals(Boolean.FALSE,isReplaceEvent);
+	}
+	@Test
+	@DisplayName("in addition to TapUpdateEvent get IsReplaceEvent")
+	void test3(){
+		TapInsertRecordEvent tapInsertRecordEvent=new TapInsertRecordEvent();
+		Boolean isReplaceEvent = TapEventUtil.getIsReplaceEvent(tapInsertRecordEvent);
+		assertEquals(Boolean.FALSE,isReplaceEvent);
 	}
 }

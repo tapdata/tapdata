@@ -59,7 +59,6 @@ public class EventsService extends BaseService<EventsDto, Events, ObjectId, Even
     @Lazy
     MessageService messageService;
 
-
     @Autowired
     SettingsService settingsService;
 

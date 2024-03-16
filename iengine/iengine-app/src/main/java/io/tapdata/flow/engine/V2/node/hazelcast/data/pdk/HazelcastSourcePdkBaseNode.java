@@ -13,6 +13,7 @@ import com.tapdata.tm.commons.cdcdelay.CdcDelayDisable;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
+import com.tapdata.tm.commons.dag.DDLConfiguration;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -331,9 +332,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private void initDDLFilter() {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node.isDataNode()) {
-			Boolean enableDDL = ((DataParentNode<?>) node).getEnableDDL();
 			List<String> disabledEvents = ((DataParentNode<?>) node).getDisabledEvents();
-			this.ddlFilter = DDLFilter.create(enableDDL, disabledEvents).dynamicTableTest(this::needDynamicTable);
+			DDLConfiguration ddlConfiguration = ((DataParentNode<?>) node).getDdlConfiguration();
+			this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration).dynamicTableTest(this::needDynamicTable);
 		}
 	}
 
@@ -386,7 +387,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	//TODO Aplomb should NOT create stream offset at very beginning.
-	private void initBatchAndStreamOffset(TaskDto taskDto) {
+	protected void initBatchAndStreamOffset(TaskDto taskDto) {
 		if (syncProgress == null) {
 			syncProgress = new SyncProgress();
 			// null present current
@@ -461,7 +462,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
 						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode()));
 					} else {
-						initStreamOffsetFromTime(null);
+						if (syncType == SyncTypeEnum.INITIAL_SYNC_CDC || syncType == SyncTypeEnum.CDC) {
+							initStreamOffsetFromTime(null);
+						}
 					}
 					break;
 				case SHARE_CDC:
@@ -822,7 +825,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (null == tapEvent.getTime()) {
 				throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(tapEvent);
 			}
-			tapEvent.addInfo("eventId", UUID.randomUUID().toString());
 			TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
 			eventCache.add(tapEventCache);
 			boolean isLast = i == (size - 1);

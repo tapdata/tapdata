@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import base.ex.TestException;
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.Connections;
+import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.tm.commons.dag.DAG;
@@ -21,6 +22,7 @@ import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
@@ -38,6 +40,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -122,6 +125,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		@SneakyThrows
 		@DisplayName("Exception test")
 		void testException() {
+			taskDto.setId(new ObjectId());
 			when(mockBatchCountFunction.count(null, testTable)).thenThrow(new TestException());
 
 			TaskConfig taskConfig = TaskConfig.create();
@@ -343,6 +347,48 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 				doCallRealMethod().when(mockInstance).ddlSchemaHandler();
 				assertEquals(handler,mockInstance.ddlSchemaHandler());
 			}
+		}
+	}
+
+	@Nested
+	@DisplayName("initBatchAndStreamOffset methods test")
+	class InitBatchAndStreamOffsetTest {
+
+		private SyncProgress syncProgress;
+		private SyncTypeEnum syncType;
+		private HazelcastSourcePdkDataNode hazelcastSourcePdkDataNode;
+
+		@BeforeEach
+		void beforeEach() {
+			hazelcastSourcePdkDataNode = spy(new HazelcastSourcePdkDataNode(dataProcessorContext));
+		}
+
+		@Test
+		@DisplayName("test initial sync cdc")
+		void testInitBatchAndStreamOffsetForCdc(){
+			syncProgress = new SyncProgress();
+			syncProgress.setType(SyncProgress.Type.LOG_COLLECTOR);
+			syncType = SyncTypeEnum.INITIAL_SYNC_CDC;
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", syncProgress);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncType", syncType);
+			doAnswer(invocationOnMock -> null).when(hazelcastSourcePdkDataNode).initStreamOffsetFromTime(any());
+
+			hazelcastSourcePdkDataNode.initBatchAndStreamOffset(any(TaskDto.class));
+			verify(hazelcastSourcePdkDataNode,times(1)).initStreamOffsetFromTime(any());
+		}
+
+		@Test
+		@DisplayName("test initial")
+		void testInitBatchAndStreamOffsetForInitial(){
+			syncProgress = new SyncProgress();
+			syncProgress.setType(SyncProgress.Type.LOG_COLLECTOR);
+			syncType = SyncTypeEnum.INITIAL_SYNC;
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncProgress", syncProgress);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "syncType", syncType);
+			doAnswer(invocationOnMock -> null).when(hazelcastSourcePdkDataNode).initStreamOffsetFromTime(any());
+
+			hazelcastSourcePdkDataNode.initBatchAndStreamOffset(any(TaskDto.class));
+			verify(hazelcastSourcePdkDataNode,times(0)).initStreamOffsetFromTime(any());
 		}
 	}
 }
