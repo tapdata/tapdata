@@ -44,6 +44,9 @@ public class HashVerifyInspectJob extends InspectJob {
                     .thenAcceptBoth(CompletableFuture.supplyAsync(this::doTargetHash), this::doHashVerify).get();
         } catch (Exception e) {
             doWhenException(e);
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 

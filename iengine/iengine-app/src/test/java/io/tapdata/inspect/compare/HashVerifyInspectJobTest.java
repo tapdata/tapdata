@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -133,6 +134,12 @@ public class HashVerifyInspectJobTest {
         @Test
         void testDoSourceException() {
             when(hashVerifyInspectJob.doSourceHash()).thenAnswer(a -> {throw new Exception("Failed-source");});
+            assertVerify(1, 0, 1, 0, 0, 1);
+        }
+
+        @Test
+        void testDoSourceInterruptedException() {
+            when(hashVerifyInspectJob.doSourceHash()).thenAnswer(a -> {throw new InterruptedException("Failed-source");});
             assertVerify(1, 0, 1, 0, 0, 1);
         }
         @Test
