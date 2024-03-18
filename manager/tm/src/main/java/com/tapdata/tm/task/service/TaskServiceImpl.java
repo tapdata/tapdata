@@ -149,7 +149,7 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Service
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
-public class TaskServiceImpl extends BaseService<TaskDto, TaskEntity, ObjectId, TaskRepository> implements TaskService{
+public class TaskServiceImpl extends TaskService{
     protected static final String PROCESSOR_THREAD_NUM="processorThreadNum";
     protected static final String CATALOG="catalog";
     protected static final String ELEMENT_TYEP="elementType";
@@ -214,7 +214,7 @@ public class TaskServiceImpl extends BaseService<TaskDto, TaskEntity, ObjectId, 
     private TaskNodeService taskNodeService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
-        super(repository, TaskDto.class, TaskEntity.class);
+        super(repository);
     }
 
 	public Supplier<TaskDto> dataPermissionFindById(ObjectId taskId, Field fields) {

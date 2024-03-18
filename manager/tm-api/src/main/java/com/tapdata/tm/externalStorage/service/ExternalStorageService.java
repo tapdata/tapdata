@@ -3,52 +3,81 @@ package com.tapdata.tm.externalStorage.service;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.service.IBaseService;
+import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
 import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
+import lombok.NonNull;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.List;
 
-public interface ExternalStorageService extends IBaseService<ExternalStorageDto, ExternalStorageEntity, ObjectId, ExternalStorageRepository> {
-    int DEFAULT_TTL_DAY = 3;
+public abstract class ExternalStorageService extends BaseService<ExternalStorageDto, ExternalStorageEntity, ObjectId, ExternalStorageRepository> {
+    public ExternalStorageService(@NonNull ExternalStorageRepository repository) {
+        super(repository, ExternalStorageDto.class, ExternalStorageEntity.class);
+    }
 
-    <T extends BaseDto> ExternalStorageDto save(ExternalStorageDto externalStorage, UserDetail userDetail);
+    public <T extends BaseDto> ExternalStorageDto save(ExternalStorageDto externalStorage, UserDetail userDetail){
+        return super.save(externalStorage, userDetail);
+    }
 
-    ExternalStorageDto update(ExternalStorageDto externalStorageDto, UserDetail userDetail);
+    public abstract ExternalStorageDto update(ExternalStorageDto externalStorageDto, UserDetail userDetail);
 
-    List<TaskDto> findUsingTasks(String id);
+    public abstract List<TaskDto> findUsingTasks(String id);
 
-    Page<ExternalStorageDto> find(Filter filter, UserDetail userDetail);
+    public Page<ExternalStorageDto> find(Filter filter, UserDetail userDetail){
+        return super.find(filter, userDetail);
+    }
 
-    ExternalStorageDto findById(ObjectId objectId);
+    public ExternalStorageDto findById(ObjectId objectId){
+        return super.findById(objectId);
+    }
 
-    ExternalStorageDto findById(ObjectId objectId, Field field, UserDetail userDetail);
+    public ExternalStorageDto findById(ObjectId objectId, Field field, UserDetail userDetail){
+        return super.findById(objectId, field, userDetail);
+    }
 
-    ExternalStorageDto findById(ObjectId objectId, UserDetail userDetail);
+    public ExternalStorageDto findById(ObjectId objectId, UserDetail userDetail){
+        return super.findById(objectId, userDetail);
+    }
 
-    ExternalStorageDto findById(ObjectId objectId, Field field);
+    public ExternalStorageDto findById(ObjectId objectId, Field field){
+        return super.findById(objectId, field);
+    }
 
-    ExternalStorageDto findOne(Query query, UserDetail userDetail);
+    public ExternalStorageDto findOne(Query query, UserDetail userDetail){
+        return super.findOne(query, userDetail);
+    }
 
-    ExternalStorageDto findOne(Query query);
+    public ExternalStorageDto findOne(Query query){
+        return super.findOne(query);
+    }
 
-    ExternalStorageDto findOne(Query query, String excludeField);
+    public ExternalStorageDto findOne(Query query, String excludeField){
+        return super.findOne(query, excludeField);
+    }
 
-    ExternalStorageDto findOne(Filter filter, UserDetail userDetail);
+    public ExternalStorageDto findOne(Filter filter, UserDetail userDetail){
+        return super.findOne(filter, userDetail);
+    }
 
-    ExternalStorageDto findNotCheckById(String id);
+    public abstract ExternalStorageDto findNotCheckById(String id);
 
-    boolean deleteById(ObjectId objectId, UserDetail userDetail);
+    public boolean deleteById(ObjectId objectId, UserDetail userDetail){
+        return super.deleteById(objectId, userDetail);
+    }
 
-    <T extends BaseDto> T convertToDto(ExternalStorageEntity entity, Class<T> dtoClass, String... ignoreProperties);
+    public <T extends BaseDto> T convertToDto(ExternalStorageEntity entity, Class<T> dtoClass, String... ignoreProperties){
+        return super.convertToDto(entity, dtoClass, ignoreProperties);
+    }
 
-    <T extends BaseDto> ExternalStorageEntity convertToEntity(Class<ExternalStorageEntity> externalStorageEntityClass, T dto, String... ignoreProperties);
+    public <T extends BaseDto> ExternalStorageEntity convertToEntity(Class<ExternalStorageEntity> externalStorageEntityClass, T dto, String... ignoreProperties){
+        return super.convertToEntity(externalStorageEntityClass, dto, ignoreProperties);
+    }
 
-    void sendTestConnection(ExternalStorageDto externalStorageDto, UserDetail user);
+    public abstract void sendTestConnection(ExternalStorageDto externalStorageDto, UserDetail user);
 }

@@ -36,15 +36,13 @@ import java.util.*;
 @Service
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
-public class ShareCdcTableMappingServiceImpl extends BaseService<ShareCdcTableMappingDto, ShareCdcTableMappingEntity, ObjectId, ShareCdcTableMappingRepository> implements ShareCdcTableMappingService{
-
-	public final static String SHARE_CDC_KEY_PREFIX = "ExternalStorage_SHARE_CDC_";
+public class ShareCdcTableMappingServiceImpl extends ShareCdcTableMappingService{
 
 	private TaskService taskService;
 	private DataSourceService dataSourceService;
 
 	public ShareCdcTableMappingServiceImpl(@NonNull ShareCdcTableMappingRepository repository) {
-		super(repository, ShareCdcTableMappingDto.class, ShareCdcTableMappingEntity.class);
+		super(repository);
 	}
 
 	protected void beforeSave(ShareCdcTableMappingDto shareCdcTableMapping, UserDetail user) {

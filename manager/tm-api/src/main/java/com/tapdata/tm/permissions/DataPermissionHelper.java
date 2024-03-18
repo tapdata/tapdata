@@ -31,16 +31,9 @@ public class DataPermissionHelper {
     public static final String AUTH_ACTIONS = String.join(".", FIELD_NAME, "actions");
 
     private static IDataPermissionHelper iDataPermissionHelper;
-    private IDataPermissionHelper helper;
 
-    public DataPermissionHelper(@Qualifier("IDataPermissionHelper") IDataPermissionHelper IDataPermissionHelper) {
-        this.helper = IDataPermissionHelper;
-        DataPermissionHelper.iDataPermissionHelper = helper;
-    }
-
-    @PostConstruct
-    void init(){
-        DataPermissionHelper.iDataPermissionHelper = helper;
+    public DataPermissionHelper(IDataPermissionHelper IDataPermissionHelper) {
+        DataPermissionHelper.iDataPermissionHelper = IDataPermissionHelper;
     }
 
 

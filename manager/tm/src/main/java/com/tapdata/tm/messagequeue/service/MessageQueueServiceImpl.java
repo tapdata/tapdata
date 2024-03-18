@@ -29,10 +29,10 @@ import java.util.Map;
 
 @Service
 @Slf4j
-public class MessageQueueServiceImpl extends BaseService<MessageQueueDto, MessageQueue, ObjectId, MessageQueueRepository> implements MessageQueueService{
+public class MessageQueueServiceImpl extends MessageQueueService{
 
 	public MessageQueueServiceImpl(MessageQueueRepository repository) {
-		super(repository, MessageQueueDto.class, MessageQueue.class);
+		super(repository);
 	}
 
 	@Override

@@ -66,7 +66,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
-public class MessageServiceImpl extends BaseService<MessageDto,MessageEntity,ObjectId,MessageRepository> implements MessageService{
+public class MessageServiceImpl extends MessageService{
 
     @Autowired
     MessageRepository messageRepository;
@@ -105,7 +105,7 @@ public class MessageServiceImpl extends BaseService<MessageDto,MessageEntity,Obj
 
 
     public MessageServiceImpl(@NonNull MessageRepository repository) {
-        super(repository, MessageDto.class, MessageEntity.class);
+        super(repository);
     }
 
 

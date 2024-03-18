@@ -3,7 +3,7 @@ package com.tapdata.tm.dataflow.service;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.service.IBaseService;
+import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.websocket.AllowRemoteCall;
 import com.tapdata.tm.config.security.UserDetail;
@@ -12,6 +12,7 @@ import com.tapdata.tm.dataflow.dto.DataFlowResetAllReqDto;
 import com.tapdata.tm.dataflow.dto.DataFlowResetAllResDto;
 import com.tapdata.tm.dataflow.entity.DataFlow;
 import com.tapdata.tm.dataflow.repository.DataFlowRepository;
+import lombok.NonNull;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.util.CloseableIterator;
@@ -19,33 +20,42 @@ import org.springframework.data.util.CloseableIterator;
 import java.util.List;
 import java.util.Map;
 
-public interface DataFlowService extends IBaseService<DataFlowDto, DataFlow, ObjectId, DataFlowRepository> {
-    Page<DataFlowDto> find(Filter filter, UserDetail userDetail);
+public abstract class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId, DataFlowRepository> {
+    public DataFlowService(@NonNull DataFlowRepository repository) {
+        super(repository, DataFlowDto.class, DataFlow.class);
+    }
+    public Page<DataFlowDto> find(Filter filter, UserDetail userDetail){
+        return super.find(filter, userDetail);
+    }
 
-    long updateById(String id, DataFlowDto dto, UserDetail userDetail);
+    public abstract long updateById(String id, DataFlowDto dto, UserDetail userDetail);
 
-    Map<String, Object> patch(Map<String, Object> dto, UserDetail userDetail);
+    public abstract Map<String, Object> patch(Map<String, Object> dto, UserDetail userDetail);
 
-    DataFlowDto save(DataFlowDto dto, UserDetail userDetail);
+    public DataFlowDto save(DataFlowDto dto, UserDetail userDetail){
+        return super.save(dto, userDetail);
+    }
 
-    boolean deleteById(ObjectId objectId, UserDetail userDetail);
+    public boolean deleteById(ObjectId objectId, UserDetail userDetail){
+        return super.deleteById(objectId, userDetail);
+    }
 
-    void setNextScheduleTime(DataFlowDto dto);
+    public abstract void setNextScheduleTime(DataFlowDto dto);
 
-    UpdateResult updateOne(Query query, Map<String, Object> map);
+    public abstract UpdateResult updateOne(Query query, Map<String, Object> map);
 
-    DataFlowDto copyDataFlow(String id, UserDetail userDetail);
+    public abstract DataFlowDto copyDataFlow(String id, UserDetail userDetail);
 
-    DataFlowResetAllResDto resetDataFlow(DataFlowResetAllReqDto dataFlowResetAllReqDto, UserDetail userDetail);
+    public abstract DataFlowResetAllResDto resetDataFlow(DataFlowResetAllReqDto dataFlowResetAllReqDto, UserDetail userDetail);
 
-    DataFlowResetAllResDto removeDataFlow(String whereJson, UserDetail userDetail);
+    public abstract DataFlowResetAllResDto removeDataFlow(String whereJson, UserDetail userDetail);
 
-    void chart();
+    public abstract void chart();
 
-    List<SchemaTransformerResult> transformSchema(DataFlowDto dataFlowDto, UserDetail userDetail);
+    public abstract List<SchemaTransformerResult> transformSchema(DataFlowDto dataFlowDto, UserDetail userDetail);
 
     @AllowRemoteCall
-    int pingRunningDataFlow(String ids);
+    public abstract int pingRunningDataFlow(String ids);
 
-    CloseableIterator<DataFlow> stream(Query query);
+    public abstract CloseableIterator<DataFlow> stream(Query query);
 }

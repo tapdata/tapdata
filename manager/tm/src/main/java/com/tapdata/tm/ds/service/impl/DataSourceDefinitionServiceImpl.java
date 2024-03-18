@@ -50,9 +50,9 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
  */
 @Service
 @Slf4j
-public class DataSourceDefinitionServiceImpl extends BaseService<DataSourceDefinitionDto, DataSourceDefinitionEntity, ObjectId, DataSourceDefinitionRepository> implements DataSourceDefinitionService{
+public class DataSourceDefinitionServiceImpl extends DataSourceDefinitionService{
     public DataSourceDefinitionServiceImpl(@NonNull DataSourceDefinitionRepository repository) {
-        super(repository, DataSourceDefinitionDto.class, DataSourceDefinitionEntity.class);
+        super(repository);
     }
 
     /**

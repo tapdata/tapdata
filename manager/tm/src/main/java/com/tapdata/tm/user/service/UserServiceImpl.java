@@ -69,9 +69,9 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
  */
 @Component
 @Slf4j
-public class UserServiceImpl extends BaseService<UserDto, User, ObjectId, UserRepository> implements UserService, UserDetailsService {
+public class UserServiceImpl extends UserService{
     public UserServiceImpl(@NonNull UserRepository repository) {
-        super(repository, UserDto.class, User.class);
+        super(repository);
     }
     @Value("${spring.data.mongodb.default.uri}")
     private String mongodbUri;

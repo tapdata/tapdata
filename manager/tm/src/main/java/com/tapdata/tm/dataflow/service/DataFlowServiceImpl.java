@@ -89,7 +89,7 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 @Component
 @Slf4j
-public class DataFlowServiceImpl extends BaseService<DataFlowDto, DataFlow, ObjectId, DataFlowRepository> implements DataFlowService{
+public class DataFlowServiceImpl extends DataFlowService{
 
 	@Autowired
 	private StateMachine<DataFlowState, DataFlowEvent> stateMachine;
@@ -155,7 +155,7 @@ public class DataFlowServiceImpl extends BaseService<DataFlowDto, DataFlow, Obje
 							   UserLogService userLogService, JobService jobService,
 							   JobDDLHistoriesService jobDDLHistoriesService,
 							   InspectDetailsService inspectDetailsService) {
-		super(repository, DataFlowDto.class, DataFlow.class);
+		super(repository);
 		this.userLogService = userLogService;
 		this.jobService = jobService;
 		this.jobDDLHistoriesService = jobDDLHistoriesService;

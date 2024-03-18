@@ -48,7 +48,7 @@ import java.util.*;
  */
 @Service
 @Slf4j
-public class ExternalStorageServiceImpl extends BaseService<ExternalStorageDto, ExternalStorageEntity, ObjectId, ExternalStorageRepository> implements ExternalStorageService {
+public class ExternalStorageServiceImpl extends ExternalStorageService {
 
 	public static final int DEFAULT_TTL_DAY = 3;
 
@@ -65,7 +65,7 @@ public class ExternalStorageServiceImpl extends BaseService<ExternalStorageDto, 
 	private WorkerService workerService;
 
 	public ExternalStorageServiceImpl(@NonNull ExternalStorageRepository repository) {
-		super(repository, ExternalStorageDto.class, ExternalStorageEntity.class);
+		super(repository);
 	}
 
 	@Override

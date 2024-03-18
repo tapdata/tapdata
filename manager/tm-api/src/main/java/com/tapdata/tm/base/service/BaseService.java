@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  */
 @RequiredArgsConstructor
 @Slf4j
-public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity, ID extends Serializable, Repository extends BaseRepository<Entity, ID>> {
+public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity, ID extends Serializable, Repository extends BaseRepository<Entity, ID>>{
 
     @NonNull
     protected Repository repository;

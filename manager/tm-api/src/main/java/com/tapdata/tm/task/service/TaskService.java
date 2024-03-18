@@ -2,7 +2,7 @@ package com.tapdata.tm.task.service;
 
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.*;
-import com.tapdata.tm.base.service.IBaseService;
+import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
@@ -13,7 +13,6 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskRunHistoryDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
-import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.entity.TaskEntity;
@@ -27,6 +26,7 @@ import com.tapdata.tm.task.vo.TaskStatsDto;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.NonNull;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
@@ -41,7 +41,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public interface TaskService extends IBaseService<TaskDto, TaskEntity, ObjectId, TaskRepository> {
+public abstract class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, TaskRepository> {
+    public TaskService(@NonNull TaskRepository repository) {
+        super(repository, TaskDto.class, TaskEntity.class);
+    }
     static String printInfos(DAG dag) {
         try {
             StringBuilder sb = new StringBuilder();
@@ -55,234 +58,238 @@ public interface TaskService extends IBaseService<TaskDto, TaskEntity, ObjectId,
         }
     }
 
-    Supplier<TaskDto> dataPermissionFindById(ObjectId taskId, Field fields);
+    public abstract Supplier<TaskDto> dataPermissionFindById(ObjectId taskId, Field fields);
 
     //@Transactional
-    TaskDto create(TaskDto taskDto, UserDetail user);
+    public abstract TaskDto create(TaskDto taskDto, UserDetail user);
 
-    <T> AggregationResults<T> aggregate(org.springframework.data.mongodb.core.aggregation.Aggregation aggregation, Class<T> outputType);
+    public abstract <T> AggregationResults<T> aggregate(org.springframework.data.mongodb.core.aggregation.Aggregation aggregation, Class<T> outputType);
 
     //@Transactional
-    TaskDto updateById(TaskDto taskDto, UserDetail user);
+    public abstract TaskDto updateById(TaskDto taskDto, UserDetail user);
 
-    TaskDto updateAfter(TaskDto taskDto, UserDetail user);
+    public abstract TaskDto updateAfter(TaskDto taskDto, UserDetail user);
 
-    TaskDto updateShareCacheTask(String id, SaveShareCacheParam saveShareCacheParam, UserDetail user);
+    public abstract TaskDto updateShareCacheTask(String id, SaveShareCacheParam saveShareCacheParam, UserDetail user);
 
-    void checkTaskName(String newName, UserDetail user, ObjectId id);
+    public abstract void checkTaskName(String newName, UserDetail user, ObjectId id);
 
-    boolean checkTaskNameNotError(String newName, UserDetail user, ObjectId id);
+    public abstract boolean checkTaskNameNotError(String newName, UserDetail user, ObjectId id);
 
-    TaskDto confirmStart(TaskDto taskDto, UserDetail user, boolean confirm);
+    public abstract TaskDto confirmStart(TaskDto taskDto, UserDetail user, boolean confirm);
 
-    TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm);
+    public abstract TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm);
 
-    void checkTaskInspectFlag(TaskDto taskDto);
+    public abstract void checkTaskInspectFlag(TaskDto taskDto);
 
-    TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask);
+    public abstract TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask);
 
-    void checkDagAgentConflict(TaskDto taskDto, boolean showListMsg);
+    public abstract void checkDagAgentConflict(TaskDto taskDto, boolean showListMsg);
 
-    TaskDto remove(ObjectId id, UserDetail user);
+    public abstract TaskDto remove(ObjectId id, UserDetail user);
 
-    void afterRemove(TaskDto taskDto, UserDetail user);
+    public abstract void afterRemove(TaskDto taskDto, UserDetail user);
 
-    void deleteShareCache(ObjectId id, UserDetail user);
+    public abstract void deleteShareCache(ObjectId id, UserDetail user);
 
-    TaskDto copy(ObjectId id, UserDetail user);
+    public abstract TaskDto copy(ObjectId id, UserDetail user);
 
-    Page<TaskRunHistoryDto> queryTaskRunHistory(Filter filter, UserDetail user);
+    public abstract Page<TaskRunHistoryDto> queryTaskRunHistory(Filter filter, UserDetail user);
 
-    void renew(ObjectId id, UserDetail user);
+    public abstract void renew(ObjectId id, UserDetail user);
 
-    void renew(ObjectId id, UserDetail user, boolean system);
+    public abstract void renew(ObjectId id, UserDetail user, boolean system);
 
-    void afterRenew(TaskDto taskDto, UserDetail user);
+    public abstract void afterRenew(TaskDto taskDto, UserDetail user);
 
-    TaskDto checkExistById(ObjectId id, UserDetail user);
+    public abstract TaskDto checkExistById(ObjectId id, UserDetail user);
 
-    TaskDto checkExistById(ObjectId id, UserDetail user, String... fields);
+    public abstract TaskDto checkExistById(ObjectId id, UserDetail user, String... fields);
 
-    TaskDto checkExistById(ObjectId id, String... fields);
+    public abstract TaskDto checkExistById(ObjectId id, String... fields);
 
-    List<MutiResponseMessage> batchStart(List<ObjectId> taskIds, UserDetail user,
+    public abstract List<MutiResponseMessage> batchStart(List<ObjectId> taskIds, UserDetail user,
                                          HttpServletRequest request, HttpServletResponse response);
 
-    int subCronOrPlanNum(TaskDto task, int runningNum);
+    public abstract int subCronOrPlanNum(TaskDto task, int runningNum);
 
-    boolean checkIsCronOrPlanTask(TaskDto task);
+    public abstract boolean checkIsCronOrPlanTask(TaskDto task);
 
-    List<MutiResponseMessage> batchStop(List<ObjectId> taskIds, UserDetail user,
+    public abstract List<MutiResponseMessage> batchStop(List<ObjectId> taskIds, UserDetail user,
                                         HttpServletRequest request,
                                         HttpServletResponse response);
 
-    List<MutiResponseMessage> batchDelete(List<ObjectId> taskIds, UserDetail user,
+    public abstract List<MutiResponseMessage> batchDelete(List<ObjectId> taskIds, UserDetail user,
                                           HttpServletRequest request,
                                           HttpServletResponse response);
 
-    List<MutiResponseMessage> batchRenew(List<ObjectId> taskIds, UserDetail user,
+    public abstract List<MutiResponseMessage> batchRenew(List<ObjectId> taskIds, UserDetail user,
                                          HttpServletRequest request, HttpServletResponse response);
 
-    Page<TaskDto> scanTask(Filter filter, UserDetail userDetail);
+    public abstract Page<TaskDto> scanTask(Filter filter, UserDetail userDetail);
 
-    Page<TaskDto> find(Filter filter, UserDetail userDetail);
+    public Page<TaskDto> find(Filter filter, UserDetail userDetail){
+        return super.find(filter, userDetail);
+    }
 
-    Page<TaskDto> superFind(Filter filter, UserDetail userDetail);
+    public abstract Page<TaskDto> superFind(Filter filter, UserDetail userDetail);
 
-    void deleteNotifyEnumData(List<TaskDto> taskDtoList);
+    public abstract void deleteNotifyEnumData(List<TaskDto> taskDtoList);
 
-    LogCollectorResult searchLogCollector(String key);
+    public abstract LogCollectorResult searchLogCollector(String key);
 
-    TaskDto createShareCacheTask(SaveShareCacheParam saveShareCacheParam, UserDetail user,
+    public abstract TaskDto createShareCacheTask(SaveShareCacheParam saveShareCacheParam, UserDetail user,
                                  HttpServletRequest request,
                                  HttpServletResponse response);
 
-    Page<ShareCacheVo> findShareCache(Filter filter, UserDetail userDetail);
+    public abstract Page<ShareCacheVo> findShareCache(Filter filter, UserDetail userDetail);
 
-    ShareCacheDetailVo findShareCacheById(String id);
+    public abstract ShareCacheDetailVo findShareCacheById(String id);
 
-    Map<String, Object> chart(UserDetail user);
+    public abstract Map<String, Object> chart(UserDetail user);
 
-    Map<String, Integer> inspectChart(UserDetail user);
+    public abstract Map<String, Integer> inspectChart(UserDetail user);
 
-    List<TaskEntity> findByIds(List<ObjectId> idList);
+    public abstract List<TaskEntity> findByIds(List<ObjectId> idList);
 
-    TaskDetailVo findTaskDetailById(String id, Field field, UserDetail userDetail);
+    public abstract TaskDetailVo findTaskDetailById(String id, Field field, UserDetail userDetail);
 
-    Boolean checkRun(String taskId, UserDetail user);
+    public abstract Boolean checkRun(String taskId, UserDetail user);
 
-    TransformerWsMessageDto findTransformParam(String taskId, UserDetail user);
+    public abstract TransformerWsMessageDto findTransformParam(String taskId, UserDetail user);
 
-    TransformerWsMessageDto findTransformAllParam(String taskId, UserDetail user);
+    public abstract TransformerWsMessageDto findTransformAllParam(String taskId, UserDetail user);
 
-    TaskDto findByTaskId(ObjectId id, String... fields);
+    public abstract TaskDto findByTaskId(ObjectId id, String... fields);
 
-    void rename(String taskId, String newName, UserDetail user);
+    public abstract void rename(String taskId, String newName, UserDetail user);
 
-    TaskStatsDto stats(UserDetail userDetail);
+    public abstract TaskStatsDto stats(UserDetail userDetail);
 
-    DataFlowInsightStatisticsDto statsTransport(UserDetail userDetail);
+    public abstract DataFlowInsightStatisticsDto statsTransport(UserDetail userDetail);
 
-    DataFlowInsightStatisticsDto statsTransport(UserDetail userDetail, List<LocalDate> localDates);
+    public abstract DataFlowInsightStatisticsDto statsTransport(UserDetail userDetail, List<LocalDate> localDates);
 
-    Map<String, List<TaskDto>> getByConIdOfTargetNode(List<String> connectionIds, String status, String position, UserDetail user, int page, int pageSize);
+    public abstract Map<String, List<TaskDto>> getByConIdOfTargetNode(List<String> connectionIds, String status, String position, UserDetail user, int page, int pageSize);
 
-    long countTaskNumber(UserDetail user);
+    public abstract long countTaskNumber(UserDetail user);
 
-    List<SampleTaskVo> findByConId(String sourceConnectionId, String targetConnectionId, String syncType, String status, Where where, UserDetail user);
+    public abstract List<SampleTaskVo> findByConId(String sourceConnectionId, String targetConnectionId, String syncType, String status, Where where, UserDetail user);
 
-    void batchLoadTask(HttpServletResponse response, List<String> taskIds, UserDetail user);
+    public abstract void batchLoadTask(HttpServletResponse response, List<String> taskIds, UserDetail user);
 
-    void importRmProject(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags, String source, String sink) throws IOException;
+    public abstract void importRmProject(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags, String source, String sink) throws IOException;
 
-    void checkJsProcessorTestRun(UserDetail user, List<TaskDto> tpTasks);
+    public abstract void checkJsProcessorTestRun(UserDetail user, List<TaskDto> tpTasks);
 
-    void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags);
+    public abstract void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags);
 
-    void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<String> tags, Map<String, DataSourceConnectionDto> conMap, Map<String, MetadataInstancesDto> metaMap);
+    public abstract void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<String> tags, Map<String, DataSourceConnectionDto> conMap, Map<String, MetadataInstancesDto> metaMap);
 
-    Criteria parseOrToCriteria(Where where);
+    public abstract Criteria parseOrToCriteria(Where where);
 
-    void getTableDDL(TaskDto taskDto);
+    public abstract void getTableDDL(TaskDto taskDto);
 
-    List<TaskDto> findAllTasksByIds(List<String> list);
+    public abstract List<TaskDto> findAllTasksByIds(List<String> list);
 
-    void renewAgentMeasurement(String taskId);
+    public abstract void renewAgentMeasurement(String taskId);
 
-    UpdateResult renewNotSendMq(TaskDto taskDto, UserDetail user);
+    public abstract UpdateResult renewNotSendMq(TaskDto taskDto, UserDetail user);
 
-    boolean findAgent(TaskDto taskDto, UserDetail user);
+    public abstract boolean findAgent(TaskDto taskDto, UserDetail user);
 
-    void start(ObjectId id, UserDetail user);
+    public abstract void start(ObjectId id, UserDetail user);
 
-    void start(ObjectId id, UserDetail user, boolean system);
+    public abstract void start(ObjectId id, UserDetail user, boolean system);
 
-    void start(TaskDto taskDto, UserDetail user, String startFlag, boolean system);
+    public abstract void start(TaskDto taskDto, UserDetail user, String startFlag, boolean system);
 
-    void start(TaskDto taskDto, UserDetail user, String startFlag);
+    public abstract void start(TaskDto taskDto, UserDetail user, String startFlag);
 
-    void run(TaskDto taskDto, UserDetail user);
+    public abstract void run(TaskDto taskDto, UserDetail user);
 
-    void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail);
+    public abstract void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail);
 
-    void pause(ObjectId id, UserDetail user, boolean force);
+    public abstract void pause(ObjectId id, UserDetail user, boolean force);
 
-    void pause(TaskDto TaskDto, UserDetail user, boolean force);
+    public abstract void pause(TaskDto TaskDto, UserDetail user, boolean force);
 
     //@Transactional
-    void pause(ObjectId id, UserDetail user, boolean force, boolean restart);
+    public abstract void pause(ObjectId id, UserDetail user, boolean force, boolean restart);
 
-    void pause(ObjectId id, UserDetail user, boolean force, boolean restart, boolean system);
+    public abstract void pause(ObjectId id, UserDetail user, boolean force, boolean restart, boolean system);
 
-    void pause(TaskDto taskDto, UserDetail user, boolean force, boolean restart);
+    public abstract void pause(TaskDto taskDto, UserDetail user, boolean force, boolean restart);
 
-    void sendStoppingMsg(String taskId, String agentId, UserDetail user, boolean force);
+    public abstract void sendStoppingMsg(String taskId, String agentId, UserDetail user, boolean force);
 
-    String running(ObjectId id, UserDetail user);
+    public abstract String running(ObjectId id, UserDetail user);
 
-    String runError(ObjectId id, UserDetail user, String errMsg, String errStack);
+    public abstract String runError(ObjectId id, UserDetail user, String errMsg, String errStack);
 
-    String complete(ObjectId id, UserDetail user);
+    public abstract String complete(ObjectId id, UserDetail user);
 
-    String stopped(ObjectId id, UserDetail user);
+    public abstract String stopped(ObjectId id, UserDetail user);
 
-    RunTimeInfo runtimeInfo(ObjectId id, Long endTime, UserDetail user);
+    public abstract RunTimeInfo runtimeInfo(ObjectId id, Long endTime, UserDetail user);
 
-    void updateNode(ObjectId objectId, String nodeId, Document param, UserDetail user);
+    public abstract void updateNode(ObjectId objectId, String nodeId, Document param, UserDetail user);
 
-    void updateSyncProgress(ObjectId taskId, Document document);
+    public abstract void updateSyncProgress(ObjectId taskId, Document document);
 
-    void increaseClear(ObjectId taskId, String srcNode, String tgtNode, UserDetail user);
+    public abstract void increaseClear(ObjectId taskId, String srcNode, String tgtNode, UserDetail user);
 
-    void increaseBacktracking(ObjectId taskId, String srcNode, String tgtNode, TaskDto.SyncPoint point, UserDetail user);
+    public abstract void increaseBacktracking(ObjectId taskId, String srcNode, String tgtNode, TaskDto.SyncPoint point, UserDetail user);
 
-    boolean checkPdkTask(TaskDto taskDto, UserDetail user);
+    public abstract boolean checkPdkTask(TaskDto taskDto, UserDetail user);
 
-    void startPlanMigrateDagTask();
+    public abstract void startPlanMigrateDagTask();
 
-    void startPlanCronTask();
+    public abstract void startPlanCronTask();
 
-    TaskDto findByCacheName(String cacheName, UserDetail user);
+    public abstract TaskDto findByCacheName(String cacheName, UserDetail user);
 
-    void updateDag(TaskDto taskDto, UserDetail user, boolean saveHistory);
+    public abstract void updateDag(TaskDto taskDto, UserDetail user, boolean saveHistory);
 
-    TaskDto findByVersionTime(String id, Long time);
+    public abstract TaskDto findByVersionTime(String id, Long time);
 
-    void clean(String taskId, Long time);
+    public abstract void clean(String taskId, Long time);
 
-    Map<String, Object> totalAutoInspectResultsDiffTables(IdParam param);
+    public abstract Map<String, Object> totalAutoInspectResultsDiffTables(IdParam param);
 
-    void updateTaskLogSetting(String taskId, LogSettingParam logSettingParam, UserDetail userDetail);
+    public abstract void updateTaskLogSetting(String taskId, LogSettingParam logSettingParam, UserDetail userDetail);
 
-    Chart6Vo chart6(UserDetail user);
+    public abstract Chart6Vo chart6(UserDetail user);
 
-    void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail);
+    public abstract void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail);
 
-    List<TaskDto> getTaskStatsByTableNameOrConnectionId(String connectionId, String tableName, UserDetail userDetail);
+    public abstract List<TaskDto> getTaskStatsByTableNameOrConnectionId(String connectionId, String tableName, UserDetail userDetail);
 
-    TableStatusInfoDto getTableStatus(String connectionId, String tableName, UserDetail userDetail);
+    public abstract TableStatusInfoDto getTableStatus(String connectionId, String tableName, UserDetail userDetail);
 
-    boolean judgeTargetInspect(String connectionId, String tableName, UserDetail userDetail);
+    public abstract boolean judgeTargetInspect(String connectionId, String tableName, UserDetail userDetail);
 
-    boolean judgeTargetNode(TaskDto taskDto, String tableName);
+    public abstract boolean judgeTargetNode(TaskDto taskDto, String tableName);
 
-    List<TaskDto> findHeartbeatByConnectionId(String connectionId, String... includeFields);
+    public abstract List<TaskDto> findHeartbeatByConnectionId(String connectionId, String... includeFields);
 
-    TaskDto findHeartbeatByTaskId(String taskId, String... includeFields);
+    public abstract TaskDto findHeartbeatByTaskId(String taskId, String... includeFields);
 
-    int deleteHeartbeatByConnId(UserDetail user, String connId);
+    public abstract int deleteHeartbeatByConnId(UserDetail user, String connId);
 
-    int runningTaskNum(String processId, UserDetail userDetail);
+    public abstract int runningTaskNum(String processId, UserDetail userDetail);
 
-    TaskEntity convertToEntity(Class entityClass, BaseDto dto, String... ignoreProperties);
+    public abstract TaskEntity convertToEntity(Class entityClass, BaseDto dto, String... ignoreProperties);
 
-    <T extends BaseDto> T convertToDto(TaskEntity entity, Class<T> dtoClass, String... ignoreProperties);
+    public <T extends BaseDto> T convertToDto(TaskEntity entity, Class<T> dtoClass, String... ignoreProperties){
+        return super.convertToDto(entity, dtoClass, ignoreProperties);
+    }
 
-    int findRunningTasksByAgentId(String processId);
+    public abstract int findRunningTasksByAgentId(String processId);
 
-    int runningTaskNum(UserDetail userDetail);
+    public abstract int runningTaskNum(UserDetail userDetail);
 
-    boolean checkCloudTaskLimit(ObjectId taskId, UserDetail user, boolean checkCurrentTask);
+    public abstract boolean checkCloudTaskLimit(ObjectId taskId, UserDetail user, boolean checkCurrentTask);
 
     @Data
     @AllArgsConstructor

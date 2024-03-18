@@ -46,14 +46,14 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
-public class ShareCdcTableMetricsServiceImpl extends BaseService<ShareCdcTableMetricsDto, ShareCdcTableMetricsEntity, ObjectId, ShareCdcTableMetricsRepository> implements ShareCdcTableMetricsService{
+public class ShareCdcTableMetricsServiceImpl extends ShareCdcTableMetricsService{
 
     private DataSourceService sourceService;
     private MongoTemplate mongoTemplate;
     private TaskService taskService;
 
     public ShareCdcTableMetricsServiceImpl(@NonNull ShareCdcTableMetricsRepository repository) {
-        super(repository, ShareCdcTableMetricsDto.class, ShareCdcTableMetricsEntity.class);
+        super(repository);
     }
 
     protected void beforeSave(ShareCdcTableMetricsDto shareCdcTableMetrics, UserDetail user) {

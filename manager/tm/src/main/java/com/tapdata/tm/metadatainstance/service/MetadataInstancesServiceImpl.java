@@ -100,7 +100,7 @@ import static com.tapdata.tm.utils.MongoUtils.*;
 @Service
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
-public class MetadataInstancesServiceImpl extends BaseService<MetadataInstancesDto, MetadataInstancesEntity, ObjectId, MetadataInstancesRepository> implements MetadataInstancesService{
+public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     private DataSourceServiceImpl dataSourceService;
     private DataSourceDefinitionServiceImpl dataSourceDefinitionService;
     private UserService userService;
@@ -127,7 +127,7 @@ public class MetadataInstancesServiceImpl extends BaseService<MetadataInstancesD
 
 
     public MetadataInstancesServiceImpl(@NonNull MetadataInstancesRepository repository) {
-        super(repository, MetadataInstancesDto.class, MetadataInstancesEntity.class);
+        super(repository);
     }
 
     @Override

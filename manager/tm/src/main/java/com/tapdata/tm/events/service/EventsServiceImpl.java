@@ -46,10 +46,10 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-public class EventsServiceImpl extends BaseService<EventsDto, Events, ObjectId, EventsRepository> implements EventsService {
+public class EventsServiceImpl extends EventsService {
 
     public EventsServiceImpl(@NonNull EventsRepository repository) {
-        super(repository, EventsDto.class, Events.class);
+        super(repository);
     }
 
     @Autowired

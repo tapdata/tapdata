@@ -110,7 +110,7 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Service
 @Slf4j
 //@Setter(onMethod_ = {@Autowired})
-public class DataSourceServiceImpl extends BaseService<DataSourceConnectionDto, DataSourceEntity, ObjectId, DataSourceRepository> implements DataSourceService{
+public class DataSourceServiceImpl extends DataSourceService{
 
     private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])[\\s\\S]*$";
     @Value("${gateway.secret:}")
@@ -160,7 +160,7 @@ public class DataSourceServiceImpl extends BaseService<DataSourceConnectionDto, 
 	private LdpService ldpService;
 
     public DataSourceServiceImpl(@NonNull DataSourceRepository repository) {
-        super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
+        super(repository);
     }
 
     public DataSourceConnectionDto add(DataSourceConnectionDto connectionDto, UserDetail userDetail) {

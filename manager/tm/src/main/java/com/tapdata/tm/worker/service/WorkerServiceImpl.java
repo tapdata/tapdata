@@ -79,7 +79,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
-public class WorkerServiceImpl extends BaseService<WorkerDto, Worker, ObjectId, WorkerRepository> implements WorkerService{
+public class WorkerServiceImpl extends WorkerService{
 
     @Autowired
     private DataFlowService dataFlowService;
@@ -103,8 +103,7 @@ public class WorkerServiceImpl extends BaseService<WorkerDto, Worker, ObjectId, 
     private final MultiTaggedCounter workerPing;
 
     public WorkerServiceImpl(@NonNull WorkerRepository repository) {
-        super(repository, WorkerDto.class, Worker.class);
-
+        super(repository);
         workerPing = new MultiTaggedCounter("worker_ping", Metrics.globalRegistry, "worker_type", "version");
     }
 

@@ -4,64 +4,72 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.base.service.IBaseService;
+import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.entity.InspectEntity;
 import com.tapdata.tm.inspect.repository.InspectRepository;
+import lombok.NonNull;
 import org.bson.types.ObjectId;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
 
-public interface InspectService extends IBaseService<InspectDto, InspectEntity, ObjectId, InspectRepository> {
+public abstract class InspectService extends BaseService<InspectDto, InspectEntity, ObjectId, InspectRepository> {
+    public InspectService(@NonNull InspectRepository repository) {
+        super(repository, InspectDto.class, InspectEntity.class);
+    }
     @Transactional
-    Map<String, Long> delete(String id, UserDetail user);
+    public abstract Map<String, Long> delete(String id, UserDetail user);
 
-    Page<InspectDto> list(Filter filter, UserDetail userDetail);
+    public abstract Page<InspectDto> list(Filter filter, UserDetail userDetail);
 
-    InspectDto findById(Filter filter, UserDetail userDetail);
+    public abstract InspectDto findById(Filter filter, UserDetail userDetail);
 
-    InspectDto save(InspectDto inspectDto, UserDetail user);
+    public InspectDto save(InspectDto inspectDto, UserDetail user){
+        return super.save(inspectDto, user);
+    }
 
-    void saveInspect(TaskDto taskDto, UserDetail userDetail);
+    public abstract void saveInspect(TaskDto taskDto, UserDetail userDetail);
 
-    InspectDto createCheckByTask(TaskDto taskDto, UserDetail userDetail);
+    public abstract InspectDto createCheckByTask(TaskDto taskDto, UserDetail userDetail);
 
-    List<InspectDto> findByTaskIdList(List<String> taskIdList);
+    public abstract List<InspectDto> findByTaskIdList(List<String> taskIdList);
 
-    UpdateResult deleteByTaskId(String taskId);
+    public abstract UpdateResult deleteByTaskId(String taskId);
 
-    InspectDto updateInspectByWhere(Where where, InspectDto updateDto, UserDetail user);
+    public abstract InspectDto updateInspectByWhere(Where where, InspectDto updateDto, UserDetail user);
 
-    InspectDto executeInspect(Where where, InspectDto updateDto, UserDetail user);
+    public abstract InspectDto executeInspect(Where where, InspectDto updateDto, UserDetail user);
 
-    InspectDto updateById(ObjectId objectId, InspectDto inspectDto, UserDetail userDetail);
+    public abstract InspectDto updateById(ObjectId objectId, InspectDto inspectDto, UserDetail userDetail);
 
-    List<InspectDto> findByName(String name);
+    public abstract List<InspectDto> findByName(String name);
 
-    void importData(String json, String upsert, UserDetail userDetail);
+    public abstract void importData(String json, String upsert, UserDetail userDetail);
 
-    void setRepeatInspectTask();
+    public abstract void setRepeatInspectTask();
 
-    UpdateResult updateStatusById(String id, InspectStatusEnum inspectStatusEnum);
+    public abstract UpdateResult updateStatusById(String id, InspectStatusEnum inspectStatusEnum);
 
-    UpdateResult updateStatusByIds(List<ObjectId> idList, InspectStatusEnum status);
+    public abstract UpdateResult updateStatusByIds(List<ObjectId> idList, InspectStatusEnum status);
 
-    Map<String, Integer> inspectPreview(UserDetail user);
+    public abstract Map<String, Integer> inspectPreview(UserDetail user);
 
-    List<InspectDto> findByStatus(InspectStatusEnum inspectStatusEnum);
+    public abstract List<InspectDto> findByStatus(InspectStatusEnum inspectStatusEnum);
 
-    List<InspectDto> findByResult(boolean passed);
+    public abstract List<InspectDto> findByResult(boolean passed);
 
-    void cleanDeadInspect();
+    public abstract void cleanDeadInspect();
 
-    void supplementAlarm(InspectDto inspectDto, UserDetail userDetail);
+    public abstract void supplementAlarm(InspectDto inspectDto, UserDetail userDetail);
 
-    long updateByWhere(Where where, InspectDto dto, UserDetail userDetail);
+    public long updateByWhere(Where where, InspectDto dto, UserDetail userDetail){
+        return super.updateByWhere(where, dto, userDetail);
+    }
 
-    List<InspectDto> findAllByIds(List<String> inspectIds);
+    public abstract List<InspectDto> findAllByIds(List<String> inspectIds);
 }
