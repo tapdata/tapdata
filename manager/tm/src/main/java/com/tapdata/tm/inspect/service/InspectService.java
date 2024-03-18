@@ -630,7 +630,6 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
             String json = JsonUtil.toJsonUseJackson(inspectDto);
             Map<String, Object> data = JsonUtil.parseJson(json, Map.class);
             data.put("type", "data_inspect");
-            data.put("timing_cache", data.get("timing"));
             data.remove("timing");
             //data里面要放需要校验的数据
             MessageQueueDto messageQueueDto = new MessageQueueDto();
