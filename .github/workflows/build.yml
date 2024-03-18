@@ -212,6 +212,7 @@ jobs:
       - Build-Tapdata
       - Build-Connectors
       - Build-Frontend
+      - Set-Branch
     steps:
       - name: Clean Directory
         run: |
@@ -228,11 +229,12 @@ jobs:
           mkdir -p output
           rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
           bash build/build.sh -o docker -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
+          docker push ghcr.io/tapdata/tapdata:${{ needs.Set-Branch.outputs.TAG_NAME }}
       - name: Print Image Info
         run: |
           echo '**Google Docker Image:**' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "ghcr.io/tapdata/tapdata-enterprise:${{ needs.Set-Branch.outputs.TAG_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "ghcr.io/tapdata/tapdata:${{ needs.Set-Branch.outputs.TAG_NAME }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Checkout Tapdata Application
         run: |
@@ -262,17 +264,20 @@ jobs:
       - Build-Tapdata
       - Build-Connectors
       - Build-Frontend
+      - Set-Branch
     steps:
       - name: Clean Directory
         run: |
           rm -rf ./*
-      - name: Checkout Tapdata Application
+      - name: Checkout Tapdata Repo
         run: |
+          rm -rf tapdata
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b main --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata-application.git
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          cd tapdata && git fetch --tags
       - name: Package and Push Tar File
         run: |
-          cd tapdata-application
+          cd tapdata
           mkdir -p output
           rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
           bash build/build.sh -o tar -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
