@@ -1,253 +1,145 @@
 #!/bin/bash
-basepath=$(cd `dirname $0`; pwd)
-sourcepath=$(cd `dirname $0`/../; pwd)
-. $basepath/log.sh
-. $basepath/env.sh
 
-CONNECTOR_DIR=$sourcepath/../tapdata-connectors
-FRONTEND_DIR=$sourcepath/../tapdata-enterprise-web
+# load log.sh
+# script base dir
+SCRIPT_BASE_DIR=$(dirname "$0")
+. "$SCRIPT_BASE_DIR/log.sh"
 
-ulimit -c unlimited
+# run unit test
+RUN_UNITTEST="false"
+# component name to be build or all (tapdata, connectors, frontend)
+COMPONENT_NAME=""
+# build args
+BUILD_ARGS=""
+# projects directory
+PROJECT_ROOT_DIR=$(cd "$SCRIPT_BASE_DIR/.." && pwd)
+# tapdata directory
+TAPDATA_DIR="$PROJECT_ROOT_DIR/../tapdata"
+# connector directory
+CONNECTOR_DIR="$PROJECT_ROOT_DIR/../tapdata-connectors"
+# frontend directory
+FRONTEND_DIR="$PROJECT_ROOT_DIR/../tapdata-enterprise-web"
+# frontend build mode
+FRONTEND_BUILD_MODE="production"
+# tag name
+TAG_NAME="latest"
+# OUTPUT_DIR
+OUTPUT_DIR="$PROJECT_ROOT_DIR/output"
+# package components
+PACKAGE_COMPONENTS=""
+# output type (docker or tar)
+OUTPUT_TYPE=""
 
-if [[ $tapdata_build_env == "docker" && $_in_docker == "" ]]; then
-    which docker &> /dev/null
-    if [[ $? -ne 0 ]]; then
-        error "no docker found, please install it before build package"
-    fi
-    docker images $tapdata_build_image &> /dev/null
-    if [[ $? -ne 0 ]]; then
-        docker pull $tapdata_build_image
-    fi
-fi
-
-cd $basepath
-if [[ $_in_docker == "" ]]; then
-    notice "tapdata live data platform start building..."
-fi
-
-image=`cat $basepath/image/tag`
-is_build="false"
-is_package="false"
-output=""
-
-clean() {
-  # Clean all the outputs from various components.
-  rm -rf $sourcepath/dist
-  rm -rf $sourcepath/iengine/dist
-  rm -rf $sourcepath/manager/dist
-  rm -rf $sourcepath/connectors/dist
-  rm -rf $sourcepath/connectors/dist.tar.gz
-}
-
-usage() {
-    echo "Usage: $0 [-c] [-p] [-o jar|tar|docker] [-d] [-t image]"
-    echo "  -c: build project, default is false"
-    echo "  -p: package project, default is false"
-    echo "  -o: output type, default is blank, optional value: image"
-    echo "  -d: clean project outputs, default is false"
-    echo "  -t: docker image tag"
-    echo "  -h: help"
-    exit 1
-}
-
-while getopts 'c:p:o:d::t:' OPT; do
+while getopts 'c:l:u:p:t:o:' OPT; do
 	case "$OPT" in
-	'c')
-    is_build=$(echo "$OPTARG" | tr "[A-Z]" "[a-z]")
-		;;
-	'p')
-		is_package=$(echo "$OPTARG" | tr "[A-Z]" "[a-z]")
-		;;
-	'd')
-    clean
-    exit 0
-		;;
-	'o')
-    output="$OPTARG"
-		;;
-  ?)
-    usage
-    exit 1
+	c)
+    COMPONENT_NAME="$OPTARG"
     ;;
-	esac
+  p)
+    PACKAGE_COMPONENTS="$OPTARG"
+    ;;
+  u)
+    RUN_UNITTEST="$OPTARG"
+    ;;
+  l)
+    BUILD_ARGS="$OPTARG"
+    ;;
+  t)
+    TAG_NAME="$OPTARG"
+    ;;
+  o)
+    OUTPUT_TYPE="$OPTARG"
+    ;;
+  esac
 done
 
-cat <<_END_
-sourcepath:           $sourcepath
-basepath:             $basepath
-tapdata build env:    $tapdata_build_env
-tapdata build image:  $tapdata_build_image
-tapdata build output: $output
-is_build:             $is_build
-is_package:           $is_package
-_in_docker:           $_in_docker
+info "The Env Setting List:"
+cat <<EOF
+  COMPONENT_NAME:     $COMPONENT_NAME
+  PACKAGE_COMPONENTS: $PACKAGE_COMPONENTS
+  RUN_UNITTEST:       $RUN_UNITTEST
+  BUILD_ARGS:         $BUILD_ARGS
+  TAG_NAME:           $TAG_NAME
+  OUTPUT_TYPE:        $OUTPUT_TYPE
+EOF
 
-_END_
+IFS=" " read -r -a COMPONENTS <<<"$(echo "$COMPONENT_NAME" | tr -d ' ' | tr ',' ' ')"
 
-check_env() {
-    which java &> /dev/null
-    if [[ $? -ne 0 ]]; then
-        error "no java found, please install it before build package"
-    fi
-
-    which mvn &> /dev/null
-    if [[ $? -ne 0 ]]; then
-        error "no mvn found, please install it before build package"
-    fi
-}
-
-build() {
-  # 1. Build project in docker.
-  # 2. run check_env function to check if java and mvn installed.
-  # 3. Run build command in local.
-  #
-  # Provide two ways to build project, in docker or in local.
-  # If you build in docker, it will pull a docker image that cached all dependencies and then build project in it.
-  # If you build in local, it will use your local environment to build project.
-  # Run `mvn clean install -DskipTests` to build project in local and in docker.
-  # You can set env variable in env.sh file. Explanation of Environment Variables Used here:
-  #   $tapdata_build_env: docker or local
-  #   $_in_docker: if in docker, this variable will be set to yes
-  #   $tapdata_build_image: the docker build image which cached all dependencies
-
-  # 1. Build project in docker.
-  if [[ $tapdata_build_env == "docker" && $_in_docker == "" ]]; then
-    # if tapdata-build-container not running
-    docker ps | grep tapdata-build-container &> /dev/null
-    if [[ $? -ne 0 ]]; then
-      # if tapdata-build-container stopped or not exist
-      docker ps -a | grep tapdata-build-container &> /dev/null
-      if [[ $? -eq 0 ]]; then
-        info "tapdata build container stopped, try start it..."
-        docker start tapdata-build-container
-      else
-        info "no tapdata build container find, try run a new one..."
-        docker run --name=tapdata-build-container -v $sourcepath:/tapdata-source/ -id $tapdata_build_image bash -c "sleep infinity"
-      fi
-    fi
-    docker exec -e PRODUCT=idaas -i tapdata-build-container bash -c "cd /tapdata-source && bash build/build.sh -c true"
-  else
-    # 2. run check_env function to check if java and mvn installed.
-    check_env
-    # 3. Run build command in local.
-    cd $sourcepath && mvn clean install -DskipTests
+build_java_component() {
+  if [[ "$RUN_UNITTEST" == "false" ]]; then
+    run_unittest="-DskipTests"
   fi
+  mvn install $run_unittest $BUILD_ARGS
 }
 
-make_iengine_dist() {
-  # Collect Iengine outputs.
-  #
-  # Collect all the outputs from Iengine and copy them to the "dist" directory.
-  IENGINE_PATH=$sourcepath/iengine  # iengine path
-  IENGINE_SBIN_FILE="ie.jar"  # iengine sbin file
-  # make iengine dist
-  cd $IENGINE_PATH && mkdir -p dist dist/bin dist/lib dist/conf dist/logs
-  cd $IENGINE_PATH && cp $IENGINE_SBIN_FILE dist/lib
-  # copy script to dist
-  cd $IENGINE_PATH && cp build/start.sh dist/bin
-  cd $IENGINE_PATH && cp build/stop.sh dist/bin
-  cd $IENGINE_PATH && cp build/status.sh dist/bin
-}
-
-make_manager_dist() {
-  # Collect Manager outputs.
-  #
-  # Collect all the outputs from Manager and copy them to the "dist" directory.
-  MANAGER_PATH=$sourcepath/manager  # manager path
-  MANAGER_SBIN_FILE="tm-*-exec.jar"  # manager sbin file
-  # make manager dist
-  cd $MANAGER_PATH && mkdir -p dist dist/bin dist/lib dist/conf dist/logs
-  cd $MANAGER_PATH && cp "tm/target/classes/logback.xml" dist/conf
-  cd $MANAGER_PATH && cp "tm/target/classes/application.yml" dist/conf
-  cd $MANAGER_PATH && f=`find tm/target/ -name $MANAGER_SBIN_FILE` && cp $f dist/lib
-  # copy script to dist
-  cd $MANAGER_PATH && cp build/start.sh dist/bin
-}
-
-make_connector_dist() {
-  # Collect Connector outputs and make a tarball.
-  mv $CONNECTOR_DIR/connectors/dist $CONNECTOR_DIR/connectors/tmp && mkdir $CONNECTOR_DIR/connectors/dist
-  ls $CONNECTOR_DIR/connectors/tmp/ | grep -E "^(mongodb-connector|mysql-connector|postgres-connector|kafka-connector)" | xargs -I {} cp $CONNECTOR_DIR/connectors/tmp/{} $CONNECTOR_DIR/connectors/dist/
-  cd $CONNECTOR_DIR/connectors && tar czf dist.tar.gz dist && cd -
-  mv $CONNECTOR_DIR/connectors/tmp $CONNECTOR_DIR/connectors/dist
-}
-
-make_dist() {
-  # 1. Collect Iengine outputs.
-  # 2. Collect Manager outputs.
-  # 3. Collect Connector outputs.
-  #
-  # Collect all the outputs from various components and copy them to the "dist" directory.
-
-  # 1. Collect Iengine outputs.
-  make_iengine_dist
-
-  # 2. Collect Manager outputs.
-  make_manager_dist
-
-  # 3. Collect Connector outputs.
-  make_connector_dist
-}
-
-package_outputs() {
-  # 1. Make dist directory.
-  # 2. Package Iengine outputs.
-  # 3. Package Manager outputs.
-  # 4. Package Connector outputs.
-  # 5. package pdk.jar outputs.
-  # 6. package frontend outputs
-  # 7. Print cost time.
-  #
-  # Package all the outputs from various components and copy them to the "dist" directory to make a tarball or docker image.
-
-  # 1. Make dist directory.
-  START_TIME=`date '+%s'`
-  make_dist
-  mkdir -p $sourcepath/dist $sourcepath/dist/iengine $sourcepath/dist/manager $sourcepath/dist/connectors $sourcepath/dist/components/webroot
-  # 2. Package Iengine outputs.
-  cp -r $sourcepath/iengine/dist/* $sourcepath/dist/iengine/
-  # 3. Package Manager outputs.
-  cp -r $sourcepath/manager/dist/* $sourcepath/dist/manager/
-  # 4. Package Connector outputs.
-  cp -r $CONNECTOR_DIR/connectors/dist.tar.gz $sourcepath/dist/connectors/
-  # 5. package pdk.jar outputs.
-  cp -r $sourcepath/tapdata-cli/target/pdk.jar $sourcepath/dist/
-  # 6. package frontend outputs
-  cp -r $FRONTEND_DIR/dist/* $sourcepath/dist/components/webroot/
-  # 7. Print cost time.
-  END_TIME=`date '+%s'`
-  DURATION=`expr $END_TIME - $START_TIME`
-  info "package outputs success, cost time: $DURATION seconds"
-}
-
-make_image() {
-  # 1. Check if docker installed.
-  # 2. Cp image directory to dist directory.
-  # 3. Make docker image.
-  #
-  # Make a docker image from the "dist" directory.
-
-  # 1. Check if docker installed.
-  which docker &> /dev/null
-  if [[ $? -ne 0 ]]; then
-    error "docker not installed, please install docker first."
-    exit 1
+# build component
+for COMPONENT in ${COMPONENTS[@]}; do
+  if [[ $COMPONENT == "tapdata" ]]; then
+    cd $TAPDATA_DIR && build_java_component
+  elif [[ $COMPONENT == "connectors" ]]; then
+    cd $CONNECTOR_DIR && build_java_component
+  elif [[ $COMPONENT == "frontend" ]]; then
+    cd $FRONTEND_DIR && DAAS_BUILD_NUMBER=$TAG_NAME bash build/build.sh -m $FRONTEND_BUILD_MODE
   fi
-  # 2. Cp image directory to dist directory.
-  mkdir -p $sourcepath/dist/image
-  cp -r $sourcepath/build/image/* $sourcepath/dist/
-  # 3. Make docker image.
-  cd $sourcepath/dist && bash build.sh
+done
+
+make_package_tapdata() {
+  mkdir -p $OUTPUT_DIR/etc/init/ $OUTPUT_DIR/components/ $OUTPUT_DIR/lib/
+  mkdir -p $OUTPUT_DIR/bin/manager/ $OUTPUT_DIR/bin/iengine/
+  cd $OUTPUT_DIR/
+  cp $TAPDATA_DIR/manager/tm/target/classes/logback.xml etc/logback.xml
+  cp $TAPDATA_DIR/manager/tm/target/classes/application.yml etc/application-tm.yml
+  mkdir -p components/
+  cp $TAPDATA_DIR/manager/tm/target/tm-*-exec.jar components/tm.jar
+  cp $TAPDATA_DIR/iengine/ie.jar components/tapdata-agent.jar
+  cp $TAPDATA_DIR/tapdata-cli/target/pdk.jar lib/pdk-deploy.jar
+  # copy script files to start manager and iengine
+  cp $TAPDATA_DIR/manager/build/start.sh $OUTPUT_DIR/bin/manager/start.sh
+  cp $TAPDATA_DIR/iengine/build/start.sh $OUTPUT_DIR/bin/iengine/start.sh
 }
 
-if [[ $is_build == "true" ]]; then
-    build
+make_package_connectors() {
+  mkdir -p $OUTPUT_DIR/connectors/dist/
+  cd $OUTPUT_DIR/
+  tar cfz connectors/dist.tar.gz -C $CONNECTOR_DIR/connectors/ dist/
+}
+
+make_package_frontend() {
+  mkdir -p $OUTPUT_DIR/components/webroot/
+  cd $OUTPUT_DIR/
+  cp -r $FRONTEND_DIR/dist/* components/webroot/
+}
+
+# make package
+if [[ $PACKAGE_COMPONENTS == "tapdata" ]]; then
+  make_package_tapdata
+elif [[ $PACKAGE_COMPONENTS == "connectors" ]]; then
+  make_package_connectors
+elif [[ $PACKAGE_COMPONENTS == "frontend" ]]; then
+  make_package_frontend
+elif [[ $PACKAGE_COMPONENTS == "all" ]]; then
+  make_package_tapdata
+  make_package_connectors
+  make_package_frontend
 fi
 
-if [[ $is_package == "true" && $_in_docker == "" ]]; then
-    package_outputs
-fi
+make_docker() {
+  cd $OUTPUT_DIR/
+  cp $TAPDATA_DIR/build/image/Dockerfile .
+  cp $TAPDATA_DIR/build/image/docker-entrypoint.sh .
+  docker build -t ghcr.io/tapdata/tapdata:$TAG_NAME .
+}
 
-if [[ $output == "image" && $_in_docker == "" ]]; then
-    make_image
+make_tar() {
+  cd $OUTPUT_DIR/
+  cp $TAPDATA_DIR/build/image/Dockerfile .
+  cp $TAPDATA_DIR/build/image/docker-entrypoint.sh .
+  tar cfz tapdata-$TAG_NAME.tar.gz *
+}
+
+# make output
+if [[ $OUTPUT_TYPE == "docker" ]]; then
+  make_docker
+elif [[ $OUTPUT_TYPE == "tar" ]]; then
+  make_tar
 fi
