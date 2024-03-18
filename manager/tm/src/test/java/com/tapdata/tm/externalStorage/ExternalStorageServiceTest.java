@@ -11,6 +11,8 @@ import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
 import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.externalStorage.service.ExternalStorageServiceImpl;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.permissions.service.DataPermissionService;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -25,6 +27,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 
@@ -46,6 +49,7 @@ import static org.mockito.Mockito.when;
 
 
      void testFilter(String mark, boolean cloud) {
+         new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
         ExternalStorageRepository repository = Mockito.mock(ExternalStorageRepository.class);
         ExternalStorageServiceImpl externalStorageService = new ExternalStorageServiceImpl(repository);
         Filter filter = new Filter();

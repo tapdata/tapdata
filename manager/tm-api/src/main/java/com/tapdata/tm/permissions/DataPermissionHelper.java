@@ -32,8 +32,8 @@ public class DataPermissionHelper {
 
     private static IDataPermissionHelper iDataPermissionHelper;
 
-    public DataPermissionHelper(IDataPermissionHelper IDataPermissionHelper) {
-        DataPermissionHelper.iDataPermissionHelper = IDataPermissionHelper;
+    public DataPermissionHelper(IDataPermissionHelper helper) {
+        DataPermissionHelper.iDataPermissionHelper = helper;
     }
 
 

@@ -10,6 +10,8 @@ import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.service.MessageService;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.permissions.service.DataPermissionService;
 import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.user.service.UserService;
@@ -55,6 +57,7 @@ class EventsServiceTest {
 
     @BeforeEach
     void setUp() {
+        new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
         eventsServiceUnderTest = new EventsServiceImpl(mockRepository);
         eventsServiceUnderTest.mailUtils = mockMailUtils;
         eventsServiceUnderTest.messageService = mockMessageService;

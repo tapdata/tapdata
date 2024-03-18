@@ -43,7 +43,8 @@ class MailUtilsTest {
 
     @Test
     void testReadHtmlToString() {
-        Assertions.assertNotEquals(MailUtilsImpl.readHtmlToString("mailTemplate.html"),"");
+        new MailUtils(mock(IMailUtils.class));
+        Assertions.assertNotEquals(MailUtils.readHtmlToString("mailTemplate.html"),"");
     }
     @Test
     void testSendHtmlMail_subjectNotNull(){

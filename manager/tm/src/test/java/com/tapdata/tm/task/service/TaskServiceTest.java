@@ -355,6 +355,7 @@ public class TaskServiceTest {
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
         @BeforeEach
         void beforeEach() {
+            new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
             taskService = new TaskServiceImpl(taskRepository);
             taskService.setSettingsService(settingsService);
             taskService.setTaskScheduleService(taskScheduleService);
@@ -463,6 +464,7 @@ public class TaskServiceTest {
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
         @BeforeEach
         void beforeEach() {
+            new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
             taskService = new TaskServiceImpl(taskRepository);
             taskService.setSettingsService(settingsService);
             taskService.setTaskScheduleService(taskScheduleService);
@@ -600,6 +602,7 @@ public class TaskServiceTest {
         TaskRepository taskRepository = mock(TaskRepository.class);
         @Test
         void testChartNormal(){
+            new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
             try (MockedStatic<DataPermissionService> mb = Mockito
                     .mockStatic(DataPermissionService.class)) {
                 mb.when(DataPermissionService::isCloud).thenReturn(true);

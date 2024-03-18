@@ -12,6 +12,8 @@ import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.permissions.service.DataPermissionService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -49,6 +51,7 @@ class WorkerServiceTest {
     private ClusterStateService clusterStateService;
     @BeforeEach
     void buildWorkService(){
+        new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
         workerRepository = mock(WorkerRepository.class);
         workerService = spy(new WorkerServiceImpl(workerRepository));
         settingsService = mock(SettingsService.class);

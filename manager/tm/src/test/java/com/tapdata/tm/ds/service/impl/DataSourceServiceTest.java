@@ -6,6 +6,8 @@ import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.permissions.service.DataPermissionService;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
@@ -38,6 +40,7 @@ class DataSourceServiceTest {
 
     @BeforeEach
     void setUp() {
+        new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
         dataSourceServiceUnderTest = new DataSourceServiceImpl(dataSourceRepository);
         ReflectionTestUtils.setField(dataSourceServiceUnderTest,"dataSourceDefinitionService",dataSourceDefinitionService);
     }
