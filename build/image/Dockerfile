@@ -1,13 +1,12 @@
 FROM ghcr.io/tapdata/tapdata/tldp/runtime-ee:0.5
 
 ENV JAVA_TOOL_OPTIONS -Dfile.encoding=UTF8
+COPY etc/ /tapdata/apps/etc
 COPY connectors/dist.tar.gz /tapdata/apps/connectors/dist.tar.gz
-COPY manager/ /tapdata/apps/manager/
-COPY iengine/ /tapdata/apps/iengine/
-COPY pdk.jar /tapdata/apps/lib/pdk.jar
-COPY components/ /tapdata/apps/components/
+COPY lib/ /tapdata/apps/lib
+COPY components/ /tapdata/apps/components
 COPY docker-entrypoint.sh /tapdata/docker-entrypoint.sh
-RUN chmod +x /tapdata/docker-entrypoint.sh && mkdir -p /tapdata/data/db/
+COPY bin/ /tapdata/apps/bin
 
 # Add tini
 ENV TINI_VERSION v0.19.0
