@@ -682,7 +682,7 @@ class InspectServiceTest extends BaseTest {
         @Test
         void testCheckFieldInspectWithDataSourceIsNull(){
             inspect.getTasks().get(0).setSource(null);
-            excepted.add("Inspect.tasks[0].source.inspectDataSource can not be null.");
+            excepted.add("Inspect.tasks[0].source.inspectDataSource can not be null");
             List<String> actual = inspectService.checkFieldInspect(inspect);
             Assertions.assertEquals(excepted,actual);
             excepted.clear();
@@ -711,8 +711,10 @@ class InspectServiceTest extends BaseTest {
             String prefix = "test";
             InspectDataSource dataSource = null;
             List<String> actual = inspectService.checkFieldInspectTaskDataSource(prefix, dataSource);
-            excepted.add(prefix + ".inspectDataSource can not be null.");
-            Assertions.assertEquals(excepted,actual);
+            excepted.add(prefix + ".inspectDataSource can not be null");
+            Assertions.assertNotNull(actual);
+            Assertions.assertEquals(excepted.size(), actual.size());
+            Assertions.assertEquals(excepted.get(0), actual.get(0));
         }
         @Test
         void testCheckFieldInspectTaskDataSourceWithEmptyValue() {
@@ -722,11 +724,15 @@ class InspectServiceTest extends BaseTest {
             dataSource.setTable(null);
             List<String> excepted = new ArrayList<>();
             String exceptedDirection = "DESC";
-            excepted.add("test.connectionId can not be empty.");
-            excepted.add("test.table can not be empty.");
+            excepted.add("test.connectionId can not be empty");
+            excepted.add("test.table can not be empty");
             excepted.add("test.sortColumn can not be empty.");
             List<String> actual = inspectService.checkFieldInspectTaskDataSource(prefix, dataSource);
-            Assertions.assertEquals(excepted,actual);
+            Assertions.assertNotNull(actual);
+            Assertions.assertEquals(excepted.size(),actual.size());
+            Assertions.assertEquals(excepted.get(0), actual.get(0));
+            Assertions.assertEquals(excepted.get(1), actual.get(1));
+            Assertions.assertEquals(excepted.get(2), actual.get(2));
             Assertions.assertEquals(exceptedDirection,dataSource.getDirection());
         }
     }

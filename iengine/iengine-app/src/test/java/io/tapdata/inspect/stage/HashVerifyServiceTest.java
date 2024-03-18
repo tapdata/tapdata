@@ -10,6 +10,7 @@ import io.tapdata.inspect.InspectTask;
 import io.tapdata.inspect.InspectTaskContext;
 import io.tapdata.inspect.cdc.InspectCdcUtils;
 import io.tapdata.inspect.compare.HashVerifyInspectJob;
+import io.tapdata.inspect.util.InspectJobUtil;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -156,7 +157,6 @@ public class HashVerifyServiceTest {
             when(hashVerifyService.checkRowCountInspect(null)).thenCallRealMethod();
             when(task.getTarget()).thenReturn(target);
             when(task.getSource()).thenReturn(source);
-            when(hashVerifyService.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class))).thenReturn(new ArrayList<>());
             doNothing().when(logger).warn(anyString(), anyInt());
         }
 
@@ -188,55 +188,82 @@ public class HashVerifyServiceTest {
             verify(task, times(getTaskIdTimes)).getTaskId();
             verify(task, times(getTaskIdTimes)).getTarget();
             verify(task, times(getTaskIdTimes)).getSource();
-            verify(hashVerifyService, times(getTaskIdTimes*2)).checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class));
         }
 
         @Test
         void testInspectIsNull() {
             doMock("xxx", tasks, true, 0, 0, task, "id");
-            hashVerifyService.checkRowCountInspect(null);
+            try(MockedStatic<InspectJobUtil> iju = mockStatic(InspectJobUtil.class)) {
+                iju.when(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class))).thenReturn(new ArrayList<>());
+                hashVerifyService.checkRowCountInspect(null);
+                iju.verify(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class)), times(0));
+            }
             assertVerify(0, 0, 0, 0, 0, 0, 0);
         }
 
         @Test
         void testInspectStatusNotScheduling() {
             doMock("xxx", tasks, true, 0, 0, task, "id");
-            hashVerifyService.checkRowCountInspect(inspect);
+            try(MockedStatic<InspectJobUtil> iju = mockStatic(InspectJobUtil.class)) {
+                iju.when(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class))).thenReturn(new ArrayList<>());
+                hashVerifyService.checkRowCountInspect(inspect);
+                iju.verify(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class)), times(0));
+            }
             assertVerify(1, 1, 1, 0, 0, 0, 0);
         }
 
         @Test
         void testInspectTaskListIsNull() {
             doMock("scheduling", null, true, 0, 0, task, "id");
-            hashVerifyService.checkRowCountInspect(inspect);
+            try(MockedStatic<InspectJobUtil> iju = mockStatic(InspectJobUtil.class)) {
+                iju.when(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class))).thenReturn(new ArrayList<>());
+                hashVerifyService.checkRowCountInspect(inspect);
+                iju.verify(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class)), times(0));
+            }
             assertVerify(1, 1, 0, 0, 0, 0, 0);
         }
 
         @Test
         void testInspectTaskListIsEmpty() {
             doMock("scheduling", tasks, true, 0, 0, task, "id");
-            hashVerifyService.checkRowCountInspect(inspect);
+            try(MockedStatic<InspectJobUtil> iju = mockStatic(InspectJobUtil.class)) {
+                iju.when(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class))).thenReturn(new ArrayList<>());
+                hashVerifyService.checkRowCountInspect(inspect);
+                iju.verify(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class)), times(0));
+            }
             assertVerify(1, 1, 1, 0, 0, 0, 0);
         }
 
         @Test
         void testInspectTaskIsNull() {
             doMock("scheduling", tasks, false, 1, 0, null, "id");
-            hashVerifyService.checkRowCountInspect(inspect);
+            try(MockedStatic<InspectJobUtil> iju = mockStatic(InspectJobUtil.class)) {
+                iju.when(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class))).thenReturn(new ArrayList<>());
+                hashVerifyService.checkRowCountInspect(inspect);
+                iju.verify(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class)), times(0));
+            }
             assertVerify(1, 1, 1, 1, 1, 1, 0);
         }
 
         @Test
         void testInspectTaskIdIsEmpty() {
             doMock("scheduling", tasks, false, 1, 0, task, null);
-            hashVerifyService.checkRowCountInspect(inspect);
+            try(MockedStatic<InspectJobUtil> iju = mockStatic(InspectJobUtil.class)) {
+                iju.when(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class))).thenReturn(new ArrayList<>());
+                hashVerifyService.checkRowCountInspect(inspect);
+                iju.verify(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class)), times(2));
+            }
             assertVerify(1, 1, 1, 1, 1, 0, 1);
         }
 
         @Test
         void testAllCaseAreSucceed() {
             doMock("scheduling", tasks, false, 1, 0, task, "id");
-            hashVerifyService.checkRowCountInspect(inspect);
+            try(MockedStatic<InspectJobUtil> iju = mockStatic(InspectJobUtil.class)) {
+                iju.when(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class))).thenReturn(new ArrayList<>());
+                hashVerifyService.checkRowCountInspect(inspect);
+                iju.verify(() -> InspectJobUtil.checkRowCountInspectTaskDataSource(anyString(), any(InspectDataSource.class)), times(2));
+            }
             assertVerify(1, 1, 1, 1, 1, 0, 1);
         }
     }
@@ -252,61 +279,6 @@ public class HashVerifyServiceTest {
             Assertions.assertDoesNotThrow(() -> hashVerifyService.updateStatus("id", status, "msg"));
             verify(status, times(1)).getCode();
             verify(clientMongoOperator, times(1)).upsert(anyMap(), anyMap(), anyString());
-        }
-    }
-
-    @Nested
-    class CheckRowCountInspectTaskDataSourceTest {
-        InspectDataSource dataSource;
-        @BeforeEach
-        void init() {
-            dataSource = mock(InspectDataSource.class);
-
-            when(hashVerifyService.checkRowCountInspectTaskDataSource("prefix", dataSource)).thenCallRealMethod();
-        }
-
-        void assertVerify(InspectDataSource ds, int times, int size) {
-            List<String> list = hashVerifyService.checkRowCountInspectTaskDataSource("prefix", ds);
-            Assertions.assertNotNull(list);
-            Assertions.assertEquals(size, list.size());
-            verify(dataSource, times(times)).getConnectionId();
-            verify(dataSource, times(times)).getTable();
-        }
-
-        @Test
-        void testDataSourceIsNull() {
-            when(hashVerifyService.checkRowCountInspectTaskDataSource("prefix", null)).thenCallRealMethod();
-            when(dataSource.getConnectionId()).thenReturn("id");
-            when(dataSource.getTable()).thenReturn("table");
-            assertVerify(null, 0, 1);
-        }
-
-        @Test
-        void testConnectionIdIsNull() {
-            when(dataSource.getConnectionId()).thenReturn(null);
-            when(dataSource.getTable()).thenReturn("table");
-            assertVerify(dataSource, 1, 1);
-        }
-
-        @Test
-        void testTableIsNull() {
-            when(dataSource.getConnectionId()).thenReturn("id");
-            when(dataSource.getTable()).thenReturn(null);
-            assertVerify(dataSource, 1, 1);
-        }
-
-        @Test
-        void testAllCaseIsSucceed() {
-            when(dataSource.getConnectionId()).thenReturn("id");
-            when(dataSource.getTable()).thenReturn("table");
-            assertVerify(dataSource, 1, 0);
-        }
-
-        @Test
-        void testAllCaseIsFailed() {
-            when(dataSource.getConnectionId()).thenReturn(null);
-            when(dataSource.getTable()).thenReturn(null);
-            assertVerify(dataSource, 1, 2);
         }
     }
 }

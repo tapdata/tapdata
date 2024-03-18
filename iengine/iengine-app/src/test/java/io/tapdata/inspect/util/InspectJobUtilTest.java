@@ -147,4 +147,57 @@ public class InspectJobUtilTest {
             verify(mongoOperator, times(1)).findOne(any(Map.class), anyString(), any(Class.class));
         }
     }
+
+
+    @Nested
+    class CheckRowCountInspectTaskDataSourceTest {
+        InspectDataSource dataSource;
+        @BeforeEach
+        void init() {
+            dataSource = mock(InspectDataSource.class);
+        }
+
+        void assertVerify(InspectDataSource ds, int times, int size) {
+            List<String> list = InspectJobUtil.checkRowCountInspectTaskDataSource("prefix", ds);
+            Assertions.assertNotNull(list);
+            Assertions.assertEquals(size, list.size());
+            verify(dataSource, times(times)).getConnectionId();
+            verify(dataSource, times(times)).getTable();
+        }
+
+        @Test
+        void testDataSourceIsNull() {
+            when(dataSource.getConnectionId()).thenReturn("id");
+            when(dataSource.getTable()).thenReturn("table");
+            assertVerify(null, 0, 1);
+        }
+
+        @Test
+        void testConnectionIdIsNull() {
+            when(dataSource.getConnectionId()).thenReturn(null);
+            when(dataSource.getTable()).thenReturn("table");
+            assertVerify(dataSource, 1, 1);
+        }
+
+        @Test
+        void testTableIsNull() {
+            when(dataSource.getConnectionId()).thenReturn("id");
+            when(dataSource.getTable()).thenReturn(null);
+            assertVerify(dataSource, 1, 1);
+        }
+
+        @Test
+        void testAllCaseIsSucceed() {
+            when(dataSource.getConnectionId()).thenReturn("id");
+            when(dataSource.getTable()).thenReturn("table");
+            assertVerify(dataSource, 1, 0);
+        }
+
+        @Test
+        void testAllCaseIsFailed() {
+            when(dataSource.getConnectionId()).thenReturn(null);
+            when(dataSource.getTable()).thenReturn(null);
+            assertVerify(dataSource, 1, 2);
+        }
+    }
 }

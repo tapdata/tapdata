@@ -10,6 +10,7 @@ import io.tapdata.inspect.InspectTask;
 import io.tapdata.inspect.InspectTaskContext;
 import io.tapdata.inspect.cdc.InspectCdcUtils;
 import io.tapdata.inspect.compare.HashVerifyInspectJob;
+import io.tapdata.inspect.util.InspectJobUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.StringUtils;
@@ -97,11 +98,11 @@ public class HashVerifyService {
                 errorMsg.add(String.format(InspectService.INSPECT_TASKS_CANNOT_BE_EMPTY, index));
             }
             String source = String.format(InspectService.INSPECT_TASKS_PREFIX_SOURCE, index);
-            List<String> sourceErrorMsg = checkRowCountInspectTaskDataSource(source, task.getSource());
+            List<String> sourceErrorMsg = InspectJobUtil.checkRowCountInspectTaskDataSource(source, task.getSource());
             errorMsg.addAll(sourceErrorMsg);
 
             String target = String.format(InspectService.INSPECT_TASKS_PREFIX_TARGET, index);
-            List<String> targetErrorMsg = checkRowCountInspectTaskDataSource(target, task.getTarget());
+            List<String> targetErrorMsg = InspectJobUtil.checkRowCountInspectTaskDataSource(target, task.getTarget());
             errorMsg.addAll(targetErrorMsg);
         }
         return errorMsg;
@@ -114,20 +115,5 @@ public class HashVerifyService {
         updateMap.put(InspectService.STATUS_FIELD, status.getCode());
         updateMap.put("errorMsg", msg);
         clientMongoOperator.upsert(queryMap, updateMap, ConnectorConstant.INSPECT_COLLECTION);
-    }
-
-    protected List<String> checkRowCountInspectTaskDataSource(String prefix, InspectDataSource dataSource) {
-        List<String> errorMsg = new ArrayList<>();
-        if (null == dataSource){
-            errorMsg.add(prefix + ".inspectDataSource can not be null");
-            return errorMsg;
-        }
-        if (StringUtils.isEmpty(dataSource.getConnectionId())) {
-            errorMsg.add(prefix + ".connectionId can not be empty");
-        }
-        if (StringUtils.isEmpty(dataSource.getTable())) {
-            errorMsg.add(prefix + ".table can not be empty");
-        }
-        return errorMsg;
     }
 }

@@ -8,7 +8,9 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.inspect.InspectTaskContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,5 +45,20 @@ public class InspectJobUtil {
             tapTable = new TapTable(table);
         }
         return tapTable;
+    }
+
+    public static List<String> checkRowCountInspectTaskDataSource(String prefix, InspectDataSource dataSource) {
+        List<String> errorMsg = new ArrayList<>();
+        if (null == dataSource){
+            errorMsg.add(prefix + ".inspectDataSource can not be null");
+            return errorMsg;
+        }
+        if (StringUtils.isEmpty(dataSource.getConnectionId())) {
+            errorMsg.add(prefix + ".connectionId can not be empty");
+        }
+        if (StringUtils.isEmpty(dataSource.getTable())) {
+            errorMsg.add(prefix + ".table can not be empty");
+        }
+        return errorMsg;
     }
 }

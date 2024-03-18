@@ -18,6 +18,7 @@ import io.tapdata.inspect.compare.TableRowContentInspectJob;
 import io.tapdata.inspect.compare.TableRowCountInspectJob;
 import io.tapdata.inspect.compare.TableRowScriptInspectJob;
 import io.tapdata.inspect.stage.HashVerifyService;
+import io.tapdata.inspect.util.InspectJobUtil;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -455,16 +456,9 @@ public class InspectService {
 	}
 
 	protected List<String> checkFieldInspectTaskDataSource(String prefix, InspectDataSource dataSource) {
-		List<String> errorMsg = new ArrayList<>();
-		if (null == dataSource){
-			errorMsg.add(prefix + ".inspectDataSource can not be null.");
+		List<String> errorMsg = InspectJobUtil.checkRowCountInspectTaskDataSource(prefix, dataSource);
+		if (null == dataSource) {
 			return errorMsg;
-		}
-		if (StringUtils.isEmpty(dataSource.getConnectionId())) {
-			errorMsg.add(prefix + ".connectionId can not be empty.");
-		}
-		if (StringUtils.isEmpty(dataSource.getTable())) {
-			errorMsg.add(prefix + ".table can not be empty.");
 		}
 		if (StringUtils.isEmpty(dataSource.getDirection())) {
 			dataSource.setDirection("DESC");
