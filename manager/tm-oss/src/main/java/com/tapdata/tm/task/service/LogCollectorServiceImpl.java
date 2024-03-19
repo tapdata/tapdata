@@ -91,7 +91,8 @@ import java.util.stream.Stream;
 public class LogCollectorServiceImpl implements LogCollectorService {
     @Override
     public Page<LogCollectorVo> find(Filter filter, UserDetail user) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        Page<LogCollectorVo> logCollectorVoPage = new Page<>();
+        return logCollectorVoPage;
     }
 
     @Override
@@ -161,17 +162,14 @@ public class LogCollectorServiceImpl implements LogCollectorService {
 
     @Override
     public void logCollector(UserDetail user, TaskDto oldTaskDto) {
-        throw new BizException("TapOssNonSupportFunctionException");
     }
 
     @Override
     public void startConnHeartbeat(UserDetail user, TaskDto taskDto) {
-        throw new BizException("TapOssNonSupportFunctionException");
     }
 
     @Override
     public void endConnHeartbeat(UserDetail user, TaskDto taskDto) {
-        throw new BizException("TapOssNonSupportFunctionException");
     }
 
     @Override
@@ -181,7 +179,8 @@ public class LogCollectorServiceImpl implements LogCollectorService {
 
     @Override
     public Page<ShareCdcTableInfo> tableInfos(String taskId, String connectionId, String keyword, Integer page, Integer size, UserDetail user) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        Page<ShareCdcTableInfo> shareCdcTableInfoPage = new Page<>();
+        return shareCdcTableInfoPage;
     }
 
     @Override
@@ -201,11 +200,9 @@ public class LogCollectorServiceImpl implements LogCollectorService {
 
     @Override
     public void clear() {
-        throw new BizException("TapOssNonSupportFunctionException");
     }
 
     @Override
     public void removeTask() {
-        throw new BizException("TapOssNonSupportFunctionException");
     }
 }

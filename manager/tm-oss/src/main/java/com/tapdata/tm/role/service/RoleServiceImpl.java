@@ -37,7 +37,7 @@ public class RoleServiceImpl extends RoleService{
         throw new BizException("TapOssNonSupportFunctionException");
     }
     public Page<RoleDto> find(Filter filter, UserDetail userDetail){
-        throw new BizException("TapOssNonSupportFunctionException");
+        return super.find(filter, userDetail);
     }
 
     public boolean deleteById(ObjectId objectId, UserDetail userDetail){

@@ -7,6 +7,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
+import com.tapdata.tm.permissions.vo.DataPermissionAuthInfoVo;
 import com.tapdata.tm.utils.AES256Util;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
@@ -19,23 +20,15 @@ import java.util.function.Supplier;
 
 public interface IDataPermissionHelper {
 
-    default Set<String> mergeActions(Set<String> actions, Set<String> roleIds, List<DataPermissionAction> permissionItems) {
-        return actions;
-    }
+    Set<String> mergeActions(Set<String> actions, Set<String> roleIds, List<DataPermissionAction> permissionItems);
 
-    default boolean setFilterConditions(boolean need2SetFilter, Query query, UserDetail userDetail) {
-        return false;
-    }
+    boolean setFilterConditions(boolean need2SetFilter, Query query, UserDetail userDetail);
 
-    default <E extends BaseEntity, D extends BaseDto> void convert(E entity, D dto) {
-        return;
-    }
+    <E extends BaseEntity, D extends BaseDto> void convert(E entity, D dto);
 
-    default void cleanAuthOfRoleDelete(Set<String> roleIds) {
-        return;
-    }
+    void cleanAuthOfRoleDelete(Set<String> roleIds);
 
-    default <T> T check(
+    <T> T check(
             UserDetail userDetail,
             DataPermissionMenuEnums menuEnums,
             DataPermissionActionEnums actionEnums,
@@ -43,11 +36,9 @@ public interface IDataPermissionHelper {
             String id,
             Supplier<T> supplier,
             Supplier<T> noAuthSupplier
-    ) {
-        return supplier.get();
-    }
+    );
 
-    default <T, D extends BaseDto> T checkOfQuery(
+    <T, D extends BaseDto> T checkOfQuery(
             UserDetail userDetail,
             DataPermissionDataTypeEnums dataTypeEnums,
             DataPermissionActionEnums actionEnums,
@@ -55,16 +46,10 @@ public interface IDataPermissionHelper {
             Function<D, DataPermissionMenuEnums> menuEnumsFun,
             Supplier<T> supplier,
             Supplier<T> unAuthSupplier
-    ) {
-        return supplier.get();
-    }
+    );
 
-    default String signEncode(String currentId, String parentId) {
-        return AES256Util.Aes256Encode(String.join(",", currentId, parentId));
-    }
+    String signEncode(String currentId, String parentId);
 
-    default String signDecode(HttpServletRequest request, String id) {
-        return null;
-    }
+    String signDecode(HttpServletRequest request, String id);
 
 }

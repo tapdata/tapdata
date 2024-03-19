@@ -11,15 +11,11 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-@Service
-@Setter(onMethod_ = {@Autowired})
-public class AlarmMailService extends BaseService<AlarmMailDto, AlarmMail, ObjectId, AlarmMailRepository> {
+public abstract class AlarmMailService extends BaseService<AlarmMailDto, AlarmMail, ObjectId, AlarmMailRepository> {
     public AlarmMailService(@NonNull AlarmMailRepository repository) {
         super(repository, AlarmMailDto.class, AlarmMail.class);
     }
 
     @Override
-    protected void beforeSave(AlarmMailDto dto, UserDetail userDetail) {
-        return;
-    }
+    public abstract void beforeSave(AlarmMailDto dto, UserDetail userDetail);
 }

@@ -89,7 +89,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public Map<String, List<AlarmRuleDto>> getAlarmRuleDtos(TaskDto taskDto) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        return null;
     }
 
     @Override
@@ -109,7 +109,10 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public TaskAlarmInfoVo listByTask(AlarmListReqDto dto) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        return TaskAlarmInfoVo.builder()
+                .nodeInfos(new ArrayList<>())
+                .alarmList(new ArrayList<>())
+                .build();
     }
 
     @Override
@@ -124,7 +127,6 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void delAlarm(String taskId) {
-        throw new BizException("TapOssNonSupportFunctionException");
     }
 
     @Override
@@ -139,7 +141,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public List<AlarmChannelDto> getAvailableChannels() {
-        throw new BizException("TapOssNonSupportFunctionException");
+        return new ArrayList<>();
     }
 
     @Override

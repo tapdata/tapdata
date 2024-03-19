@@ -121,12 +121,13 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public List<InspectDto> findByTaskIdList(List<String> taskIdList) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        Query query = Query.query(Criteria.where("flowId").in(taskIdList).and("is_deleted").ne(true));
+        return findAll(query);
     }
 
     @Override
     public UpdateResult deleteByTaskId(String taskId) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        return null;
     }
 
     @Override
@@ -185,7 +186,6 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public void cleanDeadInspect() {
-        throw new BizException("TapOssNonSupportFunctionException");
     }
 
     @Override
