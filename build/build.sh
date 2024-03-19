@@ -132,8 +132,8 @@ make_docker() {
 
 make_tar() {
   cd $OUTPUT_DIR/
-  cp $TAPDATA_DIR/build/image/Dockerfile .
-  cp $TAPDATA_DIR/build/image/docker-entrypoint.sh .
+  cp $TAPDATA_DIR/build/image/docker-entrypoint.sh ./start.sh
+  chmod +x start.sh
   tar cfz tapdata-$TAG_NAME.tar.gz *
 }
 
