@@ -7,6 +7,8 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.service.BlacklistService;
+import com.tapdata.tm.utils.MailUtils;
+import com.tapdata.tm.utils.SendStatus;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
