@@ -20,7 +20,7 @@ CONNECTOR_DIR="$PROJECT_ROOT_DIR/../tapdata-connectors"
 # frontend directory
 FRONTEND_DIR="$PROJECT_ROOT_DIR/../tapdata-enterprise-web"
 # frontend build mode
-FRONTEND_BUILD_MODE="production"
+FRONTEND_BUILD_MODE="community"
 # tag name
 TAG_NAME="latest"
 # OUTPUT_DIR
