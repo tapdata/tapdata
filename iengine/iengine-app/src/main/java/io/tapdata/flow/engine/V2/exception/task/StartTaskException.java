@@ -1,6 +1,6 @@
 package io.tapdata.flow.engine.V2.exception.task;
 
-import io.tapdata.flow.engine.V2.exception.FlowEngineException;
+import java.io.Serializable;
 
 /**
  * start task exception
@@ -8,7 +8,7 @@ import io.tapdata.flow.engine.V2.exception.FlowEngineException;
  * @author jackin
  * @date 2021/12/1 9:18 PM
  **/
-public class StartTaskException extends FlowEngineException {
+public class StartTaskException extends RuntimeException implements Serializable {
 
 	private static final long serialVersionUID = -412587046981234222L;
 
