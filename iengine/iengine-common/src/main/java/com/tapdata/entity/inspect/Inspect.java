@@ -37,6 +37,7 @@ public class Inspect extends BaseEntity implements Serializable {
 	private String inspectDifferenceMode;
 
 	private InspectTiming timing;
+	private InspectCron inspectCron;
 	private InspectLimit limit;
 
 	private List<InspectTask> tasks;
