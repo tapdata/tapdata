@@ -58,7 +58,11 @@ public class CustomSQLUtil {
             String filter = String.valueOf(filterObj);
             Object obj = null;
             if (cn.hutool.json.JSONUtil.isJson(filter)) {
-                obj = cn.hutool.json.JSONUtil.parseObj(filter);
+                try {
+                    obj = cn.hutool.json.JSONUtil.parseObj(filter);
+                } catch (Exception e) {
+                    obj = cn.hutool.json.JSONUtil.parseArray(filter);
+                }
             }
             if (null != obj) {
                 scan(obj, null, null);
