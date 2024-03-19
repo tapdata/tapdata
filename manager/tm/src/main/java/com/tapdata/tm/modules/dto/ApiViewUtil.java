@@ -67,7 +67,7 @@ public class ApiViewUtil {
                 String testResult = doRequest(module.getIp()+module.getPath(),apiToken);
                 HighlightRenderData responseRender = new HighlightRenderData();
                 if(!StringUtil.isBlank(testResult)){
-                    JSONObject jsonObject = JSONObject.parseObject(testResult);
+                    JSONObject jsonObject = JSON.parseObject(testResult);
                     String jsonFormatString = JSON.toJSONString(jsonObject, SerializerFeature.PrettyFormat,
                             SerializerFeature.WriteMapNullValue,
                             SerializerFeature.WriteDateUseDateFormat);

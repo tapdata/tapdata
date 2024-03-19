@@ -8,6 +8,8 @@ import net.openhft.chronicle.core.threads.InterruptedRuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.ValueOut;
 import org.apache.commons.collections4.CollectionUtils;
@@ -72,6 +74,7 @@ public class AppenderFactory implements Serializable {
 					logger.info("Delete chronic released store file: {}, cycle: {}", file, cycle);
 					FileUtils.deleteQuietly(file);
 				}).build();
+
 		executorService.submit(() -> {
 			ExcerptTailer tailer = cacheLogsQueue.createTailer(OBS_LOGGER_TAILER_ID);
 			while (true) {
