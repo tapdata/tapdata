@@ -66,7 +66,5 @@ public interface IDataPermissionHelper {
     default String signDecode(HttpServletRequest request, String id) {
         return null;
     }
-    default void test1(){
-        System.err.println("11111");
-    };
+
 }
