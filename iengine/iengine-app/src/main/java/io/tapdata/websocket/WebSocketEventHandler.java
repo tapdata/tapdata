@@ -56,7 +56,7 @@ public interface WebSocketEventHandler<T> {
 	 * @param sendMessage
 	 * @return
 	 */
-	default T handle(Map event, SendMessage<WebSocketEventResult> sendMessage) {
+	default T handle(Map event, SendMessage<WebSocketEventResult> sendMessage){
 		return handle(event);
 	}
 

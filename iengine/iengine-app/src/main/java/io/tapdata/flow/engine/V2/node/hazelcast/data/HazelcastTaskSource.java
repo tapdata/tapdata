@@ -13,7 +13,6 @@ import com.tapdata.entity.Stats;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.Source;
 import io.tapdata.common.ClassScanner;
