@@ -17,7 +17,6 @@ import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
-import com.tapdata.tm.autoinspect.constants.TaskStatus;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
@@ -652,7 +651,6 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         }
         return processId;
     }
-
     /**
      * 停止数据校验
      *
