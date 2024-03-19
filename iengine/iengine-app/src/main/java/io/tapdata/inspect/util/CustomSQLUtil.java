@@ -5,7 +5,7 @@ import com.tapdata.entity.inspect.Inspect;
 import com.tapdata.entity.inspect.InspectDataSource;
 import com.tapdata.entity.inspect.InspectTask;
 import io.tapdata.inspect.sql.CustomSQLObject;
-import io.tapdata.inspect.sql.autoUpdate.AutoUpdateFilterTime;
+import io.tapdata.inspect.sql.autoUpdate.AutoUpdateDateFilterTime;
 
 import java.util.Collection;
 import java.util.List;
@@ -110,8 +110,8 @@ public class CustomSQLUtil {
     protected CustomSQLObject<?, ?> getInstance(String functionName) {
         if (null == functionName) return null;
         switch (functionName) {
-            case AutoUpdateFilterTime.FUNCTION_NAME:
-                return new AutoUpdateFilterTime();
+            case AutoUpdateDateFilterTime.FUNCTION_NAME:
+                return new AutoUpdateDateFilterTime();
             default:
                 return null;
         }

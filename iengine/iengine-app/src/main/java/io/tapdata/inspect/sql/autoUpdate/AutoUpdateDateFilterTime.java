@@ -9,8 +9,8 @@ import io.tapdata.inspect.sql.CustomSQLObject;
 import java.util.Calendar;
 import java.util.Date;
 
-public class AutoUpdateFilterTime implements CustomSQLObject<Inspect, Object> {
-    public static final String FUNCTION_NAME = "$autoUpdate";
+public class AutoUpdateDateFilterTime implements CustomSQLObject<Inspect, Object> {
+    public static final String FUNCTION_NAME = "$autoUpdateDate";
 
     @Override
     public Object execute(Inspect inspect, Object functionObj) {
