@@ -45,6 +45,6 @@ public class SmsServiceImpl implements SmsService {
 
     @Override
     public String getTemplateCode(String msgType) {
-        return SmsService.super.getTemplateCode(msgType);
+        throw new BizException("TapOssNonSupportFunctionException");
     }
 }

@@ -46,8 +46,5 @@ public interface SmsService {
     String getTemplateCode(MessageDto messageDto);
 
     String getTemplateCode(MsgTypeEnum msgTypeEnum);
-    default String getTemplateCode(String msgType) {
-        String smsTemplateCode = "";
-        return smsTemplateCode;
-    }
+    String getTemplateCode(String msgType);
 }

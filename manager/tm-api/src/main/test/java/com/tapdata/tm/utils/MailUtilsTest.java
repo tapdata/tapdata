@@ -3,10 +3,10 @@ package com.tapdata.tm.utils;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.entity.Settings;
-import com.tapdata.tm.Settings.service.SettingsServiceImpl;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
-import com.tapdata.tm.message.service.BlacklistServiceImpl;
+import com.tapdata.tm.message.service.BlacklistService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,12 +29,12 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class MailUtilsTest {
     @Mock
-    BlacklistServiceImpl blacklistService;
+    BlacklistService blacklistService;
     @Mock
-    SettingsServiceImpl settingsService;
+    SettingsService settingsService;
 
     @InjectMocks
-    MailUtilsImpl mailUtils;
+    MailUtils mailUtils;
 
     @BeforeEach
     void setup(){
@@ -43,7 +43,6 @@ class MailUtilsTest {
 
     @Test
     void testReadHtmlToString() {
-        new MailUtils(mock(IMailUtils.class));
         Assertions.assertNotEquals(MailUtils.readHtmlToString("mailTemplate.html"),"");
     }
     @Test
