@@ -634,7 +634,6 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
      */
     private String startInspectTask(InspectDto inspectDto, String processId) {
         try {
-            inspectDto = timing(inspectDto);
             String json = JsonUtil.toJsonUseJackson(inspectDto);
             Map<String, Object> data = JsonUtil.parseJson(json, Map.class);
             data.put("type", "data_inspect");
@@ -654,26 +653,6 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         return processId;
     }
 
-    protected InspectDto timing(InspectDto data) {
-        if (null == data) {
-            return new InspectDto();
-        }
-        if ("cron".equals(data.getMode()) && Boolean.TRUE.equals(data.getEnabled())) {
-            Timing timing = data.getTiming();
-            if (null == timing) {
-                return data;
-            }
-            InspectCron cron = new InspectCron();
-            cron.setIntervals(timing.getIntervals());
-            cron.setIntervalsUnit(timing.getIntervalsUnit());
-            int times = Optional.ofNullable(data.getInspectTimes()).orElse(0) + 1;
-            data.setInspectTimes(times);
-            super.update(Query.query(Criteria.where("inspect_id").is(data.getId())), data);
-            cron.setScheduleTimes(times-1);
-            data.setInspectCron(cron);
-        }
-        return data;
-    }
     /**
      * 停止数据校验
      *

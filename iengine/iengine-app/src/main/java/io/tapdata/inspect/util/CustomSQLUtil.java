@@ -6,6 +6,7 @@ import com.tapdata.entity.inspect.InspectDataSource;
 import com.tapdata.entity.inspect.InspectTask;
 import io.tapdata.inspect.sql.CustomSQLObject;
 import io.tapdata.inspect.sql.autoUpdate.AutoUpdateDateFilterTime;
+import org.apache.logging.log4j.Logger;
 
 import java.util.Collection;
 import java.util.List;
@@ -15,9 +16,10 @@ import java.util.Set;
 
 public class CustomSQLUtil {
     protected Inspect inspect;
-
-    public CustomSQLUtil(Inspect inspect) {
+    protected Logger logger;
+    public CustomSQLUtil(Inspect inspect, Logger logger) {
         this.inspect = inspect;
+        this.logger = logger;
     }
 
     public void updateCustomFunction() {
@@ -74,10 +76,11 @@ public class CustomSQLUtil {
         for (String key : keySet) {
             Object value = customCommand.get(key);
             if (null != lastKey) {
-                CustomSQLObject<Object, Object> instance = (CustomSQLObject<Object, Object>) getInstance(key);
+                CustomSQLObject<Object, Map<String, Object>> instance = (CustomSQLObject<Object, Map<String, Object>>) getInstance(key);
                 if (null != instance) {
-                    Object execute = instance.execute(inspect, value);
+                    Object execute = instance.execute(value, customCommand);
                     lastMap.put(lastKey, execute);
+                    logger.info("Auto update field: Original value: {}, updated new value: {}, original configuration: {}", value, execute, customCommand);
                     continue;
                 }
             }

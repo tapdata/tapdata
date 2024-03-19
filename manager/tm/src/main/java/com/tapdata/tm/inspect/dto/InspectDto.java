@@ -5,7 +5,6 @@ import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
-import com.tapdata.tm.inspect.bean.InspectCron;
 import com.tapdata.tm.inspect.bean.Limit;
 import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.bean.Timing;
@@ -111,6 +110,4 @@ public class InspectDto extends SchedulableDto {
 
 		private List<AlarmSettingVO> alarmSettings;
 		private List<AlarmRuleVO> alarmRules;
-    private InspectCron inspectCron; //定时调度规则
-    private Integer inspectTimes; //定时调度次数
 }

@@ -229,7 +229,7 @@ public class InspectService {
 				return;
 			}
 
-			new CustomSQLUtil(inspect).updateCustomFunction();
+			new CustomSQLUtil(inspect, logger).updateCustomFunction();
 			InspectMethod inspectMethod = InspectMethod.get(inspect.getInspectMethod());
 			switch (inspectMethod) {
 				case FIELD:
