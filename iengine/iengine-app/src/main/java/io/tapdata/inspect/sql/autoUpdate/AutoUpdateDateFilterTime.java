@@ -101,7 +101,7 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
     protected Date calculateDate(Date parse, long subtract) {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(parse);
-        calendar.add(Calendar.MILLISECOND, ((Long)subtract).intValue());
+        calendar.add(Calendar.MILLISECOND, -1 * ((Long)subtract).intValue());
         return calendar.getTime();
     }
 }
