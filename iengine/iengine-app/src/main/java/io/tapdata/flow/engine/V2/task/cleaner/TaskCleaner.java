@@ -28,7 +28,6 @@ import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkCacheNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -105,8 +104,6 @@ public abstract class TaskCleaner {
 					dataNodeDestroy(node);
 				} else if (node instanceof CacheNode) {
 					cacheNodeDestroy(node);
-				} else if (node instanceof AggregationProcessorNode) {
-					aggregateNodeDestroy(node);
 				} else if (node instanceof CustomProcessorNode) {
 					customNodeDestroy(node);
 				} else if (node instanceof JoinProcessorNode) {
@@ -144,18 +141,6 @@ public abstract class TaskCleaner {
 			String msg = String.format("Clean custom node state data occur an error: %s, Task: %s(%s), node: %s(%s)", e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId());
 			TaskCleanerException taskCleanerException = new TaskCleanerException(msg, e, true);
 			failed(node, NodeResetDesc.task_reset_custom_node, (System.currentTimeMillis() - startTs), taskCleanerException);
-		}
-	}
-
-	private void aggregateNodeDestroy(Node<?> node) {
-		long startTs = System.currentTimeMillis();
-		try {
-			HazelcastMultiAggregatorProcessor.clearCache(node.getId(), HazelcastUtil.getInstance());
-			succeed(node, NodeResetDesc.task_reset_aggregate_node, (System.currentTimeMillis() - startTs));
-		} catch (Throwable e) {
-			String msg = String.format("Clean aggregate node cache data occur an error: %s\n Task: %s(%s), node: %s(%s)", e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId());
-			TaskCleanerException taskCleanerException = new TaskCleanerException(msg, e, true);
-			failed(node, NodeResetDesc.task_reset_aggregate_node, (System.currentTimeMillis() - startTs), taskCleanerException);
 		}
 	}
 

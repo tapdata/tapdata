@@ -83,7 +83,6 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkCache
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkShareCDCNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
@@ -758,19 +757,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				break;
 			case MERGETABLE:
 				hazelcastNode = new HazelcastMergeNode(
-						DataProcessorContext.newBuilder()
-								.withTaskDto(taskDto)
-								.withNode(node)
-								.withNodes(nodes)
-								.withEdges(edges)
-								.withConfigurationCenter(config)
-								.withTapTableMap(tapTableMap)
-								.withTaskConfig(taskConfig)
-								.build()
-				);
-				break;
-			case AGGREGATION_PROCESSOR:
-				hazelcastNode = new HazelcastMultiAggregatorProcessor(
 						DataProcessorContext.newBuilder()
 								.withTaskDto(taskDto)
 								.withNode(node)
