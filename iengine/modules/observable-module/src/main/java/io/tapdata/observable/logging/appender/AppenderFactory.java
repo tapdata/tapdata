@@ -67,10 +67,10 @@ public class AppenderFactory implements Serializable {
 	private AppenderFactory() {
 		String cacheLogsDir = "." + File.separator + CACHE_QUEUE_DIR;
 		cacheLogsQueue = ChronicleQueue.singleBuilder(cacheLogsDir)
-				.rollCycle(RollCycles.HUGE_DAILY)
-				.storeFileListener((cycle, file) -> {
-					logger.info("Delete chronic released store file: {}, cycle: {}", file, cycle);
-					FileUtils.deleteQuietly(file);
+				.rollCycle(RollCycles.MINUTELY)
+				.storeFileListener((cycle, file) -> {logger.info("Delete chronic released store file: {}, cycle: {}", file, cycle);
+					boolean b = FileUtils.deleteQuietly(file);
+					logger.info("Delete chronic released store file flag {} ", b);
 				}).build();
 		executorService.submit(() -> {
 			ExcerptTailer tailer = cacheLogsQueue.createTailer(OBS_LOGGER_TAILER_ID);
@@ -79,6 +79,7 @@ public class AppenderFactory implements Serializable {
 					final MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
 					boolean success = tailer.readDocument(r -> decodeFromWireIn(r.getValueIn(), builder));
 					if (success) {
+						Thread.sleep(TimeUnit.MINUTES.toMillis(5));
 						MonitoringLogsDto monitoringLogsDto = builder.build();
 						String taskId = monitoringLogsDto.getTaskId();
 						appenderMap.computeIfPresent(taskId, (id, appenders) -> {
