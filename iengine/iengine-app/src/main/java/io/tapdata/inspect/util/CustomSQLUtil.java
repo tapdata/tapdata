@@ -67,7 +67,7 @@ public class CustomSQLUtil {
             if (null != obj) {
                 scan(obj, null, null);
                 try {
-                    params.put("filter", JSONUtil.obj2Json(obj));
+                    params.put("filter", cn.hutool.json.JSONUtil.toJsonStr(obj));
                 } catch (Exception ignore) {
                     // ...
                 }

@@ -50,16 +50,16 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
         }
     }
 
-    protected Long covertTimestamp(Long dateTime, long subtract) {
+    protected Date covertTimestamp(Long dateTime, long subtract) {
         if (dateTime < 0) {
             throw new CoreException("Illegal argument in function: {}, wrong value: {}, the correct key value pairs should be as follows: \"\": {an timestamp which more than zero or a data time string}",
                     getFunctionName(), dateTime, getFunctionName());
         }
         Date covert = covert(new Date(dateTime), subtract);
-        return covert.getTime();
+        return covert;
     }
 
-    protected String covertTime(String dateTime, long subtract) {
+    protected Object covertTime(String dateTime, long subtract) {
         dateTime = replaceDate(dateTime);
         String dateFormat = DateUtil.determineDateFormat(dateTime);
         if (null == dateFormat) {
@@ -68,7 +68,8 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
         }
         Object parse = DateUtil.parse(dateTime);
         Date covert = covert(parse, subtract);
-        return DateUtil.timeStamp2Date(covert.getTime(), dateFormat);
+        //return DateUtil.timeStamp2Date(covert.getTime(), dateFormat);
+        return covert;
     }
 
     protected String replaceDate(String format) {
