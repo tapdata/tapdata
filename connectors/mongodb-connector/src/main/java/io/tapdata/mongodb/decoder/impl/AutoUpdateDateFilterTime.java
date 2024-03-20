@@ -34,7 +34,7 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
             }
         }
         if (null == filter) {
-            throw new CoreException("");
+            throw new IllegalArgumentException("a format value is empty, \"format\" is a required field");
         }
 
 
@@ -44,7 +44,7 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
         if (filter instanceof Number) {
             timestamp = ((Number) filter).longValue();
         } else if (filterValue.matches("^[0-9]*$")) {
-            timestamp = Long.parseLong(String.valueOf(functionObj));
+            timestamp = Long.parseLong(filterValue);
         }
 
         if (null == timestamp) {

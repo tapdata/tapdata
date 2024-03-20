@@ -28,11 +28,10 @@ public class CustomDocumentDecoder extends DocumentCodec {
 
     protected static final Map<String, DoCustomReader> CUSTOM_READER_MAP = new ConcurrentHashMap<>();
 
-    public CustomDocumentDecoder() {
-
-    }
-
     public CustomDocumentDecoder registerCustomReader(String tag, DoCustomReader reader) {
+        if (null == tag || null == reader) {
+            return this;
+        }   
         CUSTOM_READER_MAP.put(tag, reader);
         return this;
     }
@@ -63,7 +62,7 @@ public class CustomDocumentDecoder extends DocumentCodec {
         return document;
     }
 
-    Object readValue(final BsonReader reader,
+    protected Object readValue(final BsonReader reader,
                      final DecoderContext decoderContext,
                      final Transformer valueTransformer,
                      String oldKey) {
