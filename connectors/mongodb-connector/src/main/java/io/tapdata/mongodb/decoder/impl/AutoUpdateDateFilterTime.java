@@ -1,7 +1,7 @@
-package io.tapdata.mongodb.decoder.sql.autoUpdate;
+package io.tapdata.mongodb.decoder.impl;
 
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.mongodb.decoder.sql.CustomSQLObject;
+import io.tapdata.mongodb.decoder.CustomSQLObject;
 import io.tapdata.util.DateUtil;
 
 import java.util.Calendar;

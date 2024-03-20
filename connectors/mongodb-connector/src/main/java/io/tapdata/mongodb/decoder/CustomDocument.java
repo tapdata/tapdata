@@ -1,6 +1,6 @@
-package io.tapdata.mongodb.decoder.sql;
+package io.tapdata.mongodb.decoder;
 
-import io.tapdata.mongodb.decoder.sql.autoUpdate.AutoUpdateDateFilterTime;
+import io.tapdata.mongodb.decoder.impl.AutoUpdateDateFilterTime;
 import org.bson.Document;
 import org.bson.codecs.CustomDocumentDecoder;
 
