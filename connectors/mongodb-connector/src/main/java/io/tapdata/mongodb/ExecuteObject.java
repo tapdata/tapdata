@@ -65,7 +65,7 @@ public class ExecuteObject {
 	private Document getFilter(Object obj) {
 		if (obj != null) {
 			if (obj instanceof Map) {
-				return Document.parse(TapSimplify.toJson(obj));
+				return CustomDocument.parse(TapSimplify.toJson(obj));
 			} else if (obj instanceof String) {
 				return CustomDocument.parse((String) obj);
 			} else {

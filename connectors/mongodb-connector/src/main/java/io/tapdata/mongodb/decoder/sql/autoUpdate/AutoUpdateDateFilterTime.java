@@ -9,7 +9,7 @@ import java.util.Date;
 import java.util.Map;
 
 public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<String, Object>> {
-    public static final String FUNCTION_NAME = "$autoUpdateDate";
+    public static final String FUNCTION_NAME = "$dynamicDate";
     public static final String FILTER_FUNCTION = "format";
     public static final String TO_STRING_FUNCTION = "toString";
     public static final String SUBTRACT_FUNCTION = "subtract";

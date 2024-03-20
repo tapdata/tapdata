@@ -3,9 +3,6 @@ package org.bson.codecs;
 import org.bson.Document;
 import org.bson.codecs.configuration.CodecRegistry;
 
-import java.util.HashMap;
-import java.util.Map;
-
 public class CustomDocumentCodecProvider extends DocumentCodecProvider {
     @Override
     @SuppressWarnings("unchecked")
