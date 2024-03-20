@@ -316,7 +316,7 @@ jobs:
           rsync -r --progress --password-file=/tmp/rsync.passwd output/tapdata-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz rsync://root@58.251.34.123:873/data/enterprise-artifact/gz/
 
   Clean-Build-Temp:
-    runs-on: office-build
+    runs-on: office-scan
     timeout-minutes: 30
     needs:
       - Make-Tar-File
