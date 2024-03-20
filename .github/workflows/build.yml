@@ -134,6 +134,13 @@ jobs:
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
           git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
           cd tapdata && git fetch --tags
+      - name: Get Tapdata Version
+        run: |
+          cd tapdata && tapdata_version=$(git rev-parse --short HEAD) && cd ..
+          mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
+          echo "- tapdata: ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} $tapdata_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata.version
+          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
       - name: compile opensource tapdata
         run: |
           cd tapdata && bash build/build.sh -c tapdata -u false -l "-Dmaven.compile.fork=true -P idaas -P oss"
@@ -169,6 +176,13 @@ jobs:
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
           git clone -b ${{ inputs.connectors_branch }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-connectors.git
           cd tapdata-connectors && git fetch --tags
+      - name: Get Connectors Version
+        run: |
+          cd tapdata-connectors && tapdata_connectors_version=$(git rev-parse --short HEAD) && cd ..
+          mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
+          echo "- tapdata-connectors: ${{ inputs.connectors_branch }} $tapdata_connectors_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata-connectors.version
+          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
       - name: compile tapdata connectors
         run: |
           cd tapdata && bash build/build.sh -c connectors -u false -l "-Dmaven.compile.fork=true"
@@ -200,6 +214,13 @@ jobs:
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
           git clone -b ${{ inputs.frontend_branch }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-enterprise-web.git
           cd tapdata-enterprise-web && git fetch --tags
+      - name: Get Frontend Version
+        run: |
+          cd tapdata-enterprise-web && tapdata_enterprise_web_version=$(git rev-parse --short HEAD) && cd ..
+          mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
+          echo "- tapdata-enterprise-web: ${{ inputs.frontend_branch }} $tapdata_enterprise_web_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata-enterprise-web.version
+          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
       - name: Build Frontend
         run: |
           pnpm config set registry https://registry.npmmirror.com
