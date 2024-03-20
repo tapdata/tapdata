@@ -69,7 +69,7 @@ build_java_component() {
   if [[ "$RUN_UNITTEST" == "false" ]]; then
     run_unittest="-DskipTests"
   fi
-  mvn install $run_unittest $BUILD_ARGS
+  mvn install -T1C $run_unittest $BUILD_ARGS
 }
 
 # build component
