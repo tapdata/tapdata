@@ -259,6 +259,7 @@ jobs:
           mkdir -p output
           rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
           bash build/build.sh -o docker -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
+          docker login -u ${{ secrets.GHCR_LOGIN_USER }} -p ${{ secrets.GHCR_LOGIN_PASS }} ghcr.io
           docker push ghcr.io/tapdata/tapdata:${{ needs.Set-Branch.outputs.TAG_NAME }}
       - name: Print Image Info
         run: |
