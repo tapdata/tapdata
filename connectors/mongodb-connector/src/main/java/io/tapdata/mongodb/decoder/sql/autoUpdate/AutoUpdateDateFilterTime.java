@@ -1,8 +1,8 @@
-package io.tapdata.inspect.sql.autoUpdate;
+package io.tapdata.mongodb.decoder.sql.autoUpdate;
 
-import com.tapdata.constant.DateUtil;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.inspect.sql.CustomSQLObject;
+import io.tapdata.mongodb.decoder.sql.CustomSQLObject;
+import io.tapdata.util.DateUtil;
 
 import java.util.Calendar;
 import java.util.Date;
@@ -10,22 +10,45 @@ import java.util.Map;
 
 public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<String, Object>> {
     public static final String FUNCTION_NAME = "$autoUpdateDate";
-    public static final String SUB_FUNCTION = "$subtract";
+    public static final String FILTER_FUNCTION = "format";
+    public static final String TO_STRING_FUNCTION = "toString";
+    public static final String SUBTRACT_FUNCTION = "subtract";
 
     @Override
     public Object execute(Object functionObj, Map<String, Object> curMap) {
-        Long timestamp = null;
-        String functionValue = String.valueOf(functionObj);
-        long subtract = getSubtract(curMap);
+        Object filter = null;
+        boolean toString = false;
+        long subtract = 0;
+        if (functionObj instanceof Map) {
+            filter = ((Map<String, Object>) functionObj).get(FILTER_FUNCTION);
+            toString = Boolean.TRUE.equals(((Map<String, Object>) functionObj).get(TO_STRING_FUNCTION));
+            Object sub = ((Map<String, Object>) functionObj).get(SUBTRACT_FUNCTION);
+            if (sub instanceof Number) {
+                subtract = ((Number)sub).longValue();
+            } else {
+                try {
+                    subtract = Long.parseLong(String.valueOf(sub));
+                } catch (Exception ignore) {
+                    //
+                }
+            }
+        }
+        if (null == filter) {
+            throw new CoreException("");
+        }
 
-        if (functionObj instanceof Number) {
-            timestamp = ((Number) functionObj).longValue();
-        } else if (functionValue.matches("^[0-9]*$")) {
+
+        Long timestamp = null;
+        String filterValue = String.valueOf(filter);
+
+        if (filter instanceof Number) {
+            timestamp = ((Number) filter).longValue();
+        } else if (filterValue.matches("^[0-9]*$")) {
             timestamp = Long.parseLong(String.valueOf(functionObj));
         }
 
         if (null == timestamp) {
-            return covertTime(functionValue, subtract);
+            return covertTime(filterValue, subtract, toString);
         }
         return covertTimestamp(timestamp, subtract);
     }
@@ -35,31 +58,15 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
         return FUNCTION_NAME;
     }
 
-    protected long getSubtract(Map<String, Object> map) {
-        if (null == map || map.isEmpty() || !map.containsKey(SUB_FUNCTION)) {
-            return 0L;
-        }
-        Object subtractObject = map.get(SUB_FUNCTION);
-        if (subtractObject instanceof Number) {
-            return ((Number)subtractObject).longValue();
-        }
-        try {
-            return Long.parseLong(String.valueOf(subtractObject));
-        } catch (Exception e) {
-            return 0L;
-        }
-    }
-
-    protected Date covertTimestamp(Long dateTime, long subtract) {
+    protected Object covertTimestamp(Long dateTime, long subtract) {
         if (dateTime < 0) {
             throw new CoreException("Illegal argument in function: {}, wrong value: {}, the correct key value pairs should be as follows: \"\": {an timestamp which more than zero or a data time string}",
                     getFunctionName(), dateTime, getFunctionName());
         }
-        Date covert = covert(new Date(dateTime), subtract);
-        return covert;
+        return covert(new Date(dateTime), subtract);
     }
 
-    protected Object covertTime(String dateTime, long subtract) {
+    protected Object covertTime(String dateTime, long subtract, boolean toString) {
         dateTime = replaceDate(dateTime);
         String dateFormat = DateUtil.determineDateFormat(dateTime);
         if (null == dateFormat) {
@@ -68,14 +75,17 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
         }
         Object parse = DateUtil.parse(dateTime);
         Date covert = covert(parse, subtract);
-        //return DateUtil.timeStamp2Date(covert.getTime(), dateFormat);
+        String dateStr = DateUtil.timeStamp2Date(String.valueOf(covert.getTime()), dateFormat);
+        if (toString) {
+            return dateStr;
+        }
         return covert;
     }
 
     protected String replaceDate(String format) {
         Calendar calendar = Calendar.getInstance();
         format = format(format, "%y", String.valueOf(calendar.get(Calendar.YEAR)));
-        format = format(format, "%M", String.valueOf(calendar.get(Calendar.MONTH)));
+        format = format(format, "%M", String.valueOf(calendar.get(Calendar.MONTH)+1));
         format = format(format, "%d", String.valueOf(calendar.get(Calendar.DATE)));
         format = format(format, "%h", String.valueOf(calendar.get(Calendar.HOUR)));
         format = format(format, "%m", String.valueOf(calendar.get(Calendar.YEAR)));

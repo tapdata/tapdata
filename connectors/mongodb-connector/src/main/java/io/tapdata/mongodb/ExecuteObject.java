@@ -1,6 +1,7 @@
 package io.tapdata.mongodb;
 
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.mongodb.decoder.sql.CustomDocument;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import org.bson.Document;
 
@@ -66,7 +67,7 @@ public class ExecuteObject {
 			if (obj instanceof Map) {
 				return Document.parse(TapSimplify.toJson(obj));
 			} else if (obj instanceof String) {
-				return Document.parse((String) obj);
+				return CustomDocument.parse((String) obj);
 			} else {
 				throw new NotSupportedException(obj.toString());
 			}

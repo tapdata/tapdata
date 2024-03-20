@@ -18,7 +18,6 @@ import io.tapdata.inspect.cdc.compare.RowCountInspectCdcJob;
 import io.tapdata.inspect.compare.TableRowContentInspectJob;
 import io.tapdata.inspect.compare.TableRowCountInspectJob;
 import io.tapdata.inspect.compare.TableRowScriptInspectJob;
-import io.tapdata.inspect.util.CustomSQLUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Sort;
@@ -229,7 +228,6 @@ public class InspectService {
 				return;
 			}
 
-			new CustomSQLUtil(inspect, logger).updateCustomFunction();
 			InspectMethod inspectMethod = InspectMethod.get(inspect.getInspectMethod());
 			switch (inspectMethod) {
 				case FIELD:
