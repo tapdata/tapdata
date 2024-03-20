@@ -10,28 +10,20 @@ import com.tapdata.tm.ds.repository.DataSourceRepository;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.worker.service.WorkerService;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.Answers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class DataSourceServiceImplTest {
     DataSourceServiceImpl dataSourceService;
@@ -61,7 +53,7 @@ class DataSourceServiceImplTest {
         }
         @Test
         void testNormal() {
-            Assertions.assertDoesNotThrow(() -> dataSourceService.restoreAccessNodeType(updateDto, connectionDto, accessNodeProcessIdList));
+            assertDoesNotThrow(() -> dataSourceService.restoreAccessNodeType(updateDto, connectionDto, accessNodeProcessIdList));
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(updateDto, times(1)).setAccessNodeType(anyString());
             //verify(updateDto, times(1)).setAccessNodeProcessId(anyString());
@@ -72,7 +64,7 @@ class DataSourceServiceImplTest {
         @Test
         void testNotIsAccessNodeTypeEmpty() {
             when(updateDto.isAccessNodeTypeEmpty()).thenReturn(false);
-            Assertions.assertDoesNotThrow(() -> dataSourceService.restoreAccessNodeType(updateDto, connectionDto, accessNodeProcessIdList));
+            assertDoesNotThrow(() -> dataSourceService.restoreAccessNodeType(updateDto, connectionDto, accessNodeProcessIdList));
             verify(connectionDto, times(0)).getAccessNodeType();
             verify(updateDto, times(0)).setAccessNodeType(anyString());
             //verify(updateDto, times(0)).setAccessNodeProcessId(anyString());
@@ -83,7 +75,7 @@ class DataSourceServiceImplTest {
         @Test
         void testAccessNodeProcessIdListIsEmpty() {
             accessNodeProcessIdList.remove(0);
-            Assertions.assertDoesNotThrow(() -> dataSourceService.restoreAccessNodeType(updateDto, connectionDto, accessNodeProcessIdList));
+            assertDoesNotThrow(() -> dataSourceService.restoreAccessNodeType(updateDto, connectionDto, accessNodeProcessIdList));
             verify(connectionDto, times(0)).getAccessNodeType();
             verify(updateDto, times(0)).setAccessNodeType(anyString());
             //verify(updateDto, times(0)).setAccessNodeProcessId(anyString());
@@ -142,6 +134,76 @@ class DataSourceServiceImplTest {
             when(dataSourceRepository.save(any(),any())).thenReturn(mock(DataSourceEntity.class));
             DataSourceConnectionDto result = dataSourceService.add(new DataSourceConnectionDto(),mock(UserDetail.class));
             Assertions.assertNull(result.getConfig());
+        }
+    }
+
+    @Nested
+    @DisplayName("Method flushDatabaseMetadataInstanceLastUpdate test")
+    class flushDatabaseMetadataInstanceLastUpdateTest {
+
+        private DataSourceRepository dataSourceRepository;
+        private UserDetail userDetail;
+        private long time;
+        private String connectionId;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceRepository = mock(DataSourceRepository.class);
+            dataSourceService = new DataSourceServiceImpl(dataSourceRepository);
+            userDetail = mock(UserDetail.class);
+            time = new Date().getTime();
+            connectionId = new ObjectId().toHexString();
+        }
+
+        @Test
+        @DisplayName("test main process")
+        void testMainProcess() {
+            assertDoesNotThrow(() -> dataSourceService.flushDatabaseMetadataInstanceLastUpdate("finished", connectionId, time, userDetail));
+
+            verify(dataSourceRepository, times(1)).update(any(Query.class), any(Update.class), eq(userDetail));
+        }
+
+        @Test
+        @DisplayName("test field status is not finished")
+        void testFieldStatusNotFinished() {
+            assertDoesNotThrow(()->dataSourceService.flushDatabaseMetadataInstanceLastUpdate("loading", connectionId, time, userDetail));
+
+            verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
+        }
+
+        @Test
+        @DisplayName("test input null field status")
+        void testInputNullFieldStatus() {
+            assertDoesNotThrow(()->dataSourceService.flushDatabaseMetadataInstanceLastUpdate(null, connectionId, time, userDetail));
+
+            verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
+        }
+
+        @Test
+        @DisplayName("test input empty/null connectionId")
+        void testInputEmptyConnectionId() {
+            assertDoesNotThrow(() -> dataSourceService.flushDatabaseMetadataInstanceLastUpdate("finished", "", time, userDetail));
+            assertDoesNotThrow(() -> dataSourceService.flushDatabaseMetadataInstanceLastUpdate("finished", null, time, userDetail));
+
+            verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
+        }
+
+        @Test
+        @DisplayName("test input null, 0L, negative lastUpdate")
+        void testInputInvalidLastUpdate() {
+            assertDoesNotThrow(() -> dataSourceService.flushDatabaseMetadataInstanceLastUpdate("finished", connectionId, -1L, userDetail));
+            assertDoesNotThrow(() -> dataSourceService.flushDatabaseMetadataInstanceLastUpdate("finished", connectionId, 0L, userDetail));
+            assertDoesNotThrow(() -> dataSourceService.flushDatabaseMetadataInstanceLastUpdate("finished", connectionId, null, userDetail));
+
+            verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
+        }
+
+        @Test
+        @DisplayName("test input null userDetail")
+        void inputNullUserDetail() {
+            assertDoesNotThrow(() -> dataSourceService.flushDatabaseMetadataInstanceLastUpdate("finished", connectionId, time, null));
+
+            verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
         }
     }
 }
