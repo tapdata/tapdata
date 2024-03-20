@@ -29,7 +29,7 @@ public class RoleMappingServiceImpl extends RoleMappingService{
 
     @Override
     protected void beforeSave(RoleMappingDto dto, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+//        throw new BizException("TapOssNonSupportFunctionException");
     }
 
     @Override
