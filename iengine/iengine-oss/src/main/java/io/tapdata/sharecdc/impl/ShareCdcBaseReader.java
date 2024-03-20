@@ -10,6 +10,9 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
 import java.io.IOException;
 
 public class ShareCdcBaseReader implements ShareCdcReader {
+    protected ShareCdcBaseReader() {
+        throw new TapOssNonsupportFunctionException();
+    }
     @Override
     public void init(ShareCdcContext shareCdcContext) throws ShareCdcUnsupportedException {
         throw new TapOssNonsupportFunctionException();
