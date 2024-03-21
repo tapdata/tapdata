@@ -29,7 +29,7 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
                 try {
                     subtract = Long.parseLong(String.valueOf(sub));
                 } catch (Exception ignore) {
-                    //
+                    throw new IllegalArgumentException("a subtract value is illegal value, \"subtract\" must be a number");
                 }
             }
         }
