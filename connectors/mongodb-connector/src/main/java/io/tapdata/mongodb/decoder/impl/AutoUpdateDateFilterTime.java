@@ -7,6 +7,7 @@ import io.tapdata.util.DateUtil;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Map;
+import java.util.Optional;
 
 public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<String, Object>> {
     public static final String DYNAMIC_DATE = "$dynamicDate";
@@ -22,7 +23,7 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
         if (functionObj instanceof Map) {
             filter = ((Map<String, Object>) functionObj).get(FORMAT);
             toString = Boolean.TRUE.equals(((Map<String, Object>) functionObj).get(TO_STRING));
-            Object sub = ((Map<String, Object>) functionObj).get(SUBTRACT);
+            Object sub = Optional.ofNullable(((Map<String, Object>) functionObj).get(SUBTRACT)).orElse(0);
             if (sub instanceof Number) {
                 subtract = ((Number)sub).longValue();
             } else {
