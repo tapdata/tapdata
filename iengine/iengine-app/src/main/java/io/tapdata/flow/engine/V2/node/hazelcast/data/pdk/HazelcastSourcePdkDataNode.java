@@ -605,8 +605,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							throw new TapCodeException(ShareCdcReaderExCode_13.UNKNOWN_ERROR, e);
 						}
 					} catch (Exception e) {
-						if (e instanceof TapCodeException) {
-							throw e;
+						Throwable throwable = CommonUtils.matchThrowable(e, TapCodeException.class);
+						if (null != throwable) {
+							throw throwable;
 						} else {
 							throw new TapCodeException(ShareCdcReaderExCode_13.UNKNOWN_ERROR, e);
 						}
