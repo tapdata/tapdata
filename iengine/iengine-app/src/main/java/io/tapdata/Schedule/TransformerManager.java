@@ -917,58 +917,7 @@ public class TransformerManager {
 //    }
 //  }
 
-	@Scheduled(fixedDelay = 5000L)
-	public void changeLogLevel() {
 
-		Setting levelSetting = settingService.getSetting("logLevel");
-		String scriptEngineHttpApender = settingService.getString("scriptEngineHttpAppender", "false");
-		if (levelSetting != null) {
-			Level level = logLevel(levelSetting.getValue());
-
-			String debug = System.getenv("DEBUG");
-			if ("true".equalsIgnoreCase(debug)) {
-				level = Level.DEBUG;
-			}
-
-			if (level != null) {
-				LoggerContext context = LoggerContext.getContext(false);
-				Collection<org.apache.logging.log4j.core.Logger> loggers = context.getLoggers();
-
-				for (org.apache.logging.log4j.core.Logger logger1 : loggers) {
-					final String loggerName = logger1.getName();
-					if (
-							StringUtils.startsWithIgnoreCase(loggerName, "io.tapdata") ||
-									StringUtils.startsWithIgnoreCase(loggerName, "com.tapdata")
-					) {
-						logger1.setLevel(level);
-						if (StringUtils.contains(loggerName, "CustomProcessor")) {
-							final Map<String, Appender> appenders = logger1.get().getAppenders();
-							if ("false".equals(scriptEngineHttpApender)) {
-								if (appenders.containsKey("httpAppender")) {
-									logger1.setAdditive(false);
-									final Map<String, Appender> rootAppenders = context.getRootLogger().getAppenders();
-									for (Appender appender : rootAppenders.values()) {
-										logger1.addAppender(appender);
-									}
-									logger1.get().removeAppender("httpAppender");
-								}
-							} else if (!appenders.containsKey("httpAppender")) {
-								logger1.setAdditive(true);
-//								if (!appenders.containsKey("httpAppender")) {
-//									final CustomHttpAppender httpAppender = context.getConfiguration().getAppender("httpAppender");
-//									logger1.addAppender(httpAppender);
-//								}
-							}
-						}
-					}/* else {
-						logger1.setLevel(level);
-					}*/
-				}
-			}
-		}
-
-//		udpateLogFilter();
-	}
 
 	private void udpateLogFilter() {
 		String newLog4jFilterInterval = settingService.getString("log4jFilterInterval", "20");
@@ -1003,32 +952,7 @@ public class TransformerManager {
 		originLog4jFilterRate = newLog4jFilterRate;
 	}
 
-	private Level logLevel(String levelName) {
 
-		String debug = System.getenv("DEBUG");
-		if ("true".equalsIgnoreCase(debug)) {
-			levelName = "debug";
-		}
-
-		if (StringUtils.isBlank(levelName)) {
-			return Level.INFO;
-		}
-		switch (levelName.toLowerCase()) {
-			case "info":
-				return Level.INFO;
-			case "debug":
-				return Level.DEBUG;
-			case "trace":
-				return Level.TRACE;
-			case "warn":
-				return Level.WARN;
-			case "error":
-				return Level.ERROR;
-			default:
-				return Level.INFO;
-		}
-
-	}
 
 	public Job runningJob(String jobId) {
 
