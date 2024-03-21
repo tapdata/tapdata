@@ -36,7 +36,7 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
             }
         }
         if (null != format && !(format instanceof String)) {
-            throw new IllegalArgumentException("a customFormat value is illegal value, \"" + CUSTOM_FORMAT + "\" must be a date time format string, such as: \"yyyy-MM-dd HH:mm:ss\"");
+            throw new IllegalArgumentException("a customFormat value is illegal value, \"" + CUSTOM_FORMAT + "\" must be a date time format string, such as: \"yyyy-MM-dd HH:mm:ss.SSS\"");
         }
         if (null != toStringFormat && !(toStringFormat instanceof String)) {
             throw new IllegalArgumentException("a toStringFormat value is illegal value, \"" + TO_STRING_FORMAT + "\" must be a date time format string, such as: \"yyyy-MM-dd HH:mm:ss\"");
@@ -60,7 +60,7 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
                 sdf.applyPattern(DEFAULT_DATE_FORMAT);
                 formatDate = sdf.parse(dateFormatStr);
             } catch (Exception e) {
-                throw new CoreException("Illegal argument in function: {}, wrong value: {}, the correct key value pairs should be as follows: \"{}\": \"yyyy-dd-MM hh:mm:ss[.SSSSSS]\", error message: {}",
+                throw new CoreException("Illegal argument in function: {}, wrong value: {}, the correct key value pairs should be as follows: \"{}\": \"yyyy-dd-MM hh:mm:ss.SSS\", error message: {}",
                         getFunctionName(), dateTime, CUSTOM_FORMAT, e.getMessage());
             }
         }
