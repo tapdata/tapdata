@@ -3,9 +3,9 @@ package io.tapdata.observable.logging.appender;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
-import lombok.SneakyThrows;
 import net.openhft.chronicle.core.threads.InterruptedRuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
+import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.ValueIn;
@@ -15,9 +15,9 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import java.io.File;
 import java.io.Serializable;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,37 +68,40 @@ public class AppenderFactory implements Serializable {
 		String cacheLogsDir = "." + File.separator + CACHE_QUEUE_DIR;
 		cacheLogsQueue = ChronicleQueue.singleBuilder(cacheLogsDir)
 				.rollCycle(RollCycles.MINUTELY)
-				.storeFileListener((cycle, file) -> {logger.info("Delete chronic released store file: {}, cycle: {}", file, cycle);
+				.storeFileListener((cycle, file) -> {
+					logger.info("have change");
+					logger.info("Delete chronic released store file: {}, cycle: {}", file, cycle);
 					boolean b = FileUtils.deleteQuietly(file);
 					logger.info("Delete chronic released store file flag {} ", b);
 				}).build();
 		executorService.submit(() -> {
-			ExcerptTailer tailer = cacheLogsQueue.createTailer(OBS_LOGGER_TAILER_ID);
-			while (true) {
-				try {
-					final MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
-					boolean success = tailer.readDocument(r -> decodeFromWireIn(r.getValueIn(), builder));
-					if (success) {
-						Thread.sleep(TimeUnit.MINUTES.toMillis(5));
-						MonitoringLogsDto monitoringLogsDto = builder.build();
-						String taskId = monitoringLogsDto.getTaskId();
-						appenderMap.computeIfPresent(taskId, (id, appenders) -> {
-							if (CollectionUtils.isEmpty(appenders)) {
-								return null;
-							}
-							for (Appender<MonitoringLogsDto> appender : appenders) {
-								if (null == appender) {
-									continue;
+			try (ExcerptTailer tailer = cacheLogsQueue.createTailer(OBS_LOGGER_TAILER_ID)) {
+				while (true) {
+					try {
+						final MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
+						boolean success = tailer.readDocument(r -> decodeFromWireIn(r.getValueIn(), builder));
+						if (success) {
+							Thread.sleep(TimeUnit.MINUTES.toMillis(5));
+							MonitoringLogsDto monitoringLogsDto = builder.build();
+							String taskId = monitoringLogsDto.getTaskId();
+							appenderMap.computeIfPresent(taskId, (id, appenders) -> {
+								if (CollectionUtils.isEmpty(appenders)) {
+									return null;
 								}
-								appender.append(monitoringLogsDto);
-							}
-							return appenders;
-						});
-					} else {
-						emptyWaiting.tryAcquire(1, 200, TimeUnit.MILLISECONDS);
+								for (Appender<MonitoringLogsDto> appender : appenders) {
+									if (null == appender) {
+										continue;
+									}
+									appender.append(monitoringLogsDto);
+								}
+								return appenders;
+							});
+						} else {
+							emptyWaiting.tryAcquire(1, 200, TimeUnit.MILLISECONDS);
+						}
+					} catch (Throwable e) {
+						logger.warn("failed to append task logs, error: {}", e.getMessage(), e);
 					}
-				} catch (Throwable e) {
-					logger.warn("failed to append task logs, error: {}", e.getMessage(), e);
 				}
 			}
 		});
@@ -128,8 +131,8 @@ public class AppenderFactory implements Serializable {
 	}
 
 	public void appendLog(MonitoringLogsDto logsDto) {
-		try {
-			cacheLogsQueue.acquireAppender().writeDocument(w -> {
+		try (ExcerptAppender excerptAppender = cacheLogsQueue.acquireAppender()) {
+				excerptAppender.writeDocument(w -> {
 				final ValueOut valueOut = w.getValueOut();
 				final Date date = logsDto.getDate();
 				final String dateString = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(date);
@@ -160,11 +163,15 @@ public class AppenderFactory implements Serializable {
 		}
 	}
 
-	@SneakyThrows
 	private void decodeFromWireIn(ValueIn valueIn, MonitoringLogsDto.MonitoringLogsDtoBuilder builder) {
 		final String dateString = valueIn.readString();
-		final Date date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").parse(dateString);
-		builder.date(date);
+        final Date date;
+        try {
+            date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").parse(dateString);
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+        builder.date(date);
 		final String level = valueIn.readString();
 		builder.level(level);
 		final String errorStack = valueIn.readString();
