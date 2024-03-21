@@ -13,7 +13,7 @@ public class CustomDocument {
             return new Document();
         }
         return Document.parse(json, new CustomDocumentDecoder()
-                .registerCustomReader(AutoUpdateDateFilterTime.FUNCTION_NAME, originalValue -> new AutoUpdateDateFilterTime().execute(originalValue, null)));
+                .registerCustomReader(AutoUpdateDateFilterTime.DYNAMIC_DATE, originalValue -> new AutoUpdateDateFilterTime().execute(originalValue, null)));
 
     }
 }

@@ -9,10 +9,10 @@ import java.util.Date;
 import java.util.Map;
 
 public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<String, Object>> {
-    public static final String FUNCTION_NAME = "$dynamicDate";
-    public static final String FILTER_FUNCTION = "format";
-    public static final String TO_STRING_FUNCTION = "toString";
-    public static final String SUBTRACT_FUNCTION = "subtract";
+    public static final String DYNAMIC_DATE = "$dynamicDate";
+    public static final String FORMAT = "format";
+    public static final String TO_STRING = "toString";
+    public static final String SUBTRACT = "subtract";
 
     @Override
     public Object execute(Object functionObj, Map<String, Object> curMap) {
@@ -20,9 +20,9 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
         boolean toString = false;
         long subtract = 0;
         if (functionObj instanceof Map) {
-            filter = ((Map<String, Object>) functionObj).get(FILTER_FUNCTION);
-            toString = Boolean.TRUE.equals(((Map<String, Object>) functionObj).get(TO_STRING_FUNCTION));
-            Object sub = ((Map<String, Object>) functionObj).get(SUBTRACT_FUNCTION);
+            filter = ((Map<String, Object>) functionObj).get(FORMAT);
+            toString = Boolean.TRUE.equals(((Map<String, Object>) functionObj).get(TO_STRING));
+            Object sub = ((Map<String, Object>) functionObj).get(SUBTRACT);
             if (sub instanceof Number) {
                 subtract = ((Number)sub).longValue();
             } else {
@@ -55,7 +55,7 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
 
     @Override
     public String getFunctionName() {
-        return FUNCTION_NAME;
+        return DYNAMIC_DATE;
     }
 
     protected Object covertTimestamp(Long dateTime, long subtract) {
