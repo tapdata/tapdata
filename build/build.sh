@@ -127,7 +127,7 @@ make_docker() {
   cd $OUTPUT_DIR/
   cp $TAPDATA_DIR/build/image/Dockerfile .
   cp $TAPDATA_DIR/build/image/docker-entrypoint.sh .
-  docker build -t ghcr.io/tapdata/tapdata:$TAG_NAME .
+  docker build -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME .
 }
 
 make_tar() {
