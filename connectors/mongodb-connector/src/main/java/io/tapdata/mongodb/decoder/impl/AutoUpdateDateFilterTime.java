@@ -11,7 +11,7 @@ import java.util.Optional;
 
 public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<String, Object>> {
     public static final String DYNAMIC_DATE = "$dynamicDate";
-    public static final String FORMAT = "customFormat";
+    public static final String CUSTOM_FORMAT = "customFormat";
     public static final String TO_STRING_FORMAT = "toStringFormat";
     public static final String SUBTRACT = "subtract";
     public static final String DEFAULT_DATE_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS";
@@ -22,7 +22,7 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
         Object toStringFormat = false;
         int subtract = 0;
         if (functionObj instanceof Map) {
-            format = ((Map<String, Object>) functionObj).get(FORMAT);
+            format = ((Map<String, Object>) functionObj).get(CUSTOM_FORMAT);
             toStringFormat = ((Map<String, Object>) functionObj).get(TO_STRING_FORMAT);
             Object sub = Optional.ofNullable(((Map<String, Object>) functionObj).get(SUBTRACT)).orElse(0);
             if (sub instanceof Number) {
@@ -36,7 +36,7 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
             }
         }
         if (null != format && !(format instanceof String)) {
-            throw new IllegalArgumentException("a customFormat value is illegal value, \"" + FORMAT + "\" must be a date time format string, such as: \"yyyy-MM-dd HH:mm:ss\"");
+            throw new IllegalArgumentException("a customFormat value is illegal value, \"" + CUSTOM_FORMAT + "\" must be a date time format string, such as: \"yyyy-MM-dd HH:mm:ss\"");
         }
         if (null != toStringFormat && !(toStringFormat instanceof String)) {
             throw new IllegalArgumentException("a toStringFormat value is illegal value, \"" + TO_STRING_FORMAT + "\" must be a date time format string, such as: \"yyyy-MM-dd HH:mm:ss\"");
@@ -61,7 +61,7 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
                 formatDate = sdf.parse(dateFormatStr);
             } catch (Exception e) {
                 throw new CoreException("Illegal argument in function: {}, wrong value: {}, the correct key value pairs should be as follows: \"{}\": \"yyyy-dd-MM hh:mm:ss[.SSSSSS]\", error message: {}",
-                        getFunctionName(), dateTime, FORMAT, e.getMessage());
+                        getFunctionName(), dateTime, CUSTOM_FORMAT, e.getMessage());
             }
         }
 
