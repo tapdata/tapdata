@@ -19,7 +19,7 @@ public class DynamicDateFilterTime implements CustomSQLObject<Object, Map<String
     @Override
     public Object execute(Object functionObj, Map<String, Object> curMap) {
         Object format = null;
-        Object toStringFormat = false;
+        Object toStringFormat = null;
         int subtract = 0;
         if (functionObj instanceof Map) {
             format = ((Map<String, Object>) functionObj).get(CUSTOM_FORMAT);
