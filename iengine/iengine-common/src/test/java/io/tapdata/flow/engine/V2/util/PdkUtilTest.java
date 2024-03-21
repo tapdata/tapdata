@@ -53,7 +53,7 @@ public class PdkUtilTest {
                     mb.when(() -> PDKIntegration.refreshJars(anyString())).thenAnswer(invocationOnMock -> null);
                     try (MockedStatic<PdkSourceUtils> pdkSourceUtilsMockedStatic = Mockito
                             .mockStatic(PdkSourceUtils.class)) {
-                        pdkSourceUtilsMockedStatic.when(() -> PdkSourceUtils.getFileMD5(any())).thenReturn("1234567890123456").thenReturn("123456");
+                        pdkSourceUtilsMockedStatic.when(() -> PdkSourceUtils.getFileMD5(any(File.class))).thenReturn("1234567890123456").thenReturn("123456");
                         String dir = System.getProperty("user.dir") + File.separator + "dist";
                         fileMd5Map = new ConcurrentHashMap();
                         fileMd5Map.put(dir + "/mysql__67890__.jar", "1234567890123456");
@@ -77,7 +77,7 @@ public class PdkUtilTest {
                     mb.when(() -> PDKIntegration.refreshJars(anyString())).thenAnswer(invocationOnMock -> null);
                     try (MockedStatic<PdkSourceUtils> pdkSourceUtilsMockedStatic = Mockito
                             .mockStatic(PdkSourceUtils.class)) {
-                        pdkSourceUtilsMockedStatic.when(() -> PdkSourceUtils.getFileMD5(any())).thenReturn("1234567890123456").thenReturn("123456");
+                        pdkSourceUtilsMockedStatic.when(() -> PdkSourceUtils.getFileMD5(any(File.class))).thenReturn("1234567890123456").thenReturn("123456");
                         String dir = System.getProperty("user.dir") + File.separator + "dist";
                         File file = new File(dir + "/mysql__67890__.jar");
                         file.createNewFile();
@@ -103,7 +103,7 @@ public class PdkUtilTest {
                 fileUtilsMockedStatic.when(()->FileUtils.deleteQuietly(any())).thenAnswer(invocationOnMock -> null);
                 try (MockedStatic<PdkSourceUtils> mb = Mockito
                         .mockStatic(PdkSourceUtils.class)) {
-                    mb.when(() -> PdkSourceUtils.getFileMD5(any())).thenReturn("123456");
+                    mb.when(() -> PdkSourceUtils.getFileMD5(any(File.class))).thenReturn("123456");
                     String dir = System.getProperty("user.dir") + File.separator + "dist";
                     File theFilePath = new File(dir + "/mysql__67890__.jar");
                     when(httpClientMongoOperator.findOne(anyMap(), anyString(), any())).thenReturn("123456");
@@ -120,7 +120,7 @@ public class PdkUtilTest {
                 fileUtilsMockedStatic.when(() -> FileUtils.deleteQuietly(any())).thenAnswer(invocationOnMock -> null);
                 try (MockedStatic<PdkSourceUtils> mb = Mockito
                         .mockStatic(PdkSourceUtils.class)) {
-                    mb.when(() -> PdkSourceUtils.getFileMD5(any())).thenReturn("111111").thenReturn("123456");
+                    mb.when(() -> PdkSourceUtils.getFileMD5(any(File.class))).thenReturn("111111").thenReturn("123456");
                     try (MockedStatic<CommonUtils> commonUtilsMockedStatic = Mockito
                             .mockStatic(CommonUtils.class)) {
                         commonUtilsMockedStatic.when(CommonUtils::getPdkBuildNumer).thenReturn(1);

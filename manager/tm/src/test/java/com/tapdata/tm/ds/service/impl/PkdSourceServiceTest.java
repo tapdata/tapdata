@@ -22,7 +22,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
@@ -64,19 +63,6 @@ public class PkdSourceServiceTest {
             pkdSourceService.uploadPdk(files,pdkSourceDtos,latest,user);
             verify(fileService).storeFile(any(),anyString(),any(),anyMap());
             FileUtils.deleteQuietly(new File("a.jar"));
-        }
-    }
-    @Nested
-    class inputStreamToFileTest{
-        @Test
-        @SneakyThrows
-        void testInputStreamToFile(){
-            InputStream ins = mock(InputStream.class);
-            when(ins.read(any())).thenReturn(-1);
-            File file = new File("a.jar");
-            file.createNewFile();
-            assertDoesNotThrow(()->PkdSourceService.inputStreamToFile(ins,file));
-            file.delete();
         }
     }
     @Nested

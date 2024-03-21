@@ -30,10 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.commons.CommonsMultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -125,17 +122,9 @@ public class PkdSourceService {
 			ObjectId jarObjectId = null;
 			ObjectId iconObjectId = null;
 			Map<String, String> langMap = Maps.newHashMap();
-			try (InputStream ins = jarFile.getInputStream()){
+			try {
 				Map<String, Object> fileInfo = Maps.newHashMap();
-				File file = new File(jarFile.getName());
-				String md5 = null;
-				if (!file.exists()){
-					inputStreamToFile(ins,file);
-					md5 = PdkSourceUtils.getFileMD5(file);
-					FileUtils.deleteQuietly(file);
-				}else {
-					md5 = PdkSourceUtils.getFileMD5(file);
-				}
+				String md5 = PdkSourceUtils.getFileMD5(jarFile);
 				fileInfo.put("pdkHash", pdkHash);
 				fileInfo.put("pdkAPIBuildNumber", pdkAPIBuildNumber);
 				fileInfo.put("md5", md5);
@@ -230,15 +219,6 @@ public class PkdSourceService {
 				}
 			});
 
-		}
-	}
-	protected static void inputStreamToFile(InputStream ins, File file) throws IOException{
-		try (FileOutputStream os = new FileOutputStream(file)){
-			int bytesRead = 0;
-			byte[] buffer = new byte[1024];
-			while ((bytesRead = ins.read(buffer)) != -1) {
-				os.write(buffer, 0, bytesRead);
-			}
 		}
 	}
 	public String checkJarMD5(String pdkHash, String fileName){

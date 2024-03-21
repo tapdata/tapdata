@@ -64,7 +64,8 @@ public class PdkUtil {
 			try {
 				// create the dir used for storing the pdk jar file if the dir not exists
 				boolean needDownload = true;
-				while (needDownload) {
+				int retries = 0;
+				while (needDownload && retries < 3) {
 					String dir = System.getProperty("user.dir") + File.separator + "dist";
 					File folder = new File(dir);
 					if (!folder.exists()) {
@@ -97,6 +98,7 @@ public class PdkUtil {
 						PDKIntegration.refreshJars(filePath.toString());
 					}
 					needDownload = reDownloadIfNeed(httpClientMongoOperator, pdkHash, fileName, theFilePath);
+					retries++;
 				}
 			} catch (IOException e) {
 				throw new RuntimeException(e);
