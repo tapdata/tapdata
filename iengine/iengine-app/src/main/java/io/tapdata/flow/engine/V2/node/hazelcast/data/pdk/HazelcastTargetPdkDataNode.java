@@ -70,7 +70,7 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
  **/
 public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
-	public static final int MAX_INDEX_FIELDS_COUNT = 10;
+	public static final int MAX_INDEX_FIELDS_COUNT = 16;
 	public static final int MAX_RECORD_OBS_WARN = 3;
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkDataNode.class);
 	private ClassHandlers ddlEventHandlers;
@@ -236,7 +236,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				return;
 			}
 			if (updateConditionFields.size() > MAX_INDEX_FIELDS_COUNT) {
-				obsLogger.warn("Table " + tableId + " index field exceeds the maximum value of 10, the index will not be created automatically, please create it manually");
+				obsLogger.warn("Table " + tableId + " index field exceeds the maximum value of 16, the index will not be created automatically, please create it manually");
 				return;
 			}
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
