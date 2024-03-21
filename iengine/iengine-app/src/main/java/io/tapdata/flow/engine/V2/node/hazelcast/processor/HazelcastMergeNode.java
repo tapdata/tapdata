@@ -272,7 +272,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		List<BatchProcessResult> batchProcessResults = new ArrayList<>();
 		List<CompletableFuture<Void>> lookupCfs = new ArrayList<>();
 		List<BatchEventWrapper> batchCache = new ArrayList<>();
-		Boolean lastNeedCache = null;
 		if (this.createIndexEvent != null) {
 			BatchProcessResult batchProcessResult = new BatchProcessResult(new BatchEventWrapper(this.createIndexEvent), null);
 			batchProcessResults.add(batchProcessResult);
@@ -282,46 +281,20 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 		handleBatchUpdateJoinKey(tapdataEvents);
 		for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
-			TapdataEvent tapdataEvent = batchEventWrapper.getTapdataEvent();
-			boolean needCache = needCache(tapdataEvent);
-			if (null == lastNeedCache) {
-				lastNeedCache = needCache;
+			if (Boolean.TRUE.equals(needCache(batchEventWrapper.getTapdataEvent()))) {
+				batchCache.add(batchEventWrapper);
 			}
-			if (!tapdataEvent.isDML() || !Boolean.valueOf(needCache).equals(lastNeedCache)) {
-				if (lastNeedCache) {
-					doBatchCache(batchCache);
-					loggerBatchUpdateCache(batchCache);
-				}
-				doBatchLookUpConcurrent(batchCache, lookupCfs);
-				for (BatchEventWrapper eventWrapper : batchCache) {
-					String preTableName = getPreTableName(eventWrapper.getTapdataEvent());
-					batchProcessResults.add(new BatchProcessResult(eventWrapper, ProcessResult.create().tableId(preTableName)));
-				}
-				acceptIfNeed(consumer, batchProcessResults, lookupCfs);
-				batchCache.clear();
-				batchProcessResults.clear();
-				lookupCfs.clear();
-			}
-			wrapMergeInfo(tapdataEvent);
-			batchCache.add(batchEventWrapper);
-			lastNeedCache = needCache;
+			wrapMergeInfo(batchEventWrapper.getTapdataEvent());
 		}
 		if (CollectionUtils.isNotEmpty(batchCache)) {
-			if (null != lastNeedCache && lastNeedCache) {
-				doBatchCache(batchCache);
-				loggerBatchUpdateCache(batchCache);
-			}
-			for (BatchEventWrapper eventWrapper : batchCache) {
-				String preTableName = getPreTableName(eventWrapper.getTapdataEvent());
-				batchProcessResults.add(new BatchProcessResult(eventWrapper, ProcessResult.create().tableId(preTableName)));
-			}
+			doBatchCache(batchCache);
 		}
-
-		doBatchLookUpConcurrent(batchCache, lookupCfs);
-
-		if (CollectionUtils.isNotEmpty(batchProcessResults)) {
-			acceptIfNeed(consumer, batchProcessResults, lookupCfs);
+		doBatchLookUpConcurrent(tapdataEvents, lookupCfs);
+		for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
+			String preTableName = getPreTableName(batchEventWrapper.getTapdataEvent());
+			batchProcessResults.add(new BatchProcessResult(batchEventWrapper, ProcessResult.create().tableId(preTableName)));
 		}
+		acceptIfNeed(consumer, batchProcessResults, lookupCfs);
 		batchProcessMetrics.processCost(System.currentTimeMillis() - startMS, tapdataEvents.size());
 		this.lastBatchProcessFinishMS = System.currentTimeMillis();
 	}
