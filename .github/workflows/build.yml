@@ -1,4 +1,4 @@
-name: Docker Image Construction
+name: OpenSource Version Construction
 
 on:
   workflow_dispatch:
