@@ -1,10 +1,8 @@
-name: Docker Image Construction
+name: OpenSource Version Construction
 
 on:
   push:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
-  pull_request:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
+    branches: [ "main", "release-v*" ]
 
 env:
   REGISTRY: ghcr.io
