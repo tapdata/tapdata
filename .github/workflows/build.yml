@@ -1,4 +1,4 @@
-name: Docker Image Construction
+name: OpenSource Version Construction
 
 on:
   workflow_dispatch:
@@ -235,7 +235,7 @@ jobs:
           rsync -r --password-file=/tmp/rsync.passwd temp/ rsync://root@192.168.1.184:873/data/temp/
 
   Build-Image:
-    runs-on: office-scan
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     needs:
       - Build-Tapdata
@@ -247,17 +247,18 @@ jobs:
         run: |
           rm -rf ./*
       - name: Checkout Tapdata Repo
-        run: |
-          rm -rf tapdata
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
-          cd tapdata && git fetch --tags
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }}
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata
+          fetch-depth: 0
       - name: Package and Push Image
         run: |
           cd tapdata
           echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
           mkdir -p output
-          rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
+          rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@${{ secrets.RSYNC_PUBLIC_HOST }}:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
           bash build/build.sh -o docker -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
           docker login -u ${{ secrets.GHCR_LOGIN_USER }} -p ${{ secrets.GHCR_LOGIN_PASS }} ghcr.io
           docker push ghcr.io/tapdata/tapdata:${{ needs.Set-Branch.outputs.TAG_NAME }}
@@ -267,15 +268,17 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "ghcr.io/tapdata/tapdata:${{ needs.Set-Branch.outputs.TAG_NAME }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-      - name: Checkout Tapdata Application
-        run: |
-          rm -rf tapdata-application
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b version --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata-application.git
+      - name: Checkout Tapdata Application Code
+        uses: actions/checkout@v3
+        with:
+          repository: 'tapdata/tapdata-application'
+          ref: version
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-application
       - name: Add Commit ID and Version Map
         run: |
           echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
-          rsync -r --progress --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/version/${{ needs.Set-Branch.outputs.TAG_NAME }}/ ./
+          rsync -r --progress --password-file=/tmp/rsync.passwd rsync://root@${{ secrets.RSYNC_PUBLIC_HOST }}:873/data/version/${{ needs.Set-Branch.outputs.TAG_NAME }}/ ./
           echo "## ${{ needs.Set-Branch.outputs.TAG_NAME }}" >> tapdata-application/README.md
           cat tapdata.version >> tapdata-application/README.md
           cat tapdata-enterprise-web.version >> tapdata-application/README.md
