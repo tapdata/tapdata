@@ -60,7 +60,7 @@ public class AutoUpdateDateFilterTime implements CustomSQLObject<Object, Map<Str
     }
 
     protected Object covertTimestamp(Long dateTime, long subtract) {
-        if (dateTime < 0) {
+        if (null == dateTime) {
             throw new CoreException("Illegal argument in function: {}, wrong value: {}, the correct key value pairs should be as follows: \"\": {an timestamp which more than zero or a data time string}",
                     getFunctionName(), dateTime, getFunctionName());
         }
