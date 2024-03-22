@@ -288,6 +288,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 		if (CollectionUtils.isNotEmpty(batchCache)) {
 			doBatchCache(batchCache);
+			loggerBatchUpdateCache(batchCache);
 		}
 		doBatchLookUpConcurrent(tapdataEvents, lookupCfs);
 		for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
@@ -297,6 +298,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		acceptIfNeed(consumer, batchProcessResults, lookupCfs);
 		batchProcessMetrics.processCost(System.currentTimeMillis() - startMS, tapdataEvents.size());
 		this.lastBatchProcessFinishMS = System.currentTimeMillis();
+
+		// Let jvm gc
+		lookupCfs = null;
+		batchCache = null;
 	}
 
 	private void doBatchLookUpConcurrent(List<BatchEventWrapper> batchCache, List<CompletableFuture<Void>> lookupCfs) {
@@ -729,7 +734,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		BeanUtils.copyProperties(externalStorageDto, externalStorageDtoCopy);
 		externalStorageDtoCopy.setTable(null);
 		externalStorageDtoCopy.setInMemSize(inMemSize);
-		externalStorageDtoCopy.setWriteDelaySeconds(1);
+		externalStorageDtoCopy.setWriteDelaySeconds(0);
 		externalStorageDtoCopy.setTtlDay(0);
 		return externalStorageDtoCopy;
 	}
@@ -1304,6 +1309,11 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return Base64.getEncoder().encodeToString(str.getBytes(StandardCharsets.UTF_8));
 	}
 
+	public static void main(String[] args) {
+		String s = "601260";
+		System.out.println(Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)));
+	}
+
 	private List<String> getJoinKeys(List<Map<String, String>> joinKeys, JoinConditionType joinConditionType) {
 		if (null == joinKeys) {
 			return Collections.emptyList();
@@ -1432,8 +1442,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				String encodeJoinValueKey = encode(joinValueKey);
 				try {
 					findData = hazelcastConstruct.find(encodeJoinValueKey);
-					if (nodeLogger.isDebugEnabled()) {
-						nodeLogger.debug("Lookup find data filter: {}({}), result: {}", joinValueKey, encodeJoinValueKey, findData);
+					if (nodeLogger.isDebugEnabled() || true) {
+						nodeLogger.info("Lookup find data filter: {}({}), result: {}", joinValueKey, encodeJoinValueKey, findData);
 					}
 				} catch (Exception e) {
 					throw new TapCodeException(TaskMergeProcessorExCode_16.LOOK_UP_FIND_BY_JOIN_KEY_FAILED, String.format("- Find construct name: %s%n- Join key: %s%n- Encoded join key: %s", hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey), e);
