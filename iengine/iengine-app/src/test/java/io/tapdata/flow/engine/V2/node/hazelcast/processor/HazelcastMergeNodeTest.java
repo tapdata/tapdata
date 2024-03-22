@@ -14,7 +14,6 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
 import io.tapdata.entity.event.TapEvent;
@@ -31,6 +30,8 @@ import io.tapdata.error.TaskMergeProcessorExCode_16;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -55,6 +56,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.io.File;
 import java.time.Instant;
 import java.util.*;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -98,8 +100,13 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			try (
 					MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class);
 					MockedStatic<ExternalStorageUtil> externalStorageUtilMockedStatic = mockStatic(ExternalStorageUtil.class);
-					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class)
+					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class);
+					MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)
 			) {
+				ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+				ObsLogger nodeLogger = mock(ObsLogger.class);
+				when(obsLoggerFactory.getObsLogger(anyString(), anyString())).thenReturn(nodeLogger);
+				obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
 				appTypeMockedStatic.when(AppType::init).thenReturn(appType);
 				externalStorageUtilMockedStatic.when(() -> ExternalStorageUtil.getTargetNodeExternalStorage(
 						dataProcessorContext.getNode(),
@@ -129,8 +136,13 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			try (
 					MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class);
 					MockedStatic<ExternalStorageUtil> externalStorageUtilMockedStatic = mockStatic(ExternalStorageUtil.class);
-					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class)
+					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class);
+					MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)
 			) {
+				ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+				ObsLogger nodeLogger = mock(ObsLogger.class);
+				when(obsLoggerFactory.getObsLogger(anyString(), anyString())).thenReturn(nodeLogger);
+				obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
 				appTypeMockedStatic.when(AppType::init).thenReturn(appType);
 				externalStorageUtilMockedStatic.when(() -> ExternalStorageUtil.getTargetNodeExternalStorage(
 						dataProcessorContext.getNode(),
@@ -1608,68 +1620,78 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(id, data.get("_id"));
 		}
 	}
+
 	@Nested
-	class NeedCacheTest{
+	@DisplayName("Method needCache test")
+	class NeedCacheTest {
 		private HazelcastMergeNode mockHazelcastMergeNode;
 		List<String> needCacheList = new ArrayList<>();
+
 		@BeforeEach
-		void setUp(){
+		void setUp() {
 			needCacheList.add("123");
 			mockHazelcastMergeNode = spy(hazelcastMergeNode);
-			ReflectionTestUtils.setField(mockHazelcastMergeNode,"needCacheIdList",needCacheList);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "needCacheIdList", needCacheList);
 		}
+
 		@DisplayName("test task is initalSync and mergeMode is not subTableFirst")
 		@Test
-		void test1(){
+		void test1() {
 			processorBaseContext.getTaskDto().setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
 			TapdataEvent tapdataEvent = new TapdataEvent();
 			tapdataEvent.addNodeId("123");
 			when(mockHazelcastMergeNode.isSubTableFirstMode()).thenReturn(false);
 			boolean result = mockHazelcastMergeNode.needCache(tapdataEvent);
-			assertEquals(false,result);
+			assertEquals(false, result);
 		}
+
 		@DisplayName("test task is initalSync and mergeMode is subTableFirst")
 		@Test
-		void test2(){
+		void test2() {
 			TapdataEvent tapdataEvent = new TapdataEvent();
 			tapdataEvent.addNodeId("123");
 			TapUpdateRecordEvent tapUpdateRecordEvent = TapUpdateRecordEvent.create().init();
 			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
 			when(mockHazelcastMergeNode.isSubTableFirstMode()).thenReturn(true);
 			boolean result = mockHazelcastMergeNode.needCache(tapdataEvent);
-			assertEquals(true,result);
+			assertEquals(true, result);
 		}
+
 		@DisplayName("test task is initalSync and mergeMode is subTableFirst ,but nodeList not contain id")
 		@Test
-		void test3(){
+		void test3() {
 			TapdataEvent tapdataEvent = new TapdataEvent();
 			tapdataEvent.addNodeId("1234");
 			TapUpdateRecordEvent tapUpdateRecordEvent = TapUpdateRecordEvent.create().init();
 			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
 			when(mockHazelcastMergeNode.isSubTableFirstMode()).thenReturn(true);
 			boolean result = mockHazelcastMergeNode.needCache(tapdataEvent);
-			assertEquals(false,result);
+			assertEquals(false, result);
 		}
 	}
+
 	@Nested
-	class NeedLookUpTest{
+	@DisplayName("Method needLookup test")
+	class NeedLookUpTest {
 		private HazelcastMergeNode mockHazelcastMergeNode;
 		List<String> needCacheList = new ArrayList<>();
-		private Map<String, List<MergeTableProperties>> lookupMap=new HashMap<>();
-		private Set<String> firstLevelMergeNodeIds=new HashSet<>();
+		private Map<String, List<MergeTableProperties>> lookupMap = new HashMap<>();
+		private Set<String> firstLevelMergeNodeIds = new HashSet<>();
+
 		@BeforeEach
-		void setUp(){
+		void setUp() {
 			needCacheList.add("123");
 			mockHazelcastMergeNode = spy(hazelcastMergeNode);
-			ReflectionTestUtils.setField(mockHazelcastMergeNode,"needCacheIdList",needCacheList);
-			List<MergeTableProperties> mergeTableProperties=new ArrayList<>();
-			lookupMap.put("123",mergeTableProperties);
-			ReflectionTestUtils.setField(mockHazelcastMergeNode,"lookupMap",lookupMap);
-			ReflectionTestUtils.setField(mockHazelcastMergeNode,"firstLevelMergeNodeIds",firstLevelMergeNodeIds);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "needCacheIdList", needCacheList);
+			List<MergeTableProperties> mergeTableProperties = new ArrayList<>();
+			lookupMap.put("123", mergeTableProperties);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "lookupMap", lookupMap);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "firstLevelMergeNodeIds", firstLevelMergeNodeIds);
 		}
+
 		@DisplayName("test task is initalSync and mergeMode is mainTableFirst")
 		@Test
-		void test1(){
+		void test1() {
 			processorBaseContext.getTaskDto().setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
 			TapdataEvent tapdataEvent = new TapdataEvent();
 			tapdataEvent.addNodeId("123");
@@ -1677,11 +1699,12 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
 			when(mockHazelcastMergeNode.isSubTableFirstMode()).thenReturn(false);
 			boolean result = mockHazelcastMergeNode.needLookup(tapdataEvent);
-			assertEquals(false,result);
+			assertEquals(false, result);
 		}
+
 		@DisplayName("test task is initalSync, mergeMode is subTableFirst and tapevent is first level node")
 		@Test
-		void test2(){
+		void test2() {
 			firstLevelMergeNodeIds.add("123");
 			processorBaseContext.getTaskDto().setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
 			TapdataEvent tapdataEvent = new TapdataEvent();
@@ -1691,32 +1714,85 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
 			when(mockHazelcastMergeNode.isSubTableFirstMode()).thenReturn(true);
 			boolean result = mockHazelcastMergeNode.needLookup(tapdataEvent);
-			assertEquals(true,result);
+			assertEquals(true, result);
 		}
 	}
+
 	@Nested
-	class InitMergeCacheTest{
+	@DisplayName("Method initMergeCache test")
+	class InitMergeCacheTest {
 		private HazelcastMergeNode mockHazelcastMergeNode;
+
 		@BeforeEach
-		void setUp(){
-			mockHazelcastMergeNode=spy(hazelcastMergeNode);
+		void setUp() {
+			mockHazelcastMergeNode = spy(hazelcastMergeNode);
 		}
+
 		@Test
-		void test1(){
+		void test1() {
 			processorBaseContext.getTaskDto().setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
 			mockHazelcastMergeNode.initMergeCache();
-			Map<String, ConstructIMap<Document>> cacheMap= (Map<String, ConstructIMap<Document>>) ReflectionTestUtils.getField(mockHazelcastMergeNode, "mergeCacheMap");
+			Map<String, ConstructIMap<Document>> cacheMap = (Map<String, ConstructIMap<Document>>) ReflectionTestUtils.getField(mockHazelcastMergeNode, "mergeCacheMap");
 			when(mockHazelcastMergeNode.isSubTableFirstMode()).thenReturn(false);
-			assertEquals(null,cacheMap);
+			assertEquals(null, cacheMap);
 		}
+
 		@Test
-		void test2(){
+		void test2() {
 			processorBaseContext.getTaskDto().setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
 			when(mockHazelcastMergeNode.isSubTableFirstMode()).thenReturn(true);
 			mockHazelcastMergeNode.initMergeCache();
 			Map<String, ConstructIMap<Document>> cacheMap = (Map<String, ConstructIMap<Document>>) ReflectionTestUtils.getField(mockHazelcastMergeNode, "mergeCacheMap");
 			boolean mapIsNull = cacheMap != null;
-			assertEquals(true,mapIsNull);
+			assertEquals(true, mapIsNull);
+		}
+	}
+
+	@Nested
+	@DisplayName("Method tryProcess list test")
+	class tryProcessListTest {
+		@BeforeEach
+		void setUp() {
+			hazelcastMergeNode = spy(hazelcastMergeNode);
+			ObsLogger nodeLogger = mock(ObsLogger.class);
+			when(nodeLogger.isDebugEnabled()).thenReturn(true);
+			ReflectionTestUtils.setField(hazelcastMergeNode, "nodeLogger", nodeLogger);
+			HazelcastMergeNode.BatchProcessMetrics batchProcessMetrics = mock(HazelcastMergeNode.BatchProcessMetrics.class);
+			ReflectionTestUtils.setField(hazelcastMergeNode, "batchProcessMetrics", batchProcessMetrics);
+			TapdataEvent createIndexEvent = mock(TapdataEvent.class);
+			ReflectionTestUtils.setField(hazelcastMergeNode, "createIndexEvent", createIndexEvent);
+		}
+
+		@Test
+		void testMainProcess() {
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			HazelcastProcessorBaseNode.BatchEventWrapper batchEventWrapper = new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataEvent);
+			List<HazelcastProcessorBaseNode.BatchEventWrapper> batchEventWrappers = new ArrayList<>();
+			batchEventWrappers.add(batchEventWrapper);
+			Consumer<List<HazelcastProcessorBaseNode.BatchProcessResult>> consumer = o -> assertEquals(batchEventWrappers.size(), o.size());
+			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).handleBatchUpdateJoinKey(any(List.class));
+			doReturn(true).when(hazelcastMergeNode).needCache(any(TapdataEvent.class));
+			doAnswer(invocation -> null).when(hazelcastMergeNode).wrapMergeInfo(any(TapdataEvent.class));
+			doAnswer(invocationOnMock -> {
+				Object argument1 = invocationOnMock.getArgument(0);
+				assertInstanceOf(ArrayList.class, argument1);
+				assertEquals(batchEventWrappers.size(), ((ArrayList<HazelcastProcessorBaseNode.BatchEventWrapper>) argument1).size());
+				return null;
+			}).when(hazelcastMergeNode).doBatchCache(any(List.class));
+			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).loggerBatchUpdateCache(any(List.class));
+			doAnswer(invocationOnMock -> {
+				Object argument1 = invocationOnMock.getArgument(0);
+				assertInstanceOf(ArrayList.class, argument1);
+				assertEquals(batchEventWrappers.size(), ((ArrayList<HazelcastProcessorBaseNode.BatchEventWrapper>) argument1).size());
+				return null;
+			}).when(hazelcastMergeNode).doBatchLookUpConcurrent(any(List.class), any(List.class));
+			doReturn("test").when(hazelcastMergeNode).getPreTableName(any(TapdataEvent.class));
+			doAnswer(invocationOnMock -> null).when(hazelcastMergeNode).acceptIfNeed(any(Consumer.class), any(List.class), any(List.class));
+
+			assertDoesNotThrow(() -> hazelcastMergeNode.tryProcess(batchEventWrappers, consumer));
+
+			verify(hazelcastMergeNode, times(1)).doBatchCache(any(List.class));
+			verify(hazelcastMergeNode, times(1)).doBatchLookUpConcurrent(any(List.class), any(List.class));
 		}
 	}
 }

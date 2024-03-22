@@ -304,7 +304,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		batchCache = null;
 	}
 
-	private void doBatchLookUpConcurrent(List<BatchEventWrapper> batchCache, List<CompletableFuture<Void>> lookupCfs) {
+	protected void doBatchLookUpConcurrent(List<BatchEventWrapper> batchCache, List<CompletableFuture<Void>> lookupCfs) {
 		batchCache.forEach(eventWrapper -> {
 			if (Boolean.TRUE.equals(needLookup(eventWrapper.getTapdataEvent()))) {
 				CompletableFuture<Void> lookupCf = lookupAndWrapMergeInfoConcurrent(eventWrapper.getTapdataEvent());
@@ -313,7 +313,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		});
 	}
 
-	private void loggerBatchUpdateCache(List<BatchEventWrapper> batchCache) {
+	protected void loggerBatchUpdateCache(List<BatchEventWrapper> batchCache) {
 		if (nodeLogger.isDebugEnabled()) {
 			nodeLogger.debug("Do batch update cache, size: {}", batchCache.size());
 			for (BatchEventWrapper eventWrapper : batchCache) {
@@ -322,7 +322,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private void acceptIfNeed(Consumer<List<BatchProcessResult>> consumer, List<BatchProcessResult> batchProcessResults, List<CompletableFuture<Void>> lookupCfs) {
+	protected void acceptIfNeed(Consumer<List<BatchProcessResult>> consumer, List<BatchProcessResult> batchProcessResults, List<CompletableFuture<Void>> lookupCfs) {
 		batchProcessResults = batchProcessResults.stream().filter(batchProcessResult -> {
 			TapdataEvent tapdataEvent = batchProcessResult.getBatchEventWrapper().getTapdataEvent();
 			if (tapdataEvent.isDML()) {
@@ -359,7 +359,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return CompletableFuture.runAsync(runnable, lookupThreadPool);
 	}
 
-	private void doBatchCache(List<BatchEventWrapper> batchCache) {
+	protected void doBatchCache(List<BatchEventWrapper> batchCache) {
 		long startMS = System.currentTimeMillis();
 		if (CollectionUtils.isNotEmpty(batchCache)) {
 			cache(batchCache.stream().map(BatchEventWrapper::getTapdataEvent).collect(Collectors.toList()));
@@ -1380,7 +1380,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return connectionId;
 	}
 
-	private String getPreTableName(TapdataEvent tapdataEvent) {
+	protected String getPreTableName(TapdataEvent tapdataEvent) {
 		String preNodeId = getPreNodeId(tapdataEvent);
 		Node<?> preNode;
 		try {
@@ -1665,7 +1665,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private static class BatchProcessMetrics {
+	protected static class BatchProcessMetrics {
 		private long cacheCostMS;
 		private long cacheRow;
 		private final Map<String, LookupMetrics> lookupCostMSMap;
