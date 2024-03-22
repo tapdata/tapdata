@@ -1,6 +1,7 @@
 package io.tapdata.mongodb;
 
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.mongodb.decoder.CustomDocument;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import org.bson.Document;
 
@@ -64,9 +65,9 @@ public class ExecuteObject {
 	private Document getFilter(Object obj) {
 		if (obj != null) {
 			if (obj instanceof Map) {
-				return Document.parse(TapSimplify.toJson(obj));
+				return CustomDocument.parse(TapSimplify.toJson(obj));
 			} else if (obj instanceof String) {
-				return Document.parse((String) obj);
+				return CustomDocument.parse((String) obj);
 			} else {
 				throw new NotSupportedException(obj.toString());
 			}
@@ -79,13 +80,13 @@ public class ExecuteObject {
 			List<Document> pipeline = new ArrayList<>();
 			if (obj instanceof List) {
 				for (Map<String, Object> o : (List<Map<String, Object>>) obj) {
-					pipeline.add(Document.parse(TapSimplify.toJson(o)));
+					pipeline.add(CustomDocument.parse(TapSimplify.toJson(o)));
 				}
 				return pipeline;
 			} else if (obj instanceof String) {
 				List<?> list = TapSimplify.fromJson((String) obj, List.class);
 				for (Object o : list) {
-					pipeline.add(Document.parse(TapSimplify.toJson(o)));
+					pipeline.add(CustomDocument.parse(TapSimplify.toJson(o)));
 				}
 				return pipeline;
 			} else {
