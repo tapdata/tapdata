@@ -8,6 +8,7 @@ import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.queue.util.FileUtil;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.ValueOut;
 import org.apache.commons.collections4.CollectionUtils;
@@ -26,13 +27,9 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * @author jackin
@@ -56,24 +53,28 @@ public class AppenderFactory implements Serializable {
 	private final Logger logger = LogManager.getLogger(AppenderFactory.class);
 	public final static int BATCH_SIZE = 100;
 	private final static String APPEND_LOG_THREAD_NAME = "";
-	private final static String CACHE_QUEUE_DIR = "CacheObserveLogs";
+	private final static String CACHE_QUEUE_DIR = "." + File.separator + "CacheObserveLogs";
 	private final ChronicleQueue cacheLogsQueue;
 	private final Map<String, List<Appender<MonitoringLogsDto>>> appenderMap = new ConcurrentHashMap<>();
 	private final Semaphore emptyWaiting = new Semaphore(1);
 	private final ExecutorService executorService = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1),
 			r -> new Thread(r, APPEND_LOG_THREAD_NAME)
 	);
+	private static final ScheduledExecutorService removeCandidatesFileThreadPool = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Remove-Candidates-File-Thread"));
+	public static final int LOG_CONFIG_SCHEDULED_DELAY = 10;
+	public static final int LOG_CONFIG_SCHEDULED_PERIOD = 10;
 
 	private AppenderFactory() {
-		String cacheLogsDir = "." + File.separator + CACHE_QUEUE_DIR;
-		cacheLogsQueue = ChronicleQueue.singleBuilder(cacheLogsDir)
+		cacheLogsQueue = ChronicleQueue.singleBuilder(CACHE_QUEUE_DIR)
 				.rollCycle(RollCycles.MINUTELY)
 				.storeFileListener((cycle, file) -> {
 					logger.info("have change");
 					logger.info("Delete chronic released store file: {}, cycle: {}", file, cycle);
 					boolean b = FileUtils.deleteQuietly(file);
 					logger.info("Delete chronic released store file flag {} ", b);
-				}).build();
+				})
+				.build();
+
 		executorService.submit(() -> {
 			try (ExcerptTailer tailer = cacheLogsQueue.createTailer(OBS_LOGGER_TAILER_ID)) {
 				while (true) {
@@ -81,7 +82,7 @@ public class AppenderFactory implements Serializable {
 						final MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
 						boolean success = tailer.readDocument(r -> decodeFromWireIn(r.getValueIn(), builder));
 						if (success) {
-							Thread.sleep(TimeUnit.MINUTES.toMillis(5));
+//							Thread.sleep(TimeUnit.MINUTES.toMillis(5));
 							MonitoringLogsDto monitoringLogsDto = builder.build();
 							String taskId = monitoringLogsDto.getTaskId();
 							appenderMap.computeIfPresent(taskId, (id, appenders) -> {
@@ -105,6 +106,7 @@ public class AppenderFactory implements Serializable {
 				}
 			}
 		});
+//		removeCandidatesFileThreadPool.scheduleAtFixedRate(this::removeCandidatesFile,LOG_CONFIG_SCHEDULED_DELAY,LOG_CONFIG_SCHEDULED_PERIOD,TimeUnit.SECONDS);
 	}
 
 	public void addTaskAppender(BaseTaskAppender<MonitoringLogsDto> taskAppender) {
@@ -116,6 +118,14 @@ public class AppenderFactory implements Serializable {
 			return;
 		}
 		addAppender(taskId, taskAppender);
+	}
+	public void removeCandidatesFile(){
+		File cacheDir = new File(CACHE_QUEUE_DIR);
+		List<File> candidatesFiles = FileUtil.removableRollFileCandidates(cacheDir).collect(Collectors.toList());
+		candidatesFiles.forEach(file -> {
+			boolean deleteFlag = FileUtils.deleteQuietly(file);
+			logger.info("Delete chronic released store file flag {} ", deleteFlag);
+		});
 	}
 
 	public void addAppender(String key, Appender<MonitoringLogsDto> appender) {
