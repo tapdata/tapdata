@@ -322,4 +322,9 @@ public interface TaskMergeProcessorExCode_16 {
 			describeCN = "清理并销毁缓存失败"
 	)
 	String CLEAR_AND_DESTROY_CACHE_FAILED = "16058";
+	@TapExCode(
+			describe = "Lookup CompletableFuture list cannot be null",
+			describeCN = "反查数据的CompletableFuture列表不能为空"
+	)
+	String LOOKUP_COMPLETABLE_FUTURE_LIST_IS_NULL = "16059";
 }

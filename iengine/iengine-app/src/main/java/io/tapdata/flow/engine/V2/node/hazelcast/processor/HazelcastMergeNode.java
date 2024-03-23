@@ -303,6 +303,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	}
 
 	protected void loggerBeforeProcess(List<BatchEventWrapper> tapdataEvents) {
+		if (null == nodeLogger) return;
 		if (nodeLogger.isDebugEnabled()) {
 			nodeLogger.debug("[{}] Process merge event, size: {}", System.currentTimeMillis(), tapdataEvents.size());
 			for (BatchEventWrapper tapdataEvent : tapdataEvents) {
@@ -312,6 +313,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	}
 
 	protected void doBatchLookUpConcurrent(List<BatchEventWrapper> batchCache, List<CompletableFuture<Void>> lookupCfs) {
+		if (null == batchCache) return;
+		if (null == lookupCfs) throw new TapCodeException(TaskMergeProcessorExCode_16.LOOKUP_COMPLETABLE_FUTURE_LIST_IS_NULL);
 		batchCache.forEach(eventWrapper -> {
 			if (Boolean.TRUE.equals(needLookup(eventWrapper.getTapdataEvent()))) {
 				CompletableFuture<Void> lookupCf = lookupAndWrapMergeInfoConcurrent(eventWrapper.getTapdataEvent());
@@ -321,6 +324,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	}
 
 	protected void loggerBatchUpdateCache(List<BatchEventWrapper> batchCache) {
+		if(null == nodeLogger) return;
 		if (nodeLogger.isDebugEnabled()) {
 			nodeLogger.debug("[{}] Do batch update cache, size: {}", System.currentTimeMillis(), batchCache.size());
 			for (BatchEventWrapper eventWrapper : batchCache) {
@@ -352,7 +356,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private CompletableFuture<Void> lookupAndWrapMergeInfoConcurrent(TapdataEvent tapdataEvent) {
+	protected CompletableFuture<Void> lookupAndWrapMergeInfoConcurrent(TapdataEvent tapdataEvent) {
 		Runnable runnable = () -> {
 			StopWatch stopWatch = new StopWatch();
 			List<MergeLookupResult> mergeLookupResults = null;
@@ -1073,7 +1077,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private void cache(List<TapdataEvent> tapdataEvents) {
+	protected void cache(List<TapdataEvent> tapdataEvents) {
 		if (null == tapdataEvents) {
 			return;
 		}
