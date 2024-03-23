@@ -352,7 +352,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			Map<String, List<TapEvent>> dmlEventsGroupByTableId = new HashMap<>();
 			for (TapEvent tapEvent : tapEvents) {
 				if (tapEvent instanceof TapRecordEvent) {
-					String tableId = ((TapRecordEvent) tapEvent).getTableId();
+					String tableId = getTgtTableNameFromTapEvent(tapEvent);
 					List<TapEvent> tapRecordEvents = dmlEventsGroupByTableId.computeIfAbsent(tableId, k -> new ArrayList<>());
 					tapRecordEvents.add(tapEvent);
 				}
