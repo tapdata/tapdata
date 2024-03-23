@@ -264,6 +264,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		List<BatchEventWrapper> batchCache = new ArrayList<>();
 
 		try {
+			stopWatch.start();
 			batchProcessMetrics.nextBatchIntervalMS(System.currentTimeMillis() - lastBatchProcessFinishMS);
 			List<BatchProcessResult> batchProcessResults = new ArrayList<>();
 			if (this.createIndexEvent != null) {
@@ -356,6 +357,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			StopWatch stopWatch = new StopWatch();
 			List<MergeLookupResult> mergeLookupResults = null;
 			try {
+				stopWatch.start();
 				MergeInfo mergeInfo = wrapMergeInfo(tapdataEvent);
 				mergeLookupResults = lookup(tapdataEvent);
 				mergeInfo.setMergeLookupResults(mergeLookupResults);
@@ -375,6 +377,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	protected void doBatchCache(List<BatchEventWrapper> batchCache) {
 		StopWatch stopWatch = new StopWatch();
 		try {
+			stopWatch.start();
 			if (CollectionUtils.isNotEmpty(batchCache)) {
 				cache(batchCache.stream().map(BatchEventWrapper::getTapdataEvent).collect(Collectors.toList()));
 			}
