@@ -1213,7 +1213,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		try {
 			hazelcastConstruct.insertMany(insertMap);
 		} catch (InterruptedException e) {
-			// do nothing
+			Thread.currentThread().interrupt();
 		} catch (Exception e) {
 			throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHES_FAILED, e);
 		}
