@@ -44,10 +44,7 @@ import org.apache.commons.collections4.MapUtils;
 import org.bson.BsonType;
 import org.bson.Document;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
 import org.mockito.stubbing.Answer;
@@ -56,7 +53,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.io.File;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -2001,6 +1998,99 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			list.add(new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataEvent));
 
 			assertDoesNotThrow(() -> hazelcastMergeNode.loggerBatchUpdateCache(list));
+		}
+	}
+
+	@Nested
+	@DisplayName("Method lookupAndWrapMergeInfoConcurrent test")
+	class lookupAndWrapMergeInfoConcurrentTest {
+
+		private ExecutorService lookupThreadPool;
+
+		@BeforeEach
+		void setUp() {
+			hazelcastMergeNode = spy(hazelcastMergeNode);
+			lookupThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>(),
+					r -> {
+						Thread thread = new Thread(r);
+						thread.setName("Merge-Processor-Lookup-Thread-" + thread.getId());
+						return thread;
+					});
+			ReflectionTestUtils.setField(hazelcastMergeNode, "lookupThreadPool", lookupThreadPool);
+			HazelcastMergeNode.BatchProcessMetrics batchProcessMetrics = mock(HazelcastMergeNode.BatchProcessMetrics.class);
+			ReflectionTestUtils.setField(hazelcastMergeNode, "batchProcessMetrics", batchProcessMetrics);
+		}
+
+		@Test
+		@DisplayName("test main process")
+		void testMainProcess() {
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			MergeInfo mergeInfo = new MergeInfo();
+			doReturn(mergeInfo).when(hazelcastMergeNode).wrapMergeInfo(any(TapdataEvent.class));
+			List<MergeLookupResult> mergeLookupResults = new ArrayList<>();
+			doReturn(mergeLookupResults).when(hazelcastMergeNode).lookup(any(TapdataEvent.class));
+
+			CompletableFuture<Void> completableFuture = hazelcastMergeNode.lookupAndWrapMergeInfoConcurrent(tapdataEvent);
+
+			assertNotNull(completableFuture);
+			completableFuture.join();
+			assertEquals(mergeLookupResults, mergeInfo.getMergeLookupResults());
+		}
+
+		@Test
+		@DisplayName("test node logger debug enabled")
+		void testNodeLoggerDebugEnabled() {
+			ObsLogger nodeLogger = mock(ObsLogger.class);
+			when(nodeLogger.isDebugEnabled()).thenReturn(true);
+			ReflectionTestUtils.setField(hazelcastMergeNode, "nodeLogger", nodeLogger);
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			MergeInfo mergeInfo = new MergeInfo();
+			doReturn(mergeInfo).when(hazelcastMergeNode).wrapMergeInfo(any(TapdataEvent.class));
+			List<MergeLookupResult> mergeLookupResults = new ArrayList<>();
+			doReturn(mergeLookupResults).when(hazelcastMergeNode).lookup(any(TapdataEvent.class));
+
+			CompletableFuture<Void> completableFuture = hazelcastMergeNode.lookupAndWrapMergeInfoConcurrent(tapdataEvent);
+
+			completableFuture.join();
+			verify(nodeLogger, timeout(1)).debug(anyString(), any(Object[].class));
+		}
+
+		@AfterEach
+		void tearDown() {
+			lookupThreadPool.shutdownNow();
+		}
+	}
+
+	@Nested
+	@DisplayName("Method doBatchCache test")
+	class doBatchCacheTest {
+		@BeforeEach
+		void setUp() {
+			hazelcastMergeNode = spy(hazelcastMergeNode);
+			HazelcastMergeNode.BatchProcessMetrics batchProcessMetrics = mock(HazelcastMergeNode.BatchProcessMetrics.class);
+			ReflectionTestUtils.setField(hazelcastMergeNode, "batchProcessMetrics", batchProcessMetrics);
+		}
+
+		@Test
+		@DisplayName("test main process")
+		void testMainProcess() {
+			List<HazelcastProcessorBaseNode.BatchEventWrapper> batchEventWrappers = new ArrayList<>();
+			TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapInsertRecordEvent);
+			batchEventWrappers.add(new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataEvent));
+			doAnswer(invocationOnMock -> {
+				Object argument1 = invocationOnMock.getArgument(0);
+				assertInstanceOf(ArrayList.class, argument1);
+				for (Object o : ((ArrayList<?>) argument1)) {
+					assertInstanceOf(TapdataEvent.class, o);
+				}
+				return null;
+			}).when(hazelcastMergeNode).cache(any(List.class));
+
+			hazelcastMergeNode.doBatchCache(batchEventWrappers);
+
+			verify(hazelcastMergeNode, times(1)).cache(any(List.class));
 		}
 	}
 }

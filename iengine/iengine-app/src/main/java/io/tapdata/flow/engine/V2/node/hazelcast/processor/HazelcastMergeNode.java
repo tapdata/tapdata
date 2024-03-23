@@ -367,7 +367,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				mergeInfo.setMergeLookupResults(mergeLookupResults);
 			} finally {
 				stopWatch.stop();
-				if (nodeLogger.isDebugEnabled()) {
+				if (null != nodeLogger && nodeLogger.isDebugEnabled()) {
 					nodeLogger.debug("[{}] Do lookup, cost: {} ms, event: {}, lookup result: {}",
 							System.currentTimeMillis(), stopWatch.getTotalTimeMillis(), tapdataEvent,
 							null == mergeLookupResults ? 0 : mergeLookupResults.size());
@@ -1420,7 +1420,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return preTableName;
 	}
 
-	private List<MergeLookupResult> lookup(TapdataEvent tapdataEvent) {
+	protected List<MergeLookupResult> lookup(TapdataEvent tapdataEvent) {
 		List<String> nodeIds = tapdataEvent.getNodeIds();
 		if (CollectionUtils.isEmpty(nodeIds)) {
 			throw new TapEventException(TaskMergeProcessorExCode_16.LOOK_UP_MISSING_FROM_NODE_ID).addEvent(tapdataEvent.getTapEvent());
