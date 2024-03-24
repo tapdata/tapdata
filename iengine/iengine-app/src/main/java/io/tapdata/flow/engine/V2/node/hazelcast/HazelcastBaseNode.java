@@ -801,7 +801,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected void updateNodeConfig(TapdataEvent tapdataEvent) {
 	}
 
-	protected String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
+	public String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
 		String tableId = TapEventUtil.getTableId(tapEvent);
 		Object dagDataService = tapEvent.getInfo(DAG_DATA_SERVICE_INFO_KEY);
 		if (!(dagDataService instanceof DAGDataServiceImpl)) {

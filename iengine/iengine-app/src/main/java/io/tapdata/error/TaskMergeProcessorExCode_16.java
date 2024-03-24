@@ -332,4 +332,9 @@ public interface TaskMergeProcessorExCode_16 {
 			describeCN = "反查缓存数据，发生未知错误"
 	)
 	String LOOK_UP_UNKNOWN_ERROR = "16060";
+	@TapExCode(
+			describe = "Lookup CompletableFuture list cannot be null",
+			describeCN = "反查数据的CompletableFuture列表不能为空"
+	)
+	String LOOKUP_COMPLETABLE_FUTURE_LIST_IS_NULL = "16061";
 }
