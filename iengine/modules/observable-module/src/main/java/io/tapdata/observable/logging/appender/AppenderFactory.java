@@ -8,6 +8,7 @@ import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.queue.util.FileUtil;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.ValueOut;
@@ -54,7 +55,7 @@ public class AppenderFactory implements Serializable {
 	public final static int BATCH_SIZE = 100;
 	private final static String APPEND_LOG_THREAD_NAME = "";
 	private final static String CACHE_QUEUE_DIR = "." + File.separator + "CacheObserveLogs";
-	private final ChronicleQueue cacheLogsQueue;
+	private final SingleChronicleQueue cacheLogsQueue;
 	private final Map<String, List<Appender<MonitoringLogsDto>>> appenderMap = new ConcurrentHashMap<>();
 	private final Semaphore emptyWaiting = new Semaphore(1);
 	private final ExecutorService executorService = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1),
@@ -63,50 +64,59 @@ public class AppenderFactory implements Serializable {
 	private static final ScheduledExecutorService removeCandidatesFileThreadPool = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Remove-Candidates-File-Thread"));
 	public static final int LOG_CONFIG_SCHEDULED_DELAY = 10;
 	public static final int LOG_CONFIG_SCHEDULED_PERIOD = 10;
+	private int cycle;
 
 	private AppenderFactory() {
 		cacheLogsQueue = ChronicleQueue.singleBuilder(CACHE_QUEUE_DIR)
 				.rollCycle(RollCycles.MINUTELY)
 				.storeFileListener((cycle, file) -> {
-					logger.info("have change");
-					logger.info("Delete chronic released store file: {}, cycle: {}", file, cycle);
-					boolean b = FileUtils.deleteQuietly(file);
-					logger.info("Delete chronic released store file flag {} ", b);
+					if (cycle < this.cycle) {
+						logger.info("have change");
+						logger.info("Delete chronic released store file: {}, cycle: {}", file, cycle);
+						boolean b = FileUtils.deleteQuietly(file);
+						logger.info("Delete chronic released store file flag {} ", b);
+						this.cycle = cycle;
+					} else {
+						this.cycle = cycle;
+					}
 				})
 				.build();
-
+		cycle = cacheLogsQueue.cycle();
 		executorService.submit(() -> {
 			try (ExcerptTailer tailer = cacheLogsQueue.createTailer(OBS_LOGGER_TAILER_ID)) {
-				while (true) {
-					try {
-						final MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
-						boolean success = tailer.readDocument(r -> decodeFromWireIn(r.getValueIn(), builder));
-						if (success) {
-//							Thread.sleep(TimeUnit.MINUTES.toMillis(5));
-							MonitoringLogsDto monitoringLogsDto = builder.build();
-							String taskId = monitoringLogsDto.getTaskId();
-							appenderMap.computeIfPresent(taskId, (id, appenders) -> {
-								if (CollectionUtils.isEmpty(appenders)) {
-									return null;
-								}
-								for (Appender<MonitoringLogsDto> appender : appenders) {
-									if (null == appender) {
-										continue;
-									}
-									appender.append(monitoringLogsDto);
-								}
-								return appenders;
-							});
-						} else {
-							emptyWaiting.tryAcquire(1, 200, TimeUnit.MILLISECONDS);
-						}
-					} catch (Throwable e) {
-						logger.warn("failed to append task logs, error: {}", e.getMessage(), e);
-					}
-				}
+				readMesaage(tailer);
 			}
 		});
 //		removeCandidatesFileThreadPool.scheduleAtFixedRate(this::removeCandidatesFile,LOG_CONFIG_SCHEDULED_DELAY,LOG_CONFIG_SCHEDULED_PERIOD,TimeUnit.SECONDS);
+	}
+
+	private void readMesaage(ExcerptTailer tailer) {
+		while (true) {
+			try {
+				final MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
+				boolean success = tailer.readDocument(r -> decodeFromWireIn(r.getValueIn(), builder));
+				if (success) {
+					MonitoringLogsDto monitoringLogsDto = builder.build();
+					String taskId = monitoringLogsDto.getTaskId();
+					appenderMap.computeIfPresent(taskId, (id, appenders) -> {
+						if (CollectionUtils.isEmpty(appenders)) {
+							return null;
+						}
+						for (Appender<MonitoringLogsDto> appender : appenders) {
+							if (null == appender) {
+								continue;
+							}
+							appender.append(monitoringLogsDto);
+						}
+						return appenders;
+					});
+				} else {
+					emptyWaiting.tryAcquire(1, 200, TimeUnit.MILLISECONDS);
+				}
+			} catch (Throwable e) {
+				logger.warn("failed to append task logs, error: {}", e.getMessage(), e);
+			}
+		}
 	}
 
 	public void addTaskAppender(BaseTaskAppender<MonitoringLogsDto> taskAppender) {
