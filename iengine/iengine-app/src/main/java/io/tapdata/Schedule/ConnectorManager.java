@@ -199,8 +199,6 @@ public class ConnectorManager {
 		logger.info("Available processors number: {}", availableProcessors);
 
 		version = VersionCheck.getVersion();
-		workerHeatBeatReports = new WorkerHeatBeatReports();
-		workerHeatBeatReports.init(this, configCenter, pingClientMongoOperator);
 		logger.info("Java class path: " + System.getProperty("java.class.path") + ".\n"
 				+ " Agent version: " + version);
 
@@ -225,6 +223,8 @@ public class ConnectorManager {
     }*/
 
 		WorkerSingletonLock.check(tapdataWorkDir, this::singletonLockWithServer);
+		workerHeatBeatReports = new WorkerHeatBeatReports();
+		workerHeatBeatReports.init(this, configCenter, pingClientMongoOperator);
 
 		CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
 		if (null != resultDto && !resultDto.getResult()) throw new CoreException(resultDto.getFailedReason());
