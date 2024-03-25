@@ -3,6 +3,7 @@ package io.tapdata.observable.logging.appender;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import lombok.SneakyThrows;
 import net.openhft.chronicle.core.threads.InterruptedRuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
@@ -19,7 +20,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.Serializable;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,63 +61,66 @@ public class AppenderFactory implements Serializable {
 	private final ExecutorService executorService = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1),
 			r -> new Thread(r, APPEND_LOG_THREAD_NAME)
 	);
-	private static final ScheduledExecutorService removeCandidatesFileThreadPool = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Remove-Candidates-File-Thread"));
-	public static final int LOG_CONFIG_SCHEDULED_DELAY = 10;
-	public static final int LOG_CONFIG_SCHEDULED_PERIOD = 10;
-	private int cycle;
+	private long cycle;
 
 	private AppenderFactory() {
 		cacheLogsQueue = ChronicleQueue.singleBuilder(CACHE_QUEUE_DIR)
-				.rollCycle(RollCycles.MINUTELY)
+				.rollCycle(RollCycles.HUGE_DAILY)
 				.storeFileListener((cycle, file) -> {
-					if (cycle < this.cycle) {
-						logger.info("have change");
-						logger.info("Delete chronic released store file: {}, cycle: {}", file, cycle);
-						boolean b = FileUtils.deleteQuietly(file);
-						logger.info("Delete chronic released store file flag {} ", b);
-						this.cycle = cycle;
-					} else {
-						this.cycle = cycle;
-					}
+					deleteFileIfLessThanCurrentCycle(cycle, file);
 				})
 				.build();
 		cycle = cacheLogsQueue.cycle();
 		executorService.submit(() -> {
 			try (ExcerptTailer tailer = cacheLogsQueue.createTailer(OBS_LOGGER_TAILER_ID)) {
-				readMesaage(tailer);
+				while (true) {
+					readMessageFromCacheQueue(tailer);
+				}
 			}
 		});
-//		removeCandidatesFileThreadPool.scheduleAtFixedRate(this::removeCandidatesFile,LOG_CONFIG_SCHEDULED_DELAY,LOG_CONFIG_SCHEDULED_PERIOD,TimeUnit.SECONDS);
 	}
 
-	private void readMesaage(ExcerptTailer tailer) {
-		while (true) {
-			try {
-				final MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
-				boolean success = tailer.readDocument(r -> decodeFromWireIn(r.getValueIn(), builder));
-				if (success) {
-					MonitoringLogsDto monitoringLogsDto = builder.build();
-					String taskId = monitoringLogsDto.getTaskId();
-					appenderMap.computeIfPresent(taskId, (id, appenders) -> {
-						if (CollectionUtils.isEmpty(appenders)) {
-							return null;
-						}
-						for (Appender<MonitoringLogsDto> appender : appenders) {
-							if (null == appender) {
-								continue;
-							}
-							appender.append(monitoringLogsDto);
-						}
-						return appenders;
-					});
-				} else {
-					emptyWaiting.tryAcquire(1, 200, TimeUnit.MILLISECONDS);
-				}
-			} catch (Throwable e) {
-				logger.warn("failed to append task logs, error: {}", e.getMessage(), e);
+	protected void readMessageFromCacheQueue(ExcerptTailer tailer) {
+		try {
+			final MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
+			boolean success = tailer.readDocument(r -> decodeFromWireIn(r.getValueIn(), builder));
+			if (success) {
+				appendersAppendLog(builder);
+			} else {
+				emptyWaiting.tryAcquire(1, 200, TimeUnit.MILLISECONDS);
 			}
+		} catch (Throwable e) {
+			logger.warn("failed to append task logs, error: {}", e.getMessage(), e);
 		}
 	}
+
+	protected void appendersAppendLog(MonitoringLogsDto.MonitoringLogsDtoBuilder builder) {
+		MonitoringLogsDto monitoringLogsDto = builder.build();
+		String taskId = monitoringLogsDto.getTaskId();
+		appenderMap.computeIfPresent(taskId, (id, appenders) -> {
+			if (CollectionUtils.isEmpty(appenders)) {
+				return null;
+			}
+			for (Appender<MonitoringLogsDto> appender : appenders) {
+				if (null == appender) {
+					continue;
+				}
+				appender.append(monitoringLogsDto);
+			}
+			return appenders;
+		});
+	}
+
+	protected void deleteFileIfLessThanCurrentCycle(int cycle, File file) {
+		if (cycle < this.cycle) {
+			boolean successFlag = FileUtils.deleteQuietly(file);
+			logger.info("Delete chronic released store file: {}, success: {}. cycle: {}", file, successFlag, cycle);
+			this.cycle = cycle;
+		} else {
+			this.cycle = cycle;
+		}
+	}
+
 
 	public void addTaskAppender(BaseTaskAppender<MonitoringLogsDto> taskAppender) {
 		if (null == taskAppender) {
@@ -128,14 +131,6 @@ public class AppenderFactory implements Serializable {
 			return;
 		}
 		addAppender(taskId, taskAppender);
-	}
-	public void removeCandidatesFile(){
-		File cacheDir = new File(CACHE_QUEUE_DIR);
-		List<File> candidatesFiles = FileUtil.removableRollFileCandidates(cacheDir).collect(Collectors.toList());
-		candidatesFiles.forEach(file -> {
-			boolean deleteFlag = FileUtils.deleteQuietly(file);
-			logger.info("Delete chronic released store file flag {} ", deleteFlag);
-		});
 	}
 
 	public void addAppender(String key, Appender<MonitoringLogsDto> appender) {
@@ -182,15 +177,11 @@ public class AppenderFactory implements Serializable {
 			emptyWaiting.release(1);
 		}
 	}
-
+	@SneakyThrows
 	private void decodeFromWireIn(ValueIn valueIn, MonitoringLogsDto.MonitoringLogsDtoBuilder builder) {
 		final String dateString = valueIn.readString();
-        final Date date;
-        try {
-            date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").parse(dateString);
-        } catch (ParseException e) {
-            throw new RuntimeException(e);
-        }
+		final Date date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").parse(dateString);
+		builder.date(date);
         builder.date(date);
 		final String level = valueIn.readString();
 		builder.level(level);
