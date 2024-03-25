@@ -182,7 +182,6 @@ public class AppenderFactory implements Serializable {
 		final String dateString = valueIn.readString();
 		final Date date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").parse(dateString);
 		builder.date(date);
-        builder.date(date);
 		final String level = valueIn.readString();
 		builder.level(level);
 		final String errorStack = valueIn.readString();
