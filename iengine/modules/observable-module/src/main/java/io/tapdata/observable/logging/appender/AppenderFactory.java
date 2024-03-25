@@ -53,13 +53,13 @@ public class AppenderFactory implements Serializable {
 
 	private final Logger logger = LogManager.getLogger(AppenderFactory.class);
 	public final static int BATCH_SIZE = 100;
-	private final static String APPEND_LOG_THREAD_NAME = "";
+	private final static String READ_MESSAGE_FORM_CACHE_QUEUE_THREAD_NAME = "Read-Message-From-Cache-Queue-Thread";
 	private final static String CACHE_QUEUE_DIR = "." + File.separator + "CacheObserveLogs";
 	private final SingleChronicleQueue cacheLogsQueue;
 	private final Map<String, List<Appender<MonitoringLogsDto>>> appenderMap = new ConcurrentHashMap<>();
 	private final Semaphore emptyWaiting = new Semaphore(1);
 	private final ExecutorService executorService = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1),
-			r -> new Thread(r, APPEND_LOG_THREAD_NAME)
+			r -> new Thread(r, READ_MESSAGE_FORM_CACHE_QUEUE_THREAD_NAME)
 	);
 	private long cycle;
 
