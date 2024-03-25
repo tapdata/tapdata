@@ -144,6 +144,6 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	protected void fromTapValue(Map<String, Object> data, TapCodecsFilterManager tapCodecsFilterManager, String targetTableName) {
-		// do nothing
+		codecsFilterManager.transformFromTapValueMap(data);
 	}
 }
