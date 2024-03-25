@@ -2,6 +2,7 @@ package com.tapdata.tm.ds.service.impl;
 
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
+import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
@@ -11,14 +12,12 @@ import com.tapdata.tm.ds.dto.PdkVersionCheckDto;
 import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.tcm.service.TcmService;
-import com.tapdata.tm.utils.FunctionUtils;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MessageUtil;
-import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.OEMReplaceUtil;
+import com.tapdata.tm.utils.*;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
@@ -125,8 +124,10 @@ public class PkdSourceService {
 			Map<String, String> langMap = Maps.newHashMap();
 			try {
 				Map<String, Object> fileInfo = Maps.newHashMap();
+				String md5 = PdkSourceUtils.getFileMD5(jarFile);
 				fileInfo.put("pdkHash", pdkHash);
 				fileInfo.put("pdkAPIBuildNumber", pdkAPIBuildNumber);
+				fileInfo.put("md5", md5);
 
 				// 1. upload jar file, only update once
 				jarObjectId = fileService.storeFile(jarFile.getInputStream(), jarFile.getOriginalFilename(), null, fileInfo);
@@ -219,6 +220,16 @@ public class PkdSourceService {
 			});
 
 		}
+	}
+	public String checkJarMD5(String pdkHash, String fileName){
+		String md5 = null;
+		Criteria criteria = Criteria.where("metadata.pdkHash").is(pdkHash).and("filename").is(fileName);
+		Query query = new Query(criteria);
+		GridFSFile gridFSFile = fileService.findOne(query);
+		if(null != gridFSFile && null != gridFSFile.getMetadata()){
+			md5 = (String) gridFSFile.getMetadata().get("md5");
+		}
+		return md5;
 	}
 
 	public void uploadAndView(String pdkHash, Integer pdkBuildNumber, UserDetail user, PdkFileTypeEnum type, HttpServletResponse response) {

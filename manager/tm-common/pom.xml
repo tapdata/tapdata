@@ -122,7 +122,12 @@
       <artifactId>mongodb-driver-core</artifactId>
       <version>4.2.3</version>
     </dependency>
-
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-web</artifactId>
+      <version>5.3.8</version>
+      <scope>compile</scope>
+    </dependency>
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
@@ -233,7 +238,13 @@
       <artifactId>byte-buddy-agent</artifactId>
       <version>1.12.23</version>
     </dependency>
-    <!-- Test Dependencies -->
+      <dependency>
+          <groupId>commons-fileupload</groupId>
+          <artifactId>commons-fileupload</artifactId>
+          <version>1.4</version>
+          <scope>test</scope>
+      </dependency>
+      <!-- Test Dependencies -->
   </dependencies>
 
   <distributionManagement>
