@@ -171,15 +171,16 @@
         <junit-jupiter.version>5.8.1</junit-jupiter.version>
         <mockito-all.version>1.10.19</mockito-all.version>
         <iengine.impl.artifactId>iengine-oss</iengine.impl.artifactId>
+        <iengine.oss.module>iengine-oss</iengine.oss.module>
     </properties>
 
     <modules>
-        <module>iengine-app</module>
         <module>iengine-common</module>
-        <module>validator</module>
         <module>api</module>
+        <module>${iengine.oss.module}</module>
+        <module>iengine-app</module>
+        <module>validator</module>
         <module>modules</module>
-        <module>iengine-oss</module>
     </modules>
     <dependencyManagement>
         <dependencies>
@@ -1030,11 +1031,9 @@
         </profile>
         <profile>
             <id>enterprise</id>
-            <modules>
-                <module>../../tapdata-enterprise/iengine-enterprise</module>
-            </modules>
             <properties>
                 <iengine.impl.artifactId>iengine-enterprise</iengine.impl.artifactId>
+                <iengine.oss.module>../../tapdata-enterprise/iengine-enterprise</iengine.oss.module>
             </properties>
         </profile>
     </profiles>

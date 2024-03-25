@@ -26,13 +26,13 @@
 		<maven.compiler.source>${java.version}</maven.compiler.source>
 		<maven.compiler.target>${java.version}</maven.compiler.target>
 		<tm.impl.artifactId>tm-oss</tm.impl.artifactId>
-		<tm.module>tm-oss</tm.module>
+		<tm.oss.module>tm-oss</tm.oss.module>
 	</properties>
 
 	<modules>
 		<module>tm-common</module>
 		<module>tm-api</module>
-		<module>${tm.module}</module>
+		<module>${tm.oss.module}</module>
 		<module>code-gen</module>
 		<module>tm-sdk</module>
 		<module>tm</module>
@@ -50,7 +50,7 @@
 			<id>enterprise</id>
 			<properties>
 				<tm.impl.artifactId>tm-enterprise</tm.impl.artifactId>
-				<tm.module>../../tapdata-enterprise/tm-enterprise</tm.module>
+				<tm.oss.module>../../tapdata-enterprise/tm-enterprise</tm.oss.module>
 			</properties>
 		</profile>
 	</profiles>
