@@ -2,16 +2,25 @@ package io.tapdata.flow.engine.V2.schedule;
 
 import com.hazelcast.jet.core.JobStatus;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.entity.ResponseBody;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.RestDoNotRetryException;
+import io.tapdata.exception.TmUnavailableException;
+import io.tapdata.flow.engine.V2.task.OpType;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskClient;
+import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
+import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
+import io.tapdata.flow.engine.V2.task.operation.TaskOperation;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.utils.AppType;
+import io.tapdata.utils.UnitTestUtils;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,9 +33,13 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -228,5 +241,195 @@ public class TapdataTaskSchedulerTest {
 				assertEquals(actual, runtimeException);
 			}
 		}
+
+		@Test
+		@DisplayName("start task when task not exists, throw error when call tm rest api")
+		void testStartTaskWhenTaskNotExistsAndThrowError() {
+			ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+			try (
+					MockedStatic obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)
+			) {
+				obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+				ObjectId taskId = new ObjectId();
+				TaskDto taskDto = new TaskDto();
+				taskDto.setName("test-task");
+				taskDto.setId(taskId);
+
+				Logger logger = mock(Logger.class);
+				TapdataTaskScheduler instance = new TapdataTaskScheduler();
+
+				RuntimeException enableAndAvailableError = new RuntimeException("enable available exception");
+				RuntimeException enableUnavailableError = new TmUnavailableException("unavailable  exception", "post", null, new ResponseBody());
+				RuntimeException disableAndAvailableError = new RuntimeException("disable and available exception");
+				RuntimeException disableAndUnavailableError = new TmUnavailableException("disable and unavailable  exception", "post", null, new ResponseBody());
+				ClientMongoOperator mongoOperator = mock(ClientMongoOperator.class);
+				when(mongoOperator.updateById(any(), eq(ConnectorConstant.TASK_COLLECTION + "/running"), any(), any())).thenThrow(
+					enableAndAvailableError, enableUnavailableError, disableAndAvailableError, disableAndUnavailableError
+				);
+
+				UnitTestUtils.injectField(TapdataTaskScheduler.class, instance, "clientMongoOperator", mongoOperator);
+				UnitTestUtils.injectField(TapdataTaskScheduler.class, instance, "logger", logger); // ignore exception log
+
+				// enable cloud logic
+				try (MockedStatic<TmStatusService> tmStatusServiceMockedStatic = mockStatic(TmStatusService.class)) {
+					tmStatusServiceMockedStatic.when(TmStatusService::isNotEnable).thenReturn(false);
+
+					instance.startTask(taskDto);
+					verify(logger, times(1)).error(anyString(), eq(taskDto.getName()), eq(enableAndAvailableError.getMessage()), eq(enableAndAvailableError));
+					instance.startTask(taskDto);
+					verify(logger, times(1)).warn(anyString(), eq(taskDto.getName()), eq(enableUnavailableError.getMessage()));
+				}
+				// disable cloud logic
+				try (MockedStatic<TmStatusService> tmStatusServiceMockedStatic = mockStatic(TmStatusService.class)) {
+					tmStatusServiceMockedStatic.when(TmStatusService::isNotEnable).thenReturn(true);
+
+					instance.startTask(taskDto);
+					verify(logger, times(1)).error(anyString(), eq(taskDto.getName()), eq(disableAndAvailableError.getMessage()), eq(disableAndAvailableError));
+					instance.startTask(taskDto);
+					verify(logger, times(1)).error(anyString(), eq(taskDto.getName()), eq(disableAndUnavailableError.getMessage()), eq(disableAndUnavailableError));
+				}
+
+			}
+		}
+	}
+
+	@Nested
+	class ForceStoppingTaskTest {
+		@Test
+		void testEmptyClient() {
+			TapdataTaskScheduler instance = new TapdataTaskScheduler() {
+				@Override
+				protected List<TaskDto> findStoppingTasks() {
+					return new ArrayList<>();
+				}
+			};
+
+			instance.forceStoppingTask();
+		}
+
+		@Test
+		void testEmptyClientIsCloud() {
+			TapdataTaskScheduler instance = new TapdataTaskScheduler() {
+				@Override
+				protected List<TaskDto> findStoppingTasks() {
+					return new ArrayList<>();
+				}
+			};
+			try (MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class)) {
+				AppType appType = mock(AppType.class);
+				when(appType.isCloud()).thenReturn(true);
+				appTypeMockedStatic.when(AppType::currentType).thenReturn(appType);
+
+				instance.forceStoppingTask();
+			}
+		}
+	}
+
+	@Nested
+	class GetHandleTaskOperationRunnableTest {
+		@Test
+		void testNone() {
+			AtomicBoolean isCallRunnable = new AtomicBoolean(false);
+			TaskOperation taskOperation = mock(TaskOperation.class);
+			TapdataTaskScheduler instance = new TapdataTaskScheduler();
+			TapdataTaskScheduler spyInstance = spy(instance);
+			when(spyInstance.getHandleTaskOperationRunnable(taskOperation)).thenReturn(()-> isCallRunnable.set(true));
+
+			Runnable handleTaskOperationRunnable = spyInstance.getHandleTaskOperationRunnable(taskOperation);
+			assertNotNull(handleTaskOperationRunnable);
+			handleTaskOperationRunnable.run();
+			assertTrue(isCallRunnable.get());
+		}
+		@Test
+		void testStartTaskRunException() {
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(ObjectId.get());
+			taskDto.setName("test-task");
+
+			AtomicReference<RuntimeException> errorAtomic = new AtomicReference<>();
+			TaskOperation taskOperation = StartTaskOperation.create().taskDto(taskDto);
+			TapdataTaskScheduler instance = new TapdataTaskScheduler() {
+				@Override
+				protected void startTask(TaskDto taskDto) {
+					throw errorAtomic.get();
+				}
+			};
+
+			Logger logger = mock(Logger.class);
+			UnitTestUtils.injectField(TapdataTaskScheduler.class, instance, "logger", logger);
+
+			Runnable handleTaskOperationRunnable = instance.getHandleTaskOperationRunnable(taskOperation);
+			assertNotNull(handleTaskOperationRunnable);
+
+			// enable TM status
+			try (MockedStatic<TmStatusService> tmStatusServiceMockedStatic = mockStatic(TmStatusService.class)) {
+				tmStatusServiceMockedStatic.when(TmStatusService::isNotEnable).thenReturn(false);
+
+				errorAtomic.set(new RuntimeException("enable and not status exception"));
+				handleTaskOperationRunnable.run();
+				verify(logger, times(1)).error(anyString(), eq(errorAtomic.get()));
+
+				errorAtomic.set(new TmUnavailableException("enable and is status exception", "post", null, new ResponseBody()));
+				handleTaskOperationRunnable.run();
+				verify(logger, times(1)).warn(anyString(), eq(errorAtomic.get().getMessage()));
+			}
+
+			// disable TM status
+			try (MockedStatic<TmStatusService> tmStatusServiceMockedStatic = mockStatic(TmStatusService.class)) {
+				tmStatusServiceMockedStatic.when(TmStatusService::isNotEnable).thenReturn(true);
+
+				errorAtomic.set(new RuntimeException("disable and not status exception"));
+				handleTaskOperationRunnable.run();
+				verify(logger, times(1)).error(anyString(), eq(errorAtomic.get()));
+
+				errorAtomic.set(new TmUnavailableException("disable and is status exception", "post", null, new ResponseBody()));
+				handleTaskOperationRunnable.run();
+				verify(logger, times(1)).error(anyString(), eq(errorAtomic.get()));
+			}
+		}
+
+		@Test
+		void testStartTaskOperation() {
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(ObjectId.get());
+			taskDto.setName("test-task");
+			TaskOperation taskOperation = StartTaskOperation.create().taskDto(taskDto);
+			AtomicBoolean isCallStartTask = new AtomicBoolean(false);
+			TapdataTaskScheduler instance = new TapdataTaskScheduler() {
+				@Override
+				protected void startTask(TaskDto taskDto) {
+					isCallStartTask.set(true);
+				}
+			};
+
+			Runnable handleTaskOperationRunnable = instance.getHandleTaskOperationRunnable(taskOperation);
+			assertNotNull(handleTaskOperationRunnable);
+			handleTaskOperationRunnable.run();
+			assertTrue(isCallStartTask.get());
+		}
+
+		@Test
+		void testStopTaskOperation() {
+			String taskId = "test-task-id";
+			TaskOperation taskOperation = StopTaskOperation.create().taskId(taskId);
+			AtomicBoolean isCallStopTask = new AtomicBoolean(false);
+			TapdataTaskScheduler instance = new TapdataTaskScheduler() {
+				@Override
+				protected void stopTask(String taskId) {
+					isCallStopTask.set(true);
+				}
+			};
+			Runnable handleTaskOperationRunnable = instance.getHandleTaskOperationRunnable(taskOperation);
+			assertNotNull(handleTaskOperationRunnable);
+			handleTaskOperationRunnable.run();
+			assertTrue(isCallStopTask.get());
+		}
+	}
+
+	@Test
+	void testHandleTaskOperation() {
+		TaskOperation taskOperation = mock(TaskOperation.class);
+		TapdataTaskScheduler instance = new TapdataTaskScheduler();
+		instance.handleTaskOperation(taskOperation);
 	}
 }

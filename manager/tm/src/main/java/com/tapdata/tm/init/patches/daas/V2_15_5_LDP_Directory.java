@@ -7,7 +7,7 @@ import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.init.patches.AbsPatch;
 import com.tapdata.tm.init.patches.PatchAnnotation;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
-import com.tapdata.tm.sdk.util.AppType;
+import io.tapdata.utils.AppType;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.SpringContextHelper;

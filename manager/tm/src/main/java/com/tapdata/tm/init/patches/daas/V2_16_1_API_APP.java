@@ -7,7 +7,7 @@ import com.tapdata.tm.init.patches.AbsPatch;
 import com.tapdata.tm.init.patches.PatchAnnotation;
 import com.tapdata.tm.metadatadefinition.entity.MetadataDefinitionEntity;
 import com.tapdata.tm.modules.entity.ModulesEntity;
-import com.tapdata.tm.sdk.util.AppType;
+import io.tapdata.utils.AppType;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.SpringContextHelper;
 import org.apache.logging.log4j.LogManager;

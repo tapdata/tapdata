@@ -30,6 +30,7 @@ public class AggregationScheduleV2 {
     @Async
     @Scheduled(cron = "5 * * * * ?")  // xx:xx:05 at every minute
     public void aggregateByGranularityMinute() {
+			Thread.currentThread().setName(getClass().getSimpleName() + "-aggregateByGranularityMinute");
         aggregateWithLockAcquire(Granularity.GRANULARITY_MINUTE, System.currentTimeMillis());
     }
 
@@ -37,6 +38,7 @@ public class AggregationScheduleV2 {
     @Async
     @Scheduled(cron = "0 1 * * * ?")  // xx:01:00 at every hour when
     public void aggregateByGranularityHour() {
+			Thread.currentThread().setName(getClass().getSimpleName() + "-aggregateByGranularityHour");
         aggregateWithLockAcquire(Granularity.GRANULARITY_HOUR, System.currentTimeMillis());
     }
 
@@ -44,6 +46,7 @@ public class AggregationScheduleV2 {
     @Async
     @Scheduled(cron = "0 1 0 * * ?") // 00:00:00 at every day
     public void aggregateByGranularityDay() {
+			Thread.currentThread().setName(getClass().getSimpleName() + "-aggregateByGranularityDay");
         aggregateWithLockAcquire(Granularity.GRANULARITY_DAY, System.currentTimeMillis());
     }
 

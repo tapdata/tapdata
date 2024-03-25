@@ -23,6 +23,7 @@ import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.js.connector.base.JsUtil;
+import io.tapdata.utils.AppType;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.io.IOUtils;
@@ -45,7 +46,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
@@ -364,7 +364,7 @@ public class ScriptUtil {
 				String jsFunction = javaScriptFunction.getJSFunction();
 				if (StringUtils.isNotBlank(jsFunction)) {
 					buildInMethod.append(jsFunction).append("\n");
-					if (javaScriptFunction.isJar() && AppType.init().isDaas()) {
+					if (javaScriptFunction.isJar() && AppType.currentType().isDaas()) {
 						//定义类加载器
 						String fileId = javaScriptFunction.getFileId();
 						final Path filePath = Paths.get(System.getenv("TAPDATA_WORK_DIR"), "lib", fileId);
@@ -536,7 +536,7 @@ public class ScriptUtil {
 				String jsFunction = javaScriptFunction.getJSFunction();
 				if (StringUtils.isNotBlank(jsFunction)) {
 					buildInMethod.append(jsFunction).append("\n");
-					if (javaScriptFunction.isJar() && AppType.init().isDaas()) {
+					if (javaScriptFunction.isJar() && AppType.currentType().isDaas()) {
 						//定义类加载器
 						String fileId = javaScriptFunction.getFileId();
 						final Path filePath = Paths.get(System.getenv("TAPDATA_WORK_DIR"), "lib", fileId);

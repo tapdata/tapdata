@@ -15,6 +15,7 @@ import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.aspect.taskmilestones.*;
+import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.milestone.constants.MilestoneStatus;
 import io.tapdata.milestone.entity.MilestoneEntity;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -331,7 +332,9 @@ public class MilestoneAspectTask extends AbstractAspectTask {
                     , Update.update("attrs.milestone", milestones).set("attrs.nodeMilestones", nodeMilestones)
                     , ConnectorConstant.TASK_COLLECTION);
         } catch (Exception e) {
-            log.warn("Save milestone failed: {}", e.getMessage(), e);
+					if (TmUnavailableException.notInstance(e)) {
+						log.warn("Save milestone failed: {}", e.getMessage(), e);
+					}
         }
     }
 
