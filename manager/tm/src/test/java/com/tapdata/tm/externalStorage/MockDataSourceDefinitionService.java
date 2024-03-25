@@ -4,9 +4,10 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.repository.DataSourceDefinitionRepository;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionServiceImpl;
 import lombok.NonNull;
 
-public class MockDataSourceDefinitionService extends DataSourceDefinitionService {
+public class MockDataSourceDefinitionService extends DataSourceDefinitionServiceImpl {
 
     private boolean flag = false;
 

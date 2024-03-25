@@ -11,7 +11,6 @@ import com.tapdata.tm.classification.repository.ResourceTagRepository;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.bean.ResourceTagQueryDto;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;

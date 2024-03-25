@@ -23,7 +23,6 @@ import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;

@@ -170,17 +170,30 @@
         <lucene-core.version>8.11.2</lucene-core.version>
         <junit-jupiter.version>5.8.1</junit-jupiter.version>
         <mockito-all.version>1.10.19</mockito-all.version>
+        <iengine.impl.artifactId>iengine-oss</iengine.impl.artifactId>
+        <iengine.oss.module>iengine-oss</iengine.oss.module>
     </properties>
 
     <modules>
-        <module>iengine-app</module>
         <module>iengine-common</module>
-        <module>validator</module>
         <module>api</module>
+        <module>${iengine.oss.module}</module>
+        <module>iengine-app</module>
+        <module>validator</module>
         <module>modules</module>
     </modules>
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>com.tapdata</groupId>
+                <artifactId>iengine-oss</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.tapdata</groupId>
+                <artifactId>iengine-enterprise</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <!-- Major dependencies -->
             <dependency>
                 <groupId>com.fasterxml.jackson.core</groupId>
@@ -1009,6 +1022,19 @@
                     </snapshots>
                 </repository>
             </repositories>
+        </profile>
+        <profile>
+            <id>oss</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+        </profile>
+        <profile>
+            <id>enterprise</id>
+            <properties>
+                <iengine.impl.artifactId>iengine-enterprise</iengine.impl.artifactId>
+                <iengine.oss.module>../../tapdata-enterprise/iengine-enterprise</iengine.oss.module>
+            </properties>
         </profile>
     </profiles>
 

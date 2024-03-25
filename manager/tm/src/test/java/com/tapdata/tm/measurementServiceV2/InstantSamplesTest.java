@@ -4,6 +4,7 @@ import com.mongodb.client.MongoClient;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
+import com.tapdata.tm.monitor.service.MeasurementServiceV2Impl;
 import com.tapdata.tm.task.service.TaskService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -34,7 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
         mongoOperations.complete(mongoTemplate);
         MetadataInstancesService metadataInstancesService = Mockito.mock(MetadataInstancesService.class);
         TaskService taskService = Mockito.mock(TaskService.class);
-        measurementServiceV2 = new MeasurementServiceV2(mongoOperations, metadataInstancesService, taskService);
+        measurementServiceV2 = new MeasurementServiceV2Impl(mongoOperations, metadataInstancesService, taskService);
     }
 
 

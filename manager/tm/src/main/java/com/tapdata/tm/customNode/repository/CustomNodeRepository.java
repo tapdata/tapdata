@@ -3,7 +3,6 @@ package com.tapdata.tm.customNode.repository;
 import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.customNode.entity.CustomNodeEntity;
-import com.tapdata.tm.ds.entity.DataSourceEntity;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Repository;
