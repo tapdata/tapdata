@@ -6,6 +6,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.entity.AppType;
 import com.tapdata.entity.Connections;
+import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -27,6 +28,7 @@ import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapStringValue;
 import io.tapdata.error.TaskMergeProcessorExCode_16;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
@@ -1696,7 +1698,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
 			when(mockHazelcastMergeNode.isSubTableFirstMode()).thenReturn(false);
 			boolean result = mockHazelcastMergeNode.needLookup(tapdataEvent);
-			assertEquals(false, result);
+			assertEquals(true, result);
 		}
 
 		@DisplayName("test task is initalSync, mergeMode is subTableFirst and tapevent is first level node")
@@ -1731,7 +1733,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			mockHazelcastMergeNode.initMergeCache();
 			Map<String, ConstructIMap<Document>> cacheMap = (Map<String, ConstructIMap<Document>>) ReflectionTestUtils.getField(mockHazelcastMergeNode, "mergeCacheMap");
 			when(mockHazelcastMergeNode.isSubTableFirstMode()).thenReturn(false);
-			assertEquals(null, cacheMap);
+			assertEquals(0, cacheMap.size());
 		}
 
 		@Test

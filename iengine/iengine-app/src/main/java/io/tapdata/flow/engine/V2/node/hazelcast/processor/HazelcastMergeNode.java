@@ -468,7 +468,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private void initMergeCache() {
+	protected void initMergeCache() {
 		this.mergeCacheMap = new HashMap<>();
 		if (MapUtils.isEmpty(this.lookupMap)) {
 			return;
@@ -985,13 +985,13 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private boolean needCache(TapdataEvent tapdataEvent) {
+	protected boolean needCache(TapdataEvent tapdataEvent) {
 		if (isInvalidOperation(tapdataEvent)) return false;
 		String preNodeId = getPreNodeId(tapdataEvent);
 		return needCacheIdList.contains(preNodeId);
 	}
 
-	private boolean needLookup(TapdataEvent tapdataEvent) {
+	protected boolean needLookup(TapdataEvent tapdataEvent) {
 		SyncStage syncStage = tapdataEvent.getSyncStage();
 		if (isInvalidOperation(tapdataEvent)) return false;
 		String op = getOp(tapdataEvent);
@@ -1011,7 +1011,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return firstLevelMergeNodeIds.contains(preNodeId);
 	}
 
-	private boolean isSubTableFirstMode() {
+	protected boolean isSubTableFirstMode() {
 		return MergeTableNode.SUB_TABLE_FIRST_MERGE_MODE.equals(mergeMode);
 	}
 
