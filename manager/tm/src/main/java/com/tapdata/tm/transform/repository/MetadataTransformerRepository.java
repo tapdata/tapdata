@@ -3,7 +3,6 @@ package com.tapdata.tm.transform.repository;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.transform.entity.MetadataTransformerEntity;
-import com.tapdata.tm.transform.entity.MetadataTransformerEntity;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;

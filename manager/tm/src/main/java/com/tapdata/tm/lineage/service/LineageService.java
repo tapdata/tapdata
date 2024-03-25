@@ -6,7 +6,6 @@ import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.lineage.analyzer.AnalyzerService;
-import com.tapdata.tm.lineage.analyzer.entity.LineageNode;
 import com.tapdata.tm.lineage.dto.LineageDto;
 import com.tapdata.tm.lineage.dto.TableLineageDto;
 import com.tapdata.tm.lineage.entity.LineageEntity;

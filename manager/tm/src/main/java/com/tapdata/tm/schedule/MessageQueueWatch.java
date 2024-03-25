@@ -29,7 +29,7 @@ import java.util.*;
  */
 @Service
 @Slf4j
-public class MessageQueueWatch {
+public class MessageQueueWatch{
 
     @Autowired
     private WebSocketServer webSocketServer;

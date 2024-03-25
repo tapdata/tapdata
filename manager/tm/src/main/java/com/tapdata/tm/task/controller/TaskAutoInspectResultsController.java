@@ -16,7 +16,7 @@ import com.tapdata.tm.monitor.param.IdFilterPageParam;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.param.TablesParam;
 import com.tapdata.tm.task.entity.TaskAutoInspectGroupTableResultEntity;
-import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.service.TaskServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
@@ -40,7 +40,7 @@ import java.util.Map;
 @RequestMapping({"/api/Task", "/api/task"})
 @Setter(onMethod_ = {@Autowired})
 public class TaskAutoInspectResultsController extends BaseController {
-    private TaskService taskService;
+    private TaskServiceImpl taskService;
     private TaskAutoInspectResultsService resultsService;
 
     @Operation(summary = "保存自动校验结果")

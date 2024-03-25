@@ -5,6 +5,7 @@ import io.tapdata.ErrorCodeConfig;
 import io.tapdata.ErrorCodeEntity;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.loglistener.TapLogger;
 import io.tapdata.observable.logging.tag.LogTag;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -15,7 +16,7 @@ import java.util.concurrent.Callable;
 /**
  * @author Dexter
  **/
-public abstract class ObsLogger implements Serializable {
+public abstract class ObsLogger implements Serializable, TapLogger {
 
 	private static final long serialVersionUID = -2297877575311105139L;
 

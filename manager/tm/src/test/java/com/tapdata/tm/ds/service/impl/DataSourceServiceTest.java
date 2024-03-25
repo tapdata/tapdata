@@ -6,6 +6,8 @@ import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.permissions.service.DataPermissionService;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
@@ -14,12 +16,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -34,13 +34,14 @@ import static org.mockito.Mockito.when;
 class DataSourceServiceTest {
     private DataSourceService dataSourceServiceUnderTest;
     @Mock
-    private DataSourceDefinitionService dataSourceDefinitionService;
+    private DataSourceDefinitionServiceImpl dataSourceDefinitionService;
     @Mock
     private DataSourceRepository dataSourceRepository;
 
     @BeforeEach
     void setUp() {
-        dataSourceServiceUnderTest = new DataSourceService(dataSourceRepository);
+        new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
+        dataSourceServiceUnderTest = new DataSourceServiceImpl(dataSourceRepository);
         ReflectionTestUtils.setField(dataSourceServiceUnderTest,"dataSourceDefinitionService",dataSourceDefinitionService);
     }
 
