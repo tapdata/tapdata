@@ -6,7 +6,6 @@ import com.tapdata.tm.commons.metrics.ConnectorRecordDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.connectorRecord.entity.ConnectorRecordEntity;
 import com.tapdata.tm.connectorRecord.repository.ConnectorRecordRepository;
-import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;

@@ -1,15 +1,8 @@
 package com.tapdata.tm.inspect.vo;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.tapdata.tm.commons.schema.bean.PlatformInfo;
-import com.tapdata.tm.inspect.bean.Limit;
-import com.tapdata.tm.inspect.bean.Task;
-import com.tapdata.tm.inspect.bean.Timing;
-import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.vo.BaseVo;
 import lombok.Data;
-
-import java.util.List;
 
 /**
  * 提供返回给页面的vo类

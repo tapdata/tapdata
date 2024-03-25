@@ -11,8 +11,6 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import io.tapdata.construct.constructImpl.ConstructIMap;
-import io.tapdata.entity.codec.ToTapValueCodec;
-import io.tapdata.entity.codec.filter.EntryFilter;
 import io.tapdata.entity.codec.filter.MapIteratorEx;
 import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
 import io.tapdata.entity.event.TapEvent;
@@ -27,10 +25,8 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapString;
-import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapStringValue;
-import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskMergeProcessorExCode_16;
@@ -38,6 +34,8 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -58,6 +56,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.util.StopWatch;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -122,6 +121,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	private Map<String, MergeTablePropertyReference> mergeTablePropertyReferenceMap;
 	private Map<String, ConstructIMap<Document>> checkJoinKeyUpdateCacheMap;
 	private Map<String, EnableUpdateJoinKey> enableUpdateJoinKeyMap;
+	private ObsLogger nodeLogger;
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -177,6 +177,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		this.mapIterator = new AllLayerMapIterator();
 		batchProcessMetrics = new BatchProcessMetrics();
 		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(memoryKey(), this), TAG);
+		nodeLogger = ObsLoggerFactory.getInstance().getObsLogger(processorBaseContext.getTaskDto().getId().toHexString(), getNode().getId());
 	}
 
 	protected void initFirstLevelIds() {
@@ -258,63 +259,82 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 
 	@Override
 	protected void tryProcess(List<HazelcastProcessorBaseNode.BatchEventWrapper> tapdataEvents, Consumer<List<BatchProcessResult>> consumer) {
-		long startMS = System.currentTimeMillis();
-		batchProcessMetrics.nextBatchIntervalMS(System.currentTimeMillis() - lastBatchProcessFinishMS);
-		List<BatchProcessResult> batchProcessResults = new ArrayList<>();
+		loggerBeforeProcess(tapdataEvents);
+		StopWatch stopWatch = new StopWatch();
 		List<CompletableFuture<Void>> lookupCfs = new ArrayList<>();
 		List<BatchEventWrapper> batchCache = new ArrayList<>();
-		Boolean lastNeedCache = null;
-		if (this.createIndexEvent != null) {
-			BatchProcessResult batchProcessResult = new BatchProcessResult(new BatchEventWrapper(this.createIndexEvent), null);
-			batchProcessResults.add(batchProcessResult);
-			acceptIfNeed(consumer, batchProcessResults, lookupCfs);
-			batchProcessResults.clear();
-			this.createIndexEvent = null;
-		}
-		handleBatchUpdateJoinKey(tapdataEvents);
-		for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
-			TapdataEvent tapdataEvent = batchEventWrapper.getTapdataEvent();
-			boolean needCache = needCache(tapdataEvent);
-			if (null == lastNeedCache) {
-				lastNeedCache = needCache;
-			}
-			boolean needLookup = needLookup(tapdataEvent);
-			if (!tapdataEvent.isDML() || !Boolean.valueOf(needCache).equals(lastNeedCache)) {
-				if (lastNeedCache) {
-					doBatchCache(batchCache);
-				}
-				for (BatchEventWrapper eventWrapper : batchCache) {
-					String preTableName = getPreTableName(eventWrapper.getTapdataEvent());
-					batchProcessResults.add(new BatchProcessResult(eventWrapper, ProcessResult.create().tableId(preTableName)));
-				}
+
+		try {
+			stopWatch.start();
+			batchProcessMetrics.nextBatchIntervalMS(System.currentTimeMillis() - lastBatchProcessFinishMS);
+			List<BatchProcessResult> batchProcessResults = new ArrayList<>();
+			if (this.createIndexEvent != null) {
+				BatchProcessResult batchProcessResult = new BatchProcessResult(new BatchEventWrapper(this.createIndexEvent), null);
+				batchProcessResults.add(batchProcessResult);
 				acceptIfNeed(consumer, batchProcessResults, lookupCfs);
-				batchCache.clear();
 				batchProcessResults.clear();
-				lookupCfs.clear();
+				this.createIndexEvent = null;
 			}
-			wrapMergeInfo(tapdataEvent);
-			batchCache.add(batchEventWrapper);
-			if (needLookup) {
-				CompletableFuture<Void> lookupCf = lookupAndWrapMergeInfoConcurrent(tapdataEvent);
-				lookupCfs.add(lookupCf);
+			handleBatchUpdateJoinKey(tapdataEvents);
+			for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
+				if (Boolean.TRUE.equals(needCache(batchEventWrapper.getTapdataEvent()))) {
+					batchCache.add(batchEventWrapper);
+				}
+				wrapMergeInfo(batchEventWrapper.getTapdataEvent());
 			}
-			lastNeedCache = needCache;
-		}
-		if (CollectionUtils.isNotEmpty(batchCache)) {
-			if (null != lastNeedCache && lastNeedCache) {
+			if (CollectionUtils.isNotEmpty(batchCache)) {
 				doBatchCache(batchCache);
+				loggerBatchUpdateCache(batchCache);
 			}
-			for (BatchEventWrapper eventWrapper : batchCache) {
-				String preTableName = getPreTableName(eventWrapper.getTapdataEvent());
-				batchProcessResults.add(new BatchProcessResult(eventWrapper, ProcessResult.create().tableId(preTableName)));
+			doBatchLookUpConcurrent(tapdataEvents, lookupCfs);
+			for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
+				String preTableName = getPreTableName(batchEventWrapper.getTapdataEvent());
+				batchProcessResults.add(new BatchProcessResult(batchEventWrapper, ProcessResult.create().tableId(preTableName)));
 			}
 			acceptIfNeed(consumer, batchProcessResults, lookupCfs);
+		} finally {
+			stopWatch.stop();
+			batchProcessMetrics.processCost(stopWatch.getTotalTimeMillis(), tapdataEvents.size());
+			this.lastBatchProcessFinishMS = System.currentTimeMillis();
+
+			// Let jvm gc
+			lookupCfs = null;
+			batchCache = null;
 		}
-		batchProcessMetrics.processCost(System.currentTimeMillis() - startMS, tapdataEvents.size());
-		this.lastBatchProcessFinishMS = System.currentTimeMillis();
 	}
 
-	private void acceptIfNeed(Consumer<List<BatchProcessResult>> consumer, List<BatchProcessResult> batchProcessResults, List<CompletableFuture<Void>> lookupCfs) {
+	protected void loggerBeforeProcess(List<BatchEventWrapper> tapdataEvents) {
+		if (null == nodeLogger) return;
+		if (nodeLogger.isDebugEnabled()) {
+			nodeLogger.debug("[{}] Process merge event, size: {}", System.currentTimeMillis(), tapdataEvents.size());
+			for (BatchEventWrapper tapdataEvent : tapdataEvents) {
+				nodeLogger.debug("[{}] Tapdata event: {}", System.currentTimeMillis(), tapdataEvent.getTapdataEvent().getTapEvent());
+			}
+		}
+	}
+
+	protected void doBatchLookUpConcurrent(List<BatchEventWrapper> batchCache, List<CompletableFuture<Void>> lookupCfs) {
+		if (null == batchCache) return;
+		if (null == lookupCfs) throw new TapCodeException(TaskMergeProcessorExCode_16.LOOKUP_COMPLETABLE_FUTURE_LIST_IS_NULL);
+		batchCache.forEach(eventWrapper -> {
+			if (Boolean.TRUE.equals(needLookup(eventWrapper.getTapdataEvent()))) {
+				CompletableFuture<Void> lookupCf = lookupAndWrapMergeInfoConcurrent(eventWrapper.getTapdataEvent());
+				lookupCfs.add(lookupCf);
+			}
+		});
+	}
+
+	protected void loggerBatchUpdateCache(List<BatchEventWrapper> batchCache) {
+		if(null == nodeLogger) return;
+		if (nodeLogger.isDebugEnabled()) {
+			nodeLogger.debug("[{}] Do batch update cache, size: {}", System.currentTimeMillis(), batchCache.size());
+			for (BatchEventWrapper eventWrapper : batchCache) {
+				nodeLogger.debug("[{}] Cache event: {}", System.currentTimeMillis(), eventWrapper.getTapdataEvent());
+			}
+		}
+	}
+
+	protected void acceptIfNeed(Consumer<List<BatchProcessResult>> consumer, List<BatchProcessResult> batchProcessResults, List<CompletableFuture<Void>> lookupCfs) {
 		batchProcessResults = batchProcessResults.stream().filter(batchProcessResult -> {
 			TapdataEvent tapdataEvent = batchProcessResult.getBatchEventWrapper().getTapdataEvent();
 			if (tapdataEvent.isDML()) {
@@ -337,23 +357,39 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private CompletableFuture<Void> lookupAndWrapMergeInfoConcurrent(TapdataEvent tapdataEvent) {
+	protected CompletableFuture<Void> lookupAndWrapMergeInfoConcurrent(TapdataEvent tapdataEvent) {
 		Runnable runnable = () -> {
-			long startMS = System.currentTimeMillis();
-			MergeInfo mergeInfo = wrapMergeInfo(tapdataEvent);
-			List<MergeLookupResult> mergeLookupResults = lookup(tapdataEvent);
-			mergeInfo.setMergeLookupResults(mergeLookupResults);
-			batchProcessMetrics.lookupCost(System.currentTimeMillis() - startMS);
+			StopWatch stopWatch = new StopWatch();
+			List<MergeLookupResult> mergeLookupResults = null;
+			try {
+				stopWatch.start();
+				MergeInfo mergeInfo = wrapMergeInfo(tapdataEvent);
+				mergeLookupResults = lookup(tapdataEvent);
+				mergeInfo.setMergeLookupResults(mergeLookupResults);
+			} finally {
+				stopWatch.stop();
+				if (null != nodeLogger && nodeLogger.isDebugEnabled()) {
+					nodeLogger.debug("[{}] Do lookup, cost: {} ms, event: {}, lookup result: {}",
+							System.currentTimeMillis(), stopWatch.getTotalTimeMillis(), tapdataEvent,
+							null == mergeLookupResults ? 0 : mergeLookupResults.size());
+				}
+				batchProcessMetrics.lookupCost(stopWatch.getTotalTimeMillis());
+			}
 		};
 		return CompletableFuture.runAsync(runnable, lookupThreadPool);
 	}
 
-	private void doBatchCache(List<BatchEventWrapper> batchCache) {
-		long startMS = System.currentTimeMillis();
-		if (CollectionUtils.isNotEmpty(batchCache)) {
-			cache(batchCache.stream().map(BatchEventWrapper::getTapdataEvent).collect(Collectors.toList()));
+	protected void doBatchCache(List<BatchEventWrapper> batchCache) {
+		StopWatch stopWatch = new StopWatch();
+		try {
+			stopWatch.start();
+			if (CollectionUtils.isNotEmpty(batchCache)) {
+				cache(batchCache.stream().map(BatchEventWrapper::getTapdataEvent).collect(Collectors.toList()));
+			}
+		} finally {
+			stopWatch.stop();
+			batchProcessMetrics.cacheCost(stopWatch.getTotalTimeMillis(), batchCache.size());
 		}
-		batchProcessMetrics.cacheCost(System.currentTimeMillis() - startMS, batchCache.size());
 	}
 
 	@Override
@@ -723,7 +759,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		BeanUtils.copyProperties(externalStorageDto, externalStorageDtoCopy);
 		externalStorageDtoCopy.setTable(null);
 		externalStorageDtoCopy.setInMemSize(inMemSize);
-		externalStorageDtoCopy.setWriteDelaySeconds(1);
+		externalStorageDtoCopy.setWriteDelaySeconds(10);
 		externalStorageDtoCopy.setTtlDay(0);
 		return externalStorageDtoCopy;
 	}
@@ -1042,7 +1078,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private void cache(List<TapdataEvent> tapdataEvents) {
+	protected void cache(List<TapdataEvent> tapdataEvents) {
 		if (null == tapdataEvents) {
 			return;
 		}
@@ -1177,10 +1213,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 		try {
 			hazelcastConstruct.insertMany(insertMap);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 		} catch (Exception e) {
-			if (null != e.getCause() && e.getCause() instanceof InterruptedException) {
-				return;
-			}
 			throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHES_FAILED, e);
 		}
 	}
@@ -1369,7 +1404,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return connectionId;
 	}
 
-	private String getPreTableName(TapdataEvent tapdataEvent) {
+	protected String getPreTableName(TapdataEvent tapdataEvent) {
 		String preNodeId = getPreNodeId(tapdataEvent);
 		Node<?> preNode;
 		try {
@@ -1386,7 +1421,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return preTableName;
 	}
 
-	private List<MergeLookupResult> lookup(TapdataEvent tapdataEvent) {
+	protected List<MergeLookupResult> lookup(TapdataEvent tapdataEvent) {
 		List<String> nodeIds = tapdataEvent.getNodeIds();
 		if (CollectionUtils.isEmpty(nodeIds)) {
 			throw new TapEventException(TaskMergeProcessorExCode_16.LOOK_UP_MISSING_FROM_NODE_ID).addEvent(tapdataEvent.getTapEvent());
@@ -1426,6 +1461,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				String encodeJoinValueKey = encode(joinValueKey);
 				try {
 					findData = hazelcastConstruct.find(encodeJoinValueKey);
+					if (nodeLogger.isDebugEnabled()) {
+						nodeLogger.debug("Lookup find data filter: {}({}), result: {}", joinValueKey, encodeJoinValueKey, findData);
+					}
 				} catch (Exception e) {
 					throw new TapCodeException(TaskMergeProcessorExCode_16.LOOK_UP_FIND_BY_JOIN_KEY_FAILED, String.format("- Find construct name: %s%n- Join key: %s%n- Encoded join key: %s", hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey), e);
 				}
@@ -1651,7 +1689,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private static class BatchProcessMetrics {
+	protected static class BatchProcessMetrics {
 		private long cacheCostMS;
 		private long cacheRow;
 		private final Map<String, LookupMetrics> lookupCostMSMap;

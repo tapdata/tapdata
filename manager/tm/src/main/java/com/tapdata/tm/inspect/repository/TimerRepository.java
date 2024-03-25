@@ -1,7 +1,6 @@
 package com.tapdata.tm.inspect.repository;
 
 import com.tapdata.tm.base.reporitory.BaseRepository;
-import com.tapdata.tm.inspect.entity.InspectEntity;
 import com.tapdata.tm.inspect.entity.TimerLockEntity;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoTemplate;

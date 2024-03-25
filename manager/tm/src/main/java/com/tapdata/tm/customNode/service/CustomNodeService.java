@@ -1,20 +1,15 @@
 package com.tapdata.tm.customNode.service;
 
 import com.tapdata.tm.base.service.BaseService;
-import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.customNode.dto.CustomNodeDto;
 import com.tapdata.tm.customNode.entity.CustomNodeEntity;
 import com.tapdata.tm.customNode.repository.CustomNodeRepository;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.utils.Lists;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -24,11 +19,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * @Author:

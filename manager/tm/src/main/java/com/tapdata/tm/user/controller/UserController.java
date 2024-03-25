@@ -3,7 +3,6 @@ package com.tapdata.tm.user.controller;
 import cn.hutool.crypto.digest.BCrypt;
 import com.mongodb.BasicDBObject;
 import com.tapdata.tm.Permission.dto.PermissionDto;
-import com.tapdata.tm.Permission.entity.PermissionEntity;
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.accessToken.dto.AccessTokenDto;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
@@ -45,7 +44,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 

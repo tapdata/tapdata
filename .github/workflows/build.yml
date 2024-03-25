@@ -1,4 +1,4 @@
-name: Docker Image Construction
+name: OpenSource Version Construction
 
 on:
   workflow_dispatch:
@@ -24,34 +24,141 @@ jobs:
     timeout-minutes: 60
     outputs:
       TAPDATA_BRANCH: ${{ steps.set-outputs.outputs.TAPDATA_BRANCH }}
+      TAG_NAME: ${{ steps.set-outputs.outputs.TAG_NAME }}
     steps:
-      - name: Set Env if Push
-        if: ${{ github.event_name == 'push' }}
+      - name: Set Env
         run: |
           echo "TAPDATA_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
-      - name: Set Env if Pull Request
-        if: ${{ github.event_name == 'pull_request' }}
+      - name: Checkout Tapdata Code
+        uses: actions/checkout@v3
+        with:
+          repository: 'tapdata/tapdata'
+          ref: ${{ github.ref_name }}
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata
+          fetch-depth: 0
+      - name: Set Tag
         run: |
-          echo "TAPDATA_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
+          cd tapdata
+          main_tag=$(git branch --show-current | cut -d '-' -f 2)
+          current_timestamp=$(date +%s)
+          hex_timestamp=$(printf "%X" "$current_timestamp" | tr 'A-F' 'a-f')
+          tag_name="$main_tag-$hex_timestamp"
+          echo "TAG_NAME=$tag_name" >> $GITHUB_ENV
       - name: Set Outpus
         id: set-outputs
         run: |
           echo "::set-output name=TAPDATA_BRANCH::${TAPDATA_BRANCH}"
+          echo "::set-output name=TAG_NAME::${TAG_NAME}"
 
   Sync-Code-to-Internal-Repo:
-    uses: tapdata/tapdata-application/.github/workflows/sync-code-to-office.yaml@main
+    runs-on: ubuntu-latest
     needs:
       - Set-Branch
-    with:
-      tapdata: ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }}
-      tapdata-connectors: ${{ inputs.connectors_branch }}
-      tapdata-enterprise-web: ${{ inputs.frontend_branch }}
-    secrets:
-      TAPDATA_ENT_CICD_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+    steps:
+      - name: Checkout Tapdata Code
+        uses: actions/checkout@v3
+        with:
+          repository: 'tapdata/tapdata'
+          ref: ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }}
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata
+          fetch-depth: 0
+      - name: Checkout Tapdata Connectors Code
+        uses: actions/checkout@v3
+        with:
+          repository: 'tapdata/tapdata-connectors'
+          ref: ${{ inputs.connectors_branch }}
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-connectors
+          fetch-depth: 0
+      - name: Checkout Tapdata Enterprise Web Code
+        uses: actions/checkout@v3
+        with:
+          repository: 'tapdata/tapdata-enterprise-web'
+          ref: ${{ inputs.frontend_branch }}
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-enterprise-web
+          fetch-depth: 0
+      - name: Checkout Tapdata Application
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-application'
+          ref: main
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-application
+          fetch-depth: 0
+      - name: Push Tapdata to Gogs
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: |
+            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata --gogs-project-name=tapdata
+      - name: Push Tapdata Connectors to Gogs
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: |
+            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata-connectors --gogs-project-name=tapdata-connectors
+      - name: Push Tapdata Enterprise Web to Gogs
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: |
+            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata-enterprise-web --gogs-project-name=tapdata-enterprise-web
+      - name: Push Tapdata Application to Gogs
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: |
+            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata-application --gogs-project-name=tapdata-application
 
-  Build:
-    runs-on: office-build
+  Build-Tapdata:
+    runs-on: office-scan
     timeout-minutes: 60
+    needs:
+      - Set-Branch
+      - Sync-Code-to-Internal-Repo
+    steps:
+      - name: Patch Maven Dependens
+        run: |
+          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@192.168.1.184:873/data/enterprise-temp/tapdata/ /root/.m2/
+      - name: Checkout Tapdata Repo
+        run: |
+          rm -rf tapdata
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          cd tapdata && git fetch --tags
+      - name: Get Tapdata Version
+        run: |
+          cd tapdata && tapdata_version=$(git rev-parse --short HEAD) && cd ..
+          mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
+          echo "- tapdata: ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} $tapdata_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata.version
+          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
+      - name: compile opensource tapdata
+        run: |
+          cd tapdata && bash build/build.sh -c tapdata -u false -l "-Dmaven.compile.fork=true -P idaas -P oss"
+      - name: Upload Outputs
+        run: |
+          cd tapdata && bash build/build.sh -p tapdata
+          temp_dir=temp/${{ needs.Set-Branch.outputs.TAG_NAME }}
+          mkdir -p $temp_dir
+          cp -r output/* $temp_dir/
+          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync -r --password-file=/tmp/rsync.passwd temp/ rsync://root@192.168.1.184:873/data/temp/
+
+  Build-Connectors:
+    runs-on: office-scan
+    timeout-minutes: 60
+    needs:
+      - Set-Branch
+      - Sync-Code-to-Internal-Repo
     steps:
       - name: Checkout Tapdata Repo
         run: |
@@ -59,51 +166,166 @@ jobs:
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
           git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
           cd tapdata && git fetch --tags
+      - name: Patch Maven Dependens
+        run: |
+          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@192.168.1.184:873/data/enterprise-temp/tapdata/ /root/.m2/
       - name: Checkout Connectors Code
         run: |
           rm -rf tapdata-connectors
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
           git clone -b ${{ inputs.connectors_branch }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-connectors.git
           cd tapdata-connectors && git fetch --tags
+      - name: Get Connectors Version
+        run: |
+          cd tapdata-connectors && tapdata_connectors_version=$(git rev-parse --short HEAD) && cd ..
+          mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
+          echo "- tapdata-connectors: ${{ inputs.connectors_branch }} $tapdata_connectors_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata-connectors.version
+          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
+      - name: compile tapdata connectors
+        run: |
+          cd tapdata && bash build/build.sh -c connectors -u false -l "-Dmaven.compile.fork=true"
+      - name: Upload Outputs
+        run: |
+          cd tapdata && bash build/build.sh -p connectors
+          temp_dir=temp/${{ needs.Set-Branch.outputs.TAG_NAME }}
+          mkdir -p $temp_dir
+          cp -r output/* $temp_dir/
+          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync -r --password-file=/tmp/rsync.passwd temp/ rsync://root@192.168.1.184:873/data/temp/
+
+  Build-Frontend:
+    runs-on: office-scan
+    timeout-minutes: 60
+    needs:
+      - Set-Branch
+      - Sync-Code-to-Internal-Repo
+    steps:
+      - name: Checkout Tapdata Repo
+        run: |
+          rm -rf tapdata
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          cd tapdata && git fetch --tags
       - name: Checkout Frontend Code
         run: |
           rm -rf tapdata-enterprise-web
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
           git clone -b ${{ inputs.frontend_branch }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-enterprise-web.git
           cd tapdata-enterprise-web && git fetch --tags
+      - name: Get Frontend Version
+        run: |
+          cd tapdata-enterprise-web && tapdata_enterprise_web_version=$(git rev-parse --short HEAD) && cd ..
+          mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
+          echo "- tapdata-enterprise-web: ${{ inputs.frontend_branch }} $tapdata_enterprise_web_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata-enterprise-web.version
+          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
+      - name: Build Frontend
+        run: |
+          pnpm config set registry https://registry.npmmirror.com
+          cd tapdata && bash build/build.sh -c frontend -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
+      - name: Upload Outputs
+        run: |
+          cd tapdata && bash build/build.sh -p frontend
+          temp_dir=temp/${{ needs.Set-Branch.outputs.TAG_NAME }}
+          mkdir -p $temp_dir
+          cp -r output/* $temp_dir/
+          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync -r --password-file=/tmp/rsync.passwd temp/ rsync://root@192.168.1.184:873/data/temp/
+
+  Build-Image:
+    runs-on: office-scan
+    timeout-minutes: 60
+    needs:
+      - Build-Tapdata
+      - Build-Connectors
+      - Build-Frontend
+      - Set-Branch
+    steps:
+      - name: Clean Directory
+        run: |
+          rm -rf ./*
+      - name: Checkout Tapdata Repo
+        run: |
+          rm -rf tapdata
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          cd tapdata && git fetch --tags
+      - name: Package and Push Image
+        run: |
+          cd tapdata
+          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          mkdir -p output
+          rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
+          bash build/build.sh -o docker -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
+          echo '${{ secrets.HARBOR_PASS }}' | docker login harbor.internal.tapdata.io --username=${{ secrets.HARBOR_USER }} --password-stdin
+          docker push harbor.internal.tapdata.io/tapdata/tapdata:${{ needs.Set-Branch.outputs.TAG_NAME }}
+      - name: Print Image Info
+        run: |
+          echo '**Google Docker Image:**' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "harbor.internal.tapdata.io/tapdata/tapdata:${{ needs.Set-Branch.outputs.TAG_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Checkout Tapdata Application
         run: |
           rm -rf tapdata-application
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b main --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-application.git
-      - name: Setup Node
-        uses: actions/setup-node@v3
+          git clone -b version --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata-application.git
+      - name: Add Commit ID and Version Map
+        run: |
+          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync -r --progress --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/version/${{ needs.Set-Branch.outputs.TAG_NAME }}/ ./
+          echo "## ${{ needs.Set-Branch.outputs.TAG_NAME }}" >> tapdata-application/README.md
+          cat tapdata.version >> tapdata-application/README.md
+          cat tapdata-enterprise-web.version >> tapdata-application/README.md
+          cat tapdata-connectors.version >> tapdata-application/README.md
+      - uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          node-version: '16.20.0'
-      - name: Setup Pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 7.30.5
-      - name: Build Frontend
+          commit_message: "Update README.md"
+          branch: 'version'
+          repository: 'tapdata-application'
+          commit_user_name: 'cicd'
+          commit_user_email: 'cicd@tapdata.io'
+  
+  Make-Tar-File:
+    runs-on: office-scan
+    timeout-minutes: 60
+    needs:
+      - Build-Tapdata
+      - Build-Connectors
+      - Build-Frontend
+      - Set-Branch
+    steps:
+      - name: Clean Directory
         run: |
-          cd tapdata-application && bash build/build.sh -c tapdata-enterprise-web -u false -m productioin -t v3.12-open
-      - name: compile opensource tapdata
+          rm -rf ./*
+      - name: Checkout Tapdata Repo
         run: |
-          cd tapdata-application && bash build/build.sh -c tapdata -P true -l "-Dmaven.compile.fork=true -P idaas"
-      - name: compile tapdata connectors
+          rm -rf tapdata
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          cd tapdata && git fetch --tags
+      - name: Package and Push Tar File
         run: |
-          cd tapdata-application && bash build/build.sh -c opensource-connectors -u false -P true -l "-Dmaven.compile.fork=true"
-      - name: Build Image
-        run: |
-          cd tapdata && bash build/build.sh -p true -o image
-      - name: Log in to the Container registry
-        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Push Image
-        run: |
-          docker_tag=`cat tapdata/build/image/tag`
-          docker push $docker_tag
+          cd tapdata
+          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          mkdir -p output
+          rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
+          bash build/build.sh -o tar -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
+          rsync -r --progress --password-file=/tmp/rsync.passwd output/tapdata-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz rsync://root@58.251.34.123:873/data/enterprise-artifact/gz/
 
+  Clean-Build-Temp:
+    runs-on: office-scan
+    timeout-minutes: 30
+    needs:
+      - Make-Tar-File
+      - Build-Image
+      - Set-Branch
+    if: ${{ always() }}
+    steps:
+      - name: Clean Build Temp
+        run: |
+          mkdir -p temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/
+          echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync -r --delete --password-file=/tmp/rsync.passwd temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ rsync://root@192.168.1.184:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/

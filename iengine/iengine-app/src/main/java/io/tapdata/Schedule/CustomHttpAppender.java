@@ -8,7 +8,7 @@ import com.tapdata.tm.commons.dag.Node;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.exception.NodeException;
 import io.tapdata.observable.logging.LogEventData;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;

@@ -1,16 +1,9 @@
 
 package com.tapdata.tm.ds.vo;
 
-import com.tapdata.tm.base.dto.ds.DsBaseDto;
-import com.tapdata.tm.ds.bean.*;
 import com.tapdata.tm.vo.BaseVo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import org.springframework.data.mongodb.core.mapping.Field;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * 数据源连接

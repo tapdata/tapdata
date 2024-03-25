@@ -4,7 +4,6 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingUtil;
-import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.reporitory.BaseRepository;
@@ -13,6 +12,8 @@ import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.permissions.service.DataPermissionService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -24,10 +25,8 @@ import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import org.bson.BsonValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -52,8 +51,9 @@ class WorkerServiceTest {
     private ClusterStateService clusterStateService;
     @BeforeEach
     void buildWorkService(){
+        new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
         workerRepository = mock(WorkerRepository.class);
-        workerService = spy(new WorkerService(workerRepository));
+        workerService = spy(new WorkerServiceImpl(workerRepository));
         settingsService = mock(SettingsService.class);
         taskService = mock(TaskService.class);
         clusterStateService = mock(ClusterStateService.class);

@@ -8,8 +8,7 @@
   <artifactId>tm-common</artifactId>
   <version>0.0.3-SNAPSHOT</version>
 
-  <name>tm-common</name>
-  <url>http://www.tapdata.io</url>
+  <name>TM Common</name>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
