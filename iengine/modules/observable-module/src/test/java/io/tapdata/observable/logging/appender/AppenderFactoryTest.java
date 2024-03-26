@@ -169,6 +169,7 @@ public class AppenderFactoryTest {
             appenderMap.put("123",appenders);
             ReflectionTestUtils.setField(appenderFactory,"appenderMap",appenderMap);
             doCallRealMethod().when(appenderFactory).appenderAppendLog(builder,TM_APPENDER_TAILER_ID);
+            appenderFactory.appenderAppendLog(builder,TM_APPENDER_TAILER_ID);
             doAnswer(invocationOnMock -> {
                 MonitoringLogsDto monitoringLogsDto = (MonitoringLogsDto) invocationOnMock.getArgument(0);
                 assertEquals("123",monitoringLogsDto.getTaskId());
