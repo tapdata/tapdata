@@ -176,6 +176,34 @@ public class AppenderFactoryTest {
                 return null;
             }).when(appender).append(any());
         }
+        @DisplayName("test appenderAppendLog when appender is ")
+        @Test
+        void test5(){
+            List<Appender<MonitoringLogsDto>> appenders=new ArrayList<>();
+            Appender appender = mock(ScriptNodeProcessNodeAppender.class);
+            appenders.add(appender);
+            appenderMap.put("123",appenders);
+            ReflectionTestUtils.setField(appenderFactory,"appenderMap",appenderMap);
+            doCallRealMethod().when(appenderFactory).appenderAppendLog(builder,TM_APPENDER_TAILER_ID);
+            appenderFactory.appenderAppendLog(builder,TM_APPENDER_TAILER_ID);
+            doAnswer(invocationOnMock -> {
+                MonitoringLogsDto monitoringLogsDto = (MonitoringLogsDto) invocationOnMock.getArgument(0);
+                assertEquals("123",monitoringLogsDto.getTaskId());
+                return null;
+            }).when(appender).append(any());
+        }
     }
+    @Nested
+    class AppendLogTest{
+        @DisplayName("test Append log when value is null")
+        @Test
+        void test1(){
+            MonitoringLogsDto monitoringLogsDto = MonitoringLogsDto.builder().taskId("123").build();
+            AppenderFactory instance = AppenderFactory.getInstance();
+            instance.appendLog(monitoringLogsDto);
+            assertDoesNotThrow(()->{instance.appendLog(monitoringLogsDto);});
+        }
+    }
+
 
 }
