@@ -60,4 +60,8 @@ public interface ShareCdcReaderExCode_13 {
 			describeCN = "写入数据日志事件，写入数据是空值或不存在"
 	)
 	String INSERT_MISSING_AFTER = "13010";
+	@TapExCode(
+			recoverable = true
+	)
+	String FIND_NEXT_FAILED = "13011";
 }
