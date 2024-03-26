@@ -10,7 +10,6 @@ import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
-import net.openhft.chronicle.queue.util.FileUtil;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.ValueOut;
 import org.apache.commons.collections4.CollectionUtils;
@@ -37,7 +36,8 @@ import java.util.stream.Collectors;
  * @date 2022/6/20 11:55
  **/
 public class AppenderFactory implements Serializable {
-	public static final String OBS_LOGGER_TAILER_ID = "OBS-LOGGER-TAILER";
+	public static final String FILE_APPENDER_TAILER_ID = "FILE_APPENDER_TAILER";
+	public static final String TM_APPENDER_TAILER_ID= "TM_APPENDER_TAILER";
 	private volatile static AppenderFactory INSTANCE;
 
 	public static AppenderFactory getInstance() {
@@ -53,39 +53,50 @@ public class AppenderFactory implements Serializable {
 
 	private final Logger logger = LogManager.getLogger(AppenderFactory.class);
 	public final static int BATCH_SIZE = 100;
-	private final static String READ_MESSAGE_FORM_CACHE_QUEUE_THREAD_NAME = "Read-Message-From-Cache-Queue-Thread";
+	private final static String READ_TM_APPENDER_TAILER_THREAD = "Read_TM_Appender_TAILER_Thread";
+	private final static String READ_FILE_APPENDER_TAILER_THREAD = "Read_File_Appender_TAILER_Thread";
 	private final static String CACHE_QUEUE_DIR = "." + File.separator + "CacheObserveLogs";
 	private final SingleChronicleQueue cacheLogsQueue;
 	private final Map<String, List<Appender<MonitoringLogsDto>>> appenderMap = new ConcurrentHashMap<>();
 	private final Semaphore emptyWaiting = new Semaphore(1);
-	private final ExecutorService executorService = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1),
-			r -> new Thread(r, READ_MESSAGE_FORM_CACHE_QUEUE_THREAD_NAME)
+	private final ExecutorService fileAppenderTailerExecutor = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1),
+			r -> new Thread(r, READ_FILE_APPENDER_TAILER_THREAD)
+	);
+	private final ExecutorService tmHttpAppenderTailerExecutor = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1),
+			r -> new Thread(r, READ_TM_APPENDER_TAILER_THREAD)
 	);
 	private long cycle;
 
 	private AppenderFactory() {
 		cacheLogsQueue = ChronicleQueue.singleBuilder(CACHE_QUEUE_DIR)
-				.rollCycle(RollCycles.HUGE_DAILY)
+				.rollCycle(RollCycles.MINUTELY)
 				.storeFileListener((cycle, file) -> {
 					deleteFileIfLessThanCurrentCycle(cycle, file);
 				})
 				.build();
 		cycle = cacheLogsQueue.cycle();
-		executorService.submit(() -> {
-			try (ExcerptTailer tailer = cacheLogsQueue.createTailer(OBS_LOGGER_TAILER_ID)) {
+		fileAppenderTailerExecutor.submit(() -> {
+			try (ExcerptTailer tailer = cacheLogsQueue.createTailer(FILE_APPENDER_TAILER_ID)) {
 				while (true) {
-					readMessageFromCacheQueue(tailer);
+					readMessageFromCacheQueue(tailer,FILE_APPENDER_TAILER_ID);
+				}
+			}
+		});
+		tmHttpAppenderTailerExecutor.submit(() -> {
+			try (ExcerptTailer tailer = cacheLogsQueue.createTailer(TM_APPENDER_TAILER_ID)) {
+				while (true){
+					readMessageFromCacheQueue(tailer,TM_APPENDER_TAILER_ID);
 				}
 			}
 		});
 	}
 
-	protected void readMessageFromCacheQueue(ExcerptTailer tailer) {
+	protected void readMessageFromCacheQueue(ExcerptTailer tailer,String tailerType) {
 		try {
 			final MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
 			boolean success = tailer.readDocument(r -> decodeFromWireIn(r.getValueIn(), builder));
 			if (success) {
-				appendersAppendLog(builder);
+				appenderAppendLog(builder,tailerType);
 			} else {
 				emptyWaiting.tryAcquire(1, 200, TimeUnit.MILLISECONDS);
 			}
@@ -94,21 +105,21 @@ public class AppenderFactory implements Serializable {
 		}
 	}
 
-	protected void appendersAppendLog(MonitoringLogsDto.MonitoringLogsDtoBuilder builder) {
+	protected void appenderAppendLog(MonitoringLogsDto.MonitoringLogsDtoBuilder builder, String tailerType) {
 		MonitoringLogsDto monitoringLogsDto = builder.build();
 		String taskId = monitoringLogsDto.getTaskId();
-		appenderMap.computeIfPresent(taskId, (id, appenders) -> {
-			if (CollectionUtils.isEmpty(appenders)) {
-				return null;
-			}
-			for (Appender<MonitoringLogsDto> appender : appenders) {
-				if (null == appender) {
-					continue;
+		List<Appender<MonitoringLogsDto>> appenders = appenderMap.get(taskId);
+		if (CollectionUtils.isNotEmpty(appenders)) {
+			appenders.stream().filter(appender -> null != appender).filter((appender -> {
+				if (FILE_APPENDER_TAILER_ID.equals(tailerType)) {
+					return appender instanceof FileAppender;
+				} else {
+					return appender instanceof ObsHttpTMAppender || appender instanceof ScriptNodeProcessNodeAppender;
 				}
+			})).forEach(appender -> {
 				appender.append(monitoringLogsDto);
-			}
-			return appenders;
-		});
+			});
+		}
 	}
 
 	protected void deleteFileIfLessThanCurrentCycle(int cycle, File file) {

@@ -69,11 +69,11 @@ public class AppenderFactoryTest {
                 when(MonitoringLogsDto.builder()).thenReturn(builder);
                 AppenderFactory instance = mock(AppenderFactory.class);
                 ExcerptTailer tailer = mock(ExcerptTailer.class);
-                doCallRealMethod().when(instance).readMessageFromCacheQueue(tailer);
-                doNothing().when(instance).appendersAppendLog(any());
+                doCallRealMethod().when(instance).readMessageFromCacheQueue(tailer,"fileAppender");
+                doNothing().when(instance).appenderAppendLog(any(),anyString());
                 when(tailer.readDocument(any())).thenReturn(true);
-                instance.readMessageFromCacheQueue(tailer);
-                verify(instance,times(1)).appendersAppendLog(builder);
+                instance.readMessageFromCacheQueue(tailer,"fileAppender");
+                verify(instance,times(1)).appenderAppendLog(builder,"fileAppender");
             }
         }
         @DisplayName("test ReadMessage when tailer read Ducument error")
@@ -86,14 +86,13 @@ public class AppenderFactoryTest {
                 AppenderFactory instance = mock(AppenderFactory.class);
                 ReflectionTestUtils.setField(instance,"logger",logger);
                 ExcerptTailer tailer = mock(ExcerptTailer.class);
-                doCallRealMethod().when(instance).readMessageFromCacheQueue(tailer);
+                doCallRealMethod().when(instance).readMessageFromCacheQueue(tailer,"fileAppender");
                 when(tailer.readDocument(any())).thenThrow(new RuntimeException("read Error"));
-                instance.readMessageFromCacheQueue(tailer);
+                instance.readMessageFromCacheQueue(tailer,"fileAppender");
                 verify(logger,times(1)).warn(anyString(),any(),any());
             }
         }
         @DisplayName("test ReadMessage when the queue is empty,will waiting")
-
         @SneakyThrows
         @Test
         void test3(){
@@ -104,9 +103,9 @@ public class AppenderFactoryTest {
                 Semaphore semaphore = mock(Semaphore.class);
                 ReflectionTestUtils.setField(instance,"emptyWaiting",semaphore);
                 ExcerptTailer tailer = mock(ExcerptTailer.class);
-                doCallRealMethod().when(instance).readMessageFromCacheQueue(tailer);
+                doCallRealMethod().when(instance).readMessageFromCacheQueue(tailer,"fileAppender");
                 when(tailer.readDocument(any())).thenReturn(false);
-                instance.readMessageFromCacheQueue(tailer);
+                instance.readMessageFromCacheQueue(tailer,"fileAppender");
                 verify(semaphore,times(1)).tryAcquire(1, 200, TimeUnit.MILLISECONDS);
             }
         }
@@ -116,6 +115,8 @@ public class AppenderFactoryTest {
         private MonitoringLogsDto.MonitoringLogsDtoBuilder builder;
         private AppenderFactory appenderFactory;
         Map<String, List<Appender<MonitoringLogsDto>>> appenderMap;
+        public static final String FILE_APPENDER_TAILER_ID = "FILE_APPENDER_TAILER";
+        public static final String TM_APPENDER_TAILER_ID= "TM_APPENDER_TAILER";
         @BeforeEach
         void setUp(){
             builder = MonitoringLogsDto.builder();
@@ -124,43 +125,54 @@ public class AppenderFactoryTest {
             appenderMap = new ConcurrentHashMap<>();
 
         }
-        @DisplayName("test AppendersAppendLog when task appenders is empty")
+        @DisplayName("test AppenderAppendLog when task appenders is empty")
         @Test
         void test1(){
             appenderMap.put("123",new ArrayList<>());
             ReflectionTestUtils.setField(appenderFactory,"appenderMap",appenderMap);
-            doCallRealMethod().when(appenderFactory).appendersAppendLog(builder);
-            appenderFactory.appendersAppendLog(builder);
-            List<Appender<MonitoringLogsDto>> appenders = appenderMap.get("123");
-            assertNull(appenders);
+            doCallRealMethod().when(appenderFactory).appenderAppendLog(builder,"FILE_APPENDER_TAILER");
+            assertDoesNotThrow(()->{appenderFactory.appenderAppendLog(builder,"FILE_APPENDER_TAILER");});
         }
-        @DisplayName("test AppendersAppendLog when task appenders is not empty")
+        @DisplayName("test AppenderAppendLog when task appenders is not empty")
         @Test
         void test2(){
             List<Appender<MonitoringLogsDto>> appenders=new ArrayList<>();
-            Appender appender = mock(Appender.class);
+            Appender appender = mock(FileAppender.class);
             appenders.add(appender);
             appenderMap.put("123",appenders);
             ReflectionTestUtils.setField(appenderFactory,"appenderMap",appenderMap);
-            doCallRealMethod().when(appenderFactory).appendersAppendLog(builder);
-            appenderFactory.appendersAppendLog(builder);
+            doCallRealMethod().when(appenderFactory).appenderAppendLog(builder,FILE_APPENDER_TAILER_ID);
+            appenderFactory.appenderAppendLog(builder,FILE_APPENDER_TAILER_ID);
             doAnswer(invocationOnMock -> {
                 MonitoringLogsDto monitoringLogsDto = (MonitoringLogsDto) invocationOnMock.getArgument(0);
                 assertEquals("123",monitoringLogsDto.getTaskId());
                 return null;
             }).when(appender).append(any());
         }
-        @DisplayName("test AppendersAppendLog when task appender is null")
+        @DisplayName("test appenderAppendLog when task appender is null")
         @Test
         void test3(){
             List<Appender<MonitoringLogsDto>> appenders=new ArrayList<>();
             appenders.add(null);
             appenderMap.put("123",appenders);
             ReflectionTestUtils.setField(appenderFactory,"appenderMap",appenderMap);
-            doCallRealMethod().when(appenderFactory).appendersAppendLog(builder);
-            appenderFactory.appendersAppendLog(builder);
-            List<Appender<MonitoringLogsDto>> appenders1 = appenderMap.get("123");
-            assertNull(appenders1.get(0));
+            doCallRealMethod().when(appenderFactory).appenderAppendLog(builder,FILE_APPENDER_TAILER_ID);
+            assertDoesNotThrow(()->{appenderFactory.appenderAppendLog(builder,FILE_APPENDER_TAILER_ID);});
+        }
+        @DisplayName("test appenderAppendLog when appender is obsHttpAppender")
+        @Test
+        void test4(){
+            List<Appender<MonitoringLogsDto>> appenders=new ArrayList<>();
+            Appender appender = mock(ObsHttpTMAppender.class);
+            appenders.add(appender);
+            appenderMap.put("123",appenders);
+            ReflectionTestUtils.setField(appenderFactory,"appenderMap",appenderMap);
+            doCallRealMethod().when(appenderFactory).appenderAppendLog(builder,TM_APPENDER_TAILER_ID);
+            doAnswer(invocationOnMock -> {
+                MonitoringLogsDto monitoringLogsDto = (MonitoringLogsDto) invocationOnMock.getArgument(0);
+                assertEquals("123",monitoringLogsDto.getTaskId());
+                return null;
+            }).when(appender).append(any());
         }
     }
 
