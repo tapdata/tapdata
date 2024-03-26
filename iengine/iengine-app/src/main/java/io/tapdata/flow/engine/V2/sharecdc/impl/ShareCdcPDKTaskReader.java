@@ -31,12 +31,14 @@ import io.tapdata.entity.schema.value.TapStringValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.StoreLoggerImpl;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
+import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcReaderExCode_13;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -99,27 +101,27 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	private final Map<String, MemoryMetrics> memoryMetricsMap = new HashMap<>();
 	private AtomicBoolean readFirstData = new AtomicBoolean();
 
-    ShareCdcPDKTaskReader(Object offset) {
-        super();
-        if (offset instanceof Map) {
-            this.sequenceMap = new ConcurrentHashMap<>(generateSequenceMap((Map) offset));
-        } else if (offset instanceof ShareCDCOffset) {
-            this.sequenceMap = new ConcurrentHashMap<>(generateSequenceMap(((ShareCDCOffset) offset).getSequenceMap()));
-        } else {
-            this.sequenceMap = new ConcurrentHashMap<>();
-        }
-    }
+	ShareCdcPDKTaskReader(Object offset) {
+		super();
+		if (offset instanceof Map) {
+			this.sequenceMap = new ConcurrentHashMap<>(generateSequenceMap((Map) offset));
+		} else if (offset instanceof ShareCDCOffset) {
+			this.sequenceMap = new ConcurrentHashMap<>(generateSequenceMap(((ShareCDCOffset) offset).getSequenceMap()));
+		} else {
+			this.sequenceMap = new ConcurrentHashMap<>();
+		}
+	}
 
-    private Map<String, Long> generateSequenceMap(Map offset) {
-        Map<String, Long> map = new HashMap<>();
-        for (Map.Entry<?, ?> entry : ((Map<?, ?>) offset).entrySet()) {
-            if (!(entry.getValue() instanceof Long)) {
-                continue;
-            }
-            map.put(entry.getKey().toString(), Long.parseLong(((Long) entry.getValue()).toString()));
-        }
-        return map;
-    }
+	private Map<String, Long> generateSequenceMap(Map offset) {
+		Map<String, Long> map = new HashMap<>();
+		for (Map.Entry<?, ?> entry : ((Map<?, ?>) offset).entrySet()) {
+			if (!(entry.getValue() instanceof Long)) {
+				continue;
+			}
+			map.put(entry.getKey().toString(), Long.parseLong(((Long) entry.getValue()).toString()));
+		}
+		return map;
+	}
 
 	@Override
 	public void init(ShareCdcContext shareCdcContext) throws ShareCdcUnsupportedException {
@@ -357,9 +359,15 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		try {
 			poll(streamReadConsumer);
 		} catch (Exception e) {
-			String err = "An internal error occurred, will close; Error: " + e.getMessage();
-			this.close();
-			throw new Exception(err, e);
+			close();
+			TapCodeException matchThrowable = (TapCodeException) CommonUtils.matchThrowable(e, TapCodeException.class);
+			if (null != matchThrowable) {
+				throw matchThrowable;
+			} else {
+				String err = "An internal error occurred, will close; Error: " + e.getMessage();
+				this.close();
+				throw new Exception(err, e);
+			}
 		}
 	}
 
@@ -535,7 +543,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						}
 
 						List<Document> documents = new ArrayList<>();
-						long start = System.currentTimeMillis();
 						try {
 							AtomicReference<Document> document = new AtomicReference<>();
 							memoryMetrics.find(() -> document.set(iterator.tryNext()));
@@ -554,7 +561,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 							return ctlStatusIdle;
 						} catch (Exception e) {
 							String err = "Find next failed, sequence: " + iterator.getSequence();
-							handleFailed(err, e);
+							handleFailed(new TapCodeException(ShareCdcReaderExCode_13.FIND_NEXT_FAILED, err, e));
 							return ctlStatusIdle;
 						}
 
@@ -573,8 +580,13 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 					if (Boolean.TRUE.equals(needBreak)) break;
 				}
 			} catch (Exception e) {
-				String err = "Reader occur unknown error, will stop";
-				handleFailed(err, e);
+				TapCodeException matchThrowable = (TapCodeException) CommonUtils.matchThrowable(e, TapCodeException.class);
+				if (null != matchThrowable) {
+					handleFailed(matchThrowable);
+				} else {
+					String err = "Reader occur unknown error";
+					handleFailed(err, e);
+				}
 			}
 		}
 
