@@ -9,6 +9,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.exception.NotSupportRecordEventTypeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.PartitionResult;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.PartitionKeySelector;
@@ -17,6 +18,7 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
+import org.springframework.util.Assert;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -104,14 +106,9 @@ public class PartitionConcurrentProcessor {
 
 		currentRunning.compareAndSet(false, true);
 
-		if (partitioner == null) {
-			throw new RuntimeException(LOG_PREFIX + "partitioner cannot be null.");
-		}
+		Assert.notNull(partitioner, () -> LOG_PREFIX + "partitioner cannot be null.");
 		this.partitioner = partitioner;
-
-		if (keySelector == null) {
-			throw new RuntimeException(LOG_PREFIX + "key selector cannot be null.");
-		}
+		Assert.notNull(keySelector, () -> LOG_PREFIX + "keySelector cannot be null.");
 		this.keySelector = keySelector;
 		this.flushOffset = flushOffset;
 		this.executorService.submit(this::watermarkEventRunner);
@@ -200,7 +197,7 @@ public class PartitionConcurrentProcessor {
 				final CountDownLatch countDownLatch = ((BarrierEvent) partitionEvent).getCountDownLatch();
 				countDownLatch.countDown();
 
-				waitCountDownLath(countDownLatch, () -> logger.debug(LOG_PREFIX + "thread-{} process completed, waiting other thread completed.", finalPartition));
+				waitCountDownLath(countDownLatch, () -> logger.debug(wrapPartitionErrorMsg(finalPartition, "process completed, waiting other thread completed.")));
 			}
 		}
 
@@ -208,6 +205,10 @@ public class PartitionConcurrentProcessor {
 			eventProcessor.accept(processEvents);
 			processEvents.clear();
 		}
+	}
+
+	protected String wrapPartitionErrorMsg(int partition, String msg) {
+		return LOG_PREFIX + "thread-" + partition + " " + msg;
 	}
 
 	protected boolean toSingleMode(TapEvent tapEvent, List<Object> partitionValue, AtomicBoolean singleMode) throws InterruptedException {
@@ -277,7 +278,7 @@ public class PartitionConcurrentProcessor {
 
 			final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(partition);
 			final NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
-			offer2QueueIfRunning(queue, normalEvent, LOG_PREFIX + "thread-" + partition + " process queue if full, waiting for enqueue.");
+			offer2QueueIfRunning(queue, normalEvent, wrapPartitionErrorMsg(partition, "process queue if full, waiting for enqueue."));
 			if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
 				return tapdataEvent;
 			}
@@ -294,7 +295,7 @@ public class PartitionConcurrentProcessor {
 		singleMode.set(true);
 		generateBarrierEvent();
 		final NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
-		offer2QueueIfRunning(partitionsQueue.get(DEFAULT_PARTITION), normalEvent, LOG_PREFIX + "thread-" + DEFAULT_PARTITION + " process queue if full, waiting for enqueue.");
+		offer2QueueIfRunning(partitionsQueue.get(DEFAULT_PARTITION), normalEvent, wrapPartitionErrorMsg(DEFAULT_PARTITION, "process queue if full, waiting for enqueue."));
 	}
 
 	protected Map<String, Object> getTapRecordEventData(TapEvent tapEvent) throws InterruptedException {
@@ -313,7 +314,7 @@ public class PartitionConcurrentProcessor {
 			}
 		}
 
-		throw new RuntimeException("Not support TapRecordEvent type: " + tapEvent.getClass().getName());
+		throw new NotSupportRecordEventTypeException(tapEvent.getClass().getName());
 	}
 
 	protected boolean waitCountDownLath(CountDownLatch countDownLatch, Runnable traceOfEnabled) throws InterruptedException {
@@ -364,7 +365,7 @@ public class PartitionConcurrentProcessor {
 	protected void addToAllPartitions(PartitionEvent<TapdataEvent> event, String type) throws InterruptedException {
 		for (int i = 0; i < partitionsQueue.size(); i++) {
 			final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(i);
-			offer2QueueIfRunning(queue, event, LOG_PREFIX + "thread-" + i + " queue is full when generate " + type + " event to queue.");
+			offer2QueueIfRunning(queue, event, wrapPartitionErrorMsg(i, "queue is full when generate " + type + " event to queue."));
 		}
 	}
 
