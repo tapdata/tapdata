@@ -93,6 +93,9 @@ public abstract class DataParentNode<S> extends Node<S> {
     /** 数据写入策略配置，数据写入模式： 更新已存在或者插入新数据（updateOrInsert）， 追加写入(appendWrite)， 更新写入(updateWrite) */
     @EqField
     private String writeStrategy = "updateOrInsert";
+
+    /** 是否开启全量同步索引*/
+    private Boolean syncIndexEnable;
     /**
      * constructor for node
      *
