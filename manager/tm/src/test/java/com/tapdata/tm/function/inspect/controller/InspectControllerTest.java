@@ -19,7 +19,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class InspectControllerTest {
-    InspectController controller;
+    InspectFunctionController controller;
     InspectFunctionService service;
     Filter filter;
     Where where;
@@ -27,7 +27,7 @@ class InspectControllerTest {
     void init() {
         filter = mock(Filter.class);
         where = mock(Where.class);
-        controller = mock(InspectController.class);
+        controller = mock(InspectFunctionController.class);
         service = mock(InspectFunctionService.class);
 
         when(filter.getWhere()).thenReturn(where);

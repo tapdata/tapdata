@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "DataInspectFunctions", description = "DataInspectFunctions相关接口")
 @RestController
 @RequestMapping("/api/data-inspect-functions")
-public class InspectController extends BaseController {
+public class InspectFunctionController extends BaseController {
     @Autowired
     private InspectFunctionService functionService;
 
