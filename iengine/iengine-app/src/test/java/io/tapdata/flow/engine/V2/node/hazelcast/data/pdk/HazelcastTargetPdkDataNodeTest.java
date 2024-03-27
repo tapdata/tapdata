@@ -74,6 +74,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 					throw new RuntimeException(e);
 				}
 				tapInsertRecordEvent.table(tableName);
+				when(hazelcastTargetPdkDataNode.getTgtTableNameFromTapEvent(tapInsertRecordEvent)).thenReturn(tableName);
 				tableNames.offer(tableName);
 				tapInsertRecordEvent.after(new HashMap<>());
 				tapInsertRecordEvent.setReferenceTime(System.currentTimeMillis());

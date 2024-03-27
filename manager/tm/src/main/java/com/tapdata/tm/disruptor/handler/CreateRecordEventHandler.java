@@ -3,7 +3,6 @@ package com.tapdata.tm.disruptor.handler;
 import cn.hutool.extra.spring.SpringUtil;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.aop.MeasureAOP;
-import com.tapdata.tm.base.aop.MeasureAOP;
 import com.tapdata.tm.disruptor.Element;
 import com.tapdata.tm.shareCdcTableMetrics.service.ShareCdcTableMetricsService;
 import com.tapdata.tm.task.entity.TaskRecord;

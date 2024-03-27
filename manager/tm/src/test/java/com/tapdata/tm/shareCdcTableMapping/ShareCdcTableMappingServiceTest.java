@@ -7,12 +7,10 @@ import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.message.entity.MessageEntity;
-import com.tapdata.tm.shareCdcTableMapping.entity.ShareCdcTableMappingEntity;
 import com.tapdata.tm.shareCdcTableMapping.repository.ShareCdcTableMappingRepository;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
+import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingServiceImpl;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.utils.MongoUtils;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -32,7 +30,7 @@ import static org.mockito.Mockito.when;
      void genShareCdcTableMappingsByLogCollectorTaskAddUserTest() {
         ShareCdcTableMappingRepository shareCdcTableMappingRepository = Mockito.mock(ShareCdcTableMappingRepository.class);
 
-        ShareCdcTableMappingService shareCdcTableMappingService = new ShareCdcTableMappingService(shareCdcTableMappingRepository);
+        ShareCdcTableMappingService shareCdcTableMappingService = new ShareCdcTableMappingServiceImpl(shareCdcTableMappingRepository);
         TaskDto logCollectorTask = new TaskDto();
         logCollectorTask.setId(new ObjectId("62bc500bd4958d013d97e253"));
         Dag dag = new Dag();

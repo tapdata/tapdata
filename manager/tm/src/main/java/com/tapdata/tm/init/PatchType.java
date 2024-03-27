@@ -1,9 +1,8 @@
 package com.tapdata.tm.init;
 
-import com.tapdata.tm.sdk.util.AppType;
+import io.tapdata.utils.AppType;
 import lombok.NonNull;
 
-import java.util.Optional;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>

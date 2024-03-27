@@ -13,6 +13,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
@@ -38,13 +39,13 @@ import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TapdataEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
+import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleaner;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleanerEntity;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
-import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
@@ -66,14 +67,11 @@ import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.*;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.schema.TapTableMap;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -290,7 +288,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private void initTargetConcurrentProcessorIfNeed() {
 		if (getNode() instanceof DataParentNode) {
 			DataParentNode<?> dataParentNode = (DataParentNode<?>) getNode();
-			final Boolean initialConcurrent = dataParentNode.getInitialConcurrent();
+			final Boolean initialConcurrentInConfig = dataParentNode.getInitialConcurrent();
 			this.concurrentWritePartitionMap = dataParentNode.getConcurrentWritePartitionMap();
 			Function<TapEvent, List<String>> partitionKeyFunction = new Function<TapEvent, List<String>>() {
 				private final Set<String> warnTag = new HashSet<>();
@@ -302,14 +300,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						if (null != fields && !fields.isEmpty()) {
 							return new ArrayList<>(fields);
 						}
-//						fields = updateConditionFieldsMap.get(tgtTableName);
-//						if (null != fields && !fields.isEmpty()) {
-//							if (!warnTag.contains(tgtTableName)) {
-//								warnTag.add(tgtTableName);
-//								obsLogger.warn("Not found partition fields of table '{}', use conditions.", tgtTableName);
-//							}
-//							return new ArrayList<>(fields);
-//						}
 						if (!warnTag.contains(tgtTableName)) {
 							warnTag.add(tgtTableName);
 							obsLogger.warn("Not found partition fields of table '{}', use logic primary key.", tgtTableName);
@@ -321,24 +311,36 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				}
 			};
 
-			if (initialConcurrent != null) {
+			if (initialConcurrentInConfig != null) {
 				this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
-				this.initialConcurrent = initialConcurrent && initialConcurrentWriteNum > 1;
-				if (initialConcurrent) {
+				this.initialConcurrent = initialConcurrentInConfig && initialConcurrentWriteNum > 1;
+				if (initialConcurrentInConfig) {
 					this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum, partitionKeyFunction);
 					this.initialPartitionConcurrentProcessor.start();
 				}
 			}
-			final Boolean cdcConcurrent = dataParentNode.getCdcConcurrent();
-			if (cdcConcurrent != null) {
+			final Boolean cdcConcurrentInConfig = dataParentNode.getCdcConcurrent();
+			if (cdcConcurrentInConfig != null) {
 				this.cdcConcurrentWriteNum = dataParentNode.getCdcConcurrentWriteNum() != null ? dataParentNode.getCdcConcurrentWriteNum() : 4;
-				this.cdcConcurrent = cdcConcurrent && cdcConcurrentWriteNum > 1;
+				this.cdcConcurrent = isCDCConcurrent(cdcConcurrentInConfig);
 				if (this.cdcConcurrent) {
 					this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum, partitionKeyFunction);
 					this.cdcPartitionConcurrentProcessor.start();
 				}
 			}
 		}
+	}
+
+	private boolean isCDCConcurrent(Boolean cdcConcurrent) {
+		cdcConcurrent = cdcConcurrent && cdcConcurrentWriteNum > 1;
+		List<? extends Node<?>> predecessors = getNode().predecessors();
+		for (Node<?> predecessor : predecessors) {
+			if (predecessor instanceof MergeTableNode) {
+				obsLogger.info("CDC concurrent write is disabled because the node has a merge table node");
+				cdcConcurrent = false;
+			}
+		}
+		return cdcConcurrent;
 	}
 
 	private void initTargetVariable() {

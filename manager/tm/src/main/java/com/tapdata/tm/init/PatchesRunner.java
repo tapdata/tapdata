@@ -4,7 +4,7 @@ import cn.hutool.core.io.IORuntimeException;
 import cn.hutool.core.io.IoUtil;
 import com.tapdata.tm.init.scanners.JavaPatchScanner;
 import com.tapdata.tm.init.scanners.ScriptPatchScanner;
-import com.tapdata.tm.sdk.util.AppType;
+import io.tapdata.utils.AppType;
 import com.tapdata.tm.utils.TMStartMsgUtil;
 import com.tapdata.tm.utils.TmStartMsg;
 import com.tapdata.tm.verison.dto.VersionDto;

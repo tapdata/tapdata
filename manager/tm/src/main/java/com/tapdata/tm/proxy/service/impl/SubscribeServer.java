@@ -1,26 +1,18 @@
 package com.tapdata.tm.proxy.service.impl;
 
-import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.proxy.dto.SubscribeDto;
-import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.modules.api.net.entity.SubscribeURLToken;
 import lombok.extern.slf4j.Slf4j;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 

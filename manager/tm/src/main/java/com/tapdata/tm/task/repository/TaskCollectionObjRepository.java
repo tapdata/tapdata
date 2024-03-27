@@ -2,7 +2,6 @@ package com.tapdata.tm.task.repository;
 
 import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.task.entity.TaskCollectionObj;
-import com.tapdata.tm.task.entity.TaskRunHistoryEntity;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Repository;

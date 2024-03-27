@@ -19,6 +19,7 @@ public class AlarmSchedule {
     @Scheduled(cron = "0/30 * * * * ?")
     @SchedulerLock(name ="task_notify_alarm", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void schedule() {
+			Thread.currentThread().setName(getClass().getSimpleName() + "-schedule");
         alarmService.notifyAlarm();
     }
 }

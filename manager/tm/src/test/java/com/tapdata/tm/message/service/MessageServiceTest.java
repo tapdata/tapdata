@@ -8,7 +8,6 @@ import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.alarmMail.dto.AlarmMailDto;
 import com.tapdata.tm.alarmMail.service.AlarmMailService;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
@@ -81,7 +80,7 @@ class MessageServiceTest {
     @Mock
     private CircuitBreakerRecoveryService circuitBreakerRecoveryService;
 
-    private MessageService messageServiceUnderTest;
+    private MessageServiceImpl messageServiceUnderTest;
 
     private Method privateMethod;
 
@@ -97,7 +96,7 @@ class MessageServiceTest {
 
     @BeforeEach
     void setUp() throws NoSuchMethodException {
-        messageServiceUnderTest = new MessageService(mockRepository);
+        messageServiceUnderTest = new MessageServiceImpl(mockRepository);
         ReflectionTestUtils.setField(messageServiceUnderTest, "smsService", mockSmsService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "mpService", mockMpService);
         ReflectionTestUtils.setField(messageServiceUnderTest, "circuitBreakerRecoveryService", circuitBreakerRecoveryService);
@@ -109,7 +108,7 @@ class MessageServiceTest {
         messageServiceUnderTest.settingsService = mockSettingsService;
         messageServiceUnderTest.eventsService = mockEventsService;
         // 获取类的Class对象
-        Class<?> myClass = MessageService.class;
+        Class<?> myClass = MessageServiceImpl.class;
         // 获取私有方法的名称
         String methodName = "informUserEmail";
         // 使用getDeclaredMethod()来获取私有方法
@@ -781,7 +780,7 @@ class MessageServiceTest {
         @SneakyThrows
         @Test
         void testAddSyncForDeleted(){
-            messageServiceUnderTest = mock(MessageService.class);
+            messageServiceUnderTest = mock(MessageServiceImpl.class);
             ReflectionTestUtils.setField(messageServiceUnderTest,"settingsService",mockSettingsService);
             ReflectionTestUtils.setField(messageServiceUnderTest,"eventsService",mockEventsService);
             try (MockedStatic<MailUtils> mailUtilsMockedStatic = Mockito

@@ -58,7 +58,7 @@ public class HazelcastRenameTableProcessorNode extends HazelcastProcessorBaseNod
 	}
 
 	@Override
-	protected String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
+	public String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
 		String tableId = TapEventUtil.getTableId(tapEvent);
 		TableRenameTableInfo tableRenameTableInfo = tableNameMappingMap.get(tableId);
 		if (tableRenameTableInfo != null && StringUtils.isNotEmpty(tableRenameTableInfo.getCurrentTableName())) {

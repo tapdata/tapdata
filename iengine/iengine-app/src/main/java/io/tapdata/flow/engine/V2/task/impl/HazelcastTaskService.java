@@ -57,9 +57,9 @@ import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
-import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
@@ -83,7 +83,6 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkCache
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkShareCDCNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
@@ -96,8 +95,6 @@ import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
-import io.tapdata.services.JSProcessNodeTestRunService;
-import io.tapdata.test.run.TestRunAspectTask;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -109,7 +106,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -761,19 +757,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				break;
 			case MERGETABLE:
 				hazelcastNode = new HazelcastMergeNode(
-						DataProcessorContext.newBuilder()
-								.withTaskDto(taskDto)
-								.withNode(node)
-								.withNodes(nodes)
-								.withEdges(edges)
-								.withConfigurationCenter(config)
-								.withTapTableMap(tapTableMap)
-								.withTaskConfig(taskConfig)
-								.build()
-				);
-				break;
-			case AGGREGATION_PROCESSOR:
-				hazelcastNode = new HazelcastMultiAggregatorProcessor(
 						DataProcessorContext.newBuilder()
 								.withTaskDto(taskDto)
 								.withNode(node)

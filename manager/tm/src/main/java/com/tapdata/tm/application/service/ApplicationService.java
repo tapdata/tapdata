@@ -5,7 +5,6 @@ import com.tapdata.tm.application.entity.ApplicationEntity;
 import com.tapdata.tm.application.repository.ApplicationRepository;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.config.security.UserDetail;
@@ -20,7 +19,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;

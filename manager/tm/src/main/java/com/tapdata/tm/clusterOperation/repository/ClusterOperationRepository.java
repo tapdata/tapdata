@@ -1,7 +1,6 @@
 package com.tapdata.tm.clusterOperation.repository;
 
 import com.tapdata.tm.base.reporitory.BaseRepository;
-import com.tapdata.tm.cluster.entity.ClusterStateEntity;
 import com.tapdata.tm.clusterOperation.entity.ClusterOperationEntity;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoTemplate;

@@ -13,7 +13,6 @@ import com.tapdata.tm.ws.endpoint.WebSocketServer;
 import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.messaging.Message;
 import org.springframework.data.mongodb.core.messaging.MessageListener;
 

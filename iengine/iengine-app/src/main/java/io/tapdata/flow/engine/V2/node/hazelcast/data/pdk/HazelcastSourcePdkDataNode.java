@@ -1,7 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.*;
@@ -34,9 +33,8 @@ import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
-import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
@@ -44,15 +42,13 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustResult;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
-import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
-import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
-import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
-import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
+import io.tapdata.flow.engine.V2.sharecdc.*;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcReaderExCode_13;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -67,6 +63,7 @@ import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
+import io.tapdata.pdk.core.utils.RetryUtils;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
@@ -606,8 +603,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							throw new TapCodeException(ShareCdcReaderExCode_13.UNKNOWN_ERROR, e);
 						}
 					} catch (Exception e) {
-						if (e instanceof TapCodeException) {
-							throw e;
+						Throwable throwable = CommonUtils.matchThrowable(e, TapCodeException.class);
+						if (null != throwable) {
+							throw throwable;
 						} else {
 							throw new TapCodeException(ShareCdcReaderExCode_13.UNKNOWN_ERROR, e);
 						}
@@ -857,27 +855,41 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		Optional.of(cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet())))
 				.map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+		ShareCdcTaskContext shareCdcTaskContext = createShareCDCTaskContext();
+		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		List<String> tables = new ArrayList<>(tapTableMap.keySet());
+		this.syncProgressType = SyncProgress.Type.SHARE_CDC;
+		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+		try {
+			executeDataFuncAspect(StreamReadFuncAspect.class,
+					() -> new StreamReadFuncAspect()
+							.dataProcessorContext(getDataProcessorContext())
+							.tables(tables)
+							.eventBatchSize(1)
+							.offsetState(syncProgress.getStreamOffsetObj())
+							.start(),
+					streamReadFuncAspect -> {
+						PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
+						this.streamReadFuncAspect = streamReadFuncAspect;
+						pdkMethodInvoker.runnable(()-> {
+							// Init share cdc reader, if unavailable, will throw ShareCdcUnsupportedException
+							this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext, syncProgress.getStreamOffsetObj());
+							obsLogger.info("Starting incremental sync, read from share log storage...");
+							// Start listen message entity from share storage log
+							this.shareCdcReader.listen(streamReadConsumer);
+						});
+						RetryUtils.autoRetry(PDKMethod.IENGINE_SHARE_CDC_LISTEN, pdkMethodInvoker);
+					});
+		} finally {
+			Optional.ofNullable(pdkMethodInvoker).ifPresent(this::removePdkMethodInvoker);
+		}
+	}
+
+	protected ShareCdcTaskContext createShareCDCTaskContext() {
 		ShareCdcTaskContext shareCdcTaskContext = new ShareCdcTaskPdkContext(getCdcStartTs(), processorBaseContext.getConfigurationCenter(),
 				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
 		shareCdcTaskContext.setObsLogger(obsLogger);
-		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-		List<String> tables = new ArrayList<>(tapTableMap.keySet());
-		// Init share cdc reader, if unavailable, will throw ShareCdcUnsupportedException
-		this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext, syncProgress.getStreamOffsetObj());
-		obsLogger.info("Starting incremental sync, read from share log storage...");
-		this.syncProgressType = SyncProgress.Type.SHARE_CDC;
-		// Start listen message entity from share storage log
-		executeDataFuncAspect(StreamReadFuncAspect.class,
-				() -> new StreamReadFuncAspect()
-						.dataProcessorContext(getDataProcessorContext())
-						.tables(tables)
-						.eventBatchSize(1)
-						.offsetState(syncProgress.getStreamOffsetObj())
-						.start(),
-				streamReadFuncAspect -> {
-					this.streamReadFuncAspect = streamReadFuncAspect;
-					this.shareCdcReader.listen(streamReadConsumer);
-				});
+		return shareCdcTaskContext;
 	}
 
 	private void checkPollingCDCIfNeed() {

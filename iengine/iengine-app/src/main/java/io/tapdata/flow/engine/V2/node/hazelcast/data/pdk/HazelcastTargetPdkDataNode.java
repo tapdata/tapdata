@@ -30,11 +30,11 @@ import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
+import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
-import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -352,7 +352,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			Map<String, List<TapEvent>> dmlEventsGroupByTableId = new HashMap<>();
 			for (TapEvent tapEvent : tapEvents) {
 				if (tapEvent instanceof TapRecordEvent) {
-					String tableId = ((TapRecordEvent) tapEvent).getTableId();
+					String tableId = getTgtTableNameFromTapEvent(tapEvent);
 					List<TapEvent> tapRecordEvents = dmlEventsGroupByTableId.computeIfAbsent(tableId, k -> new ArrayList<>());
 					tapRecordEvents.add(tapEvent);
 				}

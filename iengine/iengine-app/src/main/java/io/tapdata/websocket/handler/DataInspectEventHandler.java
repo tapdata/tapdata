@@ -5,7 +5,7 @@ import com.tapdata.entity.inspect.Inspect;
 import com.tapdata.entity.inspect.InspectStatus;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.common.SettingService;
-import io.tapdata.inspect.InspectService;
+import io.tapdata.factory.InspectFactory;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
@@ -29,19 +29,24 @@ public class DataInspectEventHandler extends BaseEventHandler implements WebSock
 
 	@Override
 	public Object handle(Map event) {
+		try{
+			if (MapUtils.isNotEmpty(event)) {
+				Inspect inspect = JSONUtil.map2POJO(event, Inspect.class);
 
-		if (MapUtils.isNotEmpty(event)) {
-			Inspect inspect = JSONUtil.map2POJO(event, Inspect.class);
+				if (InspectStatus.SCHEDULING.getCode().equalsIgnoreCase(inspect.getStatus())) {
+					InspectFactory.getInstance(clientMongoOperator, settingService).startInspect(inspect);
+				} else if (InspectStatus.STOPPING.getCode().equalsIgnoreCase(inspect.getStatus())) {
+					InspectFactory.getInstance(clientMongoOperator, settingService).doInspectStop(inspect.getId());
+				}
 
-			if (InspectStatus.SCHEDULING.getCode().equalsIgnoreCase(inspect.getStatus())) {
-				InspectService.getInstance(clientMongoOperator, settingService).startInspect(inspect);
-			} else if (InspectStatus.STOPPING.getCode().equalsIgnoreCase(inspect.getStatus())) {
-				InspectService.getInstance(clientMongoOperator, settingService).doInspectStop(inspect.getId());
+				return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.EXECUTE_DATA_INSPECT_RESULT, true);
+			} else {
+				return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.EXECUTE_DATA_INSPECT_RESULT, "Inspect message can not be empty.");
 			}
-
-			return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.EXECUTE_DATA_INSPECT_RESULT, true);
-		} else {
+		}catch (Exception e){
+			logger.info("abc");
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.EXECUTE_DATA_INSPECT_RESULT, "Inspect message can not be empty.");
 		}
+
 	}
 }
