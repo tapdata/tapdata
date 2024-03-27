@@ -274,7 +274,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				batchProcessResults.clear();
 				this.createIndexEvent = null;
 			}
-			handleBatchUpdateJoinKey(tapdataEvents);
 			for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
 				if (Boolean.TRUE.equals(needCache(batchEventWrapper.getTapdataEvent()))) {
 					batchCache.add(batchEventWrapper);
@@ -285,6 +284,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				doBatchCache(batchCache);
 				loggerBatchUpdateCache(batchCache);
 			}
+			handleBatchUpdateJoinKey(tapdataEvents);
 			doBatchLookUpConcurrent(tapdataEvents, lookupCfs);
 			for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
 				String preTableName = getPreTableName(batchEventWrapper.getTapdataEvent());
@@ -1503,9 +1503,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				} else {
 					Set<String> keySet = findData.keySet();
 					keySet.remove("_ts");
-					if (keySet.size() > 1) {
-						logger.warn("Update write merge lookup, find more than one row by join key: {}, will use first row: {}", joinValueKey, data);
-					}
 					if (keySet.isEmpty()) {
 						// All cache data in the join key have been deleted
 						lookupData = mockLookupMap(childMergeProperty);
@@ -1513,6 +1510,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 					} else {
 						String firstKey = keySet.iterator().next();
 						lookupData = (Map<String, Object>) findData.get(firstKey);
+					}
+					if (keySet.size() > 1) {
+						logger.warn("Update write merge lookup, find more than one row, lookup table: {}, join key value: {}, will use first row: {}", tableName, joinValueKey, lookupData);
 					}
 				}
 
