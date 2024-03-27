@@ -3,7 +3,7 @@ package com.tapdata.tm.init.scanners;
 import com.tapdata.tm.init.*;
 import com.tapdata.tm.init.patches.PatchAnnotation;
 import com.tapdata.tm.init.patches.PatchAnnotations;
-import com.tapdata.tm.sdk.util.AppType;
+import io.tapdata.utils.AppType;
 import lombok.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

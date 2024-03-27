@@ -5,7 +5,7 @@ import cn.hutool.core.io.IORuntimeException;
 import cn.hutool.core.io.IoUtil;
 import com.tapdata.tm.init.*;
 import com.tapdata.tm.init.patches.JsonFilePatch;
-import com.tapdata.tm.sdk.util.AppType;
+import io.tapdata.utils.AppType;
 import lombok.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

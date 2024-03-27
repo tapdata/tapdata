@@ -55,6 +55,7 @@ public class TaskAlarmScheduler {
     @Scheduled(cron = "0 0/5 * * * ? ")
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAgentAlarm() {
+			Thread.currentThread().setName(getClass().getSimpleName() + "-taskAgentAlarm");
         Object buildProfile = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
         if (Objects.isNull(buildProfile)) {
             buildProfile = "DAAS";

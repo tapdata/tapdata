@@ -5,6 +5,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.OpType;
 import io.tapdata.flow.engine.V2.task.cleaner.TaskCleanerContext;
@@ -61,8 +62,16 @@ public class DataSyncEventHandler extends BaseEventHandler {
 				logger.warn("Unrecognized data sync event op type: {}, event: {}", opTypeStr, event);
 			}
 		} catch (Throwable e) {
-			logger.error("Handle task websocket event failed, error: " + e.getMessage() + ", event: " + event, e);
-			webSocketEventResult = WebSocketEventResult.handleFailed(WebSocketEventResult.Type.DATA_SYNC_RESULT, e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
+			String errorMsg;
+			if (TmUnavailableException.isInstance(e)) {
+				errorMsg = String.format("Handle task websocket event failed because TM unavailable, event: %s, error: %s", event, e.getMessage());
+				logger.warn(errorMsg);
+				webSocketEventResult = WebSocketEventResult.handleFailed(WebSocketEventResult.Type.DATA_SYNC_RESULT, errorMsg);
+			} else {
+				errorMsg = String.format("Handle task websocket event failed, event: %s, error: %s", event, e.getMessage());
+				logger.error(errorMsg, e);
+				webSocketEventResult = WebSocketEventResult.handleFailed(WebSocketEventResult.Type.DATA_SYNC_RESULT, e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
+			}
 		}
 		return webSocketEventResult;
 	}

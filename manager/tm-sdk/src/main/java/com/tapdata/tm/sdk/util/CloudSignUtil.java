@@ -3,6 +3,7 @@ package com.tapdata.tm.sdk.util;
 
 import com.tapdata.tm.sdk.auth.BasicCredentials;
 import com.tapdata.tm.sdk.auth.Signer;
+import io.tapdata.utils.AppType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.StringUtils;
@@ -29,7 +30,7 @@ public class CloudSignUtil {
 	static {
 		accessKey = System.getenv("accessKey");
 		secretKey = System.getenv("secretKey");
-		needSign = AppType.init().isCloud() && !StringUtils.isEmpty(accessKey) && !StringUtils.isEmpty(secretKey);
+		needSign = AppType.currentType().isCloud() && !StringUtils.isEmpty(accessKey) && !StringUtils.isEmpty(secretKey);
 		logger.info("ak/sk needSign {}, accessKey {}, secretKey {}", needSign, accessKey, secretKey);
 	}
 

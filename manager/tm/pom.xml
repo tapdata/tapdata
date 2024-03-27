@@ -141,7 +141,7 @@
 		<dependency>
 			<groupId>com.tapdata</groupId>
 			<artifactId>tm-sdk</artifactId>
-			<version>1.0.3-SNAPSHOT</version>
+			<version>1.0.4-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>io.tapdata</groupId>
@@ -257,7 +257,7 @@
 		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-inline</artifactId>
-			<version>4.5.1</version>
+			<version>4.11.0</version>
 			<scope>test</scope>
 		</dependency>
 
@@ -307,7 +307,7 @@
 		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-inline</artifactId>
-			<version>4.5.1</version>
+			<version>4.11.0</version>
 			<scope>test</scope>
 		</dependency>
 

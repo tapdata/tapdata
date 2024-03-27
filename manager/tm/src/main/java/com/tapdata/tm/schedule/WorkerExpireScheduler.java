@@ -21,6 +21,7 @@ public class WorkerExpireScheduler {
     @Scheduled(cron = "0 0/9 * * * ?")
     @SchedulerLock(name = "checkWorkerExpire", lockAtMostFor = "PT5M", lockAtLeastFor = "PT5M")
     public void checkWorkerExpire() {
+			Thread.currentThread().setName(getClass().getSimpleName() + "-checkWorkerExpire");
         workerService.checkWorkerExpire();
     }
 }
