@@ -2,9 +2,13 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.TapdataEvent;
-import com.tapdata.tm.commons.schema.Field;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -16,8 +20,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.*;
 
 /**
@@ -153,5 +160,66 @@ public class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		TapField field = new TapField();
 		field.setName(name);
 		return field;
+	}
+
+	@Test
+	void testSplitDDL2NewBatch() {
+		BiFunction<String, String, TapdataEvent> generateEvent = (id, type) -> {
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			switch (type) {
+				case "i":
+					tapdataEvent.setTapEvent(TapInsertRecordEvent.create().after(new HashMap<String, Object>() {{
+						put("id", id);
+					}}));
+					break;
+				case "u":
+					tapdataEvent.setTapEvent(TapUpdateRecordEvent.create().after(new HashMap<String, Object>() {{
+						put("id", id);
+					}}));
+					break;
+				case "d":
+					tapdataEvent.setTapEvent(TapDeleteRecordEvent.create().before(new HashMap<String, Object>() {{
+						put("id", id);
+					}}));
+					break;
+				default:
+					tapdataEvent.setTapEvent(new TapNewFieldEvent().field(new TapField(id, "String")));
+					break;
+			}
+			return tapdataEvent;
+		};
+		List<TapdataEvent> cdcEvents = new ArrayList<>();
+		cdcEvents.add(generateEvent.apply("1", "i"));
+		cdcEvents.add(generateEvent.apply("2", "i"));
+		cdcEvents.add(generateEvent.apply("3", "ddl"));
+		cdcEvents.add(generateEvent.apply("4", "i"));
+		cdcEvents.add(generateEvent.apply("5", "i"));
+		cdcEvents.add(generateEvent.apply("6", "ddl"));
+		cdcEvents.add(generateEvent.apply("7", "ddl"));
+		cdcEvents.add(generateEvent.apply("8", "i"));
+
+		Consumer<List<TapdataEvent>> subListConsumer = (events) -> {
+			if (events.size() > 1) {
+				for (TapdataEvent e : events) {
+					assertFalse(e.getTapEvent() instanceof TapDDLEvent);
+				}
+			}
+		};
+
+		// test split ddl to new batch
+		HazelcastTargetPdkBaseNode targetPdkBaseNode = mock(HazelcastTargetPdkBaseNode.class, CALLS_REAL_METHODS);
+		targetPdkBaseNode.splitDDL2NewBatch(cdcEvents, subListConsumer);
+
+		// test not found ddl
+		cdcEvents = new ArrayList<>();
+		cdcEvents.add(generateEvent.apply("1", "i"));
+		cdcEvents.add(generateEvent.apply("2", "i"));
+		targetPdkBaseNode.splitDDL2NewBatch(cdcEvents, subListConsumer);
+
+		// test end ddl
+		cdcEvents = new ArrayList<>();
+		cdcEvents.add(generateEvent.apply("1", "i"));
+		cdcEvents.add(generateEvent.apply("2", "ddl"));
+		targetPdkBaseNode.splitDDL2NewBatch(cdcEvents, subListConsumer);
 	}
 }

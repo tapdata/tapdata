@@ -142,7 +142,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected CopyOnWriteArrayList<String> newTables;
 	protected CopyOnWriteArrayList<String> removeTables;
 	protected AtomicBoolean sourceRunnerFirstTime;
-	private DAGDataServiceImpl dagDataService;
 	protected Future<?> sourceRunnerFuture;
 	// on cdc step if TableMap not exists heartbeat table, add heartbeat table to cdc whitelist and filter heartbeat records
 	protected ICdcDelay cdcDelayCalculation;
@@ -986,9 +985,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			Map<String, String> qualifiedNameIdMap = metadataInstancesDtoList.stream()
 					.collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m.getId().toHexString()));
 			tapEvent.addInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY, qualifiedNameIdMap);
-			if (null == dagDataService) {
-				dagDataService = new DAGDataServiceImpl(transformerWsMessageDto);
-			}
+			DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(transformerWsMessageDto);
 			String qualifiedName;
 			Map<String, List<Message>> errorMessage;
 			if (tapEvent instanceof TapCreateTableEvent) {
