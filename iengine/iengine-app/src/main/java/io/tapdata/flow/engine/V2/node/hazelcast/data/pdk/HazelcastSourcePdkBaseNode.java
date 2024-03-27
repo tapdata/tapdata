@@ -985,7 +985,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			Map<String, String> qualifiedNameIdMap = metadataInstancesDtoList.stream()
 					.collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m.getId().toHexString()));
 			tapEvent.addInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY, qualifiedNameIdMap);
-			DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(transformerWsMessageDto);
+			DAGDataServiceImpl dagDataService = initDagDataService(transformerWsMessageDto);
 			String qualifiedName;
 			Map<String, List<Message>> errorMessage;
 			if (tapEvent instanceof TapCreateTableEvent) {
@@ -1030,6 +1030,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			throw new RuntimeException("Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage(), e);
 		}
 	}
+
+	protected DAGDataServiceImpl initDagDataService(TransformerWsMessageDto transformerWsMessageDto) {
+		return new DAGDataServiceImpl(transformerWsMessageDto);
+	}
+
 	protected DDLSchemaHandler ddlSchemaHandler() {
 		return InstanceFactory.bean(DDLSchemaHandler.class);
 	}
