@@ -329,7 +329,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		obsLogger.info("Source node \"{}\" read batch size: {}", getNode().getName(), readBatchSize);
 	}
 
-	private void initDDLFilter() {
+	protected void initDDLFilter() {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node.isDataNode()) {
 			List<String> disabledEvents = ((DataParentNode<?>) node).getDisabledEvents();

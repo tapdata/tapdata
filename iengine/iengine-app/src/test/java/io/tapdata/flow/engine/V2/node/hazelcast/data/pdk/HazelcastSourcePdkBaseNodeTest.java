@@ -8,7 +8,10 @@ import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
+import com.tapdata.tm.commons.dag.DDLConfiguration;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -18,10 +21,12 @@ import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -390,5 +395,30 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			hazelcastSourcePdkDataNode.initBatchAndStreamOffset(any(TaskDto.class));
 			verify(hazelcastSourcePdkDataNode,times(0)).initStreamOffsetFromTime(any());
 		}
+	}
+
+	@Nested
+	@DisplayName("initDDLFilter test")
+	class InitDDLFilterTest {
+		private HazelcastSourcePdkDataNode hazelcastSourcePdkDataNode;
+
+		@BeforeEach
+		void beforeEach() {
+			hazelcastSourcePdkDataNode = spy(new HazelcastSourcePdkDataNode(dataProcessorContext));
+		}
+		@Test
+		void test(){
+			DatabaseNode node =new DatabaseNode();
+			node.setDisabledEvents(new ArrayList<>());
+			node.setIgnoredDDLRules("test");
+			node.setDdlConfiguration(DDLConfiguration.ERROR);
+			when(dataProcessorContext.getNode()).thenReturn((Node)node);
+			hazelcastSourcePdkDataNode.initDDLFilter();
+			DDLFilter ddlFilter = (DDLFilter)ReflectionTestUtils.getField(hazelcastSourcePdkDataNode,"ddlFilter");
+			TapDDLEvent tapDDLEvent = new TapDDLUnknownEvent();
+			tapDDLEvent.setOriginDDL("test");
+			Assertions.assertFalse(ddlFilter.test(tapDDLEvent));
+		}
+
 	}
 }
