@@ -9,7 +9,8 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.exception.NotSupportRecordEventTypeException;
+import io.tapdata.error.EngineExCode_33;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.PartitionResult;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.PartitionKeySelector;
@@ -314,7 +315,7 @@ public class PartitionConcurrentProcessor {
 			}
 		}
 
-		throw new NotSupportRecordEventTypeException(tapEvent.getClass().getName());
+		throw new TapCodeException(EngineExCode_33.NOT_SUPPORT_RECORD_EVENT_TYPE_EXCEPTION, "Not support TapRecordEvent type: " + tapEvent.getClass().getName());
 	}
 
 	protected boolean waitCountDownLath(CountDownLatch countDownLatch, Runnable traceOfEnabled) throws InterruptedException {
