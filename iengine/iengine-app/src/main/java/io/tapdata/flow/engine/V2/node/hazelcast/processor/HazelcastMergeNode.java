@@ -1134,6 +1134,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				try {
 					upsertCache(events, mergeProperty, hazelcastConstruct);
 				} catch (Exception e) {
+					Throwable matchThrowable = CommonUtils.matchThrowable(e, TapCodeException.class);
+					if (null != matchThrowable) {
+						throw (TapCodeException) matchThrowable;
+					}
 					throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHE_UNKNOWN_ERROR, "First event: " + events.get(0), e);
 				}
 				break;
@@ -1142,6 +1146,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 					try {
 						deleteCache(event, mergeProperty, hazelcastConstruct);
 					} catch (Exception e) {
+						Throwable matchThrowable = CommonUtils.matchThrowable(e, TapCodeException.class);
+						if (null != matchThrowable) {
+							throw (TapCodeException) matchThrowable;
+						}
 						throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHE_UNKNOWN_ERROR, "Event: " + event, e);
 					}
 				});
@@ -1189,9 +1197,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			groupByJoinKeyValues = hazelcastConstruct.findAll(joinValueKeyTapdataEventMap.keySet());
 		} catch (Exception e) {
 			if (e.getCause() instanceof InterruptedException) {
+				Thread.currentThread().interrupt();
 				return;
 			}
-			throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHE_FIND_BY_JOIN_KEYS_FAILED, e);
+			throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHE_FIND_BY_JOIN_KEYS_FAILED, "Find by keys: " + joinValueKeyTapdataEventMap.keySet() + ", first event: " + tapdataEvents.get(0).getTapEvent(), e);
 		}
 		Map<String, Document> insertMap = new HashMap<>();
 		for (String joinValueKey : joinValueKeyTapdataEventMap.keySet()) {
