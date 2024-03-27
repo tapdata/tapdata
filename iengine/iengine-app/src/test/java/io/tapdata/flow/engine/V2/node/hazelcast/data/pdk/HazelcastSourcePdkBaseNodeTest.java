@@ -320,7 +320,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			ReflectionTestUtils.setField(mockInstance,"transformerWsMessageDto",transformerWsMessageDto);
 			when(transformerWsMessageDto.getMetadataInstancesDtoList()).thenReturn(mock(ArrayList.class));
 			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
-			ReflectionTestUtils.setField(mockInstance,"dagDataService",dagDataService);
+			when(mockInstance.initDagDataService(transformerWsMessageDto)).thenReturn(dagDataService);
 			TapTableMap tableMap = mock(TapTableMap.class);
 			when(dataProcessorContext.getTapTableMap()).thenReturn(tableMap);
 			when(tableMap.getQualifiedName(anyString())).thenReturn("qualifiedName");
