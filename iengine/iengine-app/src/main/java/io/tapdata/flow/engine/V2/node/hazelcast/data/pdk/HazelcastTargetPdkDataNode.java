@@ -42,6 +42,8 @@ import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeTableProperties;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.GetTableInfoFunction;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -73,6 +75,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
 	public static final int MAX_INDEX_FIELDS_COUNT = 10;
 	public static final int MAX_RECORD_OBS_WARN = 3;
+	public static final int CREATE_INDEX_THRESHOLD = 5000000;
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkDataNode.class);
 	private ClassHandlers ddlEventHandlers;
 
@@ -183,7 +186,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}));
 	}
 
-	private void createTable(TapTableMap<String, TapTable> tapTableMap, TableInitFuncAspect funcAspect, Node<?> node, ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
+	protected void createTable(TapTableMap<String, TapTable> tapTableMap, TableInitFuncAspect funcAspect, Node<?> node, ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
 		TapTable tapTable = tapTableMap.get(tableId);
 		List<String> updateConditionFields = getUpdateConditionFields(node, tapTable);
 		if (null == tapTable) {
@@ -202,6 +205,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		clearData(existsDataProcessEnum, tableId);
 //		createUnique &= succeed.get();
 		createTargetIndex(updateConditionFields, succeed.get(), tableId, tapTable, createdTable);
+		//sync index
+		syncIndex(tableId, tapTable, succeed.get());
 		if (null != funcAspect)
 			funcAspect.state(TableInitFuncAspect.STATE_PROCESS).completed(tableId, createdTable);
 	}
@@ -274,6 +279,98 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						.addEvent(indexEvent.get());
 			}
 		}
+	}
+	protected void syncIndex(String tableId, TapTable tapTable, boolean autoCreateTable){
+		if (!checkSyncIndexOpen()) return;
+		if (!autoCreateTable) {
+			obsLogger.warn("table {} already exists and will no longer synchronize indexes",tableId);
+			return;
+		}
+		CreateIndexFunction createIndexFunction = getConnectorNode().getConnectorFunctions().getCreateIndexFunction();
+		if (null == createIndexFunction) {
+			return;
+		}
+		GetTableInfoFunction getTableInfoFunction = getConnectorNode().getConnectorFunctions().getGetTableInfoFunction();
+		if (null == getTableInfoFunction){
+			return;
+		}
+		QueryIndexesFunction queryIndexesFunction = getConnectorNode().getConnectorFunctions().getQueryIndexesFunction();
+		if (null == queryIndexesFunction){
+			return;
+		}
+		AtomicReference<TapCreateIndexEvent> indexEvent = new AtomicReference<>();
+		try {
+			//query table info
+			TableInfo tableInfo = getTableInfoFunction.getTableInfo(getConnectorNode().getConnectorContext(), tableId);
+			if (null == tableInfo || tableInfo.getNumOfRows() > CREATE_INDEX_THRESHOLD) return;
+			List<TapIndex> indexList = new ArrayList<>();
+			List<TapIndex> indices = tapTable.getIndexList();
+			indices.forEach(index -> {
+				TapIndex tapIndex = new TapIndex().unique(index.getUnique()).primary(index.getPrimary());
+				tapIndex.setIndexFields(index.getIndexFields());
+				tapIndex.setName(index.getName());
+				tapIndex.setCluster(index.getCluster());
+				indexList.add(tapIndex);
+			});
+			//query exist index
+			queryIndexesFunction.query(getConnectorNode().getConnectorContext(), tapTable, (tapIndexList)->{
+				tapIndexList.forEach(existsIndex -> {
+					// 如果索引已经存在，就不再创建; 名字相同视为存在; 字段以及顺序相同, 也视为存在
+					for (TapIndex tapIndex : indexList) {
+						if (tapIndex.getName().equals(existsIndex.getName())) {
+							indexList.remove(tapIndex);
+							break;
+						}
+						if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
+							boolean same = true;
+							for (int i = 0; i < tapIndex.getIndexFields().size(); i++) {
+								if (!tapIndex.getIndexFields().get(i).getName().equals(existsIndex.getIndexFields().get(i).getName())
+										|| tapIndex.getIndexFields().get(i).getFieldAsc() != existsIndex.getIndexFields().get(i).getFieldAsc()) {
+									same = false;
+									break;
+								}
+							}
+							if (same) {
+								indexList.remove(tapIndex);
+								break;
+							}
+						}
+					}
+				});
+			});
+			if (CollectionUtils.isEmpty(indexList)) {
+				obsLogger.warn("indices already exists in target table and will no longer create index");
+				return;
+			}
+			indexEvent.set(createIndexEvent(tableId, indexList));
+			executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
+					.table(tapTable)
+					.connectorContext(getConnectorNode().getConnectorContext())
+					.dataProcessorContext(dataProcessorContext)
+					.createIndexEvent(indexEvent.get())
+					.start(), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
+					PDKMethod.TARGET_CREATE_INDEX,
+					() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent.get()), TAG));
+		}catch (Throwable throwable){
+			Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
+			if (null != matched) {
+				throw (TapCodeException) matched;
+			}else {
+				throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED, "Table name: " + tableId, throwable)
+						.addEvent(indexEvent.get());
+			}
+		}
+	}
+	protected boolean checkSyncIndexOpen(){
+		// Check whether sync index
+		Node node = getNode();
+		if (node instanceof DatabaseNode || node instanceof TableNode) {
+			DataParentNode dataParentNode = (DataParentNode) node;
+			if (null != dataParentNode.getSyncIndexEnable() && dataParentNode.getSyncIndexEnable()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private void clearData(ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
