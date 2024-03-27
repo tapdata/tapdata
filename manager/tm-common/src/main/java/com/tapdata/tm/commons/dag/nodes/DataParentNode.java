@@ -61,6 +61,8 @@ public abstract class DataParentNode<S> extends Node<S> {
 
     private DDLConfiguration ddlConfiguration;
 
+    private String ignoredDDLRules;
+
     private ReadPartitionOptions readPartitionOptions;
     private List<String> disabledEvents;
     @Deprecated

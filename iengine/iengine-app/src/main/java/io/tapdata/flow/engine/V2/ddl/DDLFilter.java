@@ -7,9 +7,12 @@ import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author samuel
@@ -23,13 +26,16 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 
 	private DDLConfiguration configuration;
 
+	private String ignoredDDLRulers;
+
 	private DDLFilter() {
 	}
 
-	public static DDLFilter create(List<String> disabledEvents,DDLConfiguration ddlConfiguration) {
+	public static DDLFilter create(List<String> disabledEvents,DDLConfiguration ddlConfiguration,String ignoredDDLRulers) {
 		return new DDLFilter()
 				.disabledEvents(disabledEvents)
-				.ddlConfiguration(ddlConfiguration);
+				.ddlConfiguration(ddlConfiguration)
+				.ignoredDDLRulers(ignoredDDLRulers);
 	}
 
 	public DDLFilter disabledEvents(List<String> disabledEvents) {
@@ -47,6 +53,11 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 		return this;
 	}
 
+	public DDLFilter ignoredDDLRulers(String ignoredDDLRulers) {
+		this.ignoredDDLRulers = ignoredDDLRulers;
+		return this;
+	}
+
 	@Override
 	public boolean test(TapDDLEvent tapDDLEvent) {
 		if (null != dynamicTableTest && dynamicTableTest.test(tapDDLEvent.getTableId())) {
@@ -57,6 +68,14 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 		if(null != configuration){
 			switch (configuration){
 				case ERROR:
+					String sql = (String) tapDDLEvent.getOriginDDL();
+					if(StringUtils.isNotBlank(ignoredDDLRulers) && StringUtils.isNotBlank(sql)){
+						Pattern pattern = Pattern.compile(ignoredDDLRulers);
+						Matcher matcher = pattern.matcher(sql);
+						if (matcher.find()) {
+							return false;
+						}
+					}
 					throw new TapCodeException(TaskProcessorExCode_11.ENCOUNTERED_DDL_EVENT_REPORT_ERROR);
 				case FILTER:
 					return false;
