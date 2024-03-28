@@ -969,7 +969,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return this.mergeTablePropertiesMap.get(preNodeId);
 	}
 
-	private ConstructIMap<Document> getHazelcastConstruct(String sourceNodeId) {
+	protected ConstructIMap<Document> getHazelcastConstruct(String sourceNodeId) {
 		return this.mergeCacheMap.getOrDefault(sourceNodeId, null);
 	}
 
@@ -1442,7 +1442,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return mergeLookupResults;
 	}
 
-	private List<MergeLookupResult> recursiveLookup(MergeTableProperties mergeTableProperties,
+	protected List<MergeLookupResult> recursiveLookup(MergeTableProperties mergeTableProperties,
 													Map<String, Object> data,
 													boolean lookupDataExists) {
 		List<MergeTableProperties> children = mergeTableProperties.getChildren();
@@ -1475,7 +1475,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			TapTable tapTable = processorBaseContext.getTapTableMap().get(tableName);
 			if (MergeTableProperties.MergeType.updateWrite == mergeType) {
 				MergeLookupResult mergeLookupResult = new MergeLookupResult();
-				Set<String> shareJoinKeys = shareJoinKeysMap.get(copyMergeTableProperty.getId());
+				Set<String> shareJoinKeys = Optional.ofNullable(shareJoinKeysMap).orElse(new HashMap<>()).get(copyMergeTableProperty.getId());
 				Map<String, Object> lookupData;
 				if (MapUtils.isEmpty(findData)) {
 					lookupData = mockLookupMap(childMergeProperty);
@@ -1492,7 +1492,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 						lookupData = (Map<String, Object>) findData.get(firstKey);
 					}
 					if (keySet.size() > 1) {
-						logger.warn("Update write merge lookup, find more than one row, lookup table: {}, join key value: {}, will use first row: {}", tableName, joinValueKey, lookupData);
+						nodeLogger.warn("Update write merge lookup, find more than one row, lookup table: {}, join key value: {}, will use first row: {}", tableName, joinValueKey, lookupData);
 					}
 				}
 
