@@ -70,8 +70,8 @@ public class AppenderFactory implements Serializable {
 	private AppenderFactory() {
 		cacheLogsQueue = ChronicleQueue.singleBuilder(CACHE_QUEUE_DIR)
 				.rollCycle(RollCycles.HUGE_DAILY)
-				.storeFileListener((cycle, file) -> {
-					deleteFileIfLessThanCurrentCycle(cycle, file);
+				.storeFileListener((tempCycle, file) -> {
+					deleteFileIfLessThanCurrentCycle(tempCycle, file);
 				})
 				.build();
 		cycle = cacheLogsQueue.cycle();

@@ -5,6 +5,8 @@ import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.schema.TableIndexColumn;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import lombok.Data;
 import lombok.Getter;
@@ -13,10 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 
 import java.io.Serializable;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.commons.schema.SchemaUtils.createField;
@@ -112,7 +111,28 @@ public class FieldAddDelProcessorNode extends FieldProcessorNode {
 					});
 					outputSchema.getFields().sort(Comparator.comparing(f -> null == f.getColumnPosition() ? 0 : f.getColumnPosition()));
 				}
+        deleteIndicesIfNeed(outputSchema);
         return outputSchema;
+    }
+    protected void deleteIndicesIfNeed(Schema outputSchema){
+        List<Field> deletedFields = Optional.ofNullable(outputSchema.getFields()).orElse(new ArrayList<>()).stream().filter(f -> Boolean.TRUE.equals(f.isDeleted())).collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(deletedFields)) return;
+        List<TableIndex> indices = outputSchema.getIndices();
+        if(null != indices){
+            Iterator<TableIndex> iterator = indices.iterator();
+            while (iterator.hasNext()){
+                TableIndex index = iterator.next();
+                List<String> collect = index.getColumns().stream().map(TableIndexColumn::getColumnName)
+                        .collect(Collectors.toList());
+                for (Field deletedField : deletedFields) {
+                    if (collect.contains(deletedField.getFieldName())) {
+                        iterator.remove();
+                        break;
+                    }
+                }
+            }
+        }
+        outputSchema.setIndices(indices);
     }
 
 
