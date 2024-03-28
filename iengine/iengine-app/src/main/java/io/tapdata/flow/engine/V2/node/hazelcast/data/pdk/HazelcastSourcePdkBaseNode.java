@@ -334,8 +334,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		if (node.isDataNode()) {
 			List<String> disabledEvents = ((DataParentNode<?>) node).getDisabledEvents();
 			DDLConfiguration ddlConfiguration = ((DataParentNode<?>) node).getDdlConfiguration();
-			String ignoredDDLRulers = ((DataParentNode<?>) node).getIgnoredDDLRules();
-			this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration, ignoredDDLRulers).dynamicTableTest(this::needDynamicTable);
+			String ignoreDDLRules = ((DataParentNode<?>) node).getIgnoredDDLRules();
+			this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration, ignoreDDLRules,obsLogger).dynamicTableTest(this::needDynamicTable);
 		}
 	}
 

@@ -7,6 +7,7 @@ import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.observable.logging.ObsLogger;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
@@ -26,16 +27,19 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 
 	private DDLConfiguration configuration;
 
-	private String ignoredDDLRulers;
+	private String ignoreDDLRules;
+
+	private ObsLogger obsLogger;
 
 	private DDLFilter() {
 	}
 
-	public static DDLFilter create(List<String> disabledEvents,DDLConfiguration ddlConfiguration,String ignoredDDLRulers) {
+	public static DDLFilter create(List<String> disabledEvents, DDLConfiguration ddlConfiguration, String ignoreDDLRules, ObsLogger obsLogger) {
 		return new DDLFilter()
 				.disabledEvents(disabledEvents)
 				.ddlConfiguration(ddlConfiguration)
-				.ignoredDDLRulers(ignoredDDLRulers);
+				.ignoreDDLRules(ignoreDDLRules)
+				.obsLogger(obsLogger);
 	}
 
 	public DDLFilter disabledEvents(List<String> disabledEvents) {
@@ -53,8 +57,13 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 		return this;
 	}
 
-	public DDLFilter ignoredDDLRulers(String ignoredDDLRulers) {
-		this.ignoredDDLRulers = ignoredDDLRulers;
+	public DDLFilter ignoreDDLRules(String ignoreDDLRules) {
+		this.ignoreDDLRules = ignoreDDLRules;
+		return this;
+	}
+
+	public DDLFilter obsLogger(ObsLogger obsLogger) {
+		this.obsLogger = obsLogger;
 		return this;
 	}
 
@@ -69,10 +78,11 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 			switch (configuration){
 				case ERROR:
 					String sql = (String) tapDDLEvent.getOriginDDL();
-					if(StringUtils.isNotBlank(ignoredDDLRulers) && StringUtils.isNotBlank(sql)){
-						Pattern pattern = Pattern.compile(ignoredDDLRulers);
+					if(StringUtils.isNotBlank(ignoreDDLRules) && StringUtils.isNotBlank(sql)){
+						Pattern pattern = Pattern.compile(ignoreDDLRules);
 						Matcher matcher = pattern.matcher(sql);
 						if (matcher.find()) {
+							obsLogger.info("Regular matching successfully ignores DDL event:{}",sql);
 							return false;
 						}
 					}
