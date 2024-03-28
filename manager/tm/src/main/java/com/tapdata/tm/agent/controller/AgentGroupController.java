@@ -11,7 +11,6 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.base.exception.BizException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -27,10 +26,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 /**
  * @author XiaoGavin
  * @Date: 2021/10/15
@@ -39,7 +34,7 @@ import java.util.Map;
 @Tag(name = "AgentGroupController", description = "Agent分组相关接口")
 @RestController
 @Slf4j
-@RequestMapping(value = {"/api/agent/group"})
+@RequestMapping(value = {"/api/agent-group"})
 public class AgentGroupController extends BaseController {
     @Autowired
     AgentGroupService agentGroupService;
@@ -61,7 +56,7 @@ public class AgentGroupController extends BaseController {
      * @return
      */
     @Operation(summary = "Find all agent of the model matched by filter from the data source")
-    @PostMapping("/create")
+    @PostMapping("/create-group")
     public ResponseMessage<AgentGroupDto> createAgentGroup(@RequestBody GroupDto groupDto) {
         return success(agentGroupService.createGroup(groupDto, getLoginUser()));
     }
@@ -72,7 +67,7 @@ public class AgentGroupController extends BaseController {
      * @return
      */
     @Operation(summary = "Find all agent of the model matched by filter from the data source")
-    @PostMapping("/agent/add")
+    @PostMapping("/add-agent")
     public ResponseMessage<AgentGroupDto> addAgentToGroup(@RequestBody AgentToGroupDto agentDto) {
         return success(agentGroupService.addAgentToGroup(agentDto, getLoginUser()));
     }
@@ -84,7 +79,7 @@ public class AgentGroupController extends BaseController {
      * @return
      */
     @Operation(summary = "Find all agent of the model matched by filter from the data source")
-    @PostMapping("/agent/remove")
+    @PostMapping("/remove-agent")
     public ResponseMessage<AgentGroupDto> removeAgentFromGroup(@RequestBody AgentRemoveFromGroupDto removeDto) {
         return success(agentGroupService.removeAgentFromGroup(removeDto, getLoginUser()));
     }
@@ -124,12 +119,12 @@ public class AgentGroupController extends BaseController {
     }
 
     /**
-     * Update instances of the model matched by {{where}} from the data source.
+     * Update instances of the model matched by {{where}} from the data source
      *
      * @return
      */
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
-    @PostMapping("update")
+    @PostMapping("update-group")
     public ResponseMessage<AgentGroupDto> updateByWhere(@RequestBody GroupDto dto) {
         return success(agentGroupService.updateBaseInfo(dto, getLoginUser()));
     }

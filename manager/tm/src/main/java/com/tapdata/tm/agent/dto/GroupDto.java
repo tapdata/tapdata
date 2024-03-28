@@ -16,12 +16,9 @@ import java.util.List;
 @Data
 public class GroupDto extends BaseDto {
     String name;
-    @JsonProperty("group_id")
     String groupId;
 
-    @JsonProperty("agent_ids")
     List<String> agentIds;
 
-    @JsonProperty("is_delete")
     Boolean hasDelete;
 }
