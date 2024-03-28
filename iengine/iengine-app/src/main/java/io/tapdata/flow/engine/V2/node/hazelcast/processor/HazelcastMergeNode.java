@@ -87,7 +87,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	public static final String UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE_PROP_KEY = "UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE";
 	public static final String HANDLE_UPDATE_JOIN_KEY_THREAD_NUM_PROP_KEY = "HANDLE_UPDATE_JOIN_KEY_THREAD_NUM";
 	public static final int DEFAULT_UPDATE_JOIN_KEY_THREAD_NUM = 4;
-	private Logger logger = LogManager.getLogger(HazelcastMergeNode.class);
 
 	// 缓存表信息{"前置节点id": "Hazelcast缓存资源{"join value string": {"pk value string": "after data"}}"}
 	private Map<String, ConstructIMap<Document>> mergeCacheMap;
