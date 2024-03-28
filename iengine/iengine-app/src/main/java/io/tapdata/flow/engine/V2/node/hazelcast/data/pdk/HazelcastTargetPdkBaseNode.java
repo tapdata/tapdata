@@ -753,6 +753,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 							flushSyncProgressMap(lastTapdataEvent.get());
 						}
 						break;
+					default:
+						break;
 				}
 			}
 		}
