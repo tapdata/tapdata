@@ -427,6 +427,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						initStreamOffsetFromTime(offsetStartTimeMs);
 					}
 					break;
+				default:
+					break;
 			}
 			if (null == offsetStartTimeMs || offsetStartTimeMs.compareTo(0L) <= 0) {
 				offsetStartTimeMs = syncProgress.getEventTime();
@@ -510,6 +512,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					} else {
 						syncProgress.setStreamOffsetObj(new HashMap<>());
 					}
+					break;
+				default:
+					break;
 			}
 		}
 	}
