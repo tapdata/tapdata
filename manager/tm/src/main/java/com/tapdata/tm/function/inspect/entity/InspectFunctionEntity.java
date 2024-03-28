@@ -29,6 +29,7 @@ public class InspectFunctionEntity extends BaseEntity {
     private String function_body;
 
     private String category;
+    private String lang;
 
     private String example;
 

@@ -25,6 +25,7 @@ public class InspectFunctionDto extends BaseDto {
     private String parameters_desc;
     private String return_value;
     private String function_body;
+    private String lang;
 
     private String category;
 
