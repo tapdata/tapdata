@@ -53,7 +53,7 @@ public class InspectController extends BaseController {
         if (CollectionUtils.isEmpty(task)) {
             throw new BizException("Inspect.task.null");
         }
-
+        inspectService.fieldHandler(task,getLoginUser());
         if (null == platformInfo || StringUtils.isEmpty(platformInfo.getAgentType())) {
             throw new BizException("Inspect.agentTag.null");
         }

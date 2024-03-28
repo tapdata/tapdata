@@ -7,6 +7,7 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.entity.InspectEntity;
@@ -72,4 +73,6 @@ public abstract class InspectService extends BaseService<InspectDto, InspectEnti
     }
 
     public abstract List<InspectDto> findAllByIds(List<String> inspectIds);
+
+    public abstract void fieldHandler(List<Task> tasks,UserDetail userDetail);
 }

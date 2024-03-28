@@ -197,4 +197,9 @@ public class InspectServiceImpl extends InspectService {
     public List<InspectDto> findAllByIds(List<String> inspectIds) {
         throw new BizException("TapOssNonSupportFunctionException");
     }
+
+    @Override
+    public void fieldHandler(List<Task> tasks,UserDetail userDetail) {
+        throw new BizException("TapOssNonSupportFunctionException");
+    }
 }
