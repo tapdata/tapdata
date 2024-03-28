@@ -235,6 +235,36 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@Test
+		@DisplayName("test sync method when table count is unknown")
+		@SneakyThrows
+		void testSyncIndex11(){
+			autoCreateTable = true;
+			when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
+			when(connectorFunctions.getCreateIndexFunction()).thenReturn(createIndexFunction);
+			when(connectorFunctions.getGetTableInfoFunction()).thenReturn(getTableInfoFunction);
+			when(connectorFunctions.getQueryIndexesFunction()).thenReturn(queryIndexesFunction);
+			TableInfo tableInfo = mock(TableInfo.class);
+			when(tableInfo.getNumOfRows()).thenReturn(null);
+			when(getTableInfoFunction.getTableInfo(any(TapConnectorContext.class),anyString())).thenReturn(tableInfo);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			verify(obsLogger, new Times(1)).warn(anyString(),anyString());
+		}
+		@Test
+		@DisplayName("test sync method when table info is null")
+		@SneakyThrows
+		void testSyncIndex12(){
+			autoCreateTable = true;
+			when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
+			when(connectorFunctions.getCreateIndexFunction()).thenReturn(createIndexFunction);
+			when(connectorFunctions.getGetTableInfoFunction()).thenReturn(getTableInfoFunction);
+			when(connectorFunctions.getQueryIndexesFunction()).thenReturn(queryIndexesFunction);
+			when(getTableInfoFunction.getTableInfo(any(TapConnectorContext.class),anyString())).thenReturn(null);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			verify(obsLogger, new Times(1)).warn(anyString(),anyString());
+		}
+		@Test
 		@DisplayName("test sync method when exists index with same name")
 		@SneakyThrows
 		void testSyncIndex7(){

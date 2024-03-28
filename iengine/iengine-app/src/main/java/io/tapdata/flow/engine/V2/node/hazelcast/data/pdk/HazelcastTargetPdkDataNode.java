@@ -280,28 +280,44 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 	protected void syncIndex(String tableId, TapTable tapTable, boolean autoCreateTable){
+		long start = System.currentTimeMillis();
 		if (!checkSyncIndexOpen()) return;
 		if (!autoCreateTable) {
-			obsLogger.warn("table {} already exists and will no longer synchronize indexes",tableId);
+			obsLogger.warn("Table: {} already exists and will no longer synchronize indexes",tableId);
 			return;
 		}
 		CreateIndexFunction createIndexFunction = getConnectorNode().getConnectorFunctions().getCreateIndexFunction();
 		if (null == createIndexFunction) {
+			obsLogger.warn("target connector does not support create index and will no longer synchronize indexes");
 			return;
 		}
 		GetTableInfoFunction getTableInfoFunction = getConnectorNode().getConnectorFunctions().getGetTableInfoFunction();
 		if (null == getTableInfoFunction){
+			obsLogger.warn("target connector does not support get table information and will no longer synchronize indexes");
 			return;
 		}
 		QueryIndexesFunction queryIndexesFunction = getConnectorNode().getConnectorFunctions().getQueryIndexesFunction();
 		if (null == queryIndexesFunction){
+			obsLogger.warn("target connector does not support query index and will no longer synchronize indexes");
 			return;
 		}
 		AtomicReference<TapCreateIndexEvent> indexEvent = new AtomicReference<>();
 		try {
 			//query table info
 			TableInfo tableInfo = getTableInfoFunction.getTableInfo(getConnectorNode().getConnectorContext(), tableId);
-			if (null == tableInfo || tableInfo.getNumOfRows() > CREATE_INDEX_THRESHOLD) return;
+			if (null != tableInfo) {
+				if (null == tableInfo.getNumOfRows()){
+					obsLogger.warn("Table: {} records amount is unknown and will no longer synchronize indexes",tableId);
+					return;
+				}
+				if (tableInfo.getNumOfRows() > CREATE_INDEX_THRESHOLD){
+					obsLogger.warn("Table: {} records amount exceeds the threshold: {} for creating indexes and will no longer synchronize indexes",tableId,CREATE_INDEX_THRESHOLD);
+					return;
+				}
+			}else {
+				obsLogger.warn("Table: {} gets table information failed and will no longer synchronize indexes",tableId);
+				return;
+			}
 			List<TapIndex> indexList = new ArrayList<>();
 			List<TapIndex> indices = tapTable.getIndexList();
 			indices.forEach(index -> {
@@ -314,11 +330,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			//query exist index
 			queryIndexesFunction.query(getConnectorNode().getConnectorContext(), tapTable, (tapIndexList)->{
 				tapIndexList.forEach(existsIndex -> {
-					// 如果索引已经存在，就不再创建; 名字相同视为存在; 字段以及顺序相同, 也视为存在
+					// If the index already exists, it will no longer be created; Having the same name is considered as existence; Fields with the same order are also considered to exist
 					for (TapIndex tapIndex : indexList) {
 						if (tapIndex.getName().equals(existsIndex.getName())) {
 							indexList.remove(tapIndex);
-							obsLogger.warn("Table: {} already exists Index: {} and will no longer create index", tableId, tapIndex.getName());
+							obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, tapIndex.getName());
 							break;
 						}
 						if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
@@ -332,7 +348,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							}
 							if (same) {
 								indexList.remove(tapIndex);
-								obsLogger.warn("Table: {} already exists Index: {} and will no longer create index", tableId, tapIndex.getName());
+								obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, tapIndex.getName());
 								break;
 							}
 						}
@@ -340,7 +356,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				});
 			});
 			if (CollectionUtils.isEmpty(indexList)) {
-				obsLogger.warn("Table: {} already exists Index list: {}", tableId, indices);
+				obsLogger.info("Table: {} already exists Index list: {}", tableId, indices);
 				return;
 			}
 			indexEvent.set(createIndexEvent(tableId, indexList));
@@ -362,12 +378,14 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						.addEvent(indexEvent.get());
 			}
 		}
+		long end = System.currentTimeMillis();
+		obsLogger.info("Table: {} synchronize indexes completed, cost {}ms", tableId, end-start);
 	}
 	protected boolean checkSyncIndexOpen(){
 		Node node = getNode();
 		if (node instanceof DatabaseNode || node instanceof TableNode) {
 			DataParentNode dataParentNode = (DataParentNode) node;
-			if (null != dataParentNode.getSyncIndexEnable() && dataParentNode.getSyncIndexEnable()) {
+			if (Boolean.TRUE.equals(dataParentNode.getSyncIndexEnable())) {
 				return true;
 			}
 		}
