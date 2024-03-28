@@ -1,0 +1,254 @@
+package com.tapdata.tm.agent.service;
+
+import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.agent.dto.AgentGroupDto;
+import com.tapdata.tm.agent.dto.AgentRemoveFromGroupDto;
+import com.tapdata.tm.agent.dto.AgentToGroupDto;
+import com.tapdata.tm.agent.dto.GroupDto;
+import com.tapdata.tm.agent.dto.GroupUsedDto;
+import com.tapdata.tm.agent.entity.AgentGroupEntity;
+import com.tapdata.tm.agent.repository.AgentGroupRepository;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
+import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.service.WorkerServiceImpl;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections.CollectionUtils;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * @Author: Gavin
+ * @Date: 2021/10/15
+ * @Description:
+ */
+@Service
+@Slf4j
+public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, ObjectId, AgentGroupRepository> {
+
+    @Autowired
+    private WorkerServiceImpl workerServiceImpl;
+    @Autowired
+    private MongoTemplate mongoTemplate;
+    @Autowired
+    private DataSourceService dataSourceService;
+
+
+    public AgentGroupService(@NonNull AgentGroupRepository repository) {
+        super(repository, GroupDto.class, AgentGroupEntity.class);
+    }
+
+    @Override
+    protected void beforeSave(GroupDto dto, UserDetail userDetail) {
+
+    }
+
+    public Page<AgentGroupDto> groupAllAgent(Filter filter, UserDetail userDetail) {
+        if (null == filter) {
+            filter = new Filter();
+            filter.setWhere(Where.where("is_delete", false));
+        }
+        Page<GroupDto> groupDtoPage = find(filter, userDetail);
+        List<GroupDto> items = groupDtoPage.getItems();
+        if (CollectionUtils.isEmpty(items)) {
+            return new Page<>(groupDtoPage.getTotal(), new ArrayList<>());
+        }
+        Set<String> allAgentId = items.stream()
+                .map(GroupDto::getAgentIds)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
+        List<WorkerDto> all = findAllAgent(allAgentId, userDetail);
+        Map<String, WorkerDto> map = all.stream()
+                .collect(Collectors.toMap(WorkerDto::getProcessId, w -> w));
+        return new Page<>(groupDtoPage.getTotal(), items.stream()
+                .map(item -> {
+                    List<String> agentIds = item.getAgentIds();
+                    AgentGroupDto dto = new AgentGroupDto();
+                    List<WorkerDto> collect = agentIds.stream()
+                            .map(map::get)
+                            .collect(Collectors.toList());
+                    dto.setAgents(collect);
+                    dto.setGroupId(item.getGroupId());
+                    dto.setName(item.getName());
+                    dto.setAgentIds(agentIds);
+                    return dto;
+                }).collect(Collectors.toList()));
+    }
+
+    public AgentGroupDto createGroup(GroupDto groupDto, UserDetail userDetail) {
+        final String name = groupDto.getName();
+        ObjectId id = new ObjectId();
+        AgentGroupDto dto = new AgentGroupDto();
+        dto.setGroupId(id.toHexString());
+        dto.setName(name);
+        Query query = verifyCountGroupByName(name, userDetail);
+        long succeedCount = upsert(query, dto, userDetail);
+        if (succeedCount > 0) {
+            return dto;
+        }
+        return dto;
+    }
+
+    protected Query verifyCountGroupByName(String name, UserDetail userDetail) {
+        Query query = Query.query(Criteria.where("name").is(name).and("is_delete").is(false));
+        if (count(query, userDetail) > 0) {
+            //Group Name重复
+            throw new BizException("");
+        }
+        return query;
+    }
+
+
+    public AgentGroupDto addAgentToGroup(AgentToGroupDto agentDto, UserDetail loginUser) {
+        agentDto.verify();
+        final String groupId = agentDto.getGroupId();
+        final String agentId = agentDto.getAgentId();
+        GroupDto groupDto = findGroupById(groupId, loginUser);
+        List<String> agents = groupDto.getAgentIds();
+        if (!(null == agents || agents.isEmpty() || !agents.contains(agentId))) {
+            //引擎不能重复添加标签
+            throw new BizException("");
+        }
+        List<String> agentIds = new ArrayList<>();
+        agentIds.add(agentId);
+        UpdateResult updateResult = update(
+                Query.query(Criteria.where("group_id").is(groupId)
+                        .and("is_delete").is(false)
+                        .and("agent_ids").nin(agentIds)),
+                new Update().push("agent_ids", agentId), loginUser);
+        long modifiedCount = updateResult.getModifiedCount();
+        if (modifiedCount <= 0) {
+            //添加失败
+            throw new BizException("");
+        }
+        return findAgentGroupInfo(groupId, loginUser);
+    }
+
+    public AgentGroupDto removeAgentFromGroup(AgentRemoveFromGroupDto removeDto, UserDetail loginUser) {
+        removeDto.verify();
+        final String groupId = removeDto.getGroupId();
+        final String agentId = removeDto.getAgentId();
+        GroupDto groupDto = findGroupById(groupId, loginUser);
+        List<String> agentIds = new ArrayList<>();
+        agentIds.add(agentId);
+        UpdateResult updateResult = update(Query.query(Criteria.where("group_id").is(groupId)
+                .and("is_delete").is(false)
+                .and("agent_ids").nin(agentIds)), new Update().pull("agent_ids", agentId), loginUser);
+        long modifiedCount = updateResult.getModifiedCount();
+        if (modifiedCount <= 0) {
+            //移除失败
+            throw new BizException("");
+        }
+        return findAgentGroupInfo(groupId, loginUser);
+    }
+
+
+    public GroupUsedDto deleteGroup(String groupId, UserDetail loginUser) {
+        GroupDto groupDto = findGroupById(groupId, loginUser);
+        List<String> groupIds = new ArrayList<>();
+        groupIds.add(groupId);
+        //@todo 查询正在使用当前标签的数据源
+        GroupUsedDto result = new GroupUsedDto();
+        Query connectionQuery = Query.query(
+                Criteria.where("accessNodeType").is(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP)
+                .and("accessNodeProcessIdList").in(groupIds)
+                .and("is_delete").is(false));
+        List<DataSourceConnectionDto> beUsedConnections = dataSourceService.findAllDto(connectionQuery, loginUser);
+        result.setUsedInConnection(beUsedConnections);
+        //@todo 查询正在使用当前标签的任务
+
+        result.setGroupId(groupId);
+        result.setName(groupDto.getName());
+        result.setAgentIds(groupDto.getAgentIds());
+
+        if (beUsedConnections.isEmpty()) {
+
+            result.setDeleted(true);
+            result.setDeleteMsg("Delete succeed");
+        } else {
+            result.setDeleted(false);
+            result.setDeleteMsg("The current agent tag has been used by some data source connections or tasks and cannot be deleted");
+        }
+        return result;
+    }
+
+    public AgentGroupDto updateBaseInfo(GroupDto dto, UserDetail loginUser) {
+        if (null == dto){
+            // Response Body不能为空
+            throw new BizException("");
+        }
+        String groupId = dto.getGroupId();
+        if (null == groupId || "".equals(groupId.trim())){
+            // Group ID不能为空
+            throw new BizException("");
+        }
+        String name = dto.getName();
+        if (null == name || "".equals(name.trim())){
+            // New Group Name不能为空
+            throw new BizException("");
+        }
+        verifyCountGroupByName(name, loginUser);
+        update(Query.query(Criteria
+                .where("group_id").is(groupId)
+                .and("is_delete").is(false)),
+                new Update().set("name", name), loginUser);
+        return findAgentGroupInfo(dto.getGroupId(), loginUser);
+    }
+
+    protected GroupDto findGroupById(String groupId, UserDetail loginUser) {
+        Criteria criteria = Criteria.where("group_id").is(groupId).and("is_delete").is(false);
+        GroupDto groupDto = findOne(Query.query(criteria), loginUser);
+        if (null == groupDto) {
+            //找不到当前标签
+            throw new BizException("");
+        }
+        return groupDto;
+    }
+
+    protected AgentGroupDto findAgentGroupInfo(String groupId, UserDetail loginUser) {
+        Filter filter = new Filter();
+        filter.setWhere(Where.where("group_id", groupId).and("is_delete", false));
+        return findAgentGroupInfo(filter, loginUser);
+    }
+
+    public AgentGroupDto findAgentGroupInfo(Filter filter, UserDetail loginUser) {
+        GroupDto groupDto = findOne(filter, loginUser);
+        List<String> agentIds = groupDto.getAgentIds();
+        List<WorkerDto> all = findAllAgent(agentIds, loginUser);
+        AgentGroupDto dto = new AgentGroupDto();
+        dto.setAgentIds(agentIds);
+        dto.setName(groupDto.getName());
+        dto.setGroupId(groupDto.getGroupId());
+        dto.setAgents(all);
+        return dto;
+    }
+
+    protected List<WorkerDto> findAllAgent(Collection<String> agentIds, UserDetail loginUser) {
+        Criteria criteria = Criteria.where("process_id").in(agentIds)
+                .and("worker_type").is("connector")
+                .and("isDeleted").is(true);
+        return workerServiceImpl.findAllDto(Query.query(criteria), loginUser);
+    }
+}
