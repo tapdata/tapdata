@@ -526,13 +526,32 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void cdcProcessEvents(List<TapdataEvent> cdcEvents) {
-
 		if (CollectionUtils.isNotEmpty(cdcEvents)) {
 			if (cdcConcurrent && null != this.cdcPartitionConcurrentProcessor && this.cdcPartitionConcurrentProcessor.isRunning()) {
 				this.cdcPartitionConcurrentProcessor.process(cdcEvents, true);
 			} else {
-				this.handleTapdataEvents(cdcEvents);
+				splitDDL2NewBatch(cdcEvents, this::handleTapdataEvents);
 			}
+		}
+	}
+
+	protected void splitDDL2NewBatch(List<TapdataEvent> cdcEvents, Consumer<List<TapdataEvent>> subListConsumer) {
+		int beginIndex = 0;
+		int len = cdcEvents.size();
+		for (int i = 0; i < len; i++) {
+			if (null != cdcEvents.get(i) && cdcEvents.get(i).getTapEvent() instanceof TapDDLEvent) {
+				if (beginIndex < i) {
+					subListConsumer.accept(cdcEvents.subList(beginIndex, i));
+				}
+				beginIndex = i + 1;
+				subListConsumer.accept(Collections.singletonList(cdcEvents.get(i)));
+			}
+		}
+
+		if (0 == beginIndex) {
+			subListConsumer.accept(cdcEvents);
+		} else if (beginIndex != len) {
+			subListConsumer.accept(cdcEvents.subList(beginIndex, len));
 		}
 	}
 
