@@ -319,6 +319,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					for (TapIndex tapIndex : indexList) {
 						if (tapIndex.getName().equals(existsIndex.getName())) {
 							indexList.remove(tapIndex);
+							obsLogger.warn("Table: {} already exists Index: {} and will no longer create index", tableId, tapIndex.getName());
 							break;
 						}
 						if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
@@ -332,6 +333,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							}
 							if (same) {
 								indexList.remove(tapIndex);
+								obsLogger.warn("Table: {} already exists Index: {} and will no longer create index", tableId, tapIndex.getName());
 								break;
 							}
 						}
@@ -339,10 +341,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				});
 			});
 			if (CollectionUtils.isEmpty(indexList)) {
-				obsLogger.warn("indices already exists in target table and will no longer create index");
+				obsLogger.warn("Table: {} already exists Index list: {}", tableId, indices);
 				return;
 			}
 			indexEvent.set(createIndexEvent(tableId, indexList));
+			obsLogger.info("Table: {} will create Index list: {}", indexEvent.get().getTableId(), indexList);
 			executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
 					.table(tapTable)
 					.connectorContext(getConnectorNode().getConnectorContext())
@@ -362,7 +365,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 	protected boolean checkSyncIndexOpen(){
-		// Check whether sync index
 		Node node = getNode();
 		if (node instanceof DatabaseNode || node instanceof TableNode) {
 			DataParentNode dataParentNode = (DataParentNode) node;

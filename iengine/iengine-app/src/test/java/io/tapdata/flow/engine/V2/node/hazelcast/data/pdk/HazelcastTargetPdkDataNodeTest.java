@@ -129,6 +129,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		void testCreateTable2(){
 			tableId = "_TAP_EXACTLY_ONCE_CACHE";
 			when(tapTableMap.get(tableId)).thenReturn(mock(TapTable.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId);
 			hazelcastTargetPdkDataNode.createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId);
 			verify(hazelcastTargetPdkDataNode,new Times(0)).syncIndex(anyString(),any(TapTable.class),anyBoolean());
 		}
