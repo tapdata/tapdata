@@ -2109,6 +2109,44 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 
 		@Test
 		@SneakyThrows
+		@DisplayName("test update write lookup and return only one row")
+		void testUpdateWriteLookupOnlyOneRow() {
+			MergeTableProperties mergeTableProperties = new MergeTableProperties();
+			MergeTableProperties mergeTableProperties1 = new MergeTableProperties();
+			List<MergeTableProperties> mergeTablePropertiesList = new ArrayList<>();
+			mergeTablePropertiesList.add(mergeTableProperties);
+			mergeTableProperties1.setChildren(mergeTablePropertiesList);
+			mergeTableProperties.setId("1");
+			mergeTableProperties.setMergeType(MergeTableProperties.MergeType.updateWrite);
+			mergeTableProperties.setTargetPath("test");
+			Map<String, String> joinKeyMap = new HashMap<>();
+			joinKeyMap.put("source", "id");
+			joinKeyMap.put("target", "id");
+			List<Map<String, String>> joinKeys = new ArrayList<>();
+			joinKeys.add(joinKeyMap);
+			mergeTableProperties.setJoinKeys(joinKeys);
+			Map<String, Object> data = new HashMap<>();
+			data.put("id", 1);
+			ConstructIMap<Document> constructIMap = mock(ConstructIMap.class);
+			when(constructIMap.getName()).thenReturn("test");
+			Document findData = new Document("1", new Document("id", 1));
+			when(constructIMap.find(anyString())).thenReturn(findData);
+			Node preNode = mock(TableNode.class);
+			when(((TableNode) preNode).getTableName()).thenReturn("test");
+			doReturn(preNode).when(hazelcastMergeNode).getPreNode("1");
+			doReturn(constructIMap).when(hazelcastMergeNode).getHazelcastConstruct(anyString());
+			TapTable tapTable = new TapTable("test");
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(tapTableMap.get("test")).thenReturn(tapTable);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+
+			List<MergeLookupResult> mergeLookupResults = hazelcastMergeNode.recursiveLookup(mergeTableProperties1, data, true);
+
+			verify(nodeLogger, times(0)).warn(eq("Update write merge lookup, find more than one row, lookup table: {}, join key value: {}, will use first row: {}"), any(Object[].class));
+		}
+
+		@Test
+		@SneakyThrows
 		@DisplayName("test update write lookup and return more than one row")
 		void testUpdateWriteLookupMoreThanOneRow() {
 			MergeTableProperties mergeTableProperties = new MergeTableProperties();
