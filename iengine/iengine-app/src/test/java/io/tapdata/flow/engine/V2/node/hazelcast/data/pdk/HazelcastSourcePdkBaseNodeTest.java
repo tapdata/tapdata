@@ -415,6 +415,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			when(dataProcessorContext.getNode()).thenReturn((Node)node);
 			hazelcastSourcePdkDataNode.initDDLFilter();
 			DDLFilter ddlFilter = (DDLFilter)ReflectionTestUtils.getField(hazelcastSourcePdkDataNode,"ddlFilter");
+			ReflectionTestUtils.setField(ddlFilter,"obsLogger",mockObsLogger);
 			TapDDLEvent tapDDLEvent = new TapDDLUnknownEvent();
 			tapDDLEvent.setOriginDDL("test");
 			Assertions.assertFalse(ddlFilter.test(tapDDLEvent));
