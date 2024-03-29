@@ -2850,7 +2850,7 @@ public class TaskServiceImpl extends TaskService{
         String json = JsonUtil.toJsonUseJackson(jsonList);
 
         AtomicReference<String> fileName = new AtomicReference<>("");
-        String yyyymmdd = DateUtil.today().replaceAll("-", "");
+        String yyyymmdd = DateUtil.today().replace("-", "");
         FunctionUtils.isTureOrFalse(taskIds.size() > 1).trueOrFalseHandle(
                 () -> fileName.set("task_batch" + "-" + yyyymmdd),
                 () -> fileName.set(taskDtoMap.get(taskIds.get(0)).getName() + "-" + yyyymmdd)
