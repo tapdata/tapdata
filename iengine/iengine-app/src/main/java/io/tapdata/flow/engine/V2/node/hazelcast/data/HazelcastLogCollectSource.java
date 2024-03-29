@@ -10,7 +10,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
+import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.schema.SchemaList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

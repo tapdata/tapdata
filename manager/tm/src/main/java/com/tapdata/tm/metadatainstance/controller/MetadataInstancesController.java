@@ -20,7 +20,6 @@ import com.tapdata.tm.metadatainstance.dto.*;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateResetTableDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateTableInfoDto;
-import com.tapdata.tm.metadatainstance.dto.TableDto;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.service.MetaMigrateService;

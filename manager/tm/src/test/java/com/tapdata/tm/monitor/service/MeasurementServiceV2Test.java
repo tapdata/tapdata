@@ -38,7 +38,7 @@ class MeasurementServiceV2Test {
     @Mock
     private MongoTemplate mockMongoOperations;
 
-    private MeasurementServiceV2 measurementServiceV2UnderTest;
+    private MeasurementServiceV2Impl measurementServiceV2UnderTest;
     @Mock
     private CompletableFuture<MongoTemplate> mongoTemplateCompletableFuture;
 
@@ -47,7 +47,7 @@ class MeasurementServiceV2Test {
     @BeforeEach
     void setUp() throws Exception {
         when(mongoTemplateCompletableFuture.get()).thenReturn(mockMongoOperations);
-        measurementServiceV2UnderTest = new MeasurementServiceV2(
+        measurementServiceV2UnderTest = new MeasurementServiceV2Impl(
                 mongoTemplateCompletableFuture, mockMetadataInstancesService,
                 mockTaskService);
     }

@@ -1,6 +1,5 @@
 package com.tapdata.tm.userLog.aop;
 
-import cn.hutool.core.bean.BeanUtil;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -30,8 +29,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 
 /**

@@ -46,17 +46,15 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
+import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -1107,16 +1105,6 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			aspectManager.registerAspectObserver(ProcessorNodeInitAspect.class, 1, aspect -> observe.compareAndSet(false, true));
 			MockProcessorNode mockProcessorNode = new MockProcessorNode(processorBaseContext);
 			assertDoesNotThrow(mockProcessorNode::executeAspectOnInit);
-			assertTrue(observe.get());
-		}
-
-		@Test
-		void testExecuteAspectOnInitMultiAggregatorProcessorNode() {
-			aspectManager.registerAspectObserver(ProcessorNodeInitAspect.class, 1, aspect -> observe.compareAndSet(false, true));
-			HazelcastMultiAggregatorProcessor hazelcastMultiAggregatorProcessor = mock(HazelcastMultiAggregatorProcessor.class);
-			doCallRealMethod().when(hazelcastMultiAggregatorProcessor).executeAspectOnInit();
-			ReflectionTestUtils.setField(hazelcastMultiAggregatorProcessor, "processorBaseContext", processorBaseContext);
-			assertDoesNotThrow(hazelcastMultiAggregatorProcessor::executeAspectOnInit);
 			assertTrue(observe.get());
 		}
 	}

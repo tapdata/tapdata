@@ -53,6 +53,7 @@ public class LoadSchemaSchedule {
      * */
     @Scheduled(cron = "0 0/1 * * * ?")
     public void loadSettings() {
+			Thread.currentThread().setName(getClass().getSimpleName() + "-loadSettings");
         scheduleUtil.loadSettings(settingsService, settingMap);
     }
 
@@ -63,6 +64,7 @@ public class LoadSchemaSchedule {
     @Scheduled(cron = "0 0 0/1 * * ?")
     @SchedulerLock(name ="timedReloadSchema_lock", lockAtMostFor = "20s", lockAtLeastFor = "20s")
     public void timedReloadSchema() {
+			Thread.currentThread().setName(getClass().getSimpleName() + "-timedReloadSchema");
         //查询所有的数据源信息
         Query query = new Query();
         query.with(Sort.by("createTime").descending());

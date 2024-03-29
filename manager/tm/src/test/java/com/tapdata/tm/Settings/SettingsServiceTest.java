@@ -5,6 +5,7 @@ import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.repository.SettingsRepository;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.Settings.service.SettingsServiceImpl;
 import com.tapdata.tm.alarmMail.dto.AlarmMailDto;
 import com.tapdata.tm.alarmMail.service.AlarmMailService;
 import com.tapdata.tm.base.dto.Filter;
@@ -16,7 +17,6 @@ import com.tapdata.tm.utils.SpringContextHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -35,7 +35,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 public class SettingsServiceTest {
-    private SettingsService settingsService;
+    private SettingsServiceImpl settingsService;
 
     private MongoTemplate mongoTemplate;
 
@@ -49,7 +49,7 @@ public class SettingsServiceTest {
     class getMailAccountTest{
         @BeforeEach
         void beforeEach(){
-            settingsService=spy(SettingsService.class);
+            settingsService=spy(SettingsServiceImpl.class);
             mongoTemplate = mock(MongoTemplate.class);
             mockSettingsRepository = mock(SettingsRepository.class);
             userService = mock(UserService.class);

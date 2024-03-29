@@ -8,14 +8,12 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.log.dto.LogDto;
-import com.tapdata.tm.log.entity.LogEntity;
 import com.tapdata.tm.log.entity.LogEntityElastic;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.ParsedMax;
@@ -279,6 +277,7 @@ public class LogServiceElastic {
     @Scheduled(cron = "${task.log.cron:0 0 0 * * ?}")
     @SchedulerLock(name="cleanUpLogs", lockAtLeastFor = "PT10M", lockAtMostFor = "PT10M")
     public void deleteExpiredLogs() {
+        Thread.currentThread().setName(getClass().getSimpleName() + "-deleteExpiredLogs");
 
         //IndexCoordinates index = IndexCoordinates.of("logs-leon");
         IndexCoordinates index = getIndexCoordinates();

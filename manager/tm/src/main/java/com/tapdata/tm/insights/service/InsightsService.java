@@ -7,14 +7,11 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.insights.dto.InsightsDto;
 import com.tapdata.tm.insights.entity.InsightsEntity;
 import com.tapdata.tm.insights.repository.InsightsRepository;
-import com.tapdata.tm.utils.BeanUtil;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 /**
  * @Author:

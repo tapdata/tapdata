@@ -1,11 +1,8 @@
 package io.tapdata.websocket;
 
 import com.tapdata.constant.ConfigurationCenter;
-import com.tapdata.tm.sdk.util.AppType;
-import com.tapdata.tm.sdk.util.CloudSignUtil;
 import com.tapdata.tm.sdk.util.Version;
 import com.tapdata.tm.worker.WorkerSingletonLock;
-import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -17,20 +14,12 @@ import org.springframework.util.concurrent.ListenableFuture;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class ManagementWebsocketHandlerTest {
 
@@ -120,10 +109,8 @@ class ManagementWebsocketHandlerTest {
         @Test
         void connectTest_error(){
             try(MockedStatic<WorkerSingletonLock> mockedStatic = Mockito.mockStatic(WorkerSingletonLock.class);
-                MockedStatic<AppType> appTypeMockedStatic = Mockito.mockStatic(AppType.class);
                 MockedStatic<Version> versionMockedStatic = Mockito.mockStatic(Version.class)){
                 mockedStatic.when(()->WorkerSingletonLock.addTag2WsUrl(anyString())).thenReturn("ws://test:8080/ws/agent?agentId=test&access_token=test");
-                appTypeMockedStatic.when(AppType::init).thenReturn(AppType.DAAS);
                 versionMockedStatic.when(Version::get).thenReturn("test");
                 managementWebsocketHandlerTest.connect("http://test:8080/api/");
                 ListenableFuture<WebSocketSession> listenableFuture = (ListenableFuture<WebSocketSession>) ReflectionTestUtils.getField(managementWebsocketHandlerTest,"listenableFuture");

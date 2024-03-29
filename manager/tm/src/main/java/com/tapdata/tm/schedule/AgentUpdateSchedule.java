@@ -28,6 +28,7 @@ public class AgentUpdateSchedule {
     @Scheduled(cron = "0/10 * * * * ?")
     @SchedulerLock(name = "AgentUpdateSchedule", lockAtMostFor = "10s", lockAtLeastFor = "5s")
     public void execute() {
+			Thread.currentThread().setName(getClass().getSimpleName() + "-execute");
         log.debug("清理 clusterOperation");
         clusterOperationService.cleanOperation();
 

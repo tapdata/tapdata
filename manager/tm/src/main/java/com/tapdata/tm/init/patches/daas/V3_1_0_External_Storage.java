@@ -1,18 +1,12 @@
 package com.tapdata.tm.init.patches.daas;
 
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.init.PatchType;
 import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.init.patches.AbsPatch;
 import com.tapdata.tm.init.patches.PatchAnnotation;
-import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
-import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
-import com.tapdata.tm.sdk.util.AppType;
-import com.tapdata.tm.task.constant.LdpDirEnum;
-import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.Lists;
+import io.tapdata.utils.AppType;
 import com.tapdata.tm.utils.SpringContextHelper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,8 +14,6 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-
-import java.util.List;
 
 
 @PatchAnnotation(appType = AppType.DAAS, version = "3.1-0")

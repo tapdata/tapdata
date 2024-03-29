@@ -97,10 +97,16 @@ public interface TaskMergeProcessorExCode_16 {
 	)
 	String NOT_FOUND_CACHE_IN_MEMORY_MAP = "16015";
 
-	@TapExCode
+	@TapExCode(
+			describe = "Failed to update the cache, unknown error",
+			describeCN = "更新缓存失败，未知错误"
+	)
 	String UPSERT_CACHE_UNKNOWN_ERROR = "16016";
 
-	@TapExCode
+	@TapExCode(
+			describe = "Failed to delete the cache, unknown error",
+			describeCN = "删除缓存失败，未知错误"
+	)
 	String DELETE_CACHE_UNKNOWN_ERROR = "16017";
 
 	@TapExCode(
@@ -322,4 +328,9 @@ public interface TaskMergeProcessorExCode_16 {
 			describeCN = "清理并销毁缓存失败"
 	)
 	String CLEAR_AND_DESTROY_CACHE_FAILED = "16058";
+	@TapExCode(
+			describe = "Lookup CompletableFuture list cannot be null",
+			describeCN = "反查数据的CompletableFuture列表不能为空"
+	)
+	String LOOKUP_COMPLETABLE_FUTURE_LIST_IS_NULL = "16059";
 }
