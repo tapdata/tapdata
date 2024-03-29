@@ -2,7 +2,7 @@ package io.tapdata.flow.engine.V2.schedule;
 
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.entity.AppType;
+import io.tapdata.utils.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -15,6 +15,7 @@ import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.RestDoNotRetryException;
+import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -84,7 +85,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private MessageDao messageDao;
 	@Autowired
 	private TaskScheduler taskScheduler;
-	private final AppType appType = AppType.init();
 	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(100);
 	private final ExecutorService taskOperationThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors() + 1, Runtime.getRuntime().availableProcessors() + 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
@@ -130,7 +130,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				logger.error("Scan reschedule task failed {}", e.getMessage(), e);
 			}
 		});
-		if (appType.isCloud()) {
+		if (AppType.currentType().isCloud()) {
 			taskScheduler.scheduleAtFixedRate(this::internalStopTask, Duration.ofSeconds(10));
 		}
 		taskOperationThreadPool.submit(() -> {
@@ -189,8 +189,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		logger.info("Stop schedule task: " + name);
 	}
 
-	private void handleTaskOperation(TaskOperation taskOperation) {
-		taskOperationThreadPool.submit(() -> {
+	protected Runnable getHandleTaskOperationRunnable(TaskOperation taskOperation) {
+		return () -> {
 			String taskId;
 			try {
 				if (taskOperation instanceof StartTaskOperation) {
@@ -207,9 +207,18 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				}
 				logger.info("Handled task operation: {}", taskOperation);
 			} catch (Exception e) {
-				logger.error("Handle task operation error", e);
+				if (TmUnavailableException.isInstance(e)) {
+					logger.warn("Handle task operation failed because TM unavailable: {}", e.getMessage());
+				} else {
+					logger.error("Handle task operation error", e);
+				}
 			}
-		});
+		};
+	}
+
+	protected void handleTaskOperation(TaskOperation taskOperation) {
+		Runnable runnable = getHandleTaskOperationRunnable(taskOperation);
+		taskOperationThreadPool.submit(runnable);
 	}
 
 	public void sendStartTask(TaskDto taskDto) {
@@ -288,7 +297,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	 * Run task(s) already started, find clause: status=running and agentID={@link TapdataTaskScheduler#instanceNo}
 	 */
 	public void runTaskIfNeedWhenEngineStart() {
-		if (!appType.isCloud()) return;
+		if (!AppType.currentType().isCloud()) return;
 		Query query = new Query(
 				new Criteria("agentId").is(instanceNo)
 						.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)
@@ -331,8 +340,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
 			taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
 		} catch (Exception e) {
-			logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
+			if (TmUnavailableException.isInstance(e)) {
+				logger.warn("Start task {} failed because TM unavailable: {}", taskDto.getName(), e.getMessage());
+			} else {
+				logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
+			}
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -363,12 +376,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				}
 			}
 
-			if (!appType.isCloud()) {
-				List<TaskDto> timeoutStoppingTasks = findStoppingTasks();
-				for (TaskDto timeoutStoppingTask : timeoutStoppingTasks) {
-					final String taskId = timeoutStoppingTask.getId().toHexString();
-					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
-				}
+			if (AppType.currentType().isCloud()) return;
+
+			List<TaskDto> timeoutStoppingTasks = findStoppingTasks();
+			for (TaskDto timeoutStoppingTask : timeoutStoppingTasks) {
+				final String taskId = timeoutStoppingTask.getId().toHexString();
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
 			}
 		} catch (Exception e) {
 			logger.error("Scan force stopping data flow failed {}", e.getMessage(), e);
@@ -525,7 +538,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	 *
 	 * @return
 	 */
-	private List<TaskDto> findStoppingTasks() {
+	protected List<TaskDto> findStoppingTasks() {
 		long jobHeartTimeout = getJobHeartTimeout();
 		long expiredTimeMillis = System.currentTimeMillis() - jobHeartTimeout;
 		Criteria timeoutCriteria = where("status").is(TaskDto.STATUS_STOPPING)
@@ -622,7 +635,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		return settingService.getLong("jobHeartTimeout", 60000L);
 	}
 
-	private void stopTask(String taskId) {
+	protected void stopTask(String taskId) {
 		TaskClient<TaskDto> taskDtoTaskClient = taskClientMap.get(taskId);
 		if (null == taskDtoTaskClient) {
 			try {

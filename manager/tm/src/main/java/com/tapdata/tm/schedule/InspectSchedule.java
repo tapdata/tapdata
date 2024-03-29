@@ -29,6 +29,7 @@ public class InspectSchedule {
     @Scheduled(cron = "2 0/1 * * * ?")
     @SchedulerLock(name = "InspectSchedule.execute", lockAtMostFor = "1m", lockAtLeastFor = "1m")
     public void execute() {
+			Thread.currentThread().setName(getClass().getSimpleName() + "-execute");
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
         String processName = runtimeMXBean.getName();
         log.info(processName+"**************** 获得了 InspectSchedule  锁");
@@ -42,6 +43,7 @@ public class InspectSchedule {
     @Scheduled(cron = "2 0/1 * * * ?")
     @SchedulerLock(name = "InspectSchedule.execute", lockAtMostFor = "1m", lockAtLeastFor = "1m")
     public void cleanDeadInspect() {
+			Thread.currentThread().setName(getClass().getSimpleName() + "-cleanDeadInspect");
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
         String processName = runtimeMXBean.getName();
         log.info(processName+"**************** 获得了 cleanDeadInspect  锁");

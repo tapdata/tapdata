@@ -5,7 +5,6 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.validator.ConnectionValidateResultDetail;
 import io.tapdata.websocket.SendMessage;
-import io.tapdata.websocket.WebSocketEventResult;
 import io.tapdata.websocket.handler.TestConnectionHandler;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -18,7 +17,6 @@ import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import static org.awaitility.Awaitility.await;

@@ -25,14 +25,17 @@ import io.tapdata.entity.Converter;
 import io.tapdata.entity.Lib;
 import io.tapdata.entity.LibSupported;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.task.TapdataTaskScheduler;
+import io.tapdata.utils.AppType;
 import io.tapdata.websocket.ManagementWebsocketHandler;
 import io.tapdata.websocket.WebSocketEvent;
 import io.tapdata.websocket.handler.PongHandler;
+import lombok.Getter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -117,6 +120,7 @@ public class ConnectorManager {
 	@Autowired
 	private ConfigurationCenter configCenter;
 
+	@Getter
 	private String instanceNo = "tapdata-agent-connector";
 
 	@Autowired
@@ -139,6 +143,7 @@ public class ConnectorManager {
 
 	private LoadBalancing loadBalancing;
 
+	@Getter
 	private String version;
 
 	private List<Lib> libs;
@@ -160,20 +165,21 @@ public class ConnectorManager {
 	private final String stopJobThreadName = "Stop Connector runner Thread-%s-[%s]";
 	private ConcurrentHashMap<String, ConnectorStopJob> stopJobMap = new ConcurrentHashMap<>();
 
-	private AppType appType;
-
 	@Autowired
 	private MetricManager metricManager;
 
 	private final ExecutorService scheduleJobExecutorService = Executors.newFixedThreadPool(Math.max(Runtime.getRuntime().availableProcessors() * 2, 8));
 
 	private String tapdataWorkDir;
+	private WorkerHeatBeatReports workerHeatBeatReports;
 
 	/**
 	 * 云版可用区
 	 */
 	private String jobTags;
+	@Getter
 	private String region;
+	@Getter
 	private String zone;
 
 	@Autowired
@@ -181,7 +187,7 @@ public class ConnectorManager {
 
     private final Supplier<Long> getRetryTimeoutSupplier = () -> {
         // change 60s to 300s, because DFS fault usually lasts longer than 1 minute
-        long defRestApiTimeout = CommonUtils.getPropertyLong("DEFAULT_REST_API_TIMEOUT", appType.isCloud() ? 300000L : 60000L);
+        long defRestApiTimeout = CommonUtils.getPropertyLong("DEFAULT_REST_API_TIMEOUT", AppType.currentType().isCloud() ? 300000L : 60000L);
         long minRestApiTimeout = CommonUtils.getPropertyLong("MINIMUM_REST_API_TIMEOUT", 30000L);
         long jobHeartTimeout = settingService.getLong("jobHeartTimeout", defRestApiTimeout);
         return Math.max((long) (jobHeartTimeout * 0.8), minRestApiTimeout);
@@ -216,27 +222,9 @@ public class ConnectorManager {
       throw new RuntimeException(checkCloudOneAgentResult);
     }*/
 
-		WorkerSingletonLock.check(tapdataWorkDir, (singletonLock) -> {
-			String newSingletonLock;
-			String singletonLockFromEnv = System.getenv("singletonLock");
-			if (StringUtils.isNotBlank(singletonLockFromEnv)) {
-				// Cloud 全托管，永远使用环境变量中提供的 lock
-				newSingletonLock = singletonLockFromEnv;
-			} else {
-				newSingletonLock = UUID.randomUUID().toString();
-			}
-			String status = clientMongoOperator.upsert(new HashMap<String, Object>() {{
-				put("process_id", instanceNo);
-				put("worker_type", ConnectorConstant.WORKER_TYPE_CONNECTOR);
-				put("singletonLock", singletonLock);
-			}}, new HashMap<String, Object>() {{
-				put("singletonLock", newSingletonLock);
-			}}, ConnectorConstant.WORKER_COLLECTION + "/singleton-lock", String.class);
-			if (!"ok".equals(status)) {
-				throw new RuntimeException(String.format("Singleton check in remote failed: '%s'", status));
-			}
-			return newSingletonLock;
-		});
+		WorkerSingletonLock.check(tapdataWorkDir, this::singletonLockWithServer);
+		workerHeatBeatReports = new WorkerHeatBeatReports();
+		workerHeatBeatReports.init(this, configCenter, pingClientMongoOperator);
 
 		CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
 		if (null != resultDto && !resultDto.getResult()) throw new CoreException(resultDto.getFailedReason());
@@ -258,18 +246,11 @@ public class ConnectorManager {
 				updateData.put("createTime", new Date());
 				updateData.put("stopping", false);
 
-				if (StringUtils.isNoneBlank(region, zone)) {
-					if (StringUtils.isNoneBlank(region, zone)) {
-						Map<String, String> platformInfo = new HashMap<>();
-						platformInfo.put("region", region);
-						platformInfo.put("zone", zone);
-						updateData.put("platformInfo", platformInfo);
-					}
-				}
+				setPlatformInfo(updateData);
 
 				clientMongoOperator.updateAndParam(params, updateData, ConnectorConstant.WORKER_COLLECTION);
 			}
-		} else if (CollectionUtils.isEmpty(workers) && appType.isDrs()) {
+		} else if (CollectionUtils.isEmpty(workers) && AppType.currentType().isDrs()) {
 			String err = "Not found worker with params: " + params + ", will exit progress";
 			throw new RuntimeException(err);
 		}
@@ -288,7 +269,7 @@ public class ConnectorManager {
 		libs = classScanner.initLibs();
 		converters = classScanner.loadConverters();
 
-		if (!appType.isCloud()) {
+		if (!AppType.currentType().isCloud()) {
 			// init database type(s)
 //			initDatabaseTypes();
 
@@ -312,8 +293,8 @@ public class ConnectorManager {
 		configCenter.putConfig(ConfigurationCenter.BASR_URLS, baseURLs);
 		configCenter.putConfig(ConfigurationCenter.RETRY_TIME, restRetryTime);
 		configCenter.putConfig(ConfigurationCenter.AGENT_ID, instanceNo);
-		configCenter.putConfig(ConfigurationCenter.APPTYPE, null == appType ? AppType.DAAS : appType);
-		configCenter.putConfig(ConfigurationCenter.IS_CLOUD, appType.isCloud());
+		configCenter.putConfig(ConfigurationCenter.APPTYPE, AppType.currentType());
+		configCenter.putConfig(ConfigurationCenter.IS_CLOUD, AppType.currentType().isCloud());
 		configCenter.putConfig(ConfigurationCenter.WORK_DIR, null == tapdataWorkDir ? "" : tapdataWorkDir);
 		Optional.ofNullable(jobTags).ifPresent(j -> configCenter.putConfig(ConfigurationCenter.JOB_TAGS, jobTags));
 		Optional.ofNullable(region).ifPresent(j -> configCenter.putConfig(ConfigurationCenter.REGION, region));
@@ -334,6 +315,32 @@ public class ConnectorManager {
 		GlobalConstant.getInstance().configurationCenter(configCenter);
 	}
 
+	protected String getCloudSingletonLock() {
+		return System.getenv("singletonLock");
+	}
+
+	protected String singletonLockWithServer(String singletonLock) {
+		// Cloud 全托管，永远使用环境变量中提供的 lock
+		String newSingletonLock = getCloudSingletonLock();
+		if (StringUtils.isBlank(newSingletonLock)) {
+			newSingletonLock = UUID.randomUUID().toString();
+		}
+
+		Map<String, Object> params = new HashMap<>();
+		params.put("process_id", getInstanceNo());
+		params.put("worker_type", ConnectorConstant.WORKER_TYPE_CONNECTOR);
+		params.put("singletonLock", singletonLock);
+
+		Map<String, Object> upsertMap = new HashMap<>();
+		upsertMap.put("singletonLock", newSingletonLock);
+
+		String status = clientMongoOperator.upsert(params, upsertMap, ConnectorConstant.WORKER_COLLECTION + "/singleton-lock", String.class);
+		if (!"ok".equals(status)) {
+			throw new RuntimeException(String.format("Singleton check in remote failed: '%s'", status));
+		}
+		return newSingletonLock;
+	}
+
 	private static void setSchemaProxy(SchemaProxy schemaProxy) {
 		SchemaProxy.schemaProxy = schemaProxy;
 	}
@@ -343,7 +350,7 @@ public class ConnectorManager {
 	}
 	protected CheckEngineValidResultDto checkLicenseEngineLimit() {
 		CheckEngineValidResultDto resultDto = null;
-		if (!appType.isCloud()) {
+		if (!AppType.currentType().isCloud()) {
 			try {
 				Map<String, Object> processId = new HashMap<>();
 				processId.put("processId", instanceNo);
@@ -364,7 +371,7 @@ public class ConnectorManager {
 	}
 
 	private String checkCloudOneAgent() {
-		if (appType.isDfs()) {
+		if (AppType.currentType().isDfs()) {
 			String userId = (String) configCenter.getConfig(ConfigurationCenter.USER_ID);
 			if (StringUtils.isNotBlank(userId)) {
 				Query query = new Query(Criteria.where("ping_time")
@@ -434,11 +441,12 @@ public class ConnectorManager {
 	}
 
 	private void login() throws InterruptedException {
+		int waitSeconds = 60;
 		LoginResp loginResp = null;
 		while (loginResp == null) {
 			try {
 
-				if (!appType.isCloud()) {
+				if (!AppType.currentType().isCloud()) {
 
 					MongoTemplate mongoTemplate = clientMongoOperator.getMongoTemplate();
 					List<User> users = mongoTemplate.find(new Query(where("role").is(1)), User.class, "User");
@@ -482,12 +490,16 @@ public class ConnectorManager {
 							.baseUrls(restTemplateOperator.getBaseURLs())
 							.user(user));
 				} else {
-					logger.warn("Login fail response {}, waiting 60(s) retry.", loginResp);
-					Thread.sleep(60000L);
+					logger.warn("Login fail response {}, waiting {}(s) retry.", loginResp, waitSeconds);
+					TimeUnit.SECONDS.sleep(waitSeconds);
 				}
 			} catch (Exception e) {
-				logger.error("Login fail {}, waiting 60(s) retry.", e.getMessage(), e);
-				Thread.sleep(60000L);
+				if (TmUnavailableException.isInstance(e)) {
+					logger.warn("Login fail TM unavailable, waiting {}(s) retry.", waitSeconds);
+				} else {
+					logger.error("Login fail {}, waiting {}(s) retry.", e.getMessage(), waitSeconds, e);
+				}
+				TimeUnit.SECONDS.sleep(waitSeconds);
 			}
 		}
 
@@ -617,7 +629,9 @@ public class ConnectorManager {
 		try {
 			dbUser = clientMongoOperator.findOne(new Query(), sb.toString(), User.class);
 		} catch (Exception e) {
-			logger.error("Check token status failed {} then to refresh token info.", e.getMessage(), e);
+			if (TmUnavailableException.notInstance(e)) {
+				logger.error("Check token status failed {} then to refresh token info.", e.getMessage(), e);
+			}
 		}
 		if (dbUser == null) {
 			login();
@@ -748,7 +762,7 @@ public class ConnectorManager {
 //          Connector connector = ConnectorJobManager.prepare(runningJob, clientMongoOperator, sourceConn,
 //            messageQueue, targetConn, baseURLs, (String) configCenter.getConfig(ConfigurationCenter.ACCESS_CODE),
 //            dataRulesMap, restRetryTime, settingService, user.getId(), user.getRole(), debugProcessor,
-//            messageDao.getCacheService(), tapdataShareContext, appType.isCloud(),
+//            messageDao.getCacheService(), tapdataShareContext, AppType.currentType().isCloud(),
 //            milestoneJobService, configCenter);
 //          if (connector != null) {
 //            // start connector threads
@@ -825,7 +839,7 @@ public class ConnectorManager {
 					}
 				});
 			} else {
-				if (MapUtils.isNotEmpty(ERR_JOB_MAP) && !appType.isCloud()) {
+				if (MapUtils.isNotEmpty(ERR_JOB_MAP) && !AppType.currentType().isCloud()) {
 					logger.warn("Stopping all connectors, because of all rest api call failed");
 					ERR_JOB_MAP.forEach((jobId, job) -> stopJob(job, true, true, false));
 					ERR_JOB_MAP.clear();
@@ -1126,7 +1140,15 @@ public class ConnectorManager {
 	@Scheduled(fixedDelay = 60000L)
 	public void loadSettings() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.LOAD_SETTINGS_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
-		settingService.loadSettings();
+		try {
+			settingService.loadSettings();
+		} catch (Exception e) {
+			if (TmUnavailableException.isInstance(e)) {
+				logger.warn("Reload settings failed because TM unavailable: {}", e.getMessage());
+			} else {
+				logger.error("Reload settings failed {}.", e.getMessage(), e);
+			}
+		}
     /*HazelcastInstance hazelcastInstance = HazelcastUtil.getInstance(configCenter);
     Optional.ofNullable(hazelcastInstance).ifPresent(instance -> ShareCdcUtil.initHazelcastPersistenceStorage(
       instance.getConfig(),
@@ -1141,66 +1163,16 @@ public class ConnectorManager {
 	public void workerHeartBeat() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.WORKER_HEART_BEAT_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
 		try {
-			String hostname = SystemUtil.getHostName();
-			Double processCpuLoad = SystemUtil.getProcessCpuLoad();
-			long usedMemory = SystemUtil.getUsedMemory();
-			String userId = (String) configCenter.getConfig(ConfigurationCenter.USER_ID);
-			Integer threshold = 1;
-			Setting thresholdSetting = settingService.getSetting("threshold");
-			if (thresholdSetting != null) {
-				threshold = Integer.valueOf(thresholdSetting.getDefault_value());
-				if (NumberUtils.isDigits(thresholdSetting.getValue())) {
-					threshold = Integer.valueOf(thresholdSetting.getValue());
-				}
-			}
-
 			Map<String, Object> params = new HashMap<>();
-			params.put("process_id", instanceNo);
+			params.put("process_id", getInstanceNo());
 			params.put("worker_type", ConnectorConstant.WORKER_TYPE_CONNECTOR);
 
 			List<Worker> workers = pingClientMongoOperator.find(params, ConnectorConstant.WORKER_COLLECTION, Worker.class);
-			Integer finalThreshold = threshold;
-			checkAndExit(workers, isExit -> {
-				Map<String, Object> value = new HashMap<>();
-				value.put("total_thread", finalThreshold);
-				value.put("process_id", instanceNo);
-				value.put("user_id", userId);
-				value.put("singletonLock", WorkerSingletonLock.getCurrentTag());
-				value.put("version", version);
-				value.put("hostname", hostname);
-				value.put("cpuLoad", processCpuLoad);
-				value.put("usedMemory", usedMemory);
-				value.put("metricValues", this.metricManager.getValueMap());
-				value.put("worker_type", ConnectorConstant.WORKER_TYPE_CONNECTOR);
-				if (StringUtils.isNoneBlank(region, zone)) {
-					Map<String, String> platformInfo = new HashMap<>();
-					platformInfo.put("region", region);
-					platformInfo.put("zone", zone);
-					value.put("platformInfo", platformInfo);
-				}
-
-				final String version = (String) configCenter.getConfig("version");
-				if (StringUtils.isNotBlank(version)) {
-					value.put("version", version);
-				}
-				final String gitCommitId = (String) configCenter.getConfig("gitCommitId");
-				if (StringUtils.isNotBlank(gitCommitId)) {
-					value.put("gitCommitId", gitCommitId);
-				}
-				if (isExit) {
-					// 更新ping_time为1，以便于其他端可以快速识别本实例已经停止，而不用等待超时
-					value.put("ping_time", 1);
-				}
-				pingClientMongoOperator.insertOne(value, ConnectorConstant.WORKER_COLLECTION + "/health");
-				if (isExit && appType.isDaas()) {
-					exit(instanceNo);
-				}
-//				sendWorkerHeartbeat(
-//						value,
-//						v -> pingClientMongoOperator.insertOne(v, ConnectorConstant.WORKER_COLLECTION + "/health"));
-			});
+			checkAndExit(workers, workerHeatBeatReports::report);
 		} catch (Exception e) {
-			logger.error("Worker heart beat failed {}.", e.getMessage(), e);
+			if (TmUnavailableException.notInstance(e)) {
+				logger.error("Worker heart beat failed {}.", e.getMessage(), e);
+			}
 		}
 	}
 
@@ -1245,7 +1217,7 @@ public class ConnectorManager {
 		}
 	}
 
-	private static void exit(Object processId) {
+	protected static void exit(Object processId) {
 		logger.warn("This instance({}) has been deleted on the server side and cannot continue to run", processId);
 		System.exit(1);
 	}
@@ -1265,7 +1237,7 @@ public class ConnectorManager {
 		Worker worker = workers.get(0);
 		String exitInfo = "";
 		boolean isExit = false;
-		switch (appType){
+		switch (AppType.currentType()){
 			case DFS:
 				if (worker.isDeleted() || worker.isStopping()) {
 						exitInfo = "Flow engine will stop, cause: ";
@@ -1312,7 +1284,7 @@ public class ConnectorManager {
 		// 缓存节点需要全局共享，因此需要再所有flow engine都运行缓存任务
 		// 暂时只支持企业版，dfs、drs需要管理端调度配合
 
-		if (appType.isDaas()) {
+		if (AppType.currentType().isDaas()) {
 			List<String> jobIds = new ArrayList<>(JOB_MAP.keySet());
 			Criteria need2RunCacheJob = where("_id").nin(jobIds)
 					.and("stages.type").is(Stage.StageTypeEnum.MEM_CACHE.getType())
@@ -1758,7 +1730,7 @@ public class ConnectorManager {
 		}
 
 		try {
-			this.appType = AppType.init();
+			AppType.currentType();
 		} catch (Exception e) {
 			logger.error("Please check app_type in env and try again, message: {}", e.getMessage(), e);
 			System.exit(1);
@@ -1783,7 +1755,7 @@ public class ConnectorManager {
 		setProcessId(processId);
 
 		this.jobTags = CommonUtils.getenv("jobTags");
-		if (appType.isDrs() && StringUtils.isNotBlank(jobTags)) {
+		if (AppType.currentType().isDrs() && StringUtils.isNotBlank(jobTags)) {
 			String[] jobTagsSplit = jobTags.split(",");
 			if (jobTagsSplit.length < 2) {
 				logger.error("Job tags is invalid: {}, after split by ',' length should be 2", jobTags);
@@ -1797,49 +1769,38 @@ public class ConnectorManager {
 						"\n - mongodbConnParams: {}\n - baseURLs: {}\n - accessCode: {}\n - restRetryTime: {}\n - mode: {}\n - app_type: {}" +
 						"\n - process id: {}\n - job tags: {}\n - region: {}\n - zone: {}\n - worker dir: {}",
 				MongodbUtil.maskUriPassword(this.mongoURI), this.ssl, this.sslCA, this.sslPEM, this.mongodbConnParams,
-				this.baseURLs, this.accessCode, this.restRetryTime, this.mode, this.appType, this.instanceNo, this.jobTags, this.region, this.zone,
+				this.baseURLs, this.accessCode, this.restRetryTime, this.mode, AppType.currentType(), this.instanceNo, this.jobTags, this.region, this.zone,
 				this.tapdataWorkDir
 		);
+	}
+
+	public Integer getThreshold() {
+		int threshold = 1;
+		Setting thresholdSetting = settingService.getSetting("threshold");
+		if (thresholdSetting != null) {
+			threshold = Integer.parseInt(thresholdSetting.getDefault_value());
+			if (NumberUtils.isDigits(thresholdSetting.getValue())) {
+				threshold = Integer.parseInt(thresholdSetting.getValue());
+			}
+		}
+		return threshold;
+	}
+
+	public Map<String, Object> getMetricValues() {
+		return this.metricManager.getValueMap();
 	}
 
 	private static void setProcessId(String processId) {
 		ConfigurationCenter.processId = processId;
 	}
 
-	public String getInstanceNo() {
-		return instanceNo;
-	}
-
-	public void setInstanceNo(String instanceNo) {
-		this.instanceNo = instanceNo;
-	}
-
-	public void setClientMongoOpertor(ClientMongoOperator clientMongoOpertor) {
-		this.clientMongoOperator = clientMongoOpertor;
-	}
-
-	public SettingService getSettingService() {
-		return settingService;
-	}
-
-	public void setSettingService(SettingService settingService) {
-		this.settingService = settingService;
-	}
-
-	public void setMongoURI(String mongoURI) {
-		this.mongoURI = mongoURI;
-	}
-
-	public void setSsl(boolean ssl) {
-		this.ssl = ssl;
-	}
-
-	public void setSslCA(String sslCA) {
-		this.sslCA = sslCA;
-	}
-
-	public void setSslPEM(String sslPEM) {
-		this.sslPEM = sslPEM;
+	public void setPlatformInfo(Map<String, Object> value) {
+		if (StringUtils.isNoneBlank(getRegion(), getZone())) {
+			Map<String, String> platformInfo = new HashMap<>();
+			platformInfo.put("region", getRegion());
+			platformInfo.put("zone", getZone());
+			value.put("platformInfo", platformInfo);
+		}
 	}
 
 	/**

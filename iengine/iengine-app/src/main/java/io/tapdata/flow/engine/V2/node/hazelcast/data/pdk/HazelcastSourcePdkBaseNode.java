@@ -49,11 +49,10 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
-import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.filter.FilterUtil;
 import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
@@ -64,6 +63,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.Dynamic
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
+import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -142,7 +142,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected CopyOnWriteArrayList<String> newTables;
 	protected CopyOnWriteArrayList<String> removeTables;
 	protected AtomicBoolean sourceRunnerFirstTime;
-	private DAGDataServiceImpl dagDataService;
 	protected Future<?> sourceRunnerFuture;
 	// on cdc step if TableMap not exists heartbeat table, add heartbeat table to cdc whitelist and filter heartbeat records
 	protected ICdcDelay cdcDelayCalculation;
@@ -986,9 +985,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			Map<String, String> qualifiedNameIdMap = metadataInstancesDtoList.stream()
 					.collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m.getId().toHexString()));
 			tapEvent.addInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY, qualifiedNameIdMap);
-			if (null == dagDataService) {
-				dagDataService = new DAGDataServiceImpl(transformerWsMessageDto);
-			}
+			DAGDataServiceImpl dagDataService = initDagDataService(transformerWsMessageDto);
 			String qualifiedName;
 			Map<String, List<Message>> errorMessage;
 			if (tapEvent instanceof TapCreateTableEvent) {
@@ -1033,6 +1030,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			throw new RuntimeException("Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage(), e);
 		}
 	}
+
+	protected DAGDataServiceImpl initDagDataService(TransformerWsMessageDto transformerWsMessageDto) {
+		return new DAGDataServiceImpl(transformerWsMessageDto);
+	}
+
 	protected DDLSchemaHandler ddlSchemaHandler() {
 		return InstanceFactory.bean(DDLSchemaHandler.class);
 	}

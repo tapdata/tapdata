@@ -219,17 +219,17 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
         List<AlarmRuleDto> alarmRuleDtos = Lists.newArrayList();
         if (CollectionUtils.isEmpty(taskDto.getAlarmSettings())) {
-            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_ERROR));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_ERROR));
             //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_ERROR));
-            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_FULL_COMPLETE));
-            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_START));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_FULL_COMPLETE));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_START));
 //            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));
-            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
             taskDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
         }
 
         if (CollectionUtils.isEmpty(taskDto.getAlarmRules())) {
-            alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
+            addIfNotNull(alarmRuleDtos, ruleDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
             taskDto.setAlarmRules(CglibUtil.copyList(alarmRuleDtos, AlarmRuleVO::new));
         }
 
@@ -239,21 +239,21 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                 List<AlarmRuleDto> nodeRules = Lists.newArrayList();
                 FunctionUtils.isTureOrFalse(node.isDataNode()).trueOrFalseHandle(() -> {
                             if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
-                                nodeSettings.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
+                                addIfNotNull(nodeSettings, settingDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
                                 node.setAlarmSettings(CglibUtil.copyList(nodeSettings, AlarmSettingVO::new));
                             }
                             if (CollectionUtils.isEmpty(node.getAlarmRules())) {
-                                nodeRules.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
+                                addIfNotNull(nodeRules, ruleDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
                                 node.setAlarmRules(CglibUtil.copyList(nodeRules, AlarmRuleVO::new));
                             }
                         },
                         () -> {
                             if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
-                                nodeSettings.add(settingDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
+                                addIfNotNull(nodeSettings, settingDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
                                 node.setAlarmSettings(CglibUtil.copyList(nodeSettings, AlarmSettingVO::new));
                             }
                             if (CollectionUtils.isEmpty(node.getAlarmRules())) {
-                                nodeRules.add(ruleDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
+                                addIfNotNull(nodeRules, ruleDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
                                 node.setAlarmRules(CglibUtil.copyList(nodeRules, AlarmRuleVO::new));
                             }
                         });
@@ -262,6 +262,11 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
     }
 
+    private void addIfNotNull(List list, Object element){
+        if (null != element){
+            list.add(element);
+        }
+    }
     private void nodeCheckData(List<Node<List<Schema>>> nodes, List<String> tableNames, Map<String, String> renameMap) {
         if (Objects.isNull(nodes) || CollectionUtils.isEmpty(nodes)) {
             return;

@@ -3,7 +3,6 @@ package com.tapdata.tm.lineagegraph.controller;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.lineagegraph.dto.LineageGraphDto;
-import com.tapdata.tm.lineagegraph.param.GraphDataParam;
 import com.tapdata.tm.lineagegraph.service.LineageGraphService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;

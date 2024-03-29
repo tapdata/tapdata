@@ -19,7 +19,6 @@ import com.tapdata.tm.message.service.BlacklistService;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.message.vo.MessageListVo;
 import com.tapdata.tm.utils.MapUtils;
-import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

@@ -1,6 +1,5 @@
 package com.tapdata.tm.modules.controller;
 
-import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
@@ -11,11 +10,9 @@ import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.service.ModulesService;
-import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;

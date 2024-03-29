@@ -50,6 +50,7 @@ public class TransformerSchedule {
     @Scheduled(fixedDelay = 5 * 1000)
     @SchedulerLock(name ="task_transform_retry", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void transformer() {
+        Thread.currentThread().setName(getClass().getSimpleName() + "-transformer");
         ws();
         error();
         completeJsTransformer();

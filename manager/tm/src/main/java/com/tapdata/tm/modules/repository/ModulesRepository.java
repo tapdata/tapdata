@@ -3,7 +3,6 @@ package com.tapdata.tm.modules.repository;
 import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.modules.entity.ModulesEntity;
-import com.tapdata.tm.task.entity.TaskEntity;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;

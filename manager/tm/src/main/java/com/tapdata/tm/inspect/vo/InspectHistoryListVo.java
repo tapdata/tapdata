@@ -1,13 +1,10 @@
 package com.tapdata.tm.inspect.vo;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.tapdata.tm.inspect.bean.Stats;
-import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.vo.BaseVo;
 import lombok.Data;
 
 import java.util.Date;
-import java.util.List;
 
 @Data
 public class InspectHistoryListVo extends BaseVo {

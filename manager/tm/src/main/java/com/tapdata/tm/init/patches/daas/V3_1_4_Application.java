@@ -8,7 +8,7 @@ import com.tapdata.tm.init.patches.AbsPatch;
 import com.tapdata.tm.init.patches.PatchAnnotation;
 import com.tapdata.tm.role.entity.RoleEntity;
 import com.tapdata.tm.role.repository.RoleRepository;
-import com.tapdata.tm.sdk.util.AppType;
+import io.tapdata.utils.AppType;
 import com.tapdata.tm.utils.SpringContextHelper;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;

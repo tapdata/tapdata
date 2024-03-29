@@ -5,6 +5,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.common.sample.BulkReporter;
 import io.tapdata.common.sample.request.BulkRequest;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.exception.TmUnavailableException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,7 +35,9 @@ public class TaskSampleReporter implements BulkReporter {
         try {
             operator.insertOne(bulkRequest, ConnectorConstant.SAMPLE_STATISTIC_COLLECTION + "/points/v2");
         } catch (Exception e) {
-            logger.warn("Failed to report task samples and statistics, will retry...");
+					if (TmUnavailableException.notInstance(e)) {
+						logger.warn("Failed to report task samples and statistics, will retry...");
+					}
         }
     }
 }

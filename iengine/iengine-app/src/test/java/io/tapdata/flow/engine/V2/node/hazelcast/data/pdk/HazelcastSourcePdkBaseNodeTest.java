@@ -22,8 +22,8 @@ import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
+import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
@@ -320,7 +320,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			ReflectionTestUtils.setField(mockInstance,"transformerWsMessageDto",transformerWsMessageDto);
 			when(transformerWsMessageDto.getMetadataInstancesDtoList()).thenReturn(mock(ArrayList.class));
 			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
-			ReflectionTestUtils.setField(mockInstance,"dagDataService",dagDataService);
+			when(mockInstance.initDagDataService(transformerWsMessageDto)).thenReturn(dagDataService);
 			TapTableMap tableMap = mock(TapTableMap.class);
 			when(dataProcessorContext.getTapTableMap()).thenReturn(tableMap);
 			when(tableMap.getQualifiedName(anyString())).thenReturn("qualifiedName");
