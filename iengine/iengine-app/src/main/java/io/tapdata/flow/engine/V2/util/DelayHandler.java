@@ -47,21 +47,21 @@ public class DelayHandler {
 
     }
 
-    private void sleep() throws InterruptedException {
+    protected void sleep() throws InterruptedException {
         long relay = delay();
         if (relay > MIN_DELAY) {
             if (obsLogger.isDebugEnabled()) {
                 obsLogger.debug("[{}} Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
             }
             if (relay > WARN_DELAY && !end.get()) {
-                obsLogger.warn("[{}] Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
+                obsLogger.info("[{}] Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
                 end.set(true);
             }
             TimeUnit.MICROSECONDS.sleep(relay);
         }
     }
 
-    private long delay() {
+    protected long delay() {
         long relay = failed.get() * UNIT - succeeded.get() * UNIT;
         if (relay < MIN_DELAY) {
             relay = 0;
