@@ -1097,8 +1097,6 @@ public class TaskServiceTest {
         TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
         List<Map<String, Object>> childDeleteOperationsList=new ArrayList<>();
         List<Map<String, Object>> childRenameOperationsList =new ArrayList();
-        List<Map<String, Object>> parentDeleteOperationsList=new ArrayList<>();
-        List<Map<String, Object>> parentRenameOperationsList =new ArrayList();
         Map<String, List<Map<String, Object>>> contentDeleteOperations = new HashMap<>();
         Map<String, List<Map<String, Object>>> contentRenameOperations =new HashMap<>();
         @BeforeEach
@@ -1118,49 +1116,21 @@ public class TaskServiceTest {
             childRenameOperationsList.add(renameOperations);
             contentDeleteOperations.put("childId",childDeleteOperationsList);
             contentRenameOperations.put("childId",childRenameOperationsList);
-            Map<String, Object> parentDeleteOperations =new HashMap<>();
-            parentDeleteOperations.put("op","REMOVE");
-            parentDeleteOperations.put("field", "OrderID");
-            parentDeleteOperations.put("label" ,"OrderID");
-            parentDeleteOperations.put("operand","true");
-            parentDeleteOperations.put("id", UUID.randomUUID().toString().toLowerCase());
-            parentDeleteOperationsList.add(parentDeleteOperations);
-            Map<String,Object> parentRenameOperations =new HashMap<>();
-            renameOperations.put("op","RENAME");
-            renameOperations.put("field" , "ProductId");
-            renameOperations.put("id", UUID.randomUUID().toString().toLowerCase());
-            renameOperations.put("operand","productId");
-            parentRenameOperationsList.add(parentRenameOperations);
-            contentDeleteOperations.put("parentId",parentDeleteOperationsList);
-            contentRenameOperations.put("parentId",parentRenameOperationsList);
         }
         @Test
         void test1(){
             List<Map<String, String>> joinKeys =new ArrayList<>();
             Map<String, String> sourceJoinKeyMapping =new HashMap<>();
             sourceJoinKeyMapping.put("orderId","OrderID");
-            Map<String, String> targetJoinKeyMapping =new HashMap<>();
-            targetJoinKeyMapping.put("orderId","OrderID");
-            Map<String,String> joinKey = new HashMap<>();
-            joinKey.put("source","orderId");
-            joinKey.put("target","orderId");
-            joinKeys.add(joinKey);
-            taskService.removeDeleteOperationIfJoinKeyIsDeleted(contentDeleteOperations,contentRenameOperations,"childId","parentId",joinKeys,sourceJoinKeyMapping,targetJoinKeyMapping);
+            taskService.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations,contentRenameOperations,"childId",sourceJoinKeyMapping,"orderId");
             assertEquals(0,childDeleteOperationsList.size());
             assertEquals(2,childRenameOperationsList.size());
         }
         @Test
         void test2(){
-            List<Map<String, String>> joinKeys =new ArrayList<>();
             Map<String, String> sourceJoinKeyMapping =new HashMap<>();
             sourceJoinKeyMapping.put("otherId","OtherId");
-            Map<String, String> targetJoinKeyMapping =new HashMap<>();
-            targetJoinKeyMapping.put("orderId","OrderID");
-            Map<String,String> joinKey = new HashMap<>();
-            joinKey.put("source","otherId");
-            joinKey.put("target","orderId");
-            joinKeys.add(joinKey);
-            taskService.removeDeleteOperationIfJoinKeyIsDeleted(contentDeleteOperations,contentRenameOperations,"childId","parentId",joinKeys,sourceJoinKeyMapping,targetJoinKeyMapping);
+            taskService.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations,contentRenameOperations,"childId",sourceJoinKeyMapping,"productId");
             assertEquals(1,childDeleteOperationsList.size());
             assertEquals(1,childRenameOperationsList.size());
         }
