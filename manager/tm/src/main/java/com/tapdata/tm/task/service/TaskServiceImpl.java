@@ -154,6 +154,7 @@ public class TaskServiceImpl extends TaskService{
     protected static final String CATALOG="catalog";
     protected static final String ELEMENT_TYEP="elementType";
     protected static final String PROCESSOR="processor";
+    public static final String RM_ID_KEY = "rm_id";
     private MessageServiceImpl messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private InspectService inspectService;
@@ -2868,7 +2869,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     private void genProperties(Map<String, Object> parent, Map<String, Object> contentMapping, Map<String, Object> relationshipsMapping, Map<String, Object> full, Map<String, String> sourceToJS, Map<String, Map<String, Map<String, Object>>> renameFields, Map<String, List<Map<String, Object>>> contentDeleteOperations, Map<String, List<Map<String, Object>>> contentRenameOperations) {
-        String parentId = (String)parent.get("rm_id");
+        String parentId = (String)parent.get(RM_ID_KEY);
         List<String> children = (List<String>) ((Map<String, Object>) relationshipsMapping.get(parentId)).get("children");
         if (children == null || children.size() == 0) {
             return;
@@ -2930,7 +2931,7 @@ public class TaskServiceImpl extends TaskService{
             childNode.put("tableName", tpTable);
             childNode.put("children", new ArrayList<>());
             childNode.put("id", sourceToJS.get(child));
-            childNode.put("rm_id", child);
+            childNode.put(RM_ID_KEY, child);
 
             // 由于使用外键做关联, 所以似乎 RM 只能合并来自一个源的数据, 所以 tables 表结构使用其中一个就可以
 
@@ -3293,7 +3294,7 @@ public class TaskServiceImpl extends TaskService{
             Map<String, Object> rootProperties = new HashMap<>();
             rootProperties.put("targetPath", "");
             rootProperties.put("id", sourceToJs.get(rootNodeId));
-            rootProperties.put("rm_id", rootNodeId);
+            rootProperties.put(RM_ID_KEY, rootNodeId);
             rootProperties.put("mergeType", "updateOrInsert");
             tpTable = ((String) ((Map<String, Object>) contentMapping.get(rootNodeId)).get("table")).split("\\.")[((String) ((Map<String, Object>) contentMapping.get(rootNodeId)).get("table")).split("\\.").length - 1];
             rootProperties.put("tableName", tpTable);
