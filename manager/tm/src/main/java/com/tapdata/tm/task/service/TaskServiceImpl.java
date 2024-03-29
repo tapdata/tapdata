@@ -8,7 +8,6 @@ import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Maps;
@@ -24,7 +23,6 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.*;
-import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.process.script.ScriptProcessNode;
@@ -2884,7 +2882,6 @@ public class TaskServiceImpl extends TaskService{
             Map<String, Object> tables = getTableSchema(full, (String) ((Map<String, Object>) contentMapping.get(child)).get("table"));
 
             String tpTable = ((String) ((Map<String, Object>) contentMapping.get(child)).get("table")).split("\\.")[((String) ((Map<String, Object>) contentMapping.get(child)).get("table")).split("\\.").length - 1];
-
             List<Map<String, String>> joinKeys = new ArrayList<>();
             Map<String, Object> currentTable = (Map<String, Object>) tables.get(tpTable);
             Map<String, Object> currentColumns = (Map<String, Object>) currentTable.get("columns");
@@ -2935,8 +2932,8 @@ public class TaskServiceImpl extends TaskService{
 
             // 由于使用外键做关联, 所以似乎 RM 只能合并来自一个源的数据, 所以 tables 表结构使用其中一个就可以
 
-            Map<String,String> sourceJoinKeyMapping = new HashMap<>();
-            Map<String,String> targetJoinKeyMapping = new HashMap<>();
+            Map<String,Map<String,String>> sourceJoinKeyMapping = new HashMap<>();
+            Map<String,Map<String,String>> targetJoinKeyMapping = new HashMap<>();
             for (String columnKey : currentColumns.keySet()) {
                 Map<String, Object> column = (Map<String, Object>) currentColumns.get(columnKey);
                 Map<String, Object> foreignKey = (Map<String, Object>) column.get("foreignKey");
@@ -2946,18 +2943,25 @@ public class TaskServiceImpl extends TaskService{
                 if (((String)foreignKey.get("table")).equals(parent.get("tableName"))) {
                     Map<String, String> joinKey = new HashMap<>();
                     String sourceJoinKey = currentRenameFields.get(columnKey).get("target").toString();
+                    Map<String, String> newFieldMap = new HashMap<>();
+                    newFieldMap.put("source", columnKey);
+                    newFieldMap.put("target", sourceJoinKey);
+                    sourceJoinKeyMapping.put(sourceJoinKey, newFieldMap);
                     joinKey.put("source", sourceJoinKey);
-                    sourceJoinKeyMapping.put(sourceJoinKey,columnKey);
                     String targetJoinKey = parentRenameFields.get((String) foreignKey.get("column")).get("target").toString();
-                    targetJoinKeyMapping.put(targetJoinKey, (String) foreignKey.get("column"));
+                    HashMap<String, String> targetNewFieldMap = new HashMap<>();
+                    targetNewFieldMap.put("source", (String) foreignKey.get("column"));
+                    targetNewFieldMap.put("target", targetJoinKey);
                     if (parent.get("targetPath").equals("")) {
                         joinKey.put("target", targetJoinKey);
                     } else {
                         joinKey.put("target", parent.get("targetPath") + "." + targetJoinKey);
                     }
+                    targetJoinKeyMapping.put(targetJoinKey,targetNewFieldMap);
                     joinKeys.add(joinKey);
                 }
             }
+
             parentColumnsFindJoinKeys(parent, renameFields, parentColumns, tpTable, joinKeys, sourceJoinKeyMapping, targetJoinKeyMapping);
             childNode.put("joinKeys", joinKeys);
             joinKeys.forEach(joinKeyMap->{
@@ -2973,20 +2977,20 @@ public class TaskServiceImpl extends TaskService{
     }
 
 
-    protected void addRenameOpIfDeleteOpHasJoinKey(Map<String, List<Map<String, Object>>> contentDeleteOperations, Map<String, List<Map<String, Object>>> contentRenameOperations, String tableId, Map<String, String> joinKeyMapping, String joinKey) {
+    protected void addRenameOpIfDeleteOpHasJoinKey(Map<String, List<Map<String, Object>>> contentDeleteOperations, Map<String, List<Map<String, Object>>> contentRenameOperations, String tableId, Map<String,Map<String, String>> joinKeyMapping, String joinKey) {
         List<Map<String, Object>> childDeleteOperations = contentDeleteOperations.get(tableId);
         boolean removeJoinKeyFlag = removeDeleteOperation(childDeleteOperations, joinKeyMapping, joinKey);
         if (removeJoinKeyFlag) {
             List<Map<String, Object>> childRenameOperations = contentRenameOperations.get(tableId);
-            Map<String, Object> renameOperation = getRenameOperation(joinKeyMapping.get(joinKey), joinKey);
+            Map<String, Object> renameOperation = getRenameOperation(joinKeyMapping.get(joinKey).get("source"), joinKeyMapping.get(joinKey).get("target"));
             childRenameOperations.add(renameOperation);
         }
     }
 
-    protected static boolean removeDeleteOperation(List<Map<String, Object>> deleteOperations, Map<String, String> joinKeyMapping, String joinKey) {
+    protected static boolean removeDeleteOperation(List<Map<String, Object>> deleteOperations, Map<String, Map<String, String>> joinKeyMapping, String joinKey) {
         boolean flag = deleteOperations.removeIf((delOperations) -> {
             String deleteField = (String) delOperations.get("field");
-            String originalField = joinKeyMapping.get(joinKey);
+            String originalField = joinKeyMapping.get(joinKey).get("source");
             if (deleteField.equals(originalField)) {
                 return true;
             }
@@ -3009,7 +3013,7 @@ public class TaskServiceImpl extends TaskService{
         return targetPath;
     }
 
-    protected void parentColumnsFindJoinKeys(Map<String, Object> parent, Map<String, Map<String, Map<String, Object>>> renameFields, Map<String, Object> parentColumns, String tpTable, List<Map<String, String>> joinKeys, Map<String, String> souceJoinKeyMapping, Map<String, String> targetJoinKeyMapping) {
+    protected void parentColumnsFindJoinKeys(Map<String, Object> parent, Map<String, Map<String, Map<String, Object>>> renameFields, Map<String, Object> parentColumns, String tpTable, List<Map<String, String>> joinKeys, Map<String,Map<String, String>> souceJoinKeyMapping, Map<String,Map<String, String>> targetJoinKeyMapping) {
         Map<String, Map<String, Object>> parentRenameFields = renameFields.get((String) parent.get("tableName"));
         for (String columnKey : parentColumns.keySet()) {
             Map<String, Object> column = (Map<String, Object>) parentColumns.get(columnKey);
@@ -3020,15 +3024,21 @@ public class TaskServiceImpl extends TaskService{
             if (((String) foreignKey.get("table")).equals(tpTable)) {
                 Map<String, String> joinKey = new HashMap<>();
                 String sourceJoinKey = renameFields.get(tpTable).get(((String) foreignKey.get("column"))).get("target").toString();
-                souceJoinKeyMapping.put(sourceJoinKey,(String) foreignKey.get("column"));
+                Map<String,String> sourceNewFieldMap=new HashMap<>();
+                sourceNewFieldMap.put("source", (String) foreignKey.get("column"));
+                sourceNewFieldMap.put("target",sourceJoinKey);
+                souceJoinKeyMapping.put(sourceJoinKey,sourceNewFieldMap);
                 joinKey.put("source", sourceJoinKey);
+                Map<String,String> targetNewFieldMap=new HashMap<>();
                 String targetJoinKey = parentRenameFields.get(columnKey).get("target").toString();
-                targetJoinKeyMapping.put(columnKey,targetJoinKey);
-                if (parent.get("targetPath").equals("")) {
-                    joinKey.put("target", targetJoinKey);
-                } else {
-                    joinKey.put("target", parent.get("targetPath") + "." + targetJoinKey);
+                targetNewFieldMap.put("source", columnKey);
+                targetNewFieldMap.put("target", targetJoinKey);
+                String targetPath = parent.get("targetPath").toString();
+                if (!StringUtils.isBlank(targetPath)) {
+                    targetJoinKey=targetPath + "." + targetJoinKey;
                 }
+                joinKey.put("target", targetJoinKey);
+                targetJoinKeyMapping.put(targetJoinKey,targetNewFieldMap);
                 joinKeys.add(joinKey);
             }
         }
