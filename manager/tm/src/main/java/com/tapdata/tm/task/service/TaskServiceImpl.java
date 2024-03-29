@@ -2960,34 +2960,26 @@ public class TaskServiceImpl extends TaskService{
             parentColumnsFindJoinKeys(parent, renameFields, parentColumns, tpTable, joinKeys, sourceJoinKeyMapping, targetJoinKeyMapping);
             childNode.put("joinKeys", joinKeys);
             joinKeys.forEach(joinKeyMap->{
-
+                String sourceJoinKey = joinKeyMap.get("source");
+                addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations, contentRenameOperations, child, sourceJoinKeyMapping, sourceJoinKey);
+                String targetJoinKey = joinKeyMap.get("target");
+                addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations, contentRenameOperations, parentId, targetJoinKeyMapping, targetJoinKey);
             });
-            removeDeleteOperationIfJoinKeyIsDeleted(contentDeleteOperations, contentRenameOperations, child, parentId, joinKeys, sourceJoinKeyMapping,  targetJoinKeyMapping);
             genProperties(childNode, contentMapping, relationshipsMapping, full, sourceToJS, renameFields, contentDeleteOperations, contentRenameOperations);
             childrenNode.add(childNode);
         }
         parent.put("children", childrenNode);
     }
 
-    protected void removeDeleteOperationIfJoinKeyIsDeleted(Map<String, List<Map<String, Object>>> contentDeleteOperations, Map<String, List<Map<String, Object>>> contentRenameOperations, String childId,String parentId, List<Map<String, String>> joinKeys, Map<String, String> sourceJoinKeyMapping,  Map<String, String> targetJoinKeyMapping) {
-        joinKeys.forEach(joinKeyMap -> {
-            String sourceJoinKey = joinKeyMap.get("source");
-            List<Map<String, Object>> childDeleteOperations = contentDeleteOperations.get(childId);
-            boolean childRemoveJoinKeyFlag = removeDeleteOperation(childDeleteOperations, sourceJoinKeyMapping, sourceJoinKey);
-            if (childRemoveJoinKeyFlag) {
-                List<Map<String, Object>> childRenameOperations = contentRenameOperations.get(childId);
-                Map<String, Object> renameOperation = getRenameOperation(sourceJoinKeyMapping.get(sourceJoinKey), sourceJoinKey);
-                childRenameOperations.add(renameOperation);
-            }
-            String targetJoinKey = joinKeyMap.get("target");
-            List<Map<String, Object>> parentDeleteOperations = contentDeleteOperations.get(parentId);
-            boolean parentRemoveJoinKeyFlag = removeDeleteOperation(parentDeleteOperations, targetJoinKeyMapping, targetJoinKey);
-            if (parentRemoveJoinKeyFlag) {
-                List<Map<String, Object>> parentRenameOperations = contentRenameOperations.get(parentId);
-                Map<String, Object> renameOperation = getRenameOperation(targetJoinKeyMapping.get(sourceJoinKey), targetJoinKey);
-                parentRenameOperations.add(renameOperation);
-            }
-        });
+
+    protected void addRenameOpIfDeleteOpHasJoinKey(Map<String, List<Map<String, Object>>> contentDeleteOperations, Map<String, List<Map<String, Object>>> contentRenameOperations, String tableId, Map<String, String> joinKeyMapping, String joinKey) {
+        List<Map<String, Object>> childDeleteOperations = contentDeleteOperations.get(tableId);
+        boolean removeJoinKeyFlag = removeDeleteOperation(childDeleteOperations, joinKeyMapping, joinKey);
+        if (removeJoinKeyFlag) {
+            List<Map<String, Object>> childRenameOperations = contentRenameOperations.get(tableId);
+            Map<String, Object> renameOperation = getRenameOperation(joinKeyMapping.get(joinKey), joinKey);
+            childRenameOperations.add(renameOperation);
+        }
     }
 
     protected static boolean removeDeleteOperation(List<Map<String, Object>> deleteOperations, Map<String, String> joinKeyMapping, String joinKey) {
