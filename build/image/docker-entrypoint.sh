@@ -74,7 +74,7 @@ wait_tm_start() {
     local counter=0
     while [[ $SECONDS -lt $timeout ]]; do
         local seconds_left=$((timeout - SECONDS))
-        printf "\r* Wait Starting, Cost %02d / 300 Seconds..." "$seconds_left"
+        printf "\r* Wait Starting, Left %02d / 300 Seconds..." "$seconds_left"
         sleep 1
         curl "http://localhost:3000" &> /dev/null
         if [[ $? -ne 0 ]]; then
@@ -104,21 +104,45 @@ exec_with_log() {
     fi
 }
 
+_register_connectors() {
+    print_message "* Register Connector: $i" "blue" false
+    java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -t http://localhost:3000 $dir/connectors/dist/$i > /dev/null
+    if [[ $? -ne 0 ]]; then
+        print_message "* Register Connector: $i Failed" "red" false
+        exit 1
+    else
+        print_message "* Register Connector: $i Success" "blue" false
+    fi
+}
+
 register_connectors() {
     if [[ -d /tapdata/apps/connectors ]]; then
       dir=/tapdata/apps
     else
       dir=./
     fi
+
+    if [[ -z $REGISTER_PROCESS_NUM ]]; then
+        REGISTER_PROCESS_NUM=5
+    fi
+
     for i in `ls $dir/connectors/dist/`; do
-        print_message "* Register Connector: $i" "blue" false
-        java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -t http://localhost:3000 $dir/connectors/dist/$i > /dev/null
-        if [[ $? -ne 0 ]]; then
-            print_message "* Register Connector: $i Failed" "red" false
-            exit 1
-        else
-            print_message "* Register Connector: $i Success" "blue" false
-        fi
+
+        register_process_num=$(ps -ef | grep pdk-deploy.jar | grep -v grep | wc -l)
+        while [[ $register_process_num -ge $REGISTER_PROCESS_NUM ]]; do
+            sleep 5
+            register_process_num=$(ps -ef | grep pdk-deploy.jar | grep -v grep | wc -l)
+        done
+
+        _register_connectors &
+        sleep 1
+    done
+
+    register_process_num=$(ps -ef | grep pdk-deploy.jar | grep -v grep | wc -l)
+    # Waiting for all processes stop
+    while [[ $register_process_num -ne 0 ]]; do
+        sleep 5
+        register_process_num=$(ps -ef | grep pdk-deploy.jar | grep -v grep | wc -l)
     done
 }
 
@@ -186,15 +210,12 @@ _main() {
     print_message ">>> Start Mongo [START]" "green" true
     if [[ -z $MONGO_URI ]]; then
         start_mongo
+        ps -ef | grep -v grep | grep mongo > /dev/null
         if [[ $? -ne 0 ]]; then
-            print_message "~ Start Mongo [FAILED]" "red" false
-            ps -ef | grep -v grep | grep mongo > /dev/null
-            if [[ $? -ne 0 ]]; then
-                print_message "<<< Mongodb is Not Running" "red" true
-                exit 1
-            fi
-            MONGO_URI="mongodb://127.0.0.1:27017/tapdata"
+            print_message "<<< Mongodb is Not Running" "red" true
+            exit 1
         fi
+        MONGO_URI="mongodb://127.0.0.1:27017/tapdata"
     fi
     print_message "<<< Mongodb is Already Running" "green" true
     # 4. start tm server, register connectors and start iengine
