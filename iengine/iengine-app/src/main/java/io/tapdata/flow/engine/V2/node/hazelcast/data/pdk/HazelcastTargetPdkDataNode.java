@@ -289,17 +289,17 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		CreateIndexFunction createIndexFunction = getConnectorNode().getConnectorFunctions().getCreateIndexFunction();
 		if (null == createIndexFunction) {
-			obsLogger.warn("target connector does not support create index and will no longer synchronize indexes");
+			obsLogger.warn("Target connector does not support create index and will no longer synchronize indexes");
 			return;
 		}
 		GetTableInfoFunction getTableInfoFunction = getConnectorNode().getConnectorFunctions().getGetTableInfoFunction();
 		if (null == getTableInfoFunction){
-			obsLogger.warn("target connector does not support get table information and will no longer synchronize indexes");
+			obsLogger.warn("Target connector does not support get table information and will no longer synchronize indexes");
 			return;
 		}
 		QueryIndexesFunction queryIndexesFunction = getConnectorNode().getConnectorFunctions().getQueryIndexesFunction();
 		if (null == queryIndexesFunction){
-			obsLogger.warn("target connector does not support query index and will no longer synchronize indexes");
+			obsLogger.warn("Target connector does not support query index and will no longer synchronize indexes");
 			return;
 		}
 		AtomicReference<TapCreateIndexEvent> indexEvent = new AtomicReference<>();
@@ -360,16 +360,21 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				obsLogger.info("Table: {} already exists Index list: {}", tableId, indices);
 				return;
 			}
-			indexEvent.set(createIndexEvent(tableId, indexList));
-			obsLogger.info("Table: {} will create Index list: {}", indexEvent.get().getTableId(), indexList);
-			executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
-					.table(tapTable)
-					.connectorContext(getConnectorNode().getConnectorContext())
-					.dataProcessorContext(dataProcessorContext)
-					.createIndexEvent(indexEvent.get())
-					.start(), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
-					PDKMethod.TARGET_CREATE_INDEX,
-					() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent.get()), TAG));
+			indexList.forEach(index->{
+				long currentIndexStart = System.currentTimeMillis();
+				indexEvent.set(createIndexEvent(tableId, Collections.singletonList(index)));
+				obsLogger.info("Table: {} will create Index: {}", indexEvent.get().getTableId(), index);
+				executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
+						.table(tapTable)
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
+						.createIndexEvent(indexEvent.get())
+						.start(), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
+						PDKMethod.TARGET_CREATE_INDEX,
+						() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent.get()), TAG));
+				long currentIndexEnd = System.currentTimeMillis();
+				obsLogger.info("Table: {} create Index: {} successfully, cost {}ms", indexEvent.get().getTableId(), index.getName(), currentIndexEnd-currentIndexStart);
+			});
 		}catch (Throwable throwable){
 			Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
 			if (null != matched) {
@@ -380,7 +385,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}
 		}
 		long end = System.currentTimeMillis();
-		obsLogger.info("Table: {} synchronize indexes completed, cost {}ms", tableId, end-start);
+		obsLogger.info("Table: {} synchronize indexes completed, cost {}ms totally", tableId, end-start);
 	}
 	protected boolean checkSyncIndexOpen(){
 		Node node = getNode();
