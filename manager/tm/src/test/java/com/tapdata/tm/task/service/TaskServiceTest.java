@@ -1014,7 +1014,7 @@ public class TaskServiceTest {
             Map<String,Object> source=new HashMap<>();
             source.put("name","EmployeeId");
             source.put("isPrimaryKey",false);
-            Map<String, Object> deleteOperation = taskService.getDeleteOperation(source.get("name"));
+            Map<String, Object> deleteOperation = taskService.getDeleteOperation(source.get("name"), source.get("isPrimaryKey"));
             assertEquals("EmployeeId",deleteOperation.get("field"));
             assertEquals("REMOVE",deleteOperation.get("op"));
             assertEquals("true",deleteOperation.get("operand"));

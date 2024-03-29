@@ -130,6 +130,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
@@ -2876,7 +2877,6 @@ public class TaskServiceImpl extends TaskService{
         for (String child : children) {
             Map<String, Object> childNode = new HashMap<>();
             Map<String, Object> map = (Map<String, Object>) contentMapping.get(child);
-            String table = (String) map.get("table");
             Map<String, String> setting = (Map<String, String>) map.get("settings");
 
             Map<String, Object> tables = getTableSchema(full, (String) ((Map<String, Object>) contentMapping.get(child)).get("table"));
@@ -3204,9 +3204,9 @@ public class TaskServiceImpl extends TaskService{
                     Map<String, Object> target = (Map<String, Object>) fieldMap.get("target");
                     Map<String, Object> newName = getNewNameMap(target, source);
                     tableRenameFields.put(source.get("name").toString(), newName);
-
+                    Object isPk = source.get("isPrimaryKey");
                     if (!(Boolean)target.get("included")) {
-                        Map<String, Object> deleteOperation = getDeleteOperation(source.get("name").toString());
+                        Map<String, Object> deleteOperation = getDeleteOperation(source.get("name").toString(),isPk);
                         deleteOperations.add(deleteOperation);
                         continue;
                     }
@@ -3244,9 +3244,7 @@ public class TaskServiceImpl extends TaskService{
                     sourceId = jsId;
                 }
                 //add rename processor node
-                if (!renameOperations.isEmpty()) {
-                    sourceId = addRenameNode(tpTable,  renameOperations, sourceId,nodes, edges);
-                }
+                sourceId = addRenameNode(tpTable, renameOperations, sourceId, nodes, edges);
                 //add delete processor node
                 if (!deleteOperations.isEmpty()) {
                     sourceId = addDeleteNode(tpTable, deleteOperations,  sourceId,nodes, edges);
@@ -3317,6 +3315,7 @@ public class TaskServiceImpl extends TaskService{
                 needMergeNode = false;
             }
 
+
             if (needMergeNode) {
                 nodes.add(mergeNode);
                 for (String sourceId : sourceNodes) {
@@ -3325,6 +3324,23 @@ public class TaskServiceImpl extends TaskService{
                     edge.put("target", mergeNodeId);
                     edges.add(edge);
                 }
+                contentDeleteOperations.forEach((k, v) -> {
+                    Map<String, Object> contentMappingzValue = (Map<String, Object>) contentMapping.get(k);
+                    String table = contentMappingzValue.get("table").toString();
+                    String finalTable = table.split("\\.")[table.split("\\.").length - 1];
+                    v.removeIf((delOp) -> {
+                        boolean flag = Boolean.TRUE.equals(delOp.get("isPk"));
+                        if(flag){
+                            Map<String, Map<String, Object>> map = renameFields.get(finalTable);
+                            String name = delOp.get("field").toString();
+                            Map<String, Object> renameOperation = getRenameOperation(name, map.get(name).get("target").toString());
+                            contentRenameOperations.get(k).add(renameOperation);
+                        }
+                        return flag;
+                    });
+
+                });
+
             }
 
 
@@ -3428,13 +3444,14 @@ public class TaskServiceImpl extends TaskService{
         return sourceId;
     }
 
-    protected Map<String, Object> getDeleteOperation(Object deleteFieldName) {
+    protected Map<String, Object> getDeleteOperation(Object deleteFieldName, Object isPrimaryKey) {
         Map<String, Object> deleteOperation = new HashMap<>();
         deleteOperation.put("id", UUID.randomUUID().toString().toLowerCase());
         deleteOperation.put("field", deleteFieldName);
         deleteOperation.put("op", "REMOVE");
         deleteOperation.put("operand", "true");
         deleteOperation.put("label", deleteFieldName);
+        deleteOperation.put("isPk",isPrimaryKey);
         return deleteOperation;
     }
 
