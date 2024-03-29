@@ -370,6 +370,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
 
             AccessNodeInfo accessNodeInfo = new AccessNodeInfo(worker.getProcessId(), hostname.get(), worker.getProcessId(), status);
             accessNodeInfo.setAccessNodeName(worker.getProcessId());
+            accessNodeInfo.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
             result.add(accessNodeInfo);
         });
 

@@ -1,5 +1,6 @@
 package com.tapdata.tm.externalStorage;
 
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
@@ -35,7 +36,7 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 public class TestExternalStorageHandlerTest {
-
+    static AgentGroupService agentGroupService;
     static MessageQueueService messageQueueService;
     static DataSourceService dataSourceService;
     static UserService userService;
@@ -53,6 +54,7 @@ public class TestExternalStorageHandlerTest {
         workerService = Mockito.mock(WorkerService.class);
         dataSourceDefinitionService = Mockito.mock(DataSourceDefinitionService.class);
         userDetail = Mockito.mock(UserDetail.class);
+        agentGroupService = Mockito.mock(AgentGroupService.class);
 
     }
 
@@ -113,7 +115,7 @@ public class TestExternalStorageHandlerTest {
      void handleMessageNoPdkHashTest() throws Exception {
         DataSourceDefinitionRepository repository = Mockito.mock(DataSourceDefinitionRepository.class);
         MockDataSourceDefinitionService dataSourceDefinitionService = new MockDataSourceDefinitionService(repository);
-        TestConnectionHandler testConnectionHandler = new TestConnectionHandler(messageQueueService,
+        TestConnectionHandler testConnectionHandler = new TestConnectionHandler(agentGroupService, messageQueueService,
                 dataSourceService, userService, workerService, dataSourceDefinitionService);
         when(userService.loadUserById(null)).thenReturn(userDetail);
         MessageInfo messageInfo = new MessageInfo();
@@ -136,7 +138,7 @@ public class TestExternalStorageHandlerTest {
         WorkerService workerService = Mockito.mock(WorkerService.class);
         DataSourceDefinitionRepository repository = Mockito.mock(DataSourceDefinitionRepository.class);
         MockDataSourceDefinitionService dataSourceDefinitionService = new MockDataSourceDefinitionService(repository);
-        TestConnectionHandler testConnectionHandler = new TestConnectionHandler(messageQueueService,
+        TestConnectionHandler testConnectionHandler = new TestConnectionHandler(agentGroupService, messageQueueService,
                 dataSourceService, userService, workerService, dataSourceDefinitionService);
         UserDetail userDetail = Mockito.mock(UserDetail.class);
         when(userService.loadUserById(null)).thenReturn(userDetail);

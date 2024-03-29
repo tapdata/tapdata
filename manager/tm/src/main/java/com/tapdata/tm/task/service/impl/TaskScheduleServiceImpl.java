@@ -134,10 +134,9 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         log.warn("No available agent found, task name = {}", taskDto.getName());
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
         List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
-        String currentRunningProcessNode = taskDto.getCurrentRunningProcessNode();
         if (AccessNodeTypeEnum.isManually(taskDto.getAccessNodeType())
-                && (null != currentRunningProcessNode || CollectionUtils.isNotEmpty(processNodeListWithGroup))) {
-            throw new BizException("Task.SpecifyAgentOffline", null != currentRunningProcessNode ? currentRunningProcessNode : processNodeListWithGroup.get(0));
+                && CollectionUtils.isNotEmpty(processNodeListWithGroup)) {
+            throw new BizException("Task.SpecifyAgentOffline", processNodeListWithGroup.get(0));
         } else {
             throw new BizException("Task.AgentNotFound");
         }
