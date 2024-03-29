@@ -18,11 +18,11 @@ public class AgentWithGroupBaseDto extends BaseDto {
     public void verify() {
         if (null == groupId || "".equals(groupId.trim())){
             // 标签ID不能为空
-            throw new BizException("");
+            throw new BizException("group.id.empty");
         }
         if (null == agentId || "".equals(agentId.trim())){
             // Agent ID不能为空
-            throw new BizException("");
+            throw new BizException("group.agent.id.empty");
         }
     }
 }

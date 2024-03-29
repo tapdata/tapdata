@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -282,7 +281,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
 
     public List<String> getProcessNodeListWithGroup(TaskDto taskDto, UserDetail userDetail) {
         List<String> processNodeList = getProcessNodeList(taskDto.getAccessNodeType(), taskDto.getAccessNodeProcessId(), userDetail);
-        if (null == processNodeList) {
+        if (processNodeList.isEmpty()) {
             return taskDto.getAccessNodeProcessIdList();
         }
         taskDto.setAccessNodeProcessIdList(processNodeList);
@@ -312,6 +311,9 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
     }
 
     protected List<String> getProcessNodeList(String accessNodeType, String accessNodeGroupProcessId, UserDetail userDetail) {
+        if (log.isDebugEnabled()) {
+            log.debug("Get process node list once, accessNodeType: {}, accessNodeGroupProcessId: {}", accessNodeType, accessNodeGroupProcessId);
+        }
         if (AccessNodeTypeEnum.isGroupManually(accessNodeType) && StringUtils.isNotBlank(accessNodeGroupProcessId)) {
             return getProcessNodeListByGroupId(Lists.newArrayList(accessNodeGroupProcessId), userDetail);
         }
@@ -340,7 +342,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         Set<String> agents = new HashSet<>();
         all.stream().filter(dto -> Objects.nonNull(dto) && Objects.nonNull(dto.getAgentIds()) && ! dto.getAgentIds().isEmpty())
                 .forEach(dto -> agents.addAll(dto.getAgentIds()));
-        if (agents.size() <= 0) {
+        if (agents.isEmpty()) {
             //无可用引擎
             throw new BizException("group.agent.not.available", groupIds.toString());
         }

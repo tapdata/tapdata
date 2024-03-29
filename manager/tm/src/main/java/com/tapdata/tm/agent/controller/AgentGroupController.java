@@ -6,6 +6,7 @@ import com.tapdata.tm.agent.dto.AgentToGroupDto;
 import com.tapdata.tm.agent.dto.GroupDto;
 import com.tapdata.tm.agent.dto.GroupUsedDto;
 import com.tapdata.tm.agent.service.AgentGroupService;
+import com.tapdata.tm.agent.util.AgentGroupTag;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -118,7 +119,7 @@ public class AgentGroupController extends BaseController {
         Filter filter = parseFilter(filterJson);
         if (filter == null) {
             filter = new Filter();
-            filter.setWhere(Where.where("is_delete", false));
+            filter.setWhere(Where.where(AgentGroupTag.TAG_DELETE, false));
         }
         return success(agentGroupService.findAgentGroupInfo(filter, getLoginUser()));
     }

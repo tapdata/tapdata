@@ -871,8 +871,8 @@ public class TaskServiceImpl extends TaskService{
                     if (AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())) {
                         List<String> connectionProcessIds = agentGroupService.getProcessNodeListWithGroup(connectionDto, user);
                         connectionProcessIds.removeAll(taskProcessIdList);
-                        if (!StringUtils.equalsIgnoreCase(taskDto.getAccessNodeType(), connectionDto.getAccessNodeType()) ||
-                                CollectionUtils.isNotEmpty(connectionProcessIds)) {
+                        if (!StringUtils.equalsIgnoreCase(taskDto.getAccessNodeType(), connectionDto.getAccessNodeType())
+                                || !connectionProcessIds.isEmpty()) {
                             validateMessage.put(dataParentNode.getId(), Lists.newArrayList(message));
                         }
                     }
