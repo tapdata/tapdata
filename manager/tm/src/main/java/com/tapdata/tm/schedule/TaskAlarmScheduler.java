@@ -6,6 +6,7 @@ import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
@@ -51,6 +52,8 @@ public class TaskAlarmScheduler {
     private WorkerService workerService;
     private UserService userService;
     private SettingsService settingsService;
+    @Autowired
+    private AgentGroupService agentGroupService;
 
     @Scheduled(cron = "0 0/5 * * * ? ")
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
@@ -108,9 +111,9 @@ public class TaskAlarmScheduler {
                 continue;
             }
 
-            List<Worker> workerList = workerService.findAvailableAgentBySystem(userDetail);;
-            if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.getName().equals(data.getAccessNodeType())) {
-                List<String> processIdList = data.getAccessNodeProcessIdList();
+            List<Worker> workerList = workerService.findAvailableAgentBySystem(userDetail);
+            if (AccessNodeTypeEnum.isManually(data.getAccessNodeType())) {
+                List<String> processIdList = agentGroupService.getProcessNodeListWithGroup(data, userDetail);
                 workerList = workerList.stream().filter(w -> processIdList.contains(w.getProcessId())).collect(Collectors.toList());
             }
 

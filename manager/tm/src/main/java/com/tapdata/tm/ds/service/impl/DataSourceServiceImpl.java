@@ -13,6 +13,7 @@ import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
@@ -159,6 +160,9 @@ public class DataSourceServiceImpl extends DataSourceService{
 	@Autowired
 	private LdpService ldpService;
 
+	@Autowired
+    private AgentGroupService agentGroupService;
+
     public DataSourceServiceImpl(@NonNull DataSourceRepository repository) {
         super(repository);
     }
@@ -223,8 +227,9 @@ public class DataSourceServiceImpl extends DataSourceService{
         Boolean submit = updateDto.getSubmit();
         String oldName = updateCheck(user, updateDto);
         checkMongoUri(updateDto);
-        Assert.isFalse(StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), updateDto.getAccessNodeType())
-                && CollectionUtils.isEmpty(updateDto.getAccessNodeProcessIdList()), "manually_specified_by_the_user processId is null");
+        List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(updateDto, user);
+        Assert.isFalse(AccessNodeTypeEnum.isManually(updateDto.getAccessNodeType())
+                && CollectionUtils.isEmpty(processNodeListWithGroup), "manually_specified_by_the_user processId is null");
 
         ObjectId id = updateDto.getId();
         DataSourceConnectionDto oldConnection = null;
@@ -257,7 +262,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
 
         DataSourceEntity entity = convertToEntity(DataSourceEntity.class, updateDto);
-        entity.setAccessNodeProcessIdList(updateDto.getTrueAccessNodeProcessIdList());
+        entity.setAccessNodeProcessIdList(agentGroupService.getTrueProcessNodeListWithGroup(updateDto, user));
 
         Update update = repository.buildUpdateSet(entity, user);
 
@@ -287,8 +292,9 @@ public class DataSourceServiceImpl extends DataSourceService{
 
     //返回oldName, 表示更换名称
     public String updateCheck(UserDetail user, DataSourceConnectionDto updateDto) {
-        Assert.isFalse(StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), updateDto.getAccessNodeType())
-                && CollectionUtils.isEmpty(updateDto.getAccessNodeProcessIdList()), "manually_specified_by_the_user processId is null");
+        List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(updateDto, user);
+        Assert.isFalse(AccessNodeTypeEnum.isManually(updateDto.getAccessNodeType())
+                && CollectionUtils.isEmpty(processNodeListWithGroup), "manually_specified_by_the_user processId is null");
 
         //校验数据源的名称是否合法
         checkName(updateDto.getName());
@@ -300,10 +306,10 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         // should encode the password even if the username not exist
         if (StringUtils.isNotBlank(updateDto.getPlain_password())) {
-            restoreAccessNodeType(updateDto, connectionDto);
+            restoreAccessNodeType(updateDto, connectionDto, processNodeListWithGroup);
         }
 
-        checkAccessNodeAvailable(updateDto.getAccessNodeType(), updateDto.getAccessNodeProcessIdList(), user);
+        checkAccessNodeAvailable(updateDto.getAccessNodeType(), processNodeListWithGroup, user);
 
         if ((StringUtils.isNotBlank(connectionDto.getDatabase_username()) || StringUtils.isNotBlank(updateDto.getDatabase_username()))
                 && StringUtils.isNotBlank(updateDto.getPlain_password())) {
@@ -400,11 +406,11 @@ public class DataSourceServiceImpl extends DataSourceService{
      * @param updateDto     更新数据
      * @param connectionDto 原数据
      */
-    private void restoreAccessNodeType(DataSourceConnectionDto updateDto, DataSourceConnectionDto connectionDto) {
-        if (updateDto.isAccessNodeTypeEmpty() && CollectionUtils.isNotEmpty(connectionDto.getAccessNodeProcessIdList())) {
+    private void restoreAccessNodeType(DataSourceConnectionDto updateDto, DataSourceConnectionDto connectionDto, List<String> accessNodeProcessIdList) {
+        if (updateDto.isAccessNodeTypeEmpty() && CollectionUtils.isNotEmpty(accessNodeProcessIdList)) {
             updateDto.setAccessNodeType(connectionDto.getAccessNodeType());
-            updateDto.setAccessNodeProcessId(connectionDto.getAccessNodeProcessIdList().get(0));
-            updateDto.setAccessNodeProcessIdList(connectionDto.getAccessNodeProcessIdList());
+            updateDto.setAccessNodeProcessId(accessNodeProcessIdList.get(0));
+            updateDto.setAccessNodeProcessIdList(accessNodeProcessIdList);
             updateDto.setAccessNodeTypeEmpty(false);
         }
     }
@@ -1242,8 +1248,8 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         List<Worker> availableAgent;
         if (StringUtils.isBlank(connectionDto.getAccessNodeType())
-                && StringUtils.equalsIgnoreCase(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), connectionDto.getAccessNodeType())) {
-            availableAgent = workerService.findAvailableAgentByAccessNode(user, connectionDto.getAccessNodeProcessIdList());
+                && AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())) {
+            availableAgent = workerService.findAvailableAgentByAccessNode(user, agentGroupService.getProcessNodeListWithGroup(connectionDto, user));
         } else {
             availableAgent = workerService.findAvailableAgent(user);
         }

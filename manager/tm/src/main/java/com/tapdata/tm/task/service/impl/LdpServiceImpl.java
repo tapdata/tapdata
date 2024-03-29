@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service.impl;
 
 import com.google.common.collect.Lists;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.MutiResponseMessage;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
@@ -63,6 +64,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import sun.management.Agent;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -119,6 +121,9 @@ public class LdpServiceImpl implements LdpService {
 
 	@Autowired
     private MeasurementServiceV2 measurementServiceV2;
+
+	@Autowired
+	private AgentGroupService agentGroupService;
 
     @Override
 	@Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
@@ -1358,13 +1363,14 @@ public class LdpServiceImpl implements LdpService {
     }
 
     private String findAgent(DataSourceConnectionDto connectionDto, UserDetail user) {
-        if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), connectionDto.getAccessNodeType())
-                && CollectionUtils.isNotEmpty(connectionDto.getAccessNodeProcessIdList())) {
+		List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(connectionDto, user);
+		if (AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())
+                && CollectionUtils.isNotEmpty(processNodeListWithGroup)) {
 
             List<Worker> availableAgent = workerService.findAvailableAgent(user);
             List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
             String agentId = null;
-            for (String p : connectionDto.getAccessNodeProcessIdList()) {
+            for (String p : processNodeListWithGroup) {
                 if (processIds.contains(p)) {
                     agentId = p;
                     break;

@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import cn.hutool.core.date.DateUtil;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -29,6 +30,8 @@ import java.util.stream.Collectors;
 public class AgentStrategyImpl implements DagLogStrategy {
 
     private WorkerService workerService;
+    @Autowired
+    private AgentGroupService agentGroupService;
 
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.AGENT_CAN_USE_CHECK;
 
@@ -41,8 +44,9 @@ public class AgentStrategyImpl implements DagLogStrategy {
             availableAgent = workerService.findAvailableAgent(userDetail);
             agent = AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.getName();
         } else {
-            availableAgent = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
-            agent = taskDto.getAccessNodeProcessIdList().get(0);
+            List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail);
+            availableAgent = workerService.findAvailableAgentByAccessNode(userDetail, processNodeListWithGroup);
+            agent = processNodeListWithGroup.get(0);
         }
 
         String template;

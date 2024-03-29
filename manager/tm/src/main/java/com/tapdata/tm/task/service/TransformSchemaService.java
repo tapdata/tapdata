@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -70,6 +71,8 @@ public class TransformSchemaService {
     private WorkerService workerService;
     private TaskDagCheckLogService taskDagCheckLogService;
     private LdpService ldpService;
+    @Autowired
+    private AgentGroupService agentGroupService;
 
     @Autowired
     public TransformSchemaService(DAGDataService dagDataService, MetadataInstancesService metadataInstancesService, TaskService taskService,
@@ -493,8 +496,8 @@ public class TransformSchemaService {
 
         List<Worker> availableAgent;
         if (org.apache.commons.lang3.StringUtils.isBlank(taskDto.getAccessNodeType())
-                && org.apache.commons.lang3.StringUtils.equalsIgnoreCase(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), taskDto.getAccessNodeType())) {
-            availableAgent = workerService.findAvailableAgentByAccessNode(user, taskDto.getAccessNodeProcessIdList());
+                && AccessNodeTypeEnum.isManually(taskDto.getAccessNodeType())) {
+            availableAgent = workerService.findAvailableAgentByAccessNode(user, agentGroupService.getProcessNodeListWithGroup(taskDto, user));
         } else {
             availableAgent = workerService.findAvailableAgent(user);
         }

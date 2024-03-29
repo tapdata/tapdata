@@ -46,8 +46,13 @@ public class AgentGroupController extends BaseController {
      */
     @Operation(summary = "Find all agents which grouped of the model matched by filter from the data source")
     @GetMapping
-    public ResponseMessage<Page<AgentGroupDto>> groupAllAgent(@RequestParam(value = "filter", required = false) String filterJson) {
-        return success(agentGroupService.groupAllAgent(parseFilter(filterJson), getLoginUser()));
+    public ResponseMessage<Page<AgentGroupDto>> groupAllAgent(
+            @Parameter(in = ParameterIn.QUERY,
+                    description = "Filter defining fields, where, sort, skip, and limit - must be a JSON-encoded string (`{\"where\":{\"something\":\"value\"},\"fields\":{\"something\":true|false},\"sort\": [\"name desc\"],\"page\":1,\"size\":20}`)."
+            )
+            @RequestParam(value = "filter", required = false) String filterJson,
+            @RequestParam(value = "containWorker", required = false) Boolean containWorker) {
+        return success(agentGroupService.groupAllAgent(parseFilter(filterJson), containWorker, getLoginUser()));
     }
 
     /**

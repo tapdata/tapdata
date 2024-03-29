@@ -5,6 +5,7 @@ import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.task.dto.DataSyncMq;
@@ -59,6 +60,8 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     private SettingsService settingsService;
     private StateMachineService stateMachineService;
     private UserService userService;
+    @Autowired
+    private AgentGroupService agentGroupService;
 
     @Override
     public void scheduling(TaskDto taskDto, UserDetail user) {
@@ -130,9 +133,11 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     public void scheduleFailed(TaskDto taskDto, UserDetail user) {
         log.warn("No available agent found, task name = {}", taskDto.getName());
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
-        if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
-                && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
-            throw new BizException("Task.SpecifyAgentOffline", taskDto.getAccessNodeProcessIdList().get(0));
+        List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
+        String currentRunningProcessNode = taskDto.getCurrentRunningProcessNode();
+        if (AccessNodeTypeEnum.isManually(taskDto.getAccessNodeType())
+                && (null != currentRunningProcessNode || CollectionUtils.isNotEmpty(processNodeListWithGroup))) {
+            throw new BizException("Task.SpecifyAgentOffline", null != currentRunningProcessNode ? currentRunningProcessNode : processNodeListWithGroup.get(0));
         } else {
             throw new BizException("Task.AgentNotFound");
         }

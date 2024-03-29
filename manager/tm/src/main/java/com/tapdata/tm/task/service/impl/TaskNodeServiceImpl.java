@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.google.common.collect.Maps;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
@@ -91,6 +92,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private TaskRecordService taskRecordService;
     private MonitoringLogsService monitoringLogService;
     private DAGDataService dagDataService;
+    @Autowired
+    private AgentGroupService agentGroupService;
 
     @SneakyThrows
     @Override
@@ -640,7 +643,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setName(taskDto.getName() + "(101)");
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
-        List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
+        List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail));
         if (CollectionUtils.isEmpty(workers)) {
             throw new BizException("no agent");
         }
@@ -844,7 +847,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     private Map<String, Object> wsTestRun(UserDetail userDetail, TaskDto taskDto, TaskDto taskDtoCopy){
         // WS
-        List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
+        List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail));
         if (CollectionUtils.isEmpty(workers)) {
             throw new BizException("no agent");
         }

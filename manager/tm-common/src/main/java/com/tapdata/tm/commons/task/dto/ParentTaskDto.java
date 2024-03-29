@@ -206,7 +206,7 @@ public class ParentTaskDto extends SchedulableDto {
      * 后续可能是 flow engine group 选择多个的情况
      */
     private List<String> accessNodeProcessIdList;
-
+    private String currentRunningProcessNode;
     private String accessNodeProcessId;
 
     private HashSet<String> heartbeatTasks;
@@ -279,7 +279,8 @@ public class ParentTaskDto extends SchedulableDto {
 
     public List<String> getAccessNodeProcessIdList() {
         accessNodeProcessIdList = new ArrayList<>();
-        if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), accessNodeType)
+        if ((StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), accessNodeType)
+                || StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), accessNodeType))
                 &&StringUtils.isNotBlank(accessNodeProcessId)) {
             accessNodeProcessIdList.add(accessNodeProcessId);
         } else {

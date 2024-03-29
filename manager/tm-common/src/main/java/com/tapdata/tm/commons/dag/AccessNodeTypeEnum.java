@@ -11,4 +11,20 @@ public enum AccessNodeTypeEnum {
     MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP("用户手动指定-引擎组");
 
     private final String name;
+
+    public static boolean isManually(String nodeType) {
+        return isUserManually(nodeType) || isGroupManually(nodeType);
+    }
+
+    public static boolean isUserManually(String nodeType) {
+        return MANUALLY_SPECIFIED_BY_THE_USER.name.equalsIgnoreCase(nodeType);
+    }
+
+    public static boolean isGroupManually(String nodeType) {
+        return MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name.equalsIgnoreCase(nodeType);
+    }
+
+    public static boolean isAutomatic(String nodeType) {
+        return AUTOMATIC_PLATFORM_ALLOCATION.name.equalsIgnoreCase(nodeType);
+    }
 }
