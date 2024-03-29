@@ -4540,47 +4540,7 @@ public class TaskServiceImpl extends TaskService{
 //        }
 //    }
 
-    public boolean checkPdkTask(TaskDto taskDto, UserDetail user) {
-        if (true) {
-            return true;
-        }
-        DAG dag = taskDto.getDag();
-        if (dag == null) {
-            return false;
-        }
-        List<String> connections = new ArrayList<>();
-        boolean specialTask = false;
-        List<Node> sources = dag.getSources();
-        for (Node source : sources) {
-            if (source instanceof LogCollectorNode) {
-                List<String> connectionIds = ((LogCollectorNode) source).getConnectionIds();
-                if (CollectionUtils.isNotEmpty(connectionIds)) {
-                    connections = connectionIds;
-                    specialTask = true;
-                }
-            }
-        }
-
-        if (!specialTask) {
-            List<Node> nodes = dag.getNodes();
-            if (CollectionUtils.isEmpty(nodes)) {
-                return false;
-            }
-
-            connections = nodes.stream().filter(n -> n instanceof DataParentNode).map(n -> ((DataParentNode<?>) n).getConnectionId())
-                    .collect(Collectors.toList());
-        }
-
-        List<DataSourceConnectionDto> connectionDtos = dataSourceService.findInfoByConnectionIdList(connections, user, "pdkType");
-
-        for (DataSourceConnectionDto connectionDto : connectionDtos) {
-            if (DataSourceDefinitionDto.PDK_TYPE.equals(connectionDto.getPdkType())) {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    
 
 //    public boolean checkDeleteFlag(ObjectId id, UserDetail user) {
 //        TaskDto TaskDto = checkExistById(id, user, "deleteFlag");
