@@ -154,6 +154,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     protected static final String CATALOG="catalog";
     protected static final String ELEMENT_TYEP="elementType";
     protected static final String PROCESSOR="processor";
+    public static final String RM_ID_KEY = "rm_id";
     private MessageService messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private InspectService inspectService;
@@ -2867,8 +2868,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return tables;
     }
 
-    private void genProperties(Map<String, Object> parent, Map<String, Object> contentMapping, Map<String, Object> relationshipsMapping, Map<String, Object> full, Map<String, String> sourceToJS, Map<String, Map<String, Map<String, Object>>> renameFields) {
-        List<String> children = (List<String>) ((Map<String, Object>) relationshipsMapping.get(parent.get("rm_id"))).get("children");
+    private void genProperties(Map<String, Object> parent, Map<String, Object> contentMapping, Map<String, Object> relationshipsMapping, Map<String, Object> full, Map<String, String> sourceToJS, Map<String, Map<String, Map<String, Object>>> renameFields, Map<String, List<Map<String, Object>>> contentDeleteOperations, Map<String, List<Map<String, Object>>> contentRenameOperations) {
+        String parentId = (String)parent.get(RM_ID_KEY);
+        List<String> children = (List<String>) ((Map<String, Object>) relationshipsMapping.get(parentId)).get("children");
         if (children == null || children.size() == 0) {
             return;
         }
@@ -2929,10 +2931,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             childNode.put("tableName", tpTable);
             childNode.put("children", new ArrayList<>());
             childNode.put("id", sourceToJS.get(child));
-            childNode.put("rm_id", child);
+            childNode.put(RM_ID_KEY, child);
 
             // 由于使用外键做关联, 所以似乎 RM 只能合并来自一个源的数据, 所以 tables 表结构使用其中一个就可以
-
+            Map<String,Map<String,String>> sourceJoinKeyMapping = new HashMap<>();
+            Map<String,Map<String,String>> targetJoinKeyMapping = new HashMap<>();
             for (String columnKey : currentColumns.keySet()) {
                 Map<String, Object> column = (Map<String, Object>) currentColumns.get(columnKey);
                 Map<String, Object> foreignKey = (Map<String, Object>) column.get("foreignKey");
@@ -2941,21 +2944,58 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 }
                 if (((String)foreignKey.get("table")).equals(parent.get("tableName"))) {
                     Map<String, String> joinKey = new HashMap<>();
-                    joinKey.put("source", currentRenameFields.get(columnKey).get("target").toString());
+                    String sourceJoinKey = currentRenameFields.get(columnKey).get("target").toString();
+                    Map<String, String> newFieldMap = new HashMap<>();
+                    newFieldMap.put("source", columnKey);
+                    newFieldMap.put("target", sourceJoinKey);
+                    sourceJoinKeyMapping.put(sourceJoinKey, newFieldMap);
+                    joinKey.put("source", sourceJoinKey);
+                    String targetJoinKey = parentRenameFields.get((String) foreignKey.get("column")).get("target").toString();
+                    HashMap<String, String> targetNewFieldMap = new HashMap<>();
+                    targetNewFieldMap.put("source", (String) foreignKey.get("column"));
+                    targetNewFieldMap.put("target", targetJoinKey);
                     if (parent.get("targetPath").equals("")) {
-                        joinKey.put("target", parentRenameFields.get((String) foreignKey.get("column")).get("target").toString());
+                        joinKey.put("target", targetJoinKey);
                     } else {
-                        joinKey.put("target", parent.get("targetPath") + "." + parentRenameFields.get((String) foreignKey.get("column")).get("target").toString());
+                        joinKey.put("target", parent.get("targetPath") + "." + targetJoinKey);
                     }
+                    targetJoinKeyMapping.put(targetJoinKey,targetNewFieldMap);
                     joinKeys.add(joinKey);
                 }
             }
-            parentColumnsFindJoinKeys(parent, renameFields, parentColumns, tpTable, joinKeys);
+            parentColumnsFindJoinKeys(parent, renameFields, parentColumns, tpTable, joinKeys, sourceJoinKeyMapping, targetJoinKeyMapping);
             childNode.put("joinKeys", joinKeys);
-            genProperties(childNode, contentMapping, relationshipsMapping, full, sourceToJS, renameFields);
+            joinKeys.forEach(joinKeyMap->{
+                String sourceJoinKey = joinKeyMap.get("source");
+                addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations, contentRenameOperations, child, sourceJoinKeyMapping, sourceJoinKey);
+                String targetJoinKey = joinKeyMap.get("target");
+                addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations, contentRenameOperations, parentId, targetJoinKeyMapping, targetJoinKey);
+            });
+            genProperties(childNode, contentMapping, relationshipsMapping, full, sourceToJS, renameFields, contentDeleteOperations, contentRenameOperations);
             childrenNode.add(childNode);
         }
         parent.put("children", childrenNode);
+    }
+    protected void addRenameOpIfDeleteOpHasJoinKey(Map<String, List<Map<String, Object>>> contentDeleteOperations, Map<String, List<Map<String, Object>>> contentRenameOperations, String tableId, Map<String,Map<String, String>> joinKeyMapping, String joinKey) {
+        List<Map<String, Object>> childDeleteOperations = contentDeleteOperations.get(tableId);
+        boolean removeJoinKeyFlag = removeDeleteOperation(childDeleteOperations, joinKeyMapping, joinKey);
+        if (removeJoinKeyFlag) {
+            List<Map<String, Object>> childRenameOperations = contentRenameOperations.get(tableId);
+            Map<String, Object> renameOperation = getRenameOperation(joinKeyMapping.get(joinKey).get("source"), joinKeyMapping.get(joinKey).get("target"));
+            childRenameOperations.add(renameOperation);
+        }
+    }
+
+    protected static boolean removeDeleteOperation(List<Map<String, Object>> deleteOperations, Map<String, Map<String, String>> joinKeyMapping, String joinKey) {
+        boolean flag = deleteOperations.removeIf((delOperations) -> {
+            String deleteField = (String) delOperations.get("field");
+            String originalField = joinKeyMapping.get(joinKey).get("source");
+            if (deleteField.equals(originalField)) {
+                return true;
+            }
+            return false;
+        });
+        return flag;
     }
 
     protected String getEmbeddedDocumentPath(String parentTargetPath, Map<String, String> setting) {
@@ -2972,7 +3012,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return targetPath;
     }
 
-    protected void parentColumnsFindJoinKeys(Map<String, Object> parent, Map<String, Map<String, Map<String, Object>>> renameFields, Map<String, Object> parentColumns, String tpTable, List<Map<String, String>> joinKeys) {
+    protected void parentColumnsFindJoinKeys(Map<String, Object> parent, Map<String, Map<String, Map<String, Object>>> renameFields, Map<String, Object> parentColumns, String tpTable, List<Map<String, String>> joinKeys, Map<String,Map<String, String>> souceJoinKeyMapping, Map<String,Map<String, String>> targetJoinKeyMapping) {
         Map<String, Map<String, Object>> parentRenameFields = renameFields.get((String) parent.get("tableName"));
         for (String columnKey : parentColumns.keySet()) {
             Map<String, Object> column = (Map<String, Object>) parentColumns.get(columnKey);
@@ -2983,12 +3023,22 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             if (((String) foreignKey.get("table")).equals(tpTable)) {
                 Map<String, String> joinKey = new HashMap<>();
-                joinKey.put("source", renameFields.get(tpTable).get(((String) foreignKey.get("column"))).get("target").toString());
-                if (parent.get("targetPath").equals("")) {
-                    joinKey.put("target", parentRenameFields.get(columnKey).get("target").toString());
-                } else {
-                    joinKey.put("target", parent.get("targetPath") + "." + parentRenameFields.get(columnKey).get("target").toString());
+                String sourceJoinKey = renameFields.get(tpTable).get(((String) foreignKey.get("column"))).get("target").toString();
+                Map<String,String> sourceNewFieldMap=new HashMap<>();
+                sourceNewFieldMap.put("source", (String) foreignKey.get("column"));
+                sourceNewFieldMap.put("target",sourceJoinKey);
+                souceJoinKeyMapping.put(sourceJoinKey,sourceNewFieldMap);
+                joinKey.put("source", sourceJoinKey);
+                Map<String,String> targetNewFieldMap=new HashMap<>();
+                String targetJoinKey = parentRenameFields.get(columnKey).get("target").toString();
+                targetNewFieldMap.put("source", columnKey);
+                targetNewFieldMap.put("target", targetJoinKey);
+                String targetPath = parent.get("targetPath").toString();
+                if (!StringUtils.isBlank(targetPath)) {
+                    targetJoinKey=targetPath + "." + targetJoinKey;
                 }
+                joinKey.put("target", targetJoinKey);
+                targetJoinKeyMapping.put(targetJoinKey,targetNewFieldMap);
                 joinKeys.add(joinKey);
             }
         }
@@ -3118,6 +3168,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             String tpTable;
 
             // 把源节点都加进去, 这里如果有一些 字段改名, 或者新字段生成的操作, 增加一个 JS 处理器
+            Map<String,List<Map<String, Object>>> contentDeleteOperations = new HashMap<>();
+            Map<String,List<Map<String, Object>>> contentRenameOperations = new HashMap<>();
             List<String> sourceNodes = new ArrayList<>();
             for (String key : contentMapping.keySet()) {
                 Map<String, Object> node = new HashMap<>();
@@ -3140,31 +3192,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                 // 增加 JS 处理器
                 Map<String, Object> fields = (Map<String, Object>) contentMappingzValue.get("fields");
-                String jsId = UUID.randomUUID().toString().toLowerCase();
-                Map<String, Object> jsNode = new HashMap<>();
-                jsNode.put("type", "js_processor");
-                jsNode.put("name", tpTable);
-                jsNode.put("id", jsId);
-                jsNode.put("jsType", 1);
-                jsNode.put(PROCESSOR_THREAD_NUM, 1);
-                jsNode.put(CATALOG, PROCESSOR);
-                jsNode.put(ELEMENT_TYEP, "Node");
-                String script = "";
-                String declareScript = "";
 
                 List<Map<String, Object>> renameOperations = new ArrayList<>();
 
                 List<Map<String, Object>> deleteOperations = new ArrayList<>();
-
+                contentDeleteOperations.put(key,deleteOperations);
+                contentRenameOperations.put(key,renameOperations);
                 for (String field : fields.keySet()) {
                     Map<String, Object> fieldMap = (Map<String, Object>) fields.get(field);
                     Map<String, Object> source = (Map<String, Object>) fieldMap.get("source");
                     Map<String, Object> target = (Map<String, Object>) fieldMap.get("target");
                     Map<String, Object> newName = getNewNameMap(target, source);
                     tableRenameFields.put(source.get("name").toString(), newName);
-
+                    Object isPk = source.get("isPrimaryKey");
                     if (!(Boolean)target.get("included")) {
-                        Map<String, Object> deleteOperation = getDeleteOperation(source);
+                        Map<String, Object> deleteOperation = getDeleteOperation(source.get("name").toString(),isPk);
                         deleteOperations.add(deleteOperation);
                         continue;
                     }
@@ -3173,12 +3215,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         continue;
                     }
 
-                    Map<String, Object> renameOperation = getRenameOperation(source, target);
+                    Map<String, Object> renameOperation = getRenameOperation(source.get("name"), target.get("name"));
                     renameOperations.add(renameOperation);
                 }
 
                 renameFields.put(tpTable, tableRenameFields);
-
+                String script = "";
+                String declareScript = "";
                 Map<String, Object> calculatedFields = (Map<String, Object>) contentMappingzValue.get("calculatedFields");
                 for (String field : calculatedFields.keySet()) {
                     Map<String, Object> fieldMap = (Map<String, Object>) calculatedFields.get(field);
@@ -3193,27 +3236,20 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     script += "    return record;\n";
                     script += "}";
                 }
-                jsNode.put("script", script);
-                jsNode.put("declareScript", declareScript);
+
                 String sourceId = (String) node.get("id");
+
+                if (!script.equals("")) {
+                    String jsId = addJSNode(tpTable, script, declareScript, nodes, sourceId, edges);
+                    sourceId = jsId;
+                }
+                //add rename processor node
+                sourceId = addRenameNode(tpTable, renameOperations, sourceId, nodes, edges);
+
                 //add delete processor node
                 if (!deleteOperations.isEmpty()) {
                     sourceId = addDeleteNode(tpTable, deleteOperations,  sourceId,nodes, edges);
                 }
-                //add rename processor node
-                if (!renameOperations.isEmpty()) {
-                    sourceId = addRenameNode(tpTable,  renameOperations, sourceId,nodes, edges);
-                }
-
-                if (!script.equals("")) {
-                    nodes.add(jsNode);
-                    Map<String, Object> edge = new HashMap<>();
-                    edge.put("source", sourceId);
-                    edge.put("target", jsId);
-                    edges.add(edge);
-                    sourceId = jsId;
-                }
-
                 // 记录映射
                 sourceToJs.put((String) node.get("id"), sourceId);
                 sourceNodes.add(sourceId);
@@ -3266,11 +3302,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             Map<String, Object> rootProperties = new HashMap<>();
             rootProperties.put("targetPath", "");
             rootProperties.put("id", sourceToJs.get(rootNodeId));
-            rootProperties.put("rm_id", rootNodeId);
+            rootProperties.put(RM_ID_KEY, rootNodeId);
             rootProperties.put("mergeType", "updateOrInsert");
             tpTable = ((String) ((Map<String, Object>) contentMapping.get(rootNodeId)).get("table")).split("\\.")[((String) ((Map<String, Object>) contentMapping.get(rootNodeId)).get("table")).split("\\.").length - 1];
             rootProperties.put("tableName", tpTable);
-            genProperties(rootProperties, contentMapping, relationshipsMapping, full, sourceToJs, renameFields);
+            genProperties(rootProperties, contentMapping, relationshipsMapping, full, sourceToJs, renameFields,contentDeleteOperations,contentRenameOperations);
             mergeProperties.add(rootProperties);
             mergeNode.put("mergeProperties", mergeProperties);
             Boolean needMergeNode = true;
@@ -3287,6 +3323,22 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     edge.put("target", mergeNodeId);
                     edges.add(edge);
                 }
+                contentDeleteOperations.forEach((k, v) -> {
+                    Map<String, Object> contentMappingzValue = (Map<String, Object>) contentMapping.get(k);
+                    String table = contentMappingzValue.get("table").toString();
+                    String finalTable = table.split("\\.")[table.split("\\.").length - 1];
+                    v.removeIf((delOp) -> {
+                        boolean flag = Boolean.TRUE.equals(delOp.get("isPk"));
+                        if (flag) {
+                            Map<String, Map<String, Object>> map = renameFields.get(finalTable);
+                            String name = delOp.get("field").toString();
+                            Map<String, Object> renameOperation = getRenameOperation(name, map.get(name).get("target").toString());
+                            contentRenameOperations.get(k).add(renameOperation);
+                        }
+                        return flag;
+                    });
+
+                });
             }
 
 
@@ -3327,6 +3379,25 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             parsedTpTasks.put((String) task.get("id"), JsonUtil.toJson(task));
         }
         return parsedTpTasks;
+    }
+    protected String addJSNode(String tpTable, String script, String declareScript, List<Map<String, Object>> nodes, String sourceId, List<Map<String, Object>> edges) {
+        String jsId = UUID.randomUUID().toString().toLowerCase();
+        Map<String, Object> jsNode = new HashMap<>();
+        jsNode.put("type", "js_processor");
+        jsNode.put("name", tpTable);
+        jsNode.put("id", jsId);
+        jsNode.put("jsType", 1);
+        jsNode.put(PROCESSOR_THREAD_NUM, 1);
+        jsNode.put(CATALOG, PROCESSOR);
+        jsNode.put(ELEMENT_TYEP, "Node");
+        jsNode.put("script", script);
+        jsNode.put("declareScript", declareScript);
+        nodes.add(jsNode);
+        Map<String, Object> edge = new HashMap<>();
+        edge.put("source", sourceId);
+        edge.put("target", jsId);
+        edges.add(edge);
+        return jsId;
     }
 
     protected String addRenameNode(String tpTable,  List<Map<String, Object>> renameOperations, String sourceId,List<Map<String, Object>> nodes, List<Map<String, Object>> edges) {
@@ -3370,22 +3441,23 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return sourceId;
     }
 
-    protected Map<String, Object> getDeleteOperation(Map<String, Object> source) {
+    protected Map<String, Object> getDeleteOperation(Object deleteFieldName, Object isPrimaryKey){
         Map<String, Object> deleteOperation = new HashMap<>();
         deleteOperation.put("id", UUID.randomUUID().toString().toLowerCase());
-        deleteOperation.put("field", source.get("name"));
+        deleteOperation.put("field", deleteFieldName);
         deleteOperation.put("op", "REMOVE");
         deleteOperation.put("operand", "true");
-        deleteOperation.put("label", source.get("name"));
+        deleteOperation.put("label", deleteFieldName);
+        deleteOperation.put("isPk",isPrimaryKey);
         return deleteOperation;
     }
 
-    protected Map<String, Object> getRenameOperation(Map<String, Object> source, Map<String, Object> target) {
+    protected Map<String, Object> getRenameOperation(Object source, Object target) {
         Map<String, Object> fieldRenameOperation = new HashMap<>();
         fieldRenameOperation.put("id", UUID.randomUUID().toString().toLowerCase());
-        fieldRenameOperation.put("field", source.get("name"));
+        fieldRenameOperation.put("field", source);
         fieldRenameOperation.put("op", "RENAME");
-        fieldRenameOperation.put("operand", target.get("name"));
+        fieldRenameOperation.put("operand", target);
         return fieldRenameOperation;
     }
 

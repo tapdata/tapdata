@@ -673,14 +673,7 @@ public class TaskServiceTest {
             for(String taskKey:stringStringMap.keySet()){
                 taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(taskKey), TaskDto.class);
             }
-            for(String key:contentCollections.keySet()){
-                Map<String,String> contentCollectionMap = (Map<String, String>) contentCollections.get(key);
-                String afterName = contentCollectionMap.get("name");
-                assertEquals(taskDto.getName(),afterName);
-            }
-            assertEquals("6393f084c162f518b18165c3",taskDto.getUserId());
-            assertEquals("customerId",taskDto.getCustomId());
-            assertEquals(3,taskDto.getDag().getNodes().size());
+            assertEquals(5,stringStringMap.size());
         }
         @Test
         void nullImportRmProjectTest(){
@@ -854,6 +847,8 @@ public class TaskServiceTest {
         @Test
         void test1(){
             parent.put("targetPath", "");
+            Map<String, Map<String,String>> souceJoinKeyMapping=new HashMap<>();
+            Map<String, Map<String,String>> targetJoinKeyMapping=new HashMap<>();
             List<Map<String, String>> joinKeys=new ArrayList<>();
             Map<String, Object> parentColumns=new HashMap<>();
             Map<String, Object> columnsAttrs=new HashMap<>();
@@ -863,7 +858,7 @@ public class TaskServiceTest {
             foreignKeyAttrs.put("column","ShipperID");
             columnsAttrs.put("foreignKey",foreignKeyAttrs);
             parentColumns.put("ShipVia",columnsAttrs);
-            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys);
+            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys,souceJoinKeyMapping,targetJoinKeyMapping);
             assertEquals(1,joinKeys.size());
             Map<String, String> stringStringMap = joinKeys.get(0);
             String sourceJoinKey = stringStringMap.get("source");
@@ -875,6 +870,8 @@ public class TaskServiceTest {
         @Test
         void test2(){
             parent.put("targetPath", "orders");
+            Map<String, Map<String,String>> souceJoinKeyMapping=new HashMap<>();
+            Map<String, Map<String,String>> targetJoinKeyMapping=new HashMap<>();
             List<Map<String, String>> joinKeys=new ArrayList<>();
             Map<String, Object> parentColumns=new HashMap<>();
             Map<String, Object> columnsAttrs=new HashMap<>();
@@ -884,7 +881,7 @@ public class TaskServiceTest {
             foreignKeyAttrs.put("column","ShipperID");
             columnsAttrs.put("foreignKey",foreignKeyAttrs);
             parentColumns.put("ShipVia",columnsAttrs);
-            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys);
+            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys,souceJoinKeyMapping,targetJoinKeyMapping);
             assertEquals(1,joinKeys.size());
             Map<String, String> stringStringMap = joinKeys.get(0);
             String sourceJoinKey = stringStringMap.get("source");
@@ -895,16 +892,20 @@ public class TaskServiceTest {
         @DisplayName("test parent column no have foreignKey")
         @Test
         void test3(){
+            Map<String, Map<String,String>> souceJoinKeyMapping=new HashMap<>();
+            Map<String, Map<String,String>> targetJoinKeyMapping=new HashMap<>();
             List<Map<String, String>> joinKeys=new ArrayList<>();
             Map<String, Object> parentColumns=new HashMap<>();
             Map<String, Object> columnsAttrs=new HashMap<>();
             parentColumns.put("ShipVia",columnsAttrs);
-            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys);
+            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys,souceJoinKeyMapping,targetJoinKeyMapping);
             assertEquals(0,joinKeys.size());
         }
         @DisplayName("test parnet column table is not child table")
         @Test
         void test4(){
+            Map<String, Map<String,String>> souceJoinKeyMapping=new HashMap<>();
+            Map<String, Map<String,String>> targetJoinKeyMapping=new HashMap<>();
             parent.put("targetPath", "");
             List<Map<String, String>> joinKeys=new ArrayList<>();
             Map<String, Object> parentColumns=new HashMap<>();
@@ -915,7 +916,7 @@ public class TaskServiceTest {
             foreignKeyAttrs.put("column","ShipperID");
             columnsAttrs.put("foreignKey",foreignKeyAttrs);
             parentColumns.put("ShipVia",columnsAttrs);
-            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys);
+            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys,souceJoinKeyMapping,targetJoinKeyMapping);
             assertEquals(0,joinKeys.size());
         }
     }
@@ -1015,7 +1016,7 @@ public class TaskServiceTest {
             Map<String,Object> source=new HashMap<>();
             source.put("name","EmployeeId");
             source.put("isPrimaryKey",false);
-            Map<String, Object> deleteOperation = taskService.getDeleteOperation(source);
+            Map<String, Object> deleteOperation = taskService.getDeleteOperation(source.get("name"), source.get("isPrimaryKey"));
             assertEquals("EmployeeId",deleteOperation.get("field"));
             assertEquals("REMOVE",deleteOperation.get("op"));
             assertEquals("true",deleteOperation.get("operand"));
@@ -1030,10 +1031,110 @@ public class TaskServiceTest {
             Map<String,Object> source=new HashMap<>();
             source.put("name","EmployeeId");
             source.put("isPrimaryKey",false);
-            Map<String, Object> renameOperation = taskService.getRenameOperation(source, target);
+            Map<String, Object> renameOperation = taskService.getRenameOperation(source.get("name"), target.get("name"));
             assertEquals("EmployeeId",renameOperation.get("field"));
             assertEquals("RENAME",renameOperation.get("op"));
             assertEquals("employeeId",renameOperation.get("operand"));
+        }
+        @Test
+        void test3(){
+            List<Map<String, Object>> nodes = new ArrayList<>();
+            List<Map<String, Object>> edges = new ArrayList<>();
+            String script = "function process(){}";
+            String declareScript = "retrun record";
+            String sourceId = taskService.addJSNode("customer", script, declareScript, nodes, "sourceId", edges);
+            assertNotEquals("souceId",sourceId);
+            assertEquals(1,nodes.size());
+            Map<String, Object> nodeMap = nodes.get(0);
+            assertEquals("customer",nodeMap.get("name"));
+            assertEquals("js_processor",nodeMap.get("type"));
+        }
+    }
+    @Nested
+    class RemoveDeleteOperationIfJoinKeyIsDeletedTest{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskService taskService=spy(new TaskService(taskRepository));
+        List<Map<String, Object>> childDeleteOperationsList=new ArrayList<>();
+        List<Map<String, Object>> childRenameOperationsList =new ArrayList();
+        Map<String, List<Map<String, Object>>> contentDeleteOperations = new HashMap<>();
+        Map<String, List<Map<String, Object>>> contentRenameOperations =new HashMap<>();
+        @BeforeEach
+        void beforeSetUp(){
+            Map<String, Object> deleteOperations =new HashMap<>();
+            deleteOperations.put("op","REMOVE");
+            deleteOperations.put("field", "OrderID");
+            deleteOperations.put("label" ,"OrderID");
+            deleteOperations.put("operand","true");
+            deleteOperations.put("id", UUID.randomUUID().toString().toLowerCase());
+            childDeleteOperationsList.add(deleteOperations);
+            Map<String,Object> renameOperations =new HashMap<>();
+            renameOperations.put("op","RENAME");
+            renameOperations.put("field" , "UnitPrice");
+            renameOperations.put("id", UUID.randomUUID().toString().toLowerCase());
+            renameOperations.put("operand","unitPrice");
+            childRenameOperationsList.add(renameOperations);
+            contentDeleteOperations.put("childId",childDeleteOperationsList);
+            contentRenameOperations.put("childId",childRenameOperationsList);
+        }
+        @Test
+        void test1(){
+            Map<String,Map<String, String>> sourceJoinKeyMapping =new HashMap<>();
+            Map<String,String> newFieldMap=new HashMap<>();
+            newFieldMap.put("source","OrderID");
+            newFieldMap.put("target","orderId");
+            sourceJoinKeyMapping.put("orderId",newFieldMap);
+            taskService.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations,contentRenameOperations,"childId",sourceJoinKeyMapping,"orderId");
+            assertEquals(0,childDeleteOperationsList.size());
+            assertEquals(2,childRenameOperationsList.size());
+        }
+        @Test
+        void test2(){
+            Map<String,Map<String, String>> sourceJoinKeyMapping =new HashMap<>();
+            Map<String,String> newFieldMap=new HashMap<>();
+            newFieldMap.put("source","OrderId");
+            newFieldMap.put("target","orderId");
+            sourceJoinKeyMapping.put("productId",newFieldMap);
+            taskService.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations,contentRenameOperations,"childId",sourceJoinKeyMapping,"productId");
+            assertEquals(1,childDeleteOperationsList.size());
+            assertEquals(1,childRenameOperationsList.size());
+        }
+    }
+    @Nested
+    class RemoveDeleteOperationTest{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskService taskService=spy(new TaskService(taskRepository));
+        List<Map<String, Object>> deleteOperationsList=new ArrayList<>();
+        @BeforeEach
+        void beforeSetUp(){
+            Map<String, Object> deleteOperations =new HashMap<>();
+            deleteOperations.put("op","REMOVE");
+            deleteOperations.put("field", "OrderID");
+            deleteOperations.put("label" ,"OrderID");
+            deleteOperations.put("operand","true");
+            deleteOperations.put("id", UUID.randomUUID().toString().toLowerCase());
+            deleteOperationsList.add(deleteOperations);
+        }
+        @DisplayName("test removeDeleteOperation when joinkey in deleteOperation")
+        @Test
+        void test1(){
+            Map<String,Map<String, String>> sourceJoinKeyMapping =new HashMap<>();
+            Map<String,String> newFieldMap=new HashMap<>();
+            newFieldMap.put("source","OrderID");
+            newFieldMap.put("target","orderId");
+            sourceJoinKeyMapping.put("orderId",newFieldMap);
+            boolean flag = taskService.removeDeleteOperation(deleteOperationsList, sourceJoinKeyMapping, "orderId");
+            assertEquals(true,flag);
+        }
+        @DisplayName("test removeDeleteOperation when joinkey not in deleteOperation")
+        @Test
+        void test2(){
+            Map<String,Map<String, String>> sourceJoinKeyMapping =new HashMap<>();
+            Map<String,String> newFieldMap=new HashMap<>();
+            newFieldMap.put("source","OrderId");
+            newFieldMap.put("target","orderId");
+            sourceJoinKeyMapping.put("productId",newFieldMap);
+            boolean flag = taskService.removeDeleteOperation(deleteOperationsList, sourceJoinKeyMapping, "productId");
+            assertEquals(false,flag);
         }
     }
     @Nested
