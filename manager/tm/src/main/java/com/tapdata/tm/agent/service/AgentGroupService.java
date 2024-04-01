@@ -76,6 +76,12 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         //do nothing
     }
 
+    /**
+     * @param filter
+     * @param userDetail
+     * @param containWorker 是否在返回值中包含引擎的基本信息
+     * @return 按分组统计后的引擎分页结果
+     * */
     public Page<AgentGroupDto> groupAllAgent(Filter filter, Boolean containWorker, UserDetail userDetail) {
         filter = agentGroupUtil.initFilter(filter);
         Page<GroupDto> groupDtoPage = find(filter, userDetail);
@@ -107,6 +113,11 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
                 }).collect(Collectors.toList()));
     }
 
+    /**
+     * 分组创建
+     * @param groupDto 待创建的分组的信息，分组名称
+     * @return 创建好的分组信息
+     * */
     public AgentGroupDto createGroup(GroupDto groupDto, UserDetail userDetail) {
         final String name = groupDto.getName();
         ObjectId id = new ObjectId();
@@ -123,6 +134,11 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return dto;
     }
 
+    /**
+     * 检查分组中包含的引擎数是否大于零
+     * @param userDetail
+     * @param name 引擎分组名称
+     * */
     protected Query verifyCountGroupByName(String name, UserDetail userDetail) {
         Query query = Query.query(Criteria.where(AgentGroupTag.TAG_NAME).is(name).and(AgentGroupTag.TAG_DELETE).is(false));
         if (count(query, userDetail) > 0) {
@@ -132,7 +148,10 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return query;
     }
 
-
+    /**
+     * 将引擎加入到引擎分组中
+     * @param agentDto 包含引擎ID和引擎分组ID
+     * */
     public AgentGroupDto addAgentToGroup(AgentToGroupDto agentDto, UserDetail loginUser) {
         agentDto.verify();
         final String groupId = agentDto.getGroupId();
@@ -162,6 +181,10 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return findAgentGroupInfo(groupId, loginUser);
     }
 
+    /**
+     * 将引擎从引擎分组中移除
+     * @param removeDto 包含引擎ID和引擎分组ID
+     * */
     public AgentGroupDto removeAgentFromGroup(AgentRemoveFromGroupDto removeDto, UserDetail loginUser) {
         removeDto.verify();
         final String groupId = removeDto.getGroupId();
@@ -180,7 +203,10 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return findAgentGroupInfo(groupId, loginUser);
     }
 
-
+    /**
+     * 删除引擎分组
+     * @param groupId 引擎分组ID
+     * */
     public GroupUsedDto deleteGroup(String groupId, UserDetail loginUser) {
         GroupDto groupDto = findGroupById(groupId, loginUser);
         //查询正在使用当前标签的数据源
@@ -216,6 +242,11 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return result;
     }
 
+    /**
+     * 更新引擎分组信息
+     *      - 目前只有分组名称有更新的需求
+     * @param dto 包含引擎分组ID和引擎分组新名称
+     * */
     public AgentGroupDto updateBaseInfo(GroupDto dto, UserDetail loginUser) {
         agentGroupUtil.verifyUpdateGroupInfo(dto);
         String groupId = dto.getGroupId();
@@ -228,6 +259,10 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return findAgentGroupInfo(dto.getGroupId(), loginUser);
     }
 
+    /**
+     * 根据引擎分组ID查询引擎分组信息
+     * @param groupId 分组ID
+     * */
     protected GroupDto findGroupById(String groupId, UserDetail loginUser) {
         Criteria criteria = Criteria.where(AgentGroupTag.TAG_GROUP_ID).is(groupId).and(AgentGroupTag.TAG_DELETE).is(false);
         GroupDto groupDto = findOne(Query.query(criteria), loginUser);
@@ -238,12 +273,19 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return groupDto;
     }
 
+    /**
+     * 根据引擎分组ID查询引擎分组信息
+     * @param groupId 分组ID
+     * */
     protected AgentGroupDto findAgentGroupInfo(String groupId, UserDetail loginUser) {
         Filter filter = new Filter();
         filter.setWhere(Where.where(AgentGroupTag.TAG_GROUP_ID, groupId).and(AgentGroupTag.TAG_DELETE, false));
         return findAgentGroupInfo(filter, loginUser);
     }
 
+    /**
+     * 查询引擎分组信息，包含分组中引擎的信息
+     * */
     public AgentGroupDto findAgentGroupInfo(Filter filter, UserDetail loginUser) {
         GroupDto groupDto = findOne(filter, loginUser);
         List<String> agentIds = groupDto.getAgentIds();
@@ -256,13 +298,19 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return dto;
     }
 
+    /**
+     * 更具引擎ID列表查询引擎列表
+     * */
     protected List<WorkerDto> findAllAgent(Collection<String> agentIds, UserDetail loginUser) {
         Criteria criteria = Criteria.where(AgentGroupTag.TAG_PROCESS_ID).in(agentIds)
                 .and(AgentGroupTag.TAG_WORKER_TYPE).is(AgentGroupTag.TAG_CONNECTOR);
         return workerServiceImpl.findAllDto(Query.query(criteria), loginUser);
     }
 
-
+    /**
+     * 在返回的引擎列表中增加引擎分组列表，其中引擎分组中包含对应的引擎列表
+     * @param info 原来的引擎列表
+     * */
     public List<AccessNodeInfo> filterGroupList(List<AccessNodeInfo> info, UserDetail loginUser) {
         if (settingsService.isCloud()) {
             return info;
@@ -279,6 +327,11 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return groupAgentList;
     }
 
+    /**
+     * 获取TaskDto中的引擎Ids,
+     *  - 如果AccessNodeType==MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP，则先查询使用当前分组的引擎列表后返回、
+     *  - 如果不是，则直接TaskDto.getAccessNodeProcessIdList()返回
+     * */
     public List<String> getProcessNodeListWithGroup(TaskDto taskDto, UserDetail userDetail) {
         List<String> processNodeList = getProcessNodeList(taskDto.getAccessNodeType(), taskDto.getAccessNodeProcessId(), userDetail);
         if (processNodeList.isEmpty()) {
@@ -288,6 +341,11 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return processNodeList;
     }
 
+    /**
+     * 获取 DataSourceConnectionDto 中的引擎Ids,
+     *  - 如果AccessNodeType==MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP，则先查询使用当前分组的引擎列表后返回、
+     *  - 如果不是，则直接 DataSourceConnectionDto.getAccessNodeProcessIdList() 返回
+     * */
     public List<String> getProcessNodeListWithGroup(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
         List<String> processNodeList = getDataSourceConnectionProcessNodeList(connectionDto, userDetail);
         if (processNodeList.isEmpty()) {
@@ -296,6 +354,11 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return processNodeList;
     }
 
+    /**
+     * 获取 DataSourceConnectionDto 中的引擎Ids,
+     *  - 如果AccessNodeType==MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP，则先查询使用当前分组的引擎列表后返回、
+     *  - 如果不是，则直接 DataSourceConnectionDto.getTrueAccessNodeProcessIdList() 返回
+     * */
     public List<String> getTrueProcessNodeListWithGroup(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
         List<String> processNodeList = getDataSourceConnectionProcessNodeList(connectionDto, userDetail);
         if (processNodeList.isEmpty()) {
@@ -304,12 +367,22 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return processNodeList;
     }
 
+    /**
+     * 获取 DataSourceConnectionDto 中的引擎Ids,
+     *  - 如果AccessNodeType==MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP，则先查询使用当前分组的引擎列表后返回、
+     *  - 如果不是，则直接 DataSourceConnectionDto.getTrueAccessNodeProcessIdList() 返回
+     * */
     protected List<String> getDataSourceConnectionProcessNodeList(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
         List<String> processNodeList = getProcessNodeList(connectionDto.getAccessNodeType(), connectionDto.getAccessNodeProcessId(), userDetail);
         connectionDto.setAccessNodeProcessIdList(processNodeList);
         return processNodeList;
     }
 
+    /**
+     * 根据 accessNodeType 和 accessNodeGroupProcessId 获取引擎Ids,
+     *  - 如果AccessNodeType==MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP，则先查询使用当前分组的引擎列表后返回
+     *  - 如果不是，则直接返回空列表
+     * */
     protected List<String> getProcessNodeList(String accessNodeType, String accessNodeGroupProcessId, UserDetail userDetail) {
         if (log.isDebugEnabled()) {
             log.debug("Get process node list once, accessNodeType: {}, accessNodeGroupProcessId: {}", accessNodeType, accessNodeGroupProcessId);
@@ -330,6 +403,9 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         return accessNodeGroupProcessId;
     }
 
+    /**
+     * 根据分组ID列表查询引擎ID列表
+     * */
     public List<String> getProcessNodeListByGroupId(List<String> groupIds, UserDetail userDetail) {
         if (null == groupIds || groupIds.isEmpty()) {
             return Lists.newArrayList();
