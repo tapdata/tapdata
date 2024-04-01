@@ -15,6 +15,7 @@ import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
@@ -1352,6 +1353,8 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@BeforeEach
 		void beforeEach() {
 			hazelcastBaseNode = spy(hazelcastBaseNode);
+			ReflectionTestUtils.setField(hazelcastBaseNode,"clientMongoOperator",mock(HttpClientMongoOperator.class));
+			ReflectionTestUtils.setField(hazelcastBaseNode,"obsLogger",mockObsLogger);
 		}
 
 		@Test
@@ -1402,6 +1405,11 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			assertNotNull(errorHandleException);
 			assertNotNull(errorHandleException.getOriginalException());
 			assertEquals(ex, errorHandleException.getOriginalException());
+		}
+		@Test
+		void testErrorHandleSkip() {
+			TapCodeException tapCodeException = new TapCodeException("");
+			Assertions.assertNull(hazelcastBaseNode.errorHandle(tapCodeException,"error1"));
 		}
 	}
 
