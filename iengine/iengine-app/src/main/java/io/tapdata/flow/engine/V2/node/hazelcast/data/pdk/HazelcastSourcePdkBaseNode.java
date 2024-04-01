@@ -49,6 +49,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
@@ -110,7 +111,6 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastSourcePdkBaseNode.class.getSimpleName();
 	public static final long PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT = 10L;
-	public static final String TAPEVENT_INFO_EVENT_ID_KEY = "eventId";
 	private static final int ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD = 100;
 	public static final long DEFAULT_RAM_THRESHOLD_BYTE = 3 * 1024L;
 	public static final double DEFAULT_SAMPLE_RATE = 0.2D;
@@ -130,7 +130,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	 * blocked when reading data from data source while jet using async when passing the event to next node.
 	 */
 	protected LinkedBlockingQueue<TapdataEvent> eventQueue;
-    private final AtomicReference<Object> lastStreamOffset = new AtomicReference<>();
+	private final AtomicReference<Object> lastStreamOffset = new AtomicReference<>();
 	protected StreamReadFuncAspect streamReadFuncAspect;
 	protected TapdataEvent pendingEvent;
 	protected SourceMode sourceMode = SourceMode.NORMAL;
@@ -206,7 +206,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initTapEventFilter();
 			initTableMonitor();
 			initDynamicAdjustMemory();
-            initSourceRunnerOnce();
+			initSourceRunnerOnce();
 			initAndStartSourceRunner();
 		});
 	}
@@ -239,7 +239,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						FilterUtil.filterEventData(tapTable, e);
 					}
 				} catch (Exception exception) {
-					throw new  CoreException("Fail to automatically block new fields, message: {}", exception.getMessage(), exception.getCause());
+					throw new CoreException("Fail to automatically block new fields, message: {}", exception.getMessage(), exception.getCause());
 				}
 				return event;
 			});
@@ -296,22 +296,22 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-    private void initSourceRunnerOnce() {
-        this.sourceRunnerLock = new ReentrantLock(true);
-        this.endSnapshotLoop = new AtomicBoolean(false);
-        this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-                ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
-                TransformerWsMessageDto.class);
-        this.sourceRunnerFirstTime = new AtomicBoolean(true);
-        this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
-    }
+	private void initSourceRunnerOnce() {
+		this.sourceRunnerLock = new ReentrantLock(true);
+		this.endSnapshotLoop = new AtomicBoolean(false);
+		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
+				ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
+				TransformerWsMessageDto.class);
+		this.sourceRunnerFirstTime = new AtomicBoolean(true);
+		this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
+	}
 
 	private void initAndStartSourceRunner() {
-        this.lastStreamOffset.set(syncProgress.getStreamOffset());
-        this.sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
-    }
+		this.lastStreamOffset.set(syncProgress.getStreamOffset());
+		this.sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
+	}
 
-    private void initSourceEventQueue() {
+	private void initSourceEventQueue() {
 		this.sourceQueueCapacity = readBatchSize * SOURCE_QUEUE_FACTOR;
 		this.originalSourceQueueCapacity = sourceQueueCapacity;
 		this.eventQueue = new LinkedBlockingQueue<>(sourceQueueCapacity);
@@ -334,7 +334,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			List<String> disabledEvents = ((DataParentNode<?>) node).getDisabledEvents();
 			DDLConfiguration ddlConfiguration = ((DataParentNode<?>) node).getDdlConfiguration();
 			String ignoreDDLRules = ((DataParentNode<?>) node).getIgnoredDDLRules();
-			this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration, ignoreDDLRules,obsLogger).dynamicTableTest(this::needDynamicTable);
+			this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration, ignoreDDLRules, obsLogger).dynamicTableTest(this::needDynamicTable);
 		}
 	}
 
@@ -386,132 +386,188 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		return true;
 	}
 
-	//TODO Aplomb should NOT create stream offset at very beginning.
 	protected void initBatchAndStreamOffset(TaskDto taskDto) {
 		if (syncProgress == null) {
-			syncProgress = new SyncProgress();
-			// null present current
-			Long offsetStartTimeMs = null;
-			switch (syncType) {
-				case INITIAL_SYNC_CDC:
-					if (isPollingCDC(getNode())) {
-						syncProgress.setStreamOffsetObj(new HashMap<>());
-					} else {
-						initStreamOffsetFromTime(offsetStartTimeMs);
-					}
-					break;
-				case INITIAL_SYNC:
-					syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
-					break;
-				case CDC:
-					if (isPollingCDC(getNode())) {
-						syncProgress.setStreamOffsetObj(new HashMap<>());
-					} else {
-						List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
-						TaskDto.SyncPoint syncPoint = null;
-						if (null != syncPoints) {
-							syncPoint = syncPoints.stream().filter(sp -> dataProcessorContext.getNode().getId().equals(sp.getNodeId())).findFirst().orElse(null);
-						}
-						String pointType = syncPoint == null ? "current" : syncPoint.getPointType();
-						if (StringUtils.isBlank(pointType)) {
-							throw new NodeException("Run cdc task failed, sync point type cannot be empty").context(getProcessorBaseContext());
-						}
-						switch (pointType) {
-							case "localTZ":
-							case "connTZ":
-								// todo missing db timezone
-								offsetStartTimeMs = syncPoint.getDateTime();
-								break;
-							case "current":
-								break;
-						}
-						initStreamOffsetFromTime(offsetStartTimeMs);
-					}
-					break;
-			}
-			if (null == offsetStartTimeMs || offsetStartTimeMs.compareTo(0L) <= 0) {
-				offsetStartTimeMs = syncProgress.getEventTime();
+			initBatchAndStreamOffsetFirstTime(taskDto);
+		} else {
+			readBatchAndStreamOffset(taskDto);
+		}
+	}
+
+	protected void readBatchAndStreamOffset(TaskDto taskDto) {
+		readBatchOffset();
+		readStreamOffset(taskDto);
+	}
+
+	protected void readStreamOffset(TaskDto taskDto) {
+		String streamOffset = syncProgress.getStreamOffset();
+		if (null == syncProgress.getEventTime()) {
+			syncProgress.setEventTime(syncProgress.getSourceTime());
+		}
+		SyncProgress.Type type = syncProgress.getType();
+		switch (type) {
+			case NORMAL:
+			case LOG_COLLECTOR:
+				readNormalAndLogCollectorTaskStreamOffset(streamOffset);
+				break;
+			case SHARE_CDC:
+				readShareCDCStreamOffset(taskDto, streamOffset);
+				break;
+			case POLLING_CDC:
+				readPollingCDCStreamOffset(streamOffset);
+				break;
+			default:
+				throw new TapCodeException(TaskProcessorExCode_11.READ_STREAM_OFFSET_UNKNOWN_TASK_TYPE, "Unknown task type: " + type);
+		}
+	}
+
+	protected void readPollingCDCStreamOffset(String streamOffset) {
+		if (StringUtils.isNotBlank(streamOffset)) {
+			String streamOffsetStr = syncProgress.getStreamOffset();
+			streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
+			syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode()));
+		} else {
+			syncProgress.setStreamOffsetObj(new HashMap<>());
+		}
+	}
+
+	protected void readShareCDCStreamOffset(TaskDto taskDto, String streamOffset) {
+		if (((DataProcessorContext) processorBaseContext).getSourceConn().isShareCdcEnable()
+				&& Boolean.TRUE.equals(taskDto.getShareCdcEnable())) {
+			readShareCDCStreamOffsetContinueShareCDC(streamOffset);
+		} else {
+			readShareCDCStreamOffsetSwitchNormalTask(streamOffset);
+		}
+	}
+
+	protected void readShareCDCStreamOffsetSwitchNormalTask(String streamOffset) {
+		// switch share cdc to normal task
+		if (StringUtils.isNotBlank(streamOffset)) {
+			String streamOffsetStr = syncProgress.getStreamOffset();
+			streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
+			Object decodeOffset = PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode());
+			if (decodeOffset instanceof ShareCDCOffset) {
+				syncProgress.setStreamOffsetObj(((ShareCDCOffset) decodeOffset).getStreamOffset());
 			} else {
-				syncProgress.setEventTime(offsetStartTimeMs);
-				syncProgress.setSourceTime(offsetStartTimeMs);
-			}
-			if (null != syncProgress.getStreamOffsetObj()) {
-				TapdataEvent tapdataEvent = TapdataHeartbeatEvent.create(offsetStartTimeMs, syncProgress.getStreamOffsetObj());
-				if (!SyncTypeEnum.CDC.equals(syncType)) {
-					tapdataEvent.setSyncStage(SyncStage.INITIAL_SYNC);
-				}
-				enqueue(tapdataEvent);
+				syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
 			}
 		} else {
-			String batchOffset = syncProgress.getBatchOffset();
-			if (StringUtils.isNotBlank(batchOffset)) {
-				syncProgress.setBatchOffsetObj(PdkUtil.decodeOffset(batchOffset, getConnectorNode()));
+			Long eventTime = syncProgress.getEventTime();
+			Long sourceTime = syncProgress.getSourceTime();
+			if (null == eventTime && null == sourceTime) {
+				throw new TapCodeException(TaskProcessorExCode_11.SHARE_CDC_SWITCH_TO_NORMAL_TASK_FAILED,
+						"It was found that the task was switched from shared incremental to normal mode and cannot continue execution, " +
+								"reason: lost breakpoint timestamp, please try to reset and start the task.");
+			}
+			initStreamOffsetFromTime(null == eventTime ? sourceTime : eventTime);
+		}
+	}
+
+	protected void readShareCDCStreamOffsetContinueShareCDC(String streamOffset) {
+		// continue cdc from share log storage
+		if (StringUtils.isNotBlank(streamOffset)) {
+			Object decodeOffset = PdkUtil.decodeOffset(streamOffset, getConnectorNode());
+			if (decodeOffset instanceof ShareCDCOffset) {
+				syncProgress.setStreamOffsetObj(((ShareCDCOffset) decodeOffset).getSequenceMap());
 			} else {
-				syncProgress.setBatchOffsetObj(new HashMap<>());
+				syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
 			}
-			String streamOffset = syncProgress.getStreamOffset();
-			if (null == syncProgress.getEventTime()) {
-				syncProgress.setEventTime(syncProgress.getSourceTime());
+		} else {
+			initStreamOffsetFromTime(null);
+		}
+	}
+
+	protected void readNormalAndLogCollectorTaskStreamOffset(String streamOffset) {
+		if (StringUtils.isNotBlank(streamOffset)) {
+			streamOffset = uncompressStreamOffsetIfNeed(streamOffset);
+			syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+		} else {
+			if (syncType == SyncTypeEnum.INITIAL_SYNC_CDC || syncType == SyncTypeEnum.CDC) {
+				initStreamOffsetFromTime(null);
 			}
-			SyncProgress.Type type = syncProgress.getType();
-			switch (type) {
-				case NORMAL:
-				case LOG_COLLECTOR:
-					if (StringUtils.isNotBlank(streamOffset)) {
-						String streamOffsetStr = syncProgress.getStreamOffset();
-						streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
-						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode()));
-					} else {
-						if (syncType == SyncTypeEnum.INITIAL_SYNC_CDC || syncType == SyncTypeEnum.CDC) {
-							initStreamOffsetFromTime(null);
-						}
-					}
+		}
+	}
+
+	protected void readBatchOffset() {
+		if (null == syncProgress) {
+			return;
+		}
+		String batchOffset = syncProgress.getBatchOffset();
+		if (StringUtils.isNotBlank(batchOffset)) {
+			syncProgress.setBatchOffsetObj(PdkUtil.decodeOffset(batchOffset, getConnectorNode()));
+		} else {
+			syncProgress.setBatchOffsetObj(new HashMap<>());
+		}
+	}
+
+	protected void initBatchAndStreamOffsetFirstTime(TaskDto taskDto) {
+		syncProgress = new SyncProgress();
+		// null present current
+		Long offsetStartTimeMs = null;
+		switch (syncType) {
+			case INITIAL_SYNC_CDC:
+				initStreamOffsetInitialAndCDC(offsetStartTimeMs);
+				break;
+			case INITIAL_SYNC:
+				initStreamOffsetInitial();
+				break;
+			case CDC:
+				offsetStartTimeMs = initStreamOffsetCDC(taskDto, offsetStartTimeMs);
+				break;
+		}
+		if (null == offsetStartTimeMs || offsetStartTimeMs.compareTo(0L) <= 0) {
+			offsetStartTimeMs = syncProgress.getEventTime();
+		} else {
+			syncProgress.setEventTime(offsetStartTimeMs);
+			syncProgress.setSourceTime(offsetStartTimeMs);
+		}
+		if (null != syncProgress.getStreamOffsetObj()) {
+			TapdataEvent tapdataEvent = TapdataHeartbeatEvent.create(offsetStartTimeMs, syncProgress.getStreamOffsetObj());
+			if (!SyncTypeEnum.CDC.equals(syncType)) {
+				tapdataEvent.setSyncStage(SyncStage.INITIAL_SYNC);
+			}
+			enqueue(tapdataEvent);
+		}
+	}
+
+	protected Long initStreamOffsetCDC(TaskDto taskDto, Long offsetStartTimeMs) {
+		if (isPollingCDC(getNode())) {
+			syncProgress.setStreamOffsetObj(new HashMap<>());
+		} else {
+			List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
+			TaskDto.SyncPoint syncPoint = null;
+			if (null != syncPoints) {
+				syncPoint = syncPoints.stream().filter(sp -> dataProcessorContext.getNode().getId().equals(sp.getNodeId())).findFirst().orElse(null);
+			}
+			String pointType = syncPoint == null ? "current" : syncPoint.getPointType();
+			if (StringUtils.isBlank(pointType)) {
+				throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_SYNC_POINT_TYPE_IS_EMPTY);
+			}
+			switch (pointType) {
+				case "localTZ":
+				case "connTZ":
+					offsetStartTimeMs = syncPoint.getDateTime();
 					break;
-				case SHARE_CDC:
-					if (((DataProcessorContext) processorBaseContext).getSourceConn().isShareCdcEnable()
-							&& taskDto.getShareCdcEnable()) {
-						// continue cdc from share log storage
-						if (StringUtils.isNotBlank(streamOffset)) {
-							Object decodeOffset = PdkUtil.decodeOffset(streamOffset, getConnectorNode());
-							if (decodeOffset instanceof ShareCDCOffset) {
-								syncProgress.setStreamOffsetObj(((ShareCDCOffset) decodeOffset).getSequenceMap());
-							} else {
-								syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
-							}
-						} else {
-							initStreamOffsetFromTime(null);
-						}
-					} else {
-						// switch share cdc to normal task
-						if (StringUtils.isNotBlank(streamOffset)) {
-							String streamOffsetStr = syncProgress.getStreamOffset();
-							streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
-							Object decodeOffset = PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode());
-							if (decodeOffset instanceof ShareCDCOffset) {
-								syncProgress.setStreamOffsetObj(((ShareCDCOffset) decodeOffset).getStreamOffset());
-							} else {
-								syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
-							}
-						} else {
-							Long eventTime = syncProgress.getEventTime();
-							Long sourceTime = syncProgress.getSourceTime();
-							if (null == eventTime && null == sourceTime) {
-								throw new NodeException("It was found that the task was switched from shared incremental to normal mode and cannot continue execution, reason: lost breakpoint timestamp."
-										+ " Please try to reset and start the task.").context(getProcessorBaseContext());
-							}
-							initStreamOffsetFromTime(null == eventTime ? sourceTime : eventTime);
-						}
-					}
+				case "current":
 					break;
-				case POLLING_CDC:
-					if (StringUtils.isNotBlank(streamOffset)) {
-						String streamOffsetStr = syncProgress.getStreamOffset();
-						streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
-						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode()));
-					} else {
-						syncProgress.setStreamOffsetObj(new HashMap<>());
-					}
+				default:
+					throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_UNKNOWN_POINT_TYPE, "Unknown start point type: " + pointType);
+
 			}
+			initStreamOffsetFromTime(offsetStartTimeMs);
+		}
+		return offsetStartTimeMs;
+	}
+
+	protected void initStreamOffsetInitial() {
+		syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
+	}
+
+	protected void initStreamOffsetInitialAndCDC(Long offsetStartTimeMs) {
+		if (isPollingCDC(getNode())) {
+			syncProgress.setStreamOffsetObj(new HashMap<>());
+		} else {
+			initStreamOffsetFromTime(offsetStartTimeMs);
 		}
 	}
 
@@ -807,8 +863,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		this.sourceRunner.shutdownNow();
 		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
-        initAndStartSourceRunner();
-    }
+		initAndStartSourceRunner();
+	}
 
 	@NotNull
 	public List<TapdataEvent> wrapTapdataEvent(List<TapEvent> events) {
@@ -840,14 +896,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected TapdataEvent wrapTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
 		try {
-            if (SyncStage.CDC == syncStage) {
-                // Fixed #149167 in 2023-10-29: CDC batch events not full consumed cause loss data
-                //todo: Remove lastStreamOffset if need add transaction in streamReadConsumer.
-                if (isLast) lastStreamOffset.set(offsetObj);
-                return wrapSingleTapdataEvent(tapEvent, syncStage, lastStreamOffset.get(), isLast);
-            } else {
-                return wrapSingleTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
-            }
+			if (SyncStage.CDC == syncStage) {
+				// Fixed #149167 in 2023-10-29: CDC batch events not full consumed cause loss data
+				//todo: Remove lastStreamOffset if need add transaction in streamReadConsumer.
+				if (isLast) lastStreamOffset.set(offsetObj);
+				return wrapSingleTapdataEvent(tapEvent, syncStage, lastStreamOffset.get(), isLast);
+			} else {
+				return wrapSingleTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
+			}
 		} catch (Throwable throwable) {
 			throw new NodeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable
 					.getMessage(), throwable)
@@ -918,7 +974,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					tapdataEvent.setSourceTime(syncProgress.getSourceTime());
 				}
 			} else if (SyncStage.CDC == syncStage) {
-                tapdataEvent.setStreamOffset(offsetObj);
+				tapdataEvent.setStreamOffset(offsetObj);
 				if (null == ((TapRecordEvent) tapEvent).getReferenceTime())
 					throw new RuntimeException("Tap CDC event's reference time is null");
 				tapdataEvent.setSourceTime(((TapRecordEvent) tapEvent).getReferenceTime());
@@ -1039,6 +1095,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected DDLSchemaHandler ddlSchemaHandler() {
 		return InstanceFactory.bean(DDLSchemaHandler.class);
 	}
+
 	public void enqueue(TapdataEvent tapdataEvent) {
 		try {
 			if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
@@ -1164,26 +1221,27 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		AtomicReference<Long> counts = new AtomicReference<>();
 
 		executeDataFuncAspect(
-			TableCountFuncAspect.class,
-			() -> new TableCountFuncAspect().dataProcessorContext(getDataProcessorContext()).start(),
-			tableCountFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT, createPdkMethodInvoker().runnable(() -> {
-				try {
-					counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
+				TableCountFuncAspect.class,
+				() -> new TableCountFuncAspect().dataProcessorContext(getDataProcessorContext()).start(),
+				tableCountFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT, createPdkMethodInvoker().runnable(() -> {
+					try {
+						counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
 
-					if (null != tableCountFuncAspect) {
-						AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), counts.get());
+						if (null != tableCountFuncAspect) {
+							AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), counts.get());
+						}
+					} catch (Throwable e) {
+						throw new NodeException("Query table '" + table.getName() + "'  count failed: " + e.getMessage(), e)
+								.context(getProcessorBaseContext());
 					}
-				} catch (Throwable e) {
-					throw new NodeException("Query table '" + table.getName() + "'  count failed: " + e.getMessage(), e)
-						.context(getProcessorBaseContext());
-				}
-			}))
+				}))
 		);
 		return counts.get();
 	}
 
 	protected AutoCloseable doAsyncTableCount(BatchCountFunction batchCountFunction, String tableName) {
-		if (null == batchCountFunction) return () -> {};
+		if (null == batchCountFunction) return () -> {
+		};
 
 		CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
 			// ignore table count if task stop
@@ -1192,7 +1250,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			AtomicReference<TaskDto> task = new AtomicReference<>(getDataProcessorContext().getTaskDto());
 			AtomicReference<Node<?>> node = new AtomicReference<>(getDataProcessorContext().getNode());
 			String name = String.format("InitialSyncTableCount-%s(%s)-%s(%s)-%s",
-				task.get().getName(), task.get().getId().toHexString(), node.get().getName(), node.get().getId(), tableName);
+					task.get().getName(), task.get().getId().toHexString(), node.get().getName(), node.get().getId(), tableName);
 			Thread.currentThread().setName(name);
 
 			TapTable table = getDataProcessorContext().getTapTableMap().get(tableName);
