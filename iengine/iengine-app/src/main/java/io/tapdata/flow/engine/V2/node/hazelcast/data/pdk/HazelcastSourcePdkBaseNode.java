@@ -328,12 +328,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		obsLogger.info("Source node \"{}\" read batch size: {}", getNode().getName(), readBatchSize);
 	}
 
-	private void initDDLFilter() {
+	protected void initDDLFilter() {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node.isDataNode()) {
 			List<String> disabledEvents = ((DataParentNode<?>) node).getDisabledEvents();
 			DDLConfiguration ddlConfiguration = ((DataParentNode<?>) node).getDdlConfiguration();
-			this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration).dynamicTableTest(this::needDynamicTable);
+			String ignoreDDLRules = ((DataParentNode<?>) node).getIgnoredDDLRules();
+			this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration, ignoreDDLRules,obsLogger).dynamicTableTest(this::needDynamicTable);
 		}
 	}
 
