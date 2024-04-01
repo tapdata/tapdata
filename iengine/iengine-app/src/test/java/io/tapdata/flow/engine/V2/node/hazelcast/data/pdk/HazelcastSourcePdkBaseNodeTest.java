@@ -429,9 +429,11 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		void testNormalAndLogCollectorType() {
 			syncProgress.setType(SyncProgress.Type.NORMAL);
 			syncProgress.setStreamOffset("test");
+			syncProgress.setEventTime(null);
 			doAnswer(invocationOnMock -> null).when(hazelcastSourcePdkDataNode).readNormalAndLogCollectorTaskStreamOffset(any(String.class));
 			hazelcastSourcePdkDataNode.readStreamOffset(dataProcessorContext.getTaskDto());
 			verify(hazelcastSourcePdkDataNode, times(1)).readNormalAndLogCollectorTaskStreamOffset(any(String.class));
+			assertEquals(syncProgress.getSourceTime(), syncProgress.getEventTime());
 		}
 
 		@Test
