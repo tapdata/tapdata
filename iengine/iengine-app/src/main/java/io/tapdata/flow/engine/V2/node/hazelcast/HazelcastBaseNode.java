@@ -6,6 +6,9 @@ import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.MongodbUtil;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.Stats;
@@ -22,6 +25,7 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
+import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -60,6 +64,8 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.task.skipError.SkipError;
+import io.tapdata.task.skipError.SkipErrorStrategy;
 import io.tapdata.websocket.handler.TestRunTaskHandler;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -69,13 +75,11 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * @author jackin
@@ -561,11 +565,36 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		TapCodeException currentEx = wrapTapCodeException(throwable);
 		TaskDto taskDto = processorBaseContext.getTaskDto();
 		handleWhenTestRun(taskDto, currentEx);
+		List<ErrorEvent> errorEvents;
+		if(CollectionUtils.isNotEmpty(taskDto.getErrorEvents())){
+			errorEvents = taskDto.getErrorEvents();
+		}else{
+			errorEvents = new ArrayList<>();
+		}
 
+		List<ErrorEvent> skipErrorEvents = errorEvents.stream().filter(ErrorEvent::getSkip).collect(Collectors.toList());
+		SkipError skipError = SkipErrorStrategy.getSkipErrorStrategy(null).getSkipError();
+		if(CollectionUtils.isNotEmpty(skipErrorEvents)){
+			if(skipError.match(skipErrorEvents,new ErrorEvent(errorMessage, Log4jUtil.getStackStrings(currentEx)))){
+				obsLogger.warn(errorMessage + "; Will skip it");
+				return null;
+			}
+		}
 		try {
 			if (globalErrorIsNull()) {
 				this.error = currentEx;
 				getErrorMessage(errorMessage, currentEx);
+				ErrorEvent event = new ErrorEvent(errorMessage,Log4jUtil.getStackStrings(currentEx));
+				if(StringUtils.isNotBlank(errorMessage) && !skipError.match(errorEvents,event)){
+					errorEvents.add(event);
+				}
+				if (errorEvents.size() > 10) {
+					int difference = errorEvents.size() - 10;
+					for (int i = 0; i < difference; i++) {
+						errorEvents.remove(0);
+					}
+				}
+				clientMongoOperator.insertOne(errorEvents,ConnectorConstant.TASK_COLLECTION + "/errorEvents/" + taskDto.getId());
 				obsLogger.error(errorMessage, currentEx);
 				this.running.set(false);
 
