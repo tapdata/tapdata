@@ -20,6 +20,7 @@ import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -111,11 +112,7 @@ public class TaskAlarmScheduler {
                 continue;
             }
 
-            List<Worker> workerList = workerService.findAvailableAgentBySystem(userDetail);
-            if (AccessNodeTypeEnum.isManually(data.getAccessNodeType())) {
-                List<String> processIdList = agentGroupService.getProcessNodeListWithGroup(data, userDetail);
-                workerList = workerList.stream().filter(w -> processIdList.contains(w.getProcessId())).collect(Collectors.toList());
-            }
+            List<Worker> workerList = findWorkerList(workerService, agentGroupService, data, userDetail);
 
             String orginAgentId = data.getAgentId();
             AtomicReference<String> summary = new AtomicReference<>();
@@ -154,5 +151,24 @@ public class TaskAlarmScheduler {
             alarmInfo.setUserId(data.getUserId());
             alarmService.save(alarmInfo);
         }
+    }
+
+    protected List<Worker> findWorkerList(WorkerService workerService, AgentGroupService agentGroupService,
+                                          TaskDto data, UserDetail userDetail) {
+        if (null == workerService) {
+            return Lists.newArrayList();
+        }
+        List<Worker> workerList = workerService.findAvailableAgentBySystem(userDetail);
+        if (null == data) {
+            return workerList;
+        }
+        if (null == agentGroupService) {
+            return workerList;
+        }
+        if (AccessNodeTypeEnum.isManually(data.getAccessNodeType())) {
+            List<String> processIdList = agentGroupService.getProcessNodeListWithGroup(data, userDetail);
+            workerList = workerList.stream().filter(w -> processIdList.contains(w.getProcessId())).collect(Collectors.toList());
+        }
+        return workerList;
     }
 }

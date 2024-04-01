@@ -406,7 +406,7 @@ public class DataSourceServiceImpl extends DataSourceService{
      * @param updateDto     更新数据
      * @param connectionDto 原数据
      */
-    private void restoreAccessNodeType(DataSourceConnectionDto updateDto, DataSourceConnectionDto connectionDto, List<String> accessNodeProcessIdList) {
+    protected void restoreAccessNodeType(DataSourceConnectionDto updateDto, DataSourceConnectionDto connectionDto, List<String> accessNodeProcessIdList) {
         if (updateDto.isAccessNodeTypeEmpty() && CollectionUtils.isNotEmpty(accessNodeProcessIdList)) {
             updateDto.setAccessNodeType(connectionDto.getAccessNodeType());
             updateDto.setAccessNodeProcessId(accessNodeProcessIdList.get(0));

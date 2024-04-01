@@ -214,7 +214,6 @@ public class TaskServiceImpl extends TaskService{
 
     private TaskNodeService taskNodeService;
 
-    @Autowired
     private AgentGroupService agentGroupService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
@@ -732,7 +731,7 @@ public class TaskServiceImpl extends TaskService{
         return confirmById(taskDto, user, confirm, false);
     }
 
-    private void checkDDLConflict(TaskDto taskDto) {
+    protected void checkDDLConflict(TaskDto taskDto) {
         LinkedList<DatabaseNode> sourceNode = taskDto.getDag().getSourceNode();
         if (CollectionUtils.isNotEmpty(sourceNode)) {
             return;

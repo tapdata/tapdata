@@ -60,7 +60,6 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     private SettingsService settingsService;
     private StateMachineService stateMachineService;
     private UserService userService;
-    @Autowired
     private AgentGroupService agentGroupService;
 
     @Override

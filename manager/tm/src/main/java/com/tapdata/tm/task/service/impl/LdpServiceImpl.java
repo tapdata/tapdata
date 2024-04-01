@@ -1362,31 +1362,29 @@ public class LdpServiceImpl implements LdpService {
         metadataInstancesService.deleteById(MongoUtils.toObjectId(id), user);
     }
 
-    private String findAgent(DataSourceConnectionDto connectionDto, UserDetail user) {
+    protected String findAgent(DataSourceConnectionDto connectionDto, UserDetail user) {
+		List<Worker> availableAgent = workerService.findAvailableAgent(user);
+		if (null == availableAgent || availableAgent.isEmpty()) {
+			return null;
+		}
+		List<String> processIds = availableAgent.stream()
+				.filter(Objects::nonNull)
+				.map(Worker::getProcessId)
+				.collect(Collectors.toList());
+		if (processIds.isEmpty()) {
+			return null;
+		}
 		List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(connectionDto, user);
-		if (AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())
-                && CollectionUtils.isNotEmpty(processNodeListWithGroup)) {
-
-            List<Worker> availableAgent = workerService.findAvailableAgent(user);
-            List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
-            String agentId = null;
-            for (String p : processNodeListWithGroup) {
-                if (processIds.contains(p)) {
-                    agentId = p;
-                    break;
-                }
-            }
-
-            return agentId;
-
-        } else {
-            List<Worker> availableAgent = workerService.findAvailableAgent(user);
-            if (CollectionUtils.isNotEmpty(availableAgent)) {
-                Worker worker = availableAgent.get(0);
-                return worker.getProcessId();
-            }
+		if (!AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())
+                || CollectionUtils.isEmpty(processNodeListWithGroup)) {
+			return processIds.get(0);
         }
-        return null;
+		for (String p : processNodeListWithGroup) {
+			if (processIds.contains(p)) {
+				return p;
+			}
+		}
+		return null;
     }private void supplementaryLdpTaskByOld(UserDetail user) {
 		Criteria criteria = Criteria.where("ldpType").in(TaskDto.LDP_TYPE_FDM, TaskDto.LDP_TYPE_MDM)
 				.and("is_deleted").ne(true);

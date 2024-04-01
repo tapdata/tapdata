@@ -23,8 +23,4 @@ public enum AccessNodeTypeEnum {
     public static boolean isGroupManually(String nodeType) {
         return MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name().equalsIgnoreCase(nodeType);
     }
-
-    public static boolean isAutomatic(String nodeType) {
-        return AUTOMATIC_PLATFORM_ALLOCATION.name().equalsIgnoreCase(nodeType);
-    }
 }
