@@ -1354,7 +1354,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		void beforeEach() {
 			hazelcastBaseNode = spy(hazelcastBaseNode);
 			ReflectionTestUtils.setField(hazelcastBaseNode,"clientMongoOperator",mock(HttpClientMongoOperator.class));
-			ReflectionTestUtils.setField(hazelcastBaseNode,"obsLogger",mockObsLogger);
+			ReflectionTestUtils.setField(hazelcastBaseNode,"obsLogger",mock(ObsLogger.class));
 		}
 
 		@Test
