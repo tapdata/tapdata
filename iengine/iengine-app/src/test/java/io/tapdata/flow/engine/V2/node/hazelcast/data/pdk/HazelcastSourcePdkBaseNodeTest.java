@@ -981,6 +981,89 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
+	@DisplayName("Method readPollingCDCStreamOffset test")
+	class readPollingCDCStreamOffsetTest {
+
+		private SyncProgress syncProgress;
+
+		@BeforeEach
+		void setUp() {
+			instance = spy(instance);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			doReturn(connectorNode).when(instance).getConnectorNode();
+			syncProgress = new SyncProgress();
+			ReflectionTestUtils.setField(instance, "syncProgress", syncProgress);
+		}
+
+		@Test
+		@DisplayName("test stream offset is not null")
+		void testStreamOffsetIsNotNull() {
+			Map<String, Object> fakeStreamOffset = new HashMap<>();
+			fakeStreamOffset.put("test", 1);
+			instance.readPollingCDCStreamOffset(PdkUtil.encodeOffset(fakeStreamOffset));
+
+			assertInstanceOf(HashMap.class, syncProgress.getStreamOffsetObj());
+			assertEquals(1, ((Map) syncProgress.getStreamOffsetObj()).get("test"));
+		}
+
+		@Test
+		@DisplayName("test stream offset is null")
+		void testStreamOffsetIsNull() {
+			instance.readPollingCDCStreamOffset(null);
+
+			assertInstanceOf(HashMap.class, syncProgress.getStreamOffsetObj());
+			assertTrue(((Map) syncProgress.getStreamOffsetObj()).isEmpty());
+		}
+	}
+
+	@Nested
+	@DisplayName("Method readShareCDCStreamOffset test")
+	class readShareCDCStreamOffsetTest {
+		@BeforeEach
+		void setUp() {
+			instance = spy(instance);
+		}
+
+		@Test
+		@DisplayName("test task enabled share cdc")
+		void testTaskEnableShareCdc() {
+			Connections sourceConn = mock(Connections.class);
+			when(sourceConn.isShareCdcEnable()).thenReturn(true);
+			when(dataProcessorContext.getSourceConn()).thenReturn(sourceConn);
+			dataProcessorContext.getTaskDto().setShareCdcEnable(true);
+			doAnswer(invocationOnMock -> {
+				Object argument1 = invocationOnMock.getArgument(0);
+				assertEquals("test", argument1);
+				return null;
+			}).when(instance).readShareCDCStreamOffsetContinueShareCDC(any(String.class));
+			doAnswer(invocationOnMock -> null).when(instance).readShareCDCStreamOffsetSwitchNormalTask(any());
+			instance.readShareCDCStreamOffset(dataProcessorContext.getTaskDto(), "test");
+
+			verify(instance, times(1)).readShareCDCStreamOffsetContinueShareCDC(anyString());
+			verify(instance, never()).readShareCDCStreamOffsetSwitchNormalTask(any());
+		}
+
+		@Test
+		@DisplayName("test task disabled share cdc")
+		void testTaskDisableShareCdc() {
+			Connections sourceConn = mock(Connections.class);
+			when(sourceConn.isShareCdcEnable()).thenReturn(false);
+			when(dataProcessorContext.getSourceConn()).thenReturn(sourceConn);
+			dataProcessorContext.getTaskDto().setShareCdcEnable(false);
+			doAnswer(invocationOnMock -> {
+				Object argument1 = invocationOnMock.getArgument(0);
+				assertEquals("test", argument1);
+				return null;
+			}).when(instance).readShareCDCStreamOffsetSwitchNormalTask(any(String.class));
+			doAnswer(invocationOnMock -> null).when(instance).readShareCDCStreamOffsetContinueShareCDC(any());
+			instance.readShareCDCStreamOffset(dataProcessorContext.getTaskDto(), "test");
+
+			verify(instance, never()).readShareCDCStreamOffsetContinueShareCDC(any());
+			verify(instance, times(1)).readShareCDCStreamOffsetSwitchNormalTask(anyString());
+		}
+	}
+
+	@Nested
 	@DisplayName("Method initDDLFilter test")
 	class InitDDLFilterTest {
 		private HazelcastSourcePdkDataNode hazelcastSourcePdkDataNode;

@@ -423,16 +423,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected void readPollingCDCStreamOffset(String streamOffset) {
 		if (StringUtils.isNotBlank(streamOffset)) {
-			String streamOffsetStr = syncProgress.getStreamOffset();
-			streamOffsetStr = uncompressStreamOffsetIfNeed(streamOffsetStr);
-			syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffsetStr, getConnectorNode()));
+			streamOffset = uncompressStreamOffsetIfNeed(streamOffset);
+			syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
 		} else {
 			syncProgress.setStreamOffsetObj(new HashMap<>());
 		}
 	}
 
 	protected void readShareCDCStreamOffset(TaskDto taskDto, String streamOffset) {
-		if (((DataProcessorContext) processorBaseContext).getSourceConn().isShareCdcEnable()
+		if (dataProcessorContext.getSourceConn().isShareCdcEnable()
 				&& Boolean.TRUE.equals(taskDto.getShareCdcEnable())) {
 			readShareCDCStreamOffsetContinueShareCDC(streamOffset);
 		} else {
