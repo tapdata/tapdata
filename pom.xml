@@ -24,7 +24,7 @@
             manager/tm/**/constant/*,
             **/*Dto.java,
             **/*Enum.java,
-            iengine/iengine-common/src/main/java/com/tapdata/entity/*
+            iengine/iengine-common/src/main/java/com/tapdata/entity/**
         </sonar.coverage.exclusions>
         <sonar.exclusions>
             manager/tm/**/dto/*,
