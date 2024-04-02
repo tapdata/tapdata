@@ -25,7 +25,7 @@
             **/*Dto.java,
             **/*Enum.java,
             iengine/iengine-common/src/main/java/com/tapdata/entity/*,
-            manager/tm-common/src/main/java/com/tapdata/tm/commons/task/*
+            manager/tm-common/src/main/java/com/tapdata/tm/commons/task/dto/*
         </sonar.coverage.exclusions>
         <sonar.exclusions>
             manager/tm/**/dto/*,
@@ -36,7 +36,7 @@
             **/*Dto.java,
             **/*Enum.java,
             iengine/iengine-common/src/main/java/com/tapdata/entity/*,
-            manager/tm-common/src/main/java/com/tapdata/tm/commons/task/*
+            manager/tm-common/src/main/java/com/tapdata/tm/commons/task/dto/*
         </sonar.exclusions>
         <sonar.test.exclusions>
             **/src/test/**
