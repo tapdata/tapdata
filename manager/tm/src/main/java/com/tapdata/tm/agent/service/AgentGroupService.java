@@ -100,7 +100,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
                 .filter(w -> Objects.nonNull(w) && Objects.nonNull(w.getProcessId()))
                 .collect(Collectors.toMap(WorkerDto::getProcessId, w -> w)) : null;
         return new Page<>(groupDtoPage.getTotal(), items.stream()
-                .filter(w -> Objects.nonNull(w))
+                .filter(Objects::nonNull)
                 .map(item -> {
                     List<String> agentIds = item.getAgentIds();
                     AgentGroupDto dto = new AgentGroupDto();
@@ -293,12 +293,15 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
     public AgentGroupDto findAgentGroupInfo(Filter filter, UserDetail loginUser) {
         GroupDto groupDto = findOne(filter, loginUser);
         List<String> agentIds = groupDto.getAgentIds();
-        List<WorkerDto> all = findAllAgent(agentIds, loginUser);
         AgentGroupDto dto = new AgentGroupDto();
+        if (null != agentIds && !agentIds.isEmpty()) {
+            List<WorkerDto> all = findAllAgent(agentIds, loginUser);
+            dto.setAgents(all);
+        }
         dto.setAgentIds(agentIds);
         dto.setName(groupDto.getName());
         dto.setGroupId(groupDto.getGroupId());
-        dto.setAgents(all);
+
         return dto;
     }
 
