@@ -3171,6 +3171,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             Map<String,List<Map<String, Object>>> contentDeleteOperations = new HashMap<>();
             Map<String,List<Map<String, Object>>> contentRenameOperations = new HashMap<>();
             List<String> sourceNodes = new ArrayList<>();
+            Map<String,Integer> tableNameCount=new HashMap<>();
             for (String key : contentMapping.keySet()) {
                 Map<String, Object> node = new HashMap<>();
                 Map<String, Object> contentMappingzValue = (Map<String, Object>) contentMapping.get(key);
@@ -3182,10 +3183,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 String table = (String) contentMappingzValue.get("table");
                 tpTable = table.split("\\.")[table.split("\\.").length - 1];
                 Map<String, Map<String, Object>> tableRenameFields = new HashMap<>();
-
                 node.put("type", "table");
                 node.put("tableName", tpTable);
-                node.put("name", tpTable);
+                if (tableNameCount.containsKey(tpTable)) {
+                    Integer nameSuffix = tableNameCount.get(tpTable);
+                    tableNameCount.put(tpTable, nameSuffix+1);
+                    node.put("name", tpTable + "-" + tableNameCount.get(tpTable));
+                } else {
+                    node.put("name", tpTable);
+                    tableNameCount.put(tpTable, 0);
+                }
                 node.put("id", key);
                 node.put("connectionId", sourceConnectionId);
                 nodes.add(node);
@@ -3386,7 +3393,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         jsNode.put("type", "js_processor");
         jsNode.put("name", tpTable);
         jsNode.put("id", jsId);
-        jsNode.put("jsType", 1);
+        jsNode.put("jsType", 0);
         jsNode.put(PROCESSOR_THREAD_NUM, 1);
         jsNode.put(CATALOG, PROCESSOR);
         jsNode.put(ELEMENT_TYEP, "Node");
