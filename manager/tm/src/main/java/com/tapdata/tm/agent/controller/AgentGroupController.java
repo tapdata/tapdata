@@ -3,6 +3,7 @@ package com.tapdata.tm.agent.controller;
 import com.tapdata.tm.agent.dto.AgentGroupDto;
 import com.tapdata.tm.agent.dto.AgentRemoveFromGroupDto;
 import com.tapdata.tm.agent.dto.AgentToGroupDto;
+import com.tapdata.tm.agent.dto.AgentWithGroupBaseDto;
 import com.tapdata.tm.agent.dto.GroupDto;
 import com.tapdata.tm.agent.dto.GroupUsedDto;
 import com.tapdata.tm.agent.service.AgentGroupService;
@@ -76,8 +77,19 @@ public class AgentGroupController extends BaseController {
      */
     @Operation(summary = "Find all agent of the model matched by filter from the data source")
     @PostMapping("/add-agent")
-    public ResponseMessage<List<AgentGroupDto>> addAgentToGroup(@RequestBody AgentToGroupDto agentDto) {
+    public ResponseMessage<AgentGroupDto> addAgentToGroup(@RequestBody AgentWithGroupBaseDto agentDto) {
         return success(agentGroupService.addAgentToGroup(agentDto, getLoginUser()));
+    }
+
+    /**
+     * add a agent to agent group
+     * @param agentDto
+     * @return
+     */
+    @Operation(summary = "Find all agent of the model matched by filter from the data source")
+    @PostMapping("/batch-modify")
+    public ResponseMessage<List<AgentGroupDto>> batch(@RequestBody AgentToGroupDto agentDto) {
+        return success(agentGroupService.batchOperator(agentDto, getLoginUser()));
     }
 
 
@@ -113,7 +125,7 @@ public class AgentGroupController extends BaseController {
      */
     @Operation(summary = "Find first instance of the model matched by filter from the data source.")
     @GetMapping("findOne")
-    public ResponseMessage<AgentGroupDto> findOne(
+    public ResponseMessage<List<AgentGroupDto>> findOne(
             @Parameter(in = ParameterIn.QUERY,
                     description = "Filter defining fields, where, sort, skip, and limit - must be a JSON-encoded string (`{\"where\":{\"something\":\"value\"},\"field\":{\"something\":true|false},\"sort\": [\"name desc\"],\"page\":1,\"size\":20}`)."
             )
