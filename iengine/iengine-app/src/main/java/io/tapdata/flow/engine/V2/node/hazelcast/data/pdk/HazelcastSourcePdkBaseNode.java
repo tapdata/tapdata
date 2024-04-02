@@ -142,7 +142,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected CopyOnWriteArrayList<String> newTables;
 	protected CopyOnWriteArrayList<String> removeTables;
 	protected AtomicBoolean sourceRunnerFirstTime;
-	private DAGDataServiceImpl dagDataService;
 	protected Future<?> sourceRunnerFuture;
 	// on cdc step if TableMap not exists heartbeat table, add heartbeat table to cdc whitelist and filter heartbeat records
 	protected ICdcDelay cdcDelayCalculation;
@@ -329,12 +328,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		obsLogger.info("Source node \"{}\" read batch size: {}", getNode().getName(), readBatchSize);
 	}
 
-	private void initDDLFilter() {
+	protected void initDDLFilter() {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node.isDataNode()) {
 			List<String> disabledEvents = ((DataParentNode<?>) node).getDisabledEvents();
 			DDLConfiguration ddlConfiguration = ((DataParentNode<?>) node).getDdlConfiguration();
-			this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration).dynamicTableTest(this::needDynamicTable);
+			String ignoreDDLRules = ((DataParentNode<?>) node).getIgnoredDDLRules();
+			this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration, ignoreDDLRules,obsLogger).dynamicTableTest(this::needDynamicTable);
 		}
 	}
 
@@ -428,6 +428,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						initStreamOffsetFromTime(offsetStartTimeMs);
 					}
 					break;
+				default:
+					break;
 			}
 			if (null == offsetStartTimeMs || offsetStartTimeMs.compareTo(0L) <= 0) {
 				offsetStartTimeMs = syncProgress.getEventTime();
@@ -511,6 +513,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					} else {
 						syncProgress.setStreamOffsetObj(new HashMap<>());
 					}
+					break;
+				default:
+					break;
 			}
 		}
 	}
@@ -986,9 +991,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			Map<String, String> qualifiedNameIdMap = metadataInstancesDtoList.stream()
 					.collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m.getId().toHexString()));
 			tapEvent.addInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY, qualifiedNameIdMap);
-			if (null == dagDataService) {
-				dagDataService = new DAGDataServiceImpl(transformerWsMessageDto);
-			}
+			DAGDataServiceImpl dagDataService = initDagDataService(transformerWsMessageDto);
 			String qualifiedName;
 			Map<String, List<Message>> errorMessage;
 			if (tapEvent instanceof TapCreateTableEvent) {
@@ -1033,6 +1036,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			throw new RuntimeException("Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage(), e);
 		}
 	}
+
+	protected DAGDataServiceImpl initDagDataService(TransformerWsMessageDto transformerWsMessageDto) {
+		return new DAGDataServiceImpl(transformerWsMessageDto);
+	}
+
 	protected DDLSchemaHandler ddlSchemaHandler() {
 		return InstanceFactory.bean(DDLSchemaHandler.class);
 	}
