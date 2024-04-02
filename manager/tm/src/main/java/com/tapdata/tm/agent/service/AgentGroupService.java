@@ -325,7 +325,6 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
                 .collect(Collectors.toMap(AccessNodeInfo::getProcessId, a -> a));
         List<AgentGroupEntity> entities = findAll(Query.query(Criteria.where(AgentGroupTag.TAG_DELETE).is(false)), loginUser);
         List<AccessNodeInfo> groupAgentList = entities.stream()
-                .filter(Objects::nonNull)
                 .sorted(agentGroupUtil::sortAgentGroup)
                 .map(group -> agentGroupUtil.mappingAccessNodeInfo(group, infoMap))
                 .collect(Collectors.toList());

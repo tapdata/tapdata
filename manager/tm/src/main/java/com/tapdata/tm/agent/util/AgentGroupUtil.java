@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -44,8 +45,8 @@ public class AgentGroupUtil {
 
     public AccessNodeInfo mappingAccessNodeInfo(AgentGroupEntity group, Map<String, AccessNodeInfo> infoMap) {
         List<String> agentIds = group.getAgentIds();
-        List<AccessNodeInfo> agentInfos = agentIds.stream()
-                .map(infoMap::get)
+        List<AccessNodeInfo> agentInfos = null == agentIds ?
+                new ArrayList<>() : agentIds.stream().map(infoMap::get)
                 .collect(Collectors.toList());
         AccessNodeInfo item = new AccessNodeInfo();
         item.setProcessId(group.getGroupId());
