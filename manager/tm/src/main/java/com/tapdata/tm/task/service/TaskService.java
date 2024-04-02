@@ -3386,7 +3386,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         jsNode.put("type", "js_processor");
         jsNode.put("name", tpTable);
         jsNode.put("id", jsId);
-        jsNode.put("jsType", 1);
+        jsNode.put("jsType", 0);
         jsNode.put(PROCESSOR_THREAD_NUM, 1);
         jsNode.put(CATALOG, PROCESSOR);
         jsNode.put(ELEMENT_TYEP, "Node");
