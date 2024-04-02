@@ -18,6 +18,10 @@ public enum SkipErrorStrategy {
         return skipError;
     }
 
+    public static SkipErrorStrategy getDefaultSkipErrorStrategy(){
+        return getSkipErrorStrategy(null);
+    }
+
     public static SkipErrorStrategy getSkipErrorStrategy(String type){
         if(StringUtils.isEmpty(type))return ERROR_MESSAGE;
         for(SkipErrorStrategy skipErrorStrategy: SkipErrorStrategy.values()){

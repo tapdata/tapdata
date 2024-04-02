@@ -20,6 +20,7 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
 import io.tapdata.aspect.DataNodeInitAspect;
@@ -46,6 +47,8 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.ManagementException;
+import io.tapdata.exception.MongodbException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
@@ -60,6 +63,7 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.task.skipError.SkipErrorStrategy;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -1816,6 +1820,66 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			processorBaseContext.getTaskDto().setType(SyncTypeEnum.INITIAL_SYNC_CDC.getSyncType());
 			boolean initialSyncTask = mockHazelcastBaseNode.isInitialSyncTask();
 			assertEquals(false,initialSyncTask);
+		}
+
+	}
+	@Nested
+	class WhetherToSkipTest{
+		private HazelcastBaseNode mockHazelcastBaseNode;
+		@BeforeEach
+		void setUp(){
+			mockHazelcastBaseNode=spy(hazelcastBaseNode);
+		}
+
+		@Test
+		@DisplayName("WhetherToSkip errorEvents is Empty")
+		void test(){
+			Assertions.assertFalse(mockHazelcastBaseNode.whetherToSkip(null,null,null));
+		}
+
+		@Test
+		@DisplayName("WhetherToSkip skipErrorEvents is Empty")
+		void test1(){
+			List<ErrorEvent> errorEvents = new ArrayList<>();
+			errorEvents.add(new ErrorEvent("test",null));
+			Assertions.assertFalse(mockHazelcastBaseNode.whetherToSkip(errorEvents,null,null));
+		}
+
+		@Test
+		@DisplayName("WhetherToSkip skipErrorEvents is notEmpty")
+		void test2(){
+			List<ErrorEvent> errorEvents = new ArrayList<>();
+			ErrorEvent event =  new ErrorEvent("test",null);
+			event.setSkip(true);
+			errorEvents.add(event);
+			Assertions.assertTrue(mockHazelcastBaseNode.whetherToSkip(errorEvents,new ErrorEvent("test",null), SkipErrorStrategy.ERROR_MESSAGE.getSkipError()));
+		}
+
+	}
+
+	@Nested
+	class SaveErrorEventTest{
+		private HazelcastBaseNode mockHazelcastBaseNode;
+
+		private ObsLogger obsLogger;
+
+		private HttpClientMongoOperator httpClientMongoOperator;
+
+		@BeforeEach
+		void setUp() {
+			mockHazelcastBaseNode = spy(hazelcastBaseNode);
+			obsLogger = mock(ObsLogger.class);
+			httpClientMongoOperator = mock(HttpClientMongoOperator.class);
+			ReflectionTestUtils.setField(mockHazelcastBaseNode,"obsLogger",obsLogger);
+			ReflectionTestUtils.setField(mockHazelcastBaseNode,"clientMongoOperator",httpClientMongoOperator);
+		}
+
+		@Test
+		@DisplayName("WhetherToSkip errorEvents is Empty")
+		void test(){
+			doThrow(new ManagementException("test")).when(httpClientMongoOperator).insertOne(any(),any());
+			mockHazelcastBaseNode.saveErrorEvent(null,new ErrorEvent("test",null),new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
+			verify(obsLogger,times(1)).warn(any(),any());
 		}
 
 	}

@@ -8,7 +8,6 @@ import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.MongodbUtil;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.Stats;
@@ -565,36 +564,17 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		TapCodeException currentEx = wrapTapCodeException(throwable);
 		TaskDto taskDto = processorBaseContext.getTaskDto();
 		handleWhenTestRun(taskDto, currentEx);
-		List<ErrorEvent> errorEvents;
-		if(CollectionUtils.isNotEmpty(taskDto.getErrorEvents())){
-			errorEvents = taskDto.getErrorEvents();
-		}else{
-			errorEvents = new ArrayList<>();
-		}
-
-		List<ErrorEvent> skipErrorEvents = errorEvents.stream().filter(ErrorEvent::getSkip).collect(Collectors.toList());
-		SkipError skipError = SkipErrorStrategy.getSkipErrorStrategy(null).getSkipError();
-		if(CollectionUtils.isNotEmpty(skipErrorEvents)){
-			if(skipError.match(skipErrorEvents,new ErrorEvent(errorMessage, Log4jUtil.getStackStrings(currentEx)))){
-				obsLogger.warn(errorMessage + "; Will skip it");
-				return null;
-			}
+		ErrorEvent errorEvent = new ErrorEvent(errorMessage, Log4jUtil.getStackStrings(currentEx));
+		SkipError skipError = SkipErrorStrategy.getDefaultSkipErrorStrategy().getSkipError();
+		if(whetherToSkip(taskDto.getErrorEvents(), errorEvent, skipError)){
+			obsLogger.info("The current exception match the skip exception strategy, message: "+errorMessage);
+			return null;
 		}
 		try {
 			if (globalErrorIsNull()) {
 				this.error = currentEx;
 				getErrorMessage(errorMessage, currentEx);
-				ErrorEvent event = new ErrorEvent(errorMessage,Log4jUtil.getStackStrings(currentEx));
-				if(StringUtils.isNotBlank(errorMessage) && !skipError.match(errorEvents,event)){
-					errorEvents.add(event);
-				}
-				if (errorEvents.size() > 10) {
-					int difference = errorEvents.size() - 10;
-					for (int i = 0; i < difference; i++) {
-						errorEvents.remove(0);
-					}
-				}
-				clientMongoOperator.insertOne(errorEvents,ConnectorConstant.TASK_COLLECTION + "/errorEvents/" + taskDto.getId());
+				saveErrorEvent(taskDto.getErrorEvents(),errorEvent,taskDto.getId(),skipError);
 				obsLogger.error(errorMessage, currentEx);
 				this.running.set(false);
 
@@ -839,6 +819,34 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 		String nodeId = getNode().getId();
 		return ((DAGDataServiceImpl) dagDataService).getNameByNodeAndTableName(nodeId, tableId);
+	}
+
+	protected boolean whetherToSkip(List<ErrorEvent> errorEvents,ErrorEvent event,SkipError skipError){
+		if(CollectionUtils.isEmpty(errorEvents)){
+			return false;
+		}
+		List<ErrorEvent> skipErrorEvents = errorEvents.stream().filter(ErrorEvent::getSkip).collect(Collectors.toList());
+		if(CollectionUtils.isNotEmpty(skipErrorEvents)) {
+			return skipError.match(skipErrorEvents, event);
+		}
+		return false;
+	}
+
+	protected void saveErrorEvent(List<ErrorEvent> errorEvents,ErrorEvent event,ObjectId taskId,SkipError skipError){
+		if(CollectionUtils.isEmpty(errorEvents)){
+			errorEvents = new ArrayList<>();
+		}
+		if(StringUtils.isNotBlank(event.getMessage()) && !skipError.match(errorEvents,event)){
+			errorEvents.add(event);
+		}
+		if (errorEvents.size() > 10) {
+			errorEvents.remove(0);
+		}
+		try {
+			clientMongoOperator.insertOne(errorEvents,ConnectorConstant.TASK_COLLECTION + "/errorEvents/" + taskId);
+		}catch (Exception e){
+			obsLogger.warn("Save error event failed:{}",e.getMessage());
+		}
 	}
 
 	public static class TapValueTransform {

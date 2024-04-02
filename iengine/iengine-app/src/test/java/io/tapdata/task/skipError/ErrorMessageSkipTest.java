@@ -39,4 +39,12 @@ public class ErrorMessageSkipTest {
         ErrorMessageSkip errorMessageSkip = new ErrorMessageSkip();
         Assertions.assertFalse(errorMessageSkip.match(null,new ErrorEvent("test2",null)));
     }
+
+    @Test
+    void errorMessageErrorEventMessageIsNull(){
+        ErrorMessageSkip errorMessageSkip = new ErrorMessageSkip();
+        List<ErrorEvent> errorEventList = new ArrayList<>();
+        errorEventList.add(new ErrorEvent("test2",null));
+        Assertions.assertFalse(errorMessageSkip.match(errorEventList,new ErrorEvent(null,null)));
+    }
 }

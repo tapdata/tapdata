@@ -18,4 +18,9 @@ public class SkipErrorStrategyTest {
     void testGetSkipErrorStrategyDefault(){
         Assertions.assertEquals("errorMessage",SkipErrorStrategy.getSkipErrorStrategy("test").getType());
     }
+
+    @Test
+    void testGetDefaultSkipErrorStrategy(){
+        Assertions.assertEquals("errorMessage",SkipErrorStrategy.getDefaultSkipErrorStrategy().getType());
+    }
 }
