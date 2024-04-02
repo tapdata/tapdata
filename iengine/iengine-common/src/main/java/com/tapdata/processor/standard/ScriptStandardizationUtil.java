@@ -42,13 +42,15 @@ import java.util.function.Consumer;
  * @author Gavin'xiao
  * */
 public class ScriptStandardizationUtil {
+    private ScriptStandardizationUtil() {
+    }
 
     protected static String getScriptStandardizationEngineBefore(String script,
-                                                              ClassLoader[] externalClassLoader,
-                                                              List<JavaScriptFunctions> javaScriptFunctions,
-                                                              ClientMongoOperator clientMongoOperator,
-                                                              Log logger,
-                                                              boolean standard) {
+                                                                 ClassLoader[] externalClassLoader,
+                                                                 List<JavaScriptFunctions> javaScriptFunctions,
+                                                                 ClientMongoOperator clientMongoOperator,
+                                                                 Log logger,
+                                                                 boolean standard) {
         if (StringUtils.isBlank(script)) {
             script = "function process(record){\n\treturn record;\n}";
         }
