@@ -5,6 +5,7 @@ import com.tapdata.tm.Settings.service.SettingsServiceImpl;
 import com.tapdata.tm.agent.dto.AgentGroupDto;
 import com.tapdata.tm.agent.dto.AgentRemoveFromGroupDto;
 import com.tapdata.tm.agent.dto.AgentToGroupDto;
+import com.tapdata.tm.agent.dto.AgentWithGroupBaseDto;
 import com.tapdata.tm.agent.dto.GroupDto;
 import com.tapdata.tm.agent.dto.GroupUsedDto;
 import com.tapdata.tm.agent.entity.AgentGroupEntity;
@@ -156,7 +157,49 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
      * 将引擎加入到引擎分组中
      * @param agentDto 包含引擎ID和引擎分组ID
      * */
-    public AgentGroupDto addAgentToGroup(AgentToGroupDto agentDto, UserDetail loginUser) {
+    public List<AgentGroupDto> addAgentToGroup(AgentToGroupDto agentDto, UserDetail loginUser){
+        List<AgentWithGroupBaseDto> groupBaseDto = agentDto.groupAgent();
+        if (groupBaseDto.isEmpty()) {
+            throw new BizException("group.agent.not.fund", "");
+        }
+        return verifyBeforeAdd(agentDto.getAgentId(), agentDto.getGroupId(), loginUser);
+    }
+
+    protected List<AgentGroupDto> verifyBeforeAdd(List<String> agentIds, List<String> groupIds, UserDetail loginUser) {
+        List<WorkerDto> allAgent = findAllAgent(agentIds, loginUser);
+        if (null == allAgent || allAgent.isEmpty()) {
+            throw new BizException("group.agent.not.fund", agentIds);
+        }
+        Criteria criteria = Criteria.where(AgentGroupTag.TAG_GROUP_ID).in(groupIds).and(AgentGroupTag.TAG_DELETE).is(false);
+        List<GroupDto> groupDto = findAllDto(Query.query(criteria), loginUser);
+        if (null == groupDto || groupDto.isEmpty()) {
+            //找不到当前标签
+            throw new BizException("group.not.fund", groupIds);
+        }
+        Map<String, GroupDto> collect = groupDto.stream()
+                .filter(g -> Objects.nonNull(g) && Objects.nonNull(g.getGroupId()))
+                .collect(Collectors.toMap(GroupDto::getGroupId, g -> g));
+        List<AgentGroupDto> result = Lists.newArrayList();
+        for (String groupId : groupIds) {
+            GroupDto agentGroups = collect.get(groupId);
+            if (null == agentGroups) continue;
+            UpdateResult updateResult = update(
+                    Query.query(Criteria.where(AgentGroupTag.TAG_GROUP_ID).is(groupId)
+                            .and(AgentGroupTag.TAG_DELETE).is(false)
+                            .and(AgentGroupTag.TAG_AGENT_IDS).nin(agentIds)),
+                    new Update().addToSet(AgentGroupTag.TAG_AGENT_IDS).each(agentIds), loginUser);
+            long modifiedCount = updateResult.getModifiedCount();
+            if (modifiedCount <= 0) {
+                //添加失败
+                throw new BizException("group.agent.add.failed");
+            }
+            log.info("Agent: {} has be added to group: {} ", agentIds, groupIds);
+            result.add(findAgentGroupInfo(groupId, loginUser));
+        }
+        return result;
+    }
+
+    public AgentGroupDto addAgentToGroup(AgentWithGroupBaseDto agentDto, UserDetail loginUser) {
         agentDto.verify();
         final String groupId = agentDto.getGroupId();
         final String agentId = agentDto.getAgentId();
@@ -169,8 +212,12 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         List<String> agents = groupDto.getAgentIds();
         if (!(null == agents || agents.isEmpty() || !agents.contains(agentId))) {
             //引擎不能重复添加标签
-            throw new BizException("group.agent.repeatedly");
+            if (log.isDebugEnabled()) {
+                log.debug("group agent repeatedly, {}", groupDto.toString());
+            }
+            return findAgentGroupInfo(groupId, loginUser);
         }
+
         UpdateResult updateResult = update(
                 Query.query(Criteria.where(AgentGroupTag.TAG_GROUP_ID).is(groupId)
                         .and(AgentGroupTag.TAG_DELETE).is(false)

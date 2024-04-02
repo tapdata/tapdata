@@ -27,6 +27,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * @author XiaoGavin
  * @Date: 2021/10/15
@@ -74,7 +76,7 @@ public class AgentGroupController extends BaseController {
      */
     @Operation(summary = "Find all agent of the model matched by filter from the data source")
     @PostMapping("/add-agent")
-    public ResponseMessage<AgentGroupDto> addAgentToGroup(@RequestBody AgentToGroupDto agentDto) {
+    public ResponseMessage<List<AgentGroupDto>> addAgentToGroup(@RequestBody AgentToGroupDto agentDto) {
         return success(agentGroupService.addAgentToGroup(agentDto, getLoginUser()));
     }
 
