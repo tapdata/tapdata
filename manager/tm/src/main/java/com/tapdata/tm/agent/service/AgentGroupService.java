@@ -90,17 +90,21 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
             return new Page<>(groupDtoPage.getTotal(), Lists.newArrayList());
         }
         Set<String> allAgentId = items.stream()
+                .filter(a -> Objects.nonNull(a) && Objects.nonNull(a.getAgentIds()) && !a.getAgentIds().isEmpty())
                 .map(GroupDto::getAgentIds)
                 .flatMap(Collection::stream)
                 .collect(Collectors.toSet());
         final boolean equals = Boolean.TRUE.equals(containWorker);
         List<WorkerDto> all = equals ? findAllAgent(allAgentId, userDetail) : null;
-        Map<String, WorkerDto> map = equals ? all.stream().collect(Collectors.toMap(WorkerDto::getProcessId, w -> w)) : null;
+        Map<String, WorkerDto> map = equals ? all.stream()
+                .filter(w -> Objects.nonNull(w) && Objects.nonNull(w.getProcessId()))
+                .collect(Collectors.toMap(WorkerDto::getProcessId, w -> w)) : null;
         return new Page<>(groupDtoPage.getTotal(), items.stream()
+                .filter(w -> Objects.nonNull(w))
                 .map(item -> {
                     List<String> agentIds = item.getAgentIds();
                     AgentGroupDto dto = new AgentGroupDto();
-                    if (equals) {
+                    if (equals && Objects.nonNull(agentIds)) {
                         List<WorkerDto> collect = agentIds.stream()
                                 .map(map::get)
                                 .collect(Collectors.toList());
@@ -126,10 +130,10 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         dto.setName(name);
         Query query = verifyCountGroupByName(name, userDetail);
         long succeedCount = upsert(query, dto, userDetail);
-        if (succeedCount < 1) {
-            //Group Name重复
-            throw new BizException("group.repeat");
-        }
+//        if (succeedCount < 1) {
+//            //Group Name重复
+//            throw new BizException("group.repeat");
+//        }
         log.info("A agent group has be created - {}", name);
         return dto;
     }
@@ -316,7 +320,9 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
             return info;
         }
         if (null == info || info.isEmpty()) return info;
-        Map<String, AccessNodeInfo> infoMap = info.stream().collect(Collectors.toMap(AccessNodeInfo::getProcessId, a -> a));
+        Map<String, AccessNodeInfo> infoMap = info.stream()
+                .filter(a -> Objects.nonNull(a) && Objects.nonNull(a.getProcessId()))
+                .collect(Collectors.toMap(AccessNodeInfo::getProcessId, a -> a));
         List<AgentGroupEntity> entities = findAll(Query.query(Criteria.where(AgentGroupTag.TAG_DELETE).is(false)), loginUser);
         List<AccessNodeInfo> groupAgentList = entities.stream()
                 .filter(Objects::nonNull)
