@@ -294,10 +294,8 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         GroupDto groupDto = findOne(filter, loginUser);
         List<String> agentIds = groupDto.getAgentIds();
         AgentGroupDto dto = new AgentGroupDto();
-        if (null != agentIds && !agentIds.isEmpty()) {
-            List<WorkerDto> all = findAllAgent(agentIds, loginUser);
-            dto.setAgents(all);
-        }
+        List<WorkerDto> all = findAllAgent(agentIds, loginUser);
+        dto.setAgents(all);
         dto.setAgentIds(agentIds);
         dto.setName(groupDto.getName());
         dto.setGroupId(groupDto.getGroupId());
@@ -309,6 +307,9 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
      * 更具引擎ID列表查询引擎列表
      * */
     protected List<WorkerDto> findAllAgent(Collection<String> agentIds, UserDetail loginUser) {
+        if (null == agentIds || agentIds.isEmpty()) {
+            return Lists.newArrayList();
+        }
         Criteria criteria = Criteria.where(AgentGroupTag.TAG_PROCESS_ID).in(agentIds)
                 .and(AgentGroupTag.TAG_WORKER_TYPE).is(AgentGroupTag.TAG_CONNECTOR);
         return workerServiceImpl.findAllDto(Query.query(criteria), loginUser);
