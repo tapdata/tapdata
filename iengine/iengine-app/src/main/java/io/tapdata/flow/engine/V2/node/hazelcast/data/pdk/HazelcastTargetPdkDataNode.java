@@ -41,6 +41,8 @@ import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeTableProperties;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.GetTableInfoFunction;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -72,6 +74,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
 	public static final int MAX_INDEX_FIELDS_COUNT = 16;
 	public static final int MAX_RECORD_OBS_WARN = 3;
+	public static final int CREATE_INDEX_THRESHOLD = 5000000;
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkDataNode.class);
 	private ClassHandlers ddlEventHandlers;
 
@@ -182,7 +185,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}));
 	}
 
-	private void createTable(TapTableMap<String, TapTable> tapTableMap, TableInitFuncAspect funcAspect, Node<?> node, ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
+	protected void createTable(TapTableMap<String, TapTable> tapTableMap, TableInitFuncAspect funcAspect, Node<?> node, ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
 		TapTable tapTable = tapTableMap.get(tableId);
 		List<String> updateConditionFields = getUpdateConditionFields(node, tapTable);
 		if (null == tapTable) {
@@ -201,6 +204,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		clearData(existsDataProcessEnum, tableId);
 //		createUnique &= succeed.get();
 		createTargetIndex(updateConditionFields, succeed.get(), tableId, tapTable, createdTable);
+		//sync index
+		syncIndex(tableId, tapTable, succeed.get());
 		if (null != funcAspect)
 			funcAspect.state(TableInitFuncAspect.STATE_PROCESS).completed(tableId, createdTable);
 	}
@@ -273,6 +278,123 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						.addEvent(indexEvent.get());
 			}
 		}
+	}
+	protected void syncIndex(String tableId, TapTable tapTable, boolean autoCreateTable){
+		long start = System.currentTimeMillis();
+		if (!checkSyncIndexOpen()) return;
+		if (!autoCreateTable) {
+			obsLogger.warn("Table: {} already exists and will no longer synchronize indexes",tableId);
+			return;
+		}
+		CreateIndexFunction createIndexFunction = getConnectorNode().getConnectorFunctions().getCreateIndexFunction();
+		if (null == createIndexFunction) {
+			obsLogger.warn("Target connector does not support create index and will no longer synchronize indexes");
+			return;
+		}
+		GetTableInfoFunction getTableInfoFunction = getConnectorNode().getConnectorFunctions().getGetTableInfoFunction();
+		if (null == getTableInfoFunction){
+			obsLogger.warn("Target connector does not support get table information and will no longer synchronize indexes");
+			return;
+		}
+		QueryIndexesFunction queryIndexesFunction = getConnectorNode().getConnectorFunctions().getQueryIndexesFunction();
+		if (null == queryIndexesFunction){
+			obsLogger.warn("Target connector does not support query index and will no longer synchronize indexes");
+			return;
+		}
+		AtomicReference<TapCreateIndexEvent> indexEvent = new AtomicReference<>();
+		try {
+			//query table info
+			TableInfo tableInfo = getTableInfoFunction.getTableInfo(getConnectorNode().getConnectorContext(), tableId);
+			if (null != tableInfo) {
+				if (null == tableInfo.getNumOfRows()){
+					obsLogger.warn("Table: {} records amount is unknown and will no longer synchronize indexes",tableId);
+					return;
+				}
+				if (tableInfo.getNumOfRows() > CREATE_INDEX_THRESHOLD){
+					obsLogger.warn("Table: {} records amount exceeds the threshold: {} for creating indexes and will no longer synchronize indexes",tableId,CREATE_INDEX_THRESHOLD);
+					return;
+				}
+			}else {
+				obsLogger.warn("Table: {} gets table information failed and will no longer synchronize indexes",tableId);
+				return;
+			}
+			List<TapIndex> indexList = new ArrayList<>();
+			List<TapIndex> indices = tapTable.getIndexList();
+			indices.forEach(index -> {
+				TapIndex tapIndex = new TapIndex().unique(index.getUnique()).primary(index.getPrimary());
+				tapIndex.setIndexFields(index.getIndexFields());
+				tapIndex.setName(index.getName());
+				tapIndex.setCluster(index.getCluster());
+				indexList.add(tapIndex);
+			});
+			//query exist index
+			queryIndexesFunction.query(getConnectorNode().getConnectorContext(), tapTable, (tapIndexList)->{
+				tapIndexList.forEach(existsIndex -> {
+					// If the index already exists, it will no longer be created; Having the same name is considered as existence; Fields with the same order are also considered to exist
+					for (TapIndex tapIndex : indexList) {
+						if (tapIndex.getName().equals(existsIndex.getName())) {
+							indexList.remove(tapIndex);
+							obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, tapIndex.getName());
+							break;
+						}
+						if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
+							boolean same = true;
+							for (int i = 0; i < tapIndex.getIndexFields().size(); i++) {
+								if (!tapIndex.getIndexFields().get(i).getName().equals(existsIndex.getIndexFields().get(i).getName())
+										|| !Objects.equals(tapIndex.getIndexFields().get(i).getFieldAsc(), existsIndex.getIndexFields().get(i).getFieldAsc())) {
+									same = false;
+									break;
+								}
+							}
+							if (same) {
+								indexList.remove(tapIndex);
+								obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, tapIndex.getName());
+								break;
+							}
+						}
+					}
+				});
+			});
+			if (CollectionUtils.isEmpty(indexList)) {
+				obsLogger.info("Table: {} already exists Index list: {}", tableId, indices);
+				return;
+			}
+			indexList.forEach(index->{
+				long currentIndexStart = System.currentTimeMillis();
+				indexEvent.set(createIndexEvent(tableId, Collections.singletonList(index)));
+				obsLogger.info("Table: {} will create Index: {}", indexEvent.get().getTableId(), index);
+				executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
+						.table(tapTable)
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
+						.createIndexEvent(indexEvent.get())
+						.start(), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
+						PDKMethod.TARGET_CREATE_INDEX,
+						() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent.get()), TAG));
+				long currentIndexEnd = System.currentTimeMillis();
+				obsLogger.info("Table: {} create Index: {} successfully, cost {}ms", indexEvent.get().getTableId(), index.getName(), currentIndexEnd-currentIndexStart);
+			});
+		}catch (Throwable throwable){
+			Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
+			if (null != matched) {
+				throw (TapCodeException) matched;
+			}else {
+				throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED, "Table name: " + tableId, throwable)
+						.addEvent(indexEvent.get());
+			}
+		}
+		long end = System.currentTimeMillis();
+		obsLogger.info("Table: {} synchronize indexes completed, cost {}ms totally", tableId, end-start);
+	}
+	protected boolean checkSyncIndexOpen(){
+		Node node = getNode();
+		if (node instanceof DatabaseNode || node instanceof TableNode) {
+			DataParentNode dataParentNode = (DataParentNode) node;
+			if (Boolean.TRUE.equals(dataParentNode.getSyncIndexEnable())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private void clearData(ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
