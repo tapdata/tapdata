@@ -131,10 +131,6 @@ public class AgentGroupController extends BaseController {
             )
             @RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
-        if (filter == null) {
-            filter = new Filter();
-            filter.setWhere(Where.where(AgentGroupTag.TAG_DELETE, false));
-        }
         return success(agentGroupService.findAgentGroupInfo(filter, getLoginUser()));
     }
 

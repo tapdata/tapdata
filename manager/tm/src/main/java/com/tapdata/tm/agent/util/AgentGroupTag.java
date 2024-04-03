@@ -10,4 +10,8 @@ public class AgentGroupTag {
     public static final String TAG_CONNECTOR = "connector";
     public static final String TAG_ACCESS_NODE_TYPE = "accessNodeType";
     public static final String TAG_ACCESS_NODE_PROCESS_ID_LIST = "accessNodeProcessIdList";
+
+    public static final int MAX_AGENT_GROUP_NAME_LENGTH = 60;
+
+    public static final String GROUP_NOT_FUND = "group.not.fund";
 }

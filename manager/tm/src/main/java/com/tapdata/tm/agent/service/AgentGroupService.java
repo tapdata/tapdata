@@ -14,7 +14,6 @@ import com.tapdata.tm.agent.util.AgentGroupTag;
 import com.tapdata.tm.agent.util.AgentGroupUtil;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.AccessNodeInfo;
@@ -39,7 +38,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -93,15 +91,18 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
             return new Page<>(groupDtoPage.getTotal(), Lists.newArrayList());
         }
         Set<String> allAgentId = items.stream()
-                .filter(a -> Objects.nonNull(a) && Objects.nonNull(a.getAgentIds()) && !a.getAgentIds().isEmpty())
+                .filter(a -> Objects.nonNull(a) && CollectionUtils.isNotEmpty(a.getAgentIds()))
                 .map(GroupDto::getAgentIds)
                 .flatMap(Collection::stream)
                 .collect(Collectors.toSet());
         final boolean equals = Boolean.TRUE.equals(containWorker);
         List<WorkerDto> all = equals ? findAllAgent(allAgentId, userDetail) : null;
+        if (null == all) {
+            all = Lists.newArrayList();
+        }
         Map<String, WorkerDto> map = equals ? all.stream()
                 .filter(w -> Objects.nonNull(w) && Objects.nonNull(w.getProcessId()))
-                .collect(Collectors.toMap(WorkerDto::getProcessId, w -> w)) : null;
+                .collect(Collectors.toMap(WorkerDto::getProcessId, w -> w)) : new HashMap<>();
         return new Page<>(groupDtoPage.getTotal(), items.stream()
                 .filter(Objects::nonNull)
                 .map(item -> {
@@ -133,11 +134,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         dto.setGroupId(id.toHexString());
         dto.setName(name);
         Query query = verifyCountGroupByName(name, userDetail);
-        long succeedCount = upsert(query, dto, userDetail);
-//        if (succeedCount < 1) {
-//            //Group Name重复
-//            throw new BizException("group.repeat");
-//        }
+        upsert(query, dto, userDetail);
         log.info("A agent group has be created - {}", name);
         return dto;
     }
@@ -165,13 +162,13 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
     public List<AgentGroupDto> batchOperator(AgentToGroupDto agentDto, UserDetail loginUser) {
         List<String> agentId = agentDto.getAgentId();
         List<String> groupId = agentDto.getGroupId();
-        if ((null == agentId || agentId.isEmpty()) && (null == groupId || groupId.isEmpty())) {
+        if (CollectionUtils.isEmpty(agentId) && CollectionUtils.isEmpty(groupId)) {
             return batchRemoveAll(loginUser);
         }
-        if (null == agentId || agentId.isEmpty()) {
+        if (CollectionUtils.isEmpty(agentId)) {
             return batchRemoveAllGroup(groupId, loginUser);
         }
-        if (null == groupId || groupId.isEmpty()) {
+        if (CollectionUtils.isEmpty(groupId)) {
             return batchRemoveAllAgent(agentId, loginUser);
         }
         return batchUpdate(agentId, groupId, loginUser);
@@ -187,7 +184,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
     }
 
     protected List<AgentGroupDto> batchRemoveAllAgent(List<String> agentIds, UserDetail loginUser) {
-        if (null == agentIds || agentIds.isEmpty()) {
+        if (CollectionUtils.isEmpty(agentIds)) {
             return Lists.newArrayList();
         }
         Criteria and = Criteria.where(AgentGroupTag.TAG_DELETE).is(false)
@@ -197,10 +194,10 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
                 .filter(a -> Objects.nonNull(a) && Objects.nonNull(a.getGroupId()))
                 .map(AgentGroupEntity::getGroupId)
                 .collect(Collectors.toList());
+        Criteria criteria = findCriteria(allGroupId);
+        criteria.and(AgentGroupTag.TAG_AGENT_IDS).in(agentIds);
         UpdateResult updateResult = update(
-                Query.query(Criteria.where(AgentGroupTag.TAG_GROUP_ID).in(allGroupId)
-                        .and(AgentGroupTag.TAG_DELETE).is(false)
-                        .and(AgentGroupTag.TAG_AGENT_IDS).in(agentIds)),
+                Query.query(criteria),
                 new Update().pullAll(AgentGroupTag.TAG_AGENT_IDS, agentIds.toArray()), loginUser);
         updateResult.getModifiedCount();
         log.info("Agent remove: remove all group when group's agent list contains {}, group: {}", agentIds, allGroupId);
@@ -208,12 +205,12 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
     }
 
     protected List<AgentGroupDto> batchRemoveAllGroup(List<String> groupIds, UserDetail loginUser) {
-        if (null == groupIds || groupIds.isEmpty()) {
+        if (CollectionUtils.isEmpty(groupIds)) {
             return Lists.newArrayList();
         }
+        Criteria criteria = findCriteria(groupIds);
         UpdateResult updateResult = update(
-                Query.query(Criteria.where(AgentGroupTag.TAG_GROUP_ID).in(groupIds)
-                        .and(AgentGroupTag.TAG_DELETE).is(false)),
+                Query.query(criteria),
                 new Update().set(AgentGroupTag.TAG_AGENT_IDS, Lists.newArrayList()), loginUser);
         updateResult.getModifiedCount();
         log.info("Agent batch operator: all agent are removed from groups: {} ", groupIds);
@@ -222,14 +219,14 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
 
     protected List<AgentGroupDto> batchUpdate(List<String> agentIds, List<String> groupIds, UserDetail loginUser) {
         List<WorkerDto> allAgent = findAllAgent(agentIds, loginUser);
-        if (null == allAgent || allAgent.isEmpty()) {
+        if (CollectionUtils.isEmpty(allAgent)) {
             throw new BizException("group.agent.not.fund", agentIds);
         }
-        Criteria criteria = Criteria.where(AgentGroupTag.TAG_GROUP_ID).in(groupIds).and(AgentGroupTag.TAG_DELETE).is(false);
+        Criteria criteria = findCriteria(groupIds);
         List<GroupDto> groupDto = findAllDto(Query.query(criteria), loginUser);
-        if (null == groupDto || groupDto.isEmpty()) {
+        if (CollectionUtils.isEmpty(groupDto)) {
             //找不到当前标签
-            throw new BizException("group.not.fund", groupIds);
+            throw new BizException(AgentGroupTag.GROUP_NOT_FUND, groupIds);
         }
         Map<String, GroupDto> collect = groupDto.stream()
                 .filter(g -> Objects.nonNull(g) && Objects.nonNull(g.getGroupId()))
@@ -239,15 +236,9 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
             GroupDto agentGroups = collect.get(groupId);
             if (null == agentGroups) continue;
             UpdateResult updateResult = update(
-                    Query.query(Criteria.where(AgentGroupTag.TAG_GROUP_ID).is(groupId)
-                            .and(AgentGroupTag.TAG_DELETE).is(false)),
+                    Query.query(findCriteria(Lists.newArrayList(groupId))),
                     new Update().set(AgentGroupTag.TAG_AGENT_IDS, agentIds), loginUser);
             updateResult.getModifiedCount();
-//            long modifiedCount = updateResult.getModifiedCount();
-//            if (modifiedCount <= 0) {
-//                //添加失败
-//                throw new BizException("group.agent.add.failed");
-//            }
             log.info("Agent: {} has be added to group: {} ", agentIds, groupIds);
             result.add(findAgentGroupInfo(groupId, loginUser));
         }
@@ -272,12 +263,9 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
             }
             return findAgentGroupInfo(groupId, loginUser);
         }
-
-        UpdateResult updateResult = update(
-                Query.query(Criteria.where(AgentGroupTag.TAG_GROUP_ID).is(groupId)
-                        .and(AgentGroupTag.TAG_DELETE).is(false)
-                        .and(AgentGroupTag.TAG_AGENT_IDS).nin(agentIds)),
-                new Update().push(AgentGroupTag.TAG_AGENT_IDS, agentId), loginUser);
+        Criteria criteria = findCriteria(Lists.newArrayList(groupId));
+        criteria.and(AgentGroupTag.TAG_AGENT_IDS).nin(agentIds);
+        UpdateResult updateResult = update(Query.query(criteria), new Update().push(AgentGroupTag.TAG_AGENT_IDS, agentId), loginUser);
         long modifiedCount = updateResult.getModifiedCount();
         if (modifiedCount <= 0) {
             //添加失败
@@ -296,10 +284,9 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         final String groupId = removeDto.getGroupId();
         final String agentId = removeDto.getAgentId();
         GroupDto groupDto = findGroupById(groupId, loginUser);
-        UpdateResult updateResult = update(Query.query(Criteria
-                .where(AgentGroupTag.TAG_GROUP_ID).is(groupDto.getGroupId())
-                .and(AgentGroupTag.TAG_DELETE).is(false)
-                .and(AgentGroupTag.TAG_AGENT_IDS).in(Lists.newArrayList(agentId))), new Update().pull(AgentGroupTag.TAG_AGENT_IDS, agentId), loginUser);
+        Criteria criteria = findCriteria(Lists.newArrayList(groupDto.getGroupId()));
+        criteria.and(AgentGroupTag.TAG_AGENT_IDS).in(Lists.newArrayList(agentId));
+        UpdateResult updateResult = update(Query.query(criteria), new Update().pull(AgentGroupTag.TAG_AGENT_IDS, agentId), loginUser);
         long modifiedCount = updateResult.getModifiedCount();
         if (modifiedCount <= 0) {
             //移除失败
@@ -358,10 +345,8 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         String groupId = dto.getGroupId();
         String name = dto.getName();
         verifyCountGroupByName(name, loginUser);
-        update(Query.query(Criteria
-                .where(AgentGroupTag.TAG_GROUP_ID).is(groupId)
-                .and(AgentGroupTag.TAG_DELETE).is(false)),
-                new Update().set(AgentGroupTag.TAG_NAME, name), loginUser);
+        Criteria criteria = findCriteria(Lists.newArrayList(groupId));
+        update(Query.query(criteria), new Update().set(AgentGroupTag.TAG_NAME, name), loginUser);
         return findAgentGroupInfo(dto.getGroupId(), loginUser);
     }
 
@@ -370,13 +355,19 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
      * @param groupId 分组ID
      * */
     protected GroupDto findGroupById(String groupId, UserDetail loginUser) {
-        Criteria criteria = Criteria.where(AgentGroupTag.TAG_GROUP_ID).is(groupId).and(AgentGroupTag.TAG_DELETE).is(false);
+        Criteria criteria = findCriteria(Lists.newArrayList(groupId));
         GroupDto groupDto = findOne(Query.query(criteria), loginUser);
         if (null == groupDto) {
             //找不到当前标签
-            throw new BizException("group.not.fund", groupId);
+            throw new BizException(AgentGroupTag.GROUP_NOT_FUND, groupId);
         }
         return groupDto;
+    }
+
+    protected List<AgentGroupDto> findAgentGroupInfoMany(List<String> groupIds, UserDetail loginUser) {
+        Criteria criteria = findCriteria(groupIds);;
+        Query query = Query.query(criteria);
+        return findAgentGroupInfo(query, loginUser);
     }
 
     /**
@@ -385,16 +376,44 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
      * */
     protected AgentGroupDto findAgentGroupInfo(String groupId, UserDetail loginUser) {
         List<AgentGroupDto> agentGroupInfoMany = findAgentGroupInfoMany(Lists.newArrayList(groupId), loginUser);
-        if (null == agentGroupInfoMany || agentGroupInfoMany.isEmpty()) {
+        if (CollectionUtils.isEmpty(agentGroupInfoMany)) {
             return null;
         }
         return agentGroupInfoMany.get(0);
     }
 
-    protected List<AgentGroupDto> findAgentGroupInfoMany(List<String> groupIds, UserDetail loginUser) {
-        Criteria criteria = Criteria.where(AgentGroupTag.TAG_GROUP_ID).in(groupIds).and(AgentGroupTag.TAG_DELETE).is(false);
-        Query query = Query.query(criteria);
-        return findAgentGroupInfo(query, loginUser);
+    public List<AgentGroupDto> findAgentGroupInfo(List<GroupDto> groupDto, UserDetail loginUser) {
+        Set<String> agents = new HashSet<>();
+        for (GroupDto dto : groupDto) {
+            List<String> agentIds = dto.getAgentIds();
+            if (CollectionUtils.isNotEmpty(agentIds)) {
+                agents.addAll(agentIds);
+            }
+        }
+        List<WorkerDto> all = null;
+        if (!agents.isEmpty()) {
+            all = findAllAgent(agents, loginUser);
+        }
+        List<AgentGroupDto> info = Lists.newArrayList();
+        for (GroupDto group : groupDto) {
+            collectAgentGroupDto(group, all, info);
+        }
+        return info;
+    }
+
+    protected void collectAgentGroupDto(GroupDto group, List<WorkerDto> all, List<AgentGroupDto> info) {
+        AgentGroupDto dto = new AgentGroupDto();
+        List<String> agentIds = group.getAgentIds();
+        if (CollectionUtils.isNotEmpty(agentIds) && CollectionUtils.isNotEmpty(all)) {
+            dto.setAgents(all.stream().filter(w -> {
+                if (null == w || null == w.getProcessId()) return false;
+                return agentIds.contains(w.getProcessId());
+            }).collect(Collectors.toList()));
+        }
+        dto.setAgentIds(agentIds);
+        dto.setName(group.getName());
+        dto.setGroupId(group.getGroupId());
+        info.add(dto);
     }
 
     /**
@@ -406,45 +425,16 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
     }
 
     public List<AgentGroupDto> findAgentGroupInfo(Filter filter, UserDetail loginUser) {
+        filter = agentGroupUtil.initFilter(filter);
         GroupDto groupDto = findOne(filter, loginUser);
         return findAgentGroupInfo(Lists.newArrayList(groupDto), loginUser);
-    }
-
-    public List<AgentGroupDto> findAgentGroupInfo(List<GroupDto> groupDto, UserDetail loginUser) {
-        Set<String> agents = new HashSet<>();
-        for (GroupDto dto : groupDto) {
-            List<String> agentIds = dto.getAgentIds();
-            if (null != agentIds && !agentIds.isEmpty()) {
-                agents.addAll(agentIds);
-            }
-        }
-        List<WorkerDto> all = null;
-        if (!agents.isEmpty()) {
-            all = findAllAgent(agents, loginUser);
-        }
-        List<AgentGroupDto> info = Lists.newArrayList();
-        for (GroupDto group : groupDto) {
-            AgentGroupDto dto = new AgentGroupDto();
-            List<String> agentIds = group.getAgentIds();
-            if (null != agentIds && !agentIds.isEmpty() && null != all && !all.isEmpty()) {
-                dto.setAgents(all.stream().filter(w -> {
-                    if (null == w || null == w.getProcessId()) return false;
-                    return agentIds.contains(w.getProcessId());
-                }).collect(Collectors.toList()));
-            }
-            dto.setAgentIds(agentIds);
-            dto.setName(group.getName());
-            dto.setGroupId(group.getGroupId());
-            info.add(dto);
-        }
-        return info;
     }
 
     /**
      * 更具引擎ID列表查询引擎列表
      * */
     protected List<WorkerDto> findAllAgent(Collection<String> agentIds, UserDetail loginUser) {
-        if (null == agentIds || agentIds.isEmpty()) {
+        if (CollectionUtils.isEmpty(agentIds)) {
             return Lists.newArrayList();
         }
         Criteria criteria = Criteria.where(AgentGroupTag.TAG_PROCESS_ID).in(agentIds)
@@ -460,13 +450,14 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         if (settingsService.isCloud()) {
             return info;
         }
-        if (null == info || info.isEmpty()) return info;
+        if (CollectionUtils.isEmpty(info)) return info;
         Map<String, AccessNodeInfo> infoMap = info.stream()
                 .filter(a -> Objects.nonNull(a) && Objects.nonNull(a.getProcessId()))
                 .collect(Collectors.toMap(AccessNodeInfo::getProcessId, a -> a));
-        List<AgentGroupEntity> entities = findAll(Query.query(Criteria.where(AgentGroupTag.TAG_DELETE).is(false)), loginUser);
+        Criteria criteria = findCriteria(null);
+        List<AgentGroupEntity> entities = findAll(Query.query(criteria), loginUser);
         List<AccessNodeInfo> groupAgentList = entities.stream()
-                .filter(a -> Objects.nonNull(a) && Objects.nonNull(a.getAgentIds()) && !a.getAgentIds().isEmpty())
+                .filter(a -> Objects.nonNull(a) && CollectionUtils.isNotEmpty(a.getAgentIds()))
                 .sorted(agentGroupUtil::sortAgentGroup)
                 .map(group -> agentGroupUtil.mappingAccessNodeInfo(group, infoMap))
                 .collect(Collectors.toList());
@@ -544,7 +535,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
      * 根据分组ID获取全部AgentID
      * */
     public List<String> getProcessNodeListByGroupId(List<String> accessNodeGroupProcessId, String accessNodeType, UserDetail userDetail) {
-        if (AccessNodeTypeEnum.isGroupManually(String.valueOf(accessNodeType))) {
+        if (AccessNodeTypeEnum.isGroupManually(accessNodeType)) {
             return getProcessNodeListByGroupId(accessNodeGroupProcessId, userDetail);
         }
         return accessNodeGroupProcessId;
@@ -554,21 +545,37 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
      * 根据分组ID列表查询引擎ID列表
      * */
     public List<String> getProcessNodeListByGroupId(List<String> groupIds, UserDetail userDetail) {
-        if (null == groupIds || groupIds.isEmpty()) {
+        if (CollectionUtils.isEmpty(groupIds)) {
             return Lists.newArrayList();
         }
-        List<AgentGroupEntity> all = findAll(Query.query(Criteria.where(AgentGroupTag.TAG_GROUP_ID).in(groupIds).and(AgentGroupTag.TAG_DELETE).is(false)), userDetail);
-        if (null == all || all.isEmpty()) {
+        Criteria criteria = findCriteria(groupIds);
+        Query query = Query.query(criteria);
+        List<AgentGroupEntity> all = findAll(query, userDetail);
+        if (CollectionUtils.isEmpty(all)) {
             //找不到当前标签
-            throw new BizException("group.not.fund", groupIds.toString());
+            throw new BizException(AgentGroupTag.GROUP_NOT_FUND, groupIds.toString());
         }
         Set<String> agents = new HashSet<>();
-        all.stream().filter(dto -> Objects.nonNull(dto) && Objects.nonNull(dto.getAgentIds()) && ! dto.getAgentIds().isEmpty())
+        all.stream().filter(dto -> Objects.nonNull(dto) && CollectionUtils.isNotEmpty(dto.getAgentIds()))
                 .forEach(dto -> agents.addAll(dto.getAgentIds()));
         if (agents.isEmpty()) {
             //无可用引擎
             throw new BizException("group.agent.not.available", groupIds.toString());
         }
         return new ArrayList<>(agents);
+    }
+
+    protected Criteria findCriteria(List<String> groupIds) {
+        Criteria criteria = Criteria.where(AgentGroupTag.TAG_DELETE).is(false);
+        if (null == groupIds || groupIds.isEmpty()) {
+            return criteria;
+        }
+        criteria.and(AgentGroupTag.TAG_GROUP_ID);
+        if (groupIds.size() == 1) {
+            criteria.is(groupIds.get(0));
+        } else {
+            criteria.in(groupIds);
+        }
+        return criteria;
     }
 }

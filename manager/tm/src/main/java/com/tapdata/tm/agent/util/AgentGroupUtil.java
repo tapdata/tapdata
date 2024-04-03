@@ -72,9 +72,9 @@ public class AgentGroupUtil {
             // New Group Name不能为空
             throw new BizException("group.new.name.empty");
         }
-        if (name.length() > 15) {
+        if (name.length() > AgentGroupTag.MAX_AGENT_GROUP_NAME_LENGTH) {
             // New Group Name长度不能大于15
-            throw new BizException("group.new.name.too.long", 15);
+            throw new BizException("group.new.name.too.long", AgentGroupTag.MAX_AGENT_GROUP_NAME_LENGTH);
         }
     }
 }
