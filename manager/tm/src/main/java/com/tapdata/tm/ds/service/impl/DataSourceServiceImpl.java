@@ -409,7 +409,7 @@ public class DataSourceServiceImpl extends DataSourceService{
     protected void restoreAccessNodeType(DataSourceConnectionDto updateDto, DataSourceConnectionDto connectionDto, List<String> accessNodeProcessIdList) {
         if (updateDto.isAccessNodeTypeEmpty() && CollectionUtils.isNotEmpty(accessNodeProcessIdList)) {
             updateDto.setAccessNodeType(connectionDto.getAccessNodeType());
-            updateDto.setAccessNodeProcessId(accessNodeProcessIdList.get(0));
+            //updateDto.setAccessNodeProcessId(accessNodeProcessIdList.get(0));
             updateDto.setAccessNodeProcessIdList(accessNodeProcessIdList);
             updateDto.setAccessNodeTypeEmpty(false);
         }

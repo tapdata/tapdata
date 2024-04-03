@@ -36,7 +36,7 @@ class DataSourceServiceImplTest {
 
             when(connectionDto.getAccessNodeType()).thenReturn("");
             doNothing().when(updateDto).setAccessNodeType(anyString());
-            doNothing().when(updateDto).setAccessNodeProcessId(anyString());
+            //doNothing().when(updateDto).setAccessNodeProcessId(anyString());
             doNothing().when(updateDto).setAccessNodeProcessIdList(accessNodeProcessIdList);
             doNothing().when(updateDto).setAccessNodeTypeEmpty(false);
 
@@ -49,7 +49,7 @@ class DataSourceServiceImplTest {
             Assertions.assertDoesNotThrow(() -> dataSourceService.restoreAccessNodeType(updateDto, connectionDto, accessNodeProcessIdList));
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(updateDto, times(1)).setAccessNodeType(anyString());
-            verify(updateDto, times(1)).setAccessNodeProcessId(anyString());
+            //verify(updateDto, times(1)).setAccessNodeProcessId(anyString());
             verify(updateDto, times(1)).setAccessNodeProcessIdList(accessNodeProcessIdList);
             verify(updateDto, times(1)).setAccessNodeTypeEmpty(false);
             verify(updateDto, times(1)).isAccessNodeTypeEmpty();
@@ -60,7 +60,7 @@ class DataSourceServiceImplTest {
             Assertions.assertDoesNotThrow(() -> dataSourceService.restoreAccessNodeType(updateDto, connectionDto, accessNodeProcessIdList));
             verify(connectionDto, times(0)).getAccessNodeType();
             verify(updateDto, times(0)).setAccessNodeType(anyString());
-            verify(updateDto, times(0)).setAccessNodeProcessId(anyString());
+            //verify(updateDto, times(0)).setAccessNodeProcessId(anyString());
             verify(updateDto, times(0)).setAccessNodeProcessIdList(accessNodeProcessIdList);
             verify(updateDto, times(0)).setAccessNodeTypeEmpty(false);
             verify(updateDto, times(1)).isAccessNodeTypeEmpty();
@@ -71,7 +71,7 @@ class DataSourceServiceImplTest {
             Assertions.assertDoesNotThrow(() -> dataSourceService.restoreAccessNodeType(updateDto, connectionDto, accessNodeProcessIdList));
             verify(connectionDto, times(0)).getAccessNodeType();
             verify(updateDto, times(0)).setAccessNodeType(anyString());
-            verify(updateDto, times(0)).setAccessNodeProcessId(anyString());
+            //verify(updateDto, times(0)).setAccessNodeProcessId(anyString());
             verify(updateDto, times(0)).setAccessNodeProcessIdList(accessNodeProcessIdList);
             verify(updateDto, times(0)).setAccessNodeTypeEmpty(false);
             verify(updateDto, times(1)).isAccessNodeTypeEmpty();
