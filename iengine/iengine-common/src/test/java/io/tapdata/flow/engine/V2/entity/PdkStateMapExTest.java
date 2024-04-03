@@ -1,19 +1,22 @@
 package io.tapdata.flow.engine.V2.entity;
 
+import com.hazelcast.core.Hazelcast;
+import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.construct.constructImpl.DocumentIMap;
 import lombok.SneakyThrows;
 import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -25,6 +28,7 @@ import static org.mockito.Mockito.*;
  * @Description
  * @create 2024-04-02 10:44
  **/
+@DisplayName("Class PdkStateMapEx Test")
 class PdkStateMapExTest {
 
 	private PdkStateMapEx pdkStateMapEx;
@@ -58,6 +62,22 @@ class PdkStateMapExTest {
 		list.add(new Document("$c.csv", 1).append("d", new Document("$dd.csv", 1)));
 		list.add("test");
 		value = new Document("$a.csv", 1).append("b", new Document("$bb.csv", 1)).append("l", list).append("e", 1);
+	}
+
+	@Test
+	@DisplayName("test construct")
+	void testConstruct() {
+		HazelcastInstance hazelcastInstance = Hazelcast.newHazelcastInstance();
+		ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+		ConnectorConstant.clientMongoOperator = clientMongoOperator;
+		ExternalStorageDto externalStorageDto = new ExternalStorageDto();
+		externalStorageDto.setType("memory");
+		externalStorageDto.setDefaultStorage(true);
+		externalStorageDto.setInMemSize(10);
+		when(clientMongoOperator.find(any(Query.class), eq(ConnectorConstant.EXTERNAL_STORAGE_COLLECTION), eq(ExternalStorageDto.class))).thenReturn(Collections.singletonList(externalStorageDto));
+		PdkStateMapEx stateMapEx = assertDoesNotThrow(() -> new PdkStateMapEx(hazelcastInstance, tableNode));
+		assertNotNull(stateMapEx);
+		hazelcastInstance.shutdown();
 	}
 
 	@Test

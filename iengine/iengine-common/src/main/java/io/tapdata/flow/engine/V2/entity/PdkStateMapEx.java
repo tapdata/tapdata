@@ -13,9 +13,6 @@ import java.util.Map;
  * @create 2024-04-01 21:28
  **/
 public class PdkStateMapEx extends PdkStateMap {
-	public PdkStateMapEx(String nodeId, HazelcastInstance hazelcastInstance) {
-		super(nodeId, hazelcastInstance);
-	}
 
 	public PdkStateMapEx(HazelcastInstance hazelcastInstance, Node<?> node) {
 		super(hazelcastInstance, node);
