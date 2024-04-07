@@ -1,12 +1,17 @@
 package com.tapdata.tm.agent.service;
 
 
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsServiceImpl;
 import com.tapdata.tm.Unit4Util;
 import com.tapdata.tm.agent.dto.AgentGroupDto;
+import com.tapdata.tm.agent.dto.AgentRemoveFromGroupDto;
+import com.tapdata.tm.agent.dto.AgentToGroupDto;
+import com.tapdata.tm.agent.dto.AgentWithGroupBaseDto;
 import com.tapdata.tm.agent.dto.GroupDto;
 import com.tapdata.tm.agent.entity.AgentGroupEntity;
 import com.tapdata.tm.agent.repository.AgentGroupRepository;
+import com.tapdata.tm.agent.util.AgentGroupTag;
 import com.tapdata.tm.agent.util.AgentGroupUtil;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.exception.BizException;
@@ -20,6 +25,8 @@ import com.tapdata.tm.task.service.TaskServiceImpl;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerServiceImpl;
+import org.apache.commons.collections.CollectionUtils;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -28,11 +35,13 @@ import org.mockito.MockedStatic;
 import org.slf4j.Logger;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -87,6 +96,7 @@ class AgentGroupServiceTest {
     @Test
     void testConstructor() {
         Assertions.assertDoesNotThrow(() -> new AgentGroupService(repository));
+        Assertions.assertThrows(Exception.class, () -> new AgentGroupService(null));
     }
 
     @Nested
@@ -116,7 +126,7 @@ class AgentGroupServiceTest {
     }
 
     @Nested
-    class CreateGroupTest {
+    class GetAllAgentIdTest {
         @BeforeEach
         void init() {
 
@@ -125,32 +135,169 @@ class AgentGroupServiceTest {
         @Test
         void testNormal() {
 
+        }
+    }
+
+    @Nested
+    class GenerateDtoTest {
+        GroupDto item;
+        Map<String, WorkerDto> map;
+        List<String> agentIds;
+
+        @BeforeEach
+        void init() {
+            agentIds = new ArrayList<>();
+            agentIds.add("id");
+
+            item = mock(GroupDto.class);
+            when(item.getAgentIds()).thenReturn(agentIds);
+            when(item.getGroupId()).thenReturn("id");
+            when(item.getName()).thenReturn("name");
+
+            map = mock(Map.class);
+            when(map.get("id")).thenReturn(mock(WorkerDto.class));
+            when(agentGroupService.generateDto(item, true, map)).thenCallRealMethod();
+            when(agentGroupService.generateDto(item, false, map)).thenCallRealMethod();
+        }
+
+        @Test
+        void testNormal() {
+            Assertions.assertNotNull(agentGroupService.generateDto(item, true, map));
+            verify(item, times(1)).getAgentIds();
+            verify(item, times(1)).getGroupId();
+            verify(item, times(1)).getName();
+        }
+
+        @Test
+        void testAgentIdsIsEmpty() {
+            Assertions.assertNotNull(agentGroupService.generateDto(item, true, map));
+            verify(item, times(1)).getAgentIds();
+            verify(item, times(1)).getGroupId();
+            verify(item, times(1)).getName();
+        }
+
+        @Test
+        void testAgentIdsIsNull() {
+            when(item.getAgentIds()).thenReturn(null);
+            Assertions.assertNotNull(agentGroupService.generateDto(item, true, map));
+            verify(item, times(1)).getAgentIds();
+            verify(item, times(1)).getGroupId();
+            verify(item, times(1)).getName();
+        }
+
+        @Test
+        void testNotEquals(){
+            Assertions.assertNotNull(agentGroupService.generateDto(item, false, map));
+            verify(item, times(1)).getAgentIds();
+            verify(item, times(1)).getGroupId();
+            verify(item, times(1)).getName();
+        }
+    }
+
+
+
+    @Nested
+    class CreateGroupTest {
+        @Test
+        void testNormal() {
+            GroupDto groupDto = mock(GroupDto.class);
+            when(groupDto.getName()).thenReturn("name");
+            Query query = mock(Query.class);
+            when(agentGroupService.verifyCountGroupByName("name", userDetail)).thenReturn(query);
+            when(agentGroupService.upsert(any(Query.class), any(AgentGroupDto.class), any(UserDetail.class))).thenReturn(1L);
+            doNothing().when(log).info("A agent group has be created - {}", "name");
+
+            when(agentGroupService.createGroup(groupDto, userDetail)).thenCallRealMethod();
+
+            Assertions.assertNotNull(agentGroupService.createGroup(groupDto, userDetail));
+            verify(agentGroupService, times(1)).verifyCountGroupByName("name", userDetail);
+            verify(agentGroupService, times(1)).upsert(any(Query.class), any(AgentGroupDto.class), any(UserDetail.class));
+            verify(log, times(1)).info("A agent group has be created - {}", "name");
         }
     }
 
     @Nested
     class VerifyCountGroupByNameTest {
-        @BeforeEach
-        void init() {
-
+        @Test
+        void testNormal() {
+            when(agentGroupService.count(any(Query.class), any(UserDetail.class))).thenReturn(0L);
+            when(agentGroupService.verifyCountGroupByName(anyString(), any(UserDetail.class))).thenCallRealMethod();
+            Assertions.assertDoesNotThrow(() -> agentGroupService.verifyCountGroupByName("name", userDetail));
+            verify(agentGroupService, times(1)).count(any(Query.class), any(UserDetail.class));
         }
 
         @Test
-        void testNormal() {
-
+        void testCountLessThanZero() {
+            when(agentGroupService.count(any(Query.class), any(UserDetail.class))).thenReturn(1L);
+            when(agentGroupService.verifyCountGroupByName(anyString(), any(UserDetail.class))).thenCallRealMethod();
+            Assertions.assertThrows(BizException.class, () -> agentGroupService.verifyCountGroupByName("name", userDetail));
+            verify(agentGroupService, times(1)).count(any(Query.class), any(UserDetail.class));
         }
     }
 
     @Nested
     class BatchOperatorTest {
+        AgentToGroupDto agentDto;
+        List<String> agentId;
+        List<String> groupId;
         @BeforeEach
         void init() {
+            agentDto = mock(AgentToGroupDto.class);
+            agentId = mock(List.class);
+            groupId = mock(List.class);
+            when(agentDto.getAgentId()).thenReturn(agentId);
+            when(agentDto.getGroupId()).thenReturn(groupId);
+            when(agentGroupService.batchRemoveAll(userDetail)).thenReturn(mock(List.class));
+            when(agentGroupService.batchRemoveAllGroup(groupId, userDetail)).thenReturn(mock(List.class));
+            when(agentGroupService.batchRemoveAllAgent(agentId, userDetail)).thenReturn(mock(List.class));
+            when(agentGroupService.batchUpdate(agentId, groupId, userDetail)).thenReturn(mock(List.class));
+            when(agentGroupService.batchOperator(agentDto, userDetail)).thenCallRealMethod();
+        }
 
+        void assertVerify(boolean agentIdIsEmpty, boolean groupIdIsEmpty,
+                          int agentIdIsEmptyTimes,
+                          int batchRemoveAll, int batchRemoveAllGroup, int batchRemoveAllAgent, int batchUpdate) {
+            try(MockedStatic<CollectionUtils> cu = mockStatic(CollectionUtils.class)) {
+                cu.when(()-> CollectionUtils.isEmpty(agentId)).thenReturn(agentIdIsEmpty);
+                cu.when(()-> CollectionUtils.isEmpty(groupId)).thenReturn(groupIdIsEmpty);
+                Assertions.assertDoesNotThrow(() -> agentGroupService.batchOperator(agentDto, userDetail));
+                cu.verify(()-> CollectionUtils.isEmpty(agentId), times(agentIdIsEmptyTimes));
+                cu.verify(()-> CollectionUtils.isEmpty(groupId), times(1));
+            }
+            verify(agentDto, times(1)).getAgentId();
+            verify(agentDto, times(1)).getGroupId();
+            verify(agentGroupService, times(batchRemoveAll)).batchRemoveAll(userDetail);
+            verify(agentGroupService, times(batchRemoveAllGroup)).batchRemoveAllGroup(groupId, userDetail);
+            verify(agentGroupService, times(batchRemoveAllAgent)).batchRemoveAllAgent(agentId, userDetail);
+            verify(agentGroupService, times(batchUpdate)).batchUpdate(agentId, groupId, userDetail);
         }
 
         @Test
         void testNormal() {
+            assertVerify(false, false,
+                    2,
+                    0, 0, 0, 1);
+        }
 
+        @Test
+        void testBatchRemoveAll() {
+            assertVerify(true, true,
+                    1,
+                    1, 0, 0, 0);
+        }
+
+        @Test
+        void testBatchRemoveAllGroup() {
+            assertVerify(true, false,
+                    2,
+                    0, 1, 0, 0);
+        }
+
+        @Test
+        void testBatchRemoveAllAgent() {
+            assertVerify(false, true,
+                    2,
+                    0, 0, 1, 0);
         }
     }
 
@@ -158,116 +305,638 @@ class AgentGroupServiceTest {
     class BatchRemoveAllTest {
         @BeforeEach
         void init() {
-
+            when(agentGroupService.update(any(Query.class), any(Update.class), any(UserDetail.class))).thenReturn(mock(UpdateResult.class));
+            when(agentGroupService.findAgentGroupInfo(any(Query.class), any(UserDetail.class))).thenReturn(mock(List.class));
+            when(agentGroupService.batchRemoveAll(userDetail)).thenCallRealMethod();
         }
 
         @Test
         void testNormal() {
-
+            Assertions.assertDoesNotThrow(() -> agentGroupService.batchRemoveAll(userDetail));
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAgentGroupInfo(any(Query.class), any(UserDetail.class));
         }
     }
 
     @Nested
     class BatchRemoveAllAgentTest {
+        List<String> agentIds;
+        List<AgentGroupEntity> all;
+        AgentGroupEntity agentGroupEntity;
+
+        Criteria criteria;
+        UpdateResult updateResult;
         @BeforeEach
         void init() {
+            agentIds = mock(List.class);
+            when(agentIds.isEmpty()).thenReturn(false);
+            when(agentIds.toArray()).thenReturn(new String[]{});
 
+            all = new ArrayList<>();
+            agentGroupEntity = mock(AgentGroupEntity.class);
+            when(agentGroupEntity.getGroupId()).thenReturn("id");
+            all.add(agentGroupEntity);
+
+            when(agentGroupService.findAll(any(Query.class), any(UserDetail.class))).thenReturn(all);
+
+            criteria = mock(Criteria.class);
+            when(criteria.and(AgentGroupTag.TAG_AGENT_IDS)).thenReturn(criteria);
+            when(criteria.in(anyList())).thenReturn(criteria);
+            when(agentGroupService.findCriteria(anyList())).thenReturn(criteria);
+
+            updateResult = mock(UpdateResult.class);
+            when(agentGroupService.update(any(Query.class), any(Update.class), any(UserDetail.class))).thenReturn(updateResult);
+            doNothing().when(log).info(anyString(), anyList(), anyList());
+            when(agentGroupService.findAgentGroupInfoMany(any(List.class), any(UserDetail.class))).thenReturn(mock(List.class));
+
+            when(agentGroupService.batchRemoveAllAgent(agentIds, userDetail)).thenCallRealMethod();
         }
 
         @Test
         void testNormal() {
+            Assertions.assertDoesNotThrow(() -> agentGroupService.batchRemoveAllAgent(agentIds, userDetail));
+            verify(agentIds, times(1)).isEmpty();
 
+            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupEntity, times(2)).getGroupId();
+            verify(agentGroupService, times(1)).findCriteria(anyList());
+
+            verify(criteria, times(1)).and(AgentGroupTag.TAG_AGENT_IDS);
+            verify(criteria, times(1)).in(anyList());
+
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+
+            verify(log, times(1)).info(anyString(), anyList(), anyList());
+            verify(agentGroupService, times(1)).findAgentGroupInfoMany(any(List.class), any(UserDetail.class));
+        }
+
+        @Test
+        void testAgentIdsIsEMpty() {
+            when(agentIds.isEmpty()).thenReturn(true);
+            Assertions.assertDoesNotThrow(() -> agentGroupService.batchRemoveAllAgent(agentIds, userDetail));
+            verify(agentIds, times(1)).isEmpty();
+
+            verify(agentGroupService, times(0)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupEntity, times(0)).getGroupId();
+            verify(agentGroupService, times(0)).findCriteria(anyList());
+
+            verify(criteria, times(0)).and(AgentGroupTag.TAG_AGENT_IDS);
+            verify(criteria, times(0)).in(anyList());
+
+            verify(agentGroupService, times(0)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+
+            verify(log, times(0)).info(anyString(), anyList(), anyList());
+            verify(agentGroupService, times(0)).findAgentGroupInfoMany(any(List.class), any(UserDetail.class));
+        }
+
+
+        @Test
+        void testFindAllContainsNull() {
+            all.add(null);
+            Assertions.assertDoesNotThrow(() -> agentGroupService.batchRemoveAllAgent(agentIds, userDetail));
+            verify(agentIds, times(1)).isEmpty();
+
+            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupEntity, times(2)).getGroupId();
+            verify(agentGroupService, times(1)).findCriteria(anyList());
+
+            verify(criteria, times(1)).and(AgentGroupTag.TAG_AGENT_IDS);
+            verify(criteria, times(1)).in(anyList());
+
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+
+            verify(log, times(1)).info(anyString(), anyList(), anyList());
+            verify(agentGroupService, times(1)).findAgentGroupInfoMany(any(List.class), any(UserDetail.class));
+        }
+        @Test
+        void testGetGroupIdIsNull() {
+            when(agentGroupEntity.getGroupId()).thenReturn(null);
+
+            Assertions.assertDoesNotThrow(() -> agentGroupService.batchRemoveAllAgent(agentIds, userDetail));
+            verify(agentIds, times(1)).isEmpty();
+
+            verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
+            verify(agentGroupEntity, times(1)).getGroupId();
+            verify(agentGroupService, times(1)).findCriteria(anyList());
+
+            verify(criteria, times(1)).and(AgentGroupTag.TAG_AGENT_IDS);
+            verify(criteria, times(1)).in(anyList());
+
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+
+            verify(log, times(1)).info(anyString(), anyList(), anyList());
+            verify(agentGroupService, times(1)).findAgentGroupInfoMany(any(List.class), any(UserDetail.class));
         }
     }
 
     @Nested
     class BatchRemoveAllGroupTest {
+        List<String> groupIds;
         @BeforeEach
         void init() {
+            groupIds = mock(List.class);
 
+            when(agentGroupService.updateAgent(anyList(), anyList(), any(UserDetail.class))).thenReturn(mock(List.class));
+            doNothing().when(log).info("Agent batch operator: all agent are removed from groups: {} ", groupIds);
+            when(agentGroupService.batchRemoveAllGroup(groupIds, userDetail)).thenCallRealMethod();
         }
 
         @Test
         void testNormal() {
+            Assertions.assertDoesNotThrow(() -> agentGroupService.batchRemoveAllGroup(groupIds, userDetail));
+            verify(log, times(1)).info(anyString(), anyList());
+            verify(agentGroupService, times(1)).updateAgent(anyList(), anyList(), any(UserDetail.class));
+        }
+    }
 
+    @Nested
+    class UpdateAgentTest {
+        List<String> groupIds;
+        List<String> agentId;
+        Criteria criteria;
+        @BeforeEach
+        void init() {
+            agentId = mock(List.class);
+            groupIds = mock(List.class);
+            when(groupIds.isEmpty()).thenReturn(false);
+
+            criteria = mock(Criteria.class);
+            when(agentGroupService.findCriteria(anyList())).thenReturn(criteria);
+            when(agentGroupService.update(any(Query.class), any(Update.class), any(UserDetail.class))).thenReturn(mock(UpdateResult.class));
+            when(agentGroupService.findAgentGroupInfoMany(anyList(), any(UserDetail.class))).thenReturn(mock(List.class));
+            when(agentGroupService.updateAgent(groupIds, agentId, userDetail)).thenCallRealMethod();
+        }
+
+        @Test
+        void testNormal() {
+            try(MockedStatic<Query> q = mockStatic(Query.class)) {
+                q.when(() -> Query.query(criteria)).thenReturn(mock(Query.class));
+                Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
+                q.verify(() -> Query.query(criteria), times(1));
+            }
+            verify(groupIds, times(1)).isEmpty();
+            verify(agentGroupService, times(1)).findCriteria(groupIds);
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAgentGroupInfoMany(groupIds, userDetail);
+        }
+
+        @Test
+        void testGroupIdsIsEmpty() {
+            when(groupIds.isEmpty()).thenReturn(true);
+            try(MockedStatic<Query> q = mockStatic(Query.class)) {
+                q.when(() -> Query.query(criteria)).thenReturn(mock(Query.class));
+                Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
+                q.verify(() -> Query.query(criteria), times(0));
+            }
+            verify(groupIds, times(1)).isEmpty();
+            verify(agentGroupService, times(0)).findCriteria(groupIds);
+            verify(agentGroupService, times(0)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(0)).findAgentGroupInfoMany(groupIds, userDetail);
         }
     }
 
     @Nested
     class BatchUpdateTest {
+        List<String> groupIds;
+        List<String> agentIds;
         @BeforeEach
         void init() {
+            agentIds = mock(List.class);
+            groupIds = mock(List.class);
 
+            when(agentGroupService.updateAgent(groupIds, agentIds, userDetail)).thenReturn(mock(List.class));
+            doNothing().when(log).info("Agent: {} has be added to group: {} ", agentIds, groupIds);;
+            when(agentGroupService.batchUpdate(agentIds, groupIds, userDetail)).thenCallRealMethod();
         }
 
         @Test
         void testNormal() {
-
+            Assertions.assertDoesNotThrow(() -> agentGroupService.batchUpdate(agentIds, groupIds, userDetail));
+            verify(log, times(1)).info("Agent: {} has be added to group: {} ", agentIds, groupIds);
+            verify(agentGroupService, times(1)).updateAgent(anyList(), anyList(), any(UserDetail.class));
         }
     }
 
     @Nested
     class AddAgentToGroupTest {
+        AgentWithGroupBaseDto agentDto;
+        GroupDto groupDto;
+        List<String> agents;
+        Criteria criteria;
+        UpdateResult updateResult;
         @BeforeEach
         void init() {
+            groupDto = mock(GroupDto.class);
+            agents = mock(List.class);
+            criteria = Criteria.where("hhh").ne(true);
+            updateResult = mock(UpdateResult.class);
+            agentDto = mock(AgentWithGroupBaseDto.class);
 
+
+            doNothing().when(agentDto).verify();
+            when(agentDto.getGroupId()).thenReturn("g-id");
+            when(agentDto.getAgentId()).thenReturn("a-id");
+
+            doNothing().when(agentGroupService).verifyAgent(anyList(), any(UserDetail.class));
+            when(agentGroupService.findGroupById("g-id", userDetail)).thenReturn(groupDto);
+            when(groupDto.getAgentIds()).thenReturn(agents);
+
+            when(agents.isEmpty()).thenReturn(false);
+            when(agents.contains("a-id")).thenReturn(false);
+
+            when(log.isDebugEnabled()).thenReturn(true);
+
+            when(groupDto.toString()).thenReturn("");
+            doNothing().when(log).debug("group agent repeatedly, {}", "");
+            when(agentGroupService.findAgentGroupInfo("g-id", userDetail)).thenReturn(mock(AgentGroupDto.class));
+
+            when(agentGroupService.findCriteria(anyList())).thenReturn(criteria);
+
+            when(agentGroupService.update(any(Query.class), any(Update.class), any(UserDetail.class))).thenReturn(updateResult);
+            when(updateResult.getModifiedCount()).thenReturn(1L);
+
+            when(groupDto.getName()).thenReturn("name");
+            doNothing().when(log).info("Agent: {} has be added to group: {} ", "a-id", "name");
+
+
+            when(agentGroupService.addAgentToGroup(agentDto, userDetail)).thenCallRealMethod();
         }
 
         @Test
         void testNormal() {
+            Assertions.assertDoesNotThrow(() -> agentGroupService.addAgentToGroup(agentDto, userDetail));
+            verify(agentDto, times(1)).verify();
+            verify(agentDto, times(1)).getGroupId();
+            verify(agentDto, times(1)).getAgentId();
+            verify(agentGroupService, times(1)).verifyAgent(anyList(), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findGroupById("g-id", userDetail);
+            verify(groupDto, times(1)).getAgentIds();
+            verify(agents, times(1)).isEmpty();
+            verify(agents, times(1)).contains("a-id");
 
+            verify(log, times(0)).isDebugEnabled();
+            verify(log, times(0)).debug("group agent repeatedly, {}", "");
+
+            verify(agentGroupService, times(1)).findAgentGroupInfo("g-id", userDetail);
+            verify(agentGroupService, times(1)).findCriteria(anyList());
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(updateResult, times(1)).getModifiedCount();
+            verify(groupDto, times(1)).getName();
+            verify(log, times(1)).info("Agent: {} has be added to group: {} ", "a-id", "name");
+        }
+
+        @Test
+        void testModifiedCountLessThanZero() {
+            when(updateResult.getModifiedCount()).thenReturn(0L);
+            Assertions.assertThrows(BizException.class, () -> agentGroupService.addAgentToGroup(agentDto, userDetail));
+            verify(agentDto, times(1)).verify();
+            verify(agentDto, times(1)).getGroupId();
+            verify(agentDto, times(1)).getAgentId();
+            verify(agentGroupService, times(1)).verifyAgent(anyList(), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findGroupById("g-id", userDetail);
+            verify(groupDto, times(1)).getAgentIds();
+            verify(agents, times(1)).isEmpty();
+            verify(agents, times(1)).contains("a-id");
+
+            verify(log, times(0)).isDebugEnabled();
+            verify(log, times(0)).debug("group agent repeatedly, {}", "");
+
+            verify(agentGroupService, times(0)).findAgentGroupInfo("g-id", userDetail);
+            verify(agentGroupService, times(1)).findCriteria(anyList());
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(updateResult, times(1)).getModifiedCount();
+            verify(groupDto, times(0)).getName();
+            verify(log, times(0)).info("Agent: {} has be added to group: {} ", "a-id", "name");
+        }
+
+        @Test
+        void testAgentsIsEmpty() {
+            when(agents.isEmpty()).thenReturn(true);
+            Assertions.assertDoesNotThrow(() -> agentGroupService.addAgentToGroup(agentDto, userDetail));
+            verify(agentDto, times(1)).verify();
+            verify(agentDto, times(1)).getGroupId();
+            verify(agentDto, times(1)).getAgentId();
+            verify(agentGroupService, times(1)).verifyAgent(anyList(), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findGroupById("g-id", userDetail);
+            verify(groupDto, times(1)).getAgentIds();
+            verify(agents, times(1)).isEmpty();
+            verify(agents, times(0)).contains("a-id");
+
+            verify(log, times(0)).isDebugEnabled();
+            verify(log, times(0)).debug("group agent repeatedly, {}", "");
+
+            verify(agentGroupService, times(1)).findAgentGroupInfo("g-id", userDetail);
+            verify(agentGroupService, times(1)).findCriteria(anyList());
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(updateResult, times(1)).getModifiedCount();
+            verify(groupDto, times(1)).getName();
+            verify(log, times(1)).info("Agent: {} has be added to group: {} ", "a-id", "name");
+        }
+
+        @Test
+        void testAgentsContains() {
+            when(agents.contains("a-id")).thenReturn(true);
+            Assertions.assertDoesNotThrow(() -> agentGroupService.addAgentToGroup(agentDto, userDetail));
+            verify(agentDto, times(1)).verify();
+            verify(agentDto, times(1)).getGroupId();
+            verify(agentDto, times(1)).getAgentId();
+            verify(agentGroupService, times(1)).verifyAgent(anyList(), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findGroupById("g-id", userDetail);
+            verify(groupDto, times(1)).getAgentIds();
+            verify(agents, times(1)).isEmpty();
+            verify(agents, times(1)).contains("a-id");
+
+            verify(log, times(1)).isDebugEnabled();
+            verify(log, times(1)).debug("group agent repeatedly, {}", "");
+
+            verify(agentGroupService, times(1)).findAgentGroupInfo("g-id", userDetail);
+            verify(agentGroupService, times(0)).findCriteria(anyList());
+            verify(agentGroupService, times(0)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(updateResult, times(0)).getModifiedCount();
+            verify(groupDto, times(0)).getName();
+            verify(log, times(0)).info("Agent: {} has be added to group: {} ", "a-id", "name");
+        }
+        @Test
+        void testNotDebug() {
+            when(agents.contains("a-id")).thenReturn(true);
+            when(log.isDebugEnabled()).thenReturn(false);
+            Assertions.assertDoesNotThrow(() -> agentGroupService.addAgentToGroup(agentDto, userDetail));
+            verify(agentDto, times(1)).verify();
+            verify(agentDto, times(1)).getGroupId();
+            verify(agentDto, times(1)).getAgentId();
+            verify(agentGroupService, times(1)).verifyAgent(anyList(), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findGroupById("g-id", userDetail);
+            verify(groupDto, times(1)).getAgentIds();
+            verify(agents, times(1)).isEmpty();
+            verify(agents, times(1)).contains("a-id");
+
+            verify(log, times(1)).isDebugEnabled();
+            verify(log, times(0)).debug("group agent repeatedly, {}", "");
+
+            verify(agentGroupService, times(1)).findAgentGroupInfo("g-id", userDetail);
+            verify(agentGroupService, times(0)).findCriteria(anyList());
+            verify(agentGroupService, times(0)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(updateResult, times(0)).getModifiedCount();
+            verify(groupDto, times(0)).getName();
+            verify(log, times(0)).info("Agent: {} has be added to group: {} ", "a-id", "name");
+        }
+    }
+
+    @Nested
+    class VerifyAgentTest {
+        List<String> agentIds;
+        List<WorkerDto> allAgent;
+        @BeforeEach
+        void init() {
+            agentIds = mock(List.class);
+            when(agentIds.toString()).thenReturn("[]");
+            allAgent = mock(List.class);
+            when(allAgent.isEmpty()).thenReturn(false);
+
+            when(agentGroupService.findAllAgent(agentIds, userDetail)).thenReturn(allAgent);
+            doCallRealMethod().when(agentGroupService).verifyAgent(agentIds, userDetail);
+        }
+
+        @Test
+        void testNormal() {
+            Assertions.assertDoesNotThrow(() -> agentGroupService.verifyAgent(agentIds, userDetail));
+            verify(agentGroupService, times(1)).findAllAgent(agentIds, userDetail);
+            verify(allAgent, times(1)).isEmpty();
+        }
+        @Test
+        void testEmpty() {
+            when(allAgent.isEmpty()).thenReturn(true);
+            Assertions.assertThrows(BizException.class, () -> agentGroupService.verifyAgent(agentIds, userDetail));
+            verify(agentGroupService, times(1)).findAllAgent(agentIds, userDetail);
+            verify(allAgent, times(1)).isEmpty();
         }
     }
 
     @Nested
     class RemoveAgentFromGroupTest {
+        AgentRemoveFromGroupDto removeDto;
+        GroupDto groupDto;
+        Criteria criteria;
+        UpdateResult updateResult;
+
+        AgentGroupDto dto;
         @BeforeEach
         void init() {
+            removeDto = mock(AgentRemoveFromGroupDto.class);
+            doNothing().when(removeDto).verify();
+            when(removeDto.getGroupId()).thenReturn("g-id");
+            when(removeDto.getAgentId()).thenReturn("a-id");
 
+            groupDto = mock(GroupDto.class);
+            when(groupDto.getGroupId()).thenReturn("gg-id");
+            when(groupDto.getName()).thenReturn("gg-name");
+
+            criteria = Criteria.where("is_delete").ne(false);
+
+            updateResult = mock(UpdateResult.class);
+            when(updateResult.getModifiedCount()).thenReturn(1L);
+
+            dto = mock(AgentGroupDto.class);
+
+            when(agentGroupService.findGroupById("g-id", userDetail)).thenReturn(groupDto);
+            when(agentGroupService.findCriteria(anyList())).thenReturn(criteria);
+            when(agentGroupService.update(any(Query.class), any(Update.class), any(UserDetail.class))).thenReturn(updateResult);
+            doNothing().when(log).info("Agent: {} has be removed from group: {} ", "a-id", "gg-name");
+            when(agentGroupService.findAgentGroupInfo("g-id", userDetail)).thenReturn(dto);
+
+            when(agentGroupService.removeAgentFromGroup(removeDto, userDetail)).thenCallRealMethod();
         }
 
         @Test
         void testNormal() {
+            Assertions.assertDoesNotThrow(() -> agentGroupService.removeAgentFromGroup(removeDto, userDetail));
+            verify(removeDto, times(1)).verify();
+            verify(removeDto, times(1)).getGroupId();
+            verify(removeDto, times(1)).getAgentId();
 
+            verify(groupDto, times(1)).getGroupId();
+            verify(groupDto, times(1)).getName();
+
+            verify(updateResult, times(1)).getModifiedCount();
+
+            verify(agentGroupService, times(1)).findGroupById("g-id", userDetail);
+            verify(agentGroupService, times(1)).findCriteria(anyList());
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+
+            verify(log, times(1)).info("Agent: {} has be removed from group: {} ", "a-id", "gg-name");
+
+            verify(agentGroupService, times(1)).findAgentGroupInfo("g-id", userDetail);
+        }
+
+        @Test
+        void testModifiedCountLessThanZero() {
+            when(updateResult.getModifiedCount()).thenReturn(0L);
+            Assertions.assertThrows(BizException.class, () -> agentGroupService.removeAgentFromGroup(removeDto, userDetail));
+            verify(removeDto, times(1)).verify();
+            verify(removeDto, times(1)).getGroupId();
+            verify(removeDto, times(1)).getAgentId();
+
+            verify(groupDto, times(1)).getGroupId();
+            verify(groupDto, times(0)).getName();
+
+            verify(updateResult, times(1)).getModifiedCount();
+
+            verify(agentGroupService, times(1)).findGroupById("g-id", userDetail);
+            verify(agentGroupService, times(1)).findCriteria(anyList());
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+
+            verify(log, times(0)).info("Agent: {} has be removed from group: {} ", "a-id", "gg-name");
+
+            verify(agentGroupService, times(0)).findAgentGroupInfo("g-id", userDetail);
         }
     }
 
     @Nested
     class DeleteGroupTest {
+        GroupDto groupDto;
+        List<DataSourceConnectionDto> beUsedConnections;
+        List<TaskDto> serviceAllDto;
         @BeforeEach
         void init() {
+            beUsedConnections = mock(List.class);
+            when(beUsedConnections.isEmpty()).thenReturn(true);
 
+            serviceAllDto = mock(List.class);
+            when(serviceAllDto.isEmpty()).thenReturn(true);
+
+            groupDto = mock(GroupDto.class);
+            when(groupDto.getName()).thenReturn("name");
+            when(groupDto.getAgentIds()).thenReturn(mock(List.class));
+            when(groupDto.getId()).thenReturn(mock(ObjectId.class));
+
+            when(agentGroupService.findGroupById("groupId", userDetail)).thenReturn(groupDto);
+
+            when(dataSourceService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(beUsedConnections);
+            when(taskService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(serviceAllDto);
+            when(agentGroupService.deleteById(any(ObjectId.class), any(UserDetail.class))).thenReturn(true);
+            doNothing().when(log).info("Agent group has be deleted: {} ", "name");
+            when(agentGroupService.deleteGroup("groupId", userDetail)).thenCallRealMethod();
         }
 
         @Test
         void testNormal() {
+            Assertions.assertNotNull(agentGroupService.deleteGroup("groupId", userDetail));
+            verify(agentGroupService, times(1)).findGroupById("groupId", userDetail);
+            verify(dataSourceService, times(1)).findAllDto(any(Query.class), any(UserDetail.class));
+            verify(taskService, times(1)).findAllDto(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).deleteById(any(ObjectId.class), any(UserDetail.class));
+            verify(log, times(1)).info("Agent group has be deleted: {} ", "name");
+        }
 
+        @Test
+        void testBeUsedConnectionsIsEmpty() {
+            when(beUsedConnections.isEmpty()).thenReturn(false);
+            Assertions.assertNotNull(agentGroupService.deleteGroup("groupId", userDetail));
+            verify(agentGroupService, times(1)).findGroupById("groupId", userDetail);
+            verify(dataSourceService, times(1)).findAllDto(any(Query.class), any(UserDetail.class));
+            verify(taskService, times(1)).findAllDto(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(0)).deleteById(any(ObjectId.class), any(UserDetail.class));
+            verify(log, times(0)).info("Agent group has be deleted: {} ", "name");
+        }
+
+        @Test
+        void testServiceAllDtoIsEmpty() {
+            when(serviceAllDto.isEmpty()).thenReturn(false);
+            Assertions.assertNotNull(agentGroupService.deleteGroup("groupId", userDetail));
+            verify(agentGroupService, times(1)).findGroupById("groupId", userDetail);
+            verify(dataSourceService, times(1)).findAllDto(any(Query.class), any(UserDetail.class));
+            verify(taskService, times(1)).findAllDto(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(0)).deleteById(any(ObjectId.class), any(UserDetail.class));
+            verify(log, times(0)).info("Agent group has be deleted: {} ", "name");
+        }
+
+        @Test
+        void testNotDeleted() {
+            when(agentGroupService.deleteById(any(ObjectId.class), any(UserDetail.class))).thenReturn(false);
+            Assertions.assertNotNull(agentGroupService.deleteGroup("groupId", userDetail));
+            verify(agentGroupService, times(1)).findGroupById("groupId", userDetail);
+            verify(dataSourceService, times(1)).findAllDto(any(Query.class), any(UserDetail.class));
+            verify(taskService, times(1)).findAllDto(any(Query.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).deleteById(any(ObjectId.class), any(UserDetail.class));
+            verify(log, times(0)).info("Agent group has be deleted: {} ", "name");
         }
     }
 
     @Nested
     class UpdateBaseInfoTest {
+        GroupDto dto;
+        Criteria criteria;
+        Query query;
         @BeforeEach
         void init() {
+            dto = mock(GroupDto.class);
+            criteria = mock(Criteria.class);
+            query = mock(Query.class);
 
+            when(dto.getGroupId()).thenReturn("id");
+            when(dto.getName()).thenReturn("name");
+            when(agentGroupService.verifyCountGroupByName("name", userDetail)).thenReturn(query);
+            when(agentGroupService.findCriteria(anyList())).thenReturn(criteria);
+            when(agentGroupService.update(any(Query.class), any(Update.class), any(UserDetail.class))).thenReturn(mock(UpdateResult.class));
+            when(agentGroupService.findAgentGroupInfo("id", userDetail)).thenReturn(mock(AgentGroupDto.class));
+            doNothing().when(agentGroupUtil).verifyUpdateGroupInfo(dto);
+            when(agentGroupService.updateBaseInfo(dto, userDetail)).thenCallRealMethod();
         }
 
         @Test
         void testNormal() {
-
+            try (MockedStatic<Query> q = mockStatic(Query.class)) {
+                q.when(() -> Query.query(criteria)).thenReturn(query);
+                AgentGroupDto d = agentGroupService.updateBaseInfo(this.dto, userDetail);
+                q.verify(() -> Query.query(criteria), times(1));
+                Assertions.assertNotNull(d);
+                verify(dto, times(2)).getGroupId();
+                verify(dto, times(1)).getName();
+                verify(agentGroupService, times(1)).verifyCountGroupByName("name", userDetail);
+                verify(agentGroupService, times(1)).findCriteria(anyList());
+                verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+                verify(agentGroupService, times(1)).findAgentGroupInfo("id", userDetail);
+                verify(agentGroupUtil, times(1)).verifyUpdateGroupInfo(dto);
+            }
         }
     }
 
     @Nested
     class FindGroupByIdTest {
+        Criteria criteria;
+        GroupDto groupDto;
+        Query query;
         @BeforeEach
         void init() {
-
+            criteria = mock(Criteria.class);
+            groupDto = mock(GroupDto.class);
+            query = mock(Query.class);
+            when(agentGroupService.findCriteria(anyList())).thenReturn(criteria);
+            when(agentGroupService.findGroupById("groupId", userDetail)).thenCallRealMethod();
         }
 
         @Test
         void testNormal() {
+            when(agentGroupService.findOne(query, userDetail)).thenReturn(groupDto);
+            try(MockedStatic<Query> q = mockStatic(Query.class)) {
+                q.when(() -> Query.query(criteria)).thenReturn(query);
+                Assertions.assertNotNull(agentGroupService.findGroupById("groupId", userDetail));
+                q.verify(() -> Query.query(criteria), times(1));
+            }
+            verify(agentGroupService, times(1)).findCriteria(anyList());
+            verify(agentGroupService, times(1)).findOne(query, userDetail);
+        }
 
+        @Test
+        void testGroupDtoIsNull() {
+            when(agentGroupService.findOne(query, userDetail)).thenReturn(null);
+            try(MockedStatic<Query> q = mockStatic(Query.class)) {
+                q.when(() -> Query.query(criteria)).thenReturn(query);
+                Assertions.assertThrows(BizException.class, () -> agentGroupService.findGroupById("groupId", userDetail));
+                q.verify(() -> Query.query(criteria), times(1));
+            }
+            verify(agentGroupService, times(1)).findCriteria(anyList());
+            verify(agentGroupService, times(1)).findOne(query, userDetail);
         }
     }
 

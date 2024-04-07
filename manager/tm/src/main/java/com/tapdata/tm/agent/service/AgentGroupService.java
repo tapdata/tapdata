@@ -90,35 +90,43 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         if (CollectionUtils.isEmpty(items)) {
             return new Page<>(groupDtoPage.getTotal(), Lists.newArrayList());
         }
-        Set<String> allAgentId = items.stream()
-                .filter(a -> Objects.nonNull(a) && CollectionUtils.isNotEmpty(a.getAgentIds()))
-                .map(GroupDto::getAgentIds)
-                .flatMap(Collection::stream)
-                .collect(Collectors.toSet());
         final boolean equals = Boolean.TRUE.equals(containWorker);
-        List<WorkerDto> all = equals ? findAllAgent(allAgentId, userDetail) : null;
-        if (null == all) {
-            all = Lists.newArrayList();
-        }
+        List<WorkerDto> all = getAllAgentId(items, equals, userDetail);
         Map<String, WorkerDto> map = equals ? all.stream()
                 .filter(w -> Objects.nonNull(w) && Objects.nonNull(w.getProcessId()))
                 .collect(Collectors.toMap(WorkerDto::getProcessId, w -> w)) : new HashMap<>();
         return new Page<>(groupDtoPage.getTotal(), items.stream()
                 .filter(Objects::nonNull)
-                .map(item -> {
-                    List<String> agentIds = item.getAgentIds();
-                    AgentGroupDto dto = new AgentGroupDto();
-                    if (equals && Objects.nonNull(agentIds)) {
-                        List<WorkerDto> collect = agentIds.stream()
-                                .map(map::get)
-                                .collect(Collectors.toList());
-                        dto.setAgents(collect);
-                    }
-                    dto.setGroupId(item.getGroupId());
-                    dto.setName(item.getName());
-                    dto.setAgentIds(agentIds);
-                    return dto;
-                }).collect(Collectors.toList()));
+                .map(item -> generateDto(item, equals, map))
+                .collect(Collectors.toList()));
+    }
+
+    protected List<WorkerDto> getAllAgentId(List<GroupDto> items, boolean equals, UserDetail userDetail) {
+        Set<String> allAgentId = items.stream()
+                .filter(a -> Objects.nonNull(a) && CollectionUtils.isNotEmpty(a.getAgentIds()))
+                .map(GroupDto::getAgentIds)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
+        List<WorkerDto> all = equals ? findAllAgent(allAgentId, userDetail) : null;
+        if (null == all) {
+            all = Lists.newArrayList();
+        }
+        return all;
+    }
+
+    protected AgentGroupDto generateDto(GroupDto item, boolean equals, Map<String, WorkerDto> map) {
+        List<String> agentIds = item.getAgentIds();
+        AgentGroupDto dto = new AgentGroupDto();
+        if (equals && Objects.nonNull(agentIds)) {
+            List<WorkerDto> collect = agentIds.stream()
+                    .map(map::get)
+                    .collect(Collectors.toList());
+            dto.setAgents(collect);
+        }
+        dto.setGroupId(item.getGroupId());
+        dto.setName(item.getName());
+        dto.setAgentIds(agentIds);
+        return dto;
     }
 
     /**
@@ -176,10 +184,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
 
     protected List<AgentGroupDto> batchRemoveAll(UserDetail loginUser) {
         Query query = Query.query(Criteria.where(AgentGroupTag.TAG_DELETE).is(false));
-        UpdateResult updateResult = update(
-                query,
-                new Update().set(AgentGroupTag.TAG_AGENT_IDS, Lists.newArrayList()), loginUser);
-        updateResult.getModifiedCount();
+        update(query, new Update().set(AgentGroupTag.TAG_AGENT_IDS, Lists.newArrayList()), loginUser);
         return findAgentGroupInfo(query, loginUser);
     }
 
@@ -196,53 +201,44 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
                 .collect(Collectors.toList());
         Criteria criteria = findCriteria(allGroupId);
         criteria.and(AgentGroupTag.TAG_AGENT_IDS).in(agentIds);
-        UpdateResult updateResult = update(
-                Query.query(criteria),
+        update(Query.query(criteria),
                 new Update().pullAll(AgentGroupTag.TAG_AGENT_IDS, agentIds.toArray()), loginUser);
-        updateResult.getModifiedCount();
         log.info("Agent remove: remove all group when group's agent list contains {}, group: {}", agentIds, allGroupId);
         return findAgentGroupInfoMany(allGroupId, loginUser);
     }
 
     protected List<AgentGroupDto> batchRemoveAllGroup(List<String> groupIds, UserDetail loginUser) {
+        try {
+            return updateAgent(groupIds, Lists.newArrayList(), loginUser);
+        } finally {
+            log.info("Agent batch operator: all agent are removed from groups: {} ", groupIds);
+        }
+    }
+
+    protected List<AgentGroupDto> updateAgent(List<String> groupIds, List<String> newAgentIds, UserDetail loginUser) {
         if (CollectionUtils.isEmpty(groupIds)) {
             return Lists.newArrayList();
         }
         Criteria criteria = findCriteria(groupIds);
-        UpdateResult updateResult = update(
-                Query.query(criteria),
-                new Update().set(AgentGroupTag.TAG_AGENT_IDS, Lists.newArrayList()), loginUser);
-        updateResult.getModifiedCount();
-        log.info("Agent batch operator: all agent are removed from groups: {} ", groupIds);
+        update(Query.query(criteria),
+                new Update().set(AgentGroupTag.TAG_AGENT_IDS, newAgentIds), loginUser);
         return findAgentGroupInfoMany(groupIds, loginUser);
     }
 
     protected List<AgentGroupDto> batchUpdate(List<String> agentIds, List<String> groupIds, UserDetail loginUser) {
+        verifyAgent(agentIds, loginUser);
+        try {
+            return updateAgent(groupIds, agentIds, loginUser);
+        } finally {
+            log.info("Agent: {} has be added to group: {} ", agentIds, groupIds);
+        }
+    }
+
+    protected void verifyAgent(List<String> agentIds, UserDetail loginUser) {
         List<WorkerDto> allAgent = findAllAgent(agentIds, loginUser);
         if (CollectionUtils.isEmpty(allAgent)) {
             throw new BizException("group.agent.not.fund", agentIds);
         }
-        Criteria criteria = findCriteria(groupIds);
-        List<GroupDto> groupDto = findAllDto(Query.query(criteria), loginUser);
-        if (CollectionUtils.isEmpty(groupDto)) {
-            //找不到当前标签
-            throw new BizException(AgentGroupTag.GROUP_NOT_FUND, groupIds);
-        }
-        Map<String, GroupDto> collect = groupDto.stream()
-                .filter(g -> Objects.nonNull(g) && Objects.nonNull(g.getGroupId()))
-                .collect(Collectors.toMap(GroupDto::getGroupId, g -> g));
-        List<AgentGroupDto> result = Lists.newArrayList();
-        for (String groupId : groupIds) {
-            GroupDto agentGroups = collect.get(groupId);
-            if (null == agentGroups) continue;
-            UpdateResult updateResult = update(
-                    Query.query(findCriteria(Lists.newArrayList(groupId))),
-                    new Update().set(AgentGroupTag.TAG_AGENT_IDS, agentIds), loginUser);
-            updateResult.getModifiedCount();
-            log.info("Agent: {} has be added to group: {} ", agentIds, groupIds);
-            result.add(findAgentGroupInfo(groupId, loginUser));
-        }
-        return findAgentGroupInfoMany(groupIds, loginUser);
     }
 
     public AgentGroupDto addAgentToGroup(AgentWithGroupBaseDto agentDto, UserDetail loginUser) {
@@ -250,13 +246,10 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         final String groupId = agentDto.getGroupId();
         final String agentId = agentDto.getAgentId();
         List<String> agentIds = Lists.newArrayList(agentId);
-        List<WorkerDto> allAgent = findAllAgent(agentIds, loginUser);
-        if (null == allAgent || allAgent.isEmpty()) {
-            throw new BizException("group.agent.not.fund", agentId);
-        }
+        verifyAgent(agentIds, loginUser);
         GroupDto groupDto = findGroupById(groupId, loginUser);
         List<String> agents = groupDto.getAgentIds();
-        if (!(null == agents || agents.isEmpty() || !agents.contains(agentId))) {
+        if (CollectionUtils.isNotEmpty(agents) && agents.contains(agentId)) {
             //引擎不能重复添加标签
             if (log.isDebugEnabled()) {
                 log.debug("group agent repeatedly, {}", groupDto.toString());
@@ -570,11 +563,10 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         if (null == groupIds || groupIds.isEmpty()) {
             return criteria;
         }
-        criteria.and(AgentGroupTag.TAG_GROUP_ID);
         if (groupIds.size() == 1) {
-            criteria.is(groupIds.get(0));
+            criteria.and(AgentGroupTag.TAG_GROUP_ID).in(groupIds.get(0));
         } else {
-            criteria.in(groupIds);
+            criteria.and(AgentGroupTag.TAG_GROUP_ID).in(groupIds);
         }
         return criteria;
     }
