@@ -33,6 +33,7 @@ import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
+import org.springframework.validation.BindException;
 
 import java.io.Serializable;
 import java.util.*;
@@ -175,14 +176,20 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         if (checkSourceIsKafka(node) & Boolean.TRUE.equals(enableCustomParse)) {
             if (taskSchemaService != null) {
                 Map<String, Object> schemaResultMap = taskSchemaService.discoverSchemaMQ(node, node.getNodeConfig(), node.getTaskId(), Arrays.asList(tableName));
-                if (schemaResultMap != null) {
+                if (schemaResultMap != null && "ok".equals(schemaResultMap.get("code"))) {
                     Map<String, Object> schemaMap = (Map<String, Object>) schemaResultMap.get("data");
-                    if (schemaMap != null && null != metadataInstances) {
-                        String tapTableJsonString = JSON.toJSONString(schemaMap.get(tableName));
+                    String schemaMapCode = MapUtils.getString(schemaMap, "code");
+                    if ("success".equals(schemaMapCode)&& MapUtils.isNotEmpty(MapUtils.getMap(schemaMap,"data")) && null != metadataInstances) {
+                        Map<String, Object> schemaDataMap = (Map<String, Object>) schemaMap.get("data");
+                        String tapTableJsonString = JSON.toJSONString(schemaDataMap.get(tableName));
                         String qualifiedName = metadataInstances.getQualifiedName();
                         TapTable tapTable = JSON.parseObject(tapTableJsonString, TapTable.class);
                         this.coverMetaDataByTapTable(qualifiedName, tapTable);
+                    }else{
+                        throw new RuntimeException("Get Kafka Schema Data faild message " +schemaMap.get("message"));
                     }
+                }else{
+                    throw new RuntimeException("get Kafka schema fail, code is "+schemaResultMap.get("code")+" message is :"+schemaResultMap.get("message"));
                 }
             }
 
@@ -215,17 +222,34 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
         if (checkSourceIsKafka(databaseNode) && Boolean.TRUE.equals(databaseNode.getNodeConfig().get("enableCustomParse"))) {
             Map<String, Object> schemaResultMap = taskSchemaService.discoverSchemaMQ(databaseNode, databaseNode.getNodeConfig(), databaseNode.getTaskId(), includes);
-            if (MapUtils.isNotEmpty(schemaResultMap)) {
+            if (schemaResultMap != null && "ok".equals(schemaResultMap.get("code"))) {
                 Map<String, Object> schemaMap = (Map<String, Object>) schemaResultMap.get("data");
-                if (MapUtils.isNotEmpty(schemaMap) && CollectionUtils.isNotEmpty(metadataInstances)) {
+                String schemaMapCode = MapUtils.getString(schemaMap, "code");
+                if ("success".equals(schemaMapCode)&& MapUtils.isNotEmpty(MapUtils.getMap(schemaMap,"data"))&& CollectionUtils.isNotEmpty(metadataInstances)) {
+                    Map<String,Object> schemaDataMap = (Map<String, Object>) schemaMap.get("data");
                     metadataInstances.forEach(v -> {
-                        String tapTableJsonString = JSON.toJSONString(schemaMap.get(v.getName()));
+                        String tapTableJsonString = JSON.toJSONString(schemaDataMap.get(v.getName()));
                         String qualifiedName = v.getQualifiedName();
                         TapTable tapTable = JSON.parseObject(tapTableJsonString, TapTable.class);
                         this.coverMetaDataByTapTable(qualifiedName, tapTable);
                     });
+                }else{
+                    throw new RuntimeException(String.format("get Kafka schema fail, message is %s",MapUtils.getString(schemaMap,"message")));
                 }
+            }else{
+                throw new RuntimeException("get Kafka schema fail, code is "+schemaResultMap.get("code")+" message is :"+schemaResultMap.get("message"));
             }
+//            if (MapUtils.isNotEmpty(schemaResultMap)) {
+//                Map<String, Object> schemaMap = (Map<String, Object>) schemaResultMap.get("data");
+//                if (MapUtils.isNotEmpty(schemaMap) && CollectionUtils.isNotEmpty(metadataInstances)) {
+//                    metadataInstances.forEach(v -> {
+//                        String tapTableJsonString = JSON.toJSONString(schemaMap.get(v.getName()));
+//                        String qualifiedName = v.getQualifiedName();
+//                        TapTable tapTable = JSON.parseObject(tapTableJsonString, TapTable.class);
+//                        this.coverMetaDataByTapTable(qualifiedName, tapTable);
+//                    });
+//                }
+//            }
         }
 
         long start = System.currentTimeMillis();
