@@ -54,8 +54,8 @@ class PdkStateMapExTest {
 		when(constructIMap.getiMap()).thenReturn(iMap);
 
 		ReflectionTestUtils.setField(pdkStateMapEx, "constructIMap", constructIMap);
-		doCallRealMethod().when(pdkStateMapEx).put(anyString(), any(Document.class));
-		doCallRealMethod().when(pdkStateMapEx).putIfAbsent(anyString(), any(Document.class));
+		doCallRealMethod().when(pdkStateMapEx).put(anyString(), any());
+		doCallRealMethod().when(pdkStateMapEx).putIfAbsent(anyString(), any());
 		doCallRealMethod().when(pdkStateMapEx).get(anyString());
 
 		List<Object> list = new ArrayList<>();
@@ -96,6 +96,9 @@ class PdkStateMapExTest {
 		assertInstanceOf(Document.class, actualListElem1);
 		assertFalse(((Document) actualListElem1).containsKey("$c.csv"));
 		assertFalse(((Document) ((Document) actualListElem1).get("d")).containsKey("$dd.csv"));
+
+		pdkStateMapEx.put("key1", "test");
+		assertEquals("test", map.get("key1").get(PdkStateMap.KEY));
 	}
 
 	@Test
