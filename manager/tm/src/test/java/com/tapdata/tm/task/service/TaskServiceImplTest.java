@@ -1,8 +1,10 @@
 package com.tapdata.tm.task.service;
 
 import com.tapdata.tm.agent.service.AgentGroupService;
+import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.utils.Lists;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,9 +13,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -111,4 +116,50 @@ class TaskServiceImplTest {
         }
     }
 
+    @Nested
+    class ContrastTest {
+        AtomicReference<String> ato;
+        String nodeId;
+        String atoValue;
+        Map<String, List<Message>> validateMessage;
+        Message message;
+        @BeforeEach
+        void init() {
+            message = mock(Message.class);
+            validateMessage = mock(Map.class);
+            atoValue = "id";
+            nodeId = "nid";
+            ato = mock(AtomicReference.class);
+            when(ato.get()).thenReturn(atoValue);
+            doNothing().when(ato).set(atoValue);
+            when(validateMessage.put(anyString(), anyList())).thenReturn(mock(List.class));
+            when(taskService.contrast(ato, nodeId, atoValue, validateMessage, message)).thenCallRealMethod();
+        }
+
+        @Test
+        void testNormal() {
+            Assertions.assertFalse(taskService.contrast(ato, nodeId, atoValue, validateMessage, message));
+            verify(ato, times(2)).get();
+            verify(ato, times(0)).set(atoValue);
+            verify(validateMessage, times(0)).put(anyString(), anyList());
+        }
+
+        @Test
+        void testNull() {
+            when(ato.get()).thenReturn(null);
+            Assertions.assertFalse(taskService.contrast(ato, nodeId, atoValue, validateMessage, message));
+            verify(ato, times(1)).get();
+            verify(ato, times(1)).set(atoValue);
+            verify(validateMessage, times(0)).put(anyString(), anyList());
+        }
+
+        @Test
+        void testNotEqual() {
+            when(ato.get()).thenReturn("xx");
+            Assertions.assertTrue(taskService.contrast(ato, nodeId, atoValue, validateMessage, message));
+            verify(ato, times(2)).get();
+            verify(ato, times(0)).set(atoValue);
+            verify(validateMessage, times(1)).put(anyString(), anyList());
+        }
+    }
 }

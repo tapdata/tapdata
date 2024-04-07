@@ -861,19 +861,26 @@ public class TaskServiceImpl extends TaskService{
             Map<String, DataSourceConnectionDto> collect = dataSourceConnectionList.stream().collect(Collectors.toMap(s -> s.getId().toHexString(), a -> a, (k1, k2) -> k1));
             String code = "Task.AgentConflict";
             Message message = new Message(code, MessageUtil.getMessage(code), null, null);
+            AtomicReference<String> nodeType = new AtomicReference<>();
+            AtomicReference<String> nodeId = new AtomicReference<>();
             dag.getNodes().forEach(node -> {
                 if (node instanceof DataParentNode) {
                     DataParentNode<?> dataParentNode = (DataParentNode<?>) node;
                     DataSourceConnectionDto connectionDto = collect.get(dataParentNode.getConnectionId());
                     Assert.notNull(connectionDto, "task connectionDto is null id:" + dataParentNode.getConnectionId());
 
-                    if (AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())) {
+                    if (contrast(nodeType, dataParentNode.getId(), connectionDto.getAccessNodeType(), validateMessage, message)) {
+                        return;
+                    }
+                    if (AccessNodeTypeEnum.isUserManually(connectionDto.getAccessNodeType())) {
                         List<String> connectionProcessIds = agentGroupService.getProcessNodeListWithGroup(connectionDto, user);
                         connectionProcessIds.removeAll(taskProcessIdList);
                         if (!StringUtils.equalsIgnoreCase(taskDto.getAccessNodeType(), connectionDto.getAccessNodeType())
                                 || !connectionProcessIds.isEmpty()) {
                             validateMessage.put(dataParentNode.getId(), Lists.newArrayList(message));
                         }
+                    } else if (AccessNodeTypeEnum.isGroupManually(connectionDto.getAccessNodeType())) {
+                        contrast(nodeId, dataParentNode.getId(), connectionDto.getAccessNodeProcessId(), validateMessage, message);
                     }
                 }
             });
@@ -886,6 +893,22 @@ public class TaskServiceImpl extends TaskService{
                 throw new BizException(message.getCode(), message.getMsg());
             }
         }
+    }
+
+    protected boolean contrast(AtomicReference<String> ato,
+                               String nodeId,
+                               String atoValue,
+                               Map<String, List<Message>> validateMessage,
+                               Message message) {
+        if (null == ato.get()) {
+            ato.set(atoValue);
+            return false;
+        }
+        if (!ato.get().equalsIgnoreCase(atoValue)) {
+            validateMessage.put(nodeId, Lists.newArrayList(message));
+            return true;
+        }
+        return false;
     }
 
     /**
