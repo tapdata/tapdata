@@ -18,18 +18,7 @@ import org.bson.Document;
 
 import java.io.Serializable;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -327,7 +316,7 @@ public class MapUtil {
 		if (value instanceof LinkedHashMap) {
 			return new LinkedHashMap<>();
 		}
-		return  new HashMap<String, Object>();
+		return new HashMap<String, Object>();
 
 		//Class<? extends Map> aClass = value.getClass();
 		//try {
@@ -985,35 +974,48 @@ public class MapUtil {
 		}
 	}
 
-  /*public static void main(String[] args) throws Exception {
-    List<Object> list = new ArrayList<>();
-    list.add("slkdjf");
-    list.add(new Document("name", "test1"));
-    List<Object> list1 = new ArrayList<>();
-    list1.add(new Document("a", 1));
-    list.add(list1);
+	public static void iterate(Map<String, Object> map, KeyHandler keyHandler) {
+		if (null == map || null == keyHandler) {
+			return;
+		}
+		Map<String, String> replaceKey = new HashMap<>();
+		for (Map.Entry<String, Object> entry : map.entrySet()) {
+			String key = entry.getKey();
+			Object value = entry.getValue();
 
-    Document document = new Document();
-    document.append("id", 1);
-    document.append("doc", new Document("info", "info"));
-    document.append("list", list);
-    System.out.println(document.toJson(JsonWriterSettings.builder().indent(true).build()));
-    Document document1 = new Document();
-    Map<String, Object> newMap = MapUtil.recursiveMap(document, (key, value, parentKey) -> {
-      String allPathKey;
-      String allPathNewKey;
-      String newKey = key.toUpperCase();
-      if (StringUtils.isNotBlank(parentKey)) {
-        allPathKey = parentKey + "." + key;
-        allPathNewKey = parentKey.toUpperCase() + "." + newKey;
-      } else {
-        allPathKey = key;
-        allPathNewKey = newKey;
-      }
-      document1.put(allPathKey, allPathNewKey);
-      return new MapEntry(key.toUpperCase(), value);
-    });
-    System.out.println(JSONUtil.map2JsonPretty(newMap));
-    System.out.println(document1.toJson(JsonWriterSettings.builder().indent(true).build()));
-  }*/
+			if (value instanceof Map) {
+				iterate((Map<String, Object>) value, keyHandler);
+			} else if (value instanceof List) {
+				iterateList((List<Object>) value, keyHandler);
+			} else {
+				String newKey = keyHandler.handle(key);
+				if (!key.equals(newKey)) {
+					replaceKey.put(key, newKey);
+				}
+			}
+		}
+		if (MapUtils.isNotEmpty(replaceKey)) {
+			replaceKey.forEach((key, newKey) -> {
+				map.put(newKey, map.get(key));
+				map.remove(key);
+			});
+		}
+	}
+
+	private static void iterateList(List<Object> list, KeyHandler keyHandler) {
+		if (null == list || null == keyHandler) {
+			return;
+		}
+		for (Object o : list) {
+			if (o instanceof Map) {
+				iterate((Map<String, Object>) o, keyHandler);
+			} else if (o instanceof List) {
+				iterateList((List<Object>) o, keyHandler);
+			}
+		}
+	}
+
+	public interface KeyHandler {
+		String handle(String key);
+	}
 }

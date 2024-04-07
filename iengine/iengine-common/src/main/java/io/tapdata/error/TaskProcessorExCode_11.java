@@ -125,4 +125,26 @@ public interface TaskProcessorExCode_11 {
 	)
 	String UNABLE_TO_SYNCHRONIZE_DDL_EVENT = "11022";
 
+	@TapExCode(
+			describe = "Unable to read incremental breakpoint information because an unknown task type was encountered",
+			describeCN = "无法读取增量断点信息，因为遇到了未知的任务类型"
+	)
+	String READ_STREAM_OFFSET_UNKNOWN_TASK_TYPE = "11023";
+	@TapExCode(
+			describe = "Unable to initialize incremental breakpoint information because an unrecognized start time type was encountered",
+			describeCN = "无法初始化增量断点信息，因为遇到了无法识别的起始时间类型"
+	)
+	String INIT_STREAM_OFFSET_UNKNOWN_POINT_TYPE = "11024";
+	@TapExCode(
+			describe = "Unable to initialize incremental breakpoint information because start time is empty",
+			describeCN = "无法初始化增量断点信息，因为起始时间为空值"
+	)
+	String INIT_STREAM_OFFSET_EMPTY_START_TIME = "11025";
+	@TapExCode
+	String SHARE_CDC_SWITCH_TO_NORMAL_TASK_FAILED = "11026";
+	@TapExCode(
+			describe = "Run cdc task failed, sync point type cannot be empty",
+			describeCN = "运行cdc任务失败，同步起始点类型不能为空"
+	)
+	String INIT_STREAM_OFFSET_SYNC_POINT_TYPE_IS_EMPTY = "11027";
 }
