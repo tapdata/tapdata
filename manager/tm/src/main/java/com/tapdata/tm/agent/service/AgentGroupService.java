@@ -358,7 +358,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
     }
 
     protected List<AgentGroupDto> findAgentGroupInfoMany(List<String> groupIds, UserDetail loginUser) {
-        Criteria criteria = findCriteria(groupIds);;
+        Criteria criteria = findCriteria(groupIds);
         Query query = Query.query(criteria);
         return findAgentGroupInfo(query, loginUser);
     }
