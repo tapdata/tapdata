@@ -14,6 +14,7 @@ import com.tapdata.tm.agent.repository.AgentGroupRepository;
 import com.tapdata.tm.agent.util.AgentGroupTag;
 import com.tapdata.tm.agent.util.AgentGroupUtil;
 import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.dto.AccessNodeInfo;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anySet;
@@ -114,27 +116,145 @@ class AgentGroupServiceTest {
 
     @Nested
     class GroupAllAgentTest {
+        Filter filter;
+        Boolean containWorker;
+
+        Page<GroupDto> groupDtoPage;
+        List<GroupDto> items;
+
+        List<WorkerDto> all;
+        WorkerDto workerDto;
+
         @BeforeEach
         void init() {
+            filter = mock(Filter.class);
+            containWorker = true;
 
+            groupDtoPage = mock(Page.class);
+
+            when(agentGroupUtil.initFilter(filter)).thenReturn(filter);
+
+            when(agentGroupService.find(filter, userDetail)).thenReturn(groupDtoPage);
+            items = new ArrayList<>();
+            items.add(mock(GroupDto.class));
+            when(groupDtoPage.getItems()).thenReturn(items);
+            when(groupDtoPage.getTotal()).thenReturn(0L);
+
+            all = new ArrayList<>();
+            workerDto = mock(WorkerDto.class);
+            all.add(workerDto);
+            all.add(null);
+            when(agentGroupService.getAllAgentId(anyList(), anyBoolean(), any(UserDetail.class))).thenReturn(all);
+            when(workerDto.getProcessId()).thenReturn("id");
+            when(agentGroupService.generateDto(any(GroupDto.class), anyBoolean(), anyMap())).thenReturn(mock(AgentGroupDto.class));
+
+            when(agentGroupService.groupAllAgent(filter, containWorker, userDetail)).thenCallRealMethod();
         }
 
         @Test
         void testNormal() {
+            Assertions.assertDoesNotThrow(() -> agentGroupService.groupAllAgent(filter, containWorker, userDetail));
+            verify(agentGroupUtil, times(1)).initFilter(filter);
+            verify(agentGroupService, times(1)).find(filter, userDetail);
+            verify(groupDtoPage, times(1)).getItems();
+            verify(groupDtoPage, times(1)).getTotal();
+            verify(agentGroupService, times(1)).getAllAgentId(anyList(), anyBoolean(), any(UserDetail.class));
+            verify(workerDto, times(2)).getProcessId();
+        }
 
+        @Test
+        void testItemsIsEmpty() {
+            items.remove(0);
+            Assertions.assertDoesNotThrow(() -> agentGroupService.groupAllAgent(filter, containWorker, userDetail));
+            verify(agentGroupUtil, times(1)).initFilter(filter);
+            verify(agentGroupService, times(1)).find(filter, userDetail);
+            verify(groupDtoPage, times(1)).getItems();
+            verify(groupDtoPage, times(1)).getTotal();
+            verify(agentGroupService, times(0)).getAllAgentId(anyList(), anyBoolean(), any(UserDetail.class));
+            verify(workerDto, times(0)).getProcessId();
+        }
+        @Test
+        void testEqualsIsFalse() {
+            containWorker = false;
+            when(agentGroupService.groupAllAgent(filter, containWorker, userDetail)).thenCallRealMethod();
+            Assertions.assertDoesNotThrow(() -> agentGroupService.groupAllAgent(filter, containWorker, userDetail));
+            verify(agentGroupUtil, times(1)).initFilter(filter);
+            verify(agentGroupService, times(1)).find(filter, userDetail);
+            verify(groupDtoPage, times(1)).getItems();
+            verify(groupDtoPage, times(1)).getTotal();
+            verify(agentGroupService, times(1)).getAllAgentId(anyList(), anyBoolean(), any(UserDetail.class));
+            verify(workerDto, times(0)).getProcessId();
+        }
+        @Test
+        void testProcessIdIsNull() {
+            when(workerDto.getProcessId()).thenReturn(null);
+            Assertions.assertDoesNotThrow(() -> agentGroupService.groupAllAgent(filter, containWorker, userDetail));
+            verify(agentGroupUtil, times(1)).initFilter(filter);
+            verify(agentGroupService, times(1)).find(filter, userDetail);
+            verify(groupDtoPage, times(1)).getItems();
+            verify(groupDtoPage, times(1)).getTotal();
+            verify(agentGroupService, times(1)).getAllAgentId(anyList(), anyBoolean(), any(UserDetail.class));
+            verify(workerDto, times(1)).getProcessId();
         }
     }
 
     @Nested
     class GetAllAgentIdTest {
+        List<GroupDto> items;
+        GroupDto a;
+        List<WorkerDto> all;
         @BeforeEach
         void init() {
+            items = new ArrayList<>();
+            a = mock(GroupDto.class);
+            items.add(a);
+            items.add(null);
 
+            when(a.getAgentIds()).thenReturn(new ArrayList<>());
+
+            all = mock(List.class);
+            when(agentGroupService.findAllAgent(anyList(), any(UserDetail.class))).thenReturn(all);
+
+            when(agentGroupService.getAllAgentId(items, false, userDetail)).thenCallRealMethod();
         }
 
         @Test
-        void testNormal() {
+        void testNotEquals() {
+            List<WorkerDto> allAgentId = agentGroupService.getAllAgentId(items, false, userDetail);
+            Assertions.assertNotNull(allAgentId);
+            Assertions.assertEquals(0, allAgentId.size());
+            verify(a, times(1)).getAgentIds();
+            verify(agentGroupService, times(0)).findAllAgent(anyList(), any(UserDetail.class));
+        }
 
+        @Test
+        void testItemsHasNull() {
+            when(a.getAgentIds()).thenReturn(Lists.newArrayList("id"));
+            List<WorkerDto> allAgentId = agentGroupService.getAllAgentId(items, false, userDetail);
+            Assertions.assertNotNull(allAgentId);
+            Assertions.assertEquals(0, allAgentId.size());
+            verify(a, times(2)).getAgentIds();
+            verify(agentGroupService, times(0)).findAllAgent(anyList(), any(UserDetail.class));
+        }
+        @Test
+        void testAllAgentIdIsEmpty() {
+
+            List<WorkerDto> allAgentId = agentGroupService.getAllAgentId(items, false, userDetail);
+            Assertions.assertNotNull(allAgentId);
+            Assertions.assertEquals(0, allAgentId.size());
+            verify(a, times(1)).getAgentIds();
+            verify(agentGroupService, times(0)).findAllAgent(anyList(), any(UserDetail.class));
+        }
+
+        @Test
+        void testNotFindAllAgent() {
+            when(agentGroupService.getAllAgentId(items, true, userDetail)).thenCallRealMethod();
+            when(agentGroupService.findAllAgent(anyList(), any(UserDetail.class))).thenReturn(null);
+            List<WorkerDto> allAgentId = agentGroupService.getAllAgentId(items, true, userDetail);
+            Assertions.assertNotNull(allAgentId);
+            Assertions.assertEquals(0, allAgentId.size());
+            verify(a, times(1)).getAgentIds();
+            verify(agentGroupService, times(0)).findAllAgent(anyList(), any(UserDetail.class));
         }
     }
 
@@ -193,8 +313,6 @@ class AgentGroupServiceTest {
             verify(item, times(1)).getName();
         }
     }
-
-
 
     @Nested
     class CreateGroupTest {
@@ -1115,8 +1233,38 @@ class AgentGroupServiceTest {
             verify(group, times(1)).getGroupId();
         }
     }
+
     @Nested
     class FindAgentGroupInfoManyTest {
+        List<String> groupIds;
+        Criteria criteria;
+        Query query;
+
+        @BeforeEach
+        void init() {
+            groupIds = mock(List.class);
+            criteria = mock(Criteria.class);
+            query = mock(Query.class);
+
+            when(agentGroupService.findCriteria(groupIds)).thenReturn(criteria);
+            when(agentGroupService.findAgentGroupInfo(query, userDetail)).thenReturn(mock(List.class));
+            when(agentGroupService.findAgentGroupInfoMany(groupIds, userDetail)).thenCallRealMethod();
+        }
+
+        @Test
+        void testNormal() {
+            try(MockedStatic<Query> q = mockStatic(Query.class)) {
+                q.when(() -> Query.query(criteria)).thenReturn(query);
+                Assertions.assertDoesNotThrow(() -> agentGroupService.findAgentGroupInfoMany(groupIds, userDetail));
+                q.verify(() -> Query.query(criteria), times(1));
+            }
+            verify(agentGroupService, times(1)).findCriteria(groupIds);
+            verify(agentGroupService, times(1)).findAgentGroupInfo(query, userDetail);
+            verify(agentGroupService, times(1)).findAgentGroupInfoMany(groupIds, userDetail);
+        }
+    }
+    @Nested
+    class FindAgentGroupInfoByFilterOrQueryTest {
         List<AgentGroupDto> result;
         @BeforeEach
         void init() {
