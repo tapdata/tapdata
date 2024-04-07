@@ -78,6 +78,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -98,6 +99,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected static final String REMOVE_METADATA_INFO_KEY = "REMOVE_METADATA";
 	protected static final String QUALIFIED_NAME_ID_MAP_INFO_KEY = "QUALIFIED_NAME_ID_MAP";
 	private static final String TAG = HazelcastBaseNode.class.getSimpleName();
+
+	private static final Integer ERROR_EVENT_LIMIT = 10;
 
 	protected ClientMongoOperator clientMongoOperator;
 	protected Context jetContext;
@@ -564,17 +567,26 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		TapCodeException currentEx = wrapTapCodeException(throwable);
 		TaskDto taskDto = processorBaseContext.getTaskDto();
 		handleWhenTestRun(taskDto, currentEx);
-		ErrorEvent errorEvent = new ErrorEvent(errorMessage, Log4jUtil.getStackStrings(currentEx));
+		AtomicReference<ErrorEvent> errorEvent = new AtomicReference<>();
+		AtomicBoolean isSkip = new AtomicBoolean(false);
 		SkipError skipError = SkipErrorStrategy.getDefaultSkipErrorStrategy().getSkipError();
-		if(whetherToSkip(taskDto.getErrorEvents(), errorEvent, skipError)){
-			obsLogger.info("The current exception match the skip exception strategy, message: "+errorMessage);
-			return null;
-		}
+		CommonUtils.handleAnyError(()->{
+			if(currentEx instanceof TapProcessorUnknownException){
+				errorEvent.set(new ErrorEvent(currentEx.getCause().getMessage(),errorMessage, currentEx.getCode(), Log4jUtil.getStackString(currentEx)));
+			}else{
+				errorEvent.set(new ErrorEvent(currentEx.getMessage(),errorMessage,currentEx.getCode(), Log4jUtil.getStackString(currentEx)));
+			}
+			if(whetherToSkip(taskDto.getErrorEvents(), errorEvent.get(), skipError)){
+				obsLogger.info("The current exception match the skip exception strategy, message: "+errorMessage);
+				isSkip.set(true);
+			}
+		},err->obsLogger.warn("Skip error failed:{}",err.getMessage()));
+		if(isSkip.get())return null;
 		try {
 			if (globalErrorIsNull()) {
 				this.error = currentEx;
 				getErrorMessage(errorMessage, currentEx);
-				saveErrorEvent(taskDto.getErrorEvents(),errorEvent,taskDto.getId(),skipError);
+				saveErrorEvent(taskDto.getErrorEvents(), errorEvent.get(),taskDto.getId(),skipError);
 				obsLogger.error(errorMessage, currentEx);
 				this.running.set(false);
 
@@ -836,11 +848,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if(CollectionUtils.isEmpty(errorEvents)){
 			errorEvents = new ArrayList<>();
 		}
-		if(StringUtils.isNotBlank(event.getMessage()) && !skipError.match(errorEvents,event)){
+		if(!skipError.match(errorEvents,event)){
 			errorEvents.add(event);
 		}
-		if (errorEvents.size() > 10) {
-			errorEvents.remove(0);
+		if (errorEvents.size() > ERROR_EVENT_LIMIT) {
+			return;
 		}
 		try {
 			clientMongoOperator.insertOne(errorEvents,ConnectorConstant.TASK_COLLECTION + "/errorEvents/" + taskId);

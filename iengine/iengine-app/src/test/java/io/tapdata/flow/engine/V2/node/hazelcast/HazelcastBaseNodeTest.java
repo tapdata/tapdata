@@ -1412,8 +1412,13 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 		@Test
 		void testErrorHandleSkip() {
-			TapCodeException tapCodeException = new TapCodeException("");
+			TapCodeException tapCodeException = new TapCodeException("1001","error1");
 			Assertions.assertNull(hazelcastBaseNode.errorHandle(tapCodeException,"error1"));
+		}
+		@Test
+		void testUnknownExceptionErrorHandleSkip() {
+			Throwable throwable = new Throwable("error2");
+			Assertions.assertNull(hazelcastBaseNode.errorHandle(throwable,"error2"));
 		}
 	}
 
@@ -1841,7 +1846,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("WhetherToSkip skipErrorEvents is Empty")
 		void test1(){
 			List<ErrorEvent> errorEvents = new ArrayList<>();
-			errorEvents.add(new ErrorEvent("test",null));
+			errorEvents.add(new ErrorEvent("test2",null,"110",null));
 			Assertions.assertFalse(mockHazelcastBaseNode.whetherToSkip(errorEvents,null,null));
 		}
 
@@ -1849,10 +1854,10 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("WhetherToSkip skipErrorEvents is notEmpty")
 		void test2(){
 			List<ErrorEvent> errorEvents = new ArrayList<>();
-			ErrorEvent event =  new ErrorEvent("test",null);
+			ErrorEvent event =  new ErrorEvent("test2",null,"110",null);
 			event.setSkip(true);
 			errorEvents.add(event);
-			Assertions.assertTrue(mockHazelcastBaseNode.whetherToSkip(errorEvents,new ErrorEvent("test",null), SkipErrorStrategy.ERROR_MESSAGE.getSkipError()));
+			Assertions.assertTrue(mockHazelcastBaseNode.whetherToSkip(errorEvents,new ErrorEvent("test2",null,"110",null), SkipErrorStrategy.ERROR_MESSAGE.getSkipError()));
 		}
 
 	}
@@ -1877,9 +1882,20 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@Test
 		@DisplayName("WhetherToSkip errorEvents is Empty")
 		void test(){
-			doThrow(new ManagementException("test")).when(httpClientMongoOperator).insertOne(any(),any());
-			mockHazelcastBaseNode.saveErrorEvent(null,new ErrorEvent("test",null),new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
-			verify(obsLogger,times(1)).warn(any(),any());
+			doNothing().when(httpClientMongoOperator).insertOne(any(),any());
+			mockHazelcastBaseNode.saveErrorEvent(null,new ErrorEvent("test2",null,"110",null),new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
+			verify(obsLogger,times(0)).warn(any(),any());
+		}
+
+		@Test
+		@DisplayName("Exceeds limit 10")
+		void test2(){
+			List<ErrorEvent> errorEvents = new ArrayList<>();
+			for(int i = 0; i < 10;i++){
+				errorEvents.add(new ErrorEvent("test","test","1001",null));
+			}
+			mockHazelcastBaseNode.saveErrorEvent(errorEvents,new ErrorEvent("test2",null,"110",null),new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
+			verify(httpClientMongoOperator,times(0)).insertOne(any(),any());
 		}
 
 	}
