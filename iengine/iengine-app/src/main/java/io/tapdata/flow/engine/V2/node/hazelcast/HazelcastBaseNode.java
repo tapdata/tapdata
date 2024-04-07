@@ -571,11 +571,14 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		AtomicBoolean isSkip = new AtomicBoolean(false);
 		SkipError skipError = SkipErrorStrategy.getDefaultSkipErrorStrategy().getSkipError();
 		CommonUtils.handleAnyError(()->{
+			String message;
 			if(currentEx instanceof TapProcessorUnknownException){
-				errorEvent.set(new ErrorEvent(currentEx.getCause().getMessage(),errorMessage, currentEx.getCode(), Log4jUtil.getStackString(currentEx)));
+				message = currentEx.getCause().getMessage();
 			}else{
-				errorEvent.set(new ErrorEvent(currentEx.getMessage(),errorMessage,currentEx.getCode(), Log4jUtil.getStackString(currentEx)));
+				message = currentEx.getMessage();
 			}
+			String finalMessage = StringUtils.isBlank(message) ? errorMessage:message;
+			errorEvent.set(new ErrorEvent(finalMessage,currentEx.getCode(),Log4jUtil.getStackString(currentEx)));
 			if(whetherToSkip(taskDto.getErrorEvents(), errorEvent.get(), skipError)){
 				obsLogger.info("The current exception match the skip exception strategy, message: "+errorMessage);
 				isSkip.set(true);
@@ -845,6 +848,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void saveErrorEvent(List<ErrorEvent> errorEvents,ErrorEvent event,ObjectId taskId,SkipError skipError){
+		if(null == event || StringUtils.isBlank(event.getMessage()))return;
 		if(CollectionUtils.isEmpty(errorEvents)){
 			errorEvents = new ArrayList<>();
 		}

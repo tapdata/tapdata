@@ -1420,6 +1420,12 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			Throwable throwable = new Throwable("error2");
 			Assertions.assertNull(hazelcastBaseNode.errorHandle(throwable,"error2"));
 		}
+
+		@Test
+		void testErrorHandleSkipTapMessageIsNull() {
+			TapCodeException tapCodeException = new TapCodeException("1001");
+			Assertions.assertNull(hazelcastBaseNode.errorHandle(tapCodeException,"error3"));
+		}
 	}
 
 	@Nested
@@ -1846,7 +1852,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("WhetherToSkip skipErrorEvents is Empty")
 		void test1(){
 			List<ErrorEvent> errorEvents = new ArrayList<>();
-			errorEvents.add(new ErrorEvent("test2",null,"110",null));
+			errorEvents.add(new ErrorEvent("test2","110",null));
 			Assertions.assertFalse(mockHazelcastBaseNode.whetherToSkip(errorEvents,null,null));
 		}
 
@@ -1854,10 +1860,10 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("WhetherToSkip skipErrorEvents is notEmpty")
 		void test2(){
 			List<ErrorEvent> errorEvents = new ArrayList<>();
-			ErrorEvent event =  new ErrorEvent("test2",null,"110",null);
+			ErrorEvent event =  new ErrorEvent("test2","110",null);
 			event.setSkip(true);
 			errorEvents.add(event);
-			Assertions.assertTrue(mockHazelcastBaseNode.whetherToSkip(errorEvents,new ErrorEvent("test2",null,"110",null), SkipErrorStrategy.ERROR_MESSAGE.getSkipError()));
+			Assertions.assertTrue(mockHazelcastBaseNode.whetherToSkip(errorEvents,new ErrorEvent("test2","110",null), SkipErrorStrategy.ERROR_MESSAGE.getSkipError()));
 		}
 
 	}
@@ -1883,7 +1889,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("WhetherToSkip errorEvents is Empty")
 		void test(){
 			doNothing().when(httpClientMongoOperator).insertOne(any(),any());
-			mockHazelcastBaseNode.saveErrorEvent(null,new ErrorEvent("test2",null,"110",null),new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
+			mockHazelcastBaseNode.saveErrorEvent(null,new ErrorEvent("test2","110",null),new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
 			verify(obsLogger,times(0)).warn(any(),any());
 		}
 
@@ -1892,9 +1898,25 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		void test2(){
 			List<ErrorEvent> errorEvents = new ArrayList<>();
 			for(int i = 0; i < 10;i++){
-				errorEvents.add(new ErrorEvent("test","test","1001",null));
+				errorEvents.add(new ErrorEvent("test","1001",null));
 			}
-			mockHazelcastBaseNode.saveErrorEvent(errorEvents,new ErrorEvent("test2",null,"110",null),new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
+			mockHazelcastBaseNode.saveErrorEvent(errorEvents,new ErrorEvent("test2","110",null),new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
+			verify(httpClientMongoOperator,times(0)).insertOne(any(),any());
+		}
+
+		@Test
+		@DisplayName("input event is null")
+		void test3(){
+			List<ErrorEvent> errorEvents = new ArrayList<>();
+			mockHazelcastBaseNode.saveErrorEvent(errorEvents,null,new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
+			verify(httpClientMongoOperator,times(0)).insertOne(any(),any());
+		}
+
+		@Test
+		@DisplayName("input event message is null")
+		void test4(){
+			List<ErrorEvent> errorEvents = new ArrayList<>();
+			mockHazelcastBaseNode.saveErrorEvent(errorEvents,new ErrorEvent(null,"1001",null),new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
 			verify(httpClientMongoOperator,times(0)).insertOne(any(),any());
 		}
 

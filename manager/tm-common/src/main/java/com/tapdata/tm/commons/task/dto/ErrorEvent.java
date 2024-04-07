@@ -18,18 +18,14 @@ public class ErrorEvent implements Serializable {
     private ObjectId id;
     private String message;
 
-    private String errorMessage;
-
     private String code;
-
     private String stacks;
 
     private Boolean skip = false;
 
-    public ErrorEvent(String message,String errorMessage,String code,String stacks) {
+    public ErrorEvent(String message,String code,String stacks) {
         this.id = new ObjectId();
         this.message = message;
-        this.errorMessage = errorMessage;
         this.code = code;
         this.stacks = stacks;
     }

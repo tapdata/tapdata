@@ -377,70 +377,60 @@
   "errorEvents":[
     {
       "message": "error1",
-      "errorMessage": null,
       "code": "1001",
       "stacks": null,
       "skip": true
     },
     {
       "message": "error2",
-      "errorMessage": null,
       "code": "11001",
       "stacks": null,
       "skip": true
     },
     {
       "message": "error3",
-      "errorMessage": null,
       "code": "1001",
       "stacks": null,
       "skip": true
     },
     {
       "message": "error4",
-      "errorMessage": null,
       "code": "1001",
       "stacks": null,
       "skip": true
     },
     {
       "message": "error5",
-      "errorMessage": null,
       "code": "1001",
       "stacks": null,
       "skip": true
     },
     {
       "message": "error6",
-      "errorMessage": null,
       "code": "1001",
       "stacks": null,
       "skip": true
     },
     {
       "message": "error7",
-      "errorMessage": null,
       "code": "1001",
       "stacks": null,
       "skip": true
     },
     {
       "message": "error8",
-      "errorMessage": null,
       "code": "1001",
       "stacks": null,
       "skip": true
     },
     {
       "message": "error9",
-      "errorMessage": null,
       "code": "1001",
       "stacks": null,
       "skip": true
     },
     {
       "message": "error10",
-      "errorMessage": null,
       "code": "1001",
       "stacks": null,
       "skip": true
