@@ -106,11 +106,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -489,7 +485,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								readPartitionOptions = ((DataParentNode<?>) node).getReadPartitionOptions();
 							}
 
-							if (readPartitionOptions != null && readPartitionOptions.isEnable() && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE) {
+							if (readPartitionOptions != null && readPartitionOptions.isEnable() && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE && !Objects.equals(taskDto.getType(),"cdc")) {
 								hazelcastNode = new HazelcastSourcePartitionReadDataNode(processorContext);
 							} else {
 								hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
