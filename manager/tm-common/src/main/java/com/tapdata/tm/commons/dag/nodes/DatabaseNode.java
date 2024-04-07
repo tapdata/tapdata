@@ -290,7 +290,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             filteredTableNames = includes;
         }
 
-        List<Schema> schemaList = service.loadSchema(ownerId(), toObjectId(connectionId), filteredTableNames, null)
+        List<Schema> schemaList = service.loadSchema(ownerId(), toObjectId(connectionId), filteredTableNames, null,this)
                 .stream().peek(s -> {
 
                     // 源节点 保存原始表名

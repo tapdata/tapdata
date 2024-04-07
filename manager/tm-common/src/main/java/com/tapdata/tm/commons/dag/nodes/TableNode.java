@@ -178,11 +178,10 @@ public class TableNode extends DataNode {
 
     @Override
     protected Schema loadSchema(List<String> includes) {
-
         if (service == null)
             return null;
 
-        Schema schema = service.loadSchema(ownerId(), toObjectId(connectionId), tableName);
+        Schema schema = service.loadSchema(ownerId(), toObjectId(connectionId), tableName,this);
         if (schema != null) {
             schema.setSourceNodeDatabaseType(getDatabaseType());
         }

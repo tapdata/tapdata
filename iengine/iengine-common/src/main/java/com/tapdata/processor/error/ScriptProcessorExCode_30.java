@@ -55,4 +55,9 @@ public interface ScriptProcessorExCode_30 {
             describeCN = "获取Python引擎失败"
     )
     String GET_PYTHON_ENGINE_FAILED = "30011";
+    @TapExCode(
+            describe = "JSNode Perform script faild",
+            describeCN = "JS节点执行applyDDL函数失败"
+    )
+    String APPLY_DDL_FUNCTION_FAILED = "30010";
 }
