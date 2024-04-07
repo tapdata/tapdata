@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -46,8 +47,7 @@ public class AgentGroupUtil {
     public AccessNodeInfo mappingAccessNodeInfo(AgentGroupEntity group, Map<String, AccessNodeInfo> infoMap) {
         List<String> agentIds = group.getAgentIds();
         List<AccessNodeInfo> agentInfos = null == agentIds ?
-                new ArrayList<>() : agentIds.stream().map(infoMap::get)
-                .collect(Collectors.toList());
+                new ArrayList<>() : agentIds.stream().map(infoMap::get).filter(Objects::nonNull).collect(Collectors.toList());
         AccessNodeInfo item = new AccessNodeInfo();
         item.setProcessId(group.getGroupId());
         item.setAccessNodeName(group.getName());
