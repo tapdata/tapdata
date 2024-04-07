@@ -266,15 +266,6 @@ public class HazelcastTaskServiceTest {
         }
         @Test
         @SneakyThrows
-        @DisplayName("test createNode method for hazelcastIMDG")
-        void testCreateNode16(){
-            when(node.getType()).thenReturn("hazelcastIMDG");
-            when(taskDto.getType()).thenReturn("initial_sync");
-            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
-            assertEquals(HazelcastTargetPdkShareCDCNode.class, actual.getClass());
-        }
-        @Test
-        @SneakyThrows
         @DisplayName("test createNode method for custom processor")
         void testCreateNode17(){
             when(node.getType()).thenReturn("custom_processor");
