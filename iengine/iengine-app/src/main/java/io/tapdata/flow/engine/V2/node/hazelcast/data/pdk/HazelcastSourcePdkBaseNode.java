@@ -513,6 +513,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			case CDC:
 				offsetStartTimeMs = initStreamOffsetCDC(taskDto, offsetStartTimeMs);
 				break;
+			default:
+				break;
 		}
 		if (null == offsetStartTimeMs || offsetStartTimeMs.compareTo(0L) <= 0) {
 			offsetStartTimeMs = syncProgress.getEventTime();
