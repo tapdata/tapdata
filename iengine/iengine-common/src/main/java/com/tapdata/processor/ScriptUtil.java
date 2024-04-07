@@ -71,9 +71,11 @@ public class ScriptUtil {
 
 	public static final String CACHE_SERVICE ="CacheService";
 
-	private static final String SOURCE = "source";
+	public static final String SOURCE = "source";
 
-	private static final String TARGET = "target";
+	public static final String TARGET = "target";
+
+	public static final String SCRIPT_FACTORY_TYPE = "tapdata";
 
 	public static ScriptEngine getScriptEngine(String jsEngineName) {
 		return getScriptEngine(jsEngineName,
@@ -405,7 +407,7 @@ public class ScriptUtil {
 		return buildInMethod.toString();
 	}
 
-	protected static void urlClassLoader(Consumer<URLClassLoader> consumer, List<URL> urlList){
+	public static void urlClassLoader(Consumer<URLClassLoader> consumer, List<URL> urlList){
 		try(final URLClassLoader urlClassLoader = new CustomerClassLoader(urlList.toArray(new URL[0]), ScriptUtil.class.getClassLoader());) {
 			if (consumer != null) {
 				consumer.accept(urlClassLoader);
@@ -446,138 +448,6 @@ public class ScriptUtil {
 	}
 
 
-	//标准化JS节点相关=====================================================================================================
-	public static Invocable getScriptStandardizationEngine(
-			String jsEngineName,
-			String script,
-			List<JavaScriptFunctions> javaScriptFunctions,
-			ClientMongoOperator clientMongoOperator,
-			ScriptConnection source,
-			ScriptConnection target,
-			ICacheGetter memoryCacheGetter,
-			Log logger,
-			boolean standard ) {
-		if (StringUtils.isBlank(script)) {
-			script = "function process(record){\n\treturn record;\n}";
-		}
-		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
-		final ClassLoader[] externalClassLoader = new ClassLoader[1];
-		String buildInMethod = initStandardizationBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalClassLoader[0] = urlClassLoader, standard);
-		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(jsEngineName).classLoader(externalClassLoader[0]).log(logger));
-		String scripts = script + System.lineSeparator() + buildInMethod;
-
-		e.put("tapUtil", new JsUtil());
-		e.put("tapLog", logger);
-		try {
-			e.eval("tapLog.info('Init standardized JS engine...');");
-		}catch (Exception es){
-			throw new TapCodeException(ScriptProcessorExCode_30.GET_SCRIPT_STANDARDIZATION_ENGINE_FAILED,String.format("Can not init standardized JS engine:%s,script eval %s error", script,e),es);
-		}
-		evalImportSources(e,
-				"js/csvUtils.js",
-				"js/arrayUtils.js",
-				"js/dateUtils.js",
-				"js/exceptionUtils.js",
-				"js/stringUtils.js",
-				"js/mapUtils.js",
-				"js/log.js");
-		try {
-			e.eval(scripts);
-		} catch (Exception ex) {
-			throw new TapCodeException(ScriptProcessorExCode_30.GET_SCRIPT_STANDARDIZATION_ENGINE_FAILED,String.format("Incorrect JS code, syntax error found: %s,script eval %s error,please check your javascript code",scripts,e),ex);
-		}
-		Optional.ofNullable(source).ifPresent(s -> e.put(SOURCE, s));
-		Optional.ofNullable(target).ifPresent(s -> e.put(TARGET, s));
-		Optional.ofNullable(memoryCacheGetter).ifPresent(s -> e.put(CACHE_SERVICE, s));
-		Optional.ofNullable(logger).ifPresent(s -> e.put("log", s));
-		return (Invocable) e;
-	}
-
-	public static String initStandardizationBuildInMethod(List<JavaScriptFunctions> javaScriptFunctions, ClientMongoOperator clientMongoOperator, Consumer<URLClassLoader> consumer, boolean standard) {
-		StringBuilder buildInMethod = new StringBuilder();
-
-		//Expired, will be ignored in the near future
-		buildInMethod.append("var DateUtil = Java.type(\"com.tapdata.constant.DateUtil\");\n");
-		buildInMethod.append("var UUIDGenerator = Java.type(\"com.tapdata.constant.UUIDGenerator\");\n");
-		buildInMethod.append("var idGen = Java.type(\"com.tapdata.constant.UUIDGenerator\");\n");
-		buildInMethod.append("var HashMap = Java.type(\"java.util.HashMap\");\n");
-		buildInMethod.append("var LinkedHashMap = Java.type(\"java.util.LinkedHashMap\");\n");
-		buildInMethod.append("var ArrayList = Java.type(\"java.util.ArrayList\");\n");
-		buildInMethod.append("var uuid = UUIDGenerator.uuid;\n");
-		buildInMethod.append("var JSONUtil = Java.type('com.tapdata.constant.JSONUtil');\n");
-		buildInMethod.append("var HanLPUtil = Java.type(\"com.tapdata.constant.HanLPUtil\");\n");
-		buildInMethod.append("var split_chinese = HanLPUtil.hanLPParticiple;\n");
-		buildInMethod.append("var util = Java.type(\"com.tapdata.processor.util.Util\");\n");
-		buildInMethod.append("var MD5Util = Java.type(\"com.tapdata.constant.MD5Util\");\n");
-		buildInMethod.append("var MD5 = function(str){return MD5Util.crypt(str, true);};\n");
-		buildInMethod.append("var Collections = Java.type(\"java.util.Collections\");\n");
-		buildInMethod.append("var MapUtils = Java.type(\"com.tapdata.constant.MapUtil\");\n");
-
-
-		buildInMethod.append("var sleep = function(ms){\n" +
-				"var Thread = Java.type(\"java.lang.Thread\");\n" +
-				"Thread.sleep(ms);\n" +
-				"}\n");
-		if (standard) {
-			return buildInMethod.toString();
-		}
-		buildInMethod.append("var networkUtil = Java.type(\"com.tapdata.constant.NetworkUtil\");\n");
-		buildInMethod.append("var rest = Java.type(\"com.tapdata.processor.util.CustomRest\");\n");
-		buildInMethod.append("var httpUtil = Java.type(\"cn.hutool.http.HttpUtil\");\n");
-		buildInMethod.append("var tcp = Java.type(\"com.tapdata.processor.util.CustomTcp\");\n");
-		buildInMethod.append("var mongo = Java.type(\"com.tapdata.processor.util.CustomMongodb\");\n");
-
-		if (CollectionUtils.isNotEmpty(javaScriptFunctions)) {
-			List<URL> urlList = new ArrayList<>();
-			for (JavaScriptFunctions javaScriptFunction : javaScriptFunctions) {
-				if (javaScriptFunction.isSystem()) {
-					continue;
-				}
-				String jsFunction = javaScriptFunction.getJSFunction();
-				if (StringUtils.isNotBlank(jsFunction)) {
-					buildInMethod.append(jsFunction).append("\n");
-					if (javaScriptFunction.isJar() && AppType.currentType().isDaas()) {
-						//定义类加载器
-						String fileId = javaScriptFunction.getFileId();
-						final Path filePath = Paths.get(System.getenv("TAPDATA_WORK_DIR"), "lib", fileId);
-						if (Files.notExists(filePath)) {
-							if (clientMongoOperator instanceof HttpClientMongoOperator) {
-								File file = ((HttpClientMongoOperator) clientMongoOperator).downloadFile(null, "file/" + fileId, filePath.toString(), true);
-								if (null == file) {
-									throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("file not found,fileId:%s,filePath:%s",fileId,filePath));
-								}
-							} else {
-								GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
-								try (GridFSDownloadStream gridFSDownloadStream = gridFSBucket.openDownloadStream(new ObjectId(javaScriptFunction.getFileId()))) {
-									if (Files.notExists(filePath.getParent())) {
-										Files.createDirectories(filePath.getParent());
-									}
-									Files.createFile(filePath);
-									Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
-								} catch (Exception e) {
-									throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("create function jar file %s",filePath),e);
-								}
-							}
-						}
-						try {
-							URL url = filePath.toUri().toURL();
-							urlList.add(url);
-						} catch (Exception e) {
-							throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("create function jar file %s", filePath),e);
-						}
-					}
-				}
-			}
-			if (CollectionUtils.isNotEmpty(urlList)) {
-				logger.debug("urlClassLoader will load: {}", urlList);
-				urlClassLoader(consumer,urlList);
-			}
-		}
-		return buildInMethod.toString();
-	}
-
-
-
 	//py节点相关==========================================================================================================
 	/**
 		 """
@@ -613,7 +483,7 @@ public class ScriptUtil {
 		if (StringUtils.isBlank(script)) {
 			script = DEFAULT_PY_SCRIPT;
 		}
-		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
+		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, SCRIPT_FACTORY_TYPE);
 		final ClassLoader[] externalClassLoader = new ClassLoader[1];
 		String buildInMethod = "";
 		String globalScript = initPythonBuildInMethod(
@@ -737,7 +607,7 @@ public class ScriptUtil {
 		}
 	}
 
-	private static void evalImportSources(ScriptEngine engine, String ... fileClassPaths){
+	public static void evalImportSources(ScriptEngine engine, String ... fileClassPaths){
 		if (null == fileClassPaths || fileClassPaths.length < 1) return;
 		for (String fileClassPath : fileClassPaths) {
 			if (null == fileClassPath || "".equals(fileClassPath.trim())) continue;
