@@ -118,6 +118,8 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
@@ -293,6 +295,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             dag.setTaskId(taskDto.getId());
             //为了防止上传的json中字段值为null, 导致默认值不生效，二次补上默认值
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+                ServletRequestAttributes servletRequestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+
+                RequestContextHolder.setRequestAttributes(servletRequestAttributes,true);
                 transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
             } else {
                 transformSchemaService.transformSchema(dag, user, taskDto.getId());
@@ -528,7 +533,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //校验dag
         DAG dag = taskDto.getDag();
         int dagHash = 0;
-        if (dag != null) {
+        boolean isFEPatchWhenTaskRunning = TaskDto.STATUS_RUNNING.equals(oldTaskDto.getStatus())&& !isAgentReq();
+        if (dag != null && !isFEPatchWhenTaskRunning) {
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
                     transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());

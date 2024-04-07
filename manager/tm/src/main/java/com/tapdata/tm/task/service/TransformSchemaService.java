@@ -70,13 +70,14 @@ public class TransformSchemaService {
     private WorkerService workerService;
     private TaskDagCheckLogService taskDagCheckLogService;
     private LdpService ldpService;
+    private TaskSchemaService taskSchemaService;
 
     @Autowired
     public TransformSchemaService(DAGDataService dagDataService, MetadataInstancesService metadataInstancesService, TaskService taskService,
                                   DataSourceService dataSourceService, MetadataTransformerService metadataTransformerService,
                                   DataSourceDefinitionService definitionService, MetadataTransformerItemService metadataTransformerItemService,
                                   MessageQueueService messageQueueService, WorkerService workerService, TaskDagCheckLogService taskDagCheckLogService,
-                                  LdpService ldpService) {
+                                  LdpService ldpService,TaskNodeService taskNodeService,TaskSchemaService taskSchemaService) {
         this.dagDataService = dagDataService;
         this.metadataInstancesService = metadataInstancesService;
         this.taskService = taskService;
@@ -88,6 +89,7 @@ public class TransformSchemaService {
         this.workerService = workerService;
         this.taskDagCheckLogService = taskDagCheckLogService;
         this.ldpService = ldpService;
+        this.taskSchemaService = taskSchemaService;
     }
 
     @Value("${tm.transform.batch.num:1000}")
@@ -231,7 +233,6 @@ public class TransformSchemaService {
                     DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
                     DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
                     String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto, taskDto.getId().toHexString());
-
                     if (fileSource.contains(dataSourceDefinitionDto.getPdkId())) {
                         int i = qualifiedName.lastIndexOf("_");
                         qualifiedName = qualifiedName.substring(0, i);
@@ -370,7 +371,7 @@ public class TransformSchemaService {
         }
 
 
-        DAGDataServiceImpl dagDataService1 = new DAGDataServiceImpl(transformParam);
+        DAGDataServiceImpl dagDataService1 = new DAGDataServiceImpl(transformParam,taskSchemaService);
 
         long startTime = System.currentTimeMillis();
         Map<String, List<Message>> transformSchema = taskDto.getDag().transformSchema(null, dagDataService1, transformParam.getOptions());

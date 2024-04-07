@@ -1,5 +1,7 @@
 package com.tapdata.tm.commons.dag;
 
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -18,24 +20,28 @@ public interface DAGDataService {
 
     /**
      * 根据数据源ID 和 表名称加载模型
-     * @param ownerId 模型拥有者用户 id
+     *
+     * @param ownerId      模型拥有者用户 id
      * @param dataSourceId 数据源id
-     * @param tableName 表名称
+     * @param tableName    表名称
      * @return 返回指定表的模型
      */
-    public Schema loadSchema(String ownerId, ObjectId dataSourceId, String tableName);
+    public Schema loadSchema(String ownerId, ObjectId dataSourceId, String tableName, TableNode node);
+
+//    public Schema loadSchema(String ownerId, ObjectId dataSourceId, String tableName, Node tableNode);
 
     /**
      * 根据数据源ID加载模型，可以指定包含的表名称或者不包含的表名称
      * 当同时指定 includes 和 excludes 时，取两者交集
      *
-     * @param ownerId 模型拥有者用户 id
+     * @param ownerId      模型拥有者用户 id
      * @param dataSourceId 数据源ID
-     * @param includes 包含的表名称，为 null 时返回所有表
-     * @param excludes 不包含的表名称，为 null 时返回所有表
+     * @param includes     包含的表名称，为 null 时返回所有表
+     * @param excludes     不包含的表名称，为 null 时返回所有表
+     * @param databaseNode
      * @return 返回匹配到的表名称
      */
-    public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes);
+    public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes, DatabaseNode databaseNode);
 
 
     default TapTable loadTapTable(String nodeId, String virtualId, TaskDto subTaskDto) {

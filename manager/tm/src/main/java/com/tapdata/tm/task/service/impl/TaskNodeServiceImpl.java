@@ -36,10 +36,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
-import com.tapdata.tm.utils.FunctionUtils;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.OEMReplaceUtil;
+import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -772,7 +769,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         try {
             port = Integer.parseInt(serverPort);
         } catch (Exception exception){
-            return resultMap(testTaskId, false, "Can't get server port.");
+            return ResultMapUtil.resultMap(testTaskId, false, "Can't get server port.");
         }
         Map.Entry<String, Map<String, Object>> attributes = getLoginUserAttributes();
         String attributesKey = attributes.getKey();
@@ -805,9 +802,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             int code = response.code();
             return 200 >= code && code < 300 ?
                     (Map<String, Object>) fromJson(OEMReplaceUtil.replace(response.body().string(), "connector/replace.json"))
-                    : resultMap(testTaskId, false, "Access remote service error, http code: " + code);
+                    : ResultMapUtil.resultMap(testTaskId, false, "Access remote service error, http code: " + code);
         }catch (Exception e){
-            return resultMap(testTaskId, false, e.getMessage());
+            return ResultMapUtil.resultMap(testTaskId, false, e.getMessage());
         }
     }
 
@@ -856,14 +853,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         messageQueueService.sendMessage(queueDto);
         return new HashMap<>();
     }
-    private Map<String,Object> resultMap(String testTaskId, boolean isSucceed, String message){
-        Map<String, Object> errorMap = new HashMap<>();
-        errorMap.put("taskId", testTaskId);
-        errorMap.put("ts", new Date().getTime());
-        errorMap.put("code", isSucceed ? "ok" : "error");
-        errorMap.put("message", message);
-        return errorMap;
-    }
+
 
     private void getPrePre(Node node, List<String> preIds) {
         List<Node> predecessors = node.predecessors();

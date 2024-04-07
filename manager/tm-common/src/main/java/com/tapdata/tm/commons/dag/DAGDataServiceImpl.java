@@ -4,7 +4,6 @@ import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.StringUtils;
-import com.tapdata.tm.commons.dag.deduction.rule.ChangeRuleStage;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
@@ -29,6 +28,7 @@ import io.tapdata.entity.schema.type.TapRaw;
 import io.tapdata.entity.schema.type.TapType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,6 +65,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
     private final List<MetadataTransformerItemDto> upsertItems = new ArrayList<>();
     private final List<MetadataTransformerDto> upsertTransformer = new ArrayList<>();
 
+    private TaskSchemaService taskSchemaService;
+
 
 
     public DAGDataServiceImpl(TransformerWsMessageDto transformerWsMessageDto) {
@@ -82,6 +84,12 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         this.userName = transformerWsMessageDto.getUserName();
         this.transformerDtoMap = transformerWsMessageDto.getTransformerDtoMap();
     }
+
+    public DAGDataServiceImpl(TransformerWsMessageDto transformerWsMessageDto, TaskSchemaService taskSchemaService) {
+        this(transformerWsMessageDto);
+        this.taskSchemaService = taskSchemaService;
+    }
+
     public DAGDataServiceImpl(List<MetadataInstancesDto> metadataInstancesDtos, Map<String, DataSourceConnectionDto> dataSourceMap
             , Map<String, DataSourceDefinitionDto> definitionDtoMap, String userId, String userName, TaskDto taskDto
             , Map<String, MetadataTransformerDto> transformerDtoMap) {
@@ -138,23 +146,52 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         processFieldFromDB(metadataInstances, schema);
         return schema;
     }
+    protected boolean checkSourceIsKafka(Node node){
+        Set<String> mqSet = new HashSet<>();
+        mqSet.add("Kafka");
+        boolean nodeIsTarget = CollectionUtils.isEmpty(node.getDag().getTarget(node.getId()));
+        boolean isKafkaNode;
+        if(node instanceof TableNode){
+            isKafkaNode=mqSet.contains(((TableNode) node).getDatabaseType());
+        } else{
+            isKafkaNode=mqSet.contains(((DatabaseNode)node).getDatabaseType());
+        }
+        return isKafkaNode&&!nodeIsTarget;
+    }
 
     @Override
-    public Schema loadSchema(String ownerId, ObjectId dataSourceId, String tableName) {
+    public Schema loadSchema(String ownerId, ObjectId dataSourceId, String tableName, TableNode node) {
 
         if (dataSourceId == null || tableName == null) {
             log.error("Can't load schema by params: {}, {}", dataSourceId, tableName);
             return null;
         }
         String key = dataSourceId + tableName;
-
         MetadataInstancesDto metadataInstances = metadataMap.get(key);
+        Object enableCustomParse = null;
+        if (null != node.getNodeConfig()) {
+            enableCustomParse = node.getNodeConfig().get("enableCustomParse");
+        }
+        if (checkSourceIsKafka(node) & Boolean.TRUE.equals(enableCustomParse)) {
+            if (taskSchemaService != null) {
+                Map<String, Object> schemaResultMap = taskSchemaService.discoverSchemaMQ(node, node.getNodeConfig(), node.getTaskId(), Arrays.asList(tableName));
+                if (schemaResultMap != null) {
+                    Map<String, Object> schemaMap = (Map<String, Object>) schemaResultMap.get("data");
+                    if (schemaMap != null && null != metadataInstances) {
+                        String tapTableJsonString = JSON.toJSONString(schemaMap.get(tableName));
+                        String qualifiedName = metadataInstances.getQualifiedName();
+                        TapTable tapTable = JSON.parseObject(tapTableJsonString, TapTable.class);
+                        this.coverMetaDataByTapTable(qualifiedName, tapTable);
+                    }
+                }
+            }
 
+        }
         return convertToSchema(metadataInstances);
     }
 
     @Override
-    public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes) {
+    public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes, DatabaseNode databaseNode) {
 
         if (dataSourceId == null) {
             log.error("Can't load schema by params: {}, {}, {}, {}", ownerId, dataSourceId, includes, excludes);
@@ -174,6 +211,20 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             MetadataInstancesDto metadataInstancesDto = metadataMap.get(dataSourceId + include);
             if (metadataInstancesDto != null) {
                 metadataInstances.add(metadataInstancesDto);
+            }
+        }
+        if (checkSourceIsKafka(databaseNode) && Boolean.TRUE.equals(databaseNode.getNodeConfig().get("enableCustomParse"))) {
+            Map<String, Object> schemaResultMap = taskSchemaService.discoverSchemaMQ(databaseNode, databaseNode.getNodeConfig(), databaseNode.getTaskId(), includes);
+            if (MapUtils.isNotEmpty(schemaResultMap)) {
+                Map<String, Object> schemaMap = (Map<String, Object>) schemaResultMap.get("data");
+                if (MapUtils.isNotEmpty(schemaMap) && CollectionUtils.isNotEmpty(metadataInstances)) {
+                    metadataInstances.forEach(v -> {
+                        String tapTableJsonString = JSON.toJSONString(schemaMap.get(v.getName()));
+                        String qualifiedName = v.getQualifiedName();
+                        TapTable tapTable = JSON.parseObject(tapTableJsonString, TapTable.class);
+                        this.coverMetaDataByTapTable(qualifiedName, tapTable);
+                    });
+                }
             }
         }
 

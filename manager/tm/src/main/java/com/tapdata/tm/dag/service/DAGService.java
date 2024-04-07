@@ -3,6 +3,8 @@ package com.tapdata.tm.dag.service;
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
@@ -124,7 +126,7 @@ public class DAGService implements DAGDataService {
     }
 
     @Override
-    public Schema loadSchema(String ownerId, ObjectId dataSourceId, String tableName) {
+    public Schema loadSchema(String ownerId, ObjectId dataSourceId, String tableName, TableNode tableNode) {
 
         if (ownerId == null || dataSourceId == null || tableName == null) {
             log.error("Can't load schema by params: {}, {}, {}", ownerId, dataSourceId, tableName);
@@ -151,7 +153,7 @@ public class DAGService implements DAGDataService {
     }
 
     @Override
-    public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes) {
+    public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes, DatabaseNode databaseNode) {
 
         if (ownerId == null || dataSourceId == null) {
             log.error("Can't load schema by params: {}, {}, {}, {}", ownerId, dataSourceId, includes, excludes);
