@@ -283,7 +283,7 @@ public class ParentTaskDto extends SchedulableDto {
         accessNodeProcessIdList = new ArrayList<>();
         if (AccessNodeTypeEnum.isUserManually(accessNodeType) && StringUtils.isNotBlank(accessNodeProcessId)) {
             accessNodeProcessIdList.add(accessNodeProcessId);
-        } else {
+        } else if (!AccessNodeTypeEnum.isManually(accessNodeType)) {
             accessNodeType = AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name();
         }
 
