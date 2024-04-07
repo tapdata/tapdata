@@ -241,7 +241,6 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract void increaseBacktracking(ObjectId taskId, String srcNode, String tgtNode, TaskDto.SyncPoint point, UserDetail user);
 
-    public abstract boolean checkPdkTask(TaskDto taskDto, UserDetail user);
 
     public abstract void startPlanMigrateDagTask();
 
