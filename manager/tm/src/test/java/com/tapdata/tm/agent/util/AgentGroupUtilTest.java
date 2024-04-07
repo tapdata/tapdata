@@ -1,6 +1,5 @@
 package com.tapdata.tm.agent.util;
 
-import com.sun.tools.javac.util.List;
 import com.tapdata.tm.agent.dto.GroupDto;
 import com.tapdata.tm.agent.entity.AgentGroupEntity;
 import com.tapdata.tm.base.dto.Filter;
@@ -12,6 +11,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.anyString;
