@@ -753,6 +753,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 							flushSyncProgressMap(lastTapdataEvent.get());
 						}
 						break;
+					default:
+						break;
 				}
 			}
 		}
@@ -1198,17 +1200,20 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	protected boolean usePkAsUpdateConditions(Collection<String> updateConditions, Collection<String> pks) {
-		if (pks == null) {
-			pks = Collections.emptySet();
-		}
-		for (String updateCondition : updateConditions) {
-			if (!pks.contains(updateCondition)) {
-				return false;
-			}
-		}
-		return true;
-	}
+    protected boolean usePkAsUpdateConditions(Collection<String> updateConditions, Collection<String> pks) {
+        if (pks == null) {
+            pks = Collections.emptySet();
+        }
+        if (pks.size() != updateConditions.size()) {
+            return false;
+        }
+        for (String updateCondition : updateConditions) {
+            if (!pks.contains(updateCondition)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
 	protected CheckExactlyOnceWriteEnableResult enableExactlyOnceWrite() {
 		// Check whether the table supports exactly once write

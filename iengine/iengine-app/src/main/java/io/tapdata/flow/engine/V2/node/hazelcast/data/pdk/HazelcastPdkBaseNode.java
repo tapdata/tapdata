@@ -27,6 +27,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.entity.PdkStateMapEx;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
@@ -185,7 +186,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Object> connectionConfig = dataProcessorContext.getConnectionConfig();
 		DatabaseTypeEnum.DatabaseType databaseType = dataProcessorContext.getDatabaseType();
 		PdkTableMap pdkTableMap = new PdkTableMap(dataProcessorContext.getTapTableMap());
-		pdkStateMap = new PdkStateMap(hazelcastInstance, getNode());
+		pdkStateMap = new PdkStateMapEx(hazelcastInstance, getNode());
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		Node<?> node = dataProcessorContext.getNode();
 		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
