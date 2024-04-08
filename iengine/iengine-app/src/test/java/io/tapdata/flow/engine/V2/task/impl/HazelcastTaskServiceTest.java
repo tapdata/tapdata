@@ -20,8 +20,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastBlank;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastVirtualTargetNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
@@ -134,6 +133,47 @@ public class HazelcastTaskServiceTest {
         }
         @Test
         @SneakyThrows
+        @DisplayName("test createNode method for hazelcast task source")
+        void testCreateNode22(){
+            when(node.getType()).thenReturn("table");
+            successors.add(mock(Node.class));
+            ReadPartitionOptions readPartitionOptions = mock(ReadPartitionOptions.class);
+            when(((DataParentNode)node).getReadPartitionOptions()).thenReturn(readPartitionOptions);
+            when(readPartitionOptions.isEnable()).thenReturn(true);
+            when(readPartitionOptions.getSplitType()).thenReturn(10);
+            when(taskDto.getType()).thenReturn("cdc");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastTaskSource.class, actual.getClass());
+        }
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for hazelcast target pdk data node")
+        void testCreateNode23(){
+            when(node.getType()).thenReturn("table");
+            when(connection.getPdkType()).thenReturn("pdk");
+            ReadPartitionOptions readPartitionOptions = mock(ReadPartitionOptions.class);
+            when(((DataParentNode)node).getReadPartitionOptions()).thenReturn(readPartitionOptions);
+            when(readPartitionOptions.isEnable()).thenReturn(true);
+            when(readPartitionOptions.getSplitType()).thenReturn(10);
+            when(taskDto.getType()).thenReturn("cdc");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastTargetPdkDataNode.class, actual.getClass());
+        }
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for hazelcast task target")
+        void testCreateNode24(){
+            when(node.getType()).thenReturn("table");
+            ReadPartitionOptions readPartitionOptions = mock(ReadPartitionOptions.class);
+            when(((DataParentNode)node).getReadPartitionOptions()).thenReturn(readPartitionOptions);
+            when(readPartitionOptions.isEnable()).thenReturn(true);
+            when(readPartitionOptions.getSplitType()).thenReturn(10);
+            when(taskDto.getType()).thenReturn("cdc");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastTaskTarget.class, actual.getClass());
+        }
+        @Test
+        @SneakyThrows
         @DisplayName("test createNode method for hazelcast pdk source and target table node")
         void testCreateNode4(){
             when(node.getType()).thenReturn("table");
@@ -143,6 +183,17 @@ public class HazelcastTaskServiceTest {
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastPdkSourceAndTargetTableNode.class, actual.getClass());
+        }
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for hazelcast task source and target")
+        void testCreateNode25(){
+            when(node.getType()).thenReturn("table");
+            predecessors.add(mock(Node.class));
+            successors.add(mock(Node.class));
+            when(taskDto.getType()).thenReturn("initial_sync");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastTaskSourceAndTarget.class, actual.getClass());
         }
         @Test
         @SneakyThrows
@@ -162,6 +213,26 @@ public class HazelcastTaskServiceTest {
                     when(taskDto.getType()).thenReturn("initial_sync");
                     HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
                     assertEquals(HazelcastTargetPdkCacheNode.class, actual.getClass());
+                }
+            }
+        }
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for cache target")
+        void testCreateNode26(){
+            node = mock(CacheNode.class);
+            try (MockedStatic<ExternalStorageUtil> mb = Mockito
+                    .mockStatic(ExternalStorageUtil.class)) {
+                mb.when(()->ExternalStorageUtil.getExternalStorage(node)).thenReturn(mock(ExternalStorageDto.class));
+                try (MockedStatic<HazelcastUtil> hazelcastUtilMockedStatic = Mockito
+                        .mockStatic(HazelcastUtil.class)) {
+                    hazelcastUtilMockedStatic.when(HazelcastUtil::getInstance).thenReturn(mock(HazelcastInstance.class));
+                    ConnectorConstant.clientMongoOperator = mock(ClientMongoOperator.class);
+                    ConfigurationCenter.processId = "11111";
+                    when(node.getType()).thenReturn("mem_cache");
+                    when(taskDto.getType()).thenReturn("initial_sync");
+                    HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+                    assertEquals(HazelcastCacheTarget.class, actual.getClass());
                 }
             }
         }
