@@ -1708,7 +1708,7 @@ class AgentGroupServiceTest {
         @Test
         void testGroupIdsIsEmpty() {
             when(groupIds.isEmpty()).thenReturn(true);
-            Assertions.assertDoesNotThrow(() -> assertVerify(0, 0, 0, 0, 0));
+            Assertions.assertThrows(BizException.class, () -> assertVerify(0, 0, 0, 0, 0));
         }
 
         @Test
