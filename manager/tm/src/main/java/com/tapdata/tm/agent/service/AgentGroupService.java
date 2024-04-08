@@ -27,6 +27,7 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerServiceImpl;
 import lombok.NonNull;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -54,17 +55,12 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
+@Setter(onMethod_ = {@Autowired})
 public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, ObjectId, AgentGroupRepository> {
-
-    @Autowired
     protected WorkerServiceImpl workerServiceImpl;
-    @Autowired
     protected DataSourceService dataSourceService;
-    @Autowired
     protected TaskServiceImpl taskService;
-    @Autowired
     protected SettingsServiceImpl settingsService;
-    @Autowired
     protected AgentGroupUtil agentGroupUtil;
 
 
@@ -450,7 +446,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         Criteria criteria = findCriteria(null);
         List<AgentGroupEntity> entities = findAll(Query.query(criteria), loginUser);
         List<AccessNodeInfo> groupAgentList = entities.stream()
-                .filter(a -> Objects.nonNull(a) && CollectionUtils.isNotEmpty(a.getAgentIds()))
+                .filter(Objects::nonNull)
                 .sorted(agentGroupUtil::sortAgentGroup)
                 .map(group -> agentGroupUtil.mappingAccessNodeInfo(group, infoMap))
                 .collect(Collectors.toList());
@@ -539,7 +535,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
      * */
     public List<String> getProcessNodeListByGroupId(List<String> groupIds, UserDetail userDetail) {
         if (CollectionUtils.isEmpty(groupIds)) {
-            return Lists.newArrayList();
+            throw new BizException("group.agent.not.invalid");
         }
         Criteria criteria = findCriteria(groupIds);
         Query query = Query.query(criteria);
@@ -553,7 +549,7 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
                 .forEach(dto -> agents.addAll(dto.getAgentIds()));
         if (agents.isEmpty()) {
             //无可用引擎
-            throw new BizException("group.agent.not.available", groupIds.toString());
+            throw new BizException("group.agent.not.available", all.stream().filter(Objects::nonNull).map(AgentGroupEntity::getName).collect(Collectors.toSet()));
         }
         return new ArrayList<>(agents);
     }

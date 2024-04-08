@@ -70,7 +70,6 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     private MessageService messageService;
     private SettingsService settingsService;
     private MongoTemplate mongoTemplate;
-    @Autowired
     private AgentGroupService agentGroupService;
 
     public ClusterStateService(@NonNull ClusterStateRepository repository) {

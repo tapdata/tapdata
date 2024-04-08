@@ -92,7 +92,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private TaskRecordService taskRecordService;
     private MonitoringLogsService monitoringLogService;
     private DAGDataService dagDataService;
-    @Autowired
     private AgentGroupService agentGroupService;
 
     @SneakyThrows

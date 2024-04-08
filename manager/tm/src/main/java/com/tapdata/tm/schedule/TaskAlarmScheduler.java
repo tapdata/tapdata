@@ -53,7 +53,6 @@ public class TaskAlarmScheduler {
     private WorkerService workerService;
     private UserService userService;
     private SettingsService settingsService;
-    @Autowired
     private AgentGroupService agentGroupService;
 
     @Scheduled(cron = "0 0/5 * * * ? ")
@@ -112,7 +111,7 @@ public class TaskAlarmScheduler {
                 continue;
             }
 
-            List<Worker> workerList = findWorkerList(workerService, agentGroupService, data, userDetail);
+            List<Worker> workerList = findWorkerList(data, userDetail);
 
             String orginAgentId = data.getAgentId();
             AtomicReference<String> summary = new AtomicReference<>();
@@ -153,8 +152,7 @@ public class TaskAlarmScheduler {
         }
     }
 
-    protected List<Worker> findWorkerList(WorkerService workerService, AgentGroupService agentGroupService,
-                                          TaskDto data, UserDetail userDetail) {
+    protected List<Worker> findWorkerList(TaskDto data, UserDetail userDetail) {
         if (null == workerService) {
             return Lists.newArrayList();
         }

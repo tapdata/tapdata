@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,9 +74,11 @@ class TaskAlarmSchedulerTest {
                           int findAvailableAgent,
                           int getAccessNodeType,
                           int typeTimes) {
+            ReflectionTestUtils.setField(taskAlarmScheduler, "workerService", w);
+            ReflectionTestUtils.setField(taskAlarmScheduler, "agentGroupService", a);
             when(taskDto.getAccessNodeType()).thenReturn(accessType);
-            when(taskAlarmScheduler.findWorkerList(w,a,d,userDetail)).thenCallRealMethod();
-            List<Worker> list = taskAlarmScheduler.findWorkerList(w, a, d, userDetail);
+            when(taskAlarmScheduler.findWorkerList(d,userDetail)).thenCallRealMethod();
+            List<Worker> list = taskAlarmScheduler.findWorkerList(d, userDetail);
             Assertions.assertNotNull(list);
             verify(workerService, times(findAvailableAgent)).findAvailableAgentBySystem(userDetail);
             verify(taskDto, times(getAccessNodeType)).getAccessNodeType();

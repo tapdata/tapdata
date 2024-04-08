@@ -84,6 +84,7 @@ import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.task.service.utils.TaskServiceUtil;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
@@ -215,6 +216,7 @@ public class TaskServiceImpl extends TaskService{
     private TaskNodeService taskNodeService;
 
     private AgentGroupService agentGroupService;
+    private TaskServiceUtil taskServiceUtil;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -467,11 +469,7 @@ public class TaskServiceImpl extends TaskService{
                 taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
                 taskDto.setTransformTaskId(oldTaskDto.getTransformTaskId());
 
-                if (StringUtils.isBlank(taskDto.getAccessNodeType())) {
-                    taskDto.setAccessNodeType(oldTaskDto.getAccessNodeType());
-                    taskDto.setAccessNodeProcessId(oldTaskDto.getAccessNodeProcessId());
-                    taskDto.setAccessNodeProcessIdList(agentGroupService.getProcessNodeListWithGroup(oldTaskDto, user));
-                }
+                taskServiceUtil.copyAccessNodeInfo(oldTaskDto, taskDto, user, agentGroupService);
 
                 if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && !ParentTaskDto.TYPE_CDC.equals(taskDto.getType())) {
                     DAG newDag = taskDto.getDag();
@@ -713,11 +711,7 @@ public class TaskServiceImpl extends TaskService{
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm) {
         if (Objects.nonNull(taskDto.getId())) {
             TaskDto temp = findById(taskDto.getId());
-            if (Objects.nonNull(temp) && StringUtils.isBlank(taskDto.getAccessNodeType())) {
-                taskDto.setAccessNodeType(temp.getAccessNodeType());
-                taskDto.setAccessNodeProcessId(temp.getAccessNodeProcessId());
-                taskDto.setAccessNodeProcessIdList(agentGroupService.getProcessNodeListWithGroup(temp, user));
-            }
+            taskServiceUtil.copyAccessNodeInfo(temp, taskDto, user, agentGroupService);
         }
         // check task inspect flag
         checkTaskInspectFlag(taskDto);

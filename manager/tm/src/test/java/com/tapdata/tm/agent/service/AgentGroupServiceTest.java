@@ -1381,7 +1381,7 @@ class AgentGroupServiceTest {
             verify(accessNodeInfo, times(2)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
             verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
-            verify(entity, times(1)).getAgentIds();
+            verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
         }
@@ -1422,7 +1422,7 @@ class AgentGroupServiceTest {
             verify(accessNodeInfo, times(2)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
             verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
-            verify(entity, times(1)).getAgentIds();
+            verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
         }
@@ -1435,7 +1435,7 @@ class AgentGroupServiceTest {
             verify(accessNodeInfo, times(2)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
             verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
-            verify(entity, times(1)).getAgentIds();
+            verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
         }
@@ -1448,9 +1448,9 @@ class AgentGroupServiceTest {
             verify(accessNodeInfo, times(2)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
             verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
-            verify(entity, times(1)).getAgentIds();
+            verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
-            verify(agentGroupUtil, times(0)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
+            verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
         }
         @Test
         void testProcessIdIsNull() {
@@ -1461,7 +1461,7 @@ class AgentGroupServiceTest {
             verify(accessNodeInfo, times(1)).getProcessId();
             verify(agentGroupService, times(1)).findCriteria(null);
             verify(agentGroupService, times(1)).findAll(any(Query.class), any(UserDetail.class));
-            verify(entity, times(1)).getAgentIds();
+            verify(entity, times(0)).getAgentIds();
             verify(agentGroupUtil, times(0)).sortAgentGroup(any(AgentGroupEntity.class), any(AgentGroupEntity.class));
             verify(agentGroupUtil, times(1)).mappingAccessNodeInfo(any(AgentGroupEntity.class), anyMap());
         }
@@ -1677,6 +1677,7 @@ class AgentGroupServiceTest {
             all = Lists.newArrayList();
 
             dto = mock(AgentGroupEntity.class);
+            when(dto.getName()).thenReturn("name");
             when(dto.getAgentIds()).thenReturn(Lists.newArrayList("id"));
             all.add(dto);
 
