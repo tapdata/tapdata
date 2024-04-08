@@ -2,9 +2,11 @@ package com.tapdata.tm.task.service;
 
 import cn.hutool.extra.cglib.CglibUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsServiceImpl;
 import com.tapdata.tm.base.dto.MutiResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -28,11 +30,9 @@ import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
+import org.bson.BsonValue;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -41,6 +41,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -1177,6 +1178,46 @@ public class TaskServiceTest {
             boolean flag = taskService.removeDeleteOperation(deleteOperationsList, sourceJoinKeyMapping, "productId");
             assertEquals(false,flag);
         }
+    }
+
+    @Nested
+    class ReNewNotSendMqTest{
+        TaskRepository taskRepository=mock(TaskRepository.class);
+        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
+        @DisplayName("test errorEvents is null")
+        @Test
+        void test(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setDag(mock(DAG.class));
+            UpdateResult updateResult = new UpdateResult() {
+                @Override
+                public boolean wasAcknowledged() {
+                    return false;
+                }
+
+                @Override
+                public long getMatchedCount() {
+                    return 0;
+                }
+
+                @Override
+                public long getModifiedCount() {
+                    return 0;
+                }
+
+                @Override
+                public BsonValue getUpsertedId() {
+                    return null;
+                }
+            };
+            when(taskRepository.update(any(Query.class),any(Update.class),any())).thenAnswer(invocationOnMock -> {
+                Update update = invocationOnMock.getArgument(1);
+                Assertions.assertNull(update.getUpdateObject().get("errorEvents"));
+                return updateResult;
+            });
+            taskService.renewNotSendMq(taskDto,mock(UserDetail.class));
+        }
+
     }
 
 

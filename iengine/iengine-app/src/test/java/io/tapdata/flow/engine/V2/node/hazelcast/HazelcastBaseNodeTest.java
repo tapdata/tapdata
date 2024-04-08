@@ -15,10 +15,12 @@ import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
 import io.tapdata.aspect.DataNodeInitAspect;
@@ -45,6 +47,8 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.ManagementException;
+import io.tapdata.exception.MongodbException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
@@ -59,6 +63,7 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.task.skipError.SkipErrorStrategy;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -1352,6 +1357,8 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@BeforeEach
 		void beforeEach() {
 			hazelcastBaseNode = spy(hazelcastBaseNode);
+			ReflectionTestUtils.setField(hazelcastBaseNode,"clientMongoOperator",mock(HttpClientMongoOperator.class));
+			ReflectionTestUtils.setField(hazelcastBaseNode,"obsLogger",mock(ObsLogger.class));
 		}
 
 		@Test
@@ -1402,6 +1409,22 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			assertNotNull(errorHandleException);
 			assertNotNull(errorHandleException.getOriginalException());
 			assertEquals(ex, errorHandleException.getOriginalException());
+		}
+		@Test
+		void testErrorHandleSkip() {
+			TapCodeException tapCodeException = new TapCodeException("1001","error1");
+			Assertions.assertNull(hazelcastBaseNode.errorHandle(tapCodeException,"error1"));
+		}
+		@Test
+		void testUnknownExceptionErrorHandleSkip() {
+			Throwable throwable = new Throwable("error2");
+			Assertions.assertNull(hazelcastBaseNode.errorHandle(throwable,"error2"));
+		}
+
+		@Test
+		void testErrorHandleSkipTapMessageIsNull() {
+			TapCodeException tapCodeException = new TapCodeException("1001");
+			Assertions.assertNull(hazelcastBaseNode.errorHandle(tapCodeException,"error3"));
 		}
 	}
 
@@ -1808,6 +1831,93 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			processorBaseContext.getTaskDto().setType(SyncTypeEnum.INITIAL_SYNC_CDC.getSyncType());
 			boolean initialSyncTask = mockHazelcastBaseNode.isInitialSyncTask();
 			assertEquals(false,initialSyncTask);
+		}
+
+	}
+	@Nested
+	class WhetherToSkipTest{
+		private HazelcastBaseNode mockHazelcastBaseNode;
+		@BeforeEach
+		void setUp(){
+			mockHazelcastBaseNode=spy(hazelcastBaseNode);
+		}
+
+		@Test
+		@DisplayName("WhetherToSkip errorEvents is Empty")
+		void test(){
+			Assertions.assertFalse(mockHazelcastBaseNode.whetherToSkip(null,null,null));
+		}
+
+		@Test
+		@DisplayName("WhetherToSkip skipErrorEvents is Empty")
+		void test1(){
+			List<ErrorEvent> errorEvents = new ArrayList<>();
+			errorEvents.add(new ErrorEvent("test2","110",null));
+			Assertions.assertFalse(mockHazelcastBaseNode.whetherToSkip(errorEvents,null,null));
+		}
+
+		@Test
+		@DisplayName("WhetherToSkip skipErrorEvents is notEmpty")
+		void test2(){
+			List<ErrorEvent> errorEvents = new ArrayList<>();
+			ErrorEvent event =  new ErrorEvent("test2","110",null);
+			event.setSkip(true);
+			errorEvents.add(event);
+			Assertions.assertTrue(mockHazelcastBaseNode.whetherToSkip(errorEvents,new ErrorEvent("test2","110",null), SkipErrorStrategy.ERROR_MESSAGE.getSkipError()));
+		}
+
+	}
+
+	@Nested
+	class SaveErrorEventTest{
+		private HazelcastBaseNode mockHazelcastBaseNode;
+
+		private ObsLogger obsLogger;
+
+		private HttpClientMongoOperator httpClientMongoOperator;
+
+		@BeforeEach
+		void setUp() {
+			mockHazelcastBaseNode = spy(hazelcastBaseNode);
+			obsLogger = mock(ObsLogger.class);
+			httpClientMongoOperator = mock(HttpClientMongoOperator.class);
+			ReflectionTestUtils.setField(mockHazelcastBaseNode,"obsLogger",obsLogger);
+			ReflectionTestUtils.setField(mockHazelcastBaseNode,"clientMongoOperator",httpClientMongoOperator);
+		}
+
+		@Test
+		@DisplayName("WhetherToSkip errorEvents is Empty")
+		void test(){
+			doNothing().when(httpClientMongoOperator).insertOne(any(),any());
+			mockHazelcastBaseNode.saveErrorEvent(null,new ErrorEvent("test2","110",null),new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
+			verify(obsLogger,times(0)).warn(any(),any());
+		}
+
+		@Test
+		@DisplayName("Exceeds limit 10")
+		void test2(){
+			List<ErrorEvent> errorEvents = new ArrayList<>();
+			for(int i = 0; i < 10;i++){
+				errorEvents.add(new ErrorEvent("test","1001",null));
+			}
+			mockHazelcastBaseNode.saveErrorEvent(errorEvents,new ErrorEvent("test2","110",null),new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
+			verify(httpClientMongoOperator,times(0)).insertOne(any(),any());
+		}
+
+		@Test
+		@DisplayName("input event is null")
+		void test3(){
+			List<ErrorEvent> errorEvents = new ArrayList<>();
+			mockHazelcastBaseNode.saveErrorEvent(errorEvents,null,new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
+			verify(httpClientMongoOperator,times(0)).insertOne(any(),any());
+		}
+
+		@Test
+		@DisplayName("input event message is null")
+		void test4(){
+			List<ErrorEvent> errorEvents = new ArrayList<>();
+			mockHazelcastBaseNode.saveErrorEvent(errorEvents,new ErrorEvent(null,"1001",null),new ObjectId(),SkipErrorStrategy.ERROR_MESSAGE.getSkipError());
+			verify(httpClientMongoOperator,times(0)).insertOne(any(),any());
 		}
 
 	}

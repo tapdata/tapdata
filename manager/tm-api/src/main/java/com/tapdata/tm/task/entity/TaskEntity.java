@@ -270,6 +270,8 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
      */
     private Double dynamicAdjustMemorySampleRate;
 
+    private List<ErrorEvent> errorEvents;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

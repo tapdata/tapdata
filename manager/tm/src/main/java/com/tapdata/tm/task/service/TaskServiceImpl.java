@@ -3837,7 +3837,8 @@ public class TaskServiceImpl extends TaskService{
                 .set("agentTags", null)
                 .set("scheduleTimes", null)
                 .set("scheduleTime", null)
-                .set("messages", null);
+                .set("messages", null)
+                .set("errorEvents", null);
 
 
         if (taskDto.getAttrs() != null) {

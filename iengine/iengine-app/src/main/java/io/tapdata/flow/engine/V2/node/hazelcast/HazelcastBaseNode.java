@@ -6,6 +6,8 @@ import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.Stats;
@@ -22,6 +24,7 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
+import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -60,6 +63,8 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.task.skipError.SkipError;
+import io.tapdata.task.skipError.SkipErrorStrategy;
 import io.tapdata.websocket.handler.TestRunTaskHandler;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -69,13 +74,12 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * @author jackin
@@ -95,6 +99,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected static final String REMOVE_METADATA_INFO_KEY = "REMOVE_METADATA";
 	protected static final String QUALIFIED_NAME_ID_MAP_INFO_KEY = "QUALIFIED_NAME_ID_MAP";
 	private static final String TAG = HazelcastBaseNode.class.getSimpleName();
+
+	private static final Integer ERROR_EVENT_LIMIT = 10;
 
 	protected ClientMongoOperator clientMongoOperator;
 	protected Context jetContext;
@@ -561,11 +567,29 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		TapCodeException currentEx = wrapTapCodeException(throwable);
 		TaskDto taskDto = processorBaseContext.getTaskDto();
 		handleWhenTestRun(taskDto, currentEx);
-
+		AtomicReference<ErrorEvent> errorEvent = new AtomicReference<>();
+		AtomicBoolean isSkip = new AtomicBoolean(false);
+		SkipError skipError = SkipErrorStrategy.getDefaultSkipErrorStrategy().getSkipError();
+		CommonUtils.handleAnyError(()->{
+			String message;
+			if(currentEx instanceof TapProcessorUnknownException){
+				message = currentEx.getCause().getMessage();
+			}else{
+				message = currentEx.getMessage();
+			}
+			String finalMessage = StringUtils.isBlank(message) ? errorMessage:message;
+			errorEvent.set(new ErrorEvent(finalMessage,currentEx.getCode(),Log4jUtil.getStackString(currentEx)));
+			if(whetherToSkip(taskDto.getErrorEvents(), errorEvent.get(), skipError)){
+				obsLogger.info("The current exception match the skip exception strategy, message: "+errorMessage);
+				isSkip.set(true);
+			}
+		},err->obsLogger.warn("Skip error failed:{}",err.getMessage()));
+		if(isSkip.get())return null;
 		try {
 			if (globalErrorIsNull()) {
 				this.error = currentEx;
 				getErrorMessage(errorMessage, currentEx);
+				saveErrorEvent(taskDto.getErrorEvents(), errorEvent.get(),taskDto.getId(),skipError);
 				obsLogger.error(errorMessage, currentEx);
 				this.running.set(false);
 
@@ -810,6 +834,35 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 		String nodeId = getNode().getId();
 		return ((DAGDataServiceImpl) dagDataService).getNameByNodeAndTableName(nodeId, tableId);
+	}
+
+	protected boolean whetherToSkip(List<ErrorEvent> errorEvents,ErrorEvent event,SkipError skipError){
+		if(CollectionUtils.isEmpty(errorEvents)){
+			return false;
+		}
+		List<ErrorEvent> skipErrorEvents = errorEvents.stream().filter(ErrorEvent::getSkip).collect(Collectors.toList());
+		if(CollectionUtils.isNotEmpty(skipErrorEvents)) {
+			return skipError.match(skipErrorEvents, event);
+		}
+		return false;
+	}
+
+	protected void saveErrorEvent(List<ErrorEvent> errorEvents,ErrorEvent event,ObjectId taskId,SkipError skipError){
+		if(null == event || StringUtils.isBlank(event.getMessage()))return;
+		if(CollectionUtils.isEmpty(errorEvents)){
+			errorEvents = new ArrayList<>();
+		}
+		if(!skipError.match(errorEvents,event)){
+			errorEvents.add(event);
+		}
+		if (errorEvents.size() > ERROR_EVENT_LIMIT) {
+			return;
+		}
+		try {
+			clientMongoOperator.insertOne(errorEvents,ConnectorConstant.TASK_COLLECTION + "/errorEvents/" + taskId);
+		}catch (Exception e){
+			obsLogger.warn("Save error event failed:{}",e.getMessage());
+		}
 	}
 
 	public static class TapValueTransform {
