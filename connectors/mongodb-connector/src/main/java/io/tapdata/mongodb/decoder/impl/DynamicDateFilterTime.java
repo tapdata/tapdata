@@ -12,27 +12,19 @@ import java.util.Optional;
 public class DynamicDateFilterTime implements CustomSQLObject<Object, Map<String, Object>> {
     public static final String DYNAMIC_DATE = "$dynamicDate";
     public static final String CUSTOM_FORMAT = "customFormat";
-    public static final String COVERT_TYPE = "covertType";
     public static final String TO_STRING_FORMAT = "toStringFormat";
     public static final String SUBTRACT = "subtract";
     public static final String DEFAULT_DATE_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS";
-
-    public static final String TO_DATE = "date";
-    public static final String TO_TIMESTAMP = "timestamp";
-    public static final String TO_DATE_STRING = "string";
-
 
     @Override
     public Object execute(Object functionObj, Map<String, Object> curMap) {
         Object format = null;
         Object toStringFormat = null;
-        Object covertType = null;
         int subtract = 0;
         if (functionObj instanceof Map) {
             format = ((Map<String, Object>) functionObj).get(CUSTOM_FORMAT);
             toStringFormat = ((Map<String, Object>) functionObj).get(TO_STRING_FORMAT);
             Object sub = Optional.ofNullable(((Map<String, Object>) functionObj).get(SUBTRACT)).orElse(0);
-            covertType = ((Map<String, Object>) functionObj).get(COVERT_TYPE);
             if (sub instanceof Number) {
                 subtract = ((Number)sub).intValue();
             } else {
@@ -43,24 +35,13 @@ public class DynamicDateFilterTime implements CustomSQLObject<Object, Map<String
                 }
             }
         }
-
         if (null != format && !(format instanceof String)) {
-            throw new IllegalArgumentException("a customFormat value is illegal value, \"" + CUSTOM_FORMAT + "\" must be a date time format string, such as: \"yyyy-MM-dd HH:mm:ss\"");
+            throw new IllegalArgumentException("a customFormat value is illegal value, \"" + CUSTOM_FORMAT + "\" must be a date time format string, such as: \"yyyy-MM-dd HH:mm:ss.SSS\"");
         }
-        final String covert = String.valueOf(covertType);
-        switch (covert) {
-            case TO_DATE:
-                return covertTime((String) format, subtract, null);
-            case TO_TIMESTAMP:
-                Date date = (Date)covertTime((String) format, subtract, null);
-                return date.getTime();
-            case TO_DATE_STRING:
-            default:
-                if (null != toStringFormat && !(toStringFormat instanceof String)) {
-                    throw new IllegalArgumentException("a toStringFormat value is illegal value, \"" + TO_STRING_FORMAT + "\" must be a date time format string, such as: \"yyyy-MM-dd HH:mm:ss\"");
-                }
-                return covertTime((String) format, subtract, (String) toStringFormat);
+        if (null != toStringFormat && !(toStringFormat instanceof String)) {
+            throw new IllegalArgumentException("a toStringFormat value is illegal value, \"" + TO_STRING_FORMAT + "\" must be a date time format string, such as: \"yyyy-MM-dd HH:mm:ss\"");
         }
+        return covertTime((String) format, subtract, (String) toStringFormat);
     }
 
     @Override
@@ -79,7 +60,7 @@ public class DynamicDateFilterTime implements CustomSQLObject<Object, Map<String
                 sdf.applyPattern(DEFAULT_DATE_FORMAT);
                 formatDate = sdf.parse(dateFormatStr);
             } catch (Exception e) {
-                throw new CoreException("Illegal argument in function: {}, wrong value: {}, the correct key value pairs should be as follows: \"{}\": \"yyyy-dd-MM hh:mm:ss[.SSSSSS]\", error message: {}",
+                throw new CoreException("Illegal argument in function: {}, wrong value: {}, the correct key value pairs should be as follows: \"{}\": \"yyyy-dd-MM hh:mm:ss.SSS\", error message: {}",
                         getFunctionName(), dateTime, CUSTOM_FORMAT, e.getMessage());
             }
         }
