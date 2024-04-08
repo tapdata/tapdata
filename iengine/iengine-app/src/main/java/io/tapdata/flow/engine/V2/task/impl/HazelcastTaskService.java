@@ -86,10 +86,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
-import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
-import io.tapdata.flow.engine.V2.util.GraphUtil;
-import io.tapdata.flow.engine.V2.util.MergeTableUtil;
-import io.tapdata.flow.engine.V2.util.NodeUtil;
+import io.tapdata.flow.engine.V2.util.*;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -485,7 +482,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								readPartitionOptions = ((DataParentNode<?>) node).getReadPartitionOptions();
 							}
 
-							if (readPartitionOptions != null && readPartitionOptions.isEnable() && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE && !Objects.equals(taskDto.getType(),"cdc")) {
+							if (readPartitionOptions != null && readPartitionOptions.isEnable() && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE && !Objects.equals(taskDto.getType(), SyncTypeEnum.CDC.getSyncType())) {
 								hazelcastNode = new HazelcastSourcePartitionReadDataNode(processorContext);
 							} else {
 								hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
