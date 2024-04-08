@@ -7,25 +7,25 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+
 import java.util.List;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class TaskServiceUtilTest {
-    TaskServiceUtil taskServiceUtil;
     AgentGroupService agentGroupService;
 
     UserDetail user;
 
     @BeforeEach
     void init() {
-        taskServiceUtil = mock(TaskServiceUtil.class);
         agentGroupService = mock(AgentGroupService.class);
         user = mock(UserDetail.class);
     }
@@ -48,55 +48,64 @@ class TaskServiceUtilTest {
             doNothing().when(target).setAccessNodeProcessIdList(anyList());
 
             when(agentGroupService.getProcessNodeListWithGroup(target, user)).thenReturn(mock(List.class));
-            doCallRealMethod().when(taskServiceUtil).copyAccessNodeInfo(source, target, user, agentGroupService);
-            doCallRealMethod().when(taskServiceUtil).copyAccessNodeInfo(null, target, user, agentGroupService);
-            doCallRealMethod().when(taskServiceUtil).copyAccessNodeInfo(source, null, user, agentGroupService);
         }
 
         @Test
         void testNormal() {
-            Assertions.assertDoesNotThrow(() -> taskServiceUtil.copyAccessNodeInfo(source, target, user, agentGroupService));
-            verify(target, times(1)).getAccessNodeType();
-            verify(source, times(0)).getAccessNodeType();
-            verify(source, times(0)).getAccessNodeProcessId();
-            verify(target, times(0)).setAccessNodeType(anyString());
-            verify(target, times(0)).setAccessNodeProcessId(anyString());
-            verify(target, times(0)).setAccessNodeProcessIdList(anyList());
-            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(target, user);
+            try (MockedStatic<TaskServiceUtil> tsu = mockStatic(TaskServiceUtil.class)) {
+                tsu.when(() -> TaskServiceUtil.copyAccessNodeInfo(source, target, user, agentGroupService)).thenCallRealMethod();
+                Assertions.assertDoesNotThrow(() -> TaskServiceUtil.copyAccessNodeInfo(source, target, user, agentGroupService));
+                verify(target, times(1)).getAccessNodeType();
+                verify(source, times(0)).getAccessNodeType();
+                verify(source, times(0)).getAccessNodeProcessId();
+                verify(target, times(0)).setAccessNodeType(anyString());
+                verify(target, times(0)).setAccessNodeProcessId(anyString());
+                verify(target, times(0)).setAccessNodeProcessIdList(anyList());
+                verify(agentGroupService, times(0)).getProcessNodeListWithGroup(target, user);
+            }
         }
         @Test
         void testSourceIsNull() {
-            Assertions.assertDoesNotThrow(() -> taskServiceUtil.copyAccessNodeInfo(null, target, user, agentGroupService));
-            verify(target, times(0)).getAccessNodeType();
-            verify(source, times(0)).getAccessNodeType();
-            verify(source, times(0)).getAccessNodeProcessId();
-            verify(target, times(0)).setAccessNodeType(anyString());
-            verify(target, times(0)).setAccessNodeProcessId(anyString());
-            verify(target, times(0)).setAccessNodeProcessIdList(anyList());
-            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(target, user);
+            try (MockedStatic<TaskServiceUtil> tsu = mockStatic(TaskServiceUtil.class)) {
+                tsu.when(() -> TaskServiceUtil.copyAccessNodeInfo(null, target, user, agentGroupService)).thenCallRealMethod();
+                Assertions.assertDoesNotThrow(() -> TaskServiceUtil.copyAccessNodeInfo(null, target, user, agentGroupService));
+                verify(target, times(0)).getAccessNodeType();
+                verify(source, times(0)).getAccessNodeType();
+                verify(source, times(0)).getAccessNodeProcessId();
+                verify(target, times(0)).setAccessNodeType(anyString());
+                verify(target, times(0)).setAccessNodeProcessId(anyString());
+                verify(target, times(0)).setAccessNodeProcessIdList(anyList());
+                verify(agentGroupService, times(0)).getProcessNodeListWithGroup(target, user);
+            }
         }
         @Test
         void testTargetIsNull() {
-            Assertions.assertDoesNotThrow(() -> taskServiceUtil.copyAccessNodeInfo(source, null, user, agentGroupService));
-            verify(source, times(0)).getAccessNodeType();
-            verify(target, times(0)).getAccessNodeType();
-            verify(source, times(0)).getAccessNodeProcessId();
-            verify(target, times(0)).setAccessNodeType(anyString());
-            verify(target, times(0)).setAccessNodeProcessId(anyString());
-            verify(target, times(0)).setAccessNodeProcessIdList(anyList());
-            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(target, user);
+            try (MockedStatic<TaskServiceUtil> tsu = mockStatic(TaskServiceUtil.class)) {
+                tsu.when(() -> TaskServiceUtil.copyAccessNodeInfo(source, null, user, agentGroupService)).thenCallRealMethod();
+                Assertions.assertDoesNotThrow(() -> TaskServiceUtil.copyAccessNodeInfo(source, null, user, agentGroupService));
+                verify(source, times(0)).getAccessNodeType();
+                verify(target, times(0)).getAccessNodeType();
+                verify(source, times(0)).getAccessNodeProcessId();
+                verify(target, times(0)).setAccessNodeType(anyString());
+                verify(target, times(0)).setAccessNodeProcessId(anyString());
+                verify(target, times(0)).setAccessNodeProcessIdList(anyList());
+                verify(agentGroupService, times(0)).getProcessNodeListWithGroup(target, user);
+            }
         }
         @Test
         void testAccessNodeTypeIsEmpty() {
-            when(target.getAccessNodeType()).thenReturn(null);
-            Assertions.assertDoesNotThrow(() -> taskServiceUtil.copyAccessNodeInfo(source, target, user, agentGroupService));
-            verify(target, times(1)).getAccessNodeType();
-            verify(source, times(1)).getAccessNodeType();
-            verify(source, times(1)).getAccessNodeProcessId();
-            verify(target, times(1)).setAccessNodeType(anyString());
-            verify(target, times(1)).setAccessNodeProcessId(anyString());
-            verify(target, times(1)).setAccessNodeProcessIdList(anyList());
-            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(target, user);
+            try (MockedStatic<TaskServiceUtil> tsu = mockStatic(TaskServiceUtil.class)) {
+                tsu.when(() -> TaskServiceUtil.copyAccessNodeInfo(source, target, user, agentGroupService)).thenCallRealMethod();
+                when(target.getAccessNodeType()).thenReturn(null);
+                Assertions.assertDoesNotThrow(() -> TaskServiceUtil.copyAccessNodeInfo(source, target, user, agentGroupService));
+                verify(target, times(1)).getAccessNodeType();
+                verify(source, times(1)).getAccessNodeType();
+                verify(source, times(1)).getAccessNodeProcessId();
+                verify(target, times(1)).setAccessNodeType(anyString());
+                verify(target, times(1)).setAccessNodeProcessId(anyString());
+                verify(target, times(1)).setAccessNodeProcessIdList(anyList());
+                verify(agentGroupService, times(1)).getProcessNodeListWithGroup(target, user);
+            }
 
         }
     }
