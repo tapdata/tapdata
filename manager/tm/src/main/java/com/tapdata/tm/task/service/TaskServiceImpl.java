@@ -216,7 +216,6 @@ public class TaskServiceImpl extends TaskService{
     private TaskNodeService taskNodeService;
 
     private AgentGroupService agentGroupService;
-    private TaskServiceUtil taskServiceUtil;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -469,7 +468,7 @@ public class TaskServiceImpl extends TaskService{
                 taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
                 taskDto.setTransformTaskId(oldTaskDto.getTransformTaskId());
 
-                taskServiceUtil.copyAccessNodeInfo(oldTaskDto, taskDto, user, agentGroupService);
+                TaskServiceUtil.copyAccessNodeInfo(oldTaskDto, taskDto, user, agentGroupService);
 
                 if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && !ParentTaskDto.TYPE_CDC.equals(taskDto.getType())) {
                     DAG newDag = taskDto.getDag();
@@ -711,7 +710,7 @@ public class TaskServiceImpl extends TaskService{
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm) {
         if (Objects.nonNull(taskDto.getId())) {
             TaskDto temp = findById(taskDto.getId());
-            taskServiceUtil.copyAccessNodeInfo(temp, taskDto, user, agentGroupService);
+            TaskServiceUtil.copyAccessNodeInfo(temp, taskDto, user, agentGroupService);
         }
         // check task inspect flag
         checkTaskInspectFlag(taskDto);

@@ -7,7 +7,10 @@ import org.apache.commons.lang3.StringUtils;
 
 
 public class TaskServiceUtil {
-    public void copyAccessNodeInfo(TaskDto source, TaskDto target, UserDetail user, AgentGroupService agentGroupService) {
+    private TaskServiceUtil() {
+    }
+
+    public static void copyAccessNodeInfo(TaskDto source, TaskDto target, UserDetail user, AgentGroupService agentGroupService) {
         if (null == source || null == target) {
             return;
         }
