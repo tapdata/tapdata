@@ -373,5 +373,67 @@
       "interval": 300,
       "unit": "SECOND"
     }
+  ],
+  "errorEvents":[
+    {
+      "message": "error1",
+      "code": "1001",
+      "stacks": null,
+      "skip": true
+    },
+    {
+      "message": "error2",
+      "code": "11001",
+      "stacks": null,
+      "skip": true
+    },
+    {
+      "message": "error3",
+      "code": "1001",
+      "stacks": null,
+      "skip": true
+    },
+    {
+      "message": "error4",
+      "code": "1001",
+      "stacks": null,
+      "skip": true
+    },
+    {
+      "message": "error5",
+      "code": "1001",
+      "stacks": null,
+      "skip": true
+    },
+    {
+      "message": "error6",
+      "code": "1001",
+      "stacks": null,
+      "skip": true
+    },
+    {
+      "message": "error7",
+      "code": "1001",
+      "stacks": null,
+      "skip": true
+    },
+    {
+      "message": "error8",
+      "code": "1001",
+      "stacks": null,
+      "skip": true
+    },
+    {
+      "message": "error9",
+      "code": "1001",
+      "stacks": null,
+      "skip": true
+    },
+    {
+      "message": "error10",
+      "code": "1001",
+      "stacks": null,
+      "skip": true
+    }
   ]
 }

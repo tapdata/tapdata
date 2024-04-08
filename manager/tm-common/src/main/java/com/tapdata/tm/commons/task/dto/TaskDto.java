@@ -196,6 +196,8 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      */
     private Boolean enableSyncMetricCollector;
 
+    private List<ErrorEvent> errorEvents;
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());

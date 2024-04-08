@@ -16,6 +16,7 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
+import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
@@ -54,6 +55,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -1268,6 +1272,22 @@ public class TaskController extends BaseController {
 		taskService.updateSyncProgress(MongoUtils.toObjectId(taskId), document);
 		return success();
 	}
+
+    @PostMapping("errorEvents/{taskId}")
+    public ResponseMessage<Void> updateErrorEvents(@PathVariable("taskId") String taskId, @RequestBody List<ErrorEvent> errorEvents) {
+        Criteria criteria = Criteria.where("_id").is(taskId);
+        Update update = new Update().set("errorEvents",errorEvents);
+        taskService.update(new Query(criteria),update);
+        return success();
+    }
+
+    @PostMapping("skipErrorEvents/{taskId}")
+    public ResponseMessage<Void> skipErrorEvents(@PathVariable("taskId") String taskId,@RequestBody List<String> ids) {
+        Criteria criteria = Criteria.where("_id").is(taskId).and("errorEvents._id").in(ids.stream().map(MongoUtils::toObjectId).collect(Collectors.toList()));
+        Update update = new Update().set("errorEvents.$.skip",true);
+        taskService.update(new Query(criteria),update);
+        return success();
+    }
 
     @Operation(summary = "任务运行记录")
     @GetMapping("/records/{id}")
