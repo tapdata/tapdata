@@ -8,7 +8,6 @@ import com.tapdata.tm.commons.schema.Tag;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.util.*;
 
