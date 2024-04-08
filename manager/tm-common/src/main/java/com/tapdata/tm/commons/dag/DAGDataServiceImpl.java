@@ -179,20 +179,19 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 if (schemaResultMap != null && "ok".equals(schemaResultMap.get("code"))) {
                     Map<String, Object> schemaMap = (Map<String, Object>) schemaResultMap.get("data");
                     String schemaMapCode = MapUtils.getString(schemaMap, "code");
-                    if ("success".equals(schemaMapCode)&& MapUtils.isNotEmpty(MapUtils.getMap(schemaMap,"data")) && null != metadataInstances) {
+                    if ("success".equals(schemaMapCode) && MapUtils.isNotEmpty(MapUtils.getMap(schemaMap, "data")) && null != metadataInstances) {
                         Map<String, Object> schemaDataMap = (Map<String, Object>) schemaMap.get("data");
                         String tapTableJsonString = JSON.toJSONString(schemaDataMap.get(tableName));
                         String qualifiedName = metadataInstances.getQualifiedName();
                         TapTable tapTable = JSON.parseObject(tapTableJsonString, TapTable.class);
                         this.coverMetaDataByTapTable(qualifiedName, tapTable);
-                    }else{
-                        throw new RuntimeException("Get Kafka Schema Data faild message " +schemaMap.get("message"));
+                    } else {
+                        throw new RuntimeException(String.format("Get Kafka Schema Data fail message {%s}", schemaResultMap.get("message")));
                     }
-                }else{
-                    throw new RuntimeException("get Kafka schema fail, code is "+schemaResultMap.get("code")+" message is :"+schemaResultMap.get("message"));
+                } else {
+                    throw new RuntimeException(String.format("get Kafka schema fail, code is %s message is : %s", schemaResultMap.get("code"), schemaResultMap.get("message")));
                 }
             }
-
         }
         return convertToSchema(metadataInstances);
     }

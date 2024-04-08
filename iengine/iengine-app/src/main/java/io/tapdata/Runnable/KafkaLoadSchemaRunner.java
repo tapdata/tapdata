@@ -3,6 +3,9 @@ package io.tapdata.Runnable;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.Schema;
 import com.tapdata.mongo.ClientMongoOperator;
+import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -17,15 +20,13 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 
 public class KafkaLoadSchemaRunner{
     private final static String TAG = LoadSchemaRunner.class.getSimpleName();
+    TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
     private final static int BATCH_SIZE = 20;
     private Logger logger = LogManager.getLogger(KafkaLoadSchemaRunner.class);
     private Schema schema;
@@ -63,12 +64,11 @@ public class KafkaLoadSchemaRunner{
 //                    .build();
             connectorNode = createConnectorNode(associatedId, connections.getConfig(), nodeConfig);
             PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, "Init PDK", TAG);
-//            DiscoverSchemaUsingNodeConfig discoverSchemaUsingNodeConfig = connectorNode.getConnectorFunctions().getDiscoverSchemaUsingNodeConfig();
+            DefaultExpressionMatchingMap dataTypesMap = connectorNode.getConnectorContext().getSpecification().getDataTypesMap();
             ConnectorNode finalConnectorNode = connectorNode;
             PDKInvocationMonitor.invoke(connectorNode, PDKMethod.DISCOVER_SCHEMA,
                     () -> {
-//                        discoverSchemaUsingNodeConfig.discoverSchemaUsingNodeConfig(finalConnectorNode.getConnectorContext(), tableName, 500, this::tableConsumer);
-                            finalConnectorNode.getConnector().discoverSchema(finalConnectorNode.getConnectorContext(), tableName, BATCH_SIZE, this::tableConsumer);
+                            finalConnectorNode.getConnector().discoverSchema(finalConnectorNode.getConnectorContext(), tableName, BATCH_SIZE, tapTables -> comsumeTable(tapTables,dataTypesMap));
                     }, TAG);
             resultMap.put("ts",System.currentTimeMillis());
             resultMap.put("code","success");
@@ -86,6 +86,23 @@ public class KafkaLoadSchemaRunner{
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, "Stop PDK", TAG);
             PDKIntegration.releaseAssociateId(connections.getName() + "_" + ts);
         }
+    }
+
+    private void comsumeTable(List<TapTable> tapTables, DefaultExpressionMatchingMap dataTypesMap) {
+        if(CollectionUtils.isEmpty(tapTables)){
+            return;
+        }
+        tapTables.forEach(tapTable -> {
+            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+            if (MapUtils.isNotEmpty(nameFieldMap)) {
+                nameFieldMap.forEach((fieldName, tapField) -> {
+                    if (null == tapField.getTapType()) {
+                        tableFieldTypesGenerator.autoFill(tapField, dataTypesMap);
+                    }
+                });
+            }
+            tapTableMap.put(tapTable.getName(),tapTable);
+        });
     }
 
     protected ConnectorNode createConnectorNode(String associateId, Map<String, Object> connectionConfig, Map<String, Object> nodeConfig) {
@@ -113,11 +130,21 @@ public class KafkaLoadSchemaRunner{
             throw new RuntimeException("Failed to create pdk connector node, database type: "  + ", message: " + e.getMessage(), e);
         }
     }
-    public void tableConsumer(List<TapTable> tables) {
-        if (CollectionUtils.isNotEmpty(tables)) {
-            tables.forEach(tapTable -> {
-                tapTableMap.put(tapTable.getName(),tapTable);
-            });
-        }
-    }
+//    public void tableConsumer(List<TapTable> tables) {
+//        if(CollectionUtils.isEmpty(tables)){
+//            return;
+//        }
+//        tables.forEach(tapTable -> {
+//            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+//            if (MapUtils.isNotEmpty(nameFieldMap)) {
+//                nameFieldMap.forEach((fieldName, tapField) -> {
+//                    if (null == tapField.getTapType()) {
+//                        tableFieldTypesGenerator.autoFill(tapField, dataTypesMap);
+//                    }
+//                });
+//            }
+//            tapTableMap.put(tapTable.getName(),tapTable);
+//        });
+//
+//    }
 }
