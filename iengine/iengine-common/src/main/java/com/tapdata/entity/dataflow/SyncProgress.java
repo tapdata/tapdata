@@ -11,6 +11,10 @@ import java.util.Optional;
 
 public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 	private static final long serialVersionUID = 5599838762323297718L;
+	public static final String OFFSET = "offset";
+	public static final String STATUS = "status";
+	public static final String TABLE_BATCH_STATUS_OVER = "over";
+	public static final String TABLE_BATCH_STATUS_RUNNING = "running";
 
 	@Deprecated
 	private String offset;
@@ -157,7 +161,7 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 		if (null == offsetInfo) {
 			return false;
 		}
-		return Boolean.TRUE.equals(offsetInfo.get("isOver"));
+		return TABLE_BATCH_STATUS_OVER.equals(offsetInfo.get(STATUS));
 	}
 
 	public Object getBatchOffsetOfTable(String tableId) {
@@ -168,18 +172,18 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 		if (null == offsetInfo) {
 			return null;
 		}
-		return offsetInfo.get("offset");
+		return offsetInfo.get(OFFSET);
 	}
 
-	public void updateBatchOffset(String tableId, Object offset, boolean isOver) {
+	public void updateBatchOffset(String tableId, Object offset, String isOverTag) {
 		Map<String, Object> batchOffsetObjTemp = (Map<String, Object>) batchOffsetObj;
 		if (null == batchOffsetObjTemp) {
 			batchOffsetObjTemp = new HashMap<>();
 			setBatchOffsetObj(batchOffsetObjTemp);
 		}
 		Map<String, Object> tableOffsetObjTemp = (Map<String, Object>)batchOffsetObjTemp.computeIfAbsent(tableId, k -> new HashMap<String, Object>());
-		tableOffsetObjTemp.put("offset", offset);
-		tableOffsetObjTemp.put("isOver", isOver);
+		tableOffsetObjTemp.put(OFFSET, offset);
+		tableOffsetObjTemp.put(STATUS, isOverTag);
 	}
 
 	public Object getBatchOffsetObj() {
