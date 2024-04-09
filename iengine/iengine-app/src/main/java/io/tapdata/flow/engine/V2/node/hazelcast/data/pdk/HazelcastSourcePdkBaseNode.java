@@ -304,7 +304,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			return;
 		}
 		if (CollectionUtils.isNotEmpty(ignoreTables)) {
-			ignoreTables.forEach(batchOffsetObj::remove);
+			ignoreTables.forEach(id -> syncProgress.updateBatchOffset(id, null, SyncProgress.TABLE_BATCH_STATUS_RUNNING));
 		}
 		Set<String> batchTable = batchOffsetObj.keySet();
 		batchTable.stream().filter(tableId -> !tableIds.contains(tableId)).forEach(batchOffsetObj::remove);
