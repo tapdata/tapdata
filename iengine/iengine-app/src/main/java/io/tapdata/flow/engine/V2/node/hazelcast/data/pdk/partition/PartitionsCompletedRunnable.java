@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 
 import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
+import com.tapdata.entity.dataflow.SyncProgress;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.DataFunctionAspect;
 import io.tapdata.async.master.AsyncJobCompleted;
@@ -40,13 +41,12 @@ public class PartitionsCompletedRunnable implements Runnable {
 	public void run() {
 		sourcePdkDataNodeEx1.getObsLogger().info("Partitions has been split for table {}, wait until all partitions has been read. readPartition size {} list {}", tapTable.getId(), readPartitionList.size(), readPartitionList);
 		Object batchOffsetObj = sourcePdkDataNodeEx1.getSyncProgress().getBatchOffsetObj();
-		PartitionTableOffset partitionTableOffset = null;
 		if (batchOffsetObj instanceof Map) {
-			partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tapTable.getId());
+			PartitionTableOffset partitionTableOffset = (PartitionTableOffset) sourcePdkDataNodeEx1.getSyncProgress().getBatchOffsetOfTable(tapTable.getId());
 			if (partitionTableOffset == null) {
 				partitionTableOffset = new PartitionTableOffset();
 				partitionTableOffset.partitions(readPartitionList);
-				((Map<String, PartitionTableOffset>) batchOffsetObj).put(tapTable.getId(), partitionTableOffset);
+				sourcePdkDataNodeEx1.getSyncProgress().updateBatchOffset(tapTable.getId(), partitionTableOffset, SyncProgress.TABLE_BATCH_STATUS_RUNNING);
 			} else {
 				partitionTableOffset.partitions(readPartitionList);
 			}
@@ -56,11 +56,7 @@ public class PartitionsCompletedRunnable implements Runnable {
 	}
 
 	private void handleStateChanged() {
-		Object batchOffsetObj = sourcePdkDataNodeEx1.getSyncProgress().getBatchOffsetObj();
-		PartitionTableOffset partitionTableOffset = null;
-		if (batchOffsetObj instanceof Map) {
-			partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tapTable.getId());
-		}
+		PartitionTableOffset partitionTableOffset = (PartitionTableOffset) sourcePdkDataNodeEx1.getSyncProgress().getBatchOffsetOfTable(tapTable.getId());
 
 		if (partitionTableOffset != null) {
 			partitionTableOffset.setTableCompleted(true);
