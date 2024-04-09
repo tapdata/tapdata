@@ -59,8 +59,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -75,6 +77,7 @@ import static org.mockito.Mockito.*;
 class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	private HazelcastSourcePdkBaseNode instance;
 	private MockHazelcastSourcePdkBaseNode mockInstance;
+	SyncProgress syncProgress;
 
 	@BeforeEach
 	void beforeEach() {
@@ -90,6 +93,8 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			}
 		};
+		syncProgress = mock(SyncProgress.class);
+		ReflectionTestUtils.setField(mockInstance, "syncProgress", syncProgress);
 	}
 
 	@Nested
@@ -1162,6 +1167,94 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertDoesNotThrow(() -> instance.restartPdkConnector());
 
 			verify(instance, times(1)).errorHandle(any(Throwable.class), anyString());
+		}
+	}
+
+	@Nested
+	@DisplayName("Method initBatchOffset test")
+	class InitBatchOffsetTest {
+		List<String> ignoreTables;
+		Map<String, Object> batchOffsetObj;
+		Set<String> batchTable;
+		TapTableMap tapTableMap;
+		Set<String> tableIds;
+		@BeforeEach
+		void init() {
+			ignoreTables = new ArrayList<>();
+			ignoreTables.add("id");
+			batchTable = new HashSet<>();
+			batchTable.add("id");
+			tableIds = mock(Set.class);
+			when(tableIds.contains("id")).thenReturn(false);
+
+			tapTableMap = mock(TapTableMap.class);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			when(tapTableMap.keySet()).thenReturn(tableIds);
+
+			batchOffsetObj = mock(Map.class);
+			when(batchOffsetObj.remove("id")).thenReturn("");
+			when(batchOffsetObj.isEmpty()).thenReturn(false);
+			when(batchOffsetObj.keySet()).thenReturn(batchTable);
+
+			when(syncProgress.putIfAbsentBatchOffsetObj()).thenReturn(batchOffsetObj);
+			doNothing().when(syncProgress).updateBatchOffset("id", null, SyncProgress.TABLE_BATCH_STATUS_RUNNING);
+
+			doCallRealMethod().when(mockInstance).initBatchOffset(ignoreTables);
+			doCallRealMethod().when(mockInstance).initBatchOffset(null);
+		}
+		@Test
+		void testNormal() {
+			Assertions.assertDoesNotThrow(() -> mockInstance.initBatchOffset(ignoreTables));
+			verify(dataProcessorContext, times(1)).getTapTableMap();
+			verify(tapTableMap, times(1)).keySet();
+			verify(syncProgress, times(1)).putIfAbsentBatchOffsetObj();
+			verify(batchOffsetObj, times(1)).isEmpty();
+			verify(syncProgress, times(1)).updateBatchOffset("id", null, SyncProgress.TABLE_BATCH_STATUS_RUNNING);
+			verify(batchOffsetObj, times(1)).keySet();
+			verify(tableIds, times(1)).contains("id");
+			verify(batchOffsetObj, times(1)).remove("id");
+		}
+
+		@Test
+		void testBatchOffsetObjIsEmpty() {
+			when(batchOffsetObj.isEmpty()).thenReturn(true);
+			Assertions.assertDoesNotThrow(() -> mockInstance.initBatchOffset(ignoreTables));
+			verify(dataProcessorContext, times(1)).getTapTableMap();
+			verify(tapTableMap, times(1)).keySet();
+			verify(syncProgress, times(1)).putIfAbsentBatchOffsetObj();
+			verify(batchOffsetObj, times(1)).isEmpty();
+			verify(syncProgress, times(0)).updateBatchOffset("id", null, SyncProgress.TABLE_BATCH_STATUS_RUNNING);
+			verify(batchOffsetObj, times(0)).keySet();
+			verify(tableIds, times(0)).contains("id");
+			verify(batchOffsetObj, times(0)).remove("id");
+		}
+
+		@Test
+		void testIgnoreTablesIsEmpty() {
+			ignoreTables.clear();
+			Assertions.assertDoesNotThrow(() -> mockInstance.initBatchOffset(ignoreTables));
+			verify(dataProcessorContext, times(1)).getTapTableMap();
+			verify(tapTableMap, times(1)).keySet();
+			verify(syncProgress, times(1)).putIfAbsentBatchOffsetObj();
+			verify(batchOffsetObj, times(1)).isEmpty();
+			verify(syncProgress, times(0)).updateBatchOffset("id", null, SyncProgress.TABLE_BATCH_STATUS_RUNNING);
+			verify(batchOffsetObj, times(1)).keySet();
+			verify(tableIds, times(1)).contains("id");
+			verify(batchOffsetObj, times(1)).remove("id");
+		}
+
+		@Test
+		void testTableIdsNotContainsTableId() {
+			when(tableIds.contains("id")).thenReturn(true);
+			Assertions.assertDoesNotThrow(() -> mockInstance.initBatchOffset(ignoreTables));
+			verify(dataProcessorContext, times(1)).getTapTableMap();
+			verify(tapTableMap, times(1)).keySet();
+			verify(syncProgress, times(1)).putIfAbsentBatchOffsetObj();
+			verify(batchOffsetObj, times(1)).isEmpty();
+			verify(syncProgress, times(1)).updateBatchOffset("id", null, SyncProgress.TABLE_BATCH_STATUS_RUNNING);
+			verify(batchOffsetObj, times(1)).keySet();
+			verify(tableIds, times(1)).contains("id");
+			verify(batchOffsetObj, times(0)).remove("id");
 		}
 	}
 }

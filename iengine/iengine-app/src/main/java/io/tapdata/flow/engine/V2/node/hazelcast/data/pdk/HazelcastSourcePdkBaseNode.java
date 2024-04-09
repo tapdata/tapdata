@@ -298,7 +298,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void initBatchOffset(List<String> ignoreTables) {
-		Set<String> tableIds = dataProcessorContext.getTapTableMap().keySet();
+		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		Set<String> tableIds = tapTableMap.keySet();
 		Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.putIfAbsentBatchOffsetObj();
 		if (MapUtils.isEmpty(batchOffsetObj)) {
 			return;
