@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author samuel
@@ -51,9 +52,14 @@ public class DDLSchemaHandler {
 
 	private Void handleNewFieldEvent(TapDDLEvent tapDDLEvent, TapTable tapTable) {
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+
+		AtomicInteger maxPos = new AtomicInteger(1);
+		nameFieldMap.values().forEach(tapField -> maxPos.set(Math.max(tapField.getPos(), maxPos.get())));
+
 		TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapDDLEvent;
 		List<TapField> newFields = tapNewFieldEvent.getNewFields();
 		for (TapField newField : newFields) {
+			newField.setPos(maxPos.incrementAndGet());
 			String fieldName = newField.getName();
 			nameFieldMap.put(fieldName, newField);
 		}
