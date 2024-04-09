@@ -11,8 +11,8 @@ import java.util.Optional;
 
 public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 	private static final long serialVersionUID = 5599838762323297718L;
-	public static final String OFFSET = "offset";
-	public static final String STATUS = "status";
+	public static final String TASK_BATCH_TABLE_OFFSET_POINT = "task_batch_table_offset_point";
+	public static final String TASK_BATCH_TABLE_OFFSET_STATUS = "task_batch_table_offset_status";
 	public static final String TABLE_BATCH_STATUS_OVER = "over";
 	public static final String TABLE_BATCH_STATUS_RUNNING = "running";
 
@@ -157,42 +157,50 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 
 	public boolean batchIsOverOfTable(String tableId) {
 		if (null == batchOffsetObj) return false;
-		Map<String, Object> offsetInfo = (Map<String, Object>)((Map<String, Object>) batchOffsetObj).get(tableId);
-		if (null == offsetInfo) {
-			return false;
+		Object batchOffset = ((Map<String, Object>) batchOffsetObj).get(tableId);
+		if (batchOffset instanceof Map && ((Map<String, Object>)batchOffset).containsKey(TASK_BATCH_TABLE_OFFSET_STATUS)) {
+			//86迭代新功能--全量表同步断点
+			Map<String, Object> offsetInfo = (Map<String, Object>)batchOffset;
+			return TABLE_BATCH_STATUS_OVER.equals(offsetInfo.get(TASK_BATCH_TABLE_OFFSET_STATUS));
 		}
-		return TABLE_BATCH_STATUS_OVER.equals(offsetInfo.get(STATUS));
+
+		//历史数据
+		return false;
 	}
 
 	public Object getBatchOffsetOfTable(String tableId) {
 		if (null == batchOffsetObj) {
 			return null;
 		}
-		Map<String, Object> offsetInfo = (Map<String, Object>)((Map<String, Object>) batchOffsetObj).get(tableId);
-		if (null == offsetInfo) {
-			return null;
+		Object batchOffset = ((Map<String, Object>) batchOffsetObj).get(tableId);
+		if (batchOffset instanceof Map && ((Map<String, Object>)batchOffset).containsKey(TASK_BATCH_TABLE_OFFSET_POINT)) {
+			//86迭代新功能--全量表同步断点
+			Map<String, Object> offsetInfo = (Map<String, Object>) batchOffset;
+			return offsetInfo.get(TASK_BATCH_TABLE_OFFSET_POINT);
 		}
-		return offsetInfo.get(OFFSET);
+
+		//历史数据
+		return batchOffset;
 	}
 
 	public void updateBatchOffset(String tableId, Object offset, String isOverTag) {
+		Map<String, Object> batchOffsetObjTemp = (Map<String, Object>) putIfAbsentBatchOffsetObj();
+		Map<String, Object> tableOffsetObjTemp = (Map<String, Object>) batchOffsetObjTemp.computeIfAbsent(tableId, k -> new HashMap<String, Object>());
+		tableOffsetObjTemp.put(TASK_BATCH_TABLE_OFFSET_POINT, offset);
+		tableOffsetObjTemp.put(TASK_BATCH_TABLE_OFFSET_STATUS, isOverTag);
+	}
+
+	public Object putIfAbsentBatchOffsetObj() {
 		Map<String, Object> batchOffsetObjTemp = (Map<String, Object>) batchOffsetObj;
 		if (null == batchOffsetObjTemp) {
 			batchOffsetObjTemp = new HashMap<>();
 			setBatchOffsetObj(batchOffsetObjTemp);
 		}
-		Map<String, Object> tableOffsetObjTemp = (Map<String, Object>)batchOffsetObjTemp.computeIfAbsent(tableId, k -> new HashMap<String, Object>());
-		tableOffsetObjTemp.put(OFFSET, offset);
-		tableOffsetObjTemp.put(STATUS, isOverTag);
+
+		return batchOffsetObj;
 	}
 
 	public Object getBatchOffsetObj() {
-		Map<String, Object> batchOffsetObjTemp = (Map<String, Object>) batchOffsetObj;
-		if (null == batchOffsetObjTemp) {
-			batchOffsetObjTemp = new HashMap<>();
-			setBatchOffsetObj(batchOffsetObjTemp);
-		}
-
 		return batchOffsetObj;
 	}
 
