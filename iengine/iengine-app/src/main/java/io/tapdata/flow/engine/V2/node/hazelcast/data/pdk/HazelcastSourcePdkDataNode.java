@@ -279,6 +279,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				AtomicBoolean firstBatch = new AtomicBoolean(true);
 				while (isRunning()) {
 					for (String tableName : tableList) {
+						TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
+						if (syncProgress.batchIsOverOfTable(tapTable.getId())) {
+							continue;
+						}
+						Object tableOffset = syncProgress.getBatchOffsetOfTable(tapTable.getId());
 						firstBatch.set(true);
 						try {
 							executeAspect(new SnapshotReadTableBeginAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
@@ -299,102 +304,101 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 								this.removeTables.remove(tableName);
 								continue;
 							}
-							TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
-							Object tableOffset = ((Map<String, Object>) syncProgress.getBatchOffsetObj()).get(tapTable.getId());
 							obsLogger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
 
 							PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 							try (AutoCloseable ignoreTableCountCloseable = doAsyncTableCount(batchCountFunction, tableName)) {
-							executeDataFuncAspect(
-									BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
-											.eventBatchSize(readBatchSize)
-											.connectorContext(getConnectorNode().getConnectorContext())
-											.offsetState(tableOffset)
-											.dataProcessorContext(this.getDataProcessorContext())
-											.start()
-											.table(tapTable),
-									batchReadFuncAspect -> PDKInvocationMonitor.invoke(
-											getConnectorNode(),
-											PDKMethod.SOURCE_BATCH_READ,
-											pdkMethodInvoker.runnable(() -> {
-														BiConsumer<List<TapEvent>, Object> consumer = (events, offsetObject) -> {
-															if (events != null && !events.isEmpty()) {
-																if (firstBatch.compareAndSet(true, false)) {
-																	TapdataAdjustMemoryEvent tapdataAdjustMemoryEvent = resizeEventQueueIfNeed(events);
-																	if (null != tapdataAdjustMemoryEvent) {
-																		enqueue(tapdataAdjustMemoryEvent);
+								executeDataFuncAspect(
+										BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
+												.eventBatchSize(readBatchSize)
+												.connectorContext(getConnectorNode().getConnectorContext())
+												.offsetState(tableOffset)
+												.dataProcessorContext(this.getDataProcessorContext())
+												.start()
+												.table(tapTable),
+										batchReadFuncAspect -> PDKInvocationMonitor.invoke(
+												getConnectorNode(),
+												PDKMethod.SOURCE_BATCH_READ,
+												pdkMethodInvoker.runnable(() -> {
+															BiConsumer<List<TapEvent>, Object> consumer = (events, offsetObject) -> {
+																if (events != null && !events.isEmpty()) {
+																	if (firstBatch.compareAndSet(true, false)) {
+																		TapdataAdjustMemoryEvent tapdataAdjustMemoryEvent = resizeEventQueueIfNeed(events);
+																		if (null != tapdataAdjustMemoryEvent) {
+																			enqueue(tapdataAdjustMemoryEvent);
+																		}
 																	}
-																}
-																events = events.stream().map(event -> {
-																	if (null == event.getTime()) {
-																		throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
-																	}
-																	return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
-																}).collect(Collectors.toList());
-
-																if (batchReadFuncAspect != null)
-																	AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), events);
-
-																if (obsLogger.isDebugEnabled()) {
-																	obsLogger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
-																}
-																((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(tapTable.getId(), offsetObject);
-																flushPollingCDCOffset(events);
-																List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
-
-																if (batchReadFuncAspect != null)
-																	AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
-
-																if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-																	tapdataEvents.forEach(this::enqueue);
+																	events = events.stream().map(event -> {
+																		if (null == event.getTime()) {
+																			throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
+																		}
+																		return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
+																	}).collect(Collectors.toList());
 
 																	if (batchReadFuncAspect != null)
-																		AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
+																		AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), events);
+
+																	if (obsLogger.isDebugEnabled()) {
+																		obsLogger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+																	}
+																	syncProgress.updateBatchOffset(tapTable.getId(), offsetObject, false);
+
+																	flushPollingCDCOffset(events);
+																	List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
+
+																	if (batchReadFuncAspect != null)
+																		AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
+
+																	if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+																		tapdataEvents.forEach(this::enqueue);
+
+																		if (batchReadFuncAspect != null)
+																			AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
+																	}
 																}
-															}
-														};
-														Node<?> node = getNode();
-														if (node instanceof TableNode) {
-															TableNode tableNode = (TableNode) dataProcessorContext.getNode();
-															if (isTableFilter(tableNode) || isPollingCDC(tableNode)) {
-																TapAdvanceFilter tapAdvanceFilter = batchFilterRead();
-																queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
-																	List<TapEvent> tempList = new ArrayList<>();
-																	if (filterResults != null && CollectionUtils.isNotEmpty(filterResults.getResults())) {
-																		filterResults.getResults().forEach(filterResult -> tempList.add(TapSimplify.insertRecordEvent(filterResult, tapTable.getId())));
-																	}
-																	if (CollectionUtils.isNotEmpty(tempList)) {
-																		consumer.accept(tempList, null);
-																		tempList.clear();
-																	}
-																});
-															} else if (tableNode.isEnableCustomCommand() && executeCommandFunction != null) {
-																Map<String, Object> customCommand = tableNode.getCustomCommand();
-																customCommand.put("batchSize", readBatchSize);
-																executeCommandFunction.execute(getConnectorNode().getConnectorContext(), TapExecuteCommand.create()
-																		.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params")), executeResult -> {
-																	if (executeResult.getError() != null) {
-																		throw new NodeException("Execute error: " + executeResult.getError().getMessage(), executeResult.getError());
-																	}
-																	if (executeResult.getResult() == null) {
-																		obsLogger.info("Execute result is null");
-																		return;
-																	}
-																	List<Map<String, Object>> maps = (List<Map<String, Object>>) executeResult.getResult();
-																	List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
-																	consumer.accept(events, null);
-																});
+															};
+															Node<?> node = getNode();
+															if (node instanceof TableNode) {
+																TableNode tableNode = (TableNode) dataProcessorContext.getNode();
+																if (isTableFilter(tableNode) || isPollingCDC(tableNode)) {
+																	TapAdvanceFilter tapAdvanceFilter = batchFilterRead();
+																	queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
+																		List<TapEvent> tempList = new ArrayList<>();
+																		if (filterResults != null && CollectionUtils.isNotEmpty(filterResults.getResults())) {
+																			filterResults.getResults().forEach(filterResult -> tempList.add(TapSimplify.insertRecordEvent(filterResult, tapTable.getId())));
+																		}
+																		if (CollectionUtils.isNotEmpty(tempList)) {
+																			consumer.accept(tempList, null);
+																			tempList.clear();
+																		}
+																	});
+																} else if (tableNode.isEnableCustomCommand() && executeCommandFunction != null) {
+																	Map<String, Object> customCommand = tableNode.getCustomCommand();
+																	customCommand.put("batchSize", readBatchSize);
+																	executeCommandFunction.execute(getConnectorNode().getConnectorContext(), TapExecuteCommand.create()
+																			.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params")), executeResult -> {
+																		if (executeResult.getError() != null) {
+																			throw new NodeException("Execute error: " + executeResult.getError().getMessage(), executeResult.getError());
+																		}
+																		if (executeResult.getResult() == null) {
+																			obsLogger.info("Execute result is null");
+																			return;
+																		}
+																		List<Map<String, Object>> maps = (List<Map<String, Object>>) executeResult.getResult();
+																		List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
+																		consumer.accept(events, null);
+																	});
+																} else {
+																	batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
+																}
 															} else {
 																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 															}
-														} else {
-															batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 														}
-													}
-											)
-									));
-							}
-							finally {
+												)
+										));
+								syncProgress.updateBatchOffset(tableName, null, true);
+							} finally {
 								removePdkMethodInvoker(pdkMethodInvoker);
 							}
 							executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
