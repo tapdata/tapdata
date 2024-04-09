@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service.impl;
 
 import com.google.common.collect.Lists;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.MutiResponseMessage;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
@@ -63,6 +64,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import sun.management.Agent;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -119,6 +121,9 @@ public class LdpServiceImpl implements LdpService {
 
 	@Autowired
     private MeasurementServiceV2 measurementServiceV2;
+
+	@Autowired
+	private AgentGroupService agentGroupService;
 
     @Override
 	@Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
@@ -1357,30 +1362,29 @@ public class LdpServiceImpl implements LdpService {
         metadataInstancesService.deleteById(MongoUtils.toObjectId(id), user);
     }
 
-    private String findAgent(DataSourceConnectionDto connectionDto, UserDetail user) {
-        if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), connectionDto.getAccessNodeType())
-                && CollectionUtils.isNotEmpty(connectionDto.getAccessNodeProcessIdList())) {
-
-            List<Worker> availableAgent = workerService.findAvailableAgent(user);
-            List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
-            String agentId = null;
-            for (String p : connectionDto.getAccessNodeProcessIdList()) {
-                if (processIds.contains(p)) {
-                    agentId = p;
-                    break;
-                }
-            }
-
-            return agentId;
-
-        } else {
-            List<Worker> availableAgent = workerService.findAvailableAgent(user);
-            if (CollectionUtils.isNotEmpty(availableAgent)) {
-                Worker worker = availableAgent.get(0);
-                return worker.getProcessId();
-            }
+    protected String findAgent(DataSourceConnectionDto connectionDto, UserDetail user) {
+		List<Worker> availableAgent = workerService.findAvailableAgent(user);
+		if (null == availableAgent || availableAgent.isEmpty()) {
+			return null;
+		}
+		List<String> processIds = availableAgent.stream()
+				.filter(Objects::nonNull)
+				.map(Worker::getProcessId)
+				.collect(Collectors.toList());
+		if (processIds.isEmpty()) {
+			return null;
+		}
+		List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(connectionDto, user);
+		if (!AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())
+                || CollectionUtils.isEmpty(processNodeListWithGroup)) {
+			return processIds.get(0);
         }
-        return null;
+		for (String p : processNodeListWithGroup) {
+			if (processIds.contains(p)) {
+				return p;
+			}
+		}
+		return null;
     }private void supplementaryLdpTaskByOld(UserDetail user) {
 		Criteria criteria = Criteria.where("ldpType").in(TaskDto.LDP_TYPE_FDM, TaskDto.LDP_TYPE_MDM)
 				.and("is_deleted").ne(true);

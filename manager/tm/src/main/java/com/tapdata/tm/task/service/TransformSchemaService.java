@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -70,6 +71,8 @@ public class TransformSchemaService {
     private WorkerService workerService;
     private TaskDagCheckLogService taskDagCheckLogService;
     private LdpService ldpService;
+    @Autowired
+    private AgentGroupService agentGroupService;
 
     @Autowired
     public TransformSchemaService(DAGDataService dagDataService, MetadataInstancesService metadataInstancesService, TaskService taskService,
@@ -476,7 +479,7 @@ public class TransformSchemaService {
 
     }
 
-    private void sendTransformer(TransformerWsMessageDto wsMessageDto, UserDetail user) {
+    protected void sendTransformer(TransformerWsMessageDto wsMessageDto, UserDetail user) {
         TaskDto taskDto = wsMessageDto.getTaskDto();
         if (taskDto == null) {
             return;
@@ -485,16 +488,15 @@ public class TransformSchemaService {
         Map<String, DataSourceDefinitionDto> definitionDtoMap = wsMessageDto.getDefinitionDtoMap();
         if (definitionDtoMap != null) {
             definitionDtoMap.forEach((k, v) -> {
-                //有些Properties中的字段属性包含了xx.yy.kk,需要过滤掉。不然入库会报错
+                //有些Properties中的字段属性包含了xx.yy.kk, 需要过滤掉。不然入库会报错
                 v.setProperties(null);
             });
         }
 
-
         List<Worker> availableAgent;
-        if (org.apache.commons.lang3.StringUtils.isBlank(taskDto.getAccessNodeType())
-                && org.apache.commons.lang3.StringUtils.equalsIgnoreCase(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), taskDto.getAccessNodeType())) {
-            availableAgent = workerService.findAvailableAgentByAccessNode(user, taskDto.getAccessNodeProcessIdList());
+        if (org.apache.commons.lang3.StringUtils.isNotBlank(taskDto.getAccessNodeType())
+                && AccessNodeTypeEnum.isManually(taskDto.getAccessNodeType())) {
+            availableAgent = workerService.findAvailableAgentByAccessNode(user, agentGroupService.getProcessNodeListWithGroup(taskDto, user));
         } else {
             availableAgent = workerService.findAvailableAgent(user);
         }
@@ -504,10 +506,13 @@ public class TransformSchemaService {
         HashMap<Object, Object> data = new HashMap<>();
         data.put("type", MessageType.TRANSFORMER.getType());
         String json = JsonUtil.toJsonUseJackson(wsMessageDto);
-        byte[] gzip = GZIPUtil.gzip(json.getBytes());
-        byte[] encode = Base64.getEncoder().encode(gzip);
-        String dataString = new String(encode, StandardCharsets.UTF_8);
-        data.put("data", dataString);
+        byte[] bytes = null == json ? null : json.getBytes();
+        byte[] gzip = GZIPUtil.gzip(bytes);
+        if (null != gzip) {
+            byte[] encode = Base64.getEncoder().encode(gzip);
+            String dataString = new String(encode, StandardCharsets.UTF_8);
+            data.put("data", dataString);
+        }
 
         String processId = availableAgent.get(0).getProcessId();
         MessageQueueDto queueDto = new MessageQueueDto();
@@ -515,9 +520,8 @@ public class TransformSchemaService {
         queueDto.setData(data);
         queueDto.setType("pipe");
 
-//        log.info("build send test connection websocket context, processId = {}, userId = {}, queueDto = {}", processId, user.getUserId(), queueDto);
+        //log.info("build send test connection websocket context, processId = {}, userId = {}, queueDto = {}", processId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
-
     }
 
     public boolean checkTaskContainJs(TaskDto taskDto) {
