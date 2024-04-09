@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag;
 
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -35,7 +36,7 @@ public interface DAGDataService {
      * @param excludes 不包含的表名称，为 null 时返回所有表
      * @return 返回匹配到的表名称
      */
-    public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes);
+    public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes, DatabaseNode databaseNode);
 
 
     default TapTable loadTapTable(String nodeId, String virtualId, TaskDto subTaskDto) {

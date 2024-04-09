@@ -25,14 +25,17 @@ import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.task.utils.CustomKafkaUtils;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
+import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -223,13 +226,17 @@ public class TransformSchemaService {
         }
 
         final List<String> fileSource = Lists.newArrayList("xml", "json", "excel", "csv");
+        DataParentNode kafkaSourceNode = null;
+        DataSourceConnectionDto sourceConnectionDto = null;
         if (!allParam) {
             List<String> qualifiedNames = new ArrayList<>();
+            List<String> customKafkaQualifiedNames = new ArrayList<>();
             for (Node node : nodes) {
                 if (node instanceof TableNode) {
                     String connectionId = ((TableNode) node).getConnectionId();
                     DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
                     DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
+
                     String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto, taskDto.getId().toHexString());
 
                     if (fileSource.contains(dataSourceDefinitionDto.getPdkId())) {
@@ -238,11 +245,17 @@ public class TransformSchemaService {
                     }
                     qualifiedNames.add(qualifiedName);
                 } else if (node instanceof DatabaseNode) {
-                    String connectionId = ((DatabaseNode) node).getConnectionId();
+                    DatabaseNode databaseNode = (DatabaseNode) node;
+                    String connectionId = databaseNode.getConnectionId();
                     DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
                     DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
 
                     List<String> metas = metadataInstancesService.findDatabaseNodeQualifiedName(node.getId(), user, taskDto, dataSourceConnectionDto, dataSourceDefinitionDto, includes);
+                    if (CustomKafkaUtils.checkSourceIsKafka(node)) {
+                        kafkaSourceNode=databaseNode;
+                        sourceConnectionDto = dataSourceConnectionDto;
+                        customKafkaQualifiedNames.addAll(metas);
+                    }
                     if (fileSource.contains(dataSourceDefinitionDto.getPdkId())) {
                         metas = metas.stream().map(q -> {
                             int i = q.lastIndexOf("_");
@@ -252,13 +265,14 @@ public class TransformSchemaService {
                     qualifiedNames.addAll(metas);
                 }
             }
+//            qualifiedNames.removeAll(customKafkaQualifiedNames);
 
             if (CollectionUtils.isNotEmpty(qualifiedNames)) {
                 //优先获取逻辑表，没有找到的话，取物理表的。
                 metadataList = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user, "histories");
                 Map<String, MetadataInstancesDto> qualifiedMap = metadataList.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (m1, m2) -> m1));
                 qualifiedNames.removeAll(qualifiedMap.keySet());
-                qualifiedNames = qualifiedNames.stream().map(q -> {
+                qualifiedNames = qualifiedNames.stream().filter((name)-> !customKafkaQualifiedNames.contains(name)).map(q -> {
                     int i = q.lastIndexOf("_");
                     return q.substring(0, i);
                 }).collect(Collectors.toList());
@@ -273,6 +287,18 @@ public class TransformSchemaService {
                     }
                 }
                 metadataList.addAll(metadataList1);
+
+                if (null != sourceConnectionDto) {
+                    for (String name : customKafkaQualifiedNames) {
+                        String tableName = CustomKafkaUtils.getQualifiedNameTableName(sourceConnectionDto, name);
+                        for (MetadataInstancesDto metadataInstancesDto : metadataList) {
+                            if (metadataInstancesDto.getName().equals(tableName) && !"Kafka".equals(metadataInstancesDto.getSource().getDatabase_type())) {
+                                metadataList.add(CustomKafkaUtils.parse2SourceMetadaInstancesDo(sourceConnectionDto, name, metadataInstancesDto, kafkaSourceNode));
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         } else {
             Criteria criteria = Criteria.where("taskId").is(taskDto.getId().toHexString())
@@ -284,7 +310,9 @@ public class TransformSchemaService {
 
         }
 
-
+//        if (null != kafkaSourceNode) {
+//            connectionIds.remove(kafkaSourceNode.getConnectionId());
+//        }
         List<MetadataInstancesDto> databaseSchemes = metadataInstancesService.findDatabaseSchemeNoHistory(connectionIds, user);
         metadataList.addAll(databaseSchemes);
 

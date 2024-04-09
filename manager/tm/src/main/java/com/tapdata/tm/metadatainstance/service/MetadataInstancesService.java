@@ -48,6 +48,7 @@ import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
 import com.tapdata.tm.metadatainstance.vo.*;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.utils.CustomKafkaUtils;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
@@ -1560,10 +1561,20 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 } else {
 
                     DatabaseNode tableNode = (DatabaseNode) node;
+
                     if (dag.getSources().contains(tableNode)) {
-                        tableNames = tableNode.getTableNames();
+                        if (CustomKafkaUtils.checkSourceIsKafka(tableNode)) {
+                            tableNames = CustomKafkaUtils.customKafkaGetTable(tableNode);
+                        } else {
+                            tableNames = tableNode.getTableNames();
+                        }
                     } else if (dag.getTargets().contains(tableNode)) {
-                        tableNames = tableNode.getSyncObjects().get(0).getObjectNames();
+                        DatabaseNode sourceNode = tableNode.getDag().getSourceNode(tableNode.getId());
+                        if (CustomKafkaUtils.checkSourceIsKafka(sourceNode)) {
+                            tableNames = CustomKafkaUtils.customKafkaGetTable(sourceNode);
+                        } else {
+                            tableNames = tableNode.getSyncObjects().get(0).getObjectNames();
+                        }
                     } else {
                         throw new BizException("table node is error nodeId:" + tableNode.getId());
                     }

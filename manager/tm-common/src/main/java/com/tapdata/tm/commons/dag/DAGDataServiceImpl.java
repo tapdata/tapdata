@@ -154,7 +154,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
     }
 
     @Override
-    public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes) {
+    public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes,DatabaseNode databaseNode) {
 
         if (dataSourceId == null) {
             log.error("Can't load schema by params: {}, {}, {}, {}", ownerId, dataSourceId, includes, excludes);
@@ -170,10 +170,23 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
 
         List<MetadataInstancesDto> metadataInstances = new ArrayList<>();
-        for (String include : includes) {
-            MetadataInstancesDto metadataInstancesDto = metadataMap.get(dataSourceId + include);
-            if (metadataInstancesDto != null) {
-                metadataInstances.add(metadataInstancesDto);
+//        if (checkSourceIsKafka(databaseNode)) {
+//            List<LinkedHashMap> targetTableNames = (ArrayList) databaseNode.getNodeConfig().get("table_names");
+//            DatabaseNode targetNode = databaseNode.getDag().getTargetNode(databaseNode.getId());
+//            String connectionId = targetNode.getConnectionId();
+//            for (LinkedHashMap<String, String> linkedHashMap : targetTableNames) {
+//                String tableName = linkedHashMap.get("name");
+//                MetadataInstancesDto metadataInstancesDto = metadataMap.get(connectionId + tableName);
+//                if (null != metadataInstancesDto) {
+//                    metadataInstances.add(metadataInstancesDto);
+//                }
+//            }
+//        } else {
+            for (String include : includes) {
+                MetadataInstancesDto metadataInstancesDto = metadataMap.get(dataSourceId + include);
+                if (metadataInstancesDto != null) {
+                    metadataInstances.add(metadataInstancesDto);
+//                }
             }
         }
 
@@ -182,6 +195,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         log.debug("Convert metadata instances record to Schema cost {} millisecond", System.currentTimeMillis() - start);
         return result;
     }
+
 
     @Override
     public TapTable loadTapTable(String nodeId, String virtualId, TaskDto taskDto) {

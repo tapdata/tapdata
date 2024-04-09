@@ -8,6 +8,7 @@ import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
 
@@ -15,7 +16,7 @@ import java.util.List;
  * 数据源连接
  */
 @Data
-public class SourceDto {
+public class SourceDto implements Serializable {
 
     public static final String STATUS_INVALID = "invalid";
     public static final String STATUS_READY = "ready";

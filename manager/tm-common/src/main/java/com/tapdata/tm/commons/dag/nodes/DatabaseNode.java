@@ -19,6 +19,7 @@ import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.CustomKafkaUtils;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -218,8 +219,12 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             super.transformSchema(options);
             return;
         }
-
-        List<String> tables = getSourceNodeTableNames(Lists.newArrayList(this));
+        List<String> tables = null;
+        if (CustomKafkaUtils.checkSourceIsKafka(this)) {
+            tables = CustomKafkaUtils.customKafkaGetTable(this);
+        } else {
+            tables = getSourceNodeTableNames(Lists.newArrayList(this));
+        }
 
         if (CollectionUtils.isNotEmpty(tables)) {
             tableNames.removeIf(String::isEmpty);
@@ -290,7 +295,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             filteredTableNames = includes;
         }
 
-        List<Schema> schemaList = service.loadSchema(ownerId(), toObjectId(connectionId), filteredTableNames, null)
+        List<Schema> schemaList = service.loadSchema(ownerId(), toObjectId(connectionId), filteredTableNames, null,this)
                 .stream().peek(s -> {
 
                     // 源节点 保存原始表名
