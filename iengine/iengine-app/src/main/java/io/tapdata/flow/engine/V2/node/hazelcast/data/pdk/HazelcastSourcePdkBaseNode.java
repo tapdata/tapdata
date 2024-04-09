@@ -1039,10 +1039,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
 						TransformerWsMessageDto.class);
 			}
-			List<MetadataInstancesDto> metadataInstancesDtoList = transformerWsMessageDto.getMetadataInstancesDtoList();
-			Map<String, String> qualifiedNameIdMap = metadataInstancesDtoList.stream()
-					.collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m.getId().toHexString()));
-			tapEvent.addInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY, qualifiedNameIdMap);
 			DAGDataServiceImpl dagDataService = initDagDataService(transformerWsMessageDto);
 			String qualifiedName;
 			Map<String, List<Message>> errorMessage;
@@ -1057,12 +1053,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (null == metadata.getId()) {
 					metadata.setId(new ObjectId());
 				}
+				transformerWsMessageDto.getMetadataInstancesDtoList().add(metadata);
 				insertMetadata.add(metadata);
 				obsLogger.info("Create new table schema transform finished: " + tapTable);
 			} else if (tapEvent instanceof TapDropTableEvent) {
 				qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(((TapDropTableEvent) tapEvent).getTableId());
 				obsLogger.info("Drop table in memory qualified name: " + qualifiedName);
 				dagDataService.dropTable(qualifiedName);
+				transformerWsMessageDto.getMetadataInstancesDtoList().stream().filter(m -> Objects.equals(m.getQualifiedName(), qualifiedName)).findFirst()
+						.ifPresent(m -> transformerWsMessageDto.getMetadataInstancesDtoList().remove(m));
 				errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 				removeMetadata.add(qualifiedName);
 				obsLogger.info("Drop table schema transform finished");
@@ -1075,10 +1074,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (metadata.getId() == null) {
 					metadata.setId(metadata.getOldId());
 				}
+				transformerWsMessageDto.getMetadataInstancesDtoList().stream().filter(m -> Objects.equals(m.getQualifiedName(), qualifiedName)).findFirst()
+						.ifPresent(m -> transformerWsMessageDto.getMetadataInstancesDtoList().remove(m));
+				transformerWsMessageDto.getMetadataInstancesDtoList().add(metadata);
 				metadata.setTableAttr(metadata.getTableAttr());
 				updateMetadata.put(metadata.getId().toHexString(), metadata);
 				obsLogger.info("Alter table schema transform finished");
 			}
+
+			List<MetadataInstancesDto> metadataInstancesDtoList = transformerWsMessageDto.getMetadataInstancesDtoList();
+			Map<String, String> qualifiedNameIdMap = metadataInstancesDtoList.stream()
+					.collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> null == m.getId() ? "" : m.getId().toHexString()));
+			tapEvent.addInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY, qualifiedNameIdMap);
 			tapEvent.addInfo(INSERT_METADATA_INFO_KEY, insertMetadata);
 			tapEvent.addInfo(UPDATE_METADATA_INFO_KEY, updateMetadata);
 			tapEvent.addInfo(REMOVE_METADATA_INFO_KEY, removeMetadata);
