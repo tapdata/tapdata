@@ -299,7 +299,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected void initBatchOffset(List<String> ignoreTables) {
 		Set<String> tableIds = dataProcessorContext.getTapTableMap().keySet();
-		Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.getBatchOffsetObj();
+		Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.putIfAbsentBatchOffsetObj();
 		if (MapUtils.isEmpty(batchOffsetObj)) {
 			return;
 		}
@@ -982,7 +982,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (SyncStage.INITIAL_SYNC == syncStage) {
 				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-					Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.getBatchOffsetObj();
+					Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.putIfAbsentBatchOffsetObj();
 					Map<String, Object> newMap = new HashMap<>();
 					try {
 						MapUtil.deepCloneMap(batchOffsetObj, newMap);
