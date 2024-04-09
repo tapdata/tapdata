@@ -294,6 +294,20 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 			obsLogger.info(offsetLog);
 		}
+		initBatchOffset(null);
+	}
+
+	protected void initBatchOffset(List<String> ignoreTables) {
+		Set<String> tableIds = dataProcessorContext.getTapTableMap().keySet();
+		Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.getBatchOffsetObj();
+		if (MapUtils.isEmpty(batchOffsetObj)) {
+			return;
+		}
+		if (CollectionUtils.isNotEmpty(ignoreTables)) {
+			ignoreTables.forEach(batchOffsetObj::remove);
+		}
+		Set<String> batchTable = batchOffsetObj.keySet();
+		batchTable.stream().filter(tableId -> !tableIds.contains(tableId)).forEach(batchOffsetObj::remove);
 	}
 
 	private void initSourceRunnerOnce() {
@@ -835,6 +849,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					// Restart source runner
 					if (null != sourceRunner) {
 						this.sourceRunnerFirstTime.set(false);
+						initBatchOffset(newTables);
 						restartPdkConnector();
 					} else {
 						String error = "Source runner is null";

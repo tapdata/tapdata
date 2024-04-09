@@ -6,6 +6,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 public class SyncProgress implements Serializable, Comparable<SyncProgress> {
@@ -121,10 +122,6 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 		this.streamOffset = streamOffset;
 	}
 
-	public Object getBatchOffsetObj() {
-		return batchOffsetObj;
-	}
-
 	public void setBatchOffsetObj(Object batchOffsetObj) {
 		this.batchOffsetObj = batchOffsetObj;
 	}
@@ -152,6 +149,47 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 		POLLING_CDC, // from polling cdc task
 		UNIT_TEST,
 		;
+	}
+
+	public boolean batchIsOverOfTable(String tableId) {
+		if (null == batchOffsetObj) return false;
+		Map<String, Object> offsetInfo = (Map<String, Object>)((Map<String, Object>) batchOffsetObj).get(tableId);
+		if (null == offsetInfo) {
+			return false;
+		}
+		return Boolean.TRUE.equals(offsetInfo.get("isOver"));
+	}
+
+	public Object getBatchOffsetOfTable(String tableId) {
+		if (null == batchOffsetObj) {
+			return null;
+		}
+		Map<String, Object> offsetInfo = (Map<String, Object>)((Map<String, Object>) batchOffsetObj).get(tableId);
+		if (null == offsetInfo) {
+			return null;
+		}
+		return offsetInfo.get("offset");
+	}
+
+	public void updateBatchOffset(String tableId, Object offset, boolean isOver) {
+		Map<String, Object> batchOffsetObjTemp = (Map<String, Object>) batchOffsetObj;
+		if (null == batchOffsetObjTemp) {
+			batchOffsetObjTemp = new HashMap<>();
+			setBatchOffsetObj(batchOffsetObjTemp);
+		}
+		Map<String, Object> tableOffsetObjTemp = (Map<String, Object>)batchOffsetObjTemp.computeIfAbsent(tableId, k -> new HashMap<String, Object>());
+		tableOffsetObjTemp.put("offset", offset);
+		tableOffsetObjTemp.put("isOver", isOver);
+	}
+
+	public Object getBatchOffsetObj() {
+		Map<String, Object> batchOffsetObjTemp = (Map<String, Object>) batchOffsetObj;
+		if (null == batchOffsetObjTemp) {
+			batchOffsetObjTemp = new HashMap<>();
+			setBatchOffsetObj(batchOffsetObjTemp);
+		}
+
+		return batchOffsetObj;
 	}
 
 	@Override
