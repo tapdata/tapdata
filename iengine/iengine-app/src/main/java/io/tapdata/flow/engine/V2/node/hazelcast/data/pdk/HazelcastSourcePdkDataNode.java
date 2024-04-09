@@ -281,6 +281,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					for (String tableName : tableList) {
 						TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
 						if (syncProgress.batchIsOverOfTable(tapTable.getId())) {
+							obsLogger.info("Skip table [{}] in batch read, reason: last task, this table has been completed batch read", tapTable.getId());
 							continue;
 						}
 						Object tableOffset = syncProgress.getBatchOffsetOfTable(tapTable.getId());
@@ -398,6 +399,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 												)
 										));
 								syncProgress.updateBatchOffset(tableName, null,  SyncProgress.TABLE_BATCH_STATUS_OVER);
+								obsLogger.info("Table [{}] has been completed batch read, will skip batch read on the next run", tableName);
 							} finally {
 								removePdkMethodInvoker(pdkMethodInvoker);
 							}
