@@ -341,7 +341,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																	if (obsLogger.isDebugEnabled()) {
 																		obsLogger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 																	}
-																	syncProgress.updateBatchOffset(tapTable.getId(), offsetObject, false);
+																	syncProgress.updateBatchOffset(tapTable.getId(), offsetObject,  SyncProgress.TABLE_BATCH_STATUS_RUNNING);
 
 																	flushPollingCDCOffset(events);
 																	List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
@@ -397,7 +397,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 														}
 												)
 										));
-								syncProgress.updateBatchOffset(tableName, null, true);
+								syncProgress.updateBatchOffset(tableName, null,  SyncProgress.TABLE_BATCH_STATUS_OVER);
 							} finally {
 								removePdkMethodInvoker(pdkMethodInvoker);
 							}
