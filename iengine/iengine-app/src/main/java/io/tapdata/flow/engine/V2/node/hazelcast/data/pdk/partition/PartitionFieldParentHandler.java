@@ -3,8 +3,10 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 import cn.hutool.crypto.digest.MD5;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.dataflow.SyncProgress;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.async.master.JobContext;
 import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -20,6 +22,7 @@ import io.tapdata.entity.simplify.pretty.TypeHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
+import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import org.apache.commons.collections.CollectionUtils;
 
@@ -28,6 +31,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.LongAdder;
 
 import static io.tapdata.entity.simplify.TapSimplify.map;
 
@@ -185,4 +190,20 @@ public class PartitionFieldParentHandler {
 		}
 	}
 
+	public void handleFinishedPartition(HazelcastSourcePartitionReadDataNode sourcePdkDataNode, ReadPartition readPartition, LongAdder sentEventCount) {
+		PartitionTableOffset partitionTableOffset = (PartitionTableOffset) sourcePdkDataNode.getSyncProgress().getBatchOffsetOfTable(table);
+		if (partitionTableOffset == null) {
+			partitionTableOffset = new PartitionTableOffset();
+			sourcePdkDataNode.getSyncProgress().updateBatchOffset(table, partitionTableOffset, SyncProgress.TABLE_BATCH_STATUS_RUNNING);
+		}
+		Map<String, Long> completedPartitions = partitionTableOffset.getCompletedPartitions();
+		if (completedPartitions == null) {
+			completedPartitions = new ConcurrentHashMap<>();
+			completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
+			partitionTableOffset.setCompletedPartitions(completedPartitions);
+		} else {
+			completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
+		}
+		sourcePdkDataNode.getObsLogger().info("Finished partition {} completedPartitions {}", readPartition, completedPartitions.size());
+	}
 }
