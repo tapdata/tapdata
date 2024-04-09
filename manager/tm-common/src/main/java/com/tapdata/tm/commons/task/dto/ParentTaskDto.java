@@ -206,7 +206,9 @@ public class ParentTaskDto extends SchedulableDto {
      * 后续可能是 flow engine group 选择多个的情况
      */
     private List<String> accessNodeProcessIdList;
-
+    /**
+     * 如果accessNodeType 是MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP，accessNodeProcessId表示Agent分组的groupId
+     * */
     private String accessNodeProcessId;
 
     private HashSet<String> heartbeatTasks;
@@ -279,10 +281,9 @@ public class ParentTaskDto extends SchedulableDto {
 
     public List<String> getAccessNodeProcessIdList() {
         accessNodeProcessIdList = new ArrayList<>();
-        if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), accessNodeType)
-                &&StringUtils.isNotBlank(accessNodeProcessId)) {
+        if (AccessNodeTypeEnum.isUserManually(accessNodeType) && StringUtils.isNotBlank(accessNodeProcessId)) {
             accessNodeProcessIdList.add(accessNodeProcessId);
-        } else {
+        } else if (!AccessNodeTypeEnum.isManually(accessNodeType)) {
             accessNodeType = AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name();
         }
 

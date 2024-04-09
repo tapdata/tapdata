@@ -10,6 +10,7 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -22,6 +23,7 @@ import com.tapdata.tm.clusterOperation.constant.ClusterOperationTypeEnum;
 import com.tapdata.tm.clusterOperation.dto.ClusterOperationDto;
 import com.tapdata.tm.clusterOperation.entity.ClusterOperationEntity;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.service.MessageService;
@@ -68,6 +70,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     private MessageService messageService;
     private SettingsService settingsService;
     private MongoTemplate mongoTemplate;
+    private AgentGroupService agentGroupService;
 
     public ClusterStateService(@NonNull ClusterStateRepository repository) {
         super(repository, ClusterStateDto.class, ClusterStateEntity.class);
@@ -365,10 +368,12 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             }
 
             AccessNodeInfo accessNodeInfo = new AccessNodeInfo(worker.getProcessId(), hostname.get(), worker.getProcessId(), status);
+            accessNodeInfo.setAccessNodeName(worker.getProcessId());
+            accessNodeInfo.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
             result.add(accessNodeInfo);
         });
 
-        return result;
+        return agentGroupService.filterGroupList(result, userDetail);
     }
 
     public void stopCluster() {

@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsServiceImpl;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
@@ -83,6 +84,7 @@ import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.task.service.utils.TaskServiceUtil;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
@@ -212,6 +214,8 @@ public class TaskServiceImpl extends TaskService{
     private SettingsServiceImpl settingsService;
 
     private TaskNodeService taskNodeService;
+
+    private AgentGroupService agentGroupService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -464,11 +468,7 @@ public class TaskServiceImpl extends TaskService{
                 taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
                 taskDto.setTransformTaskId(oldTaskDto.getTransformTaskId());
 
-                if (StringUtils.isBlank(taskDto.getAccessNodeType())) {
-                    taskDto.setAccessNodeType(oldTaskDto.getAccessNodeType());
-                    taskDto.setAccessNodeProcessId(oldTaskDto.getAccessNodeProcessId());
-                    taskDto.setAccessNodeProcessIdList(oldTaskDto.getAccessNodeProcessIdList());
-                }
+                TaskServiceUtil.copyAccessNodeInfo(oldTaskDto, taskDto, user, agentGroupService);
 
                 if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && !ParentTaskDto.TYPE_CDC.equals(taskDto.getType())) {
                     DAG newDag = taskDto.getDag();
@@ -710,16 +710,12 @@ public class TaskServiceImpl extends TaskService{
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm) {
         if (Objects.nonNull(taskDto.getId())) {
             TaskDto temp = findById(taskDto.getId());
-            if (Objects.nonNull(temp) && StringUtils.isBlank(taskDto.getAccessNodeType())) {
-                taskDto.setAccessNodeType(temp.getAccessNodeType());
-                taskDto.setAccessNodeProcessId(temp.getAccessNodeProcessId());
-                taskDto.setAccessNodeProcessIdList(temp.getAccessNodeProcessIdList());
-            }
+            TaskServiceUtil.copyAccessNodeInfo(temp, taskDto, user, agentGroupService);
         }
         // check task inspect flag
         checkTaskInspectFlag(taskDto);
 
-        checkDagAgentConflict(taskDto, true);
+        checkDagAgentConflict(taskDto, user, true);
 
         checkDDLConflict(taskDto);
 
@@ -728,7 +724,7 @@ public class TaskServiceImpl extends TaskService{
         return confirmById(taskDto, user, confirm, false);
     }
 
-    private void checkDDLConflict(TaskDto taskDto) {
+    protected void checkDDLConflict(TaskDto taskDto) {
         LinkedList<DatabaseNode> sourceNode = taskDto.getDag().getSourceNode();
         if (CollectionUtils.isNotEmpty(sourceNode)) {
             return;
@@ -839,7 +835,7 @@ public class TaskServiceImpl extends TaskService{
 
 
 
-    public void checkDagAgentConflict(TaskDto taskDto, boolean showListMsg) {
+    public void checkDagAgentConflict(TaskDto taskDto, UserDetail user, boolean showListMsg) {
         if (taskDto.getShareCache()) {
             return;
         }
@@ -851,26 +847,33 @@ public class TaskServiceImpl extends TaskService{
                 connectionIdList.add(((DataParentNode<?>) node).getConnectionId());
             }
         });
-        List<String> taskProcessIdList = taskDto.getAccessNodeProcessIdList();
+        List<String> taskProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
         List<DataSourceConnectionDto> dataSourceConnectionList = dataSourceService.findInfoByConnectionIdList(connectionIdList);
         Map<String, List<Message>> validateMessage = Maps.newHashMap();
         if (CollectionUtils.isNotEmpty(dataSourceConnectionList)) {
             Map<String, DataSourceConnectionDto> collect = dataSourceConnectionList.stream().collect(Collectors.toMap(s -> s.getId().toHexString(), a -> a, (k1, k2) -> k1));
             String code = "Task.AgentConflict";
             Message message = new Message(code, MessageUtil.getMessage(code), null, null);
+            AtomicReference<String> nodeType = new AtomicReference<>();
+            AtomicReference<String> nodeId = new AtomicReference<>();
             dag.getNodes().forEach(node -> {
                 if (node instanceof DataParentNode) {
                     DataParentNode<?> dataParentNode = (DataParentNode<?>) node;
                     DataSourceConnectionDto connectionDto = collect.get(dataParentNode.getConnectionId());
                     Assert.notNull(connectionDto, "task connectionDto is null id:" + dataParentNode.getConnectionId());
 
-                    if (StringUtils.equalsIgnoreCase(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), connectionDto.getAccessNodeType())) {
-                        List<String> connectionProcessIds = connectionDto.getAccessNodeProcessIdList();
+                    if (contrast(nodeType, dataParentNode.getId(), connectionDto.getAccessNodeType(), validateMessage, message)) {
+                        return;
+                    }
+                    if (AccessNodeTypeEnum.isUserManually(connectionDto.getAccessNodeType())) {
+                        List<String> connectionProcessIds = agentGroupService.getProcessNodeListWithGroup(connectionDto, user);
                         connectionProcessIds.removeAll(taskProcessIdList);
-                        if (!StringUtils.equalsIgnoreCase(taskDto.getAccessNodeType(), connectionDto.getAccessNodeType()) ||
-                                CollectionUtils.isNotEmpty(connectionProcessIds)) {
+                        if (!StringUtils.equalsIgnoreCase(taskDto.getAccessNodeType(), connectionDto.getAccessNodeType())
+                                || !connectionProcessIds.isEmpty()) {
                             validateMessage.put(dataParentNode.getId(), Lists.newArrayList(message));
                         }
+                    } else if (AccessNodeTypeEnum.isGroupManually(connectionDto.getAccessNodeType())) {
+                        contrast(nodeId, dataParentNode.getId(), connectionDto.getAccessNodeProcessId(), validateMessage, message);
                     }
                 }
             });
@@ -883,6 +886,22 @@ public class TaskServiceImpl extends TaskService{
                 throw new BizException(message.getCode(), message.getMsg());
             }
         }
+    }
+
+    protected boolean contrast(AtomicReference<String> ato,
+                               String nodeId,
+                               String atoValue,
+                               Map<String, List<Message>> validateMessage,
+                               Message message) {
+        if (null == ato.get()) {
+            ato.set(atoValue);
+            return false;
+        }
+        if (!ato.get().equalsIgnoreCase(atoValue)) {
+            validateMessage.put(nodeId, Lists.newArrayList(message));
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -3921,13 +3940,14 @@ public class TaskServiceImpl extends TaskService{
 
     public boolean findAgent(TaskDto taskDto, UserDetail user) {
         boolean noAgent = false;
-        if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), taskDto.getAccessNodeType())
-                && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
+        List<Worker> availableAgent = workerService.findAvailableAgent(user);
+        List<String> accessNodeProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
+        if (AccessNodeTypeEnum.isManually(taskDto.getAccessNodeType())
+                && CollectionUtils.isNotEmpty(accessNodeProcessIdList)) {
 
-            List<Worker> availableAgent = workerService.findAvailableAgent(user);
             List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
             String agentId = null;
-            for (String p : taskDto.getAccessNodeProcessIdList()) {
+            for (String p : accessNodeProcessIdList) {
                 if (processIds.contains(p)) {
                     agentId = p;
                     break;
@@ -3942,7 +3962,6 @@ public class TaskServiceImpl extends TaskService{
             taskDto.setAgentId(agentId);
 
         } else {
-            List<Worker> availableAgent = workerService.findAvailableAgent(user);
             if (CollectionUtils.isNotEmpty(availableAgent)) {
                 Worker worker = availableAgent.get(0);
                 taskDto.setAgentId(worker.getProcessId());
@@ -4078,7 +4097,7 @@ public class TaskServiceImpl extends TaskService{
         }
         update(Query.query(Criteria.where("_id").is(taskDto.getId().toHexString())), update);
 
-        checkDagAgentConflict(taskDto, false);
+        checkDagAgentConflict(taskDto, user, false);
         if (!taskDto.getShareCache()) {
                 Map<String, List<Message>> validateMessage = taskDto.getDag().validate();
                 if (!validateMessage.isEmpty()) {

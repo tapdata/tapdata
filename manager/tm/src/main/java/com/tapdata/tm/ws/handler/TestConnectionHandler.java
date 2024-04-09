@@ -8,6 +8,7 @@ package com.tapdata.tm.ws.handler;
 
 import com.alibaba.fastjson.JSONObject;
 import com.mongodb.ConnectionString;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
@@ -38,6 +39,7 @@ import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.net.URLEncoder;
 import java.util.*;
@@ -64,13 +66,16 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 	private final WorkerService workerService;
 
-	public TestConnectionHandler(MessageQueueService messageQueueService, DataSourceService dataSourceService, UserService userService
+	private final AgentGroupService agentGroupService;
+
+	public TestConnectionHandler(AgentGroupService agentGroupService, MessageQueueService messageQueueService, DataSourceService dataSourceService, UserService userService
 			, WorkerService workerService, DataSourceDefinitionService dataSourceDefinitionService) {
 		this.messageQueueService = messageQueueService;
 		this.dataSourceService = dataSourceService;
 		this.userService = userService;
 		this.workerService = workerService;
 		this.dataSourceDefinitionService = dataSourceDefinitionService;
+		this.agentGroupService = agentGroupService;
 	}
 	@Override
 	public void handleMessage(WebSocketContext context) throws Exception{
@@ -174,13 +179,14 @@ public class TestConnectionHandler implements WebSocketHandler {
 						Object accessNodeProcessId = data.get("accessNodeProcessId");
 						FunctionUtils.isTureOrFalse(Objects.nonNull(accessNodeProcessId)).trueOrFalseHandle(() -> {
 							String processId = accessNodeProcessId.toString();
-							receiver.set(processId);
 
-							List<Worker> availableAgents = workerService.findAvailableAgentByAccessNode(userDetail, Lists.newArrayList(processId));
+
+							List<Worker> availableAgents = workerService.findAvailableAgentByAccessNode(userDetail, agentGroupService.getProcessNodeListByGroupId(Lists.newArrayList(processId), String.valueOf(accessNodeType), userDetail));
 							if (CollectionUtils.isEmpty(availableAgents)) {
 								data.put("status", "error");
 								data.put("msg", "Worker " + processId + " not available, receiver is blank");
 							}
+							receiver.set(availableAgents.get(0).getProcessId());
 						}, () -> {
 							data.put("status", "error");
 							data.put("msg", "Worker set error, receiver is blank");

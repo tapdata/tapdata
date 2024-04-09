@@ -6,6 +6,7 @@ import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
@@ -19,6 +20,7 @@ import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -51,6 +53,7 @@ public class TaskAlarmScheduler {
     private WorkerService workerService;
     private UserService userService;
     private SettingsService settingsService;
+    private AgentGroupService agentGroupService;
 
     @Scheduled(cron = "0 0/5 * * * ? ")
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
@@ -108,11 +111,7 @@ public class TaskAlarmScheduler {
                 continue;
             }
 
-            List<Worker> workerList = workerService.findAvailableAgentBySystem(userDetail);;
-            if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.getName().equals(data.getAccessNodeType())) {
-                List<String> processIdList = data.getAccessNodeProcessIdList();
-                workerList = workerList.stream().filter(w -> processIdList.contains(w.getProcessId())).collect(Collectors.toList());
-            }
+            List<Worker> workerList = findWorkerList(data, userDetail);
 
             String orginAgentId = data.getAgentId();
             AtomicReference<String> summary = new AtomicReference<>();
@@ -151,5 +150,23 @@ public class TaskAlarmScheduler {
             alarmInfo.setUserId(data.getUserId());
             alarmService.save(alarmInfo);
         }
+    }
+
+    protected List<Worker> findWorkerList(TaskDto data, UserDetail userDetail) {
+        if (null == workerService) {
+            return Lists.newArrayList();
+        }
+        List<Worker> workerList = workerService.findAvailableAgentBySystem(userDetail);
+        if (null == data) {
+            return workerList;
+        }
+        if (null == agentGroupService) {
+            return workerList;
+        }
+        if (AccessNodeTypeEnum.isManually(data.getAccessNodeType())) {
+            List<String> processIdList = agentGroupService.getProcessNodeListWithGroup(data, userDetail);
+            workerList = workerList.stream().filter(w -> processIdList.contains(w.getProcessId())).collect(Collectors.toList());
+        }
+        return workerList;
     }
 }
