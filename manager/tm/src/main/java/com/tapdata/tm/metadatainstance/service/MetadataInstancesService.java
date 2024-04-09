@@ -48,7 +48,6 @@ import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
 import com.tapdata.tm.metadatainstance.vo.*;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.task.utils.CustomKafkaUtils;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
