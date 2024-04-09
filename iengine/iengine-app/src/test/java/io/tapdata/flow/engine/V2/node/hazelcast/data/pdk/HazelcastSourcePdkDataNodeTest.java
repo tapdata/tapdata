@@ -1,8 +1,22 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
+import io.tapdata.aspect.BatchReadFuncAspect;
+import io.tapdata.aspect.SourceStateAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadBeginAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadEndAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadTableBeginAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadTableEndAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadTableErrorAspect;
+import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -11,31 +25,96 @@ import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.NodeException;
+import io.tapdata.exception.TapCodeException;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
+import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
+import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.internal.verification.VerificationModeFactory.times;
+
 
 @DisplayName("HazelcastSourcePdkDataNode Class Test")
 public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 
 	private HazelcastSourcePdkDataNode hazelcastSourcePdkDataNode;
 
+	HazelcastSourcePdkDataNode instance;
+	SyncProgress syncProgress;
+	ObsLogger obsLogger;
+	AtomicBoolean sourceRunnerFirstTime;
+	SourceStateAspect sourceStateAspect;
+	ReentrantLock sourceRunnerLock;
+	CopyOnWriteArrayList<String> removeTables;
+	CopyOnWriteArrayList<String> newTables;
+	AtomicBoolean endSnapshotLoop;
+
 	@BeforeEach
 	void beforeEach() {
 		super.allSetup();
 		hazelcastSourcePdkDataNode = spy(new HazelcastSourcePdkDataNode(dataProcessorContext));
+
+		instance = mock(HazelcastSourcePdkDataNode.class);
+		syncProgress = mock(SyncProgress.class);
+		ReflectionTestUtils.setField(instance, "syncProgress", syncProgress);
+		obsLogger = mock(ObsLogger.class);
+		ReflectionTestUtils.setField(instance, "obsLogger", obsLogger);
+		sourceRunnerFirstTime = mock(AtomicBoolean.class);
+		ReflectionTestUtils.setField(instance, "sourceRunnerFirstTime", sourceRunnerFirstTime);
+		endSnapshotLoop = mock(AtomicBoolean.class);
+		ReflectionTestUtils.setField(instance, "endSnapshotLoop", endSnapshotLoop);
+		sourceStateAspect = mock(SourceStateAspect.class);
+		ReflectionTestUtils.setField(instance, "sourceStateAspect", sourceStateAspect);
+		sourceRunnerLock = mock(ReentrantLock.class);
+		ReflectionTestUtils.setField(instance, "sourceRunnerLock", sourceRunnerLock);
+		removeTables = mock(CopyOnWriteArrayList.class);
+		ReflectionTestUtils.setField(instance, "removeTables", removeTables);
+		newTables = mock(CopyOnWriteArrayList.class);
+		ReflectionTestUtils.setField(instance, "newTables", newTables);
+		ReflectionTestUtils.setField(instance, "dataProcessorContext", dataProcessorContext);
+		instance.readBatchSize = 100;
 	}
 
 	@Nested
@@ -178,6 +257,982 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 
 			verify(hazelcastSourcePdkDataNode, times(1)).getNode();
 			verify(tapInsertRecordEvent, times(0)).getAfter();
+		}
+	}
+
+	@Nested
+	@DisplayName("Mechot doSnapshot test")
+	class DoSnapshotTest {
+		List<String> tableList;
+		ConnectorNode connectorNode;
+		ConnectorFunctions connectorFunctions;
+		BatchCountFunction batchCountFunction;
+		DatabaseTypeEnum.DatabaseType databaseType;
+		BatchReadFunction batchReadFunction;
+		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction;
+		ExecuteCommandFunction executeCommandFunction;
+		TapTableMap<String, TapTable> tapTableMap;
+		TapTable tapTable;
+		String tableId;
+		Object tableOffset;
+		PDKMethodInvoker pdkMethodInvoker;
+		AutoCloseable ignoreTableCountCloseable;
+		@BeforeEach
+		void init() throws Exception {
+			tableId = "id";
+			tableList = new ArrayList<>();
+			tableList.add(tableId);
+
+			when(instance.executeAspect(any(SnapshotReadBeginAspect.class))).thenReturn(mock(AspectInterceptResult.class));
+			doNothing().when(syncProgress).setSyncStage(SyncStage.INITIAL_SYNC.name());
+
+			connectorNode = mock(ConnectorNode.class);
+			when(instance.getConnectorNode()).thenReturn(connectorNode);
+			connectorFunctions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+			batchCountFunction = mock(BatchCountFunction.class);
+			when(connectorFunctions.getBatchCountFunction()).thenReturn(batchCountFunction);
+			databaseType = mock(DatabaseTypeEnum.DatabaseType.class);
+			when(dataProcessorContext.getDatabaseType()).thenReturn(databaseType);
+
+			// null == batchCountFunction
+			doNothing().when(obsLogger).warn("PDK node does not support table batch count: {}", databaseType);
+			doNothing().when(instance).setDefaultRowSizeMap();
+
+			batchReadFunction = mock(BatchReadFunction.class);
+			when(connectorFunctions.getBatchReadFunction()).thenReturn(batchReadFunction);
+			queryByAdvanceFilterFunction = mock(QueryByAdvanceFilterFunction.class);
+			when(connectorFunctions.getQueryByAdvanceFilterFunction()).thenReturn(queryByAdvanceFilterFunction);
+			executeCommandFunction = mock(ExecuteCommandFunction.class);
+			when(connectorFunctions.getExecuteCommandFunction()).thenReturn(executeCommandFunction);
+
+			// ourceRunnerFirstTime.get() == true
+			when(sourceRunnerFirstTime.get()).thenReturn(true);
+			when(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_START)).thenReturn(mock(SourceStateAspect.class));
+			when(instance.executeAspect(any(SourceStateAspect.class))).thenReturn(mock(AspectInterceptResult.class));
+
+			when(instance.isRunning()).thenReturn(true, true, false, true);
+
+			tapTableMap = mock(TapTableMap.class);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			tapTable = mock(TapTable.class);
+			when(tapTableMap.get(tableId)).thenReturn(tapTable);
+			when(tapTable.getId()).thenReturn(tableId);
+			when(syncProgress.batchIsOverOfTable(tableId)).thenReturn(false);
+
+			//
+			doNothing().when(obsLogger).info("Skip table [{}] in batch read, reason: last task, this table has been completed batch read", "id");
+
+			tableOffset = mock(Object.class);
+			when(syncProgress.getBatchOffsetOfTable(tableId)).thenReturn(tableOffset);
+
+			when(instance.executeAspect(any(SnapshotReadTableBeginAspect.class))).thenReturn(mock(AspectInterceptResult.class));
+
+			doNothing().when(instance).lockBySourceRunnerLock();
+			doNothing().when(instance).unLockBySourceRunnerLock();
+
+			when(removeTables.contains("id")).thenReturn(false);
+
+			// removeTables.contains("id") == true
+			doNothing().when(obsLogger).info("Table {} is detected that it has been removed, the snapshot read will be skipped", "id");
+			when(removeTables.remove("id")).thenReturn(true);
+
+			doNothing().when(obsLogger).info("Starting batch read, table name: {}, offset: {}", "id", tableOffset);
+			pdkMethodInvoker = mock(PDKMethodInvoker.class);
+			when(instance.createPdkMethodInvoker()).thenReturn(pdkMethodInvoker);
+			ignoreTableCountCloseable = mock(AutoCloseable.class);
+			doNothing().when(ignoreTableCountCloseable).close();
+			when(instance.doAsyncTableCount(batchCountFunction, tableId)).thenReturn(ignoreTableCountCloseable);
+
+			when(connectorNode.getConnectorContext()).thenReturn(mock(TapConnectorContext.class));
+			when(instance.getDataProcessorContext()).thenReturn(mock(DataProcessorContext.class));
+
+
+			when(pdkMethodInvoker.runnable(any(CommonUtils.AnyError.class))).thenAnswer(a -> null);
+
+			when(instance.executeDataFuncAspect(any(Class.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class))).thenAnswer(a -> {
+				Callable<?> callable = a.getArgument(1, Callable.class);
+				CommonUtils.AnyErrorConsumer<BatchReadFuncAspect> errorConsumer = a.getArgument(2, CommonUtils.AnyErrorConsumer.class);
+				Object call = callable.call();
+
+				try(MockedStatic<PDKInvocationMonitor> pdk = mockStatic(PDKInvocationMonitor.class)) {
+					pdk.when(() -> PDKInvocationMonitor.invoke(
+							connectorNode,
+							PDKMethod.SOURCE_BATCH_READ,
+							pdkMethodInvoker)).thenAnswer(ans -> null);
+					errorConsumer.accept(mock(BatchReadFuncAspect.class));
+				}
+
+				Assertions.assertNotNull(call);
+				Assertions.assertEquals(BatchReadFuncAspect.class.getName(), call.getClass().getName());
+				return mock(AspectInterceptResult.class);
+			});
+
+			doNothing().when(syncProgress).updateBatchOffset(tableId, null,  SyncProgress.TABLE_BATCH_STATUS_OVER);
+			doNothing().when(obsLogger).info("Table [{}] has been completed batch read, will skip batch read on the next run", "id");
+			doNothing().when(instance).removePdkMethodInvoker(pdkMethodInvoker);
+
+			//fonally
+			when(instance.executeAspect(any(SnapshotReadTableEndAspect.class))).thenReturn(mock(AspectInterceptResult.class));
+			doNothing().when(instance).enqueue(any(TapdataCompleteTableSnapshotEvent.class));
+
+			//catch
+			when(instance.executeAspect(any(SnapshotReadTableErrorAspect.class))).thenReturn(mock(AspectInterceptResult.class));
+			doNothing().when(sourceRunnerLock).unlock();
+
+			when(newTables.isEmpty()).thenReturn(false);
+			when(newTables.toArray()).thenReturn(new String[0]);
+			doNothing().when(newTables).clear();
+
+			doNothing().when(endSnapshotLoop).set(true);
+
+
+			doNothing().when(instance).enqueue(any(TapdataCompleteSnapshotEvent.class));
+			when(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED)).thenReturn(mock(SourceStateAspect.class));
+			when(instance.executeAspect(any(SourceStateAspect.class))).thenReturn(mock(AspectInterceptResult.class));
+
+			when(instance.executeAspect(any(SnapshotReadEndAspect.class))).thenReturn(mock(AspectInterceptResult.class));
+
+			when(instance.getProcessorBaseContext()).thenReturn(mock(ProcessorBaseContext.class));
+		}
+
+		void assertVerifySame() {
+			verify(instance, times(1)).executeAspect(any(SnapshotReadBeginAspect.class));
+			verify(syncProgress, times(1)).setSyncStage(SyncStage.INITIAL_SYNC.name());
+			verify(instance, times(1)).getConnectorNode();
+			verify(connectorNode, times(1)).getConnectorFunctions();
+			verify(connectorFunctions, times(1)).getBatchCountFunction();
+			verify(connectorFunctions, times(1)).getBatchReadFunction();
+			verify(connectorFunctions, times(1)).getQueryByAdvanceFilterFunction();
+			verify(connectorFunctions, times(1)).getExecuteCommandFunction();
+			verify(dataProcessorContext, times(1)).getDatabaseType();
+		}
+
+		void verifyAssert(VerifyDifferent v) throws Exception {
+			assertVerifySame();
+			verify(instance, times(v.isRunning())).isRunning();
+			verify(sourceRunnerFirstTime, times(v.sourceRunnerFirstTimeGet())).get();
+			verify(instance, times(v.setDefaultRowSizeMap())).setDefaultRowSizeMap();
+			verify(sourceStateAspect, times(v.stateINITIAL())).state(SourceStateAspect.STATE_INITIAL_SYNC_START);
+			verify(instance, times(v.executeAspect())).executeAspect(any(SourceStateAspect.class));
+			verify(dataProcessorContext, times(v.getTapTableMap())).getTapTableMap();
+			verify(tapTableMap, times(v.getTable())).get(tableId);
+			verify(tapTable, times(v.tableGetId())).getId();
+			verify(syncProgress, times(v.batchIsOverOfTable())).batchIsOverOfTable(tableId);
+			verify(obsLogger, times(v.obsLoggerInfo1())).info("Skip table [{}] in batch read, reason: last task, this table has been completed batch read", "id");
+			verify(syncProgress, times(v.getBatchOffsetOfTable())).getBatchOffsetOfTable(tableId);
+			verify(instance, times(v.snapshotReadTableBeginAspect())).executeAspect(any(SnapshotReadTableBeginAspect.class));
+			verify(instance, times(v.lockBySourceRunnerLock())).lockBySourceRunnerLock();
+			verify(removeTables, times(v.removeTablesContains())).contains(tableId);
+			verify(removeTables, times(v.removeTablesRemove())).remove(tableId);
+			verify(obsLogger, times(v.obsLoggerInfo2())).info("Table {} is detected that it has been removed, the snapshot read will be skipped", "id");
+			verify(obsLogger, times(v.obsLoggerInfo3())).info("Starting batch read, table name: {}, offset: {}", "id", tableOffset);
+			verify(instance, times(v.createPdkMethodInvoker())).createPdkMethodInvoker();
+			verify(instance, times(v.doAsyncTableCount())).doAsyncTableCount(batchCountFunction, tableId);
+			verify(ignoreTableCountCloseable, times(v.close())).close();
+			verify(instance,times(v.executeDataFuncAspect())).executeDataFuncAspect(any(Class.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class));
+			verify(syncProgress, times(v.updateBatchOffset())).updateBatchOffset(tableId, null,  SyncProgress.TABLE_BATCH_STATUS_OVER);
+			verify(obsLogger, times(v.obsLoggerInfo4())).info("Table [{}] has been completed batch read, will skip batch read on the next run", "id");
+			verify(instance, times(v.removePdkMethodInvoker())).removePdkMethodInvoker(pdkMethodInvoker);
+			verify(instance, times(v.snapshotReadTableEndAspect())).executeAspect(any(SnapshotReadTableEndAspect.class));
+			verify(instance, times(v.tapDataCompleteTableSnapshotEvent())).enqueue(any(TapdataCompleteTableSnapshotEvent.class));
+			verify(instance, times(v.snapshotReadTableErrorAspect())).executeAspect(any(SnapshotReadTableErrorAspect.class));
+			verify(instance, times(v.unlock())).unLockBySourceRunnerLock();
+			verify(newTables, times(v.newTablesIsEmpty())).isEmpty();
+			verify(newTables, times(v.newTablesToArray())).toArray();
+			verify(newTables, times(v.newTablesToArray())).clear();
+			verify(endSnapshotLoop, times(v.endSnapshotLoopSet())).set(true);
+			verify(instance, times(v.tapdataCompleteSnapshotEvent())).enqueue(any(TapdataCompleteSnapshotEvent.class));
+			verify(sourceStateAspect, times(v.stateCOMPLETED())).state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED);
+			verify(instance, times(v.snapshotReadEndAspect())).executeAspect(any(SnapshotReadEndAspect.class));
+			verify(obsLogger, times(v.warn())).warn("PDK node does not support table batch count: {}", databaseType);
+			verify(instance, times(v.getProcessorBaseContext())).getProcessorBaseContext();
+		}
+
+		class VerifyDifferent {
+			int isRunning;
+			int getProcessorBaseContext;
+			int sourceRunnerFirstTimeGet;
+			int warn;
+			int setDefaultRowSizeMap;
+			int stateINITIAL;
+			int executeAspect;
+			int getTapTableMap;
+			int getTable;
+			int tableGetId;
+			int batchIsOverOfTable;
+			int getBatchOffsetOfTable;
+			int obsLoggerInfo1;
+			int obsLoggerInfo2;
+			int obsLoggerInfo3;
+			int obsLoggerInfo4;
+			int snapshotReadTableBeginAspect;
+			int lockBySourceRunnerLock;
+			int removeTablesContains;
+			int removeTablesRemove;
+			int createPdkMethodInvoker;
+			int doAsyncTableCount;
+			int close;
+			int executeDataFuncAspect;
+			int updateBatchOffset;
+			int removePdkMethodInvoker;
+			int snapshotReadTableEndAspect;
+			int tapDataCompleteTableSnapshotEvent;
+			int snapshotReadTableErrorAspect;
+			int unlock;
+			int stateCOMPLETED;
+			int newTablesIsEmpty;
+			int newTablesToArray;
+			int tableListClear;
+			int tableListAddAll;
+			int endSnapshotLoopSet;
+			int tapdataCompleteSnapshotEvent;
+			int getDatabaseType;
+			int snapshotReadEndAspect;
+
+			public int isRunning() {
+				return isRunning;
+			}
+			public VerifyDifferent isRunning(int isRunning) {
+				this.isRunning = isRunning;
+				return this;
+			}
+			public int getProcessorBaseContext() {
+				return getProcessorBaseContext;
+			}
+			public VerifyDifferent getProcessorBaseContext(int getProcessorBaseContext) {
+				this.getProcessorBaseContext = getProcessorBaseContext;
+				return this;
+			}
+			public int warn() {
+				return warn;
+			}
+			public VerifyDifferent warn(int warn) {
+				this.warn = warn;
+				return this;
+			}
+			public int sourceRunnerFirstTimeGet() {
+				return sourceRunnerFirstTimeGet;
+			}
+			public VerifyDifferent sourceRunnerFirstTimeGet(int sourceRunnerFirstTimeGet) {
+				this.sourceRunnerFirstTimeGet = sourceRunnerFirstTimeGet;
+				return this;
+			}
+			public int setDefaultRowSizeMap() {
+				return setDefaultRowSizeMap;
+			}
+			public VerifyDifferent setDefaultRowSizeMap(int setDefaultRowSizeMap) {
+				this.setDefaultRowSizeMap = setDefaultRowSizeMap;
+				return this;
+			}
+			public int snapshotReadEndAspect() {
+				return snapshotReadEndAspect;
+			}
+			public VerifyDifferent snapshotReadEndAspect(int snapshotReadEndAspect) {
+				this.snapshotReadEndAspect = snapshotReadEndAspect;
+				return this;
+			}
+			public int getDatabaseType() {
+				return getDatabaseType;
+			}
+			public VerifyDifferent getDatabaseType(int getDatabaseType) {
+				this.getDatabaseType = getDatabaseType;
+				return this;
+			}
+			public int stateCOMPLETED() {
+				return stateCOMPLETED;
+			}
+			public VerifyDifferent stateCOMPLETED(int stateCOMPLETED) {
+				this.stateCOMPLETED = stateCOMPLETED;
+				return this;
+			}
+			public int tapdataCompleteSnapshotEvent() {
+				return tapdataCompleteSnapshotEvent;
+			}
+			public VerifyDifferent tapdataCompleteSnapshotEvent(int tapdataCompleteSnapshotEvent) {
+				this.tapdataCompleteSnapshotEvent = tapdataCompleteSnapshotEvent;
+				return this;
+			}
+			public int endSnapshotLoopSet() {
+				return endSnapshotLoopSet;
+			}
+			public VerifyDifferent endSnapshotLoopSet(int endSnapshotLoopSet) {
+				this.endSnapshotLoopSet = endSnapshotLoopSet;
+				return this;
+			}
+			public int tableListAddAll() {
+				return tableListAddAll;
+			}
+			public VerifyDifferent tableListAddAll(int tableListAddAll) {
+				this.tableListAddAll = tableListAddAll;
+				return this;
+			}
+			public int tableListClear() {
+				return tableListClear;
+			}
+			public VerifyDifferent tableListClear(int tableListClear) {
+				this.tableListClear = tableListClear;
+				return this;
+			}
+			public int newTablesToArray() {
+				return newTablesToArray;
+			}
+			public VerifyDifferent newTablesToArray(int newTablesToArray) {
+				this.newTablesToArray = newTablesToArray;
+				return this;
+			}
+			public int newTablesIsEmpty() {
+				return newTablesIsEmpty;
+			}
+			public VerifyDifferent newTablesIsEmpty(int newTablesIsEmpty) {
+				this.newTablesIsEmpty = newTablesIsEmpty;
+				return this;
+			}
+			public int unlock() {
+				return unlock;
+			}
+			public VerifyDifferent unlock(int unlock) {
+				this.unlock = unlock;
+				return this;
+			}
+			public int snapshotReadTableErrorAspect() {
+				return snapshotReadTableErrorAspect;
+			}
+			public VerifyDifferent snapshotReadTableErrorAspect(int snapshotReadTableErrorAspect) {
+				this.snapshotReadTableErrorAspect = snapshotReadTableErrorAspect;
+				return this;
+			}
+			public int tapDataCompleteTableSnapshotEvent() {
+				return tapDataCompleteTableSnapshotEvent;
+			}
+			public VerifyDifferent tapDataCompleteTableSnapshotEvent(int tapdataCompleteTableSnapshotEvent) {
+				this.tapDataCompleteTableSnapshotEvent = tapdataCompleteTableSnapshotEvent;
+				return this;
+			}
+			public int snapshotReadTableEndAspect() {
+				return snapshotReadTableEndAspect;
+			}
+			public VerifyDifferent snapshotReadTableEndAspect(int snapshotReadTableEndAspect) {
+				this.snapshotReadTableEndAspect = snapshotReadTableEndAspect;
+				return this;
+			}
+			public int removePdkMethodInvoker() {
+				return removePdkMethodInvoker;
+			}
+			public VerifyDifferent removePdkMethodInvoker(int removePdkMethodInvoker) {
+				this.removePdkMethodInvoker = removePdkMethodInvoker;
+				return this;
+			}
+			public int obsLoggerInfo4() {
+				return obsLoggerInfo4;
+			}
+			public VerifyDifferent obsLoggerInfo4(int obsLoggerInfo4) {
+				this.obsLoggerInfo4 = obsLoggerInfo4;
+				return this;
+			}
+			public int updateBatchOffset() {
+				return updateBatchOffset;
+			}
+			public VerifyDifferent updateBatchOffset(int updateBatchOffset) {
+				this.updateBatchOffset = updateBatchOffset;
+				return this;
+			}
+			public int stateINITIAL() {
+				return stateINITIAL;
+			}
+			public VerifyDifferent stateINITIAL(int stateINITIAL) {
+				this.stateINITIAL = stateINITIAL;
+				return this;
+			}
+
+			public int executeAspect() {
+				return executeAspect;
+			}
+
+			public VerifyDifferent executeAspect(int executeAspect) {
+				this.executeAspect = executeAspect;
+				return this;
+			}
+
+			public int getTapTableMap() {
+				return getTapTableMap;
+			}
+
+			public VerifyDifferent getTapTableMap(int getTapTableMap) {
+				this.getTapTableMap = getTapTableMap;
+				return this;
+			}
+			public int getTable() {
+				return getTable;
+			}
+
+			public VerifyDifferent getTable(int getTable) {
+				this.getTable = getTable;
+				return this;
+			}
+			public int tableGetId() {
+				return tableGetId;
+			}
+
+			public VerifyDifferent tableGetId(int tableGetId) {
+				this.tableGetId = tableGetId;
+				return this;
+			}
+			public int batchIsOverOfTable() {
+				return batchIsOverOfTable;
+			}
+
+			public VerifyDifferent batchIsOverOfTable(int batchIsOverOfTable) {
+				this.batchIsOverOfTable = batchIsOverOfTable;
+				return this;
+			}
+			public int obsLoggerInfo1() {
+				return obsLoggerInfo1;
+			}
+			public VerifyDifferent obsLoggerInfo1(int obsLoggerInfo1) {
+				this.obsLoggerInfo1 = obsLoggerInfo1;
+				return this;
+			}
+			public int getBatchOffsetOfTable() {
+				return getBatchOffsetOfTable;
+			}
+			public VerifyDifferent getBatchOffsetOfTable(int getBatchOffsetOfTable) {
+				this.getBatchOffsetOfTable = getBatchOffsetOfTable;
+				return this;
+			}
+			public int snapshotReadTableBeginAspect() {
+				return snapshotReadTableBeginAspect;
+			}
+			public VerifyDifferent snapshotReadTableBeginAspect(int snapshotReadTableBeginAspect) {
+				this.snapshotReadTableBeginAspect = snapshotReadTableBeginAspect;
+				return this;
+			}
+			public int lockBySourceRunnerLock() {
+				return lockBySourceRunnerLock;
+			}
+			public VerifyDifferent lockBySourceRunnerLock(int lockBySourceRunnerLock) {
+				this.lockBySourceRunnerLock = lockBySourceRunnerLock;
+				return this;
+			}
+			public int removeTablesContains() {
+				return removeTablesContains;
+			}
+			public VerifyDifferent removeTablesContains(int removeTablesContains) {
+				this.removeTablesContains = removeTablesContains;
+				return this;
+			}
+			public int obsLoggerInfo2() {
+				return obsLoggerInfo2;
+			}
+			public VerifyDifferent obsLoggerInfo2(int obsLoggerInfo2) {
+				this.obsLoggerInfo2 = obsLoggerInfo2;
+				return this;
+			}
+			public int removeTablesRemove() {
+				return removeTablesRemove;
+			}
+			public VerifyDifferent removeTablesRemove(int removeTablesRemove) {
+				this.removeTablesRemove = removeTablesRemove;
+				return this;
+			}
+			public int obsLoggerInfo3() {
+				return obsLoggerInfo3;
+			}
+			public VerifyDifferent obsLoggerInfo3(int obsLoggerInfo3) {
+				this.obsLoggerInfo3 = obsLoggerInfo3;
+				return this;
+			}
+			public int createPdkMethodInvoker() {
+				return createPdkMethodInvoker;
+			}
+			public VerifyDifferent createPdkMethodInvoker(int createPdkMethodInvoker) {
+				this.createPdkMethodInvoker = createPdkMethodInvoker;
+				return this;
+			}
+			public int doAsyncTableCount() {
+				return doAsyncTableCount;
+			}
+			public VerifyDifferent doAsyncTableCount(int doAsyncTableCount) {
+				this.doAsyncTableCount = doAsyncTableCount;
+				return this;
+			}
+			public int close() {
+				return close;
+			}
+			public VerifyDifferent close(int close) {
+				this.close = close;
+				return this;
+			}
+			public int executeDataFuncAspect() {
+				return executeDataFuncAspect;
+			}
+			public VerifyDifferent executeDataFuncAspect(int executeDataFuncAspect) {
+				this.executeDataFuncAspect = executeDataFuncAspect;
+				return this;
+			}
+		}
+
+		@Test
+		void testNormal() throws Exception {
+			doCallRealMethod().when(instance).doSnapshot(tableList);
+			Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
+			verifyAssert(new VerifyDifferent()
+					.getProcessorBaseContext(0)
+					.setDefaultRowSizeMap(0)
+					.warn(0)
+					.isRunning(4)
+					.sourceRunnerFirstTimeGet(1)
+					.stateINITIAL(1)
+					.executeAspect(1)
+					.getTapTableMap(1)
+					.getTable(1)
+					.tableGetId(1)
+					.batchIsOverOfTable(1)
+					.getBatchOffsetOfTable(1)
+					.obsLoggerInfo1(0).obsLoggerInfo2(0).obsLoggerInfo3(1).obsLoggerInfo4(1)
+					.snapshotReadTableBeginAspect(1)
+					.lockBySourceRunnerLock(2).unlock(2)
+					.removeTablesContains(1)
+					.removeTablesRemove(0)
+					.createPdkMethodInvoker(1)
+					.doAsyncTableCount(1)
+					.close(1)
+					.executeDataFuncAspect(1)
+					.updateBatchOffset(1)
+					.removePdkMethodInvoker(1)
+					.snapshotReadTableEndAspect(1)
+					.tapDataCompleteTableSnapshotEvent(1)
+					.snapshotReadTableErrorAspect(0)
+					.stateCOMPLETED(1)
+					.newTablesIsEmpty(1).newTablesToArray(1)
+					.tableListClear(1).tableListAddAll(1)
+					.endSnapshotLoopSet(0)
+					.tapdataCompleteSnapshotEvent(1)
+					.getDatabaseType(1)
+					.snapshotReadEndAspect(1)
+			);
+		}
+		@Test
+		void testLastIsRunningIsFalse() throws Exception {
+			when(instance.isRunning()).thenReturn(true, true, false, false);
+			doCallRealMethod().when(instance).doSnapshot(tableList);
+			Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
+			verifyAssert(new VerifyDifferent()
+					.isRunning(4)
+					.sourceRunnerFirstTimeGet(1)
+					.stateINITIAL(1)
+					.executeAspect(1)
+					.getTapTableMap(1)
+					.getTable(1)
+					.tableGetId(1)
+					.batchIsOverOfTable(1)
+					.getBatchOffsetOfTable(1).obsLoggerInfo3(1).obsLoggerInfo4(1)
+					.snapshotReadTableBeginAspect(1)
+					.lockBySourceRunnerLock(2).unlock(2)
+					.removeTablesContains(1)
+					.createPdkMethodInvoker(1)
+					.doAsyncTableCount(1)
+					.close(1)
+					.executeDataFuncAspect(1)
+					.updateBatchOffset(1)
+					.removePdkMethodInvoker(1)
+					.snapshotReadTableEndAspect(1)
+					.tapDataCompleteTableSnapshotEvent(1)
+					.stateCOMPLETED(1)
+					.newTablesIsEmpty(1).newTablesToArray(1)
+					.tableListClear(1).tableListAddAll(1)
+					.getDatabaseType(1)
+					.snapshotReadEndAspect(1)
+			);
+		}
+		@Test
+		void testNewTablesIsEmpty() throws Exception {
+			when(instance.isRunning()).thenReturn(true, true, true);
+			when(newTables.isEmpty()).thenReturn(true);
+			doCallRealMethod().when(instance).doSnapshot(tableList);
+			Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
+			verifyAssert(new VerifyDifferent()
+					.isRunning(3)
+					.sourceRunnerFirstTimeGet(1)
+					.stateINITIAL(1)
+					.executeAspect(1)
+					.getTapTableMap(1)
+					.getTable(1)
+					.tableGetId(1)
+					.batchIsOverOfTable(1)
+					.getBatchOffsetOfTable(1)
+					.obsLoggerInfo3(1).obsLoggerInfo4(1)
+					.snapshotReadTableBeginAspect(1)
+					.lockBySourceRunnerLock(2).unlock(2)
+					.removeTablesContains(1)
+					.createPdkMethodInvoker(1)
+					.doAsyncTableCount(1)
+					.close(1)
+					.executeDataFuncAspect(1)
+					.updateBatchOffset(1)
+					.removePdkMethodInvoker(1)
+					.snapshotReadTableEndAspect(1)
+					.tapDataCompleteTableSnapshotEvent(1)
+					.stateCOMPLETED(1)
+					.newTablesIsEmpty(1)
+					.endSnapshotLoopSet(1)
+					.tapdataCompleteSnapshotEvent(1)
+					.getDatabaseType(1)
+					.snapshotReadEndAspect(1)
+			);
+		}
+
+		@Test
+		void testThrowableWhenExecuteDataFuncAspect() throws Exception {
+			when(instance.isRunning()).thenReturn(true, true, true);
+
+			when(instance.executeDataFuncAspect(any(Class.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class))).thenAnswer(a -> {
+				Callable<?> callable = a.getArgument(1, Callable.class);
+				CommonUtils.AnyErrorConsumer<BatchReadFuncAspect> errorConsumer = a.getArgument(2, CommonUtils.AnyErrorConsumer.class);
+				Object call = callable.call();
+
+				try(MockedStatic<PDKInvocationMonitor> pdk = mockStatic(PDKInvocationMonitor.class)) {
+					pdk.when(() -> PDKInvocationMonitor.invoke(
+							connectorNode,
+							PDKMethod.SOURCE_BATCH_READ,
+							pdkMethodInvoker)).thenAnswer(ans -> null);
+					errorConsumer.accept(mock(BatchReadFuncAspect.class));
+				}
+
+				Assertions.assertNotNull(call);
+				Assertions.assertEquals(BatchReadFuncAspect.class.getName(), call.getClass().getName());
+				throw new IllegalArgumentException();
+			});
+			doCallRealMethod().when(instance).doSnapshot(tableList);
+			Assertions.assertThrows(TapCodeException.class, () -> {
+				try{
+					instance.doSnapshot(tableList);
+				} catch (TapCodeException e) {
+					Assertions.assertEquals(TaskProcessorExCode_11.UNKNOWN_ERROR, e.getCode());
+					throw e;
+				}
+			});
+			verifyAssert(new VerifyDifferent()
+					.isRunning(3)
+					.sourceRunnerFirstTimeGet(1)
+					.stateINITIAL(1)
+					.executeAspect(1)
+					.getTapTableMap(1)
+					.getTable(1)
+					.tableGetId(1)
+					.batchIsOverOfTable(1)
+					.getBatchOffsetOfTable(1)
+					.obsLoggerInfo1(0).obsLoggerInfo2(0).obsLoggerInfo3(1)
+					.snapshotReadTableBeginAspect(1)
+					.lockBySourceRunnerLock(1).unlock(1)
+					.removeTablesContains(1)
+					.removeTablesRemove(0)
+					.createPdkMethodInvoker(1)
+					.doAsyncTableCount(1)
+					.close(1)
+					.executeDataFuncAspect(1)
+					.removePdkMethodInvoker(1)
+					.snapshotReadTableErrorAspect(1)
+					.stateCOMPLETED(1)
+					.tapdataCompleteSnapshotEvent(1)
+					.getDatabaseType(1)
+			);
+		}
+
+		@Test
+		void testTapCodeExceptionWhenExecuteDataFuncAspect() throws Exception {
+			when(instance.isRunning()).thenReturn(true, true, true);
+
+			when(instance.executeDataFuncAspect(any(Class.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class))).thenAnswer(a -> {
+				Callable<?> callable = a.getArgument(1, Callable.class);
+				CommonUtils.AnyErrorConsumer<BatchReadFuncAspect> errorConsumer = a.getArgument(2, CommonUtils.AnyErrorConsumer.class);
+				Object call = callable.call();
+
+				try(MockedStatic<PDKInvocationMonitor> pdk = mockStatic(PDKInvocationMonitor.class)) {
+					pdk.when(() -> PDKInvocationMonitor.invoke(
+							connectorNode,
+							PDKMethod.SOURCE_BATCH_READ,
+							pdkMethodInvoker)).thenAnswer(ans -> null);
+					errorConsumer.accept(mock(BatchReadFuncAspect.class));
+				}
+
+				Assertions.assertNotNull(call);
+				Assertions.assertEquals(BatchReadFuncAspect.class.getName(), call.getClass().getName());
+				throw new TapCodeException("");
+			});
+			doCallRealMethod().when(instance).doSnapshot(tableList);
+			Assertions.assertThrows(TapCodeException.class, () -> {
+				try {
+					instance.doSnapshot(tableList);
+				} catch (TapCodeException e) {
+					Assertions.assertNotEquals(TaskProcessorExCode_11.UNKNOWN_ERROR, e.getCode());
+					throw e;
+				}
+			});
+			verifyAssert(new VerifyDifferent()
+					.isRunning(3)
+					.sourceRunnerFirstTimeGet(1)
+					.stateINITIAL(1)
+					.executeAspect(1)
+					.getTapTableMap(1)
+					.getTable(1)
+					.tableGetId(1)
+					.batchIsOverOfTable(1)
+					.getBatchOffsetOfTable(1)
+					.obsLoggerInfo1(0).obsLoggerInfo2(0).obsLoggerInfo3(1)
+					.snapshotReadTableBeginAspect(1)
+					.lockBySourceRunnerLock(1).unlock(1)
+					.removeTablesContains(1)
+					.removeTablesRemove(0)
+					.createPdkMethodInvoker(1)
+					.doAsyncTableCount(1)
+					.close(1)
+					.executeDataFuncAspect(1)
+					.removePdkMethodInvoker(1)
+					.snapshotReadTableErrorAspect(1)
+					.stateCOMPLETED(1)
+					.tapdataCompleteSnapshotEvent(1)
+					.getDatabaseType(1)
+			);
+		}
+
+		@Test
+		void testRemoveTablesIsNull() throws Exception {
+			ReflectionTestUtils.setField(instance, "removeTables", null);
+			doCallRealMethod().when(instance).doSnapshot(tableList);
+			Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
+			verifyAssert(new VerifyDifferent()
+					.isRunning(4)
+					.sourceRunnerFirstTimeGet(1)
+					.stateINITIAL(1)
+					.executeAspect(1)
+					.getTapTableMap(1)
+					.getTable(1)
+					.tableGetId(1)
+					.batchIsOverOfTable(1)
+					.getBatchOffsetOfTable(1)
+					.obsLoggerInfo3(1).obsLoggerInfo4(1)
+					.snapshotReadTableBeginAspect(1)
+					.lockBySourceRunnerLock(2).unlock(2)
+					.createPdkMethodInvoker(1)
+					.doAsyncTableCount(1)
+					.close(1)
+					.executeDataFuncAspect(1)
+					.updateBatchOffset(1)
+					.removePdkMethodInvoker(1)
+					.snapshotReadTableEndAspect(1)
+					.tapDataCompleteTableSnapshotEvent(1)
+					.stateCOMPLETED(1)
+					.newTablesIsEmpty(1).newTablesToArray(1)
+					.tableListClear(1).tableListAddAll(1)
+					.tapdataCompleteSnapshotEvent(1)
+					.getDatabaseType(1)
+					.snapshotReadEndAspect(1)
+			);
+		}
+
+		@Test
+		void testRemoveTablesContainsId() throws Exception {
+			when(removeTables.contains("id")).thenReturn(true);
+			doCallRealMethod().when(instance).doSnapshot(tableList);
+			Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
+			verifyAssert(new VerifyDifferent()
+							.getProcessorBaseContext(0)
+							.setDefaultRowSizeMap(0)
+							.warn(0)
+							.isRunning(4)
+							.sourceRunnerFirstTimeGet(1)
+							.stateINITIAL(1)
+							.executeAspect(1)
+							.getTapTableMap(1)
+							.getTable(1)
+							.obsLoggerInfo2(1)
+							.tableGetId(1)
+							.batchIsOverOfTable(1)
+							.getBatchOffsetOfTable(1)
+							.snapshotReadTableBeginAspect(1)
+							.lockBySourceRunnerLock(2).unlock(2)
+							.stateCOMPLETED(1)
+							.newTablesIsEmpty(1).newTablesToArray(1)
+							.tableListClear(1).tableListAddAll(1)
+							.endSnapshotLoopSet(0)
+							.tapdataCompleteSnapshotEvent(1)
+							.getDatabaseType(1)
+							.snapshotReadEndAspect(1)
+							.removeTablesContains(1)
+							.removeTablesRemove(1)
+			);
+		}
+		@Test
+		void testSecIsRunningIsFalse() throws Exception {
+			when(instance.isRunning()).thenReturn(true, false, false, true);
+			doCallRealMethod().when(instance).doSnapshot(tableList);
+			Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
+			verifyAssert(new VerifyDifferent()
+					.getProcessorBaseContext(0)
+					.setDefaultRowSizeMap(0)
+					.warn(0)
+					.isRunning(4)
+					.sourceRunnerFirstTimeGet(1)
+					.stateINITIAL(1)
+					.executeAspect(1)
+					.getTapTableMap(1)
+					.getTable(1)
+					.tableGetId(1)
+					.batchIsOverOfTable(1)
+					.getBatchOffsetOfTable(1)
+					.snapshotReadTableBeginAspect(1)
+					.lockBySourceRunnerLock(2).unlock(2)
+					.stateCOMPLETED(1)
+					.newTablesIsEmpty(1).newTablesToArray(1)
+					.tableListClear(1).tableListAddAll(1)
+					.endSnapshotLoopSet(0)
+					.tapdataCompleteSnapshotEvent(1)
+					.getDatabaseType(1)
+					.snapshotReadEndAspect(1)
+			);
+		}
+		@Test
+		void testSyncProgressBatchIsOverOfTableIsTrue() throws Exception {
+			when(instance.isRunning()).thenReturn(true, false, true);
+
+			when(syncProgress.batchIsOverOfTable(tableId)).thenReturn(true);
+
+			doCallRealMethod().when(instance).doSnapshot(tableList);
+			Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
+			verifyAssert(new VerifyDifferent()
+					.isRunning(3)
+					.sourceRunnerFirstTimeGet(1)
+					.stateINITIAL(1)
+					.executeAspect(1)
+					.getTapTableMap(1)
+					.getTable(1)
+					.tableGetId(1)
+					.batchIsOverOfTable(1)
+					.obsLoggerInfo1(1)
+					.lockBySourceRunnerLock(1).unlock(1)
+					.stateCOMPLETED(1)
+					.newTablesIsEmpty(1).newTablesToArray(1)
+					.tableListClear(1).tableListAddAll(1)
+					.tapdataCompleteSnapshotEvent(1)
+					.getDatabaseType(1)
+					.snapshotReadEndAspect(1)
+			);
+		}
+
+		@Test
+		void testSourceRunnerFirstTimeGetIsFalse() throws Exception {
+			when(sourceRunnerFirstTime.get()).thenReturn(false);
+
+			doCallRealMethod().when(instance).doSnapshot(tableList);
+			Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
+			verifyAssert(new VerifyDifferent()
+					.getProcessorBaseContext(0)
+					.setDefaultRowSizeMap(0)
+					.warn(0)
+					.isRunning(4)
+					.sourceRunnerFirstTimeGet(1)
+					.stateINITIAL(0)
+					.executeAspect(0)
+					.getTapTableMap(1)
+					.getTable(1)
+					.tableGetId(1)
+					.batchIsOverOfTable(1)
+					.getBatchOffsetOfTable(1)
+					.obsLoggerInfo1(0).obsLoggerInfo2(0).obsLoggerInfo3(1).obsLoggerInfo4(1)
+					.snapshotReadTableBeginAspect(1)
+					.lockBySourceRunnerLock(2).unlock(2)
+					.removeTablesContains(1)
+					.removeTablesRemove(0)
+					.createPdkMethodInvoker(1)
+					.doAsyncTableCount(1)
+					.close(1)
+					.executeDataFuncAspect(1)
+					.updateBatchOffset(1)
+					.removePdkMethodInvoker(1)
+					.snapshotReadTableEndAspect(1)
+					.tapDataCompleteTableSnapshotEvent(1)
+					.snapshotReadTableErrorAspect(0)
+					.stateCOMPLETED(1)
+					.newTablesIsEmpty(1).newTablesToArray(1)
+					.tableListClear(1).tableListAddAll(1)
+					.endSnapshotLoopSet(0)
+					.tapdataCompleteSnapshotEvent(1)
+					.getDatabaseType(1)
+					.snapshotReadEndAspect(1)
+			);
+		}
+
+		@Test
+		void butchCountFunctionIsNull() throws Exception {
+			batchCountFunction = null;
+			when(connectorFunctions.getBatchCountFunction()).thenReturn(batchCountFunction);
+			when(instance.doAsyncTableCount(batchCountFunction, tableId)).thenReturn(ignoreTableCountCloseable);
+
+			doCallRealMethod().when(instance).doSnapshot(tableList);
+			Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
+			verifyAssert(new VerifyDifferent()
+					.setDefaultRowSizeMap(1)
+					.getProcessorBaseContext(0)
+					.warn(1)
+					.isRunning(4)
+					.sourceRunnerFirstTimeGet(1)
+					.stateINITIAL(1)
+					.executeAspect(1)
+					.getTapTableMap(1)
+					.getTable(1)
+					.tableGetId(1)
+					.batchIsOverOfTable(1)
+					.getBatchOffsetOfTable(1)
+					.obsLoggerInfo1(0).obsLoggerInfo2(0).obsLoggerInfo3(1).obsLoggerInfo4(1)
+					.snapshotReadTableBeginAspect(1)
+					.lockBySourceRunnerLock(2).unlock(2)
+					.removeTablesContains(1)
+					.removeTablesRemove(0)
+					.createPdkMethodInvoker(1)
+					.doAsyncTableCount(1)
+					.close(1)
+					.executeDataFuncAspect(1)
+					.updateBatchOffset(1)
+					.removePdkMethodInvoker(1)
+					.snapshotReadTableEndAspect(1)
+					.tapDataCompleteTableSnapshotEvent(1)
+					.snapshotReadTableErrorAspect(0)
+					.stateCOMPLETED(1)
+					.newTablesIsEmpty(1).newTablesToArray(1)
+					.tableListClear(1).tableListAddAll(1)
+					.endSnapshotLoopSet(0)
+					.tapdataCompleteSnapshotEvent(1)
+					.getDatabaseType(1)
+					.snapshotReadEndAspect(1)
+			);
+		}
+
+		@Test
+		void testBatchReadFunctionIsNull() throws Exception {
+			when(connectorFunctions.getBatchReadFunction()).thenReturn(null);
+			doCallRealMethod().when(instance).doSnapshot(tableList);
+			Assertions.assertThrows(NodeException.class, () -> instance.doSnapshot(tableList));
+			verifyAssert(new VerifyDifferent().getProcessorBaseContext(1));
+		}
+
+		@Nested
+		class AnyErrorTest {
+
+			@BeforeEach
+			void init() {
+				when(pdkMethodInvoker.runnable(any(CommonUtils.AnyError.class))).thenAnswer(a -> {
+					CommonUtils.AnyError argument = a.getArgument(0, CommonUtils.AnyError.class);
+					argument.run();
+					return pdkMethodInvoker;
+				});
+			}
+
+			@Test
+			void testAnyError() {
+				doCallRealMethod().when(instance).doSnapshot(tableList);
+				//Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
+			}
 		}
 	}
 }
