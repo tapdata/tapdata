@@ -32,8 +32,8 @@ class SyncProgressTest {
     void testParams() {
         Assertions.assertEquals("task_batch_table_offset_point", SyncProgress.TASK_BATCH_TABLE_OFFSET_POINT);
         Assertions.assertEquals("task_batch_table_offset_status", SyncProgress.TASK_BATCH_TABLE_OFFSET_STATUS);
-        Assertions.assertEquals("over", TableBatchReadStatus.OVER.name());
-        Assertions.assertEquals("running", TableBatchReadStatus.RUNNING.name());
+        Assertions.assertEquals("OVER", TableBatchReadStatus.OVER.name());
+        Assertions.assertEquals("RUNNING", TableBatchReadStatus.RUNNING.name());
     }
 
     @Nested
