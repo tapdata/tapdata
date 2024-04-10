@@ -6,6 +6,7 @@ import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
 import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -388,7 +389,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					return mock(AspectInterceptResult.class);
 				});
 
-				doNothing().when(syncProgress).updateBatchOffset(tableId, null,  SyncProgress.OVER);
+				doNothing().when(syncProgress).updateBatchOffset(tableId, null,  TableBatchReadStatus.OVER.name());
 				doNothing().when(obsLogger).info("Table [{}] has been completed batch read, will skip batch read on the next run", "id");
 				doNothing().when(instance).removePdkMethodInvoker(pdkMethodInvoker);
 
@@ -451,7 +452,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				verify(instance, times(v.doAsyncTableCount())).doAsyncTableCount(batchCountFunction, tableId);
 				verify(ignoreTableCountCloseable, times(v.close())).close();
 				verify(instance,times(v.executeDataFuncAspect())).executeDataFuncAspect(any(Class.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class));
-				verify(syncProgress, times(v.updateBatchOffset())).updateBatchOffset(tableId, null,  SyncProgress.OVER);
+				verify(syncProgress, times(v.updateBatchOffset())).updateBatchOffset(tableId, null,  TableBatchReadStatus.OVER.name());
 				verify(obsLogger, times(v.obsLoggerInfo4())).info("Table [{}] has been completed batch read, will skip batch read on the next run", "id");
 				verify(instance, times(v.removePdkMethodInvoker())).removePdkMethodInvoker(pdkMethodInvoker);
 				verify(instance, times(v.snapshotReadTableEndAspect())).executeAspect(any(SnapshotReadTableEndAspect.class));

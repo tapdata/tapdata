@@ -32,8 +32,8 @@ class SyncProgressTest {
     void testParams() {
         Assertions.assertEquals("task_batch_table_offset_point", SyncProgress.TASK_BATCH_TABLE_OFFSET_POINT);
         Assertions.assertEquals("task_batch_table_offset_status", SyncProgress.TASK_BATCH_TABLE_OFFSET_STATUS);
-        Assertions.assertEquals("over", SyncProgress.OVER);
-        Assertions.assertEquals("running", SyncProgress.RUNNING);
+        Assertions.assertEquals("over", TableBatchReadStatus.OVER.name());
+        Assertions.assertEquals("running", TableBatchReadStatus.RUNNING.name());
     }
 
     @Nested
@@ -62,7 +62,7 @@ class SyncProgressTest {
             void testNormal() {
                 when(syncProgress.getTableOffsetInfo(tableId)).thenReturn(batchOffset);
                 when(syncProgress.isBatchOffsetMap(batchOffset, SyncProgress.TASK_BATCH_TABLE_OFFSET_STATUS)).thenReturn(true);
-                when(batchOffset.get(SyncProgress.TASK_BATCH_TABLE_OFFSET_STATUS)).thenReturn(SyncProgress.OVER);
+                when(batchOffset.get(SyncProgress.TASK_BATCH_TABLE_OFFSET_STATUS)).thenReturn(TableBatchReadStatus.OVER.name());
 
                 Assertions.assertTrue(syncProgress.batchIsOverOfTable(tableId));
                 verify(syncProgress, times(1)).getTableOffsetInfo(tableId);
@@ -74,7 +74,7 @@ class SyncProgressTest {
             void testNotIsBatchOffsetMap() {
                 when(syncProgress.getTableOffsetInfo(tableId)).thenReturn(batchOffset);
                 when(syncProgress.isBatchOffsetMap(batchOffset, SyncProgress.TASK_BATCH_TABLE_OFFSET_STATUS)).thenReturn(false);
-                when(batchOffset.get(SyncProgress.TASK_BATCH_TABLE_OFFSET_STATUS)).thenReturn(SyncProgress.OVER);
+                when(batchOffset.get(SyncProgress.TASK_BATCH_TABLE_OFFSET_STATUS)).thenReturn(TableBatchReadStatus.OVER.name());
 
                 Assertions.assertFalse(syncProgress.batchIsOverOfTable(tableId));
                 verify(syncProgress, times(1)).getTableOffsetInfo(tableId);
@@ -151,7 +151,7 @@ class SyncProgressTest {
             void testNormal() {
                 when(syncProgress.getTableOffsetInfo(tableId)).thenReturn(batchOffset);
                 when(syncProgress.isBatchOffsetMap(batchOffset, SyncProgress.TASK_BATCH_TABLE_OFFSET_POINT)).thenReturn(true);
-                when(batchOffset.get(SyncProgress.TASK_BATCH_TABLE_OFFSET_POINT)).thenReturn(SyncProgress.OVER);
+                when(batchOffset.get(SyncProgress.TASK_BATCH_TABLE_OFFSET_POINT)).thenReturn(TableBatchReadStatus.OVER.name());
 
                 Assertions.assertDoesNotThrow(() -> syncProgress.getBatchOffsetOfTable(tableId));
                 verify(syncProgress, times(1)).getTableOffsetInfo(tableId);
@@ -163,7 +163,7 @@ class SyncProgressTest {
             void testNotIsBatchOffsetMap() {
                 when(syncProgress.getTableOffsetInfo(tableId)).thenReturn(batchOffset);
                 when(syncProgress.isBatchOffsetMap(batchOffset, SyncProgress.TASK_BATCH_TABLE_OFFSET_POINT)).thenReturn(false);
-                when(batchOffset.get(SyncProgress.TASK_BATCH_TABLE_OFFSET_POINT)).thenReturn(SyncProgress.OVER);
+                when(batchOffset.get(SyncProgress.TASK_BATCH_TABLE_OFFSET_POINT)).thenReturn(TableBatchReadStatus.OVER.name());
 
                 Assertions.assertDoesNotThrow(() -> syncProgress.getBatchOffsetOfTable(tableId));
                 verify(syncProgress, times(1)).getTableOffsetInfo(tableId);
@@ -182,7 +182,7 @@ class SyncProgressTest {
             @BeforeEach
             void init() {
                 offset = mock(Object.class);
-                isOverTag = SyncProgress.OVER;
+                isOverTag = TableBatchReadStatus.OVER.name();
                 batchOffsetObjTemp = mock(Map.class);
                 tableOffsetObjTemp = mock(Map.class);
                 when(syncProgress.putIfAbsentBatchOffsetObj()).thenReturn(batchOffsetObjTemp);
