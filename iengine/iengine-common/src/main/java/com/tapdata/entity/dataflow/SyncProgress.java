@@ -156,10 +156,10 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 	}
 
 	public boolean batchIsOverOfTable(String tableId) {
-		Object batchOffset = getTableOffsetInfo(tableId);
-		if (isBatchOffsetMap(batchOffset, TASK_BATCH_TABLE_OFFSET_STATUS)) {
+		Object offset = getTableOffsetInfo(tableId);
+		if (isBatchOffsetMap(offset, TASK_BATCH_TABLE_OFFSET_STATUS)) {
 			//86迭代新功能--全量表同步断点
-			return OVER.equals(((Map<?, ?>)batchOffset).get(TASK_BATCH_TABLE_OFFSET_STATUS));
+			return OVER.equals(((Map<?, ?>)offset).get(TASK_BATCH_TABLE_OFFSET_STATUS));
 		}
 		//历史数据
 		return false;
@@ -177,14 +177,14 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 	}
 
 	public Object getBatchOffsetOfTable(String tableId) {
-		Object batchOffset = getTableOffsetInfo(tableId);
-		if (isBatchOffsetMap(batchOffset, TASK_BATCH_TABLE_OFFSET_POINT)) {
+		Object offset = getTableOffsetInfo(tableId);
+		if (isBatchOffsetMap(offset, TASK_BATCH_TABLE_OFFSET_POINT)) {
 			//86迭代新功能--全量表同步断点
-			return ((Map<?, ?>) batchOffset).get(TASK_BATCH_TABLE_OFFSET_POINT);
+			return ((Map<?, ?>) offset).get(TASK_BATCH_TABLE_OFFSET_POINT);
 		}
 
 		//历史数据
-		return batchOffset;
+		return offset;
 	}
 
 	public void updateBatchOffset(String tableId, Object offset, String isOverTag) {
