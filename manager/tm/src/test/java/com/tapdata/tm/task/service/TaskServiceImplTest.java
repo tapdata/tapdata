@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.task.dto.CheckEchoOneNodeParam;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
@@ -192,12 +193,12 @@ class TaskServiceImplTest {
             when(connectionDto.getAccessNodeProcessId()).thenReturn(accessNodeProcessId);
             when(taskService.contrast(nodeId, parentNodeId, accessNodeProcessId, validateMessage, message)).thenReturn(false);
 
-            when(taskService.checkEchoOneNode(taskDto, new TaskServiceImpl.CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user)).thenCallRealMethod();
+            when(taskService.checkEchoOneNode(taskDto, new CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user)).thenCallRealMethod();
         }
 
         @Test
         void testNormal() {
-            Assertions.assertFalse(taskService.checkEchoOneNode(taskDto, new TaskServiceImpl.CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user));
+            Assertions.assertFalse(taskService.checkEchoOneNode(taskDto, new CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user));
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(dataParentNode, times(1)).getId();
             verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
@@ -213,7 +214,7 @@ class TaskServiceImplTest {
         void testNodeTypeNotEqualTaskType() {
             taskType = AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name();
             when(taskDto.getAccessNodeType()).thenReturn(taskType);
-            Assertions.assertFalse(taskService.checkEchoOneNode(taskDto, new TaskServiceImpl.CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user));
+            Assertions.assertFalse(taskService.checkEchoOneNode(taskDto, new CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user));
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(dataParentNode, times(1)).getId();
             verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
@@ -228,7 +229,7 @@ class TaskServiceImplTest {
         @Test
         void testConnectionProcessIdsIsEmpty() {
             when(connectionProcessIds.isEmpty()).thenReturn(true);
-            Assertions.assertFalse(taskService.checkEchoOneNode(taskDto, new TaskServiceImpl.CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user));
+            Assertions.assertFalse(taskService.checkEchoOneNode(taskDto, new CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user));
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(dataParentNode, times(1)).getId();
             verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
@@ -245,7 +246,7 @@ class TaskServiceImplTest {
             accessNodeType = AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name();
             when(connectionDto.getAccessNodeType()).thenReturn(accessNodeType);
             when(taskService.contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message)).thenReturn(false);
-            Assertions.assertTrue(taskService.checkEchoOneNode(taskDto, new TaskServiceImpl.CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user));
+            Assertions.assertTrue(taskService.checkEchoOneNode(taskDto, new CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user));
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(dataParentNode, times(0)).getId();
             verify(taskService, times(0)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
@@ -260,7 +261,7 @@ class TaskServiceImplTest {
         @Test
         void testContrastIsTrue() {
             when(taskService.contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message)).thenReturn(true);
-            Assertions.assertTrue(taskService.checkEchoOneNode(taskDto, new TaskServiceImpl.CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user));
+            Assertions.assertTrue(taskService.checkEchoOneNode(taskDto, new CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user));
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(dataParentNode, times(1)).getId();
             verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
@@ -277,7 +278,7 @@ class TaskServiceImplTest {
             accessNodeType = AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name();
             when(connectionDto.getAccessNodeType()).thenReturn(accessNodeType);
             when(taskService.contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message)).thenReturn(false);
-            Assertions.assertFalse(taskService.checkEchoOneNode(taskDto, new TaskServiceImpl.CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user));
+            Assertions.assertFalse(taskService.checkEchoOneNode(taskDto, new CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user));
             verify(connectionDto, times(1)).getAccessNodeType();
             verify(dataParentNode, times(1)).getId();
             verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);

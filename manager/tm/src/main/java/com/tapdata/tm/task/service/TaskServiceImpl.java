@@ -79,6 +79,7 @@ import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.constant.*;
+import com.tapdata.tm.task.dto.CheckEchoOneNodeParam;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.LogSettingParam;
@@ -873,18 +874,6 @@ public class TaskServiceImpl extends TaskService{
                 throw new BizException(message.getCode(), message.getMsg());
             }
         }
-    }
-
-    @Getter
-    @AllArgsConstructor
-    static class CheckEchoOneNodeParam {
-        DataSourceConnectionDto connectionDto;
-        DataParentNode<?> dataParentNode;
-        List<String> taskProcessIdList;
-        Map<String, List<Message>> validateMessage;
-        Message message;
-        AtomicReference<String> nodeType;
-        AtomicReference<String> nodeId;
     }
 
     protected boolean checkEchoOneNode(TaskDto taskDto, CheckEchoOneNodeParam param, UserDetail user) {
