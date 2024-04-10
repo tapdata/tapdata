@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
 public class TaskConsoleServiceImpl implements TaskConsoleService {
     private TaskService taskService;
     private ShareCdcTableMetricsService shareCdcTableMetricsService;
+
+    private static final String STATUS = "status";
     @Override
     public List<RelationTaskInfoVo> getRelationTasks(RelationTaskRequest request) {
         String taskId = request.getTaskId();
@@ -174,7 +176,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         }
 
         Criteria criteria = Criteria.where("is_deleted").is(false).and("syncType").is("logCollector")
-                .and("dag.nodes.type").is(NodeEnum.logCollector.name()).and("status").ne(TaskDto.STATUS_DELETE_FAILED);
+                .and("dag.nodes.type").is(NodeEnum.logCollector.name()).and(STATUS).ne(TaskDto.STATUS_DELETE_FAILED);
 
         List<Criteria> orCriteriaList = new ArrayList<>();
         orCriteriaList.add(Criteria.where("dag.nodes.connectionIds").in(connectionIds));
@@ -216,7 +218,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         if (StringUtils.isBlank(request.getType())
                 || RelationTaskRequest.type_ConnHeartbeat.equals(request.getType())
                 || RelationTaskRequest.type_task_by_collector.equals(request.getType())) {
-            TaskDto heartbeatTaskDto = taskService.findHeartbeatByTaskId(taskDto.getId().toHexString(), "_id", "name", "status", "startTime", "syncType");
+            TaskDto heartbeatTaskDto = taskService.findHeartbeatByTaskId(taskDto.getId().toHexString(), "_id", "name", STATUS, "startTime", "syncType");
             if (null == heartbeatTaskDto) return;
 
             result.add(RelationTaskInfoVo.builder()
@@ -245,7 +247,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
                 .flatMap(t -> ((LogCollectorNode) t).getConnectionIds().stream()).collect(Collectors.toList());
 
         Criteria criteria = Criteria.where("is_deleted").is(false).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
-                .and("status").nin(TaskDto.STATUS_DELETE_FAILED)
+                .and(STATUS).nin(TaskDto.STATUS_DELETE_FAILED)
                 .and("shareCdcEnable").is(true)
                 .and("dag.nodes.connectionId").in(connectionIds);
 
@@ -302,7 +304,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
 
     private List<TaskDto> getFilterCriteria(RelationTaskRequest request, Criteria criteria) {
         if (StringUtils.isNotBlank(request.getStatus())) {
-            criteria.and("status").is(request.getStatus());
+            criteria.and(STATUS).is(request.getStatus());
         }
         if (StringUtils.isNotBlank(request.getKeyword())) {
             criteria.and("name").regex(request.getKeyword());
