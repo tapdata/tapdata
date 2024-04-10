@@ -335,10 +335,7 @@ public class MongodbUtil {
 
 			// if mongodbUri not contains replicaSet, then only connect to primary node
 			mongodbUri = getPrimaryUri(mongodbUri);
-			ConnectionPoolSettings.Builder connectionPoolSettingsBuilder = ConnectionPoolSettings.builder()
-					.minSize(10)
-					.maxSize(100)
-					.maxConnecting(20);
+			ConnectionPoolSettings.Builder connectionPoolSettingsBuilder = ConnectionPoolSettings.builder();
 			ConnectionPoolSettings connectionPoolSettings = connectionPoolSettingsBuilder.build();
 			builder.applyToConnectionPoolSettings(settingBuilder -> {
 				settingBuilder.applySettings(connectionPoolSettings);
