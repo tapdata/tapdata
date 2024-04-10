@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 
 import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.DataFunctionAspect;
 import io.tapdata.async.master.AsyncJobCompleted;
@@ -48,7 +49,7 @@ public class PartitionsCompletedRunnable implements Runnable {
 			PartitionTableOffset partitionTableOffset = (PartitionTableOffset) syncProgress.getBatchOffsetOfTable(tableId);
 			if (partitionTableOffset == null) {
 				partitionTableOffset = new PartitionTableOffset();
-				syncProgress.updateBatchOffset(tableId, partitionTableOffset, SyncProgress.RUNNING);
+				syncProgress.updateBatchOffset(tableId, partitionTableOffset, TableBatchReadStatus.RUNNING.name());
 			}
 			partitionTableOffset.partitions(readPartitionList);
 		}

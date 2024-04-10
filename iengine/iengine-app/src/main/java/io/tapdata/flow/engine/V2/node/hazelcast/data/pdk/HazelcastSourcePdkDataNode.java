@@ -5,6 +5,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -367,7 +368,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																if (obsLogger.isDebugEnabled()) {
 																	obsLogger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(connectorNode));
 																}
-																syncProgress.updateBatchOffset(tableId, offsetObject,  SyncProgress.RUNNING);
+																syncProgress.updateBatchOffset(tableId, offsetObject,  TableBatchReadStatus.RUNNING.name());
 
 																flushPollingCDCOffset(events);
 																List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
@@ -423,7 +424,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 													}
 											)
 									));
-							syncProgress.updateBatchOffset(tableName, null,  SyncProgress.OVER);
+							syncProgress.updateBatchOffset(tableName, null,  TableBatchReadStatus.OVER.name());
 							obsLogger.info("Table [{}] has been completed batch read, will skip batch read on the next run", tableName);
 						} finally {
 							removePdkMethodInvoker(pdkMethodInvoker);

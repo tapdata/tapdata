@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 import cn.hutool.crypto.digest.MD5;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
@@ -204,7 +205,7 @@ public class PartitionFieldParentHandler {
 		Object batchOffsetOfTable = syncProgress.getBatchOffsetOfTable(table);
 		if (null == batchOffsetOfTable) {
 			batchOffsetOfTable = new PartitionTableOffset();
-			syncProgress.updateBatchOffset(table, batchOffsetOfTable, SyncProgress.RUNNING);
+			syncProgress.updateBatchOffset(table, batchOffsetOfTable, TableBatchReadStatus.RUNNING.name());
 		}
 		if (batchOffsetOfTable instanceof PartitionTableOffset) {
 			PartitionTableOffset partitionTableOffset = (PartitionTableOffset) batchOffsetOfTable;
