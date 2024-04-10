@@ -61,7 +61,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
             getLogCollector(connectionIds, result, request, taskDto);
 //            getShareCache(connectionIds, result, request, nodes);
 
-            result = result.stream().sorted(Comparator.nullsFirst(Comparator.comparing(RelationTaskInfoVo::getStartTime).reversed()))
+            result = result.stream().sorted(Comparator.comparing(RelationTaskInfoVo::getStartTime,Comparator.nullsFirst(Long::compareTo)).reversed())
                     .collect(Collectors.toList());
         }
         getShareCacheByTaskAttrs(result, request, taskDto);
@@ -174,7 +174,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         }
 
         Criteria criteria = Criteria.where("is_deleted").is(false).and("syncType").is("logCollector")
-                .and("dag.nodes.type").is(NodeEnum.logCollector.name());
+                .and("dag.nodes.type").is(NodeEnum.logCollector.name()).and("status").ne(TaskDto.STATUS_DELETE_FAILED);
 
         List<Criteria> orCriteriaList = new ArrayList<>();
         orCriteriaList.add(Criteria.where("dag.nodes.connectionIds").in(connectionIds));
