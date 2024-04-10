@@ -1,12 +1,10 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 
 import cn.hutool.crypto.digest.MD5;
-import com.tapdata.constant.CollectionUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.async.master.JobContext;
 import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -22,6 +20,7 @@ import io.tapdata.entity.simplify.pretty.TypeHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import org.apache.commons.collections.CollectionUtils;
@@ -191,19 +190,33 @@ public class PartitionFieldParentHandler {
 	}
 
 	public void handleFinishedPartition(HazelcastSourcePartitionReadDataNode sourcePdkDataNode, ReadPartition readPartition, LongAdder sentEventCount) {
-		PartitionTableOffset partitionTableOffset = (PartitionTableOffset) sourcePdkDataNode.getSyncProgress().getBatchOffsetOfTable(table);
-		if (partitionTableOffset == null) {
-			partitionTableOffset = new PartitionTableOffset();
-			sourcePdkDataNode.getSyncProgress().updateBatchOffset(table, partitionTableOffset, SyncProgress.TABLE_BATCH_STATUS_RUNNING);
+		if (null == sourcePdkDataNode) {
+			return;
 		}
-		Map<String, Long> completedPartitions = partitionTableOffset.getCompletedPartitions();
-		if (completedPartitions == null) {
-			completedPartitions = new ConcurrentHashMap<>();
-			completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
-			partitionTableOffset.setCompletedPartitions(completedPartitions);
-		} else {
-			completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
+		ObsLogger obsLogger = sourcePdkDataNode.getObsLogger();
+		SyncProgress syncProgress = sourcePdkDataNode.getSyncProgress();
+		if (null == syncProgress) {
+			if (obsLogger.isDebugEnabled()) {
+				obsLogger.debug("Failed to handle finished partition, SyncProgress not fund");
+			}
+			return;
 		}
-		sourcePdkDataNode.getObsLogger().info("Finished partition {} completedPartitions {}", readPartition, completedPartitions.size());
+		Object batchOffsetOfTable = syncProgress.getBatchOffsetOfTable(table);
+		if (null == batchOffsetOfTable) {
+			batchOffsetOfTable = new PartitionTableOffset();
+			syncProgress.updateBatchOffset(table, batchOffsetOfTable, SyncProgress.RUNNING);
+		}
+		if (batchOffsetOfTable instanceof PartitionTableOffset) {
+			PartitionTableOffset partitionTableOffset = (PartitionTableOffset) batchOffsetOfTable;
+			Map<String, Long> completedPartitions = partitionTableOffset.getCompletedPartitions();
+			if (completedPartitions == null) {
+				completedPartitions = new ConcurrentHashMap<>();
+				partitionTableOffset.setCompletedPartitions(completedPartitions);
+			}
+			String id = readPartition.getId();
+			long longValue = sentEventCount.longValue();
+			completedPartitions.put(id, longValue);
+			obsLogger.info("Finished partition {} completed partitions {}", readPartition, completedPartitions.size());
+		}
 	}
 }
