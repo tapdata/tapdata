@@ -875,7 +875,7 @@ public class TaskServiceImpl extends TaskService{
         }
     }
 
-    @Data
+    @Getter
     @AllArgsConstructor
     static class CheckEchoOneNodeParam {
         DataSourceConnectionDto connectionDto;
