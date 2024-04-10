@@ -1,7 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 
 import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
-import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.DataFunctionAspect;
 import io.tapdata.async.master.AsyncJobCompleted;
@@ -34,6 +33,7 @@ public class PartitionsCompletedRunnable implements Runnable {
 		this.readPartitionList = readPartitionList;
 		this.sourcePdkDataNodeEx1 = sourcePdkDataNodeEx1;
 		this.jobCompleted = jobCompleted;
+
 	}
 
 	@Override
@@ -43,18 +43,16 @@ public class PartitionsCompletedRunnable implements Runnable {
 		PartitionTableOffset partitionTableOffset = null;
 		if (batchOffsetObj instanceof Map) {
 			partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tapTable.getId());
-			if (batchOffsetObj instanceof Map) {
-				if (partitionTableOffset == null) {
-					partitionTableOffset = new PartitionTableOffset();
-					partitionTableOffset.partitions(readPartitionList);
-					((Map<String, PartitionTableOffset>) batchOffsetObj).put(tapTable.getId(), partitionTableOffset);
-				} else {
-					partitionTableOffset.partitions(readPartitionList);
-				}
+			if (partitionTableOffset == null) {
+				partitionTableOffset = new PartitionTableOffset();
+				partitionTableOffset.partitions(readPartitionList);
+				((Map<String, PartitionTableOffset>) batchOffsetObj).put(tapTable.getId(), partitionTableOffset);
+			} else {
+				partitionTableOffset.partitions(readPartitionList);
 			}
-			partitionsReader.finished(this::handleStateChanged);
-//		partitionsReader.setParallelWorkerStateListener(this::handleStateChanged);
 		}
+		partitionsReader.finished(this::handleStateChanged);
+//		partitionsReader.setParallelWorkerStateListener(this::handleStateChanged);
 	}
 
 	private void handleStateChanged() {
@@ -72,7 +70,6 @@ public class PartitionsCompletedRunnable implements Runnable {
 
 		aspectManager.executeAspect(batchReadFuncAspect.state(DataFunctionAspect.STATE_END));
 		sourcePdkDataNodeEx1.enqueue(new TapdataCompleteTableSnapshotEvent(tapTable.getId()));
-
 		//partition split done and read partitions done, start entering CDC stage.
 		sourcePdkDataNodeEx1.handleEnterCDCStage(partitionsReader, tapTable);
 		jobCompleted.completed(null, null);
