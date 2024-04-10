@@ -255,11 +255,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 	}
 
-	@Override
-	protected boolean isRunning() {
-		return super.isRunning();
-	}
-
 	protected void lockBySourceRunnerLock(){
 		while (isRunning()) {
 			try {
@@ -267,6 +262,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					break;
 				}
 			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
 				break;
 			}
 		}
