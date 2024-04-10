@@ -114,6 +114,7 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 public class DataSourceServiceImpl extends DataSourceService{
 
     private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])[\\s\\S]*$";
+    private final static String LAST_UPDATE= "lastUpdate";
     @Value("${gateway.secret:}")
     private String gatewaySecret;
     @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
@@ -1207,7 +1208,7 @@ public class DataSourceServiceImpl extends DataSourceService{
             log.debug("loadFieldsStatus is finished, update model delete flag");
             // handle delete model, not match schemaVersion will update is_deleted to true
             Criteria criteria = Criteria.where("is_deleted").ne(true).and("source._id").is(datasourceId)
-                    .and("lastUpdate").lt(schemaVersion).and("taskId").exists(false).and("meta_type").ne("database");
+                    .and(LAST_UPDATE).lt(schemaVersion).and("taskId").exists(false).and("meta_type").ne("database");
             log.info("Delete metadata update filter: {}", criteria);
             Query query = new Query(criteria);
             LiveDataPlatformDto liveDataPlatformDto = liveDataPlatformService.findOne(new Query(), user);
@@ -1433,7 +1434,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
                 if (hasSchema) {
                     if (CollectionUtils.isNotEmpty(tables)) {
-                        Long schemaVersion = (Long) set.get("lastUpdate");
+                        Long schemaVersion = (Long) set.get(LAST_UPDATE);
                         String loadFieldsStatus = (String) set.get("loadFieldsStatus");
                         Boolean loadSchemaField = set.get("loadSchemaField") != null ? ((Boolean) set.get("loadSchemaField")) : true;
                         loadSchema(user, tables, oldConnectionDto, definitionDto.getExpression(), databaseId, loadSchemaField);
@@ -1441,8 +1442,8 @@ public class DataSourceServiceImpl extends DataSourceService{
                         update.put("loadSchemaTime", new Date());
                     }
                 } else {
-                    if (set != null && set.get("lastUpdate") != null) {
-                        deleteModels("finished", connectionId, (Long) set.get("lastUpdate"), user);
+                    if (set != null && set.get(LAST_UPDATE) != null) {
+                        deleteModels("finished", connectionId, (Long) set.get(LAST_UPDATE), user);
                     }
                 }
             }
