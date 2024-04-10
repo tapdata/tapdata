@@ -51,11 +51,6 @@ public class DDLSchemaHandler {
 	}
 
 	private Void handleNewFieldEvent(TapDDLEvent tapDDLEvent, TapTable tapTable) {
-		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-
-		AtomicInteger maxPos = new AtomicInteger(1);
-		nameFieldMap.values().forEach(tapField -> maxPos.set(Math.max(tapField.getPos(), maxPos.get())));
-
 		TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapDDLEvent;
 		List<TapField> newFields = tapNewFieldEvent.getNewFields();
 		for (TapField newField : newFields) {
