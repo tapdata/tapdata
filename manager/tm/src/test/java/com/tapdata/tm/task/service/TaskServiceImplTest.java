@@ -1,6 +1,9 @@
 package com.tapdata.tm.task.service;
 
 import com.tapdata.tm.agent.service.AgentGroupService;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -136,6 +139,155 @@ class TaskServiceImplTest {
             verify(ato, times(2)).get();
             verify(ato, times(0)).set(atoValue);
             verify(validateMessage, times(1)).put(anyString(), anyList());
+        }
+    }
+
+    @Nested
+    class CheckEchoOneNodeTest {
+        TaskDto taskDto;
+        DataSourceConnectionDto connectionDto;
+        DataParentNode<?> dataParentNode;
+        List<String> taskProcessIdList;
+        Map<String, List<Message>> validateMessage;
+        Message message;
+        AtomicReference<String> nodeType;
+        AtomicReference<String> nodeId;
+        UserDetail user;
+
+        List<String> connectionProcessIds;
+
+        String parentNodeId;
+        String accessNodeType;
+        String taskType;
+        String accessNodeProcessId;
+        @BeforeEach
+        void init() {
+            accessNodeType = AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name();
+            taskType = AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name();
+            parentNodeId = "parentNodeId";
+            accessNodeProcessId = "nodeId";
+
+            taskDto = mock(TaskDto.class);
+            connectionDto = mock(DataSourceConnectionDto.class);
+            dataParentNode = mock(DataParentNode.class);
+            taskProcessIdList = mock(List.class);
+            validateMessage = mock(Map.class);
+            message = mock(Message.class);
+            nodeType = mock(AtomicReference.class);
+            nodeId = mock(AtomicReference.class);
+            user = mock(UserDetail.class);
+
+            when(connectionDto.getAccessNodeType()).thenReturn(accessNodeType);
+            when(dataParentNode.getId()).thenReturn(parentNodeId);
+            when(taskService.contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message)).thenReturn(false);
+
+            connectionProcessIds = mock(List.class);
+            when(agentGroupService.getProcessNodeListWithGroup(connectionDto, user)).thenReturn(connectionProcessIds);
+            when(connectionProcessIds.removeAll(taskProcessIdList)).thenReturn(false);
+
+            when(taskDto.getAccessNodeType()).thenReturn(taskType);
+            when(connectionProcessIds.isEmpty()).thenReturn(false);
+            when(validateMessage.put(anyString(), anyList())).thenReturn(mock(List.class));
+
+            when(connectionDto.getAccessNodeProcessId()).thenReturn(accessNodeProcessId);
+            when(taskService.contrast(nodeId, parentNodeId, accessNodeProcessId, validateMessage, message)).thenReturn(false);
+
+            when(taskService.checkEchoOneNode(taskDto, connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId, user)).thenCallRealMethod();
+        }
+
+        @Test
+        void testNormal() {
+            Assertions.assertFalse(taskService.checkEchoOneNode(taskDto, connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId, user));
+            verify(connectionDto, times(1)).getAccessNodeType();
+            verify(dataParentNode, times(1)).getId();
+            verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(connectionDto, user);
+            verify(connectionProcessIds, times(1)).removeAll(taskProcessIdList);
+            verify(taskDto, times(1)).getAccessNodeType();
+            verify(connectionProcessIds, times(1)).isEmpty();
+            verify(validateMessage, times(1)).put(anyString(), anyList());
+            verify(connectionDto, times(0)).getAccessNodeProcessId();
+            verify(taskService, times(0)).contrast(nodeId, parentNodeId, accessNodeProcessId, validateMessage, message);
+        }
+        @Test
+        void testNodeTypeNotEqualTaskType() {
+            taskType = AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name();
+            when(taskDto.getAccessNodeType()).thenReturn(taskType);
+            Assertions.assertFalse(taskService.checkEchoOneNode(taskDto, connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId, user));
+            verify(connectionDto, times(1)).getAccessNodeType();
+            verify(dataParentNode, times(1)).getId();
+            verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(connectionDto, user);
+            verify(connectionProcessIds, times(1)).removeAll(taskProcessIdList);
+            verify(taskDto, times(1)).getAccessNodeType();
+            verify(connectionProcessIds, times(0)).isEmpty();
+            verify(validateMessage, times(1)).put(anyString(), anyList());
+            verify(connectionDto, times(0)).getAccessNodeProcessId();
+            verify(taskService, times(0)).contrast(nodeId, parentNodeId, accessNodeProcessId, validateMessage, message);
+        }
+        @Test
+        void testConnectionProcessIdsIsEmpty() {
+            when(connectionProcessIds.isEmpty()).thenReturn(true);
+            Assertions.assertFalse(taskService.checkEchoOneNode(taskDto, connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId, user));
+            verify(connectionDto, times(1)).getAccessNodeType();
+            verify(dataParentNode, times(1)).getId();
+            verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(connectionDto, user);
+            verify(connectionProcessIds, times(1)).removeAll(taskProcessIdList);
+            verify(taskDto, times(1)).getAccessNodeType();
+            verify(connectionProcessIds, times(1)).isEmpty();
+            verify(validateMessage, times(0)).put(anyString(), anyList());
+            verify(connectionDto, times(0)).getAccessNodeProcessId();
+            verify(taskService, times(0)).contrast(nodeId, parentNodeId, accessNodeProcessId, validateMessage, message);
+        }
+        @Test
+        void testConnectionDtoIsAUTOMATIC_PLATFORM_ALLOCATION() {
+            accessNodeType = AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name();
+            when(connectionDto.getAccessNodeType()).thenReturn(accessNodeType);
+            when(taskService.contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message)).thenReturn(false);
+            Assertions.assertTrue(taskService.checkEchoOneNode(taskDto, connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId, user));
+            verify(connectionDto, times(1)).getAccessNodeType();
+            verify(dataParentNode, times(0)).getId();
+            verify(taskService, times(0)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
+            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(connectionDto, user);
+            verify(connectionProcessIds, times(0)).removeAll(taskProcessIdList);
+            verify(taskDto, times(0)).getAccessNodeType();
+            verify(connectionProcessIds, times(0)).isEmpty();
+            verify(validateMessage, times(0)).put(anyString(), anyList());
+            verify(connectionDto, times(0)).getAccessNodeProcessId();
+            verify(taskService, times(0)).contrast(nodeId, parentNodeId, accessNodeProcessId, validateMessage, message);
+        }
+        @Test
+        void testContrastIsTrue() {
+            when(taskService.contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message)).thenReturn(true);
+            Assertions.assertTrue(taskService.checkEchoOneNode(taskDto, connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId, user));
+            verify(connectionDto, times(1)).getAccessNodeType();
+            verify(dataParentNode, times(1)).getId();
+            verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
+            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(connectionDto, user);
+            verify(connectionProcessIds, times(0)).removeAll(taskProcessIdList);
+            verify(taskDto, times(0)).getAccessNodeType();
+            verify(connectionProcessIds, times(0)).isEmpty();
+            verify(validateMessage, times(0)).put(anyString(), anyList());
+            verify(connectionDto, times(0)).getAccessNodeProcessId();
+            verify(taskService, times(0)).contrast(nodeId, parentNodeId, accessNodeProcessId, validateMessage, message);
+        }
+        @Test
+        void testIsGroupManually() {
+            accessNodeType = AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name();
+            when(connectionDto.getAccessNodeType()).thenReturn(accessNodeType);
+            when(taskService.contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message)).thenReturn(false);
+            Assertions.assertFalse(taskService.checkEchoOneNode(taskDto, connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId, user));
+            verify(connectionDto, times(1)).getAccessNodeType();
+            verify(dataParentNode, times(1)).getId();
+            verify(taskService, times(1)).contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message);
+            verify(agentGroupService, times(0)).getProcessNodeListWithGroup(connectionDto, user);
+            verify(connectionProcessIds, times(0)).removeAll(taskProcessIdList);
+            verify(taskDto, times(0)).getAccessNodeType();
+            verify(connectionProcessIds, times(0)).isEmpty();
+            verify(validateMessage, times(0)).put(anyString(), anyList());
+            verify(connectionDto, times(1)).getAccessNodeProcessId();
+            verify(taskService, times(1)).contrast(nodeId, parentNodeId, accessNodeProcessId, validateMessage, message);
         }
     }
 }
