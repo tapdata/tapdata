@@ -861,7 +861,7 @@ public class TaskServiceImpl extends TaskService{
                     DataSourceConnectionDto connectionDto = collect.get(dataParentNode.getConnectionId());
                     Assert.notNull(connectionDto, "task connectionDto is null id:" + dataParentNode.getConnectionId());
 
-                    checkEchoOneNode(taskDto, connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId, user);
+                    checkEchoOneNode(taskDto, new CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user);
                 }
             });
         }
@@ -875,15 +875,26 @@ public class TaskServiceImpl extends TaskService{
         }
     }
 
-    protected boolean checkEchoOneNode(TaskDto taskDto,
-                                       DataSourceConnectionDto connectionDto,
-                                       DataParentNode<?> dataParentNode,
-                                       List<String> taskProcessIdList,
-                                       Map<String, List<Message>> validateMessage,
-                                       Message message,
-                                       AtomicReference<String> nodeType,
-                                       AtomicReference<String> nodeId,
-                                       UserDetail user) {
+    @Data
+    @AllArgsConstructor
+    static class CheckEchoOneNodeParam {
+        DataSourceConnectionDto connectionDto;
+        DataParentNode<?> dataParentNode;
+        List<String> taskProcessIdList;
+        Map<String, List<Message>> validateMessage;
+        Message message;
+        AtomicReference<String> nodeType;
+        AtomicReference<String> nodeId;
+    }
+
+    protected boolean checkEchoOneNode(TaskDto taskDto, CheckEchoOneNodeParam param, UserDetail user) {
+        DataSourceConnectionDto connectionDto = param.getConnectionDto();
+        DataParentNode<?> dataParentNode = param.getDataParentNode();
+        List<String> taskProcessIdList = param.getTaskProcessIdList();
+        Map<String, List<Message>> validateMessage = param.getValidateMessage();
+        Message message = param.getMessage();
+        AtomicReference<String> nodeType = param.getNodeType();
+        AtomicReference<String> nodeId = param.getNodeId();
         String accessNodeType = connectionDto.getAccessNodeType();
         if (!AccessNodeTypeEnum.isManually(accessNodeType)) {
             return true;
