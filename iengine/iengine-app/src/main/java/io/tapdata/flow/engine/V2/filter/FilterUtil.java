@@ -20,7 +20,9 @@ public class FilterUtil {
         if (null == data) data = new HashMap<>();
         Map<String, Object> finalData = new HashMap<>();
         for (String fieldName : fieldNames) {
-            finalData.put(fieldName, data.get(fieldName));
+            if (data.containsKey(fieldName)) {
+                finalData.put(fieldName, data.get(fieldName));
+            }
         }
         return finalData;
     }
