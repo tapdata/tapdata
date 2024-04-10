@@ -13,7 +13,6 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 	private static final long serialVersionUID = 5599838762323297718L;
 	public static final String TASK_BATCH_TABLE_OFFSET_POINT = "task_batch_table_offset_point";
 	public static final String TASK_BATCH_TABLE_OFFSET_STATUS = "task_batch_table_offset_status";
-	public static final String OVER = "over";
 	public static final String RUNNING = "running";
 
 	@Deprecated
@@ -159,7 +158,7 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 		Object offsetValue = getTableOffsetInfo(tableId);
 		if (isBatchOffsetMap(offsetValue, TASK_BATCH_TABLE_OFFSET_STATUS)) {
 			//86迭代新功能--全量表同步断点
-			return OVER.equals(((Map<?, ?>)offsetValue).get(TASK_BATCH_TABLE_OFFSET_STATUS));
+			return TableBatchReadStatus.OVER.name().equals(((Map<?, ?>)offsetValue).get(TASK_BATCH_TABLE_OFFSET_STATUS));
 		}
 		//历史数据
 		return false;
