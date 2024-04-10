@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
@@ -305,7 +306,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			return;
 		}
 		if (CollectionUtils.isNotEmpty(ignoreTables)) {
-			ignoreTables.forEach(id -> syncProgress.updateBatchOffset(id, null, SyncProgress.RUNNING));
+			ignoreTables.forEach(id -> syncProgress.updateBatchOffset(id, null, TableBatchReadStatus.RUNNING.name()));
 		}
 		Set<String> batchTable = batchOffsetObj.keySet();
 		batchTable.stream().filter(tableId -> !tableIds.contains(tableId)).forEach(batchOffsetObj::remove);
