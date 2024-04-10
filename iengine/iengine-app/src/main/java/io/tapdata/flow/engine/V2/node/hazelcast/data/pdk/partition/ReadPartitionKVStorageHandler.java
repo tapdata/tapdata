@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
@@ -286,7 +287,20 @@ public class ReadPartitionKVStorageHandler extends PartitionFieldParentHandler i
 			}
 		}
 		synchronized (pdkSourceContext) {
-			handleFinishedPartition(sourcePdkDataNode, readPartition, sentEventCount);
+			PartitionTableOffset partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) sourcePdkDataNode.getSyncProgress().getBatchOffsetObj()).get(table);
+			if (partitionTableOffset == null) {
+				partitionTableOffset = new PartitionTableOffset();
+				((Map<String, PartitionTableOffset>) sourcePdkDataNode.getSyncProgress().getBatchOffsetObj()).put(table, partitionTableOffset);
+			}
+			Map<String, Long> completedPartitions = partitionTableOffset.getCompletedPartitions();
+			if (completedPartitions == null) {
+				completedPartitions = new ConcurrentHashMap<>();
+				completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
+				partitionTableOffset.setCompletedPartitions(completedPartitions);
+			} else {
+				completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
+			}
+			sourcePdkDataNode.getObsLogger().info("Finished partition {} completedPartitions {}", readPartition, completedPartitions.size());
 		}
 
 		storageFactory.deleteKVStorage(kvStorageDuringSendingId);

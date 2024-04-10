@@ -21,6 +21,7 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -180,7 +181,20 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
 	//takes 15574, storage takes 8531, filter takes 15571, total 320062
 
 	public JobContext handleFinishedPartition(JobContext jobContext) {
-		handleFinishedPartition(sourcePdkDataNode, readPartition, sentEventCount);
+		PartitionTableOffset partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) sourcePdkDataNode.getSyncProgress().getBatchOffsetObj()).get(table);
+		if (partitionTableOffset == null) {
+			partitionTableOffset = new PartitionTableOffset();
+			((Map<String, PartitionTableOffset>) sourcePdkDataNode.getSyncProgress().getBatchOffsetObj()).put(table, partitionTableOffset);
+		}
+		Map<String, Long> completedPartitions = partitionTableOffset.getCompletedPartitions();
+		if (completedPartitions == null) {
+			completedPartitions = new ConcurrentHashMap<>();
+			completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
+			partitionTableOffset.setCompletedPartitions(completedPartitions);
+		} else {
+			completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
+		}
+		sourcePdkDataNode.getObsLogger().info("Finished partition {} completedPartitions {}", readPartition, completedPartitions.size());
 		return null;
 	}
 
