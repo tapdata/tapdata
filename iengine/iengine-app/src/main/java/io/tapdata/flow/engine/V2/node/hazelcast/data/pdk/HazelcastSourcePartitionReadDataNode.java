@@ -388,7 +388,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			if (batchOffsetObj instanceof Map) {
 				Map<?, ?> batchOffset = (Map<?, ?>) batchOffsetObj;
 				for (Map.Entry<?, ?> entry : batchOffset.entrySet()) {
-                    Object entryValue = entry.getValue();
+					Object entryValue = entry.getValue();
 					String entryKey = (String) entry.getKey();
 					if (entryValue instanceof PartitionTableOffset) {
 						PartitionTableOffset partitionTableOffset = (PartitionTableOffset) entryValue;
