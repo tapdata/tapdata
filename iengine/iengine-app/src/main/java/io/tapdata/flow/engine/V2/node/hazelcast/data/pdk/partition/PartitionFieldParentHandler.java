@@ -2,8 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 
 import cn.hutool.crypto.digest.MD5;
 import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.dataflow.SyncProgress;
-import com.tapdata.entity.dataflow.TableBatchReadStatus;
+import com.tapdata.constant.CollectionUtil;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
@@ -21,8 +20,6 @@ import io.tapdata.entity.simplify.pretty.TypeHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
-import io.tapdata.observable.logging.ObsLogger;
-import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import org.apache.commons.collections.CollectionUtils;
 
@@ -31,8 +28,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.LongAdder;
 
 import static io.tapdata.entity.simplify.TapSimplify.map;
 
@@ -190,34 +185,4 @@ public class PartitionFieldParentHandler {
 		}
 	}
 
-	public void handleFinishedPartition(HazelcastSourcePartitionReadDataNode sourcePdkDataNode, ReadPartition readPartition, LongAdder sentEventCount) {
-		if (null == sourcePdkDataNode) {
-			return;
-		}
-		ObsLogger obsLogger = sourcePdkDataNode.getObsLogger();
-		SyncProgress syncProgress = sourcePdkDataNode.getSyncProgress();
-		if (null == syncProgress) {
-			if (obsLogger.isDebugEnabled()) {
-				obsLogger.debug("Failed to handle finished partition, SyncProgress not fund");
-			}
-			return;
-		}
-		Object batchOffsetOfTable = syncProgress.getBatchOffsetOfTable(table);
-		if (null == batchOffsetOfTable) {
-			batchOffsetOfTable = new PartitionTableOffset();
-			syncProgress.updateBatchOffset(table, batchOffsetOfTable, TableBatchReadStatus.RUNNING.name());
-		}
-		if (batchOffsetOfTable instanceof PartitionTableOffset) {
-			PartitionTableOffset partitionTableOffset = (PartitionTableOffset) batchOffsetOfTable;
-			Map<String, Long> completedPartitions = partitionTableOffset.getCompletedPartitions();
-			if (completedPartitions == null) {
-				completedPartitions = new ConcurrentHashMap<>();
-				partitionTableOffset.setCompletedPartitions(completedPartitions);
-			}
-			String id = readPartition.getId();
-			long longValue = sentEventCount.longValue();
-			completedPartitions.put(id, longValue);
-			obsLogger.info("Finished partition {} completed partitions {}", readPartition, completedPartitions.size());
-		}
-	}
 }

@@ -197,7 +197,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 					obsLogger.info("Table {} has read finished, no need batch read any more. ", tableName);
 					return null;
 				}
-				Object tableOffset = syncProgress.getBatchOffsetOfTable(tableName);
+				Object tableOffset = ((Map<?, ?>) syncProgress.getBatchOffsetObj()).get(tableName);
 				obsLogger.info("Starting batch read, table name: " + tableName + ", offset: " + tableOffset);
 				tableParallelWorker.job(
 						"table#" + tableName,
@@ -286,13 +286,16 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 							List<ReadPartition> recoveredPartitions = null;
 							Map<String, Long> completedPartitionIds = null;
 							Boolean tableCompleted = null;
-							PartitionTableOffset partitionTableOffset = (PartitionTableOffset) syncProgress.getBatchOffsetOfTable(tapTable.getId());
-							if (partitionTableOffset != null) {
-								recoveredPartitions = partitionTableOffset.getPartitions();
-								completedPartitionIds = partitionTableOffset.getCompletedPartitions();
-								tableCompleted = partitionTableOffset.getTableCompleted();
+							Object batchOffsetObj = syncProgress.getBatchOffsetObj();
+							if (batchOffsetObj instanceof Map) {
+								PartitionTableOffset partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tapTable.getId());
+								if (partitionTableOffset != null) {
+									recoveredPartitions = partitionTableOffset.getPartitions();
+									completedPartitionIds = partitionTableOffset.getCompletedPartitions();
+									tableCompleted = partitionTableOffset.getTableCompleted();
+								}
+								obsLogger.info("PartitionTableOffset recoveredPartitions {}, completedPartitions {}, tableCompleted {}", (recoveredPartitions != null ? recoveredPartitions.size() : 0), (completedPartitionIds != null ? completedPartitionIds.size() : 0), tableCompleted);
 							}
-							obsLogger.info("PartitionTableOffset recoveredPartitions {}, completedPartitions {}, tableCompleted {}", (recoveredPartitions != null ? recoveredPartitions.size() : 0), (completedPartitionIds != null ? completedPartitionIds.size() : 0), tableCompleted);
 
 							if (tableCompleted != null && tableCompleted) {
 								//Table has been read completed, ignore this table.
@@ -381,7 +384,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			//Recover read partitions from TM
 			List<ReadPartition> recoveredPartitions = null;
 			Map<String, Long> completedPartitionIds = null;
-			Object batchOffsetObj = syncProgress.putIfAbsentBatchOffsetObj();
+			Object batchOffsetObj = syncProgress.getBatchOffsetObj();
 			if (batchOffsetObj instanceof Map) {
 				Map<?, ?> batchOffset = (Map<?, ?>) batchOffsetObj;
 				for (Map.Entry<?, ?> entry : batchOffset.entrySet()) {
