@@ -1562,18 +1562,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     DatabaseNode tableNode = (DatabaseNode) node;
 
                     if (dag.getSources().contains(tableNode)) {
-                        if (CustomKafkaUtils.checkSourceIsKafka(tableNode)) {
-                            tableNames = CustomKafkaUtils.customKafkaGetTable(tableNode);
-                        } else {
-                            tableNames = tableNode.getTableNames();
-                        }
+                        tableNames = tableNode.getTableNames();
                     } else if (dag.getTargets().contains(tableNode)) {
-                        DatabaseNode sourceNode = tableNode.getDag().getSourceNode(tableNode.getId());
-                        if (CustomKafkaUtils.checkSourceIsKafka(sourceNode)) {
-                            tableNames = CustomKafkaUtils.customKafkaGetTable(sourceNode);
-                        } else {
-                            tableNames = tableNode.getSyncObjects().get(0).getObjectNames();
-                        }
+                        tableNames = tableNode.getSyncObjects().get(0).getObjectNames();
                     } else {
                         throw new BizException("table node is error nodeId:" + tableNode.getId());
                     }

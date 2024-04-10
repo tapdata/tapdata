@@ -2,6 +2,7 @@ package com.tapdata.tm.commons.util;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -11,17 +12,16 @@ import com.tapdata.tm.commons.schema.bean.SourceDto;
 import org.springframework.beans.BeanUtils;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class CustomKafkaUtils {
 
 	public static void updateSourceMetadataInstances(List<MetadataInstancesDto> metadataList, Node node, DataSourceConnectionDto sourceConnectionDto, List<String> customKafkaQualifiedNames) {
 		if (null == sourceConnectionDto) return;
-
 		if (node instanceof TableNode) {
 			// 开发任务
 			List<Node> targets = node.getDag().getTargets();
 			if (null == targets || targets.isEmpty()) throw new RuntimeException("not found target node");
-
 			Node targetNode = targets.get(0);
 			if (targetNode instanceof TableNode) {
 				String tableName = ((TableNode) targetNode).getTableName();
@@ -34,6 +34,7 @@ public class CustomKafkaUtils {
 					if (sourceMetadataInstancesDto.getQualifiedName().equals(qualifiedName)) {
 						sourceMetadataInstancesDto.setFields(metadataInstancesDto.getFields());
 						for (Field field : sourceMetadataInstancesDto.getFields()) {
+							field.setSourceDbType(sourceConnectionDto.getDatabase_type());
 							field.setId(String.format("%s_%s_%S", ((TableNode) node).getConnectionId(), ((TableNode) node).getTableName(), field.getFieldName()));
 						}
 						break;
@@ -102,15 +103,28 @@ public class CustomKafkaUtils {
 	public static boolean checkSourceIsKafka(Node node) {
 		Set<String> mqSet = new HashSet<>();
 		mqSet.add("Kafka");
-		DatabaseNode targetNode = node.getDag().getTargetNode(node.getId());
-		boolean nodeIsTarget = null != targetNode && targetNode.getId().equals(node.getId());
+		boolean nodeIsTarget;
+		boolean enableUseTargetSchema = false;
+		if (node instanceof TableNode) {
+			if (null != ((TableNode) node).getNodeConfig()) {
+				enableUseTargetSchema = Boolean.TRUE.equals(((TableNode) node).getNodeConfig().get("enableUseTargetSchema"));
+			}
+			List<String> targetNodes = node.getDag().getTargets().stream().map((node1) -> node1.getId()).collect(Collectors.toList());
+			nodeIsTarget = targetNodes.contains(node.getId());
+		} else {
+			if (null != ((DatabaseNode) node).getNodeConfig()) {
+				enableUseTargetSchema = Boolean.TRUE.equals(((DatabaseNode) node).getNodeConfig().get("enableUseTargetSchema"));
+			}
+			DatabaseNode targetNode = node.getDag().getTargetNode(node.getId());
+			nodeIsTarget = null != targetNode && targetNode.getId().equals(node.getId());
+		}
 		boolean isKafkaNode;
 		if (node instanceof TableNode) {
 			isKafkaNode = mqSet.contains(((TableNode) node).getDatabaseType());
 		} else {
 			isKafkaNode = mqSet.contains(((DatabaseNode) node).getDatabaseType());
 		}
-		return isKafkaNode && !nodeIsTarget;
+		return isKafkaNode && !nodeIsTarget && enableUseTargetSchema;
 	}
 
 	public static List<String> customKafkaGetTable(DatabaseNode databaseNode) {

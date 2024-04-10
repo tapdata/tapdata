@@ -220,11 +220,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             return;
         }
         List<String> tables = null;
-        if (CustomKafkaUtils.checkSourceIsKafka(this)) {
-            tables = CustomKafkaUtils.customKafkaGetTable(this);
-        } else {
-            tables = getSourceNodeTableNames(Lists.newArrayList(this));
-        }
+        tables = getSourceNodeTableNames(Lists.newArrayList(this));
 
         if (CollectionUtils.isNotEmpty(tables)) {
             tableNames.removeIf(String::isEmpty);

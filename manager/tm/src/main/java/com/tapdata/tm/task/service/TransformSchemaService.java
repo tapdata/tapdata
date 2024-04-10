@@ -236,11 +236,11 @@ public class TransformSchemaService {
                     DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
 
                     String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto, taskDto.getId().toHexString());
-									if (CustomKafkaUtils.checkSourceIsKafka(node)) {
-										kafkaSourceNode = (TableNode) node;
-										sourceConnectionDto = dataSourceConnectionDto;
-										customKafkaQualifiedNames.add(qualifiedName);
-									}
+                    if (CustomKafkaUtils.checkSourceIsKafka(node)) {
+                        kafkaSourceNode = (TableNode) node;
+                        sourceConnectionDto = dataSourceConnectionDto;
+                        customKafkaQualifiedNames.add(qualifiedName);
+                    }
                     if (fileSource.contains(dataSourceDefinitionDto.getPdkId())) {
                         int i = qualifiedName.lastIndexOf("_");
                         qualifiedName = qualifiedName.substring(0, i);
@@ -254,7 +254,7 @@ public class TransformSchemaService {
 
                     List<String> metas = metadataInstancesService.findDatabaseNodeQualifiedName(node.getId(), user, taskDto, dataSourceConnectionDto, dataSourceDefinitionDto, includes);
                     if (CustomKafkaUtils.checkSourceIsKafka(node)) {
-                        kafkaSourceNode=databaseNode;
+                        kafkaSourceNode = databaseNode;
                         sourceConnectionDto = dataSourceConnectionDto;
                         customKafkaQualifiedNames.addAll(metas);
                     }
@@ -278,21 +278,21 @@ public class TransformSchemaService {
                     int i = q.lastIndexOf("_");
                     return q.substring(0, i);
                 }).collect(Collectors.toList());
-								if (!qualifiedNames.isEmpty()) {
-									List<MetadataInstancesDto> metadataList1 = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user, "histories");
-									for (MetadataInstancesDto metadataInstancesDto : metadataList1) {
-										metadataInstancesDto.setQualifiedName(metadataInstancesDto.getQualifiedName() + "_" + taskDto.getId().toHexString());
-										List<Field> fields = metadataInstancesDto.getFields();
-										if (CollectionUtils.isNotEmpty(fields)) {
-											for (Field field : fields) {
-												field.setPreviousFieldName(field.getFieldName());
-											}
-										}
-									}
-									metadataList.addAll(metadataList1);
-								}
+                if (!qualifiedNames.isEmpty()) {
+                    List<MetadataInstancesDto> metadataList1 = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user, "histories");
+                    for (MetadataInstancesDto metadataInstancesDto : metadataList1) {
+                        metadataInstancesDto.setQualifiedName(metadataInstancesDto.getQualifiedName() + "_" + taskDto.getId().toHexString());
+                        List<Field> fields = metadataInstancesDto.getFields();
+                        if (CollectionUtils.isNotEmpty(fields)) {
+                            for (Field field : fields) {
+                                field.setPreviousFieldName(field.getFieldName());
+                            }
+                        }
+                    }
+                    metadataList.addAll(metadataList1);
+                }
 
-							CustomKafkaUtils.updateSourceMetadataInstances(metadataList, kafkaSourceNode, sourceConnectionDto, customKafkaQualifiedNames);
+                CustomKafkaUtils.updateSourceMetadataInstances(metadataList, kafkaSourceNode, sourceConnectionDto, customKafkaQualifiedNames);
             }
         } else {
             Criteria criteria = Criteria.where("taskId").is(taskDto.getId().toHexString())

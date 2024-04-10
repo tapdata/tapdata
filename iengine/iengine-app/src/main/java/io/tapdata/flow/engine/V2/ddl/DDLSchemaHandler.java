@@ -59,9 +59,7 @@ public class DDLSchemaHandler {
 		TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapDDLEvent;
 		List<TapField> newFields = tapNewFieldEvent.getNewFields();
 		for (TapField newField : newFields) {
-			newField.setPos(maxPos.incrementAndGet());
-			String fieldName = newField.getName();
-			nameFieldMap.put(fieldName, newField);
+			tapTable.add(newField);
 		}
 		return null;
 	}
