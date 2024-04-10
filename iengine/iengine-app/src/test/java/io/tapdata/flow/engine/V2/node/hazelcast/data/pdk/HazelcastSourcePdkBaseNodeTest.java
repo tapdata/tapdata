@@ -6,6 +6,7 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.tm.commons.dag.DAG;
@@ -1124,7 +1125,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			when(batchOffsetObj.keySet()).thenReturn(batchTable);
 
 			when(syncProgress.putIfAbsentBatchOffsetObj()).thenReturn(batchOffsetObj);
-			doNothing().when(syncProgress).updateBatchOffset("id", null, SyncProgress.RUNNING);
+			doNothing().when(syncProgress).updateBatchOffset("id", null, TableBatchReadStatus.RUNNING.name());
 
 			doCallRealMethod().when(mockInstance).initBatchOffset(ignoreTables);
 			doCallRealMethod().when(mockInstance).initBatchOffset(null);
@@ -1136,7 +1137,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(tapTableMap, times(1)).keySet();
 			verify(syncProgress, times(1)).putIfAbsentBatchOffsetObj();
 			verify(batchOffsetObj, times(1)).isEmpty();
-			verify(syncProgress, times(1)).updateBatchOffset("id", null, SyncProgress.RUNNING);
+			verify(syncProgress, times(1)).updateBatchOffset("id", null, TableBatchReadStatus.RUNNING.name());
 			verify(batchOffsetObj, times(1)).keySet();
 			verify(tableIds, times(1)).contains("id");
 			verify(batchOffsetObj, times(1)).remove("id");
@@ -1150,7 +1151,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(tapTableMap, times(1)).keySet();
 			verify(syncProgress, times(1)).putIfAbsentBatchOffsetObj();
 			verify(batchOffsetObj, times(1)).isEmpty();
-			verify(syncProgress, times(0)).updateBatchOffset("id", null, SyncProgress.RUNNING);
+			verify(syncProgress, times(0)).updateBatchOffset("id", null, TableBatchReadStatus.RUNNING.name());
 			verify(batchOffsetObj, times(0)).keySet();
 			verify(tableIds, times(0)).contains("id");
 			verify(batchOffsetObj, times(0)).remove("id");
@@ -1164,7 +1165,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(tapTableMap, times(1)).keySet();
 			verify(syncProgress, times(1)).putIfAbsentBatchOffsetObj();
 			verify(batchOffsetObj, times(1)).isEmpty();
-			verify(syncProgress, times(0)).updateBatchOffset("id", null, SyncProgress.RUNNING);
+			verify(syncProgress, times(0)).updateBatchOffset("id", null, TableBatchReadStatus.RUNNING.name());
 			verify(batchOffsetObj, times(1)).keySet();
 			verify(tableIds, times(1)).contains("id");
 			verify(batchOffsetObj, times(1)).remove("id");
@@ -1178,7 +1179,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(tapTableMap, times(1)).keySet();
 			verify(syncProgress, times(1)).putIfAbsentBatchOffsetObj();
 			verify(batchOffsetObj, times(1)).isEmpty();
-			verify(syncProgress, times(1)).updateBatchOffset("id", null, SyncProgress.RUNNING);
+			verify(syncProgress, times(1)).updateBatchOffset("id", null, TableBatchReadStatus.RUNNING.name());
 			verify(batchOffsetObj, times(1)).keySet();
 			verify(tableIds, times(1)).contains("id");
 			verify(batchOffsetObj, times(0)).remove("id");
