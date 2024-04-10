@@ -1,6 +1,5 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 
-import com.tapdata.entity.dataflow.SyncProgress;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.async.master.JobContext;
 import io.tapdata.entity.event.TapEvent;
@@ -287,7 +286,20 @@ public class ReadPartitionStoreExistsHandler extends PartitionFieldParentHandler
 			}
 		}
 		synchronized (pdkSourceContext) {
-			handleFinishedPartition(sourcePdkDataNode, readPartition, sentEventCount);
+			PartitionTableOffset partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) sourcePdkDataNode.getSyncProgress().getBatchOffsetObj()).get(table);
+			if (partitionTableOffset == null) {
+				partitionTableOffset = new PartitionTableOffset();
+				((Map<String, PartitionTableOffset>) sourcePdkDataNode.getSyncProgress().getBatchOffsetObj()).put(table, partitionTableOffset);
+			}
+			Map<String, Long> completedPartitions = partitionTableOffset.getCompletedPartitions();
+			if (completedPartitions == null) {
+				completedPartitions = new ConcurrentHashMap<>();
+				completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
+				partitionTableOffset.setCompletedPartitions(completedPartitions);
+			} else {
+				completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
+			}
+			sourcePdkDataNode.getObsLogger().info("Finished partition {} completedPartitions {}", readPartition, completedPartitions.size());
 		}
 
 		storageFactory.deleteKVStorage(kvStorageDuringSendingId);
