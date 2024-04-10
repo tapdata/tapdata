@@ -1,7 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
-import com.hazelcast.jet.core.JobStatus;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
@@ -30,8 +29,6 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
-import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -51,12 +48,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.Answers;
 import org.mockito.MockedStatic;
-import org.mockito.MockitoAnnotations;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -394,7 +388,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					return mock(AspectInterceptResult.class);
 				});
 
-				doNothing().when(syncProgress).updateBatchOffset(tableId, null,  SyncProgress.TABLE_BATCH_STATUS_OVER);
+				doNothing().when(syncProgress).updateBatchOffset(tableId, null,  SyncProgress.OVER);
 				doNothing().when(obsLogger).info("Table [{}] has been completed batch read, will skip batch read on the next run", "id");
 				doNothing().when(instance).removePdkMethodInvoker(pdkMethodInvoker);
 
@@ -457,7 +451,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				verify(instance, times(v.doAsyncTableCount())).doAsyncTableCount(batchCountFunction, tableId);
 				verify(ignoreTableCountCloseable, times(v.close())).close();
 				verify(instance,times(v.executeDataFuncAspect())).executeDataFuncAspect(any(Class.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class));
-				verify(syncProgress, times(v.updateBatchOffset())).updateBatchOffset(tableId, null,  SyncProgress.TABLE_BATCH_STATUS_OVER);
+				verify(syncProgress, times(v.updateBatchOffset())).updateBatchOffset(tableId, null,  SyncProgress.OVER);
 				verify(obsLogger, times(v.obsLoggerInfo4())).info("Table [{}] has been completed batch read, will skip batch read on the next run", "id");
 				verify(instance, times(v.removePdkMethodInvoker())).removePdkMethodInvoker(pdkMethodInvoker);
 				verify(instance, times(v.snapshotReadTableEndAspect())).executeAspect(any(SnapshotReadTableEndAspect.class));
@@ -509,11 +503,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				int stateCOMPLETED;
 				int newTablesIsEmpty;
 				int newTablesToArray;
-				int tableListClear;
-				int tableListAddAll;
 				int endSnapshotLoopSet;
 				int tapdataCompleteSnapshotEvent;
-				int getDatabaseType;
 				int snapshotReadEndAspect;
 
 				public int isRunning() {
@@ -558,13 +549,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					this.snapshotReadEndAspect = snapshotReadEndAspect;
 					return this;
 				}
-				public int getDatabaseType() {
-					return getDatabaseType;
-				}
-				public VerifyDifferent getDatabaseType(int getDatabaseType) {
-					this.getDatabaseType = getDatabaseType;
-					return this;
-				}
 				public int stateCOMPLETED() {
 					return stateCOMPLETED;
 				}
@@ -584,20 +568,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				}
 				public VerifyDifferent endSnapshotLoopSet(int endSnapshotLoopSet) {
 					this.endSnapshotLoopSet = endSnapshotLoopSet;
-					return this;
-				}
-				public int tableListAddAll() {
-					return tableListAddAll;
-				}
-				public VerifyDifferent tableListAddAll(int tableListAddAll) {
-					this.tableListAddAll = tableListAddAll;
-					return this;
-				}
-				public int tableListClear() {
-					return tableListClear;
-				}
-				public VerifyDifferent tableListClear(int tableListClear) {
-					this.tableListClear = tableListClear;
 					return this;
 				}
 				public int newTablesToArray() {
@@ -831,10 +801,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						.snapshotReadTableErrorAspect(0)
 						.stateCOMPLETED(1)
 						.newTablesIsEmpty(1).newTablesToArray(1)
-						.tableListClear(1).tableListAddAll(1)
 						.endSnapshotLoopSet(0)
 						.tapdataCompleteSnapshotEvent(1)
-						.getDatabaseType(1)
 						.snapshotReadEndAspect(1)
 				);
 			}
@@ -866,8 +834,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						.tapDataCompleteTableSnapshotEvent(1)
 						.stateCOMPLETED(1)
 						.newTablesIsEmpty(1).newTablesToArray(1)
-						.tableListClear(1).tableListAddAll(1)
-						.getDatabaseType(1)
 						.snapshotReadEndAspect(1)
 				);
 			}
@@ -903,7 +869,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						.newTablesIsEmpty(1)
 						.endSnapshotLoopSet(1)
 						.tapdataCompleteSnapshotEvent(1)
-						.getDatabaseType(1)
 						.snapshotReadEndAspect(1)
 				);
 			}
@@ -961,7 +926,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						.snapshotReadTableErrorAspect(1)
 						.stateCOMPLETED(1)
 						.tapdataCompleteSnapshotEvent(1)
-						.getDatabaseType(1)
 				);
 			}
 
@@ -1018,7 +982,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						.snapshotReadTableErrorAspect(1)
 						.stateCOMPLETED(1)
 						.tapdataCompleteSnapshotEvent(1)
-						.getDatabaseType(1)
 				);
 			}
 
@@ -1050,9 +1013,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						.tapDataCompleteTableSnapshotEvent(1)
 						.stateCOMPLETED(1)
 						.newTablesIsEmpty(1).newTablesToArray(1)
-						.tableListClear(1).tableListAddAll(1)
 						.tapdataCompleteSnapshotEvent(1)
-						.getDatabaseType(1)
 						.snapshotReadEndAspect(1)
 				);
 			}
@@ -1080,10 +1041,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						.lockBySourceRunnerLock(2).unlock(2)
 						.stateCOMPLETED(1)
 						.newTablesIsEmpty(1).newTablesToArray(1)
-						.tableListClear(1).tableListAddAll(1)
 						.endSnapshotLoopSet(0)
 						.tapdataCompleteSnapshotEvent(1)
-						.getDatabaseType(1)
 						.snapshotReadEndAspect(1)
 						.removeTablesContains(1)
 						.removeTablesRemove(1)
@@ -1111,10 +1070,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						.lockBySourceRunnerLock(2).unlock(2)
 						.stateCOMPLETED(1)
 						.newTablesIsEmpty(1).newTablesToArray(1)
-						.tableListClear(1).tableListAddAll(1)
 						.endSnapshotLoopSet(0)
 						.tapdataCompleteSnapshotEvent(1)
-						.getDatabaseType(1)
 						.snapshotReadEndAspect(1)
 				);
 			}
@@ -1139,9 +1096,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						.lockBySourceRunnerLock(1).unlock(1)
 						.stateCOMPLETED(1)
 						.newTablesIsEmpty(1).newTablesToArray(1)
-						.tableListClear(1).tableListAddAll(1)
 						.tapdataCompleteSnapshotEvent(1)
-						.getDatabaseType(1)
 						.snapshotReadEndAspect(1)
 				);
 			}
@@ -1181,10 +1136,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						.snapshotReadTableErrorAspect(0)
 						.stateCOMPLETED(1)
 						.newTablesIsEmpty(1).newTablesToArray(1)
-						.tableListClear(1).tableListAddAll(1)
 						.endSnapshotLoopSet(0)
 						.tapdataCompleteSnapshotEvent(1)
-						.getDatabaseType(1)
 						.snapshotReadEndAspect(1)
 				);
 			}
@@ -1226,10 +1179,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						.snapshotReadTableErrorAspect(0)
 						.stateCOMPLETED(1)
 						.newTablesIsEmpty(1).newTablesToArray(1)
-						.tableListClear(1).tableListAddAll(1)
 						.endSnapshotLoopSet(0)
 						.tapdataCompleteSnapshotEvent(1)
-						.getDatabaseType(1)
 						.snapshotReadEndAspect(1)
 				);
 			}
