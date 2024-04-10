@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service;
 
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -19,6 +20,7 @@ import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.CustomKafkaUtils;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -34,6 +36,13 @@ import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.conversion.PossibleDataTypes;
+import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.result.TapResult;
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -292,7 +301,7 @@ public class TransformSchemaService {
                     metadataList.addAll(metadataList1);
                 }
 
-                CustomKafkaUtils.updateSourceMetadataInstances(metadataList, kafkaSourceNode, sourceConnectionDto, customKafkaQualifiedNames);
+                CustomKafkaUtils.updateSourceMetadataInstances(metadataList, kafkaSourceNode, sourceConnectionDto, customKafkaQualifiedNames, (dto, databaseType) -> fieldTypeToSource(dto, databaseType, user));
             }
         } else {
             Criteria criteria = Criteria.where("taskId").is(taskDto.getId().toHexString())
@@ -320,6 +329,64 @@ public class TransformSchemaService {
         return transformerWsMessageDto;
 
     }
+
+	/**
+	 * 将 field 中的类型推演至对应库的类型
+	 * @param dto 模型
+	 * @param databaseType 数据库类型
+	 * @param user 用户信息
+	 * @return 新模型
+	 */
+		private MetadataInstancesDto fieldTypeToSource(MetadataInstancesDto dto, String databaseType, UserDetail user) {
+			DataSourceDefinitionDto definitionDto = definitionService.getByDataSourceType(databaseType, user);
+			String expression = definitionDto.getExpression();
+			Map<Class<?>, String> tapMap = definitionDto.getTapMap();
+
+			Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dto), Schema.class);
+			if (null == schema) return null;
+
+			TapTable tapTable = PdkSchemaConvert.toPdk(schema);
+
+			Optional.of(tapTable.getNameFieldMap()).ifPresent(nameFieldMap -> {
+
+				TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
+				Map<String, PossibleDataTypes> findPossibleDataTypes = Maps.newHashMap();
+				TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap, DefaultExpressionMatchingMap.map(expression), codecsFilterManager, findPossibleDataTypes);
+
+				LinkedHashMap<String, TapField> data = convert.getData();
+				if (null == data) return;
+
+				PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(data, DefaultExpressionMatchingMap.map(expression));
+
+				if (!findPossibleDataTypes.isEmpty()) {
+					boolean anyMatch = findPossibleDataTypes.values().stream().anyMatch(dataType -> dataType.getLastMatchedDataType() == null);
+					if (anyMatch) {
+						schema.setHasTransformEx(true);
+					}
+
+					List<String> fieldNameList = schema.getFields().stream()
+						.filter(l -> !l.isDeleted())
+						.map(Field::getFieldName).collect(Collectors.toList());
+					findPossibleDataTypes.entrySet().removeIf(map -> !fieldNameList.contains(map.getKey()));
+				}
+				schema.setFindPossibleDataTypes(findPossibleDataTypes);
+
+				nameFieldMap.putAll(data);
+			});
+
+			Schema resultSchema = PdkSchemaConvert.fromPdkSchema(tapTable);
+			MetadataInstancesDto metadataInstancesDto = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(resultSchema), MetadataInstancesDto.class);
+
+			if (null != metadataInstancesDto) {
+				metadataInstancesDto.setOldId(dto.getOldId());
+				metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
+				metadataInstancesDto.setNodeId(schema.getNodeId());
+				metadataInstancesDto.setHasTransformEx(schema.isHasTransformEx());
+				metadataInstancesDto.setFindPossibleDataTypes(schema.getFindPossibleDataTypes());
+			}
+
+			return metadataInstancesDto;
+		}
 
     public void transformSchema(TaskDto taskDto, UserDetail user) {
         transformSchema(taskDto, user, true);

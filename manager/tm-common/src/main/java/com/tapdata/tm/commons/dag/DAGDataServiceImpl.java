@@ -5,6 +5,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.deduction.rule.ChangeRuleStage;
+import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
@@ -260,7 +261,16 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         if (node.isDataNode()) {
             return createOrUpdateSchemaForDataNode(dataSourceId, schemas, options, node);
         } else {
-            return createOrUpdateSchemaForProcessNode(schemas, options, node.getId(), appendNodeTableName);
+            String assignField2DbId = Optional.ofNullable(node.getDag().getTargets()).map(list -> {
+							if (!list.isEmpty()) {
+								Node firstNode = list.get(0);
+								if (firstNode instanceof DataNode) {
+									return ((DataNode) firstNode).getConnectionId();
+								}
+							}
+							return null;
+						}).orElse(null);
+            return createOrUpdateSchemaForProcessNode(schemas, options, node.getId(), appendNodeTableName, assignField2DbId);
         }
     }
 
@@ -268,9 +278,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
      * 保存处理器节点模型
      * @param schemas 模型
      * @param options 配置项
+     * @param assignField2DatasourceId 指定字段转换的数据源编号
      * @return
      */
-    private List<Schema> createOrUpdateSchemaForProcessNode(List<Schema> schemas, DAG.Options options, String nodeId, boolean appendNodeTableName) {
+    private List<Schema> createOrUpdateSchemaForProcessNode(List<Schema> schemas, DAG.Options options, String nodeId, boolean appendNodeTableName, String assignField2DatasourceId) {
 
         List<ObjectId> databaseMetadataInstancesIds = schemas.stream().map(Schema::getDatabaseId).distinct()
                 .filter(Objects::nonNull).map(ObjectId::new).collect(Collectors.toList());
@@ -289,7 +300,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
 
         SourceDto sourceDto = dataSourceMetadataInstance.getSource();
-        DataSourceConnectionDto dataSource = dataSourceMap.get(sourceDto.get_id());
+        DataSourceConnectionDto dataSource = null == assignField2DatasourceId ? dataSourceMap.get(sourceDto.get_id()) : dataSourceMap.get(assignField2DatasourceId);
 
         // 其他类型的 meta type 暂时不做模型推演处理
         final String _metaType = MetaType.processor_node.name();
@@ -299,7 +310,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
             // 这里需要将 data_type 字段根据字段类型映射规则转换为 数据库类型
             //   需要 根据 所有可匹配条件，尽量缩小匹配结果，选择最优字段类型
-            metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, false);
+						metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, false);
 
             metadataInstancesDto.setMetaType(_metaType);
             metadataInstancesDto.setDeleted(false);

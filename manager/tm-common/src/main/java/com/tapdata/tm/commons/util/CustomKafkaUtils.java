@@ -2,21 +2,20 @@ package com.tapdata.tm.commons.util;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import org.springframework.beans.BeanUtils;
 
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 public class CustomKafkaUtils {
 
-	public static void updateSourceMetadataInstances(List<MetadataInstancesDto> metadataList, Node node, DataSourceConnectionDto sourceConnectionDto, List<String> customKafkaQualifiedNames) {
+	public static void updateSourceMetadataInstances(List<MetadataInstancesDto> metadataList, Node node, DataSourceConnectionDto sourceConnectionDto, List<String> customKafkaQualifiedNames, BiFunction<MetadataInstancesDto, String, MetadataInstancesDto> fun) {
 		if (null == sourceConnectionDto) return;
 		if (node instanceof TableNode) {
 			// 开发任务
@@ -30,13 +29,13 @@ public class CustomKafkaUtils {
 				if (customKafkaQualifiedNames.isEmpty()) throw new RuntimeException("not found kafka qualified name");
 
 				String qualifiedName = customKafkaQualifiedNames.get(0);
-				for (MetadataInstancesDto sourceMetadataInstancesDto : metadataList) {
+				for (int i = 0; i < metadataList.size(); i++) {
+					MetadataInstancesDto sourceMetadataInstancesDto = metadataList.get(i);
 					if (sourceMetadataInstancesDto.getQualifiedName().equals(qualifiedName)) {
 						sourceMetadataInstancesDto.setFields(metadataInstancesDto.getFields());
-						for (Field field : sourceMetadataInstancesDto.getFields()) {
-							field.setSourceDbType(sourceConnectionDto.getDatabase_type());
-							field.setId(String.format("%s_%s_%S", ((TableNode) node).getConnectionId(), ((TableNode) node).getTableName(), field.getFieldName()));
-						}
+
+						MetadataInstancesDto applyDto = fun.apply(sourceMetadataInstancesDto, sourceConnectionDto.getDatabase_type());
+						Optional.ofNullable(applyDto.getFields()).ifPresent(sourceMetadataInstancesDto::setFields);
 						break;
 					}
 				}
