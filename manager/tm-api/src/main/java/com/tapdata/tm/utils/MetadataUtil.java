@@ -415,9 +415,10 @@ public class MetadataUtil {
                     }
                 }
             }
-
-            newModel = MetaDataBuilderUtils.build(newModel.getMetaType(), connection, user.getUserId(), user.getUsername(), newModel.getOriginalName(), newModel, oldModel, databaseId, null, newModelMap);
-            newModelList.add(newModel);
+            if(oldModel != null && newModel.getLastUpdate() != null && oldModel.getLastUpdate() != null && newModel.getLastUpdate() > oldModel.getLastUpdate()){
+                newModel = MetaDataBuilderUtils.build(newModel.getMetaType(), connection, user.getUserId(), user.getUsername(), newModel.getOriginalName(), newModel, oldModel, databaseId, null, newModelMap);
+                newModelList.add(newModel);
+            }
         }
 
         return newModelList;
