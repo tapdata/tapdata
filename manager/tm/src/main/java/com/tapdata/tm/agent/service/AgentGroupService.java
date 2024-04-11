@@ -35,6 +35,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -561,5 +562,64 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
             criteria.and(AgentGroupTag.TAG_GROUP_ID).in(groupIds);
         }
         return criteria;
+    }
+
+    public void uploadAgentInfo(TaskDto dto, UserDetail userDetail) {
+        String accessNodeType = dto.getAccessNodeType();
+        if (AccessNodeTypeEnum.isGroupManually(accessNodeType)) {
+            String accessNodeProcessId = dto.getAccessNodeProcessId();
+            GroupDto one = findOne(Query.query(findCriteria(Lists.newArrayList(accessNodeProcessId))), userDetail);
+            if (null != one) {
+                Map<String, Object> info = new HashMap<>();
+                info.put(AgentGroupTag.TAG_GROUP_ID, one.getGroupId());
+                info.put(AgentGroupTag.TAG_NAME, one.getName());
+                dto.setAgentGroupInfo(info);
+            }
+        } else {
+            dto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+            dto.setAccessNodeProcessId(null);
+        }
+        dto.setAccessNodeProcessIdList(new ArrayList<>());
+    }
+
+    public void importAgentInfo(List<TaskDto> dto, UserDetail userDetail) {
+        List<Map<String, Object>> allAgent = dto.stream()
+                .filter(Objects::nonNull)
+                .filter(d -> {
+                    importAgentInfo(d);
+                    return true;
+                }).filter(d -> Objects.nonNull(d.getAgentGroupInfo()) && !d.getAgentGroupInfo().isEmpty())
+                .map(TaskDto::getAgentGroupInfo)
+                .collect(Collectors.toList());
+        for (Map<String, Object> info : allAgent) {
+            Object idObj = info.get(AgentGroupTag.TAG_GROUP_ID);
+            Object nameObj = info.get(AgentGroupTag.TAG_NAME);
+            GroupDto groupDto = new GroupDto();
+            String name = String.valueOf(nameObj);
+            String id = String.valueOf(idObj);
+            groupDto.setName(name);
+            ObjectId objectId = new ObjectId(String.valueOf(id));
+            groupDto.setId(objectId);
+            Query query = new Query(new Criteria(AgentGroupTag.TAG_NAME).is(name)).addCriteria(new Criteria(AgentGroupTag.TAG_DELETE).is(objectId));
+            upsert(query, groupDto, userDetail);
+        }
+    }
+
+    public void importAgentInfo(TaskDto taskDto) {
+        String accessNodeType = taskDto.getAccessNodeType();
+        if (!AccessNodeTypeEnum.isGroupManually(accessNodeType)) {
+            taskDto.setAccessNodeProcessId(null);
+            taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+        }
+        taskDto.setAccessNodeProcessIdList(new ArrayList<>());
+    }
+
+    public void importAgentInfo(DataSourceConnectionDto connectionDto) {
+        String accessNodeType = connectionDto.getAccessNodeType();
+        if (!AccessNodeTypeEnum.isGroupManually(accessNodeType)) {
+            connectionDto.setAccessNodeProcessId(null);
+            connectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+        }
+        connectionDto.setAccessNodeProcessIdList(new ArrayList<>());
     }
 }

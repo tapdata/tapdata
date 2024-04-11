@@ -1729,21 +1729,16 @@ public class DataSourceServiceImpl extends DataSourceService{
 						connectionDto.setShareCDCExternalStorageId(defaultExternalStorage.getId().toString());
 					}
 
-				}connectionByUser = importEntity(connectionDto, user);
+				}
+                agentGroupService.importAgentInfo(connectionDto);
+                connectionByUser = importEntity(connectionDto, user);
             } else {
                 if (cover) {
                     ObjectId objectId = connectionByUser.getId();
                     while (checkRepeatNameBool(user, connectionDto.getName(), objectId)) {
                         connectionDto.setName(connectionDto.getName() + "_import");
                     }
-
-                    if (repository.count(Query.query(Criteria.where("_id").is(connectionDto.getId())), user) <= 0) {
-                    connectionDto.setAccessNodeProcessId(null);
-                    connectionDto.setAccessNodeProcessIdList(new ArrayList<>());
-                    connectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
-                    }
-
-
+                    agentGroupService.importAgentInfo(connectionDto);
                     connectionByUser = save(connectionDto, user);
                 }
             }

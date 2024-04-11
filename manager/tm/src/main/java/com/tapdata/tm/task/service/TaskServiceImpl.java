@@ -468,7 +468,7 @@ public class TaskServiceImpl extends TaskService{
                 taskDto.setTestTaskId(oldTaskDto.getTestTaskId());
                 taskDto.setTransformTaskId(oldTaskDto.getTransformTaskId());
 
-                TaskServiceUtil.copyAccessNodeInfo(oldTaskDto, taskDto, user, agentGroupService);
+                TaskServiceUtil.copyAccessNodeInfo(oldTaskDto, taskDto);
 
                 if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && !ParentTaskDto.TYPE_CDC.equals(taskDto.getType())) {
                     DAG newDag = taskDto.getDag();
@@ -710,7 +710,7 @@ public class TaskServiceImpl extends TaskService{
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm) {
         if (Objects.nonNull(taskDto.getId())) {
             TaskDto temp = findById(taskDto.getId());
-            TaskServiceUtil.copyAccessNodeInfo(temp, taskDto, user, agentGroupService);
+            TaskServiceUtil.copyAccessNodeInfo(temp, taskDto);
         }
         // check task inspect flag
         checkTaskInspectFlag(taskDto);
@@ -2842,9 +2842,7 @@ public class TaskServiceImpl extends TaskService{
                 taskDto.setUserId(null);
                 taskDto.setAgentId(null);
                 taskDto.setListtags(null);
-                taskDto.setAccessNodeProcessId(null);
-                taskDto.setAccessNodeProcessIdList(new ArrayList<>());
-                taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+                agentGroupService.uploadAgentInfo(taskDto, user);
 
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setStatuses(new ArrayList<>());
@@ -3618,6 +3616,7 @@ public class TaskServiceImpl extends TaskService{
         Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
         Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
         try {
+            agentGroupService.importAgentInfo(tasks, user);
             customNodeMap = customNodeService.batchImport(customNodeDtos, user, cover);
             conMap = dataSourceService.batchImport(connections, user, cover);
             metaMap = metadataInstancesService.batchImport(metadataInstancess, user, cover, conMap);
@@ -3661,10 +3660,7 @@ public class TaskServiceImpl extends TaskService{
 
             taskDto.setListtags(null);
             taskDto.setStatus(TaskDto.STATUS_EDIT);
-            taskDto.setAccessNodeProcessId(null);
-            taskDto.setAccessNodeProcessIdList(new ArrayList<>());
-            taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
-						taskDto.setTaskRecordId(new ObjectId().toHexString()); // 导入后不读旧指标数据
+            taskDto.setTaskRecordId(new ObjectId().toHexString()); // 导入后不读旧指标数据
 
             Map<String, Object> attrs = taskDto.getAttrs();
             if (attrs != null) {

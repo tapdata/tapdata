@@ -75,9 +75,9 @@ class TaskServiceImplTest {
 
         void assertVerify(int getIdTimes, int findByIdTimes) {
             try(MockedStatic<TaskServiceUtil> tsu = mockStatic(TaskServiceUtil.class)) {
-                tsu.when(() -> TaskServiceUtil.copyAccessNodeInfo(temp, taskDto, user, agentGroupService)).then(a->null);
+                tsu.when(() -> TaskServiceUtil.copyAccessNodeInfo(temp, taskDto)).then(a->null);
                 Assertions.assertDoesNotThrow(() -> taskService.confirmById(taskDto, user, true));
-                tsu.verify(() -> TaskServiceUtil.copyAccessNodeInfo(temp, taskDto, user, agentGroupService), times(findByIdTimes));
+                tsu.verify(() -> TaskServiceUtil.copyAccessNodeInfo(temp, taskDto), times(findByIdTimes));
             }
             verify(taskDto, times(getIdTimes)).getId();
             verify(taskService, times(findByIdTimes)).findById(any(ObjectId.class));
