@@ -94,7 +94,7 @@ public class AgentLogConfigurationWatcher extends AbstractLogConfigurationWatche
         }
     }
 
-    private void updateRollingFileAppender(LogConfiguration logConfiguration) {
+    protected void updateRollingFileAppender(LogConfiguration logConfiguration) {
         org.apache.logging.log4j.core.config.Configuration config = context.getConfiguration();
         Appender appender = context.getRootLogger().getAppenders().get("rollingFileAppender");
         RollingFileAppender rollingFileAppender = null;
