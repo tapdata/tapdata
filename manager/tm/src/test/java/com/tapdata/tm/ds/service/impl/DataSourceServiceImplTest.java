@@ -3,10 +3,13 @@ package com.tapdata.tm.ds.service.impl;
 
 import com.tapdata.tm.Settings.constant.SettingUtil;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.worker.service.WorkerService;
 import org.bson.types.ObjectId;
@@ -142,6 +145,8 @@ class DataSourceServiceImplTest {
     class flushDatabaseMetadataInstanceLastUpdateTest {
 
         private DataSourceRepository dataSourceRepository;
+
+        private MetadataInstancesService metadataInstancesService;
         private UserDetail userDetail;
         private long time;
         private String connectionId;
@@ -149,7 +154,9 @@ class DataSourceServiceImplTest {
         @BeforeEach
         void setUp() {
             dataSourceRepository = mock(DataSourceRepository.class);
-            dataSourceService = new DataSourceServiceImpl(dataSourceRepository);
+            metadataInstancesService = mock(MetadataInstancesService.class);
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            ReflectionTestUtils.setField(dataSourceService,"metadataInstancesService",metadataInstancesService);
             userDetail = mock(UserDetail.class);
             time = new Date().getTime();
             connectionId = new ObjectId().toHexString();
@@ -158,9 +165,17 @@ class DataSourceServiceImplTest {
         @Test
         @DisplayName("test main process")
         void testMainProcess() {
-            assertDoesNotThrow(() -> dataSourceService.flushDatabaseMetadataInstanceLastUpdate("finished", connectionId, time, userDetail));
+            try (
+                    MockedStatic<MetaDataBuilderUtils> metaDataBuilderUtilsMockedStatic = mockStatic(MetaDataBuilderUtils.class)
+            ){
+                DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+                doReturn(dataSourceConnectionDto).when(dataSourceService).findById(any(ObjectId.class), eq(userDetail));
+                String qualifiedName = "test-qualified-name";
+                metaDataBuilderUtilsMockedStatic.when(() -> MetaDataBuilderUtils.generateQualifiedName(MetaType.database.name(), dataSourceConnectionDto, null)).thenReturn(qualifiedName);
+                assertDoesNotThrow(() -> dataSourceService.flushDatabaseMetadataInstanceLastUpdate("finished", connectionId, time, userDetail));
+                verify(metadataInstancesService, times(1)).update(any(Query.class), any(Update.class), eq(userDetail));
+            }
 
-            verify(dataSourceRepository, times(1)).update(any(Query.class), any(Update.class), eq(userDetail));
         }
 
         @Test
@@ -203,6 +218,14 @@ class DataSourceServiceImplTest {
         void inputNullUserDetail() {
             assertDoesNotThrow(() -> dataSourceService.flushDatabaseMetadataInstanceLastUpdate("finished", connectionId, time, null));
 
+            verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
+        }
+
+        @Test
+        @DisplayName("test findById return null")
+        void testFindByIdReturnNull() {
+            doReturn(null).when(dataSourceService).findById(any(ObjectId.class), eq(userDetail));
+            assertDoesNotThrow(() -> dataSourceService.flushDatabaseMetadataInstanceLastUpdate("finished", connectionId, time, null));
             verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
         }
     }

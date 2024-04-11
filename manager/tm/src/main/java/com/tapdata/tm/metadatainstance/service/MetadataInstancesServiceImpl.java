@@ -983,10 +983,9 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         }
 
         List<String> qualifiedNames = new ArrayList<>();
-        checkSetLastUpdate(insertMetaDataDtos,userDetail);
 
         if (CollectionUtils.isNotEmpty(insertMetaDataDtos)) {
-
+            checkSetLastUpdate(insertMetaDataDtos,userDetail);
 
             List<MetadataInstancesDto> sourceMetas = new ArrayList<>();
             if (saveHistory) {
@@ -2482,26 +2481,36 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
     @Override
     public void checkSetLastUpdate(List<MetadataInstancesDto> insertMetaDataDtos,UserDetail user) {
-        List<MetadataInstancesDto> filter = insertMetaDataDtos.stream().filter(metadataInstancesDto -> metadataInstancesDto.getLastUpdate() == null).collect(Collectors.toList());
-        if(filter.size() > 0){
-            Long lastUpdate = findDatabaseMetadataInstanceLastUpdate(filter.get(0).getConnectionId(),user);
-            filter.forEach(metadataInstancesDto -> {
-                metadataInstancesDto.setLastUpdate(lastUpdate);
-            });
+        if(CollectionUtils.isEmpty(insertMetaDataDtos))return;
+        Map<String,List<String>> map = insertMetaDataDtos.stream().filter(metadataInstancesDto -> metadataInstancesDto.getLastUpdate() == null)
+                .collect(Collectors.groupingBy(metadataInstancesDto -> metadataInstancesDto.getSource().get_id(),
+                        Collectors.mapping(MetadataInstancesDto::getQualifiedName, Collectors.toList())));
+        Map<String,Long> lastUpdateMap = new HashMap<>();
+        for(Map.Entry<String,List<String>> entry : map.entrySet()){
+            Long lastUpdate = findDatabaseMetadataInstanceLastUpdate(entry.getKey(),user);
+            if(lastUpdate == null)throw new BizException("lastUpdate is null");
+            for(String qualifiedName : entry.getValue()){
+                lastUpdateMap.put(qualifiedName,lastUpdate);
+            }
         }
+        for(MetadataInstancesDto metadataInstancesDto : insertMetaDataDtos){
+            if(metadataInstancesDto.getLastUpdate() == null)metadataInstancesDto.setLastUpdate(lastUpdateMap.get(metadataInstancesDto.getQualifiedName()));
+        }
+
     }
 
     @Override
     public Long findDatabaseMetadataInstanceLastUpdate(String connectionId, UserDetail user) {
         DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(connectionId), user);
         if (connectionDto == null) {
-            return null;
+            throw new BizException("connection is null");
         }
         String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.database.name(), connectionDto, null);
         Criteria criteria = Criteria.where("qualified_name").is(qualifiedName);
         Query query = new Query(criteria);
         query.fields().include("lastUpdate");
         MetadataInstancesDto metedata = findOne(query);
+        if(metedata == null)throw new BizException("metadataInstances is null");
         return metedata.getLastUpdate();
     }
 }

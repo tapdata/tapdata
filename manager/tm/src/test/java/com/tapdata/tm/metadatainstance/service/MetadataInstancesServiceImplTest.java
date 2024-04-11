@@ -88,7 +88,7 @@ public class MetadataInstancesServiceImplTest {
 
 			assertDoesNotThrow(() -> metadataInstancesService.checkSetLastUpdate(metadataInstancesDtoList, userDetail));
 
-			verify(metadataInstancesService, times(1)).findDatabaseMetadataInstanceLastUpdate(any(), any());
+			verify(metadataInstancesService, times(2)).findDatabaseMetadataInstanceLastUpdate(any(), any());
 			assertEquals(1L, metadataInstancesDto1.getLastUpdate());
 			assertEquals(time1, metadataInstancesDto2.getLastUpdate());
 			assertEquals(time1, metadataInstancesDto3.getLastUpdate());
@@ -146,13 +146,13 @@ public class MetadataInstancesServiceImplTest {
 			MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
 			metadataInstancesDto2.setOriginalName("test-original-name2");
 			metadataInstancesDto2.setQualifiedName("test-qualified-name2");
-			metadataInstancesDto1.setSource(sourceDto);
+			metadataInstancesDto2.setSource(sourceDto);
 			metadataInstancesDto2.setLastUpdate(null);
 			metadataInstancesDtoList.add(metadataInstancesDto2);
 			MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
 			metadataInstancesDto3.setOriginalName("test-original-name3");
 			metadataInstancesDto3.setQualifiedName("test-qualified-name3");
-			metadataInstancesDto1.setSource(sourceDto);
+			metadataInstancesDto3.setSource(sourceDto);
 			metadataInstancesDto3.setLastUpdate(null);
 			metadataInstancesDtoList.add(metadataInstancesDto3);
 			doReturn(null).when(metadataInstancesService).findDatabaseMetadataInstanceLastUpdate(connectionId, userDetail);
@@ -183,7 +183,7 @@ public class MetadataInstancesServiceImplTest {
 				long time = new Date().getTime();
 				String connectionId = new ObjectId().toHexString();
 				DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
-				when(dataSourceService.findById(new ObjectId(connectionId), userDetail)).thenReturn(dataSourceConnectionDto);
+				when(dataSourceService.findById(any(ObjectId.class), eq(userDetail))).thenReturn(dataSourceConnectionDto);
 				String qualifiedName = "test-qualified-name";
 				metaDataBuilderUtilsMockedStatic.when(() -> MetaDataBuilderUtils.generateQualifiedName(MetaType.database.name(), dataSourceConnectionDto, null)).thenReturn(qualifiedName);
 				MetadataInstancesDto databaseMetaDto = new MetadataInstancesDto();
@@ -195,7 +195,7 @@ public class MetadataInstancesServiceImplTest {
 					Document queryObject = query.getQueryObject();
 					assertNotNull(queryObject);
 					assertEquals(1, queryObject.size());
-					assertEquals(qualifiedName, queryObject.get("qualifiedName"));
+					assertEquals(qualifiedName, queryObject.get("qualified_name"));
 					assertNotNull(query.getFieldsObject());
 					assertEquals(1, query.getFieldsObject().size());
 					assertEquals(1, query.getFieldsObject().get("lastUpdate"));
@@ -211,7 +211,7 @@ public class MetadataInstancesServiceImplTest {
 		@DisplayName("Test find connection return null")
 		void testFindConnectionReturnNull() {
 			String connectionId = new ObjectId().toHexString();
-			when(dataSourceService.findById(new ObjectId(connectionId), userDetail)).thenReturn(null);
+			when(dataSourceService.findById(any(ObjectId.class), eq(userDetail))).thenReturn(null);
 
 			assertThrows(BizException.class, () -> metadataInstancesService.findDatabaseMetadataInstanceLastUpdate(connectionId, userDetail));
 		}

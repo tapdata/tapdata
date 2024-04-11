@@ -31,6 +31,7 @@ import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
@@ -1435,7 +1436,7 @@ public class DataSourceServiceImpl extends DataSourceService{
                 inValues.add("view");
                 Criteria criteria2 = Criteria.where("source._id").is(connectionId).and("meta_type").in(inValues);
                 metadataInstancesService.update(new Query(criteria2), Update.update("databaseId", databaseId), user);
-
+                flushDatabaseMetadataInstanceLastUpdate((String) set.get("loadFieldsStatus"), connectionId, (Long) set.get(LAST_UPDATE), user);
                 if (hasSchema) {
                     if (CollectionUtils.isNotEmpty(tables)) {
                         Long schemaVersion = (Long) set.get(LAST_UPDATE);
@@ -2056,6 +2057,16 @@ public class DataSourceServiceImpl extends DataSourceService{
 
     @Override
     public void flushDatabaseMetadataInstanceLastUpdate(String loadFieldsStatus, String connectionId, Long lastUpdate, UserDetail userDetail) {
+        if ("finished".equals(loadFieldsStatus) && lastUpdate != null && StringUtils.isNotBlank(connectionId)) {
+            DataSourceConnectionDto connectionDto = findById(toObjectId(connectionId), userDetail);
+            if (connectionDto == null) {
+                return;
+            }
+            String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.database.name(), connectionDto, null);
+            Criteria criteria = Criteria.where("qualified_name").is(qualifiedName);
+            Query query = new Query(criteria);
+            metadataInstancesService.update(query,Update.update(LAST_UPDATE,lastUpdate),userDetail);
+        }
 
     }
 
