@@ -1483,11 +1483,11 @@ class AgentGroupServiceTest {
             @BeforeEach
             void init() {
                 taskDto = mock(TaskDto.class);
-                when(taskDto.getAccessNodeType()).thenReturn("type");
+                when(taskDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
                 when(taskDto.getAccessNodeProcessId()).thenReturn("id");
                 when(taskDto.getAccessNodeProcessIdList()).thenReturn(processNodeList);
                 doNothing().when(taskDto).setAccessNodeProcessIdList(processNodeList);
-                when(agentGroupService.getProcessNodeList("type", "id", userDetail)).thenReturn(processNodeList);
+                when(agentGroupService.getGroupProcessNodeList("type", "id", userDetail)).thenReturn(processNodeList);
                 when(agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail)).thenCallRealMethod();
             }
             @Test
@@ -1495,20 +1495,19 @@ class AgentGroupServiceTest {
                 Assertions.assertDoesNotThrow(() -> agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail));
                 verify(taskDto, times(1)).getAccessNodeType();
                 verify(taskDto, times(1)).getAccessNodeProcessId();
-                verify(agentGroupService, times(1)).getProcessNodeList("type", "id", userDetail);
-                verify(processNodeList, times(1)).isEmpty();
+                verify(agentGroupService, times(1)).getGroupProcessNodeList(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), "id", userDetail);
                 verify(taskDto, times(0)).getAccessNodeProcessIdList();
-                verify(taskDto, times(1)).setAccessNodeProcessIdList(processNodeList);
+                verify(taskDto, times(1)).setAccessNodeProcessIdList(anyList());
             }
 
             @Test
-            void testIsEmpty() {
+            void testNotByGroup() {
+                when(taskDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
                 when(processNodeList.isEmpty()).thenReturn(true);
                 Assertions.assertDoesNotThrow(() -> agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail));
                 verify(taskDto, times(1)).getAccessNodeType();
-                verify(taskDto, times(1)).getAccessNodeProcessId();
-                verify(agentGroupService, times(1)).getProcessNodeList("type", "id", userDetail);
-                verify(processNodeList, times(1)).isEmpty();
+                verify(taskDto, times(0)).getAccessNodeProcessId();
+                verify(agentGroupService, times(0)).getGroupProcessNodeList(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), "id", userDetail);
                 verify(taskDto, times(1)).getAccessNodeProcessIdList();
                 verify(taskDto, times(0)).setAccessNodeProcessIdList(processNodeList);
             }
@@ -1519,6 +1518,7 @@ class AgentGroupServiceTest {
             @BeforeEach
             void init() {
                 connectionDto = mock(DataSourceConnectionDto.class);
+                when(connectionDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
                 when(connectionDto.getAccessNodeProcessIdList()).thenReturn(processNodeList);
                 when(agentGroupService.getDataSourceConnectionProcessNodeList(connectionDto, userDetail)).thenReturn(processNodeList);
                 when(agentGroupService.getProcessNodeListWithGroup(connectionDto, userDetail)).thenCallRealMethod();
@@ -1527,17 +1527,18 @@ class AgentGroupServiceTest {
             void testNormal() {
                 Assertions.assertDoesNotThrow(() -> agentGroupService.getProcessNodeListWithGroup(connectionDto, userDetail));
                 verify(connectionDto, times(0)).getAccessNodeProcessIdList();
-                verify(processNodeList, times(1)).isEmpty();
+                verify(processNodeList, times(0)).isEmpty();
                 verify(agentGroupService, times(1)).getDataSourceConnectionProcessNodeList(connectionDto, userDetail);
             }
 
             @Test
-            void testIsEmpty() {
+            void testNotByGroup() {
+                when(connectionDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
                 when(processNodeList.isEmpty()).thenReturn(true);
                 Assertions.assertDoesNotThrow(() -> agentGroupService.getProcessNodeListWithGroup(connectionDto, userDetail));
                 verify(connectionDto, times(1)).getAccessNodeProcessIdList();
-                verify(processNodeList, times(1)).isEmpty();
-                verify(agentGroupService, times(1)).getDataSourceConnectionProcessNodeList(connectionDto, userDetail);
+                verify(processNodeList, times(0)).isEmpty();
+                verify(agentGroupService, times(0)).getDataSourceConnectionProcessNodeList(connectionDto, userDetail);
             }
         }
     }
@@ -1553,7 +1554,7 @@ class AgentGroupServiceTest {
             when(processNodeList.isEmpty()).thenReturn(false);
             when(connectionDto.getTrueAccessNodeProcessIdList()).thenReturn(processNodeList);
             when(agentGroupService.getDataSourceConnectionProcessNodeList(connectionDto, userDetail)).thenReturn(processNodeList);
-
+            when(connectionDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
             when(agentGroupService.getTrueProcessNodeListWithGroup(connectionDto, userDetail)).thenCallRealMethod();
         }
 
@@ -1565,10 +1566,11 @@ class AgentGroupServiceTest {
         }
 
         @Test
-        void testIsEmpty() {
+        void testNotGroup() {
+            when(connectionDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
             when(processNodeList.isEmpty()).thenReturn(true);
             Assertions.assertDoesNotThrow(() -> agentGroupService.getTrueProcessNodeListWithGroup(connectionDto, userDetail));
-            verify(agentGroupService, times(1)).getDataSourceConnectionProcessNodeList(connectionDto, userDetail);
+            verify(agentGroupService, times(0)).getDataSourceConnectionProcessNodeList(connectionDto, userDetail);
             verify(connectionDto, times(1)).getTrueAccessNodeProcessIdList();
         }
     }
@@ -1583,7 +1585,7 @@ class AgentGroupServiceTest {
             connectionDto = mock(DataSourceConnectionDto.class);
             when(connectionDto.getAccessNodeType()).thenReturn("type");
             when(connectionDto.getAccessNodeProcessId()).thenReturn("id");
-            when(agentGroupService.getProcessNodeList("type", "id", userDetail)).thenReturn(processNodeList);
+            when(agentGroupService.getGroupProcessNodeList("type", "id", userDetail)).thenReturn(processNodeList);
             doNothing().when(connectionDto).setAccessNodeProcessIdList(processNodeList);
             when(agentGroupService.getDataSourceConnectionProcessNodeList(connectionDto, userDetail)).thenCallRealMethod();
         }
@@ -1601,27 +1603,27 @@ class AgentGroupServiceTest {
             when(log.isDebugEnabled()).thenReturn(false);
             doNothing().when(log).debug(anyString(), anyString(), anyString());
             when(agentGroupService.getProcessNodeListByGroupId(anyList(), any(UserDetail.class))).thenReturn(mock(List.class));
-            when(agentGroupService.getProcessNodeList(anyString(), anyString(), any(UserDetail.class))).thenCallRealMethod();
+            when(agentGroupService.getGroupProcessNodeList(anyString(), anyString(), any(UserDetail.class))).thenCallRealMethod();
         }
 
         @Test
         void testNormal() {
-            List<String> nodeList = agentGroupService.getProcessNodeList("", "", userDetail);
+            List<String> nodeList = agentGroupService.getGroupProcessNodeList("", "", userDetail);
             Assertions.assertNotNull(nodeList);
             verify(log, times(0)).debug(anyString(), anyString(), anyString());
-            verify(agentGroupService, times(0)).getProcessNodeListByGroupId(anyList(), any(UserDetail.class));
+            verify(agentGroupService, times(1)).getProcessNodeListByGroupId(anyList(), any(UserDetail.class));
         }
 
         @Test
         void testIsGroupManually() {
-            List<String> nodeList = agentGroupService.getProcessNodeList(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), "", userDetail);
+            List<String> nodeList = agentGroupService.getGroupProcessNodeList(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), "", userDetail);
             Assertions.assertNotNull(nodeList);
             verify(log, times(0)).debug(anyString(), anyString(), anyString());
-            verify(agentGroupService, times(0)).getProcessNodeListByGroupId(anyList(), any(UserDetail.class));
+            verify(agentGroupService, times(1)).getProcessNodeListByGroupId(anyList(), any(UserDetail.class));
         }
         @Test
         void testIsNotBlank() {
-            List<String> nodeList = agentGroupService.getProcessNodeList(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), "id", userDetail);
+            List<String> nodeList = agentGroupService.getGroupProcessNodeList(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), "id", userDetail);
             Assertions.assertNotNull(nodeList);
             verify(log, times(0)).debug(anyString(), anyString(), anyString());
             verify(agentGroupService, times(1)).getProcessNodeListByGroupId(anyList(), any(UserDetail.class));
@@ -1629,7 +1631,7 @@ class AgentGroupServiceTest {
         @Test
         void testIsDebugEnabled() {
             when(log.isDebugEnabled()).thenReturn(true);
-            List<String> nodeList = agentGroupService.getProcessNodeList(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), "id", userDetail);
+            List<String> nodeList = agentGroupService.getGroupProcessNodeList(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name(), "id", userDetail);
             Assertions.assertNotNull(nodeList);
             verify(log, times(1)).debug(anyString(), anyString(), anyString());
             verify(agentGroupService, times(1)).getProcessNodeListByGroupId(anyList(), any(UserDetail.class));
@@ -1756,6 +1758,180 @@ class AgentGroupServiceTest {
         @Test
         void testGroupIdsSizeMoreThanOne() {
             Assertions.assertNotNull(agentGroupService.findCriteria(Lists.newArrayList("id1", "id2")));
+        }
+    }
+
+    @Nested
+    class UploadAgentInfoTest {
+        TaskDto dto;
+        GroupDto one;
+        @BeforeEach
+        void init() {
+            one = mock(GroupDto.class);
+            dto = mock(TaskDto.class);
+            when(dto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+            when(dto.getAccessNodeProcessId()).thenReturn("id");
+            when(agentGroupService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(one);
+            when(one.getGroupId()).thenReturn("id");
+            when(one.getName()).thenReturn("name");
+            doNothing().when(dto).setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+            doNothing().when(dto).setAccessNodeProcessId(null);
+            doNothing().when(dto).setAccessNodeProcessIdList(anyList());
+            doNothing().when(dto).setAgentGroupInfo(anyMap());
+            when(agentGroupService.findCriteria(anyList())).thenCallRealMethod();
+            doCallRealMethod().when(agentGroupService).uploadAgentInfo(dto, userDetail);
+        }
+        @Test
+        void testNormal() {
+            agentGroupService.uploadAgentInfo(dto, userDetail);
+            verify(dto, times(1)).getAccessNodeType();
+            verify(dto, times(1)).getAccessNodeProcessId();
+            verify(agentGroupService, times(1)).findOne(any(Query.class), any(UserDetail.class));
+            verify(one, times(1)).getGroupId();
+            verify(one, times(1)).getName();
+            verify(dto, times(0)).setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+            verify(dto, times(0)).setAccessNodeProcessId(null);
+            verify(dto, times(1)).setAgentGroupInfo(anyMap());
+            verify(dto, times(1)).setAccessNodeProcessIdList(anyList());
+        }
+        @Test
+        void testFindNullDto() {
+            when(agentGroupService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(null);
+            agentGroupService.uploadAgentInfo(dto, userDetail);
+            verify(dto, times(1)).getAccessNodeType();
+            verify(dto, times(1)).getAccessNodeProcessId();
+            verify(agentGroupService, times(1)).findOne(any(Query.class), any(UserDetail.class));
+            verify(one, times(0)).getGroupId();
+            verify(one, times(0)).getName();
+            verify(dto, times(0)).setAgentGroupInfo(anyMap());
+            verify(dto, times(0)).setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+            verify(dto, times(0)).setAccessNodeProcessId(null);
+            verify(dto, times(1)).setAccessNodeProcessIdList(anyList());
+        }
+        @Test
+        void testNotGroupManually() {
+            when(dto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+            agentGroupService.uploadAgentInfo(dto, userDetail);
+            verify(dto, times(1)).getAccessNodeType();
+            verify(dto, times(0)).getAccessNodeProcessId();
+            verify(agentGroupService, times(0)).findOne(any(Query.class), any(UserDetail.class));
+            verify(one, times(0)).getGroupId();
+            verify(one, times(0)).getName();
+            verify(dto, times(0)).setAgentGroupInfo(anyMap());
+            verify(dto, times(1)).setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+            verify(dto, times(1)).setAccessNodeProcessId(null);
+            verify(dto, times(1)).setAccessNodeProcessIdList(anyList());
+        }
+    }
+    @Nested
+    class ImportAgentInfoTest {
+        
+        @Nested
+        class ImportTaskDtoTest {
+            List<TaskDto> dto;
+            TaskDto dto1;
+            Map<String, Object> map;
+            TaskDto dto2;
+            @BeforeEach
+            void init() {
+                dto = new ArrayList<>();
+                dto1 = mock(TaskDto.class);
+                dto2 = mock(TaskDto.class);
+                dto.add(dto1);
+                dto.add(dto2);
+                dto.add(null);
+                map = mock(Map.class);
+                when(map.isEmpty()).thenReturn(false);
+                when(dto1.getAgentGroupInfo()).thenReturn(map);
+                when(dto2.getAgentGroupInfo()).thenReturn(null);
+                when(map.get(AgentGroupTag.TAG_GROUP_ID)).thenReturn(new ObjectId().toHexString());
+                when(map.get((AgentGroupTag.TAG_NAME))).thenReturn("name");
+                when(agentGroupService.upsert(any(Query.class), any(GroupDto.class), any(UserDetail.class))).thenReturn(0L);
+                doNothing().when(agentGroupService).importAgentInfo(any(TaskDto.class));
+                doCallRealMethod().when(agentGroupService).importAgentInfo(dto, userDetail);
+            }
+            @Test
+            void testNormal() {
+                agentGroupService.importAgentInfo(dto, userDetail);
+                verify(dto1, times(3)).getAgentGroupInfo();
+                verify(map, times(1)).isEmpty();
+                verify(map, times(1)).get(AgentGroupTag.TAG_GROUP_ID);
+                verify(map, times(1)).get((AgentGroupTag.TAG_NAME));
+                verify(agentGroupService, times(2)).importAgentInfo(any(TaskDto.class));
+                verify(agentGroupService, times(1)).upsert(any(Query.class), any(GroupDto.class), any(UserDetail.class));
+            }
+            @Test
+            void testIsEmpty() {
+                when(map.isEmpty()).thenReturn(true);
+                agentGroupService.importAgentInfo(dto, userDetail);
+                verify(dto1, times(2)).getAgentGroupInfo();
+                verify(map, times(1)).isEmpty();
+                verify(map, times(0)).get(AgentGroupTag.TAG_GROUP_ID);
+                verify(map, times(0)).get((AgentGroupTag.TAG_NAME));
+                verify(agentGroupService, times(2)).importAgentInfo(any(TaskDto.class));
+                verify(agentGroupService, times(0)).upsert(any(Query.class), any(GroupDto.class), any(UserDetail.class));
+            }
+        }
+
+        @Nested
+        class DataSourceConnectionDtoTest {
+            DataSourceConnectionDto connectionDto;
+            @BeforeEach
+            void init() {
+                connectionDto = mock(DataSourceConnectionDto.class);
+                when(connectionDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+                doNothing().when(connectionDto).setAccessNodeProcessId(null);
+                doNothing().when(connectionDto).setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+                doNothing().when(connectionDto).setAccessNodeProcessIdList(anyList());
+                doCallRealMethod().when(agentGroupService).importAgentInfo(connectionDto);
+            }
+            @Test
+            void testNormal() {
+                agentGroupService.importAgentInfo(connectionDto);
+                verify(connectionDto, times(1)).getAccessNodeType();
+                verify(connectionDto, times(1)).setAccessNodeProcessId(null);
+                verify(connectionDto, times(1)).setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+                verify(connectionDto, times(1)).setAccessNodeProcessIdList(anyList());
+            }
+            @Test
+            void testIsGroup() {
+                when(connectionDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+                agentGroupService.importAgentInfo(connectionDto);
+                verify(connectionDto, times(1)).getAccessNodeType();
+                verify(connectionDto, times(0)).setAccessNodeProcessId(null);
+                verify(connectionDto, times(0)).setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+                verify(connectionDto, times(1)).setAccessNodeProcessIdList(anyList());
+            }
+        }
+        @Nested
+        class TaskDtoDtoTest {
+            TaskDto dto;
+            @BeforeEach
+            void init() {
+                dto = mock(TaskDto.class);
+                when(dto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+                doNothing().when(dto).setAccessNodeProcessId(null);
+                doNothing().when(dto).setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+                doNothing().when(dto).setAccessNodeProcessIdList(anyList());
+                doCallRealMethod().when(agentGroupService).importAgentInfo(dto);
+            }
+            @Test
+            void testNormal() {
+                agentGroupService.importAgentInfo(dto);
+                verify(dto, times(1)).getAccessNodeType();
+                verify(dto, times(1)).setAccessNodeProcessId(null);
+                verify(dto, times(1)).setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+                verify(dto, times(1)).setAccessNodeProcessIdList(anyList());
+            }
+            @Test
+            void testIsGroup() {
+                when(dto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+                agentGroupService.importAgentInfo(dto);
+                verify(dto, times(1)).getAccessNodeType();
+                verify(dto, times(0)).setAccessNodeProcessId(null);
+                verify(dto, times(0)).setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+                verify(dto, times(1)).setAccessNodeProcessIdList(anyList());
+            }
         }
     }
 }
