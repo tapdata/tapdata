@@ -120,6 +120,8 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
 
     public abstract DataSourceConnectionDto findById(ObjectId id, String... fields);
 
+    public abstract void flushDatabaseMetadataInstanceLastUpdate(String loadFieldsStatus,String connectionId,String lastUpdate);
+
     @Data
     public static class Part {
         private String _id;
