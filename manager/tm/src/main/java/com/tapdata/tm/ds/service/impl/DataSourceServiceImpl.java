@@ -117,6 +117,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
     private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])[\\s\\S]*$";
     private final static String LAST_UPDATE= "lastUpdate";
+    public static final String LOAD_FIELD_STATUS_FINISHED = "finished";
     @Value("${gateway.secret:}")
     private String gatewaySecret;
     @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
@@ -1210,7 +1211,7 @@ public class DataSourceServiceImpl extends DataSourceService{
     private void deleteModels(String loadFieldsStatus, String datasourceId, Long schemaVersion, UserDetail user) {
         log.debug("delete model, loadFieldsStatus = {}, datasourceId = {}, schemaVersion = {}",
                 loadFieldsStatus, datasourceId, schemaVersion);
-        if ("finished".equals(loadFieldsStatus) && schemaVersion != null) {
+        if (LOAD_FIELD_STATUS_FINISHED.equals(loadFieldsStatus) && schemaVersion != null) {
             log.debug("loadFieldsStatus is finished, update model delete flag");
             // handle delete model, not match schemaVersion will update is_deleted to true
             Criteria criteria = Criteria.where("is_deleted").ne(true).and("source._id").is(datasourceId)
@@ -1448,7 +1449,7 @@ public class DataSourceServiceImpl extends DataSourceService{
                     }
                 } else {
                     if (set != null && set.get(LAST_UPDATE) != null) {
-                        deleteModels("finished", connectionId, (Long) set.get(LAST_UPDATE), user);
+                        deleteModels(LOAD_FIELD_STATUS_FINISHED, connectionId, (Long) set.get(LAST_UPDATE), user);
                     }
                 }
             }
@@ -2057,7 +2058,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
     @Override
     public void flushDatabaseMetadataInstanceLastUpdate(String loadFieldsStatus, String connectionId, Long lastUpdate, UserDetail userDetail) {
-        if ("finished".equals(loadFieldsStatus) && lastUpdate != null && StringUtils.isNotBlank(connectionId)) {
+        if (LOAD_FIELD_STATUS_FINISHED.equals(loadFieldsStatus) && lastUpdate != null && StringUtils.isNotBlank(connectionId)) {
             DataSourceConnectionDto connectionDto = findById(toObjectId(connectionId), userDetail);
             if (connectionDto == null) {
                 return;
