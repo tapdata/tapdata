@@ -2478,4 +2478,14 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
             }
         return result.get();
     }
+
+    @Override
+    public Map<String, Long> checkSetLastUpdate(List<MetadataInstancesDto> insertMetaDataDtos,UserDetail user) {
+        return null;
+    }
+
+    @Override
+    public Long getDatabaseMetadataInstanceLastUpdate(String connectionId, UserDetail user) {
+        return null;
+    }
 }

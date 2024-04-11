@@ -63,6 +63,7 @@ import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
@@ -1435,7 +1436,6 @@ public class DataSourceServiceImpl extends DataSourceService{
                 Criteria criteria2 = Criteria.where("source._id").is(connectionId).and("meta_type").in(inValues);
                 metadataInstancesService.update(new Query(criteria2), Update.update("databaseId", databaseId), user);
 
-
                 if (hasSchema) {
                     if (CollectionUtils.isNotEmpty(tables)) {
                         Long schemaVersion = (Long) set.get(LAST_UPDATE);
@@ -2053,5 +2053,10 @@ public class DataSourceServiceImpl extends DataSourceService{
 		return repository.findById(id, field).map(v ->
 				BeanUtil.copyProperties(v, DataSourceConnectionDto.class)).orElse(null);
 	}
+
+    @Override
+    public void flushDatabaseMetadataInstanceLastUpdate(String loadFieldsStatus, String connectionId, Long lastUpdate, UserDetail userDetail) {
+
+    }
 
 }
