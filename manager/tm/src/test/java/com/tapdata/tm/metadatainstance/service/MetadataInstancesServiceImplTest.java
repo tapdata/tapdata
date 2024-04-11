@@ -56,39 +56,43 @@ public class MetadataInstancesServiceImplTest {
 		@Test
 		@DisplayName("Test main process")
 		void testMainProcess() {
-			long time = new Date().getTime();
-			String connectionId = new ObjectId().toHexString();
-			SourceDto sourceDto = new SourceDto();
-			sourceDto.set_id(connectionId);
+			long time1 = new Date().getTime();
+			long time2 = new Date().getTime();
+			String connectionId1 = new ObjectId().toHexString();
+			SourceDto sourceDto1 = new SourceDto();
+			sourceDto1.set_id(connectionId1);
+			String connectionId2 = new ObjectId().toHexString();
+			SourceDto sourceDto2 = new SourceDto();
+			sourceDto2.set_id(connectionId2);
 			List<MetadataInstancesDto> metadataInstancesDtoList = new ArrayList<>();
 			MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
-			metadataInstancesDto1.setOriginalName("test-original-name1");
-			metadataInstancesDto1.setQualifiedName("test-qualified-name1");
 			metadataInstancesDto1.setLastUpdate(1L);
-			metadataInstancesDto1.setSource(sourceDto);
-			metadataInstancesDto1.setConnectionId(connectionId);
+			metadataInstancesDto1.setSource(sourceDto1);
+			metadataInstancesDto1.setConnectionId(connectionId1);
 			metadataInstancesDtoList.add(metadataInstancesDto1);
 			MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
-			metadataInstancesDto2.setOriginalName("test-original-name2");
-			metadataInstancesDto2.setQualifiedName("test-qualified-name2");
-			metadataInstancesDto1.setSource(sourceDto);
+			metadataInstancesDto2.setSource(sourceDto1);
 			metadataInstancesDto2.setLastUpdate(null);
 			metadataInstancesDtoList.add(metadataInstancesDto2);
 			MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
-			metadataInstancesDto3.setOriginalName("test-original-name3");
-			metadataInstancesDto3.setQualifiedName("test-qualified-name3");
-			metadataInstancesDto1.setSource(sourceDto);
+			metadataInstancesDto3.setSource(sourceDto1);
 			metadataInstancesDto3.setLastUpdate(null);
 			metadataInstancesDtoList.add(metadataInstancesDto3);
+			MetadataInstancesDto metadataInstancesDto4 = new MetadataInstancesDto();
+			metadataInstancesDto4.setSource(sourceDto2);
+			metadataInstancesDto4.setLastUpdate(null);
+			metadataInstancesDtoList.add(metadataInstancesDto4);
 
-			doReturn(time).when(metadataInstancesService).findDatabaseMetadataInstanceLastUpdate(connectionId, userDetail);
+			doReturn(time1).when(metadataInstancesService).findDatabaseMetadataInstanceLastUpdate(connectionId1, userDetail);
+			doReturn(time2).when(metadataInstancesService).findDatabaseMetadataInstanceLastUpdate(connectionId2, userDetail);
 
 			assertDoesNotThrow(() -> metadataInstancesService.checkSetLastUpdate(metadataInstancesDtoList, userDetail));
 
 			verify(metadataInstancesService, times(1)).findDatabaseMetadataInstanceLastUpdate(any(), any());
 			assertEquals(1L, metadataInstancesDto1.getLastUpdate());
-			assertEquals(time, metadataInstancesDto2.getLastUpdate());
-			assertEquals(time, metadataInstancesDto3.getLastUpdate());
+			assertEquals(time1, metadataInstancesDto2.getLastUpdate());
+			assertEquals(time1, metadataInstancesDto3.getLastUpdate());
+			assertEquals(time2, metadataInstancesDto4.getLastUpdate());
 		}
 
 		@Test
