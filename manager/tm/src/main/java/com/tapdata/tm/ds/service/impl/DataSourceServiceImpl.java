@@ -1441,7 +1441,7 @@ public class DataSourceServiceImpl extends DataSourceService{
                         Long schemaVersion = (Long) set.get(LAST_UPDATE);
                         String loadFieldsStatus = (String) set.get("loadFieldsStatus");
                         Boolean loadSchemaField = set.get("loadSchemaField") != null ? ((Boolean) set.get("loadSchemaField")) : true;
-                        loadSchema(user, tables, oldConnectionDto, definitionDto.getExpression(), databaseId, loadSchemaField);
+                        loadSchema(user, tables, oldConnectionDto, definitionDto.getExpression(), databaseId, loadSchemaField,false);
                         deleteModels(loadFieldsStatus, oldConnectionDto.getId().toHexString(), schemaVersion, user);
                         update.put("loadSchemaTime", new Date());
                     }
@@ -1486,7 +1486,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         return 0L;
     }
 
-    public void loadSchema(UserDetail user, List<TapTable> tables, DataSourceConnectionDto oldConnectionDto, String expression, String databaseId, Boolean loadSchemaField) {
+    public void loadSchema(UserDetail user, List<TapTable> tables, DataSourceConnectionDto oldConnectionDto, String expression, String databaseId, Boolean loadSchemaField,Boolean partLoad) {
         for (TapTable table : tables) {
             PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
         }
@@ -1515,7 +1515,7 @@ public class DataSourceServiceImpl extends DataSourceService{
             }
 
             oldConnectionDto.setLoadSchemaField(loadSchemaField);
-            List<MetadataInstancesDto> newModelList = metadataUtil.modelNext(newModels, oldConnectionDto, databaseId, user);
+            List<MetadataInstancesDto> newModelList = metadataUtil.modelNext(newModels, oldConnectionDto, databaseId, user,partLoad);
 
 
             List<String> qualifiedNames = newModelList.stream().filter(Objects::nonNull).map(MetadataInstancesDto::getQualifiedName)
@@ -1964,7 +1964,7 @@ public class DataSourceServiceImpl extends DataSourceService{
             return;
         }
 
-        loadSchema(user, tables, connectionDto, definitionDto.getExpression(), databaseModelId, true);
+        loadSchema(user, tables, connectionDto, definitionDto.getExpression(), databaseModelId, true,true);
     }
 
     public void batchEncryptConfig() {
