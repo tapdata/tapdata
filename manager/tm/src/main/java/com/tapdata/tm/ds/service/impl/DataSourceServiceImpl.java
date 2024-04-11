@@ -172,11 +172,13 @@ public class DataSourceServiceImpl extends DataSourceService{
         Boolean submit = connectionDto.getSubmit();
         connectionDto.setLastUpdAt(new Date());
         checkMongoUri(connectionDto);
+        Map<String,Object> config = connectionDto.getConfig();
         connectionDto = save(connectionDto, userDetail);
-
+        connectionDto.setConfig(config);
         desensitizeMongoConnection(connectionDto);
         boolean updateSchema = connectionDto.getUpdateSchema() != null && connectionDto.getUpdateSchema();
         sendTestConnection(connectionDto, updateSchema, submit, userDetail);
+        connectionDto.setConfig(null);
         defaultDataDirectoryService.addConnection(connectionDto, userDetail);
         return connectionDto;
     }
@@ -833,7 +835,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         String connectionName = entity.getName() + " - Copy";
         entity.setLastUpdAt(new Date());
         entity.setStatus("testing");
-
+        Map<String, Object> config = entity.getConfig();
         while (true) {
             try {
                 //插入复制的数据源
@@ -858,7 +860,9 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         //将新的数据源连接返回
         DataSourceConnectionDto connectionDto = convertToDto(entity, DataSourceConnectionDto.class);
+        connectionDto.setConfig(config);
         sendTestConnection(connectionDto, true, true, user);
+        connectionDto.setConfig(null);
         defaultDataDirectoryService.addConnection(connectionDto, user);
         return connectionDto;
     }
