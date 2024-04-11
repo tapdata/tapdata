@@ -1737,9 +1737,11 @@ public class DataSourceServiceImpl extends DataSourceService{
                         connectionDto.setName(connectionDto.getName() + "_import");
                     }
 
+                    if (repository.count(Query.query(Criteria.where("_id").is(connectionDto.getId())), user) <= 0) {
                     connectionDto.setAccessNodeProcessId(null);
                     connectionDto.setAccessNodeProcessIdList(new ArrayList<>());
                     connectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+                    }
 
 
                     connectionByUser = save(connectionDto, user);
