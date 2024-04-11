@@ -79,6 +79,7 @@ import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.constant.*;
+import com.tapdata.tm.task.dto.CheckEchoOneNodeParam;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.LogSettingParam;
@@ -132,7 +133,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
@@ -862,19 +862,7 @@ public class TaskServiceImpl extends TaskService{
                     DataSourceConnectionDto connectionDto = collect.get(dataParentNode.getConnectionId());
                     Assert.notNull(connectionDto, "task connectionDto is null id:" + dataParentNode.getConnectionId());
 
-                    if (contrast(nodeType, dataParentNode.getId(), connectionDto.getAccessNodeType(), validateMessage, message)) {
-                        return;
-                    }
-                    if (AccessNodeTypeEnum.isUserManually(connectionDto.getAccessNodeType())) {
-                        List<String> connectionProcessIds = agentGroupService.getProcessNodeListWithGroup(connectionDto, user);
-                        connectionProcessIds.removeAll(taskProcessIdList);
-                        if (!StringUtils.equalsIgnoreCase(taskDto.getAccessNodeType(), connectionDto.getAccessNodeType())
-                                || !connectionProcessIds.isEmpty()) {
-                            validateMessage.put(dataParentNode.getId(), Lists.newArrayList(message));
-                        }
-                    } else if (AccessNodeTypeEnum.isGroupManually(connectionDto.getAccessNodeType())) {
-                        contrast(nodeId, dataParentNode.getId(), connectionDto.getAccessNodeProcessId(), validateMessage, message);
-                    }
+                    checkEchoOneNode(taskDto, new CheckEchoOneNodeParam(connectionDto, dataParentNode, taskProcessIdList, validateMessage, message, nodeType, nodeId), user);
                 }
             });
         }
@@ -886,6 +874,35 @@ public class TaskServiceImpl extends TaskService{
                 throw new BizException(message.getCode(), message.getMsg());
             }
         }
+    }
+
+    protected boolean checkEchoOneNode(TaskDto taskDto, CheckEchoOneNodeParam param, UserDetail user) {
+        DataSourceConnectionDto connectionDto = param.getConnectionDto();
+        DataParentNode<?> dataParentNode = param.getDataParentNode();
+        List<String> taskProcessIdList = param.getTaskProcessIdList();
+        Map<String, List<Message>> validateMessage = param.getValidateMessage();
+        Message message = param.getMessage();
+        AtomicReference<String> nodeType = param.getNodeType();
+        AtomicReference<String> nodeId = param.getNodeId();
+        String accessNodeType = connectionDto.getAccessNodeType();
+        if (!AccessNodeTypeEnum.isManually(accessNodeType)) {
+            return true;
+        }
+        String parentNodeId = dataParentNode.getId();
+        if (contrast(nodeType, parentNodeId, accessNodeType, validateMessage, message)) {
+            return true;
+        }
+        if (AccessNodeTypeEnum.isUserManually(accessNodeType)) {
+            List<String> connectionProcessIds = agentGroupService.getProcessNodeListWithGroup(connectionDto, user);
+            connectionProcessIds.removeAll(taskProcessIdList);
+            if (!StringUtils.equalsIgnoreCase(taskDto.getAccessNodeType(), accessNodeType)
+                    || !connectionProcessIds.isEmpty()) {
+                validateMessage.put(parentNodeId, Lists.newArrayList(message));
+            }
+        } else {
+            contrast(nodeId, parentNodeId, connectionDto.getAccessNodeProcessId(), validateMessage, message);
+        }
+        return false;
     }
 
     protected boolean contrast(AtomicReference<String> ato,
