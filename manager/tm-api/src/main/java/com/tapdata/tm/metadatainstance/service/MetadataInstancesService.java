@@ -216,4 +216,8 @@ public abstract class MetadataInstancesService extends BaseService<MetadataInsta
     public abstract void setTaskService(com.tapdata.tm.task.service.TaskService taskService);
 
     public abstract void setMongoTemplate(org.springframework.data.mongodb.core.MongoTemplate mongoTemplate);
+
+    public abstract void checkSetLastUpdate(List<MetadataInstancesDto> insertMetaDataDtos,UserDetail user);
+
+    public abstract Long findDatabaseMetadataInstanceLastUpdate(String connectionId,UserDetail user);
 }

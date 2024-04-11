@@ -31,6 +31,7 @@ import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
@@ -63,6 +64,7 @@ import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
@@ -115,6 +117,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
     private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])[\\s\\S]*$";
     private final static String LAST_UPDATE= "lastUpdate";
+    public static final String LOAD_FIELD_STATUS_FINISHED = "finished";
     @Value("${gateway.secret:}")
     private String gatewaySecret;
     @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
@@ -1220,7 +1223,7 @@ public class DataSourceServiceImpl extends DataSourceService{
     private void deleteModels(String loadFieldsStatus, String datasourceId, Long schemaVersion, UserDetail user) {
         log.debug("delete model, loadFieldsStatus = {}, datasourceId = {}, schemaVersion = {}",
                 loadFieldsStatus, datasourceId, schemaVersion);
-        if ("finished".equals(loadFieldsStatus) && schemaVersion != null) {
+        if (LOAD_FIELD_STATUS_FINISHED.equals(loadFieldsStatus) && schemaVersion != null) {
             log.debug("loadFieldsStatus is finished, update model delete flag");
             // handle delete model, not match schemaVersion will update is_deleted to true
             Criteria criteria = Criteria.where("is_deleted").ne(true).and("source._id").is(datasourceId)
@@ -1446,20 +1449,19 @@ public class DataSourceServiceImpl extends DataSourceService{
                 inValues.add("view");
                 Criteria criteria2 = Criteria.where("source._id").is(connectionId).and("meta_type").in(inValues);
                 metadataInstancesService.update(new Query(criteria2), Update.update("databaseId", databaseId), user);
-
-
+                flushDatabaseMetadataInstanceLastUpdate((String) set.get("loadFieldsStatus"), connectionId, (Long) set.get(LAST_UPDATE), user);
                 if (hasSchema) {
                     if (CollectionUtils.isNotEmpty(tables)) {
                         Long schemaVersion = (Long) set.get(LAST_UPDATE);
                         String loadFieldsStatus = (String) set.get("loadFieldsStatus");
                         Boolean loadSchemaField = set.get("loadSchemaField") != null ? ((Boolean) set.get("loadSchemaField")) : true;
-                        loadSchema(user, tables, oldConnectionDto, definitionDto.getExpression(), databaseId, loadSchemaField);
+                        loadSchema(user, tables, oldConnectionDto, definitionDto.getExpression(), databaseId, loadSchemaField,false);
                         deleteModels(loadFieldsStatus, oldConnectionDto.getId().toHexString(), schemaVersion, user);
                         update.put("loadSchemaTime", new Date());
                     }
                 } else {
                     if (set != null && set.get(LAST_UPDATE) != null) {
-                        deleteModels("finished", connectionId, (Long) set.get(LAST_UPDATE), user);
+                        deleteModels(LOAD_FIELD_STATUS_FINISHED, connectionId, (Long) set.get(LAST_UPDATE), user);
                     }
                 }
             }
@@ -1498,7 +1500,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         return 0L;
     }
 
-    public void loadSchema(UserDetail user, List<TapTable> tables, DataSourceConnectionDto oldConnectionDto, String expression, String databaseId, Boolean loadSchemaField) {
+    public void loadSchema(UserDetail user, List<TapTable> tables, DataSourceConnectionDto oldConnectionDto, String expression, String databaseId, Boolean loadSchemaField,Boolean partLoad) {
         for (TapTable table : tables) {
             PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
         }
@@ -1527,7 +1529,7 @@ public class DataSourceServiceImpl extends DataSourceService{
             }
 
             oldConnectionDto.setLoadSchemaField(loadSchemaField);
-            List<MetadataInstancesDto> newModelList = metadataUtil.modelNext(newModels, oldConnectionDto, databaseId, user);
+            List<MetadataInstancesDto> newModelList = metadataUtil.modelNext(newModels, oldConnectionDto, databaseId, user,partLoad);
 
 
             List<String> qualifiedNames = newModelList.stream().filter(Objects::nonNull).map(MetadataInstancesDto::getQualifiedName)
@@ -1973,7 +1975,7 @@ public class DataSourceServiceImpl extends DataSourceService{
             return;
         }
 
-        loadSchema(user, tables, connectionDto, definitionDto.getExpression(), databaseModelId, true);
+        loadSchema(user, tables, connectionDto, definitionDto.getExpression(), databaseModelId, true,true);
     }
 
     public void batchEncryptConfig() {
@@ -2062,5 +2064,20 @@ public class DataSourceServiceImpl extends DataSourceService{
 		return repository.findById(id, field).map(v ->
 				BeanUtil.copyProperties(v, DataSourceConnectionDto.class)).orElse(null);
 	}
+
+    @Override
+    public void flushDatabaseMetadataInstanceLastUpdate(String loadFieldsStatus, String connectionId, Long lastUpdate, UserDetail userDetail) {
+        if (LOAD_FIELD_STATUS_FINISHED.equals(loadFieldsStatus) && lastUpdate != null && StringUtils.isNotBlank(connectionId)) {
+            DataSourceConnectionDto connectionDto = findById(toObjectId(connectionId), userDetail);
+            if (connectionDto == null) {
+                return;
+            }
+            String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.database.name(), connectionDto, null);
+            Criteria criteria = Criteria.where("qualified_name").is(qualifiedName);
+            Query query = new Query(criteria);
+            metadataInstancesService.update(query,Update.update(LAST_UPDATE,lastUpdate),userDetail);
+        }
+
+    }
 
 }
