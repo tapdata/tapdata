@@ -2,6 +2,8 @@ package com.tapdata.tm.ds.service.impl;
 
 
 import com.tapdata.tm.Settings.constant.SettingUtil;
+import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
@@ -20,6 +22,7 @@ import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
@@ -142,6 +145,69 @@ class DataSourceServiceImplTest {
             when(dataSourceRepository.save(any(),any())).thenReturn(mock(DataSourceEntity.class));
             DataSourceConnectionDto result = dataSourceService.add(new DataSourceConnectionDto(),mock(UserDetail.class));
             Assertions.assertNull(result.getConfig());
+        }
+    }
+
+
+    @Nested
+    class AssertProcessNodeTest {
+        DataSourceServiceImpl instance;
+        String nodeType;
+        String accessProcessId;
+        Collection<String> processNodeListWithGroup;
+        @BeforeEach
+        void init() {
+            instance = mock(DataSourceServiceImpl.class);
+        }
+        @Test
+        void testNormal() {
+            nodeType = AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name();
+            accessProcessId = null;
+            processNodeListWithGroup = mock(Collection.class);
+            doCallRealMethod().when(instance).assertProcessNode(nodeType, accessProcessId, processNodeListWithGroup);
+            Assertions.assertDoesNotThrow(() -> instance.assertProcessNode(nodeType, accessProcessId, processNodeListWithGroup));
+            verify(processNodeListWithGroup, times(0)).isEmpty();
+        }
+
+        @Test
+        void testIsGroupManuallyAndAccessProcessIdIsBlank() {
+            nodeType = AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name();
+            accessProcessId = null;
+            processNodeListWithGroup = mock(Collection.class);
+            doCallRealMethod().when(instance).assertProcessNode(nodeType, accessProcessId, processNodeListWithGroup);
+            Assertions.assertThrows(BizException.class, () -> instance.assertProcessNode(nodeType, accessProcessId, processNodeListWithGroup));
+            verify(processNodeListWithGroup, times(0)).isEmpty();
+        }
+        @Test
+        void testIsGroupManuallyButAccessProcessIdNotBlank() {
+            nodeType = AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name();
+            accessProcessId = "id";
+            processNodeListWithGroup = mock(Collection.class);
+            doCallRealMethod().when(instance).assertProcessNode(nodeType, accessProcessId, processNodeListWithGroup);
+            Assertions.assertDoesNotThrow(() -> instance.assertProcessNode(nodeType, accessProcessId, processNodeListWithGroup));
+            verify(processNodeListWithGroup, times(0)).isEmpty();
+        }
+
+        @Test
+        void testProcessNodeListWithGroupIsEmpty() {
+            nodeType = AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name();
+            accessProcessId = null;
+            processNodeListWithGroup = mock(Collection.class);
+            when(processNodeListWithGroup.isEmpty()).thenReturn(true);
+            doCallRealMethod().when(instance).assertProcessNode(nodeType, accessProcessId, processNodeListWithGroup);
+            Assertions.assertThrows(BizException.class, () -> instance.assertProcessNode(nodeType, accessProcessId, processNodeListWithGroup));
+            verify(processNodeListWithGroup, times(1)).isEmpty();
+        }
+
+        @Test
+        void testProcessNodeListWithGroupNotEmpty() {
+            nodeType = AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name();
+            accessProcessId = null;
+            processNodeListWithGroup = mock(Collection.class);
+            when(processNodeListWithGroup.isEmpty()).thenReturn(false);
+            doCallRealMethod().when(instance).assertProcessNode(nodeType, accessProcessId, processNodeListWithGroup);
+            Assertions.assertDoesNotThrow( () -> instance.assertProcessNode(nodeType, accessProcessId, processNodeListWithGroup));
+            verify(processNodeListWithGroup, times(1)).isEmpty();
         }
     }
 }

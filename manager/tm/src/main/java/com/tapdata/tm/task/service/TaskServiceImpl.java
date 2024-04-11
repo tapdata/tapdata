@@ -833,7 +833,18 @@ public class TaskServiceImpl extends TaskService{
         return taskDto;
     }
 
-
+    public void checkEngineStatus(TaskDto taskDto, UserDetail user) {
+        String errCode = "Agent.Not.Found";
+        String accessNodeType = taskDto.getAccessNodeType();
+        List<String> taskProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
+        if (AccessNodeTypeEnum.isGroupManually(accessNodeType) && taskProcessIdList.isEmpty()) {
+            throw new BizException(errCode);
+        }
+        List<Worker> availableAgentByAccessNode = workerService.findAvailableAgentByAccessNode(user, taskProcessIdList);
+        if (CollectionUtils.isEmpty(availableAgentByAccessNode)) {
+            throw new BizException(errCode);
+        }
+    }
 
     public void checkDagAgentConflict(TaskDto taskDto, UserDetail user, boolean showListMsg) {
         if (taskDto.getShareCache()) {
@@ -847,7 +858,7 @@ public class TaskServiceImpl extends TaskService{
                 connectionIdList.add(((DataParentNode<?>) node).getConnectionId());
             }
         });
-        List<String> taskProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
+        List<String> taskProcessIdList = taskDto.getAccessNodeProcessIdList();
         List<DataSourceConnectionDto> dataSourceConnectionList = dataSourceService.findInfoByConnectionIdList(connectionIdList);
         Map<String, List<Message>> validateMessage = Maps.newHashMap();
         if (CollectionUtils.isNotEmpty(dataSourceConnectionList)) {
@@ -4115,6 +4126,7 @@ public class TaskServiceImpl extends TaskService{
         update(Query.query(Criteria.where("_id").is(taskDto.getId().toHexString())), update);
 
         checkDagAgentConflict(taskDto, user, false);
+        checkEngineStatus(taskDto, user);
         if (!taskDto.getShareCache()) {
                 Map<String, List<Message>> validateMessage = taskDto.getDag().validate();
                 if (!validateMessage.isEmpty()) {

@@ -149,7 +149,6 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
      */
     private List<String> accessNodeProcessIdList;
 
-    @Transient
     private String accessNodeProcessId;
 
     //是否开启数据校验 （true：开启校验；false：关闭校验）
