@@ -217,7 +217,7 @@ public abstract class MetadataInstancesService extends BaseService<MetadataInsta
 
     public abstract void setMongoTemplate(org.springframework.data.mongodb.core.MongoTemplate mongoTemplate);
 
-    public abstract Map<String,Long> checkSetLastUpdate(List<MetadataInstancesDto> insertMetaDataDtos,UserDetail user);
+    public abstract void checkSetLastUpdate(List<MetadataInstancesDto> insertMetaDataDtos,UserDetail user);
 
-    public abstract Long getDatabaseMetadataInstanceLastUpdate(String connectionId,UserDetail user);
+    public abstract Long findDatabaseMetadataInstanceLastUpdate(String connectionId,UserDetail user);
 }

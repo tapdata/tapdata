@@ -983,6 +983,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         }
 
         List<String> qualifiedNames = new ArrayList<>();
+        checkSetLastUpdate(insertMetaDataDtos,userDetail);
 
         if (CollectionUtils.isNotEmpty(insertMetaDataDtos)) {
 
@@ -2480,12 +2481,27 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     }
 
     @Override
-    public Map<String, Long> checkSetLastUpdate(List<MetadataInstancesDto> insertMetaDataDtos,UserDetail user) {
-        return null;
+    public void checkSetLastUpdate(List<MetadataInstancesDto> insertMetaDataDtos,UserDetail user) {
+        List<MetadataInstancesDto> filter = insertMetaDataDtos.stream().filter(metadataInstancesDto -> metadataInstancesDto.getLastUpdate() == null).collect(Collectors.toList());
+        if(filter.size() > 0){
+            Long lastUpdate = findDatabaseMetadataInstanceLastUpdate(filter.get(0).getConnectionId(),user);
+            filter.forEach(metadataInstancesDto -> {
+                metadataInstancesDto.setLastUpdate(lastUpdate);
+            });
+        }
     }
 
     @Override
-    public Long getDatabaseMetadataInstanceLastUpdate(String connectionId, UserDetail user) {
-        return null;
+    public Long findDatabaseMetadataInstanceLastUpdate(String connectionId, UserDetail user) {
+        DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(connectionId), user);
+        if (connectionDto == null) {
+            return null;
+        }
+        String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.database.name(), connectionDto, null);
+        Criteria criteria = Criteria.where("qualified_name").is(qualifiedName);
+        Query query = new Query(criteria);
+        query.fields().include("lastUpdate");
+        MetadataInstancesDto metedata = findOne(query);
+        return metedata.getLastUpdate();
     }
 }
