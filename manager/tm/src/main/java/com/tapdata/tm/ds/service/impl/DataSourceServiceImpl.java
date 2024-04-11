@@ -230,9 +230,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         Boolean submit = updateDto.getSubmit();
         String oldName = updateCheck(user, updateDto);
         checkMongoUri(updateDto);
-        List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(updateDto, user);
-        Assert.isFalse(AccessNodeTypeEnum.isManually(updateDto.getAccessNodeType())
-                && CollectionUtils.isEmpty(processNodeListWithGroup), "manually_specified_by_the_user processId is null");
+        assertProcessNode(updateDto.getAccessNodeType(), updateDto.getAccessNodeProcessId(), updateDto.getAccessNodeProcessIdList());
 
         ObjectId id = updateDto.getId();
         DataSourceConnectionDto oldConnection = null;
@@ -265,7 +263,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
 
         DataSourceEntity entity = convertToEntity(DataSourceEntity.class, updateDto);
-        entity.setAccessNodeProcessIdList(agentGroupService.getTrueProcessNodeListWithGroup(updateDto, user));
+        entity.setAccessNodeProcessIdList(updateDto.getAccessNodeProcessIdList());
 
         Update update = repository.buildUpdateSet(entity, user);
 
@@ -293,11 +291,24 @@ public class DataSourceServiceImpl extends DataSourceService{
         return updateDto;
     }
 
+    protected void assertProcessNode(String nodeType, String accessProcessId, Collection<String> processNodeListWithGroup) {
+        if (!AccessNodeTypeEnum.isManually(nodeType)) {
+            return;
+        }
+        if (AccessNodeTypeEnum.isGroupManually(nodeType)) {
+            if(StringUtils.isBlank(accessProcessId)) {
+                throw new BizException("lack.group.agent");
+            }
+            return;
+        }
+        if (CollectionUtils.isEmpty(processNodeListWithGroup)) {
+            throw new BizException("Datasource.AgentNotFound", "manually_specified_by_the_user processId is null");
+        }
+    }
     //返回oldName, 表示更换名称
     public String updateCheck(UserDetail user, DataSourceConnectionDto updateDto) {
-        List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(updateDto, user);
-        Assert.isFalse(AccessNodeTypeEnum.isManually(updateDto.getAccessNodeType())
-                && CollectionUtils.isEmpty(processNodeListWithGroup), "manually_specified_by_the_user processId is null");
+        List<String> processNodeListWithGroup = updateDto.getAccessNodeProcessIdList();
+        assertProcessNode(updateDto.getAccessNodeType(), updateDto.getAccessNodeProcessId(), processNodeListWithGroup);
 
         //校验数据源的名称是否合法
         checkName(updateDto.getName());
@@ -391,6 +402,7 @@ public class DataSourceServiceImpl extends DataSourceService{
     public void checkAccessNodeAvailable(String accessNodeType, List<String> accessNodeProcessIdList, UserDetail userDetail) {
         //todo 这个接口应该移动到workService
         if (StringUtils.equals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), accessNodeType) ||
+                AccessNodeTypeEnum.isGroupManually(accessNodeType) ||
                 CollectionUtils.isEmpty(accessNodeProcessIdList)) {
             return;
         }
