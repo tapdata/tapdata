@@ -506,12 +506,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		switch (syncType) {
 			case INITIAL_SYNC_CDC:
 				initStreamOffsetInitialAndCDC(offsetStartTimeMs);
+				syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
 				break;
 			case INITIAL_SYNC:
 				initStreamOffsetInitial();
+				syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
 				break;
 			case CDC:
 				offsetStartTimeMs = initStreamOffsetCDC(taskDto, offsetStartTimeMs);
+				syncProgress.setSyncStage(SyncStage.CDC.name());
 				break;
 			default:
 				break;
