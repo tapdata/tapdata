@@ -694,10 +694,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 									break;
 								}
 							}
-							// Handle new table(s)
+							// Remove from remove list if in add list
 							if (CollectionUtils.isNotEmpty(addList)) {
 								addList.forEach(tableName -> removeTables.remove(tableName));
-								if (handleNewTables(addList)) return;
 							}
 							// Handle remove table(s)
 							if (CollectionUtils.isNotEmpty(removeList)) {
@@ -723,6 +722,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 										.type(SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_REMOVE)
 										.tables(removeList)
 										.tapdataEvents(tapdataEvents));
+							}
+
+							// Handle new table(s)
+							if (CollectionUtils.isNotEmpty(addList)) {
+								handleNewTables(addList);
 							}
 						} else {
 							loadedTableNames = null;
