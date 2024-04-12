@@ -703,7 +703,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 								removeList.forEach(r -> {
 									if (!removeTables.contains(r)) {
 										removeTables.add(r);
-										dataProcessorContext.getTapTableMap().remove(r);
 									}
 								});
 								List<TapdataEvent> tapdataEvents = new ArrayList<>();

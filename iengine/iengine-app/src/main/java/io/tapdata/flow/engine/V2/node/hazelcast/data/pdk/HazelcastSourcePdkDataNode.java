@@ -664,13 +664,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			Set<String> tableSet = new HashSet<>();
 			for (ConnectionConfigWithTables withTables : connectionConfigWithTables) {
 				for (String tableName : withTables.getTables()) {
-					if(removeTables.contains(tableName)) continue;
 					tableSet.add(ShareCdcUtil.joinNamespaces(Arrays.asList(
 							withTables.getConnectionConfig().getString("schema"), tableName
 					)));
 				}
 			}
 			tables.addAll(tableSet);
+			tables.removeAll(removeTables);
 			streamReadFunctionName = streamReadMultiConnectionFunction.getClass().getSimpleName();
 			anyError = () -> {
 				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
@@ -690,6 +690,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					streamReadFunctionName = rawDataCallbackFilterFunction.getClass().getSimpleName();
 				}
 				tables.addAll(tapTableMap.keySet());
+				tables.removeAll(removeTables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
 					if (null != streamReadFuncAspect) {
