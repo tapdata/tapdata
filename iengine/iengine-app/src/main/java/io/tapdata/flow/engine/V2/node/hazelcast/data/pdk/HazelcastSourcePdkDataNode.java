@@ -670,6 +670,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				}
 			}
 			tables.addAll(tableSet);
+			tables.removeAll(removeTables);
 			streamReadFunctionName = streamReadMultiConnectionFunction.getClass().getSimpleName();
 			anyError = () -> {
 				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
@@ -689,6 +690,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					streamReadFunctionName = rawDataCallbackFilterFunction.getClass().getSimpleName();
 				}
 				tables.addAll(tapTableMap.keySet());
+				tables.removeAll(removeTables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
 					if (null != streamReadFuncAspect) {
@@ -706,6 +708,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			} else if (null != streamReadFunction) {
 				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
 				tables.addAll(tapTableMap.keySet());
+				tables.removeAll(removeTables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
 					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
