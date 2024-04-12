@@ -5,6 +5,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import org.springframework.beans.BeanUtils;
@@ -35,7 +36,12 @@ public class CustomKafkaUtils {
 						sourceMetadataInstancesDto.setFields(metadataInstancesDto.getFields());
 
 						MetadataInstancesDto applyDto = fun.apply(sourceMetadataInstancesDto, sourceConnectionDto.getDatabase_type());
-						Optional.ofNullable(applyDto.getFields()).ifPresent(sourceMetadataInstancesDto::setFields);
+						Optional.ofNullable(applyDto.getFields()).ifPresent(fields -> {
+							for (Field field : fields) {
+								field.setSourceDbType(sourceConnectionDto.getDatabase_type());
+							}
+							sourceMetadataInstancesDto.setFields(fields);
+						});
 						break;
 					}
 				}
