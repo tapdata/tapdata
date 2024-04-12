@@ -708,6 +708,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			} else if (null != streamReadFunction) {
 				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
 				tables.addAll(tapTableMap.keySet());
+				tables.removeAll(removeTables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
 					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
