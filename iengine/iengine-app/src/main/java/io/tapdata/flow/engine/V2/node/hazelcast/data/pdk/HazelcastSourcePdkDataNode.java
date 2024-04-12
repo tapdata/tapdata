@@ -664,6 +664,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			Set<String> tableSet = new HashSet<>();
 			for (ConnectionConfigWithTables withTables : connectionConfigWithTables) {
 				for (String tableName : withTables.getTables()) {
+					if(removeTables.contains(tableName)) continue;
 					tableSet.add(ShareCdcUtil.joinNamespaces(Arrays.asList(
 							withTables.getConnectionConfig().getString("schema"), tableName
 					)));

@@ -683,7 +683,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					try {
 						List<String> addList = tableResult.getAddList();
 						List<String> removeList = tableResult.getRemoveList();
-						List<String> loadedTableNames;
 						if (CollectionUtils.isNotEmpty(addList) || CollectionUtils.isNotEmpty(removeList)) {
 							while (isRunning()) {
 								try {
@@ -704,6 +703,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 								removeList.forEach(r -> {
 									if (!removeTables.contains(r)) {
 										removeTables.add(r);
+										dataProcessorContext.getTapTableMap().remove(r);
 									}
 								});
 								List<TapdataEvent> tapdataEvents = new ArrayList<>();
@@ -728,8 +728,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							if (CollectionUtils.isNotEmpty(addList)) {
 								handleNewTables(addList);
 							}
-						} else {
-							loadedTableNames = null;
 						}
 					} catch (Throwable throwable) {
 						String error = "Handle table monitor result failed, result: " + tableResult + ", error: " + throwable.getMessage();
