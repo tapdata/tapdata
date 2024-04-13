@@ -54,7 +54,7 @@ public class DDLSchemaHandler {
 		TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapDDLEvent;
 		List<TapField> newFields = tapNewFieldEvent.getNewFields();
 		for (TapField newField : newFields) {
-			tapTable.add(newField);
+			tapTable.add(newField.clone());
 		}
 		return null;
 	}
