@@ -302,7 +302,7 @@ public class PartitionConcurrentProcessor {
 	}
 
 	protected TapdataEvent processSignal(TapdataEvent tapdataEvent) throws InterruptedException {
-		LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(0);
+		LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(DEFAULT_PARTITION);
 		NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
 		offer2QueueIfRunning(queue, normalEvent, wrapPartitionErrorMsg(0, "process queue if full, waiting for enqueue."));
 		return tapdataEvent;
