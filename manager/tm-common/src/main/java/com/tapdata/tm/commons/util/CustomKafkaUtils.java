@@ -25,39 +25,38 @@ public class CustomKafkaUtils {
 			Node targetNode = targets.get(0);
 			if (targetNode instanceof TableNode) {
 				String tableName = ((TableNode) targetNode).getTableName();
-				MetadataInstancesDto metadataInstancesDto = getMetadaInstancesDto(metadataList, tableName);
+				MetadataInstancesDto metadataInstancesDto = getMetadaInstancesDto(metadataList, targetNode.getId(), tableName);
 				if (null == metadataInstancesDto) throw new RuntimeException("not found metadata instance");
 				if (customKafkaQualifiedNames.isEmpty()) throw new RuntimeException("not found kafka qualified name");
 
 				String qualifiedName = customKafkaQualifiedNames.get(0);
-				for (int i = 0; i < metadataList.size(); i++) {
-					MetadataInstancesDto sourceMetadataInstancesDto = metadataList.get(i);
-					if (sourceMetadataInstancesDto.getQualifiedName().equals(qualifiedName)) {
-						sourceMetadataInstancesDto.setFields(metadataInstancesDto.getFields());
+				MetadataInstancesDto sourceMetadataInstancesDto = metadataList.stream().filter(dto -> {
+					return dto.getQualifiedName().equals(qualifiedName);
+				}).findFirst().orElseGet(() -> {
+					throw new RuntimeException("Not found source schema: " + qualifiedName);
+				});
 
-						MetadataInstancesDto applyDto = fun.apply(sourceMetadataInstancesDto, sourceConnectionDto.getDatabase_type());
-						Optional.ofNullable(applyDto.getFields()).ifPresent(fields -> {
-							for (Field field : fields) {
-								field.setSourceDbType(sourceConnectionDto.getDatabase_type());
-							}
-							sourceMetadataInstancesDto.setFields(fields);
-						});
-						break;
+				sourceMetadataInstancesDto.setFields(metadataInstancesDto.getFields());
+				MetadataInstancesDto applyDto = fun.apply(sourceMetadataInstancesDto, sourceConnectionDto.getDatabase_type());
+				Optional.ofNullable(applyDto.getFields()).ifPresent(fields -> {
+					for (Field field : fields) {
+						field.setSourceDbType(sourceConnectionDto.getDatabase_type());
 					}
-				}
+					sourceMetadataInstancesDto.setFields(fields);
+				});
 				return;
 			}
 
 			throw new RuntimeException("not support kafka target node type: " + targetNode.getType());
 		} else if (node instanceof DatabaseNode) {
-			// 复制任务
-			for (String name : customKafkaQualifiedNames) {
-				String tableName = CustomKafkaUtils.getQualifiedNameTableName(sourceConnectionDto, name);
-				MetadataInstancesDto metadaInstancesDto = getMetadaInstancesDto(metadataList, tableName);
-				if (null == metadaInstancesDto) throw new RuntimeException("not found metadata instance");
-				metadataList.add(CustomKafkaUtils.parse2SourceMetadaInstancesDo(sourceConnectionDto, tableName, metadaInstancesDto, node));
-			}
-			return;
+//			// 复制任务
+//			for (String name : customKafkaQualifiedNames) {
+//				String tableName = CustomKafkaUtils.getQualifiedNameTableName(sourceConnectionDto, name);
+//				MetadataInstancesDto metadaInstancesDto = getMetadaInstancesDto(metadataList, node.getId(), tableName);
+//				if (null == metadaInstancesDto) throw new RuntimeException("not found metadata instance");
+//				metadataList.add(CustomKafkaUtils.parse2SourceMetadaInstancesDo(sourceConnectionDto, tableName, metadaInstancesDto, node));
+//			}
+//			return;
 		}
 		throw new RuntimeException("not support kafka source node type: " + node.getType());
 	}
@@ -73,7 +72,7 @@ public class CustomKafkaUtils {
 			Node targetNode = targets.get(0);
 			if (targetNode instanceof TableNode) {
 				String tableName = ((TableNode) targetNode).getTableName();
-				MetadataInstancesDto metadataInstancesDto = getMetadaInstancesDto(metadataList, tableName);
+				MetadataInstancesDto metadataInstancesDto = getMetadaInstancesDto(metadataList, targetNode.getId(), tableName);
 				if (null == metadataInstancesDto) throw new RuntimeException("not found metadata instance");
 				if (customKafkaQualifiedNames.isEmpty()) throw new RuntimeException("not found kafka qualified name");
 
@@ -84,21 +83,21 @@ public class CustomKafkaUtils {
 
 			throw new RuntimeException("not support kafka target node type: " + targetNode.getType());
 		} else if (node instanceof DatabaseNode) {
-			// 复制任务
-			for (String name : customKafkaQualifiedNames) {
-				String tableName = CustomKafkaUtils.getQualifiedNameTableName(sourceConnectionDto, name);
-				MetadataInstancesDto metadaInstancesDto = getMetadaInstancesDto(metadataList, tableName);
-				if (null == metadaInstancesDto) throw new RuntimeException("not found metadata instance");
-				metadataList.add(CustomKafkaUtils.parse2SourceMetadaInstancesDo(sourceConnectionDto, tableName, metadaInstancesDto, node));
-			}
-			return;
+//			// 复制任务
+//			for (String name : customKafkaQualifiedNames) {
+//				String tableName = CustomKafkaUtils.getQualifiedNameTableName(sourceConnectionDto, name);
+//				MetadataInstancesDto metadaInstancesDto = getMetadaInstancesDto(metadataList, tableName);
+//				if (null == metadaInstancesDto) throw new RuntimeException("not found metadata instance");
+//				metadataList.add(CustomKafkaUtils.parse2SourceMetadaInstancesDo(sourceConnectionDto, tableName, metadaInstancesDto, node));
+//			}
+//			return;
 		}
 		throw new RuntimeException("not support kafka source node type: " + node.getType());
 	}
 
-	private static MetadataInstancesDto getMetadaInstancesDto(List<MetadataInstancesDto> metadataList, String tableName) {
+	private static MetadataInstancesDto getMetadaInstancesDto(List<MetadataInstancesDto> metadataList, String nodeId, String tableName) {
 		for (MetadataInstancesDto metadataInstancesDto : metadataList) {
-			if (metadataInstancesDto.getName().equals(tableName)) {
+			if (nodeId.equals(metadataInstancesDto.getNodeId()) && metadataInstancesDto.getName().equals(tableName)) {
 				return metadataInstancesDto;
 			}
 		}
