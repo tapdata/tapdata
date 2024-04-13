@@ -243,8 +243,10 @@ public class PartitionConcurrentProcessor {
 				}
 				if (tapdataEvent.isDML()) {
 					offsetEvent = processDML(tapdataEvent, singleMode);
-				} else {
+				} else if (tapdataEvent.isDDL()) {
 					processDDL(tapdataEvent);
+				} else {
+					processSignal(tapdataEvent);
 				}
 			}
 			if (null != offsetEvent) {
@@ -297,6 +299,13 @@ public class PartitionConcurrentProcessor {
 		final NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
 		offer2QueueIfRunning(partitionsQueue.get(DEFAULT_PARTITION), normalEvent, wrapPartitionErrorMsg(DEFAULT_PARTITION, "process queue if full, waiting for enqueue."));
 		waitingForProcessToCurrent();
+	}
+
+	protected TapdataEvent processSignal(TapdataEvent tapdataEvent) throws InterruptedException {
+		LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(0);
+		NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
+		offer2QueueIfRunning(queue, normalEvent, wrapPartitionErrorMsg(0, "process queue if full, waiting for enqueue."));
+		return tapdataEvent;
 	}
 
 	protected Map<String, Object> getTapRecordEventData(TapEvent tapEvent) throws InterruptedException {
