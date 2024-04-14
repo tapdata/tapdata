@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service;
 
 import com.tapdata.tm.agent.service.AgentGroupService;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -9,6 +10,8 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.dto.CheckEchoOneNodeParam;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
+import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.service.WorkerService;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -35,6 +39,7 @@ import static org.mockito.Mockito.when;
 class TaskServiceImplTest {
     TaskServiceImpl taskService;
     AgentGroupService agentGroupService;
+    WorkerService workerService;
 
     TaskDto taskDto;
     UserDetail user;
@@ -43,6 +48,8 @@ class TaskServiceImplTest {
         taskService = mock(TaskServiceImpl.class);
         agentGroupService = mock(AgentGroupService.class);
         ReflectionTestUtils.setField(taskService, "agentGroupService", agentGroupService);
+        workerService = mock(WorkerService.class);
+        ReflectionTestUtils.setField(taskService, "workerService", workerService);
 
         taskDto = mock(TaskDto.class);
         user = mock(UserDetail.class);
@@ -68,9 +75,9 @@ class TaskServiceImplTest {
 
         void assertVerify(int getIdTimes, int findByIdTimes) {
             try(MockedStatic<TaskServiceUtil> tsu = mockStatic(TaskServiceUtil.class)) {
-                tsu.when(() -> TaskServiceUtil.copyAccessNodeInfo(temp, taskDto, user, agentGroupService)).then(a->null);
+                tsu.when(() -> TaskServiceUtil.copyAccessNodeInfo(temp, taskDto)).then(a->null);
                 Assertions.assertDoesNotThrow(() -> taskService.confirmById(taskDto, user, true));
-                tsu.verify(() -> TaskServiceUtil.copyAccessNodeInfo(temp, taskDto, user, agentGroupService), times(findByIdTimes));
+                tsu.verify(() -> TaskServiceUtil.copyAccessNodeInfo(temp, taskDto), times(findByIdTimes));
             }
             verify(taskDto, times(getIdTimes)).getId();
             verify(taskService, times(findByIdTimes)).findById(any(ObjectId.class));
@@ -289,6 +296,66 @@ class TaskServiceImplTest {
             verify(validateMessage, times(0)).put(anyString(), anyList());
             verify(connectionDto, times(1)).getAccessNodeProcessId();
             verify(taskService, times(1)).contrast(nodeId, parentNodeId, accessNodeProcessId, validateMessage, message);
+        }
+    }
+
+    @Nested
+    class CheckEngineStatusTest {
+        List<String> taskProcessIdList;
+        List<Worker> availableAgentByAccessNode;
+        @BeforeEach
+        void init() {
+            taskProcessIdList = mock(List.class);
+            availableAgentByAccessNode = mock(List.class);
+
+            when(taskProcessIdList.isEmpty()).thenReturn(false);
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenReturn(taskProcessIdList);
+            when(workerService.findAvailableAgentByAccessNode(user, taskProcessIdList)).thenReturn(availableAgentByAccessNode);
+            when(availableAgentByAccessNode.isEmpty()).thenReturn(false);
+
+            doCallRealMethod().when(taskService).checkEngineStatus(taskDto, user);
+        }
+        @Test
+        void testAgentByGroupButListNotEmpty() {
+            when(taskDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+            Assertions.assertDoesNotThrow(() -> taskService.checkEngineStatus(taskDto, user));
+            verify(taskProcessIdList, times(1)).isEmpty();
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, user);
+            verify(workerService, times(1)).findAvailableAgentByAccessNode(user, taskProcessIdList);
+            verify(availableAgentByAccessNode, times(1)).isEmpty();
+            verify(taskDto, times(1)).getAccessNodeType();
+        }
+        @Test
+        void testAgentByGroupAndListIsEmpty() {
+            when(taskProcessIdList.isEmpty()).thenReturn(true);
+            when(taskDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP.name());
+            Assertions.assertThrows(BizException.class, () -> taskService.checkEngineStatus(taskDto, user));
+            verify(taskProcessIdList, times(1)).isEmpty();
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, user);
+            verify(workerService, times(0)).findAvailableAgentByAccessNode(user, taskProcessIdList);
+            verify(availableAgentByAccessNode, times(0)).isEmpty();
+            verify(taskDto, times(1)).getAccessNodeType();
+        }
+        @Test
+        void testAgentByUserButListIsEmpty() {
+            when(availableAgentByAccessNode.isEmpty()).thenReturn(true);
+            when(taskDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
+            Assertions.assertThrows(BizException.class, () -> taskService.checkEngineStatus(taskDto, user));
+            verify(taskProcessIdList, times(0)).isEmpty();
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, user);
+            verify(workerService, times(1)).findAvailableAgentByAccessNode(user, taskProcessIdList);
+            verify(availableAgentByAccessNode, times(1)).isEmpty();
+            verify(taskDto, times(1)).getAccessNodeType();
+        }
+        @Test
+        void testAgentByUserButListNotEmpty() {
+            when(taskDto.getAccessNodeType()).thenReturn(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
+            Assertions.assertDoesNotThrow(() -> taskService.checkEngineStatus(taskDto, user));
+            verify(taskProcessIdList, times(0)).isEmpty();
+            verify(agentGroupService, times(1)).getProcessNodeListWithGroup(taskDto, user);
+            verify(workerService, times(1)).findAvailableAgentByAccessNode(user, taskProcessIdList);
+            verify(availableAgentByAccessNode, times(1)).isEmpty();
+            verify(taskDto, times(1)).getAccessNodeType();
         }
     }
 }

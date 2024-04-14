@@ -670,6 +670,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				}
 			}
 			tables.addAll(tableSet);
+			excludeRemoveTable(tables);
 			streamReadFunctionName = streamReadMultiConnectionFunction.getClass().getSimpleName();
 			anyError = () -> {
 				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
@@ -689,6 +690,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					streamReadFunctionName = rawDataCallbackFilterFunction.getClass().getSimpleName();
 				}
 				tables.addAll(tapTableMap.keySet());
+				excludeRemoveTable(tables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
 					if (null != streamReadFuncAspect) {
@@ -706,6 +708,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			} else if (null != streamReadFunction) {
 				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
 				tables.addAll(tapTableMap.keySet());
+				excludeRemoveTable(tables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
 					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
@@ -857,6 +860,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		ShareCdcTaskContext shareCdcTaskContext = createShareCDCTaskContext();
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		List<String> tables = new ArrayList<>(tapTableMap.keySet());
+		excludeRemoveTable(tables);
 		this.syncProgressType = SyncProgress.Type.SHARE_CDC;
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		try {
@@ -1215,6 +1219,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		}
 		return tapAdvanceFilter;
+	}
+
+	protected void excludeRemoveTable(List<String> tableNames) {
+		if (null == tableNames) {
+			return;
+		}
+		if (CollectionUtils.isEmpty(removeTables)) {
+			return;
+		}
+		tableNames.removeAll(removeTables);
 	}
 
 }
