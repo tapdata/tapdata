@@ -3,6 +3,7 @@ package com.tapdata.tm.metadatadefinition.controller;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
+import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
@@ -227,6 +228,12 @@ public class MetadataDefinitionController extends BaseController {
     @GetMapping("child")
     public ResponseMessage<List<MetadataDefinitionDto>> findAndChild(String tagId) {
         return success(metadataDefinitionService.findAndChild(Lists.of(MongoUtils.toObjectId(tagId)), getLoginUser()));
+    }
+
+    @Operation(summary = "批量绑定标签")
+    @PatchMapping("batchPushListtags/{tableName}")
+    public ResponseMessage<List<String>> batchPushListTags(@PathVariable("tableName") String tableName, @RequestBody BatchUpdateParam batchUpdateParam) {
+        return success(metadataDefinitionService.batchPushListTags(tableName, batchUpdateParam, getLoginUser()));
     }
 
 }
