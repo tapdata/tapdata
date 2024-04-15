@@ -1,5 +1,6 @@
 package io.tapdata.mongodb.decoder;
 
+import io.tapdata.mongodb.decoder.impl.DateToTimestamp;
 import io.tapdata.mongodb.decoder.impl.DynamicDateFilterTime;
 import org.bson.Document;
 import org.bson.codecs.CustomDocumentDecoder;
@@ -13,7 +14,9 @@ public class CustomDocument {
             return new Document();
         }
         return Document.parse(json, new CustomDocumentDecoder()
-                .registerCustomReader(DynamicDateFilterTime.DYNAMIC_DATE, originalValue -> new DynamicDateFilterTime().execute(originalValue, null)));
+                .registerCustomReader(DynamicDateFilterTime.DYNAMIC_DATE, originalValue -> new DynamicDateFilterTime().execute(originalValue, null))
+                .registerCustomReader(DateToTimestamp.DYNAMIC_DATE, originalValue -> new DateToTimestamp().execute(originalValue, null))
+        );
 
     }
 }
