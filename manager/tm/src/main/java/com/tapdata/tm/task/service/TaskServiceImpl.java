@@ -3617,7 +3617,7 @@ public class TaskServiceImpl extends TaskService{
                 log.error("error", e);
             }
         }
-        batchUpChecker.checkDataSourceConnection(connections, metadataInstancess, user);
+        batchUpChecker.checkDataSourceConnection(connections, user);
         Map<String, CustomNodeDto> customNodeMap = new HashMap<>();
         Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
         Map<String, MetadataInstancesDto> metaMap = new HashMap<>();

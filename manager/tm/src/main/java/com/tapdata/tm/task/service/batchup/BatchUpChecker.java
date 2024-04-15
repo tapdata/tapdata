@@ -3,7 +3,6 @@ package com.tapdata.tm.task.service.batchup;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -34,35 +33,29 @@ import java.util.stream.Collectors;
 @Service
 @Setter(onMethod_ = {@Autowired})
 public class BatchUpChecker {
-    private DataSourceDefinitionService dataSourceDefinitionService;
+    DataSourceDefinitionService dataSourceDefinitionService;
     MetadataInstancesService metadataInstancesService;
     DataSourceService dataSourceService;
 
-    public void checkDataSourceConnection(List<DataSourceConnectionDto> connections, List<MetadataInstancesDto> metadataInstances, UserDetail user) {
+    public void checkDataSourceConnection(List<DataSourceConnectionDto> connections, UserDetail user) {
         if (CollectionUtils.isEmpty(connections)) {
+            log.warn("An task importing not any connections");
             return;
         }
         for (DataSourceConnectionDto connection : connections) {
+            String name = connection.getName();
             String databaseType = connection.getDatabase_type();
             String definitionPdkAPIVersion = connection.getDefinitionPdkAPIVersion();
+            if (StringUtils.isBlank(definitionPdkAPIVersion)) {
+                log.warn("Connection {} does not include attribute: PDK API Version. After importing, please manually check the connection configuration item and task node configuration", name);
+                continue;
+            }
 
-            Criteria userCriteria = new Criteria();
-            userCriteria.and("customId").is(user.getCustomerId());
-            Criteria supplierCriteria = Criteria.where("supplierType").ne("self");
-            Criteria criteria = Criteria.where("type").in(databaseType);
-            criteria.orOperator(userCriteria, supplierCriteria);
-
-            List<DataSourceDefinitionDto> all = dataSourceDefinitionService.findAll(Query.query(criteria));
+            List<DataSourceDefinitionDto> all = findDataSourceDefinitionByDataSourceConnectionDto(connection, user);
 
             //没有这个数据源，报错提示需要注册才能导入
             if (CollectionUtils.isEmpty(all)) {
                 throw new BizException("task.import.connection.check.ConnectorNotRegister", databaseType, definitionPdkAPIVersion);
-            }
-
-            if (StringUtils.isBlank(definitionPdkAPIVersion)) {
-                //@todo
-                log.warn("");
-                continue;
             }
 
             List<DataSourceDefinitionDto> sortList = all.stream()
@@ -74,16 +67,16 @@ public class BatchUpChecker {
             String upperPdkAPIVersion = upperOne.getPdkAPIVersion();
             if (definitionPdkAPIVersion.equals(upperPdkAPIVersion)) {
                 connection.setDefinitionPdkId(pdkId);
-                //@todo
-                log.info("");
                 continue;
             }
 
             //导入任务中使用的数据源版本太低，告警提示版本会存在不兼容
             if (Check.LESS.equals(checkConnectionVersion(definitionPdkAPIVersion, upperPdkAPIVersion))) {
                 connection.setDefinitionPdkId(pdkId);
-                //@todo log.warn(导入任务中使用的数据源版本太低);
-                log.warn("");
+                //导入任务中使用的数据源版本太低
+                log.warn("The connector {}, type is {} version API ({}) used in the import task is too low. The API version used by connector {} in the current environment is: {}. After importing, please manually check the connection configuration item and task node configuration",
+                        name, databaseType, upperPdkAPIVersion, databaseType, definitionPdkAPIVersion
+                );
                 continue;
             }
 
@@ -97,13 +90,19 @@ public class BatchUpChecker {
         }
     }
 
+    protected List<DataSourceDefinitionDto> findDataSourceDefinitionByDataSourceConnectionDto(DataSourceConnectionDto connection, UserDetail user) {
+        String databaseType = connection.getDatabase_type();
+        Criteria supplierCriteria = Criteria.where("supplierType").ne("self");
+        Criteria userCriteria = Criteria.where("customId").is(user.getCustomerId());
+        Criteria criteria = Criteria.where("type").in(databaseType)
+                .orOperator(userCriteria, supplierCriteria);
+        Query query = Query.query(criteria);
+        return dataSourceDefinitionService.findAll(query);
+    }
+
     protected int sortByPdkApiVersion(DataSourceDefinitionDto p1, DataSourceDefinitionDto p2) {
         Check check = checkConnectionVersion(p1.getPdkAPIVersion(), p2.getPdkAPIVersion());
-        switch (check) {
-            case LESS: return Check.LESS.status;
-            case MORE: return Check.MORE.status;
-            default: return Check.EQUALS.status;
-        }
+        return check.status;
     }
 
     protected Check checkConnectionVersion(String definitionPdkAPIVersion, String checker) {
@@ -113,18 +112,5 @@ public class BatchUpChecker {
             return Check.MORE;
         }
         return pdkBuildNumber == checkerPdkBuildNumber ? Check.EQUALS : Check.LESS;
-    }
-
-    enum Check {
-        MORE(1),
-        LESS(-1),
-        EQUALS(0);
-        int status;
-        Check(int status) {
-            this.status = status;
-        }
-        public boolean equals(Check c) {
-            return null != c && c.status == this.status;
-        }
     }
 }
