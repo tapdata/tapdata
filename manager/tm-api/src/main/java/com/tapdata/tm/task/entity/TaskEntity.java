@@ -2,6 +2,7 @@ package com.tapdata.tm.task.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.base.IDataPermissionEntity;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.schema.Tag;
@@ -148,7 +149,6 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
      */
     private List<String> accessNodeProcessIdList;
 
-    @Transient
     private String accessNodeProcessId;
 
     //是否开启数据校验 （true：开启校验；false：关闭校验）
@@ -270,7 +270,12 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
      */
     private Double dynamicAdjustMemorySampleRate;
 
+    private List<ErrorEvent> errorEvents;
+
     public String getAccessNodeProcessId() {
+        if (AccessNodeTypeEnum.isGroupManually(accessNodeType)) {
+            return accessNodeProcessId;
+        }
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }
 }

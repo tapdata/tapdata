@@ -15,6 +15,7 @@ import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.processor.context.ProcessContext;
 import com.tapdata.processor.context.ProcessContextEvent;
+import com.tapdata.processor.standard.ScriptStandardizationUtil;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.process.CacheLookupProcessorNode;
@@ -126,13 +127,11 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
 		try {
 			this.engine = finalJs ?
-					ScriptUtil.getScriptStandardizationEngine(
+					ScriptStandardizationUtil.getScriptStandardizationEngine(
 							JSEngineEnum.GRAALVM_JS.getEngineName(),
 							script,
 							javaScriptFunctions,
 							clientMongoOperator,
-							null,
-							null,
 							scriptCacheService,
 							new ObsScriptLogger(obsLogger, logger),
 							this.standard)

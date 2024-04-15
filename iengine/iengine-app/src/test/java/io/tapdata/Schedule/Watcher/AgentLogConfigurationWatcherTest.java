@@ -12,9 +12,7 @@ import org.apache.logging.log4j.core.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.HttpAppender;
 import org.apache.logging.log4j.core.appender.RollingFileAppender;
-import org.apache.logging.log4j.core.appender.rolling.CompositeTriggeringPolicy;
-import org.apache.logging.log4j.core.appender.rolling.TimeBasedTriggeringPolicy;
-import org.apache.logging.log4j.core.appender.rolling.TriggeringPolicy;
+import org.apache.logging.log4j.core.appender.rolling.*;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,9 +58,10 @@ public class AgentLogConfigurationWatcherTest {
     @DisplayName("test  updateRollingFileAppender normal")
     @Test
     void updateRollingFileAppenderTest(){
+        LoggerContext context = LoggerContext.getContext(false);
         AgentLogConfigurationWatcher agentLogConfigurationWatcher=new AgentLogConfigurationWatcher();
-        LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).build();
-        Logger rootLogger = agentLogConfigurationWatcher.context.getRootLogger();
+        LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(100).build();
+        Logger rootLogger = context.getRootLogger();
         TimeBasedTriggeringPolicy timeBasedTriggeringPolicy = TimeBasedTriggeringPolicy.newBuilder().withInterval(1).withModulate(true).build();
         RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
                 .setName("rollingFileAppender")
@@ -71,14 +70,17 @@ public class AgentLogConfigurationWatcherTest {
                 .withPolicy(timeBasedTriggeringPolicy)
                 .build();
         rootLogger.addAppender(rollingFileAppender);
-        agentLogConfigurationWatcher.updateConfig(logConfiguration);
+        agentLogConfigurationWatcher.updateRollingFileAppender(logConfiguration);
+        context.getRootLogger().getAppenders().get("rollingFileAppender");
         Appender updateAppender = rootLogger.getAppenders().get("rollingFileAppender");
         RollingFileAppender updateRollAppender = (RollingFileAppender) updateAppender;
         TriggeringPolicy triggeringPolicy = updateRollAppender.getTriggeringPolicy();
         boolean isUpdateSuccess=triggeringPolicy instanceof CompositeTriggeringPolicy;
         assertEquals(true,isUpdateSuccess);
-        assertEquals("./tapdata-agent.log",updateRollAppender.getFileName());
+        DefaultRolloverStrategy rolloverStrategy = (DefaultRolloverStrategy)updateRollAppender.getManager().getRolloverStrategy();
+        assertEquals(100,rolloverStrategy.getMaxIndex());
     }
+
     @DisplayName("test Update logLevel with info and logger add root logger appender")
     @Test
     void updateLogLevelTest(){

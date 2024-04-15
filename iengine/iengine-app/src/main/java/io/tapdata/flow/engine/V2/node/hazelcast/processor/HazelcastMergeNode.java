@@ -2,7 +2,10 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.*;
-import com.tapdata.entity.*;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.OperationType;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
@@ -48,8 +51,6 @@ import lombok.Getter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.bson.BsonType;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
@@ -87,7 +88,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	public static final String UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE_PROP_KEY = "UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE";
 	public static final String HANDLE_UPDATE_JOIN_KEY_THREAD_NUM_PROP_KEY = "HANDLE_UPDATE_JOIN_KEY_THREAD_NUM";
 	public static final int DEFAULT_UPDATE_JOIN_KEY_THREAD_NUM = 4;
-	private Logger logger = LogManager.getLogger(HazelcastMergeNode.class);
 
 	// 缓存表信息{"前置节点id": "Hazelcast缓存资源{"join value string": {"pk value string": "after data"}}"}
 	private Map<String, ConstructIMap<Document>> mergeCacheMap;
@@ -275,7 +275,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				batchProcessResults.clear();
 				this.createIndexEvent = null;
 			}
-			handleBatchUpdateJoinKey(tapdataEvents);
 			for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
 				if (Boolean.TRUE.equals(needCache(batchEventWrapper.getTapdataEvent()))) {
 					batchCache.add(batchEventWrapper);
@@ -286,6 +285,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				doBatchCache(batchCache);
 				loggerBatchUpdateCache(batchCache);
 			}
+			handleBatchUpdateJoinKey(tapdataEvents);
 			doBatchLookUpConcurrent(tapdataEvents, lookupCfs);
 			for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
 				String preTableName = getPreTableName(batchEventWrapper.getTapdataEvent());
@@ -969,7 +969,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return this.mergeTablePropertiesMap.get(preNodeId);
 	}
 
-	private ConstructIMap<Document> getHazelcastConstruct(String sourceNodeId) {
+	protected ConstructIMap<Document> getHazelcastConstruct(String sourceNodeId) {
 		return this.mergeCacheMap.getOrDefault(sourceNodeId, null);
 	}
 
@@ -1451,7 +1451,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return mergeLookupResults;
 	}
 
-	private List<MergeLookupResult> recursiveLookup(MergeTableProperties mergeTableProperties,
+	protected List<MergeLookupResult> recursiveLookup(MergeTableProperties mergeTableProperties,
 													Map<String, Object> data,
 													boolean lookupDataExists) {
 		List<MergeTableProperties> children = mergeTableProperties.getChildren();
@@ -1484,7 +1484,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			TapTable tapTable = processorBaseContext.getTapTableMap().get(tableName);
 			if (MergeTableProperties.MergeType.updateWrite == mergeType) {
 				MergeLookupResult mergeLookupResult = new MergeLookupResult();
-				Set<String> shareJoinKeys = shareJoinKeysMap.get(copyMergeTableProperty.getId());
+				Set<String> shareJoinKeys = Optional.ofNullable(shareJoinKeysMap).orElse(new HashMap<>()).get(copyMergeTableProperty.getId());
 				Map<String, Object> lookupData;
 				if (MapUtils.isEmpty(findData)) {
 					lookupData = mockLookupMap(childMergeProperty);
@@ -1492,9 +1492,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				} else {
 					Set<String> keySet = findData.keySet();
 					keySet.remove("_ts");
-					if (keySet.size() > 1) {
-						logger.warn("Update write merge lookup, find more than one row by join key: {}, will use first row: {}", joinValueKey, data);
-					}
 					if (keySet.isEmpty()) {
 						// All cache data in the join key have been deleted
 						lookupData = mockLookupMap(childMergeProperty);
@@ -1502,6 +1499,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 					} else {
 						String firstKey = keySet.iterator().next();
 						lookupData = (Map<String, Object>) findData.get(firstKey);
+					}
+					if (keySet.size() > 1) {
+						nodeLogger.warn("Update write merge lookup, find more than one row, lookup table: {}, join key value: {}, will use first row: {}", tableName, joinValueKey, lookupData);
 					}
 				}
 

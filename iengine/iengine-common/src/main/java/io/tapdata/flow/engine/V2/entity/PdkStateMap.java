@@ -35,7 +35,7 @@ public class PdkStateMap extends CleanRuleKVMap {
 	private static final String GLOBAL_MAP_NAME = "GlobalStateMap";
 	public static final int CONNECT_TIMEOUT_MS = 60 * 1000;
 	public static final int READ_TIMEOUT_MS = 60 * 1000;
-	private static final String KEY = PdkStateMap.class.getSimpleName();
+	public static final String KEY = PdkStateMap.class.getSimpleName();
 	public static final String STATE_MAP_TABLE = "HazelcastPersistence";
 	protected static final int[] GLOBAL_STATE_MAP_LOCK = new int[0];
 	public static final String SIGN_KEY = "sign";

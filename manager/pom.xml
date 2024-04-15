@@ -93,4 +93,18 @@
 			</snapshots>
 		</repository>
 	</repositories>
+
+	<build>
+		<sourceDirectory>src/main/java</sourceDirectory>
+		<testSourceDirectory>src/test/java</testSourceDirectory>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<groupId>org.jacoco</groupId>
+					<artifactId>jacoco-maven-plugin</artifactId>
+					<version>0.8.6</version>
+				</plugin>
+			</plugins>
+		</pluginManagement>
+	</build>
 </project>

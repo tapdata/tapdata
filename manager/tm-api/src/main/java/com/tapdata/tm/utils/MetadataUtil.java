@@ -358,13 +358,13 @@ public class MetadataUtil {
 
 
     public MetadataInstancesDto modelNext(MetadataInstancesDto newModel, DataSourceConnectionDto connection, String databaseId, UserDetail user) {
-        List<MetadataInstancesDto> metadataInstancesDtos = modelNext(Lists.of(newModel), connection, databaseId, user);
+        List<MetadataInstancesDto> metadataInstancesDtos = modelNext(Lists.of(newModel), connection, databaseId, user,true);
         if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
             return metadataInstancesDtos.get(0);
         }
         return null;
     }
-    public List<MetadataInstancesDto> modelNext(List<MetadataInstancesDto> newModels, DataSourceConnectionDto connection, String databaseId, UserDetail user) {
+    public List<MetadataInstancesDto> modelNext(List<MetadataInstancesDto> newModels, DataSourceConnectionDto connection, String databaseId, UserDetail user,Boolean partLoad) {
         if (newModels == null || connection == null) {
             log.info("Finished update new models, newModels = {}, connection = {}", newModels == null ? "" : newModels.size(), connection);
             return Lists.newArrayList();
@@ -415,9 +415,10 @@ public class MetadataUtil {
                     }
                 }
             }
-
-            newModel = MetaDataBuilderUtils.build(newModel.getMetaType(), connection, user.getUserId(), user.getUsername(), newModel.getOriginalName(), newModel, oldModel, databaseId, null, newModelMap);
-            newModelList.add(newModel);
+            if(partLoad || null == oldModel || (newModel.getLastUpdate() != null && oldModel.getLastUpdate() != null && newModel.getLastUpdate() >= oldModel.getLastUpdate())){
+                newModel = MetaDataBuilderUtils.build(newModel.getMetaType(), connection, user.getUserId(), user.getUsername(), newModel.getOriginalName(), newModel, oldModel, databaseId, null, newModelMap);
+                newModelList.add(newModel);
+            }
         }
 
         return newModelList;

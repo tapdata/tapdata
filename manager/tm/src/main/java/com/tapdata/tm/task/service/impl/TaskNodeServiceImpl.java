@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.google.common.collect.Maps;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
@@ -91,6 +92,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private TaskRecordService taskRecordService;
     private MonitoringLogsService monitoringLogService;
     private DAGDataService dagDataService;
+    private AgentGroupService agentGroupService;
 
     @SneakyThrows
     @Override
@@ -640,16 +642,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setName(taskDto.getName() + "(101)");
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
-        List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
-        if (CollectionUtils.isEmpty(workers)) {
-            throw new BizException("no agent");
-        }
 
-        MessageQueueDto queueDto = new MessageQueueDto();
-        queueDto.setReceiver(workers.get(0).getProcessId());
-        queueDto.setData(taskDtoCopy);
-        queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
-        messageQueueService.sendMessage(queueDto);
+        sendMessageAfterFindAgent(taskDto, taskDtoCopy, userDetail);
     }
 
     @SuppressWarnings("unchecked")
@@ -842,9 +836,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
     }
 
-    private Map<String, Object> wsTestRun(UserDetail userDetail, TaskDto taskDto, TaskDto taskDtoCopy){
-        // WS
-        List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
+    protected void sendMessageAfterFindAgent(TaskDto taskDto, TaskDto taskDtoCopy, UserDetail userDetail) {
+        List<String> nodeList = agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail);
+        List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, nodeList);
         if (CollectionUtils.isEmpty(workers)) {
             throw new BizException("no agent");
         }
@@ -854,6 +848,11 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         queueDto.setData(taskDtoCopy);
         queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
         messageQueueService.sendMessage(queueDto);
+    }
+
+    protected Map<String, Object> wsTestRun(UserDetail userDetail, TaskDto taskDto, TaskDto taskDtoCopy){
+        // WS
+        sendMessageAfterFindAgent(taskDto, taskDtoCopy, userDetail);
         return new HashMap<>();
     }
     private Map<String,Object> resultMap(String testTaskId, boolean isSucceed, String message){

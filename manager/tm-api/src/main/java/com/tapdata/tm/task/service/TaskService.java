@@ -84,7 +84,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask);
 
-    public abstract void checkDagAgentConflict(TaskDto taskDto, boolean showListMsg);
+    public abstract void checkDagAgentConflict(TaskDto taskDto, UserDetail user, boolean showListMsg);
 
     public abstract TaskDto remove(ObjectId id, UserDetail user);
 
@@ -241,7 +241,6 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract void increaseBacktracking(ObjectId taskId, String srcNode, String tgtNode, TaskDto.SyncPoint point, UserDetail user);
 
-    public abstract boolean checkPdkTask(TaskDto taskDto, UserDetail user);
 
     public abstract void startPlanMigrateDagTask();
 

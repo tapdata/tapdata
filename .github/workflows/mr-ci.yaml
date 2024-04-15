@@ -74,8 +74,8 @@ jobs:
         run: |
           cd tapdata-application
           OPENSOURCE_BRANCH=${{ env.OPENSOURCE_BRANCH }}
-          ENTERPRISE_BRANCH="main"
-          FRONTEND_BRANCH="main"
+          ENTERPRISE_BRANCH="develop"
+          FRONTEND_BRANCH="develop"
           echo "::set-output name=OPENSOURCE_BRANCH::${OPENSOURCE_BRANCH}"
           echo "::set-output name=ENTERPRISE_BRANCH::${ENTERPRISE_BRANCH}"
           echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
@@ -97,7 +97,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'tapdata/tapdata-application'
-          ref: 'migrate-runner'
+          ref: 'main'
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           path: tapdata-application
           fetch-depth: 0
