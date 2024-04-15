@@ -279,9 +279,6 @@ public class PartitionConcurrentProcessor {
 						if (!enqueuePartitionEvent(partition, queue, normalEvent)) {
 							break;
 						}
-						if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
-							offsetEvent = tapdataEvent;
-						}
 					} catch (Exception e) {
 						String msg = String.format(" tableName: %s, %s", tableName, e.getMessage());
 						throw new RuntimeException(msg, e);
@@ -292,6 +289,9 @@ public class PartitionConcurrentProcessor {
 					if (!enqueuePartitionEvent(DEFAULT_PARTITION, partitionsQueue.get(DEFAULT_PARTITION), normalEvent)) {
 						break;
 					}
+				}
+				if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
+					offsetEvent = tapdataEvent;
 				}
 			}
 			if (null != offsetEvent) {
