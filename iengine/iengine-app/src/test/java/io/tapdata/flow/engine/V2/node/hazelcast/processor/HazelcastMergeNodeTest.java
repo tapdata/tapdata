@@ -76,6 +76,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		mergeTableNode = new MergeTableNode();
 		mergeTableNode.setMergeProperties(new ArrayList<>());
 		when(dataProcessorContext.getNode()).thenReturn((Node) mergeTableNode);
+		CommonUtils.setProperty("app_type", "DAAS");
 		hazelcastMergeNode = new HazelcastMergeNode(dataProcessorContext);
 		ReflectionTestUtils.setField(hazelcastMergeNode, "obsLogger", mockObsLogger);
 		ReflectionTestUtils.setField(hazelcastMergeNode, "clientMongoOperator", mockClientMongoOperator);
