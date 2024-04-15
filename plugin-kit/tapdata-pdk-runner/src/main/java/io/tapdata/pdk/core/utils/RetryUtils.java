@@ -68,6 +68,7 @@ public class RetryUtils extends CommonUtils {
 					Optional.ofNullable(invoker.getLogListener())
 							.ifPresent(log -> log.info(LOG_PREFIX + String.format("Method (%s) retry succeed", method.name().toLowerCase())));
 					invoker.getClearFunctionRetry().run();
+					Optional.ofNullable(invoker.getResetRetry()).ifPresent(Runnable::run);
 				}
 				break;
 			} catch (Throwable errThrowable) {
@@ -116,6 +117,10 @@ public class RetryUtils extends CommonUtils {
 							.ifPresent(log -> log.warn(String.format(LOG_PREFIX + "Method (%s) encountered an error, triggering auto retry.\n - Error code: %s, message: %s\n - Remaining retry %s time(s)\n - Period %s second(s)\n - Stack info: %s\n",
 									method.name().toLowerCase(), serverErrorCode, errThrowable.getMessage(), invoker.getRetryTimes(), retryPeriodSeconds, CommonUtils.getStackString(errThrowable))));
 					invoker.setRetryTimes(retryTimes - 1);
+					if (null != invoker.getStartRetry()) {
+						invoker.getStartRetry().run();
+						invoker.getSignFunctionRetry().run();
+					}
 					if (async) {
 						ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node, method, invoker), retryPeriodSeconds, TimeUnit.SECONDS);
 						break;
@@ -129,10 +134,6 @@ public class RetryUtils extends CommonUtils {
 						}
 					}
 					callBeforeRetryMethodIfNeed(retryOptions, logTag);
-					if (null != invoker.getStartRetry()) {
-						invoker.getStartRetry().run();
-						invoker.getSignFunctionRetry().run();
-					}
 					doRetry = true;
 				} else {
 					wrapAndThrowError(errThrowable);
