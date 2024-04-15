@@ -71,7 +71,7 @@ public class BatchUpChecker {
             }
 
             //导入任务中使用的数据源版本太低，告警提示版本会存在不兼容
-            if (Check.LESS.equals(checkConnectionVersion(definitionPdkAPIVersion, upperPdkAPIVersion))) {
+            if (Check.LESS.equalsValue(checkConnectionVersion(definitionPdkAPIVersion, upperPdkAPIVersion))) {
                 connection.setDefinitionPdkId(pdkId);
                 //导入任务中使用的数据源版本太低
                 log.warn("The connector {}, type is {} version API ({}) used in the import task is too low. The API version used by connector {} in the current environment is: {}. After importing, please manually check the connection configuration item and task node configuration",
@@ -83,7 +83,7 @@ public class BatchUpChecker {
             //导入任务中使用的数据源版本太高，报错提示需要注册高版本才能导入
             DataSourceDefinitionDto lowerOne = sortList.get(sortList.size() - 1);
             String lowerPdkAPIVersion = lowerOne.getPdkAPIVersion();
-            if (Check.MORE.equals(checkConnectionVersion(definitionPdkAPIVersion, lowerPdkAPIVersion))) {
+            if (Check.MORE.equalsValue(checkConnectionVersion(definitionPdkAPIVersion, lowerPdkAPIVersion))) {
                 //导入任务中使用的数据源版本太高
                 throw new BizException("task.import.connection.check.ConnectorVersionTooHeight", databaseType, lowerPdkAPIVersion, definitionPdkAPIVersion, databaseType);
             }

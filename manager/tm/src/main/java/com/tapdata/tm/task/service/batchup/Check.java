@@ -8,7 +8,7 @@ public enum Check {
     Check(int status) {
         this.status = status;
     }
-    public boolean equals(Check c) {
+    public boolean equalsValue(Check c) {
         return null != c && c.status == this.status;
     }
 }
