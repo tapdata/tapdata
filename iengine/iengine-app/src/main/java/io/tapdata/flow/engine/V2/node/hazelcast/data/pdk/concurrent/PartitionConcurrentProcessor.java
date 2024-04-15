@@ -243,7 +243,11 @@ public class PartitionConcurrentProcessor {
 				if (tapdataEvent.isDML()) {
 					offsetEvent = processDML(tapdataEvent, singleMode);
 				} else {
-					processDDL(tapdataEvent, singleMode);
+					if (tapdataEvent.isConcurrentWrite()) {
+						processSignalConcurrent(tapdataEvent);
+					} else {
+						processSignalWithWait(tapdataEvent);
+					}
 				}
 			}
 			if (null != offsetEvent) {
@@ -296,6 +300,21 @@ public class PartitionConcurrentProcessor {
 		generateBarrierEvent();
 		final NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
 		offer2QueueIfRunning(partitionsQueue.get(DEFAULT_PARTITION), normalEvent, wrapPartitionErrorMsg(DEFAULT_PARTITION, "process queue if full, waiting for enqueue."));
+		waitingForProcessToCurrent();
+	}
+
+	protected void processSignalConcurrent(TapdataEvent tapdataEvent) throws InterruptedException {
+		LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(DEFAULT_PARTITION);
+		NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
+		offer2QueueIfRunning(queue, normalEvent, wrapPartitionErrorMsg(0, "process queue if full, waiting for enqueue."));
+	}
+
+	protected void processSignalWithWait(TapdataEvent tapdataEvent) throws InterruptedException {
+		generateBarrierEvent();
+		LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(DEFAULT_PARTITION);
+		NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
+		offer2QueueIfRunning(queue, normalEvent, wrapPartitionErrorMsg(0, "process queue if full, waiting for enqueue."));
+		waitingForProcessToCurrent();
 	}
 
 	protected Map<String, Object> getTapRecordEventData(TapEvent tapEvent) throws InterruptedException {
