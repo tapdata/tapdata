@@ -322,7 +322,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
 	}
 
-	private void initAndStartSourceRunner() {
+	protected void initAndStartSourceRunner() {
 		this.lastStreamOffset.set(syncProgress.getStreamOffset());
 		this.sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
 	}
@@ -522,12 +522,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		switch (syncType) {
 			case INITIAL_SYNC_CDC:
 				initStreamOffsetInitialAndCDC(offsetStartTimeMs);
+				syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
 				break;
 			case INITIAL_SYNC:
 				initStreamOffsetInitial();
+				syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
 				break;
 			case CDC:
 				offsetStartTimeMs = initStreamOffsetCDC(taskDto, offsetStartTimeMs);
+				syncProgress.setSyncStage(SyncStage.CDC.name());
 				break;
 			default:
 				break;
@@ -699,7 +702,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					try {
 						List<String> addList = tableResult.getAddList();
 						List<String> removeList = tableResult.getRemoveList();
-						List<String> loadedTableNames;
 						if (CollectionUtils.isNotEmpty(addList) || CollectionUtils.isNotEmpty(removeList)) {
 							while (isRunning()) {
 								try {
@@ -710,10 +712,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 									break;
 								}
 							}
-							// Handle new table(s)
+							// Remove from remove list if in add list
 							if (CollectionUtils.isNotEmpty(addList)) {
 								addList.forEach(tableName -> removeTables.remove(tableName));
-								if (handleNewTables(addList)) return;
 							}
 							// Handle remove table(s)
 							if (CollectionUtils.isNotEmpty(removeList)) {
@@ -740,8 +741,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 										.tables(removeList)
 										.tapdataEvents(tapdataEvents));
 							}
-						} else {
-							loadedTableNames = null;
+
+							// Handle new table(s)
+							if (CollectionUtils.isNotEmpty(addList)) {
+								handleNewTables(addList);
+							}
 						}
 					} catch (Throwable throwable) {
 						String error = "Handle table monitor result failed, result: " + tableResult + ", error: " + throwable.getMessage();
@@ -869,19 +873,19 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				streamReadFuncAspect.noMoreWaitRawData();
 				streamReadFuncAspect = null;
 			}
+			Optional.ofNullable(this.sourceRunner).ifPresent(ExecutorService::shutdownNow);
 			PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
 			PDKIntegration.releaseAssociateId(this.associateId);
 			ConnectorNodeService.getInstance().removeConnectorNode(this.associateId);
 			createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
 			connectorNodeInit(dataProcessorContext);
+
+			this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
+			initAndStartSourceRunner();
 		} else {
 			String error = "Connector node is null";
 			errorHandle(new RuntimeException(error), error);
-			return;
 		}
-		this.sourceRunner.shutdownNow();
-		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
-		initAndStartSourceRunner();
 	}
 
 	@NotNull

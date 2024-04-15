@@ -198,6 +198,11 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
 
     private List<ErrorEvent> errorEvents;
 
+    /**
+     * 任务导入导出需要用到
+     * */
+    private Map<String, Object> agentGroupInfo;
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());

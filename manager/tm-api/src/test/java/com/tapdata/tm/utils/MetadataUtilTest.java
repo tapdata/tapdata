@@ -49,7 +49,7 @@ public class MetadataUtilTest {
                 old.setLastUpdate(0L);
                 oldMetadataInstances.add(old);
                 when(metadataInstancesService.findAllDto(any(),any())).thenReturn(oldMetadataInstances);
-                List<MetadataInstancesDto> result = metadataUtil.modelNext(input,mock(DataSourceConnectionDto.class),"test",mock(UserDetail.class));
+                List<MetadataInstancesDto> result = metadataUtil.modelNext(input,mock(DataSourceConnectionDto.class),"test",mock(UserDetail.class),false);
                 Assertions.assertEquals(1,result.size());
             }
 
@@ -73,8 +73,8 @@ public class MetadataUtilTest {
                 old.setLastUpdate(0L);
                 oldMetadataInstances.add(old);
                 when(metadataInstancesService.findAllDto(any(),any())).thenReturn(oldMetadataInstances);
-                List<MetadataInstancesDto> result = metadataUtil.modelNext(input,mock(DataSourceConnectionDto.class),"test",mock(UserDetail.class));
-                Assertions.assertEquals(0,result.size());
+                List<MetadataInstancesDto> result = metadataUtil.modelNext(input,mock(DataSourceConnectionDto.class),"test",mock(UserDetail.class),false);
+                Assertions.assertEquals(1,result.size());
             }
         }
 
@@ -89,8 +89,8 @@ public class MetadataUtilTest {
                 metadataInstancesDto.setLastUpdate(0L);
                 input.add(metadataInstancesDto);
                 when(metadataInstancesService.findAllDto(any(),any())).thenReturn(new ArrayList<>());
-                List<MetadataInstancesDto> result = metadataUtil.modelNext(input,mock(DataSourceConnectionDto.class),"test",mock(UserDetail.class));
-                Assertions.assertEquals(0,result.size());
+                List<MetadataInstancesDto> result = metadataUtil.modelNext(input,mock(DataSourceConnectionDto.class),"test",mock(UserDetail.class),false);
+                Assertions.assertEquals(1,result.size());
             }
         }
 
@@ -112,7 +112,7 @@ public class MetadataUtilTest {
                 old.setLastUpdate(null);
                 oldMetadataInstances.add(old);
                 when(metadataInstancesService.findAllDto(any(),any())).thenReturn(oldMetadataInstances);
-                List<MetadataInstancesDto> result = metadataUtil.modelNext(input,mock(DataSourceConnectionDto.class),"test",mock(UserDetail.class));
+                List<MetadataInstancesDto> result = metadataUtil.modelNext(input,mock(DataSourceConnectionDto.class),"test",mock(UserDetail.class),false);
                 Assertions.assertEquals(0,result.size());
             }
         }
@@ -135,7 +135,7 @@ public class MetadataUtilTest {
                 old.setLastUpdate(1L);
                 oldMetadataInstances.add(old);
                 when(metadataInstancesService.findAllDto(any(),any())).thenReturn(oldMetadataInstances);
-                List<MetadataInstancesDto> result = metadataUtil.modelNext(input,mock(DataSourceConnectionDto.class),"test",mock(UserDetail.class));
+                List<MetadataInstancesDto> result = metadataUtil.modelNext(input,mock(DataSourceConnectionDto.class),"test",mock(UserDetail.class),false);
                 Assertions.assertEquals(0,result.size());
             }
         }

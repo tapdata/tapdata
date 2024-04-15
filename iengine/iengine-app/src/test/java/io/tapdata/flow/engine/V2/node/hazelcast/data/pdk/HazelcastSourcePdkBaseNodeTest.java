@@ -2,6 +2,8 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.ex.TestException;
 import base.hazelcast.BaseHazelcastNodeTest;
+import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.jet.core.Processor;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
@@ -18,6 +20,7 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
@@ -35,14 +38,18 @@ import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
+import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
@@ -1183,6 +1190,72 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(batchOffsetObj, times(1)).keySet();
 			verify(tableIds, times(1)).contains("id");
 			verify(batchOffsetObj, times(0)).remove("id");
+		}
+	}
+
+	@Nested
+	@DisplayName("Method restartPdkConnector test")
+	class restartPdkConnectorTest {
+		@BeforeEach
+		void setUp() {
+			instance = spy(instance);
+		}
+
+		@Test
+		@DisplayName("test main process")
+		@SneakyThrows
+		void testMainProcess() {
+			try (
+					MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class);
+					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class)
+			) {
+				ThreadPoolExecutorEx sourceRunner = mock(ThreadPoolExecutorEx.class);
+				ReflectionTestUtils.setField(instance, "sourceRunner", sourceRunner);
+				String associateId = "test_associateId";
+				ReflectionTestUtils.setField(instance, "associateId", associateId);
+				ConnectorNode connectorNode = mock(ConnectorNode.class);
+				when(connectorNode.getAssociateId()).thenReturn(associateId);
+				pdkInvocationMonitorMockedStatic.when(() -> PDKInvocationMonitor.invoke(eq(connectorNode), eq(PDKMethod.STOP), any(), anyString()))
+						.thenAnswer(invocationOnMock -> null);
+				pdkIntegrationMockedStatic.when(() -> PDKIntegration.releaseAssociateId(associateId)).thenAnswer(invocationOnMock -> null);
+				doReturn(connectorNode).when(instance).getConnectorNode();
+				doAnswer(invocationOnMock -> null).when(instance).createPdkConnectorNode(eq(dataProcessorContext), any(HazelcastInstance.class));
+				doAnswer(invocationOnMock -> null).when(instance).connectorNodeInit(dataProcessorContext);
+				doAnswer(invocationOnMock -> null).when(instance).initAndStartSourceRunner();
+				Processor.Context jetContext = mock(Processor.Context.class);
+				when(jetContext.hazelcastInstance()).thenReturn(mock(HazelcastInstance.class));
+				ReflectionTestUtils.setField(instance, "jetContext", jetContext);
+				ConnectorNodeService.getInstance().putConnectorNode(connectorNode);
+				StreamReadFuncAspect streamReadFuncAspect = mock(StreamReadFuncAspect.class);
+				ReflectionTestUtils.setField(instance, "streamReadFuncAspect", streamReadFuncAspect);
+
+				assertDoesNotThrow(() -> instance.restartPdkConnector());
+
+				verify(sourceRunner, times(1)).shutdownNow();
+				pdkInvocationMonitorMockedStatic.verify(
+						() -> PDKInvocationMonitor.invoke(eq(connectorNode), eq(PDKMethod.STOP), any(), anyString()),
+						times(1)
+				);
+				pdkIntegrationMockedStatic.verify(() -> PDKIntegration.releaseAssociateId(associateId), times(1));
+				assertNull(ConnectorNodeService.getInstance().getConnectorNode(associateId));
+				verify(instance, times(1)).createPdkConnectorNode(eq(dataProcessorContext), any(HazelcastInstance.class));
+				verify(instance, times(1)).connectorNodeInit(dataProcessorContext);
+				assertNotNull(instance.sourceRunner);
+				assertNotEquals(sourceRunner, instance.sourceRunner);
+				verify(instance, times(1)).initAndStartSourceRunner();
+				verify(streamReadFuncAspect, times(1)).noMoreWaitRawData();
+			}
+		}
+
+		@Test
+		@DisplayName("test getConnectorNode return null")
+		void testWhenConnectorNodeIsNull() {
+			doReturn(null).when(instance).getConnectorNode();
+			doReturn(null).when(instance).errorHandle(any(Throwable.class), anyString());
+
+			assertDoesNotThrow(() -> instance.restartPdkConnector());
+
+			verify(instance, times(1)).errorHandle(any(Throwable.class), anyString());
 		}
 	}
 }
