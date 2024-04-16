@@ -110,9 +110,8 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
      *
      * @param  tableName       the name of the table to update
      * @param  batchUpdateParam the parameters for batch update including id and list of tags
-     * @param  userDetail      the user details for authorization
      */
-    public List<String> batchPushListTags(String tableName, BatchUpdateParam batchUpdateParam,UserDetail userDetail) {
+    public List<String> batchPushListTags(String tableName, BatchUpdateParam batchUpdateParam) {
         List<String> idList = batchUpdateParam.getId();
         List<Tag> listTags = batchUpdateParam.getListtags();
         Update update = new Update().addToSet("listtags").each(listTags.toArray());
@@ -127,7 +126,7 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
             mongoTemplate.updateMulti(Query.query(Criteria.where("id").in(idList)), update, ModulesEntity.class);
         }
 
-        return null;
+        return idList;
     }
 
 

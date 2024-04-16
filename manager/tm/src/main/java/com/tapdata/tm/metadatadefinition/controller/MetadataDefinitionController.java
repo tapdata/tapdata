@@ -233,7 +233,7 @@ public class MetadataDefinitionController extends BaseController {
     @Operation(summary = "批量绑定标签")
     @PatchMapping("batchPushListtags/{tableName}")
     public ResponseMessage<List<String>> batchPushListTags(@PathVariable("tableName") String tableName, @RequestBody BatchUpdateParam batchUpdateParam) {
-        return success(metadataDefinitionService.batchPushListTags(tableName, batchUpdateParam, getLoginUser()));
+        return success(metadataDefinitionService.batchPushListTags(tableName, batchUpdateParam));
     }
 
 }
