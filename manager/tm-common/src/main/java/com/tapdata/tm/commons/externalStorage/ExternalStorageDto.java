@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.lang3.StringUtils;
 
+import java.net.URLEncoder;
 import java.util.List;
 import java.util.StringJoiner;
 
@@ -59,7 +60,8 @@ public class ExternalStorageDto extends BaseDto {
 					}
 					String username = connectionString.getUsername();
 					if (StringUtils.isNotBlank(username) && StringUtils.isNotBlank(password)) {
-						return uri.replace(username + ":" + password, username + ":" + MASK_PWD);
+						return uri.replace(username + ":" + password, username + ":" + MASK_PWD).
+								replace(username + ":" + URLEncoder.encode(password.toString(), "UTF-8"), username + ":" + MASK_PWD);
 					}
 				}
 			} catch (Exception ignored) {
