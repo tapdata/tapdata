@@ -37,7 +37,8 @@
             iengine/iengine-common/src/main/java/com/tapdata/entity/*
         </sonar.exclusions>
         <sonar.test.exclusions>
-            **/src/test/**
+            **/src/test/**,
+            tapdata-cli/**
         </sonar.test.exclusions>
     </properties>
 

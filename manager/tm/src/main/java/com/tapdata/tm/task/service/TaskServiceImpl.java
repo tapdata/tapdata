@@ -44,6 +44,7 @@ import com.tapdata.tm.customNode.service.CustomNodeService;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceServiceImpl;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.file.service.FileService;
@@ -85,6 +86,7 @@ import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
@@ -216,6 +218,8 @@ public class TaskServiceImpl extends TaskService{
     private TaskNodeService taskNodeService;
 
     private AgentGroupService agentGroupService;
+    private DataSourceDefinitionService dataSourceDefinitionService;
+    private BatchUpChecker batchUpChecker;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -2872,6 +2876,8 @@ public class TaskServiceImpl extends TaskService{
                                 dataSourceConnectionDto.setLastUpdBy(null);
                                 dataSourceConnectionDto.setUserId(null);
                                 dataSourceConnectionDto.setListtags(null);
+                                DataSourceDefinitionDto byPdkHash = dataSourceDefinitionService.findByPdkHash(dataSourceConnectionDto.getPdkHash(), Integer.MAX_VALUE, user);
+                                dataSourceConnectionDto.setDefinitionPdkAPIVersion(byPdkHash.getPdkAPIVersion());
                                 String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSourceConnectionDto, null);
                                 MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
                                         Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)), user);
@@ -3611,7 +3617,7 @@ public class TaskServiceImpl extends TaskService{
                 log.error("error", e);
             }
         }
-
+        batchUpChecker.checkDataSourceConnection(connections, user);
         Map<String, CustomNodeDto> customNodeMap = new HashMap<>();
         Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
         Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
@@ -3962,10 +3968,28 @@ public class TaskServiceImpl extends TaskService{
         return update;
     }
 
+    protected boolean findProcessNodeListWithGroup(TaskDto taskDto, List<String> accessNodeProcessIdList, UserDetail user) {
+        try {
+            List<String> list = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
+            if (CollectionUtils.isNotEmpty(list)) {
+                accessNodeProcessIdList.addAll(list);
+            }
+        } catch (BizException e) {
+            if ("group.agent.not.available".equals(e.getErrorCode())) {
+                return true;
+            }
+            throw e;
+        }
+        return false;
+    }
+
     public boolean findAgent(TaskDto taskDto, UserDetail user) {
         boolean noAgent = false;
         List<Worker> availableAgent = workerService.findAvailableAgent(user);
-        List<String> accessNodeProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
+        List<String> accessNodeProcessIdList = Lists.newArrayList();
+        if (findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user)) {
+            return true;
+        }
         if (AccessNodeTypeEnum.isManually(taskDto.getAccessNodeType())
                 && CollectionUtils.isNotEmpty(accessNodeProcessIdList)) {
 
