@@ -1,6 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent;
 
-import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.*;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
@@ -13,13 +13,11 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.PartitionKeySelector;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import io.tapdata.utils.UnitTestUtils;
+import lombok.SneakyThrows;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.*;
 import org.mockito.internal.verification.Times;
 
 import java.util.*;
@@ -103,6 +101,11 @@ class PartitionConcurrentProcessorTest {
         list.add(generateDDLEvent(new TapField("ddl2", "string"))); // need after ddl1,1,2,3,4,5,6
         list.add(generateDDLEvent(new TapField("ddl3", "string"))); // need after ddl1,ddl2,1,2,3,4,5,6
         list.add(generateInsertEvent("i", 7, null));
+        list.add(new TapdataCompleteSnapshotEvent());
+        list.add(new TapdataCompleteTableSnapshotEvent());
+        list.add(new TapdataStartingCdcEvent());
+        list.add(TapdataStartedCdcEvent.create());
+        list.add(generateInsertEvent("u", 8, null));
 
         PartitionConcurrentProcessor processor = new PartitionConcurrentProcessor(2, 500, partitioner, keySelector, eventProcessor, flushOffset, errorHandler, nodeRunning, taskDto);
 
@@ -113,7 +116,7 @@ class PartitionConcurrentProcessorTest {
             return null;
         }).when(errorHandler).accept(any(), any());
 
-        CountDownLatch countDownLatch = new CountDownLatch(12);
+        CountDownLatch countDownLatch = new CountDownLatch(list.size() + 2);
         doAnswer(invocationOnMock -> {
             List<TapdataEvent> events = invocationOnMock.getArgument(0);
             for (TapdataEvent e : events) {
@@ -134,6 +137,18 @@ class PartitionConcurrentProcessorTest {
                     String id = ((TapNewFieldEvent) e.getTapEvent()).getNewFields().get(0).getName();
                     syncMap.put(id, true);
                     assertDDLEvents(id, syncMap, assertList);
+                } else if (e instanceof TapdataCompleteSnapshotEvent) {
+                    syncMap.put(e.getClass().getName(), true);
+                    assertCompleteSnapshot(e, assertList, syncMap);
+                } else if (e instanceof TapdataCompleteTableSnapshotEvent) {
+                    syncMap.put(e.getClass().getName(), true);
+                    assertCompleteTableSnapshot(e, assertList, syncMap);
+                } else if (e instanceof TapdataStartingCdcEvent) {
+                    syncMap.put(e.getClass().getName(), true);
+                    assertStartingCdc(e, assertList, syncMap);
+                } else if (e instanceof TapdataStartedCdcEvent) {
+                    syncMap.put(e.getClass().getName(), true);
+                    assertStartedCdc(e, assertList, syncMap);
                 }
             }
             return null;
@@ -156,6 +171,82 @@ class PartitionConcurrentProcessorTest {
         }
     }
 
+    private static void assertCompleteSnapshot(TapdataEvent e, Map<String, Boolean> assertList, Map<String, Boolean> syncMap) {
+        assertList.put(e.getClass().getName(),
+                syncMap.containsKey("1")
+                && syncMap.containsKey("2")
+                && syncMap.containsKey("3")
+                && syncMap.containsKey("ddl1")
+                && syncMap.containsKey("4")
+                && syncMap.containsKey("5")
+                && syncMap.containsKey("6")
+                && syncMap.containsKey("ddl2")
+                && syncMap.containsKey("ddl3")
+                && syncMap.containsKey("7")
+                && !syncMap.containsKey(TapdataCompleteTableSnapshotEvent.class.getName())
+                && !syncMap.containsKey(TapdataStartingCdcEvent.class.getName())
+                && !syncMap.containsKey(TapdataStartedCdcEvent.class.getName())
+                && !syncMap.containsKey("8")
+        );
+    }
+
+    private static void assertCompleteTableSnapshot(TapdataEvent e, Map<String, Boolean> assertList, Map<String, Boolean> syncMap) {
+        assertList.put(e.getClass().getName(),
+                syncMap.containsKey("1")
+                        && syncMap.containsKey("2")
+                        && syncMap.containsKey("3")
+                        && syncMap.containsKey("ddl1")
+                        && syncMap.containsKey("4")
+                        && syncMap.containsKey("5")
+                        && syncMap.containsKey("6")
+                        && syncMap.containsKey("ddl2")
+                        && syncMap.containsKey("ddl3")
+                        && syncMap.containsKey("7")
+                        && syncMap.containsKey(TapdataCompleteSnapshotEvent.class.getName())
+                        && !syncMap.containsKey(TapdataStartingCdcEvent.class.getName())
+                        && !syncMap.containsKey(TapdataStartedCdcEvent.class.getName())
+                        && !syncMap.containsKey("8")
+        );
+    }
+
+    private static void assertStartingCdc(TapdataEvent e, Map<String, Boolean> assertList, Map<String, Boolean> syncMap) {
+        assertList.put(e.getClass().getName(),
+                syncMap.containsKey("1")
+                        && syncMap.containsKey("2")
+                        && syncMap.containsKey("3")
+                        && syncMap.containsKey("ddl1")
+                        && syncMap.containsKey("4")
+                        && syncMap.containsKey("5")
+                        && syncMap.containsKey("6")
+                        && syncMap.containsKey("ddl2")
+                        && syncMap.containsKey("ddl3")
+                        && syncMap.containsKey("7")
+                        && syncMap.containsKey(TapdataCompleteSnapshotEvent.class.getName())
+                        && syncMap.containsKey(TapdataCompleteTableSnapshotEvent.class.getName())
+                        && !syncMap.containsKey(TapdataStartedCdcEvent.class.getName())
+                        && !syncMap.containsKey("8")
+        );
+    }
+
+    private static void assertStartedCdc(TapdataEvent e, Map<String, Boolean> assertList, Map<String, Boolean> syncMap) {
+        assertList.put(e.getClass().getName(),
+                syncMap.containsKey("1")
+                        && syncMap.containsKey("2")
+                        && syncMap.containsKey("3")
+                        && syncMap.containsKey("ddl1")
+                        && syncMap.containsKey("4")
+                        && syncMap.containsKey("5")
+                        && syncMap.containsKey("6")
+                        && syncMap.containsKey("ddl2")
+                        && syncMap.containsKey("ddl3")
+                        && syncMap.containsKey("7")
+                        && syncMap.containsKey(TapdataCompleteSnapshotEvent.class.getName())
+                        && syncMap.containsKey(TapdataCompleteTableSnapshotEvent.class.getName())
+                        && syncMap.containsKey(TapdataStartingCdcEvent.class.getName())
+                        && !syncMap.containsKey("8")
+        );
+    }
+
     private void assertDMLEvents(String id, Map<String, Boolean> syncMap, Map<String, Boolean> assertList) {
         switch (id) {
             case "1":
@@ -173,6 +264,11 @@ class PartitionConcurrentProcessorTest {
                         && Boolean.TRUE.equals(syncMap.get("ddl2"))
                         && Boolean.TRUE.equals(syncMap.get("ddl3"))
                 );
+                break;
+            case "8":
+                assertList.put(id, Boolean.TRUE.equals(syncMap.get(TapdataStartedCdcEvent.class.getName())));
+                break;
+            default:
                 break;
         }
     }
@@ -530,4 +626,46 @@ class PartitionConcurrentProcessorTest {
         assertTrue(Thread.currentThread().isInterrupted());
     }
 
+    @Test
+    @SneakyThrows
+    void testProcessHeartBeat() {
+        List<TapdataEvent> syncList = new ArrayList<>();
+        List<TapdataEvent> tapdataEvents = new ArrayList<>();
+
+        tapdataEvents.add(new TapdataHeartbeatEvent());
+        tapdataEvents.add(new TapdataHeartbeatEvent());
+        tapdataEvents.add(new TapdataHeartbeatEvent());
+        tapdataEvents.add(new TapdataHeartbeatEvent());
+        tapdataEvents.add(new TapdataHeartbeatEvent());
+
+        PartitionConcurrentProcessor processor = new PartitionConcurrentProcessor(2, 500, partitioner, keySelector, eventProcessor, flushOffset, errorHandler, nodeRunning, taskDto);
+
+        when(nodeRunning.get()).thenReturn(true);
+
+        doAnswer(invocationOnMock -> {
+            logger.error(invocationOnMock.getArgument(1, String.class), invocationOnMock.getArgument(0, Throwable.class));
+            return null;
+        }).when(errorHandler).accept(any(), any());
+
+        CountDownLatch countDownLatch = new CountDownLatch(tapdataEvents.size());
+        doAnswer(invocationOnMock -> {
+            List<TapdataEvent> events = invocationOnMock.getArgument(0);
+            for (TapdataEvent e : events) {
+                syncList.add(e);
+                countDownLatch.countDown();
+            }
+            return null;
+        }).when(eventProcessor).accept(anyList());
+
+        try {
+            processor.start();
+            processor.process(tapdataEvents, false);
+            assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
+        } finally {
+            processor.stop();
+        }
+
+        assertFalse(processor.isRunning());
+        assertEquals(tapdataEvents.size(), syncList.size());
+    }
 }
