@@ -17,21 +17,21 @@ public class BatchOffsetUtil {
     public static boolean batchIsOverOfTable(SyncProgress syncProgress, String tableId) {
         Object offsetValue = getTableOffsetInfo(syncProgress, tableId);
         if (offsetValue instanceof BatchOffset) {
-            //86迭代新功能--全量表同步断点
+            /** 86 Iteration New Function - Full Scale Synchronization Breakpoint **/
             return TableBatchReadStatus.OVER.name().equals(((BatchOffset)offsetValue).getStatus());
         }
-        //历史数据
+        /** history data*/
         return false;
     }
 
     public static Object getBatchOffsetOfTable(SyncProgress syncProgress, String tableId) {
         Object offsetValue = getTableOffsetInfo(syncProgress, tableId);
         if (offsetValue instanceof BatchOffset) {
-            //86迭代新功能--全量表同步断点
+            /** 86 Iteration New Function - Full Scale Synchronization Breakpoint **/
             return ((BatchOffset) offsetValue).getOffset();
         }
 
-        //历史数据
+        /** history data*/
         return offsetValue;
     }
 
