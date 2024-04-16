@@ -732,7 +732,6 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			ReflectionTestUtils.setField(instance, "syncProgress", syncProgress);
 			ConnectorNode connectorNode = mock(ConnectorNode.class);
 			doReturn(connectorNode).when(instance).getConnectorNode();
-			doNothing().when(instance).loadBatchOffset();
 		}
 
 		@Test
@@ -742,7 +741,6 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			fakeBatchOffset.put("test", 1);
 			syncProgress.setBatchOffset(PdkUtil.encodeOffset(fakeBatchOffset));
 			instance.readBatchOffset();
-			verify(instance, times(1)).loadBatchOffset();
 			assertNotNull(syncProgress.getBatchOffsetObj());
 			assertInstanceOf(Map.class, syncProgress.getBatchOffsetObj());
 			assertEquals(1, ((Map) syncProgress.getBatchOffsetObj()).get("test"));
@@ -753,7 +751,6 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		void testSyncProgressIsNull() {
 			ReflectionTestUtils.setField(instance, "syncProgress", null);
 			assertDoesNotThrow(() -> instance.readBatchOffset());
-			verify(instance, times(0)).loadBatchOffset();
 		}
 
 		@Test
@@ -765,7 +762,6 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertNotNull(syncProgress.getBatchOffsetObj());
 			assertInstanceOf(HashMap.class, syncProgress.getBatchOffsetObj());
 			assertTrue(((Map) syncProgress.getBatchOffsetObj()).isEmpty());
-			verify(instance, times(0)).loadBatchOffset();
 		}
 	}
 
@@ -1171,72 +1167,6 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertDoesNotThrow(() -> instance.restartPdkConnector());
 
 			verify(instance, times(1)).errorHandle(any(Throwable.class), anyString());
-		}
-	}
-
-	@Nested
-	@DisplayName("Method loadBatchOffset test")
-	class LoadBatchOffsetTest {
-		Map<String, Object> batchOffsetObj;
-		Set<String> batchTable;
-		TapTableMap tapTableMap;
-		Set<String> tableIds;
-		@BeforeEach
-		void init() {
-			batchTable = new HashSet<>();
-			batchTable.add("id");
-			tableIds = mock(Set.class);
-			when(tableIds.contains("id")).thenReturn(false);
-
-			tapTableMap = mock(TapTableMap.class);
-			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
-			when(tapTableMap.keySet()).thenReturn(tableIds);
-
-			batchOffsetObj = mock(Map.class);
-			when(batchOffsetObj.remove("id")).thenReturn("");
-			when(batchOffsetObj.isEmpty()).thenReturn(false);
-			when(batchOffsetObj.keySet()).thenReturn(batchTable);
-
-			when(syncProgress.getBatchOffsetObj()).thenReturn(batchOffsetObj);
-
-			doCallRealMethod().when(mockInstance).loadBatchOffset();
-		}
-		@Test
-		void testNormal() {
-			Assertions.assertDoesNotThrow(() -> mockInstance.loadBatchOffset());
-			verify(dataProcessorContext, times(1)).getTapTableMap();
-			verify(tapTableMap, times(1)).keySet();
-			verify(syncProgress, times(1)).getBatchOffsetObj();
-			verify(batchOffsetObj, times(1)).isEmpty();
-			verify(batchOffsetObj, times(1)).keySet();
-			verify(tableIds, times(1)).contains("id");
-			verify(batchOffsetObj, times(1)).remove("id");
-		}
-
-		@Test
-		void testBatchOffsetObjIsEmpty() {
-			when(batchOffsetObj.isEmpty()).thenReturn(true);
-			Assertions.assertDoesNotThrow(() -> mockInstance.loadBatchOffset());
-			verify(dataProcessorContext, times(1)).getTapTableMap();
-			verify(tapTableMap, times(1)).keySet();
-			verify(syncProgress, times(1)).getBatchOffsetObj();
-			verify(batchOffsetObj, times(1)).isEmpty();
-			verify(batchOffsetObj, times(0)).keySet();
-			verify(tableIds, times(0)).contains("id");
-			verify(batchOffsetObj, times(0)).remove("id");
-		}
-
-		@Test
-		void testTableIdsNotContainsTableId() {
-			when(tableIds.contains("id")).thenReturn(true);
-			Assertions.assertDoesNotThrow(() -> mockInstance.loadBatchOffset());
-			verify(dataProcessorContext, times(1)).getTapTableMap();
-			verify(tapTableMap, times(1)).keySet();
-			verify(syncProgress, times(1)).getBatchOffsetObj();
-			verify(batchOffsetObj, times(1)).isEmpty();
-			verify(batchOffsetObj, times(1)).keySet();
-			verify(tableIds, times(1)).contains("id");
-			verify(batchOffsetObj, times(0)).remove("id");
 		}
 	}
 
