@@ -12,7 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -39,9 +40,9 @@ class MetadataDefinitionControllerTest {
         @BeforeEach
         void init() {
             batchUpdateParam = mock(BatchUpdateParam.class);
-            when(metadataDefinitionService.batchPushListTags(eq("Connections"), any(BatchUpdateParam.class))).thenReturn(Lists.newArrayList());
-            when(metadataDefinitionController.batchPushListTags(eq("Connections"), any(BatchUpdateParam.class))).thenCallRealMethod();
+            when(metadataDefinitionService.batchPushListTags("Connections", batchUpdateParam)).thenReturn(Lists.newArrayList());
             when(metadataDefinitionController.success(any(List.class))).thenReturn(mock(ResponseMessage.class));
+            when(metadataDefinitionController.batchPushListTags("Connections", batchUpdateParam)).thenCallRealMethod();
         }
 
         /**
@@ -53,7 +54,8 @@ class MetadataDefinitionControllerTest {
             Assertions.assertDoesNotThrow(() -> metadataDefinitionController.batchPushListTags("Connections", batchUpdateParam));
 
             // Verify that the batchPushListTags method in the MetadataDefinitionService class is called once with the specified arguments
-            verify(metadataDefinitionService, times(1)).batchPushListTags(eq("Connections"), any(BatchUpdateParam.class));
+            verify(metadataDefinitionService, times(1)).batchPushListTags("Connections", batchUpdateParam);
+            verify(metadataDefinitionController, times(1)).batchPushListTags("Connections", batchUpdateParam);
         }
     }
 
