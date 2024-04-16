@@ -7,6 +7,7 @@ import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
+import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
@@ -295,21 +296,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 			obsLogger.info(offsetLog);
 		}
-		initBatchOffset(null);
-	}
-
-	protected void initBatchOffset(List<String> ignoreTables) {
-		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-		Set<String> tableIds = tapTableMap.keySet();
-		Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.putIfAbsentBatchOffsetObj();
-		if (MapUtils.isEmpty(batchOffsetObj)) {
-			return;
-		}
-		if (CollectionUtils.isNotEmpty(ignoreTables)) {
-			ignoreTables.forEach(id -> syncProgress.updateBatchOffset(id, null, TableBatchReadStatus.RUNNING.name()));
-		}
-		Set<String> batchTable = batchOffsetObj.keySet();
-		batchTable.stream().filter(tableId -> !tableIds.contains(tableId)).forEach(batchOffsetObj::remove);
 	}
 
 	private void initSourceRunnerOnce() {
@@ -510,9 +496,21 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		String batchOffset = syncProgress.getBatchOffset();
 		if (StringUtils.isNotBlank(batchOffset)) {
 			syncProgress.setBatchOffsetObj(PdkUtil.decodeOffset(batchOffset, getConnectorNode()));
+			loadBatchOffset();
 		} else {
 			syncProgress.setBatchOffsetObj(new HashMap<>());
 		}
+	}
+
+	protected void loadBatchOffset() {
+		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		Set<String> tableIds = tapTableMap.keySet();
+		Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.getBatchOffsetObj();
+		if (MapUtils.isEmpty(batchOffsetObj)) {
+			return;
+		}
+		Set<String> batchTable = batchOffsetObj.keySet();
+		batchTable.stream().filter(tableId -> !tableIds.contains(tableId)).forEach(batchOffsetObj::remove);
 	}
 
 	protected void initBatchAndStreamOffsetFirstTime(TaskDto taskDto) {
@@ -851,7 +849,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					// Restart source runner
 					if (null != sourceRunner) {
 						this.sourceRunnerFirstTime.set(false);
-						initBatchOffset(newTables);
+						newTables.forEach(id -> BatchOffsetUtil.updateBatchOffset(syncProgress, id, null, TableBatchReadStatus.RUNNING.name()));
 						restartPdkConnector();
 					} else {
 						String error = "Source runner is null";
@@ -984,7 +982,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (SyncStage.INITIAL_SYNC == syncStage) {
 				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-					Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.putIfAbsentBatchOffsetObj();
+					Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.getBatchOffsetObj();
 					Map<String, Object> newMap = new HashMap<>();
 					try {
 						MapUtil.deepCloneMap(batchOffsetObj, newMap);
@@ -1087,6 +1085,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				removeMetadata.add(qualifiedName);
 				obsLogger.info("Drop table schema transform finished");
 			} else {
+				BatchOffsetUtil.updateBatchOffsetWhenTableRename(syncProgress, tapEvent);
 				qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(tableId);
 				obsLogger.info("Alter table in memory, qualified name: " + qualifiedName);
 				dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);

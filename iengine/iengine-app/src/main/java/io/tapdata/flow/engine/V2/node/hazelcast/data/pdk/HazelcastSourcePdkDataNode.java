@@ -6,6 +6,7 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
+import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -313,12 +314,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 					TapTable tapTable = tapTableMap.get(tableName);
 					String tableId = tapTable.getId();
-					if (syncProgress.batchIsOverOfTable(tableId)) {
+					if (BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId)) {
 						obsLogger.info("Skip table [{}] in batch read, reason: last task, this table has been completed batch read",
 								tableId);
 						continue;
 					}
-					Object tableOffset = syncProgress.getBatchOffsetOfTable(tableId);
+					Object tableOffset = BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId);
 					firstBatch.set(true);
 					try {
 						executeAspect(new SnapshotReadTableBeginAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
@@ -368,7 +369,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																if (obsLogger.isDebugEnabled()) {
 																	obsLogger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(connectorNode));
 																}
-																syncProgress.updateBatchOffset(tableId, offsetObject,  TableBatchReadStatus.RUNNING.name());
+																BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offsetObject,  TableBatchReadStatus.RUNNING.name());
 
 																flushPollingCDCOffset(events);
 																List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
@@ -424,7 +425,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 													}
 											)
 									));
-							syncProgress.updateBatchOffset(tableName, null,  TableBatchReadStatus.OVER.name());
+							BatchOffsetUtil.updateBatchOffset(syncProgress, tableName, null,  TableBatchReadStatus.OVER.name());
 							obsLogger.info("Table [{}] has been completed batch read, will skip batch read on the next run", tableName);
 						} finally {
 							removePdkMethodInvoker(pdkMethodInvoker);

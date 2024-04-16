@@ -732,6 +732,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			ReflectionTestUtils.setField(instance, "syncProgress", syncProgress);
 			ConnectorNode connectorNode = mock(ConnectorNode.class);
 			doReturn(connectorNode).when(instance).getConnectorNode();
+			doNothing().when(instance).loadBatchOffset();
 		}
 
 		@Test
@@ -741,10 +742,10 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			fakeBatchOffset.put("test", 1);
 			syncProgress.setBatchOffset(PdkUtil.encodeOffset(fakeBatchOffset));
 			instance.readBatchOffset();
-
-			assertNotNull(syncProgress.putIfAbsentBatchOffsetObj());
-			assertInstanceOf(Map.class, syncProgress.putIfAbsentBatchOffsetObj());
-			assertEquals(1, ((Map) syncProgress.putIfAbsentBatchOffsetObj()).get("test"));
+			verify(instance, times(1)).loadBatchOffset();
+			assertNotNull(syncProgress.getBatchOffsetObj());
+			assertInstanceOf(Map.class, syncProgress.getBatchOffsetObj());
+			assertEquals(1, ((Map) syncProgress.getBatchOffsetObj()).get("test"));
 		}
 
 		@Test
@@ -752,6 +753,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		void testSyncProgressIsNull() {
 			ReflectionTestUtils.setField(instance, "syncProgress", null);
 			assertDoesNotThrow(() -> instance.readBatchOffset());
+			verify(instance, times(0)).loadBatchOffset();
 		}
 
 		@Test
@@ -760,9 +762,10 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			syncProgress.setBatchOffset(null);
 			assertDoesNotThrow(() -> instance.readBatchOffset());
 
-			assertNotNull(syncProgress.putIfAbsentBatchOffsetObj());
-			assertInstanceOf(HashMap.class, syncProgress.putIfAbsentBatchOffsetObj());
-			assertTrue(((Map) syncProgress.putIfAbsentBatchOffsetObj()).isEmpty());
+			assertNotNull(syncProgress.getBatchOffsetObj());
+			assertInstanceOf(HashMap.class, syncProgress.getBatchOffsetObj());
+			assertTrue(((Map) syncProgress.getBatchOffsetObj()).isEmpty());
+			verify(instance, times(0)).loadBatchOffset();
 		}
 	}
 
@@ -802,9 +805,9 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(instance, times(1)).enqueue(any(TapdataEvent.class));
 			verify(instance, never()).initStreamOffsetInitial();
 			verify(instance, never()).initStreamOffsetCDC(any(TaskDto.class), anyLong());
-			assertNotNull(actualSyncProgress.putIfAbsentBatchOffsetObj());
-			assertInstanceOf(HashMap.class, actualSyncProgress.putIfAbsentBatchOffsetObj());
-			assertTrue(((Map) actualSyncProgress.putIfAbsentBatchOffsetObj()).isEmpty());
+			assertNotNull(actualSyncProgress.getBatchOffsetObj());
+			assertInstanceOf(HashMap.class, actualSyncProgress.getBatchOffsetObj());
+			assertTrue(((Map) actualSyncProgress.getBatchOffsetObj()).isEmpty());
 			assertNotNull(actualSyncProgress.getStreamOffsetObj());
 			assertInstanceOf(HashMap.class, actualSyncProgress.getStreamOffsetObj());
 			assertEquals(1, ((Map) actualSyncProgress.getStreamOffsetObj()).get("test"));
@@ -822,9 +825,9 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(instance, never()).enqueue(any(TapdataEvent.class));
 			verify(instance, times(1)).initStreamOffsetInitial();
 			verify(instance, never()).initStreamOffsetCDC(any(TaskDto.class), anyLong());
-			assertNotNull(actualSyncProgress.putIfAbsentBatchOffsetObj());
-			assertInstanceOf(HashMap.class, actualSyncProgress.putIfAbsentBatchOffsetObj());
-			assertTrue(((Map) actualSyncProgress.putIfAbsentBatchOffsetObj()).isEmpty());
+			assertNotNull(actualSyncProgress.getBatchOffsetObj());
+			assertInstanceOf(HashMap.class, actualSyncProgress.getBatchOffsetObj());
+			assertTrue(((Map) actualSyncProgress.getBatchOffsetObj()).isEmpty());
 			assertNull(actualSyncProgress.getStreamOffsetObj());
 			assertEquals(SyncStage.INITIAL_SYNC.name(), actualSyncProgress.getSyncStage());
 		}
@@ -1172,17 +1175,14 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
-	@DisplayName("Method initBatchOffset test")
-	class InitBatchOffsetTest {
-		List<String> ignoreTables;
+	@DisplayName("Method loadBatchOffset test")
+	class LoadBatchOffsetTest {
 		Map<String, Object> batchOffsetObj;
 		Set<String> batchTable;
 		TapTableMap tapTableMap;
 		Set<String> tableIds;
 		@BeforeEach
 		void init() {
-			ignoreTables = new ArrayList<>();
-			ignoreTables.add("id");
 			batchTable = new HashSet<>();
 			batchTable.add("id");
 			tableIds = mock(Set.class);
@@ -1197,20 +1197,17 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			when(batchOffsetObj.isEmpty()).thenReturn(false);
 			when(batchOffsetObj.keySet()).thenReturn(batchTable);
 
-			when(syncProgress.putIfAbsentBatchOffsetObj()).thenReturn(batchOffsetObj);
-			doNothing().when(syncProgress).updateBatchOffset("id", null, TableBatchReadStatus.RUNNING.name());
+			when(syncProgress.getBatchOffsetObj()).thenReturn(batchOffsetObj);
 
-			doCallRealMethod().when(mockInstance).initBatchOffset(ignoreTables);
-			doCallRealMethod().when(mockInstance).initBatchOffset(null);
+			doCallRealMethod().when(mockInstance).loadBatchOffset();
 		}
 		@Test
 		void testNormal() {
-			Assertions.assertDoesNotThrow(() -> mockInstance.initBatchOffset(ignoreTables));
+			Assertions.assertDoesNotThrow(() -> mockInstance.loadBatchOffset());
 			verify(dataProcessorContext, times(1)).getTapTableMap();
 			verify(tapTableMap, times(1)).keySet();
-			verify(syncProgress, times(1)).putIfAbsentBatchOffsetObj();
+			verify(syncProgress, times(1)).getBatchOffsetObj();
 			verify(batchOffsetObj, times(1)).isEmpty();
-			verify(syncProgress, times(1)).updateBatchOffset("id", null, TableBatchReadStatus.RUNNING.name());
 			verify(batchOffsetObj, times(1)).keySet();
 			verify(tableIds, times(1)).contains("id");
 			verify(batchOffsetObj, times(1)).remove("id");
@@ -1219,43 +1216,28 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		@Test
 		void testBatchOffsetObjIsEmpty() {
 			when(batchOffsetObj.isEmpty()).thenReturn(true);
-			Assertions.assertDoesNotThrow(() -> mockInstance.initBatchOffset(ignoreTables));
+			Assertions.assertDoesNotThrow(() -> mockInstance.loadBatchOffset());
 			verify(dataProcessorContext, times(1)).getTapTableMap();
 			verify(tapTableMap, times(1)).keySet();
-			verify(syncProgress, times(1)).putIfAbsentBatchOffsetObj();
+			verify(syncProgress, times(1)).getBatchOffsetObj();
 			verify(batchOffsetObj, times(1)).isEmpty();
-			verify(syncProgress, times(0)).updateBatchOffset("id", null, TableBatchReadStatus.RUNNING.name());
 			verify(batchOffsetObj, times(0)).keySet();
 			verify(tableIds, times(0)).contains("id");
 			verify(batchOffsetObj, times(0)).remove("id");
 		}
 
 		@Test
-		void testIgnoreTablesIsEmpty() {
-			ignoreTables.clear();
-			Assertions.assertDoesNotThrow(() -> mockInstance.initBatchOffset(ignoreTables));
-			verify(dataProcessorContext, times(1)).getTapTableMap();
-			verify(tapTableMap, times(1)).keySet();
-			verify(syncProgress, times(1)).putIfAbsentBatchOffsetObj();
-			verify(batchOffsetObj, times(1)).isEmpty();
-			verify(syncProgress, times(0)).updateBatchOffset("id", null, TableBatchReadStatus.RUNNING.name());
-			verify(batchOffsetObj, times(1)).keySet();
-			verify(tableIds, times(1)).contains("id");
-			verify(batchOffsetObj, times(1)).remove("id");
-		}
-
-		@Test
 		void testTableIdsNotContainsTableId() {
 			when(tableIds.contains("id")).thenReturn(true);
-			Assertions.assertDoesNotThrow(() -> mockInstance.initBatchOffset(ignoreTables));
+			Assertions.assertDoesNotThrow(() -> mockInstance.loadBatchOffset());
 			verify(dataProcessorContext, times(1)).getTapTableMap();
 			verify(tapTableMap, times(1)).keySet();
-			verify(syncProgress, times(1)).putIfAbsentBatchOffsetObj();
+			verify(syncProgress, times(1)).getBatchOffsetObj();
 			verify(batchOffsetObj, times(1)).isEmpty();
-			verify(syncProgress, times(1)).updateBatchOffset("id", null, TableBatchReadStatus.RUNNING.name());
 			verify(batchOffsetObj, times(1)).keySet();
 			verify(tableIds, times(1)).contains("id");
 			verify(batchOffsetObj, times(0)).remove("id");
 		}
 	}
+
 }
