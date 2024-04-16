@@ -32,4 +32,9 @@ public class TapdataStartedCdcEvent extends TapdataEvent {
 			((TapdataStartedCdcEvent) tapdataEvent).setCdcStartTime(cdcStartTime);
 		}
 	}
+
+	@Override
+	public boolean isConcurrentWrite() {
+		return false;
+	}
 }

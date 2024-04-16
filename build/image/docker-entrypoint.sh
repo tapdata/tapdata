@@ -106,7 +106,7 @@ exec_with_log() {
 
 _register_connectors() {
     print_message "* Register Connector: $i" "blue" false
-    java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -t http://localhost:3000 $dir/connectors/dist/$i > /dev/null
+    java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -f GA -t http://localhost:3000 $dir/connectors/dist/$i > /dev/null
     if [[ $? -ne 0 ]]; then
         print_message "* Register Connector: $i Failed" "red" false
         exit 1
