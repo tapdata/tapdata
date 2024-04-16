@@ -17,6 +17,9 @@
 		<resource.dir>src/main/resources</resource.dir>
 		<maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss</maven.build.timestamp.format>
 		<okhttp3.version>4.8.0</okhttp3.version>
+		<!-- Testing -->
+		<version.junit>4.12</version.junit>
+		<version.fest>1.4</version.fest>
 	</properties>
 
 	<profiles>
@@ -484,6 +487,28 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- Test dependencies -->
+		<dependency>
+			<groupId>org.easytesting</groupId>
+			<artifactId>fest-assert</artifactId>
+			<version>${version.fest}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.junit</groupId>
+			<artifactId>junit-bom</artifactId>
+			<version>${junit-jupiter.version}</version>
+			<type>pom</type>
+			<scope>import</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-core</artifactId>
+			<version>${mockito.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<!---->
 	</dependencies>
 
 	<build>

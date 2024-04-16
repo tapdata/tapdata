@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import cn.hutool.core.date.DateUtil;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -22,6 +23,7 @@ import java.text.MessageFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Component("agentStrategy")
@@ -29,21 +31,15 @@ import java.util.stream.Collectors;
 public class AgentStrategyImpl implements DagLogStrategy {
 
     private WorkerService workerService;
+    private AgentGroupService agentGroupService;
 
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.AGENT_CAN_USE_CHECK;
 
     @Override
     public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
-
-        List<Worker> availableAgent;
-        String agent;
-        if (StringUtils.equals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), taskDto.getAccessNodeType())) {
-            availableAgent = workerService.findAvailableAgent(userDetail);
-            agent = AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.getName();
-        } else {
-            availableAgent = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
-            agent = taskDto.getAccessNodeProcessIdList().get(0);
-        }
+        AtomicReference<String> agentRef = new AtomicReference<>();
+        List<Worker> availableAgent = getWorkers(taskDto, userDetail, agentRef);
+        String agent = agentRef.get();
 
         String template;
         String content;
@@ -69,5 +65,22 @@ public class AgentStrategyImpl implements DagLogStrategy {
         log.setGrade(grade);
 
         return Lists.newArrayList(log);
+    }
+
+    protected List<Worker> getWorkers(TaskDto taskDto, UserDetail userDetail, AtomicReference<String> agent) {
+        List<Worker> availableAgent;
+        if (StringUtils.equals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), taskDto.getAccessNodeType())) {
+            availableAgent = workerService.findAvailableAgent(userDetail);
+            agent.set(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.getName());
+        } else {
+            List<String> processNodeListWithGroup = agentGroupService.getProcessNodeListWithGroup(taskDto, userDetail);
+            availableAgent = workerService.findAvailableAgentByAccessNode(userDetail, processNodeListWithGroup);
+            if (null != availableAgent && !availableAgent.isEmpty()) {
+                agent.set(processNodeListWithGroup.get(0));
+            } else {
+                agent.set("");
+            }
+        }
+        return availableAgent;
     }
 }

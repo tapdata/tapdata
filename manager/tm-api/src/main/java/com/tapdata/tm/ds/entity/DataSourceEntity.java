@@ -3,6 +3,7 @@ package com.tapdata.tm.ds.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.base.IDataPermissionEntity;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.schema.ScheduleTimeEnum;
 import com.tapdata.tm.commons.schema.bean.FileSources;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
@@ -309,7 +310,6 @@ public class DataSourceEntity extends BaseEntity implements IDataPermissionEntit
      */
     private List<String> accessNodeProcessIdList;
 
-    @Transient
     private String accessNodeProcessId;
 
     private TimeZone timeZone;
@@ -337,6 +337,9 @@ public class DataSourceEntity extends BaseEntity implements IDataPermissionEntit
      *
      */
     public String getAccessNodeProcessId() {
+        if (AccessNodeTypeEnum.isGroupManually(accessNodeType)) {
+            return accessNodeProcessId;
+        }
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }
 }
