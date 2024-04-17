@@ -24,8 +24,8 @@ public class UnwindProcessNodeTest {
     @Test
     void mergeSchemaTest_flatten_object(){
         unwindProcessNode.setPath("t");
-        unwindProcessNode.setUnwindModel(UnwindModel.flatten);
-        unwindProcessNode.setArrayModel(ArrayModel.object);
+        unwindProcessNode.setUnwindModel(UnwindModel.FLATTEN);
+        unwindProcessNode.setArrayModel(ArrayModel.OBJECT);
         unwindProcessNode.setJoiner("_");
         List<Schema> inputSchema = mock(List.class);
         Schema schema = mock(Schema.class);
@@ -42,15 +42,15 @@ public class UnwindProcessNodeTest {
         Schema result = unwindProcessNode.mergeSchema(inputSchema,schema,mock(DAG.Options.class));
         Assertions.assertEquals(result.getFields().get(0).getFieldName(),"t_id");
         Assertions.assertEquals("_",unwindProcessNode.getJoiner());
-        Assertions.assertEquals(UnwindModel.flatten,unwindProcessNode.getUnwindModel());
-        Assertions.assertEquals(ArrayModel.object,unwindProcessNode.getArrayModel());
+        Assertions.assertEquals(UnwindModel.FLATTEN,unwindProcessNode.getUnwindModel());
+        Assertions.assertEquals(ArrayModel.OBJECT,unwindProcessNode.getArrayModel());
     }
 
     @Test
     void mergeSchemaTest_flatten_mix(){
         unwindProcessNode.setPath("t");
-        unwindProcessNode.setUnwindModel(UnwindModel.flatten);
-        unwindProcessNode.setArrayModel(ArrayModel.mix);
+        unwindProcessNode.setUnwindModel(UnwindModel.FLATTEN);
+        unwindProcessNode.setArrayModel(ArrayModel.MIX);
         unwindProcessNode.setJoiner("_");
         List<Schema> inputSchema = mock(List.class);
         Schema schema = mock(Schema.class);
@@ -71,8 +71,8 @@ public class UnwindProcessNodeTest {
     @Test
     void mergeSchemaTest_flatten_basic(){
         unwindProcessNode.setPath("t");
-        unwindProcessNode.setUnwindModel(UnwindModel.flatten);
-        unwindProcessNode.setArrayModel(ArrayModel.basic);
+        unwindProcessNode.setUnwindModel(UnwindModel.FLATTEN);
+        unwindProcessNode.setArrayModel(ArrayModel.BASIC);
         unwindProcessNode.setJoiner("_");
         List<Schema> inputSchema = mock(List.class);
         Schema schema = mock(Schema.class);
@@ -93,8 +93,8 @@ public class UnwindProcessNodeTest {
     @Test
     void mergeSchemaTest_embedded(){
         unwindProcessNode.setPath("t");
-        unwindProcessNode.setUnwindModel(UnwindModel.flatten);
-        unwindProcessNode.setArrayModel(ArrayModel.basic);
+        unwindProcessNode.setUnwindModel(UnwindModel.FLATTEN);
+        unwindProcessNode.setArrayModel(ArrayModel.BASIC);
         unwindProcessNode.setJoiner("_");
         List<Schema> inputSchema = mock(List.class);
         Schema schema = mock(Schema.class);

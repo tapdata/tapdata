@@ -219,7 +219,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		AspectUtils.executeAspect(PDKNodeInitAspect.class, () -> new PDKNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 	}
 
-	private void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {
+	protected void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {
 		if (node instanceof DataParentNode && null != ((DataParentNode<?>) node).getDmlPolicy()) {
 			DmlPolicy dmlPolicy = ((DataParentNode<?>) node).getDmlPolicy();
 			DmlPolicyEnum insertPolicy = null == dmlPolicy.getInsertPolicy() ? DmlPolicyEnum.update_on_exists : dmlPolicy.getInsertPolicy();

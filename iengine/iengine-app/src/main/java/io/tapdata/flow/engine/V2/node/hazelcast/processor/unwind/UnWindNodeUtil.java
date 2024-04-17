@@ -103,9 +103,9 @@ public class UnWindNodeUtil {
     /**
      * record 中存在path路径的kv键值对时，更具unwind节点配置来做对应的操作
      * */
-    public static  Map<String, Object> containsPathAndSetValue(String path, Map<String, Object> record, Object value, String includeArrayIndex, long arrayIndexValue,Boolean flatten,Map<String,String> flattenMap){
+    public static  Map<String, Object> containsPathAndSetValue(String path, Map<String, Object> map, Object value, String includeArrayIndex, long arrayIndexValue,Boolean flatten,Map<String,String> flattenMap){
         Map<String, Object> copyMap = new HashMap<>();
-        MapUtil.copyToNewMap(record, copyMap);
+        MapUtil.copyToNewMap(map, copyMap);
         serializationFlattenFields(path,copyMap,value,flatten,flattenMap);
         if (copyMap.containsKey(path)) {
             copyMap.put(path, value);
@@ -272,14 +272,14 @@ public class UnWindNodeUtil {
         return events;
     }
 
-    public static void serializationFlattenFields(String path,Map<String, Object> record, Object value,Boolean flatten,Map<String,String> flattenMap){
-        if (null == flattenMap || null == value || null == record)return;
-        if(value.getClass().getName().equals(Document.class.getName()) && flatten){
+    public static void serializationFlattenFields(String path,Map<String, Object> map, Object value,Boolean flatten,Map<String,String> flattenMap){
+        if (null == flattenMap || null == value || null == map)return;
+        if(value instanceof Map && flatten){
            Map<String,Object> object = (Map<String,Object>) value;
-           record.remove(path);
+           map.remove(path);
            for(Map.Entry<String, String> entry :flattenMap.entrySet()){
                if(object.get(entry.getValue()) != null){
-                   record.put(entry.getKey(),object.get(entry.getValue()));
+                   map.put(entry.getKey(),object.get(entry.getValue()));
                }
             }
         }

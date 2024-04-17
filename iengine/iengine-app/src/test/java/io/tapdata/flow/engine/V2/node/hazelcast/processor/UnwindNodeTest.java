@@ -38,7 +38,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
-        node.setUnwindModel(UnwindModel.embedded);
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
         List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
         boolean count = handelResult.size() == 2;
@@ -196,7 +196,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
-        node.setUnwindModel(UnwindModel.embedded);
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
 
         //不指定索引字段，忽略null或empty
@@ -261,7 +261,7 @@ public class UnwindNodeTest extends BaseTest {
 
         UnwindProcessNode node = new UnwindProcessNode();
         node.setPath("field");
-        node.setUnwindModel(UnwindModel.embedded);
+        node.setUnwindModel(UnwindModel.EMBEDDED);
 
         //不指定索引字段，忽略null或empty
         List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
@@ -322,7 +322,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
-        node.setUnwindModel(UnwindModel.embedded);
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
 
         //不指定索引字段，忽略null或empty
@@ -395,7 +395,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
-        node.setUnwindModel(UnwindModel.embedded);
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field.array");
 
         //不指定索引字段，忽略null或empty
@@ -460,7 +460,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
-        node.setUnwindModel(UnwindModel.embedded);
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field.array");
 
         //不指定索引字段，忽略null或empty
@@ -527,7 +527,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
-        node.setUnwindModel(UnwindModel.embedded);
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field.array");
 
         //不指定索引字段，忽略null或empty
@@ -592,7 +592,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
-        node.setUnwindModel(UnwindModel.embedded);
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field.array");
 
         //不指定索引字段，忽略null或empty
@@ -668,7 +668,7 @@ public class UnwindNodeTest extends BaseTest {
         event.before(before);
         event.setReferenceTime(System.currentTimeMillis());
         UnwindProcessNode node = new UnwindProcessNode();
-        node.setUnwindModel(UnwindModel.embedded);
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
         List<TapEvent> handelResult1 = EventHandel.getHandelResult(node, event);
         boolean count = handelResult1.size() == 2;
@@ -710,7 +710,7 @@ public class UnwindNodeTest extends BaseTest {
         event.after(after);
         event.setReferenceTime(System.currentTimeMillis());
         UnwindProcessNode node = new UnwindProcessNode();
-        node.setUnwindModel(UnwindModel.embedded);
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
         List<TapEvent> handelResult1 = EventHandel.getHandelResult(node, event);
         boolean count = handelResult1.size() == 2;
@@ -790,7 +790,7 @@ public class UnwindNodeTest extends BaseTest {
         event.before(before);
         event.setReferenceTime(System.currentTimeMillis());
         UnwindProcessNode node = new UnwindProcessNode();
-        node.setUnwindModel(UnwindModel.embedded);
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
 
         /**
@@ -866,7 +866,7 @@ public class UnwindNodeTest extends BaseTest {
             events.add(event);
         }
         UnwindProcessNode node = new UnwindProcessNode();
-        node.setUnwindModel(UnwindModel.embedded);
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
         long start = System.currentTimeMillis();
         for (TapEvent event : events) {

@@ -48,7 +48,7 @@ public class UnwindProcessNode extends ProcessorNode {
     private boolean preserveNullAndEmptyArrays;
 
 
-    private UnwindModel unwindModel = UnwindModel.embedded;
+    private UnwindModel unwindModel = UnwindModel.EMBEDDED;
 
     private ArrayModel arrayModel;
 
@@ -71,16 +71,16 @@ public class UnwindProcessNode extends ProcessorNode {
         Map<String, Field> originFieldMap = fields.stream().collect(Collectors.toMap(Field::getFieldName, f -> f));
         if (originFieldMap.containsKey(path)) {
             fields.remove(originFieldMap.get(path));
-            if(UnwindModel.flatten.equals(unwindModel) && !ArrayModel.basic.equals(arrayModel) ){
+            if(UnwindModel.FLATTEN.equals(unwindModel) && !ArrayModel.BASIC.equals(arrayModel) ){
                 fields.forEach(field -> {
                     if(field.getFieldName().contains(path+".")){
                         String newFieldName = field.getFieldName().replace(".",joiner);
                         field.setFieldName(newFieldName);
-                        flattenMap.put(newFieldName,newFieldName.split(joiner)[1]);
+                        flattenMap.put(newFieldName,newFieldName.split("\\"+joiner)[1]);
                     }
                 });
             }
-            if(UnwindModel.embedded.equals(unwindModel) || (UnwindModel.flatten.equals(unwindModel) && !ArrayModel.object.equals(arrayModel))) {
+            if(UnwindModel.EMBEDDED.equals(unwindModel) || (UnwindModel.FLATTEN.equals(unwindModel) && !ArrayModel.OBJECT.equals(arrayModel))) {
                 FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
                 fieldOperation.setType("Map");
                 fieldOperation.setField(path);
@@ -170,7 +170,7 @@ public class UnwindProcessNode extends ProcessorNode {
     }
 
     public Boolean whetherFlatten(){
-        return this.unwindModel.equals(UnwindModel.flatten);
+        return this.unwindModel.equals(UnwindModel.FLATTEN);
     }
 
     public Map<String,String> getFlattenMap(){

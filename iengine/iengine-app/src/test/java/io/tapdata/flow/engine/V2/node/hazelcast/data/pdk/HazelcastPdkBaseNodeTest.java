@@ -4,6 +4,9 @@ import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.mongo.HttpClientMongoOperator;
+import com.tapdata.tm.commons.dag.DmlPolicy;
+import com.tapdata.tm.commons.dag.DmlPolicyEnum;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.logger.TapLogger;
@@ -12,6 +15,8 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.schema.TapTableMap;
 import org.bson.Document;
@@ -400,5 +405,38 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			PDKMethodInvoker pdkMethodInvoker = spyhazelcastPdkBaseNode.createPdkMethodInvoker();
 			assertEquals(60L,pdkMethodInvoker.getRetryPeriodSeconds());
 		}
+	}
+	@Nested
+	class InitDmlPolicyTest{
+		HazelcastPdkBaseNode hazelcastPdkBaseNode;
+		@BeforeEach
+		void setUp(){
+			hazelcastPdkBaseNode = mock(HazelcastTargetPdkBaseNode.class);
+		}
+		@Test
+		void test(){
+			TableNode tableNode1 = new TableNode();
+			DmlPolicy dmlPolicy = new DmlPolicy();
+			dmlPolicy.setInsertPolicy(DmlPolicyEnum.just_insert);
+			tableNode1.setDmlPolicy(dmlPolicy);
+			ConnectorCapabilities connectorCapabilities = mock(ConnectorCapabilities.class);
+			doCallRealMethod().when(hazelcastPdkBaseNode).initDmlPolicy(tableNode1,connectorCapabilities);
+			hazelcastPdkBaseNode.initDmlPolicy(tableNode1,connectorCapabilities);
+			verify(connectorCapabilities,times(1)).alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_JUST_INSERT);
+
+		}
+
+		@Test
+		void test2(){
+			TableNode tableNode1 = new TableNode();
+			DmlPolicy dmlPolicy = new DmlPolicy();
+			dmlPolicy.setInsertPolicy(DmlPolicyEnum.update_on_exists);
+			tableNode1.setDmlPolicy(dmlPolicy);
+			ConnectorCapabilities connectorCapabilities = mock(ConnectorCapabilities.class);
+			doCallRealMethod().when(hazelcastPdkBaseNode).initDmlPolicy(tableNode1,connectorCapabilities);
+			hazelcastPdkBaseNode.initDmlPolicy(tableNode1,connectorCapabilities);
+			verify(connectorCapabilities,times(1)).alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
+		}
+
 	}
 }
