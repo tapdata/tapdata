@@ -1069,23 +1069,6 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             return;
         }
 
-        DataSourceDefinitionDto definitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
-        if (definitionDto != null) {
-            String expression = definitionDto.getExpression();
-            Map<Class<?>, String> tapMap = definitionDto.getTapMap();
-            PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(tapTable.getNameFieldMap() == null ? new LinkedHashMap<>() : tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
-            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-            TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
-            TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap
-                    , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
-            LinkedHashMap<String, TapField> data = convert.getData();
-
-            data.forEach((k, v) -> {
-                TapField tapField = nameFieldMap.get(k);
-                BeanUtils.copyProperties(v, tapField);
-            });
-            tapTable.setNameFieldMap(nameFieldMap);
-        }
         MetadataInstancesDto metadataInstancesDto1 = PdkSchemaConvert.fromPdk(tapTable);
 
         Map<String, Field> oldFieldMap = new HashMap<>();
