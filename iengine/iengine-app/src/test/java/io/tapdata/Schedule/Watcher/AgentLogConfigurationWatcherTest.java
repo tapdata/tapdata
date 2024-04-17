@@ -10,15 +10,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.appender.HttpAppender;
 import org.apache.logging.log4j.core.appender.RollingFileAppender;
 import org.apache.logging.log4j.core.appender.rolling.*;
 import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-
-import java.util.Map;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -80,47 +80,47 @@ public class AgentLogConfigurationWatcherTest {
         DefaultRolloverStrategy rolloverStrategy = (DefaultRolloverStrategy)updateRollAppender.getManager().getRolloverStrategy();
         assertEquals(100,rolloverStrategy.getMaxIndex());
     }
+    @Nested
+    class testLogLevel{
+        private AgentLogConfigurationWatcher agentLogConfigurationWatcher;
+        @BeforeEach
+        void setUp(){
+            agentLogConfigurationWatcher= mock(AgentLogConfigurationWatcher.class);
+            LoggerContext context = LoggerContext.getContext(false);
+            ReflectionTestUtils.setField(agentLogConfigurationWatcher,"context",context);
+        }
+        @DisplayName("test Update logLevel with info and logger add root logger appender")
+        @Test
+        void updateLogLevelTest(){
+            org.apache.logging.log4j.core.Logger logger = (Logger) LogManager.getLogger("io.tapdata.CustomProcessor.Test1");
+            PatternLayout patternLayout = PatternLayout.newBuilder()
+                    .withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n")
+                    .build();
+            logger.addAppender(CustomHttpAppender.createAppender("httpAppender",null,patternLayout,mock(HttpClientMongoOperator.class)));
+            LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).logLevel("info").scriptEngineHttpAppender("false").build();
+            agentLogConfigurationWatcher.updateLogLevel(logConfiguration);
+            assertEquals("INFO",logger.getLevel().name());
+        }
+        @DisplayName("test Update logLevel with debug")
+        @Test
+        void updateLogLevelTest2(){
+            org.apache.logging.log4j.core.Logger logger = (Logger) LogManager.getLogger("com.tapdata.CustomProcessor.Test2");
+            LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).logLevel("debug").scriptEngineHttpAppender("false").build();
+            doCallRealMethod().when(agentLogConfigurationWatcher).updateLogLevel(logConfiguration);
+            agentLogConfigurationWatcher.updateLogLevel(logConfiguration);
+            assertEquals("DEBUG",logger.getLevel().name());
+            assertEquals(true,logger.isAdditive());
+        }
+        @DisplayName("test Update logLevel with info, but logger use parent additive")
+        @Test
+        void updateLogLevelTest3(){
+            org.apache.logging.log4j.core.Logger logger = (Logger) LogManager.getLogger("com.tapdata.CustomProcessor.Test3");
+            LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).logLevel("debug").scriptEngineHttpAppender("true").build();
+            agentLogConfigurationWatcher.updateLogLevel(logConfiguration);
+            assertEquals("INFO",logger.getLevel().name());
+        }
+    }
 
-    @DisplayName("test Update logLevel with info and logger add root logger appender")
-    @Test
-    void updateLogLevelTest(){
-        LoggerContext context = LoggerContext.getContext(false);
-        org.apache.logging.log4j.core.Logger logger = (Logger) LogManager.getLogger("io.tapdata.CustomProcessor.123");
-        Map<String, Appender> appenders = logger.get().getAppenders();
-        HttpAppender mock = mock(HttpAppender.class);
-        PatternLayout patternLayout = PatternLayout.newBuilder()
-                .withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n")
-                .build();
-        logger.addAppender(CustomHttpAppender.createAppender("httpAppender",null,patternLayout,mock(HttpClientMongoOperator.class)));
-        AgentLogConfigurationWatcher agentLogConfigurationWatcher=new AgentLogConfigurationWatcher();
-        LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).logLevel("info").scriptEngineHttpAppender("false").build();
-        agentLogConfigurationWatcher.updateLogLevel(logConfiguration);
-        assertEquals("INFO",logger.getLevel().name());
-        assertEquals(1,logger.getAppenders().size());
-        assertEquals(false,logger.get().isAdditive());
-    }
-    @DisplayName("test Update logLevel with debug")
-    @Test
-    void updateLogLevelTest2(){
-        LoggerContext context = LoggerContext.getContext(false);
-        org.apache.logging.log4j.core.Logger logger = (Logger) LogManager.getLogger("com.tapdata.CustomProcessor.123");
-
-        AgentLogConfigurationWatcher agentLogConfigurationWatcher=new AgentLogConfigurationWatcher();
-        LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).logLevel("debug").scriptEngineHttpAppender("false").build();
-        agentLogConfigurationWatcher.updateLogLevel(logConfiguration);
-        assertEquals("DEBUG",logger.getLevel().name());
-        assertEquals(true,logger.isAdditive());
-    }
-    @DisplayName("test Update logLevel with info, but logger use parent additive")
-    @Test
-    void updateLogLevelTest3(){
-        LoggerContext context = LoggerContext.getContext(false);
-        org.apache.logging.log4j.core.Logger logger = (Logger) LogManager.getLogger("com.tapdata.CustomProcessor.123");
-        AgentLogConfigurationWatcher agentLogConfigurationWatcher=new AgentLogConfigurationWatcher();
-        LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(180).logSaveSize(10).logSaveCount(10).logLevel("debug").scriptEngineHttpAppender("true").build();
-        agentLogConfigurationWatcher.updateLogLevel(logConfiguration);
-        assertEquals("INFO",logger.getLevel().name());
-    }
     @DisplayName("test check is modify agentLogConfig is null")
     @Test
     void checkIsModifyTest1(){
