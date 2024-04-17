@@ -105,6 +105,30 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         return null;
     }
 
+    /**
+     * updates list of tags in a specified table in the database.
+     *
+     * @param  tableName       the name of the table to update
+     * @param  batchUpdateParam the parameters for batch update including id and list of tags
+     */
+    public List<String> batchPushListTags(String tableName, BatchUpdateParam batchUpdateParam) {
+        List<String> idList = batchUpdateParam.getId();
+        List<Tag> listTags = batchUpdateParam.getListtags();
+        Update update = new Update().addToSet("listtags").each(listTags.toArray());
+
+        if ("Connections".equals(tableName)){
+            mongoTemplate.updateMulti(Query.query(Criteria.where("id").in(idList)), update, DataSourceEntity.class);
+        }
+        else if ("Task".equals(tableName)) {
+            mongoTemplate.updateMulti(Query.query(Criteria.where("id").in(idList)), update, TaskEntity.class);
+        }
+        else if ("Modules".equals(tableName)) {
+            mongoTemplate.updateMulti(Query.query(Criteria.where("id").in(idList)), update, ModulesEntity.class);
+        }
+
+        return idList;
+    }
+
 
     public void findByItemtypeAndValue(MetadataDefinitionDto metadataDefinitionDto,UserDetail userDetail){
         String value=metadataDefinitionDto.getValue();
