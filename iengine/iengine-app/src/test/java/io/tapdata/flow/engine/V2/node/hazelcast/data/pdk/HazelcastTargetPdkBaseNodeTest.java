@@ -2,20 +2,25 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.google.common.collect.Lists;
+import com.hazelcast.jet.core.Processor;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
+import com.tapdata.tm.commons.task.dto.Dag;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -186,6 +191,14 @@ public class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
         @Test
         void usePkAsUpdateConditionsTest4() {
             assertFalse(hazelcastTargetPdkBaseNode.usePkAsUpdateConditions(Lists.newArrayList("A", "B", "C"), Lists.newArrayList("A", "B")));
+        }
+    }
+
+    @Nested
+    class createTableTest{
+        @Test
+        void test(){
+            hazelcastTargetPdkBaseNode.createTable(mock(TapTable.class),new AtomicBoolean(false));
         }
     }
 

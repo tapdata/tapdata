@@ -1,13 +1,13 @@
 package com.tapdata.tm.commons.dag.process;
 
-import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.NodeType;
+import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.schema.TapTable;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -47,6 +47,15 @@ public class UnwindProcessNode extends ProcessorNode {
      The default value is false. */
     private boolean preserveNullAndEmptyArrays;
 
+
+    private UnwindModel unwindModel = UnwindModel.embedded;
+
+    private ArrayModel arrayModel;
+
+    private String joiner = "_";
+
+    private Map<String,String> flattenMap = new HashMap<>();
+
     public UnwindProcessNode() {
         super("unwind_processor");
     }
@@ -62,16 +71,27 @@ public class UnwindProcessNode extends ProcessorNode {
         Map<String, Field> originFieldMap = fields.stream().collect(Collectors.toMap(Field::getFieldName, f -> f));
         if (originFieldMap.containsKey(path)) {
             fields.remove(originFieldMap.get(path));
-            FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
-            fieldOperation.setType("Map");
-            fieldOperation.setField(path);
-            fieldOperation.setOp("CREATE");
-            fieldOperation.setTableName(outputSchema.getName());
-            fieldOperation.setJava_type("Map");
-            Field field = createField(this.getId(), outputSchema.getOriginalName(), fieldOperation);
-            field.setSource("job_analyze");
-            field.setTapType(FieldModTypeProcessorNode.calTapType("Map"));
-            outputSchema.getFields().add(field);
+            if(UnwindModel.flatten.equals(unwindModel) && !ArrayModel.basic.equals(arrayModel) ){
+                fields.forEach(field -> {
+                    if(field.getFieldName().contains(path+".")){
+                        String newFieldName = field.getFieldName().replace(".",joiner);
+                        field.setFieldName(newFieldName);
+                        flattenMap.put(newFieldName,newFieldName.split(joiner)[1]);
+                    }
+                });
+            }
+            if(UnwindModel.embedded.equals(unwindModel) || (UnwindModel.flatten.equals(unwindModel) && !ArrayModel.object.equals(arrayModel))) {
+                FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
+                fieldOperation.setType("Map");
+                fieldOperation.setField(path);
+                fieldOperation.setOp("CREATE");
+                fieldOperation.setTableName(outputSchema.getName());
+                fieldOperation.setJava_type("Map");
+                Field field = createField(this.getId(), outputSchema.getOriginalName(), fieldOperation);
+                field.setSource("job_analyze");
+                field.setTapType(FieldModTypeProcessorNode.calTapType("Map"));
+                outputSchema.getFields().add(field);
+            }
             if (null != includeArrayIndex && !"".equals(includeArrayIndex.trim())) {
                 FieldProcessorNode.Operation operation = new FieldProcessorNode.Operation();
                 operation.setType("Long");
@@ -123,5 +143,37 @@ public class UnwindProcessNode extends ProcessorNode {
 
     public void setPreserveNullAndEmptyArrays(boolean preserveNullAndEmptyArrays) {
         this.preserveNullAndEmptyArrays = preserveNullAndEmptyArrays;
+    }
+
+    public UnwindModel getUnwindModel() {
+        return unwindModel;
+    }
+
+    public void setUnwindModel(UnwindModel unwindModel) {
+        this.unwindModel = unwindModel;
+    }
+
+    public ArrayModel getArrayModel() {
+        return arrayModel;
+    }
+
+    public void setArrayModel(ArrayModel arrayModel) {
+        this.arrayModel = arrayModel;
+    }
+
+    public String getJoiner() {
+        return joiner;
+    }
+
+    public void setJoiner(String joiner) {
+        this.joiner = joiner;
+    }
+
+    public Boolean whetherFlatten(){
+        return this.unwindModel.equals(UnwindModel.flatten);
+    }
+
+    public Map<String,String> getFlattenMap(){
+        return this.flattenMap;
     }
 }
