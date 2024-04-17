@@ -107,15 +107,7 @@ exec_with_log() {
 _register_connectors() {
     print_message "* Register Connector: $i" "blue" false
     java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -f GA -t http://localhost:3000 $dir/connectors/dist/$i > /dev/null
-    if [[ $? -ne 0 ]]; then
-        print_message "* Register Connector: $i Failed" "red" false
-        exit 1
-    elif [[ $? -eq 2 ]]; then
-        print_message "* Register Connector: $i Skipped" "yellow" false
-        exit 1
-    else
-        print_message "* Register Connector: $i Success" "blue" false
-    fi
+    print_message "$?" "blue" false
 }
 
 register_connectors() {
