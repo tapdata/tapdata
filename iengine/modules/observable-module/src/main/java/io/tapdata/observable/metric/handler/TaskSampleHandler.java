@@ -130,7 +130,7 @@ public class TaskSampleHandler extends AbstractHandler {
         super.doInit(values);
         collector.addSampler(TABLE_TOTAL, () -> {
             if (taskTables.isEmpty() && snapshotTableTotal.value().longValue() > 0) {
-                return values.get(TABLE_TOTAL);
+                return Math.max(snapshotTableTotal.value().longValue(), values.get(TABLE_TOTAL).longValue());
             }
             if (Objects.nonNull(snapshotTableTotal.value())) {
                 return Math.max(snapshotTableTotal.value().longValue(), taskTables.size());
