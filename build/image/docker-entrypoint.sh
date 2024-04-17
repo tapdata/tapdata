@@ -106,8 +106,13 @@ exec_with_log() {
 
 _register_connectors() {
     print_message "* Register Connector: $i" "blue" false
-    java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -f GA -t http://localhost:3000 $dir/connectors/dist/$i > /dev/null
-    print_message "$?" "blue" false
+    java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -t http://localhost:3000 $dir/connectors/dist/GA/$i > /dev/null
+    if [[ $? -ne 0 ]]; then
+        print_message "* Register Connector: $i Failed" "red" false
+        exit 1
+    else
+        print_message "* Register Connector: $i Success" "blue" false
+    fi
 }
 
 register_connectors() {
@@ -121,7 +126,7 @@ register_connectors() {
         REGISTER_PROCESS_NUM=5
     fi
 
-    for i in `ls $dir/connectors/dist/`; do
+    for i in `ls $dir/connectors/dist/GA/`; do
 
         register_process_num=$(ps -ef | grep pdk-deploy.jar | grep -v grep | wc -l)
         while [[ $register_process_num -ge $REGISTER_PROCESS_NUM ]]; do

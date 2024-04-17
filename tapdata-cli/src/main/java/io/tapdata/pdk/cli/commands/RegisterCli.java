@@ -21,6 +21,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.IOUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.output.WriterOutputStream;
 import org.apache.commons.lang3.StringUtils;
 import picocli.CommandLine;
 
@@ -28,11 +29,14 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Writer;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @CommandLine.Command(
-        description = "Push PDK jar file into Tapdata",
+        description = "Push PDK jar file into TM",
         subcommands = MainCli.class
 )
 public class RegisterCli extends CommonCli {
@@ -63,34 +67,8 @@ public class RegisterCli extends CommonCli {
 
     @CommandLine.Option(names = {"-f", "--filter"}, required = false, description = "The list which are the Authentication types should not be skipped, if value is empty will register all connector. if it contains multiple, please separate them with commas")
     private String needRegisterConnectionTypes;
-    //    private SummaryGeneratingListener listener = new SummaryGeneratingListener();
-//    public void runOne() {
-//        LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
-//                .selectors(selectClass("io.tapdata.pdk.tdd.tests.basic.ConnectionTestTest"))
-//                .build();
-//        Launcher launcher = LauncherFactory.create();
-//        TestPlan testPlan = launcher.discover(request);
-//        launcher.registerTestExecutionListeners(listener);
-//        launcher.execute(request);
-//
-//        TestExecutionSummary summary = listener.getSummary();
-//        summary.printTo(new PrintWriter(System.out));
-//    }
-//
-//    public void runAll() {
-//        LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
-//                .selectors(selectPackage("io.tapdata.pdk.tdd.tests"))
-//                .filters(includeClassNamePatterns(".*Test"))
-//                .build();
-//        Launcher launcher = LauncherFactory.create();
-//        TestPlan testPlan = launcher.discover(request);
-//        launcher.registerTestExecutionListeners(listener);
-//        launcher.execute(request);
-//
-//        TestExecutionSummary summary = listener.getSummary();
-//        summary.printTo(new PrintWriter(System.out));
-//    }
-    public String execute() throws Exception {
+
+    public Integer execute() throws Exception {
         List<String> filterTypes = generateSkipTypes();
         if (!filterTypes.isEmpty()) {
             System.out.println(String.format("Starting to register data sources, plan to skip data sources that are not within the registration scope. The types of data sources that need to be registered are: %s", filterTypes));
@@ -98,14 +76,12 @@ public class RegisterCli extends CommonCli {
             System.out.println("Start registering data sources and plan to register all submitted data sources");
         }
         StringJoiner unUploaded = new StringJoiner("\n");
-        StringJoiner joiner = new StringJoiner("\n");
         try {
             CommonUtils.setProperty("refresh_local_jars", "true");
             TapConnectorManager.getInstance().start(Arrays.asList(files));
 
             try {
                 for (File file : files) {
-                    joiner.add("* Register Connector: " + file.getName());
                     try {
                         List<String> jsons = new ArrayList<>();
                         TapConnector connector = TapConnectorManager.getInstance().getTapConnectorByJarName(file.getName());
@@ -119,7 +95,6 @@ public class RegisterCli extends CommonCli {
                             if (needSkip(authentication, filterTypes)) {
                                 connectionType = authentication;
                                 needUpload = false;
-                                joiner.add("* Register Connector: " + file.getName() + " Skipped");
                                 break;
                             }
                             needUpload = true;
@@ -280,9 +255,7 @@ public class RegisterCli extends CommonCli {
                             System.out.println("File " + file + " doesn't exists");
                             System.out.println(file.getName() + " registered failed");
                         }
-                        joiner.add("* Register Connector: " + file.getName() + " Succeed");
                     } catch (Exception e) {
-                        joiner.add("* Register Connector: " + file.getName() + " Failed");
                         throw e;
                     }
                 }
@@ -291,14 +264,16 @@ public class RegisterCli extends CommonCli {
                     System.out.println(String.format("[INFO] Some connector that are not in the scope are registered this time: \n%s\nThe data connector type that needs to be registered is: %s\n", unUploaded.toString(), filterTypes));
                 }
             }
+            System.exit(0);
         } catch (Throwable throwable) {
             throwable.printStackTrace();
             CommonUtils.logError(TAG, "Start failed", throwable);
+            System.exit(-1);
         }
-        return joiner.toString();
+        return 0;
     }
 
-    private static final String path = "tapdata-cli/src/main/resources/replace/";
+    protected static final String path = "tapdata-cli/src/main/resources/replace/";
     private Map<String, Object> needReplaceKeyWords(TapNodeInfo nodeInfo, String replacePath){
         if (null != this.replaceName && !"".equals(replaceName.trim())){
             replacePath = replaceName;
