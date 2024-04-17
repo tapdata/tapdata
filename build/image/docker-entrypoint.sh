@@ -110,6 +110,9 @@ _register_connectors() {
     if [[ $? -ne 0 ]]; then
         print_message "* Register Connector: $i Failed" "red" false
         exit 1
+    elif [[ $? -eq 2 ]]; then
+        print_message "* Register Connector: $i Skipped" "yellow" false
+        exit 1
     else
         print_message "* Register Connector: $i Success" "blue" false
     fi
