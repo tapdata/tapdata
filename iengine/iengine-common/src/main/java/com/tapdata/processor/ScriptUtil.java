@@ -106,10 +106,9 @@ public class ScriptUtil {
 									.out(out)
 									.err(err)
 					);
-			SimpleScriptContext scriptContext = new SimpleScriptContext();
-			scriptContext.setWriter(new OutputStreamWriter(out));
-			scriptContext.setErrorWriter(new OutputStreamWriter(err));
-			scriptEngine.setContext(scriptContext);
+			ScriptContext context = scriptEngine.getContext();
+			context.setWriter(new OutputStreamWriter(out));
+			context.setErrorWriter(new OutputStreamWriter(err));
 		} else {
 			scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
 		}
