@@ -339,8 +339,9 @@ public class TransformSchemaService {
 	 */
 		private MetadataInstancesDto fieldTypeToSource(MetadataInstancesDto dto, String databaseType, UserDetail user) {
 			DataSourceDefinitionDto definitionDto = definitionService.getByDataSourceType(databaseType, user);
-			String expression = definitionDto.getExpression();
+			DefaultExpressionMatchingMap expressionMatchingMap = DefaultExpressionMatchingMap.map(definitionDto.getExpression());
 			Map<Class<?>, String> tapMap = definitionDto.getTapMap();
+			TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
 
 			Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dto), Schema.class);
 			if (null == schema) return null;
@@ -348,15 +349,12 @@ public class TransformSchemaService {
 			TapTable tapTable = PdkSchemaConvert.toPdk(schema);
 
 			Optional.of(tapTable.getNameFieldMap()).ifPresent(nameFieldMap -> {
-
-				TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
 				Map<String, PossibleDataTypes> findPossibleDataTypes = Maps.newHashMap();
-				TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap, DefaultExpressionMatchingMap.map(expression), codecsFilterManager, findPossibleDataTypes);
-
+				TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap, expressionMatchingMap, codecsFilterManager, findPossibleDataTypes);
 				LinkedHashMap<String, TapField> data = convert.getData();
 				if (null == data) return;
 
-				PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(data, DefaultExpressionMatchingMap.map(expression));
+				PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(data, expressionMatchingMap);
 
 				if (!findPossibleDataTypes.isEmpty()) {
 					boolean anyMatch = findPossibleDataTypes.values().stream().anyMatch(dataType -> dataType.getLastMatchedDataType() == null);
