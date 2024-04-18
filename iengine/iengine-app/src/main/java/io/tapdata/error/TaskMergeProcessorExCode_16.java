@@ -329,8 +329,18 @@ public interface TaskMergeProcessorExCode_16 {
 	)
 	String CLEAR_AND_DESTROY_CACHE_FAILED = "16058";
 	@TapExCode(
+			describe = "Join key value convert number failed",
+			describeCN = "关联键值转换为数字失败"
+	)
+	String JOIN_KEY_VALUE_CONVERT_NUMBER_FAILED = "16059";
+	@TapExCode(
+			describe = "Look up cache data, unknown error occurred",
+			describeCN = "反查缓存数据，发生未知错误"
+	)
+	String LOOK_UP_UNKNOWN_ERROR = "16060";
+	@TapExCode(
 			describe = "Lookup CompletableFuture list cannot be null",
 			describeCN = "反查数据的CompletableFuture列表不能为空"
 	)
-	String LOOKUP_COMPLETABLE_FUTURE_LIST_IS_NULL = "16059";
+	String LOOKUP_COMPLETABLE_FUTURE_LIST_IS_NULL = "16061";
 }
