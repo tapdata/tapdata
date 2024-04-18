@@ -106,7 +106,7 @@ exec_with_log() {
 
 _register_connectors() {
     print_message "* Register Connector: $i" "blue" false
-    java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -f GA -t http://localhost:3000 $dir/connectors/dist/$i > /dev/null
+    java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -f GA -t http://localhost:3000 $dir/connectors/dist 2>&1
     if [[ $? -ne 0 ]]; then
         print_message "* Register Connector: $i Failed" "red" false
         exit 1
@@ -121,29 +121,7 @@ register_connectors() {
     else
       dir=./
     fi
-
-    if [[ -z $REGISTER_PROCESS_NUM ]]; then
-        REGISTER_PROCESS_NUM=5
-    fi
-
-    for i in `ls $dir/connectors/dist/`; do
-
-        register_process_num=$(ps -ef | grep pdk-deploy.jar | grep -v grep | wc -l)
-        while [[ $register_process_num -ge $REGISTER_PROCESS_NUM ]]; do
-            sleep 5
-            register_process_num=$(ps -ef | grep pdk-deploy.jar | grep -v grep | wc -l)
-        done
-
-        _register_connectors &
-        sleep 1
-    done
-
-    register_process_num=$(ps -ef | grep pdk-deploy.jar | grep -v grep | wc -l)
-    # Waiting for all processes stop
-    while [[ $register_process_num -ne 0 ]]; do
-        sleep 5
-        register_process_num=$(ps -ef | grep pdk-deploy.jar | grep -v grep | wc -l)
-    done
+    _register_connectors
 }
 
 start_server() {
