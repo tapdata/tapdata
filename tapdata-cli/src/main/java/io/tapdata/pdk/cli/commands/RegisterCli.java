@@ -357,7 +357,7 @@ public class RegisterCli extends CommonCli {
         }
         if (null == replacePath || "".equals(replacePath.trim())) return null;
         try {
-            InputStream as = FileUtils.openInputStream(new File(PATH + replacePath + ".json"));//nodeInfo.readResource((String) replacePath);
+            InputStream as = FileUtils.openInputStream(new File(PATH + replacePath + ".json"));
             return JSON.parseObject(as, StandardCharsets.UTF_8, LinkedHashMap.class);
         }catch (IOException e){}
         return null;
