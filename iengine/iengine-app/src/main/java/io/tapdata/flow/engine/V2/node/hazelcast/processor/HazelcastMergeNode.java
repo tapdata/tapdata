@@ -2,10 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.*;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.OperationType;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
@@ -51,6 +48,8 @@ import lombok.Getter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bson.BsonType;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
@@ -88,6 +87,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	public static final String UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE_PROP_KEY = "UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE";
 	public static final String HANDLE_UPDATE_JOIN_KEY_THREAD_NUM_PROP_KEY = "HANDLE_UPDATE_JOIN_KEY_THREAD_NUM";
 	public static final int DEFAULT_UPDATE_JOIN_KEY_THREAD_NUM = 4;
+	private Logger logger = LogManager.getLogger(HazelcastMergeNode.class);
 
 	// 缓存表信息{"前置节点id": "Hazelcast缓存资源{"join value string": {"pk value string": "after data"}}"}
 	private Map<String, ConstructIMap<Document>> mergeCacheMap;
@@ -1302,10 +1302,11 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			if (value instanceof NotExistsNode) {
 				throw new TapCodeException(TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_NOT_EXISTS, String.format("- Map name: %s\n- Join key: %s\n- Data: %s", hazelcastConstruct.getName(), joinKey, data));
 			}
-			if (value instanceof Number) {
-				values.add(new BigDecimal(String.valueOf(value)).stripTrailingZeros().toPlainString());
-			} else {
-				values.add(String.valueOf(value));
+			try {
+				values.add(convertJoinKeyValue2String(value));
+			} catch (JoinKeyValueConvertNumberException e) {
+				throw new TapCodeException(TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_CONVERT_NUMBER_FAILED, String.format("- Merge table: %s%n- Map name: %s%n- Join key: %s%n- Data: %s(%s)",
+						mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, null == value ? "null" : value.getClass().getName()));
 			}
 		}
 		return String.join("_", values);
@@ -1329,13 +1330,38 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			if (value instanceof NotExistsNode) {
 				return null;
 			}
-			if (value instanceof Number) {
-				values.add(new BigDecimal(String.valueOf(value)).stripTrailingZeros().toPlainString());
-			} else {
-				values.add(String.valueOf(value));
+			try {
+				values.add(convertJoinKeyValue2String(value));
+			} catch (JoinKeyValueConvertNumberException e) {
+				throw new TapCodeException(TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_CONVERT_NUMBER_FAILED, String.format("- Merge table: %s%n- Map name: %s%n- Join key: %s%n- Data: %s(%s)",
+						mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, null == value ? "null" : value.getClass().getName()), e);
 			}
 		}
 		return String.join("_", values);
+	}
+
+	private static String convertJoinKeyValue2String(Object value) throws JoinKeyValueConvertNumberException {
+		if (null == value) {
+			return "";
+		}
+		if (value instanceof Number) {
+			try {
+				if (value instanceof Double && Double.isNaN((Double) value)) {
+					return "";
+				}
+				return new BigDecimal(String.valueOf(value)).stripTrailingZeros().toPlainString();
+			} catch (Exception e) {
+				throw new JoinKeyValueConvertNumberException(e);
+			}
+		} else {
+			return String.valueOf(value);
+		}
+	}
+
+	private static class JoinKeyValueConvertNumberException extends Exception {
+		public JoinKeyValueConvertNumberException(Throwable cause) {
+			super(cause);
+		}
 	}
 
 	private String encode(String str) {
@@ -1441,12 +1467,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		List<MergeLookupResult> mergeLookupResults;
 		try {
 			mergeLookupResults = recursiveLookup(currentMergeTableProperty, after, true);
+		} catch (TapCodeException e) {
+			throw new TapEventException(e.getCode(), e.getMessage(), e).addEvent(tapdataEvent.getTapEvent());
 		} catch (Exception e) {
-			if (e instanceof TapCodeException) {
-				throw new TapEventException(((TapCodeException) e).getCode(), e.getMessage(), e.getCause()).addEvent(tapdataEvent.getTapEvent());
-			} else {
-				throw e;
-			}
+			throw new TapEventException(TaskMergeProcessorExCode_16.LOOK_UP_UNKNOWN_ERROR, e).addEvent(tapdataEvent.getTapEvent());
 		}
 		return mergeLookupResults;
 	}
