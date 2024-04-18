@@ -18,7 +18,7 @@ TAPDATA_DIR="$PROJECT_ROOT_DIR/../tapdata"
 # connector directory
 CONNECTOR_DIR="$PROJECT_ROOT_DIR/../tapdata-connectors"
 # frontend directory
-FRONTEND_DIR="$PROJECT_ROOT_DIR/../tapdata-enterprise-web"
+FRONTEND_DIR="$PROJECT_ROOT_DIR/../tapdata-web"
 # frontend build mode
 FRONTEND_BUILD_MODE="community"
 # tag name

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       frontend_branch:
-        description: 'Tapdata-Enterprise-Web Repo Branch:'
+        description: 'Tapdata-Web Repo Branch:'
         required: true
         type: string
         default: 'develop'
@@ -75,10 +75,10 @@ jobs:
       - name: Checkout Tapdata Enterprise Web Code
         uses: actions/checkout@v3
         with:
-          repository: 'tapdata/tapdata-enterprise-web'
+          repository: 'tapdata/tapdata-web'
           ref: ${{ inputs.frontend_branch }}
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          path: tapdata-enterprise-web
+          path: tapdata-web
           fetch-depth: 0
       - name: Checkout Tapdata Application
         uses: actions/checkout@v2
@@ -108,7 +108,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           command: |
-            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata-enterprise-web --gogs-project-name=tapdata-enterprise-web
+            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata-web --gogs-project-name=tapdata-web
       - name: Push Tapdata Application to Gogs
         uses: nick-fields/retry@v2
         with:
@@ -210,15 +210,15 @@ jobs:
           cd tapdata && git fetch --tags
       - name: Checkout Frontend Code
         run: |
-          rm -rf tapdata-enterprise-web
+          rm -rf tapdata-web
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ inputs.frontend_branch }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-enterprise-web.git
-          cd tapdata-enterprise-web && git fetch --tags
+          git clone -b ${{ inputs.frontend_branch }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-web.git
+          cd tapdata-web && git fetch --tags
       - name: Get Frontend Version
         run: |
-          cd tapdata-enterprise-web && tapdata_enterprise_web_version=$(git rev-parse --short HEAD) && cd ..
+          cd tapdata-web && tapdata_enterprise_web_version=$(git rev-parse --short HEAD) && cd ..
           mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
-          echo "- tapdata-enterprise-web: ${{ inputs.frontend_branch }} $tapdata_enterprise_web_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata-enterprise-web.version
+          echo "- tapdata-web: ${{ inputs.frontend_branch }} $tapdata_enterprise_web_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata-web.version
           echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
       - name: Build Frontend
@@ -278,7 +278,7 @@ jobs:
           rsync -r --progress --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/version/${{ needs.Set-Branch.outputs.TAG_NAME }}/ ./
           echo "## ${{ needs.Set-Branch.outputs.TAG_NAME }}" >> tapdata-application/README.md
           cat tapdata.version >> tapdata-application/README.md
-          cat tapdata-enterprise-web.version >> tapdata-application/README.md
+          cat tapdata-web.version >> tapdata-application/README.md
           cat tapdata-connectors.version >> tapdata-application/README.md
       - uses: stefanzweifel/git-auto-commit-action@v4
         with:

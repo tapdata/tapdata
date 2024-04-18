@@ -46,9 +46,9 @@ jobs:
       - name: Checkout Tapdata Enterprise Web
         uses: actions/checkout@v2
         with:
-          repository: 'tapdata/tapdata-enterprise-web'
+          repository: 'tapdata/tapdata-web'
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          path: tapdata-enterprise-web
+          path: tapdata-web
           depth: 0
       - name: Checkout Tapdata Enterpris
         uses: actions/checkout@v2
