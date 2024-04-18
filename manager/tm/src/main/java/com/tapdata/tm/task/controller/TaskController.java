@@ -1283,8 +1283,8 @@ public class TaskController extends BaseController {
 
     @PostMapping("skipErrorEvents/{taskId}")
     public ResponseMessage<Void> skipErrorEvents(@PathVariable("taskId") String taskId,@RequestBody List<String> ids) {
-        Criteria criteria = Criteria.where("_id").is(taskId).and("errorEvents._id").in(ids.stream().map(MongoUtils::toObjectId).collect(Collectors.toList()));
-        Update update = new Update().set("errorEvents.$.skip",true);
+        Criteria criteria = Criteria.where("_id").is(taskId);
+        Update update = new Update().set("errorEvents.$[element].skip",true).filterArray(Criteria.where("element._id").in(ids.stream().map(MongoUtils::toObjectId).collect(Collectors.toList())));
         taskService.update(new Query(criteria),update);
         return success();
     }

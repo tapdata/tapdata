@@ -19,6 +19,7 @@ import io.tapdata.aspect.taskmilestones.SnapshotReadTableBeginAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotReadTableEndAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotReadTableErrorAspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -27,6 +28,12 @@ import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
@@ -40,11 +47,13 @@ import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.schema.TapTableMap;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
+import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -53,10 +62,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -1324,5 +1334,59 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				verify(obsLogger, times(0)).debug("An error when sourceRunnerLock.unlock(), message: {}", "exp", e);
 			}
 		}
+	}
+
+	@Test
+	@DisplayName("test QueryOperator ")
+	void testQueryOperator() {
+		String dateTime = "2023-12-20 12:23:20";
+		QueryOperator queryOperator = new QueryOperator("createTime", dateTime, 1);
+		queryOperator(dateTime, queryOperator);
+		Assert.assertTrue(queryOperator.getOriginalValue() == dateTime);
+	}
+
+
+	@Test
+	@DisplayName("test QueryOperator HasOriginalValue ")
+	void testQueryOperatorHasOriginalValue() {
+		String dateTime = "2021-12-20 12:23:24";
+		QueryOperator queryOperator = new QueryOperator("createTime", dateTime, 1);
+		queryOperator.setOriginalValue(dateTime);
+		queryOperator(dateTime, queryOperator);
+		LocalDateTime localDateTime;
+		String datetimeFormat = "yyyy-MM-dd HH:mm:ss";
+		try {
+			localDateTime = LocalDateTime.parse(dateTime, DateTimeFormatter.ofPattern(datetimeFormat));
+		} catch (Exception e) {
+			throw new RuntimeException("The input string format is incorrect, expected format: " + datetimeFormat + ", actual value: " + dateTime);
+		}
+		ZonedDateTime gmtZonedDateTime = localDateTime.atZone(ZoneId.of("GMT"));
+		DateTime expectedValue = new DateTime(gmtZonedDateTime);
+		Assert.assertTrue(expectedValue.compareTo((DateTime) queryOperator.getValue()) == 0);
+	}
+
+
+	public void queryOperator(String dateTime,QueryOperator queryOperator){
+		List<QueryOperator> conditions = new ArrayList<>();
+
+		conditions.add(queryOperator);
+		TableNode tableNodeTemp =new TableNode();
+		tableNodeTemp.setIsFilter(true);
+		tableNodeTemp.setConditions(conditions);
+		tableNodeTemp.setTableName("test");
+		when(dataProcessorContext.getNode()).thenReturn((Node) tableNodeTemp);
+		TapTable tapTable = new TapTable();
+		LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap<>();
+		TapField tapField = new TapField("createTime", "TapDateTime");
+		tapField.setTapType(new TapDateTime());
+		nameFieldMap.put("createTime",tapField);
+		tapTable.setNameFieldMap(nameFieldMap);
+		tapTable.setName("test");
+		tapTable.setId("test");
+		TapTableMap<String, TapTable>  tapTableMap =TapTableMap.create("test",tapTable);
+
+		when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode,"batchFilterRead");
+
 	}
 }

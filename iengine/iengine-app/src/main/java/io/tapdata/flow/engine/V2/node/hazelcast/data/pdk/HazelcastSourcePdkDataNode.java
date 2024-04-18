@@ -1206,7 +1206,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					TapType tapType = tapField.getTapType();
 					Object convertValue;
 					if (queryOperator.getValue() != null) {
-						convertValue = getConvertValue(tapType, queryOperator.getValue().toString());
+						if(queryOperator.getOriginalValue() == null) {
+							convertValue = getConvertValue(tapType, queryOperator.getValue().toString());
+							queryOperator.setOriginalValue(queryOperator.getValue().toString());
+						}else {
+							convertValue = getConvertValue(tapType, queryOperator.getOriginalValue().toString());
+						}
 						queryOperator.setValue(convertValue);
 					}
 					if (EQUAL_VALUE == queryOperator.getOperator()) {

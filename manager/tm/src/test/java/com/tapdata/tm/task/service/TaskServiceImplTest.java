@@ -358,4 +358,52 @@ class TaskServiceImplTest {
             verify(taskDto, times(1)).getAccessNodeType();
         }
     }
+
+    @Nested
+    class FindProcessNodeListWithGroupTest {
+        List<String> accessNodeProcessIdList;
+        List<String> list;
+
+        @BeforeEach
+        void init() {
+            accessNodeProcessIdList = mock(List.class);
+            list = mock(List.class);
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenReturn(list);
+            when(list.isEmpty()).thenReturn(false);
+            when(accessNodeProcessIdList.addAll(list)).thenReturn(true);
+            when(taskService.findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user)).thenCallRealMethod();
+        }
+
+        @Test
+        void testNormal() {
+            Assertions.assertFalse(taskService.findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user));
+            verify(accessNodeProcessIdList, times(1)).addAll(list);
+        }
+
+        @Test
+        void testEmptyList() {
+            when(list.isEmpty()).thenReturn(true);
+            Assertions.assertFalse(taskService.findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user));
+            verify(accessNodeProcessIdList, times(0)).addAll(list);
+        }
+
+        @Test
+        void testThrow() {
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenAnswer(a -> {
+                throw new BizException("Failed");
+            });
+            Assertions.assertThrows(BizException.class, () -> taskService.findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user));
+            verify(accessNodeProcessIdList, times(0)).addAll(list);
+        }
+
+        @Test
+        void testThrowV2() {
+            when(list.isEmpty()).thenReturn(false);
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenAnswer(a -> {
+                throw new BizException("group.agent.not.available");
+            });
+            Assertions.assertTrue(taskService.findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user));
+            verify(accessNodeProcessIdList, times(0)).addAll(list);
+        }
+    }
 }

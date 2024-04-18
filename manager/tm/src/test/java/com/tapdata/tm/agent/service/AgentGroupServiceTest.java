@@ -23,6 +23,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.task.service.TaskServiceImpl;
+import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerServiceImpl;
@@ -572,11 +573,23 @@ class AgentGroupServiceTest {
         List<String> groupIds;
         List<String> agentId;
         Criteria criteria;
+
+        List<AgentGroupEntity> all;
+        AgentGroupEntity entity;
         @BeforeEach
         void init() {
             agentId = mock(List.class);
             groupIds = mock(List.class);
             when(groupIds.isEmpty()).thenReturn(false);
+
+            all = new ArrayList<>();
+            entity = mock(AgentGroupEntity.class);
+            when(entity.getGroupId()).thenReturn("id");
+            all.add(entity);
+            when(groupIds.contains("id")).thenReturn(true);
+            when(groupIds.addAll(anyList())).thenReturn(true);
+            when(agentGroupService.findAll(any(Query.class), any(UserDetail.class))).thenReturn(all);
+
 
             criteria = mock(Criteria.class);
             when(agentGroupService.findCriteria(anyList())).thenReturn(criteria);
@@ -587,11 +600,9 @@ class AgentGroupServiceTest {
 
         @Test
         void testNormal() {
-            try(MockedStatic<Query> q = mockStatic(Query.class)) {
-                q.when(() -> Query.query(criteria)).thenReturn(mock(Query.class));
-                Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
-                q.verify(() -> Query.query(criteria), times(1));
-            }
+            Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
+            verify(groupIds, times(0)).addAll(anyList());
+            verify(groupIds, times(1)).contains("id");
             verify(groupIds, times(1)).isEmpty();
             verify(agentGroupService, times(1)).findCriteria(groupIds);
             verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
@@ -601,15 +612,25 @@ class AgentGroupServiceTest {
         @Test
         void testGroupIdsIsEmpty() {
             when(groupIds.isEmpty()).thenReturn(true);
-            try(MockedStatic<Query> q = mockStatic(Query.class)) {
-                q.when(() -> Query.query(criteria)).thenReturn(mock(Query.class));
-                Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
-                q.verify(() -> Query.query(criteria), times(0));
-            }
+            Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
+            verify(groupIds, times(0)).addAll(anyList());
+            verify(groupIds, times(0)).contains("id");
             verify(groupIds, times(1)).isEmpty();
             verify(agentGroupService, times(0)).findCriteria(groupIds);
             verify(agentGroupService, times(0)).update(any(Query.class), any(Update.class), any(UserDetail.class));
             verify(agentGroupService, times(0)).findAgentGroupInfoMany(groupIds, userDetail);
+        }
+
+        @Test
+        void testNeedClean() {
+            when(groupIds.contains("id")).thenReturn(false);
+            Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
+            verify(groupIds, times(1)).addAll(anyList());
+            verify(groupIds, times(1)).isEmpty();
+            verify(agentGroupService, times(1)).findCriteria(groupIds);
+            verify(agentGroupService, times(2)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAgentGroupInfoMany(groupIds, userDetail);
+            verify(groupIds, times(1)).contains("id");
         }
     }
 
