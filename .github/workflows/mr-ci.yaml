@@ -4,6 +4,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 on:
+  push:
+    branches: [ "main" ]
   pull_request:
     branches: [ "main", "develop", "release-v*.*" ]
   schedule:
@@ -110,7 +112,6 @@ jobs:
             bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata --gogs-project-name=tapdata
 
   Scan-Tapdata:
-    if: ${{ github.event_name != 'schedule' }}
     runs-on: office-scan
     needs:
       - Get-Stable-Branch
