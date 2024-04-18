@@ -219,14 +219,16 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		AspectUtils.executeAspect(PDKNodeInitAspect.class, () -> new PDKNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 	}
 
-	private void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {
+	protected void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {
 		if (node instanceof DataParentNode && null != ((DataParentNode<?>) node).getDmlPolicy()) {
 			DmlPolicy dmlPolicy = ((DataParentNode<?>) node).getDmlPolicy();
 			DmlPolicyEnum insertPolicy = null == dmlPolicy.getInsertPolicy() ? DmlPolicyEnum.update_on_exists : dmlPolicy.getInsertPolicy();
 			if (insertPolicy == DmlPolicyEnum.ignore_on_exists) {
 				connectorCapabilities.alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS);
-			} else {
+			} else if (insertPolicy == DmlPolicyEnum.update_on_exists) {
 				connectorCapabilities.alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
+			} else {
+				connectorCapabilities.alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_JUST_INSERT);
 			}
 			DmlPolicyEnum updatePolicy = null == dmlPolicy.getUpdatePolicy() ? DmlPolicyEnum.ignore_on_nonexists : dmlPolicy.getUpdatePolicy();
 			if (updatePolicy == DmlPolicyEnum.insert_on_nonexists) {
