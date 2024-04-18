@@ -80,14 +80,11 @@ public class UnwindProcessNodeTest {
         List<Field> fields = new ArrayList<>();
         Field field1 = new Field();
         field1.setFieldName("t");
-        Field field2 = new Field();
-        field2.setFieldName("t.id");
         fields.add(field1);
-        fields.add(field2);
         outputSchema.setFields(fields);
         doReturn(outputSchema).when(unwindProcessNode).superMergeSchema(inputSchema,schema);
-        unwindProcessNode.mergeSchema(inputSchema,schema,mock(DAG.Options.class));
-        Assertions.assertTrue(unwindProcessNode.getFlattenMap().isEmpty());
+        Schema result = unwindProcessNode.mergeSchema(inputSchema,schema,mock(DAG.Options.class));
+        Assertions.assertTrue(result.getFields().get(0).getDataType().equals("String"));
     }
 
     @Test
