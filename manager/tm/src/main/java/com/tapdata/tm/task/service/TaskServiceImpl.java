@@ -135,6 +135,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
@@ -546,6 +547,7 @@ public class TaskServiceImpl extends TaskService{
             String editVersion = buildEditVersion(taskDto);
             taskDto.setEditVersion(editVersion);
         }
+        checkUnwindProcess(dag);
 
 
         //更新任务
@@ -5175,5 +5177,20 @@ public class TaskServiceImpl extends TaskService{
             }
         }
         return true;
+    }
+
+    protected void checkUnwindProcess(DAG dag){
+        if(CollectionUtils.isEmpty(dag.getNodes()))return;
+        AtomicBoolean check = new AtomicBoolean(false);
+        dag.getNodes().forEach(node -> {
+            if(node instanceof UnwindProcessNode) check.set(true);
+        });
+        if(check.get()){
+            dag.getNodes().forEach(node -> {
+                if(node instanceof TableNode && ((TableNode)node).getDmlPolicy() != null){
+                    ((TableNode)node).getDmlPolicy().setInsertPolicy(DmlPolicyEnum.just_insert);
+                }
+            });
+        }
     }
 }

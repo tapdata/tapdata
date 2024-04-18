@@ -234,6 +234,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		AtomicReference<TapCreateIndexEvent> indexEvent = new AtomicReference<>();
 		try {
 			List<TapIndex> tapIndices = new ArrayList<>();
+			if(unwindProcess) createUnique = false;
 			TapIndex tapIndex = new TapIndex().unique(createUnique);
 			List<TapIndexField> tapIndexFields = new ArrayList<>();
 			if (null == updateConditionFields) {

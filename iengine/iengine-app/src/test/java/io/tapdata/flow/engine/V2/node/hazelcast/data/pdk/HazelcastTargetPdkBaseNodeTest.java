@@ -2,20 +2,32 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.google.common.collect.Lists;
+import com.tapdata.entity.Connections;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.DmlPolicy;
+import com.tapdata.tm.commons.dag.DmlPolicyEnum;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
+import io.tapdata.pdk.core.api.ConnectorNode;
+import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -186,6 +198,154 @@ public class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
         @Test
         void usePkAsUpdateConditionsTest4() {
             assertFalse(hazelcastTargetPdkBaseNode.usePkAsUpdateConditions(Lists.newArrayList("A", "B", "C"), Lists.newArrayList("A", "B")));
+        }
+    }
+
+    @Nested
+    class createTableTest{
+
+        DataProcessorContext dataProcessorContext;
+
+        @BeforeEach
+        void setUp() {
+            dataProcessorContext = mock(DataProcessorContext.class);
+            ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"dataProcessorContext",dataProcessorContext);
+            ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"clientMongoOperator",mockClientMongoOperator);
+        }
+        @Test
+        void testIsUnwindProcess(){
+            hazelcastTargetPdkBaseNode.unwindProcess = true;
+            TapTable tapTable = mock(TapTable.class);
+            AtomicBoolean atomicBoolean = new AtomicBoolean(false);
+            doCallRealMethod().when(hazelcastTargetPdkBaseNode).createTable(tapTable,atomicBoolean);
+            TableNode node = new TableNode();
+            node.setDisabled(false);
+            when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)node);
+            ConnectorNode connectorNode = mock(ConnectorNode.class);
+            when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+            ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+            when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+            when(connectorFunctions.getCreateTableFunction()).thenReturn(null);
+            when(connectorFunctions.getCreateTableV2Function()).thenReturn(mock(CreateTableV2Function.class));
+            Connections connections = new Connections();
+            connections.setId("test");
+            when(dataProcessorContext.getTargetConn()).thenReturn(connections);
+            boolean result = hazelcastTargetPdkBaseNode.createTable(tapTable,atomicBoolean);
+            Assertions.assertTrue(result);
+        }
+
+        @Test
+        void testIsNotUnwindProcess(){
+            hazelcastTargetPdkBaseNode.unwindProcess = false;
+            TapTable tapTable = mock(TapTable.class);
+            AtomicBoolean atomicBoolean = new AtomicBoolean(false);
+            doCallRealMethod().when(hazelcastTargetPdkBaseNode).createTable(tapTable,atomicBoolean);
+            TableNode node = new TableNode();
+            node.setDisabled(false);
+            when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)node);
+            ConnectorNode connectorNode = mock(ConnectorNode.class);
+            when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+            ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+            when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+            when(connectorFunctions.getCreateTableFunction()).thenReturn(null);
+            when(connectorFunctions.getCreateTableV2Function()).thenReturn(mock(CreateTableV2Function.class));
+            Connections connections = new Connections();
+            connections.setId("test");
+            when(dataProcessorContext.getTargetConn()).thenReturn(connections);
+            boolean result = hazelcastTargetPdkBaseNode.createTable(tapTable,atomicBoolean);
+            Assertions.assertTrue(result);
+        }
+    }
+
+    @Nested
+    class checkUnwindConfigurationTest{
+        DataProcessorContext dataProcessorContext;
+        ObsLogger obsLogger;
+
+        @BeforeEach
+        void setUp() {
+            dataProcessorContext = mock(DataProcessorContext.class);
+            obsLogger = mock(ObsLogger.class);
+            ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"dataProcessorContext",dataProcessorContext);
+            ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"obsLogger",obsLogger);
+
+        }
+        @Test
+        void test(){
+            doCallRealMethod().when(hazelcastTargetPdkBaseNode).checkUnwindConfiguration();
+            TaskDto taskDto1 = mock(TaskDto.class);
+            DAG dag = mock(DAG.class);
+            taskDto1.setDag(dag);
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(mock(UnwindProcessNode.class));
+            when(dataProcessorContext.getTaskDto()).thenReturn(taskDto1);
+            when(taskDto1.getDag()).thenReturn(dag);
+            when(dag.getNodes()).thenReturn(nodes);
+            TableNode node = new TableNode();
+            DmlPolicy dmlPolicy = new DmlPolicy();
+            dmlPolicy.setInsertPolicy(DmlPolicyEnum.just_insert);
+            node.setDmlPolicy(dmlPolicy);
+            when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)node);
+            hazelcastTargetPdkBaseNode.checkUnwindConfiguration();
+            Assertions.assertTrue(hazelcastTargetPdkBaseNode.unwindProcess);
+        }
+
+        @Test
+        void testGetNodeIsNotTableNode(){
+            doCallRealMethod().when(hazelcastTargetPdkBaseNode).checkUnwindConfiguration();
+            TaskDto taskDto1 = mock(TaskDto.class);
+            DAG dag = mock(DAG.class);
+            taskDto1.setDag(dag);
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(mock(UnwindProcessNode.class));
+            when(dataProcessorContext.getTaskDto()).thenReturn(taskDto1);
+            when(taskDto1.getDag()).thenReturn(dag);
+            when(dag.getNodes()).thenReturn(nodes);
+            DatabaseNode node = new DatabaseNode();
+            DmlPolicy dmlPolicy = new DmlPolicy();
+            dmlPolicy.setInsertPolicy(DmlPolicyEnum.insert_on_nonexists);
+            node.setDmlPolicy(dmlPolicy);
+            when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)node);
+            hazelcastTargetPdkBaseNode.checkUnwindConfiguration();
+            verify(obsLogger,times(0)).warn(any());
+        }
+
+        @Test
+        void testInsertPolicyIsNullJustInsert(){
+            doCallRealMethod().when(hazelcastTargetPdkBaseNode).checkUnwindConfiguration();
+            TaskDto taskDto1 = mock(TaskDto.class);
+            DAG dag = mock(DAG.class);
+            taskDto1.setDag(dag);
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(mock(UnwindProcessNode.class));
+            when(dataProcessorContext.getTaskDto()).thenReturn(taskDto1);
+            when(taskDto1.getDag()).thenReturn(dag);
+            when(dag.getNodes()).thenReturn(nodes);
+            TableNode node = new TableNode();
+            DmlPolicy dmlPolicy = new DmlPolicy();
+            dmlPolicy.setInsertPolicy(DmlPolicyEnum.insert_on_nonexists);
+            node.setDmlPolicy(dmlPolicy);
+            when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)node);
+            hazelcastTargetPdkBaseNode.checkUnwindConfiguration();
+            verify(obsLogger,times(1)).warn(any());
+        }
+
+        @Test
+        void testDmlPolicyIsNull(){
+            doCallRealMethod().when(hazelcastTargetPdkBaseNode).checkUnwindConfiguration();
+            TaskDto taskDto1 = mock(TaskDto.class);
+            DAG dag = mock(DAG.class);
+            taskDto1.setDag(dag);
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(mock(UnwindProcessNode.class));
+            when(dataProcessorContext.getTaskDto()).thenReturn(taskDto1);
+            when(taskDto1.getDag()).thenReturn(dag);
+            when(dag.getNodes()).thenReturn(nodes);
+            TableNode node = new TableNode();
+            node.setDmlPolicy(null);
+            when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)node);
+            hazelcastTargetPdkBaseNode.checkUnwindConfiguration();
+            verify(obsLogger,times(1)).warn(any());
         }
     }
 
