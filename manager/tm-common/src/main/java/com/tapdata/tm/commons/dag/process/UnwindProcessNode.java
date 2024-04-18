@@ -53,7 +53,12 @@ public class UnwindProcessNode extends ProcessorNode {
      * Flatten mode will flatten the document objects in the array
      */
     private UnwindModel unwindModel = UnwindModel.EMBEDDED;
-
+    /**
+     * When UnwindModel is in Flatten mode, ArrayModel mode needs to be selected.
+     * Object mode means that the selected array only contains object type data, and model derivation only retains subfields.
+     * Mixed mode means that the selected array contains object and primitive type data, model derivation will preserve parent and child fields.
+     * Basic mode means that the selected array contains basic type data and model derivation only retains the parent field.
+     */
     private ArrayModel arrayModel;
 
     private String joiner = "_";
