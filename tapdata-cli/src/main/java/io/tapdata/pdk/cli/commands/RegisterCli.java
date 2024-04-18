@@ -22,9 +22,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.IOUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.output.WriterOutputStream;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.poi.ss.formula.functions.T;
 import picocli.CommandLine;
 
 import java.io.ByteArrayInputStream;
@@ -32,10 +30,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.PrintStream;
-import java.io.Writer;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -90,15 +85,15 @@ public class RegisterCli extends CommonCli {
         try {
             CommonUtils.setProperty("refresh_local_jars", "true");
             PrintStream out = System.out;
-            try {
-                System.setOut(new PrintStream(new ByteArrayOutputStream() {
-                    @Override
-                    public void write(int b) {
-                        if (showAllMessage) {
-                            super.write(b);
-                        }
+            try(PrintStream p = new PrintStream(new ByteArrayOutputStream() {
+                @Override
+                public void write(int b) {
+                    if (showAllMessage) {
+                        super.write(b);
                     }
-                }));
+                }
+            })) {
+                System.setOut(p);
                 TapConnectorManager.getInstance().start(Arrays.asList(files));
             } finally {
                 System.setOut(out);
@@ -276,7 +271,17 @@ public class RegisterCli extends CommonCli {
                     }
                     if (file.isFile()) {
                         printUtil.print(PrintUtil.TYPE.INFO, " => uploading ");
-                        UploadFileService.upload(inputStreamMap, file, jsons, latest, tmUrl, authToken, ak, sk, printUtil);
+                        UploadFileService.Param param = new UploadFileService.Param();
+                        param.setAccessCode(authToken);
+                        param.setInputStreamMap(inputStreamMap);
+                        param.setJsons(jsons);
+                        param.setLatest(latest);
+                        param.setAk(ak);
+                        param.setFile(file);
+                        param.setPrintUtil(printUtil);
+                        param.setSk(sk);
+                        param.setHostAndPort(tmUrl);
+                        UploadFileService.upload(param);
                         printUtil.print(PrintUtil.TYPE.INFO, String.format("* Register Connector: %s | (%s) Completed", file.getName(), connectionType));
                     } else {
                         printUtil.print(PrintUtil.TYPE.DEBUG, "File " + file + " doesn't exists");
@@ -316,16 +321,15 @@ public class RegisterCli extends CommonCli {
 
     protected void fileTypeDirector(File f, Set<File> pathSet) {
         int i = fileType(f);
-        switch (i) {
-            case 1:
-                File[] files = f.listFiles();
-                if (null != files && files.length > 0) {
-                    pathSet.addAll(getAllJarFiles(files));
-                }
-                break;
-            case 2:
-                pathSet.add(f);
-                break;
+        if (i == 1) {
+            File[] files = f.listFiles();
+            if (null != files && files.length > 0) {
+                pathSet.addAll(getAllJarFiles(files));
+            }
+            return;
+        }
+        if (i == 2) {
+            pathSet.add(f);
         }
     }
 
@@ -343,14 +347,14 @@ public class RegisterCli extends CommonCli {
         return -1;
     }
 
-    protected static final String path = "tapdata-cli/src/main/resources/replace/";
+    protected static final String PATH = "tapdata-cli/src/main/resources/replace/";
     private Map<String, Object> needReplaceKeyWords(TapNodeInfo nodeInfo, String replacePath){
         if (null != this.replaceName && !"".equals(replaceName.trim())){
             replacePath = replaceName;
         }
         if (null == replacePath || "".equals(replacePath.trim())) return null;
         try {
-            InputStream as = FileUtils.openInputStream(new File(path + replacePath + ".json"));//nodeInfo.readResource((String) replacePath);
+            InputStream as = FileUtils.openInputStream(new File(PATH + replacePath + ".json"));//nodeInfo.readResource((String) replacePath);
             return JSON.parseObject(as, StandardCharsets.UTF_8, LinkedHashMap.class);
         }catch (IOException e){}
         return null;
