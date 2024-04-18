@@ -2,7 +2,6 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.google.common.collect.Lists;
-import com.hazelcast.jet.core.Processor;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -10,24 +9,21 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
-import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.exception.TapCodeException;
-import io.tapdata.metric.collector.ISyncMetricCollector;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import org.junit.jupiter.api.*;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
@@ -264,11 +260,15 @@ public class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
     @Nested
     class checkUnwindConfigurationTest{
         DataProcessorContext dataProcessorContext;
+        ObsLogger obsLogger;
 
         @BeforeEach
         void setUp() {
             dataProcessorContext = mock(DataProcessorContext.class);
+            obsLogger = mock(ObsLogger.class);
             ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"dataProcessorContext",dataProcessorContext);
+            ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"obsLogger",obsLogger);
+
         }
         @Test
         void test(){
@@ -291,6 +291,26 @@ public class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
         }
 
         @Test
+        void testGetNodeIsNotTableNode(){
+            doCallRealMethod().when(hazelcastTargetPdkBaseNode).checkUnwindConfiguration();
+            TaskDto taskDto1 = mock(TaskDto.class);
+            DAG dag = mock(DAG.class);
+            taskDto1.setDag(dag);
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(mock(UnwindProcessNode.class));
+            when(dataProcessorContext.getTaskDto()).thenReturn(taskDto1);
+            when(taskDto1.getDag()).thenReturn(dag);
+            when(dag.getNodes()).thenReturn(nodes);
+            DatabaseNode node = new DatabaseNode();
+            DmlPolicy dmlPolicy = new DmlPolicy();
+            dmlPolicy.setInsertPolicy(DmlPolicyEnum.insert_on_nonexists);
+            node.setDmlPolicy(dmlPolicy);
+            when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)node);
+            hazelcastTargetPdkBaseNode.checkUnwindConfiguration();
+            verify(obsLogger,times(0)).warn(any());
+        }
+
+        @Test
         void testInsertPolicyIsNullJustInsert(){
             doCallRealMethod().when(hazelcastTargetPdkBaseNode).checkUnwindConfiguration();
             TaskDto taskDto1 = mock(TaskDto.class);
@@ -306,7 +326,8 @@ public class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
             dmlPolicy.setInsertPolicy(DmlPolicyEnum.insert_on_nonexists);
             node.setDmlPolicy(dmlPolicy);
             when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)node);
-            Assertions.assertThrows(TapCodeException.class,()->hazelcastTargetPdkBaseNode.checkUnwindConfiguration());
+            hazelcastTargetPdkBaseNode.checkUnwindConfiguration();
+            verify(obsLogger,times(1)).warn(any());
         }
 
         @Test
@@ -323,7 +344,8 @@ public class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
             TableNode node = new TableNode();
             node.setDmlPolicy(null);
             when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)node);
-            Assertions.assertThrows(TapCodeException.class,()->hazelcastTargetPdkBaseNode.checkUnwindConfiguration());
+            hazelcastTargetPdkBaseNode.checkUnwindConfiguration();
+            verify(obsLogger,times(1)).warn(any());
         }
     }
 

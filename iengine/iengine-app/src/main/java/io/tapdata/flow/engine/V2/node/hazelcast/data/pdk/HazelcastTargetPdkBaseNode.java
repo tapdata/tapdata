@@ -241,13 +241,20 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		taskDto.getDag().getNodes().forEach(node -> {
 			if(node instanceof UnwindProcessNode) this.unwindProcess = true;
 		});
-		if(this.unwindProcess){
+		if(this.unwindProcess && getNode() instanceof TableNode){
 			DmlPolicy dmlPolicy = ((TableNode)getNode()).getDmlPolicy();
 			if(null != dmlPolicy){
 				DmlPolicyEnum insertPolicy = ((TableNode)getNode()).getDmlPolicy().getInsertPolicy();
-				if( null != insertPolicy && !insertPolicy.equals(DmlPolicyEnum.just_insert))throw new TapCodeException(TaskProcessorExCode_11.CHECK_UNWIND_PROCESS_NODE_FAILED);
+				if( null != insertPolicy && !insertPolicy.equals(DmlPolicyEnum.just_insert)){
+					dmlPolicy.setInsertPolicy(DmlPolicyEnum.just_insert);
+					obsLogger.warn("The node write strategy using Unwind must be just_insert,Will automatically modify the write policy.");
+				}
 			}else{
-				throw new TapCodeException(TaskProcessorExCode_11.CHECK_UNWIND_PROCESS_NODE_FAILED);
+				DmlPolicy policy = new DmlPolicy();
+				policy.setInsertPolicy(DmlPolicyEnum.just_insert);
+				policy.setUpdatePolicy(DmlPolicyEnum.ignore_on_nonexists);
+				((TableNode)getNode()).setDmlPolicy(policy);
+				obsLogger.warn("The node write strategy using Unwind must be just_insert,Will automatically modify the write policy.");
 			}
 		}
 	}
@@ -293,8 +300,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						.connectorContext(getConnectorNode().getConnectorContext())
 						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
 			}
-			//
-//			String s = JSONUtil.obj2Json(Collections.singletonList(tapTable));
 			clientMongoOperator.insertOne(Collections.singletonList(finalTapTable),
 					ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
 		} catch (Throwable throwable) {

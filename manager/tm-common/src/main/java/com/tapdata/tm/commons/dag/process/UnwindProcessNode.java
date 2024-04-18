@@ -47,7 +47,11 @@ public class UnwindProcessNode extends ProcessorNode {
      The default value is false. */
     private boolean preserveNullAndEmptyArrays;
 
-
+    /**
+     * The default mode of unwind is embedded.
+     * Embedded will save the original document object in the array,
+     * Flatten mode will flatten the document objects in the array
+     */
     private UnwindModel unwindModel = UnwindModel.EMBEDDED;
 
     private ArrayModel arrayModel;

@@ -149,9 +149,4 @@ public interface TaskProcessorExCode_11 {
 	)
 	String INIT_STREAM_OFFSET_SYNC_POINT_TYPE_IS_EMPTY = "11027";
 
-	@TapExCode(
-			describe = "Failed to run the task. The node write strategy using Unwind must be just_insert.",
-			describeCN = "运行任务失败，使用Unwind处理结点写入策略必须为仅插入"
-	)
-	String CHECK_UNWIND_PROCESS_NODE_FAILED = "11027";
 }
