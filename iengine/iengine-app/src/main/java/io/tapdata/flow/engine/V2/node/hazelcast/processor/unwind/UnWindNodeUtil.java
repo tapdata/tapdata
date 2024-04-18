@@ -282,6 +282,8 @@ public class UnWindNodeUtil {
                    map.put(entry.getKey(),object.get(entry.getValue()));
                }
             }
+        }else if(flatten){
+            map.put(path,value.toString());
         }
     }
 

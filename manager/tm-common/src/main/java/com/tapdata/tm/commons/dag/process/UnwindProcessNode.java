@@ -89,32 +89,29 @@ public class UnwindProcessNode extends ProcessorNode {
                     }
                 });
             }
-            if(UnwindModel.EMBEDDED.equals(unwindModel) || (UnwindModel.FLATTEN.equals(unwindModel) && !ArrayModel.OBJECT.equals(arrayModel))) {
-                FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
-                fieldOperation.setType("Map");
-                fieldOperation.setField(path);
-                fieldOperation.setOp("CREATE");
-                fieldOperation.setTableName(outputSchema.getName());
-                fieldOperation.setJava_type("Map");
-                Field field = createField(this.getId(), outputSchema.getOriginalName(), fieldOperation);
-                field.setSource("job_analyze");
-                field.setTapType(FieldModTypeProcessorNode.calTapType("Map"));
-                outputSchema.getFields().add(field);
+            if(UnwindModel.EMBEDDED.equals(unwindModel)) {
+                outputSchema.getFields().add(deductionField("Map",path,outputSchema));
+            }else if(UnwindModel.FLATTEN.equals(unwindModel) && !ArrayModel.OBJECT.equals(arrayModel)) {
+                outputSchema.getFields().add(deductionField("String",path,outputSchema));
             }
             if (null != includeArrayIndex && !"".equals(includeArrayIndex.trim())) {
-                FieldProcessorNode.Operation operation = new FieldProcessorNode.Operation();
-                operation.setType("Long");
-                operation.setField(includeArrayIndex);
-                operation.setOp("CREATE");
-                operation.setTableName(outputSchema.getName());
-                operation.setJava_type("Long");
-                Field fieldIndex = createField(this.getId(), outputSchema.getOriginalName(), operation);
-                fieldIndex.setSource("job_analyze");
-                fieldIndex.setTapType(FieldModTypeProcessorNode.calTapType("Long"));
-                outputSchema.getFields().add(fieldIndex);
+                outputSchema.getFields().add(deductionField("Long",includeArrayIndex,outputSchema));
             }
         }
         return outputSchema;
+    }
+
+    protected Field deductionField(String type,String path,Schema outputSchema){
+        FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
+        fieldOperation.setType(type);
+        fieldOperation.setField(path);
+        fieldOperation.setOp("CREATE");
+        fieldOperation.setTableName(outputSchema.getName());
+        fieldOperation.setJava_type(type);
+        Field field = createField(this.getId(), outputSchema.getOriginalName(), fieldOperation);
+        field.setSource("job_analyze");
+        field.setTapType(FieldModTypeProcessorNode.calTapType(type));
+        return field;
     }
 
     protected TapTable getTapTable(Node target, TaskDto taskDtoCopy) {

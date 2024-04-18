@@ -927,6 +927,16 @@ public class UnwindNodeTest extends BaseTest {
     }
 
     @Test
+    public void testFlattenIsNullObject(){
+        Map<String,String> flattenMap = new HashMap<>();
+        Map<String, Object> record = new HashMap<>();
+        record.put("t","t");
+        String s = "test";
+        UnWindNodeUtil.serializationFlattenFields("t",record,s,true,flattenMap);
+        Assert.assertEquals("test",record.get("t"));
+    }
+
+    @Test
     public void testContainsPathAndSetValueFlattenIsTrue(){
         Map<String, Object> record = new HashMap<>();
         record.put("t","test");
