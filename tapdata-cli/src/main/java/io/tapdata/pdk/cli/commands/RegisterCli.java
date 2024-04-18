@@ -76,7 +76,8 @@ public class RegisterCli extends CommonCli {
         printUtil = new PrintUtil(showAllMessage);
         List<String> filterTypes = generateSkipTypes();
         if (!filterTypes.isEmpty()) {
-            printUtil.print(PrintUtil.TYPE.TIP, String.format("* Starting to register data sources, plan to skip data sources that are not within the registration scope.\n* The types of data sources that need to be registered are: %s", filterTypes));
+            printUtil.print(PrintUtil.TYPE.TIP, "* Starting to register data sources, plan to skip data sources that are not within the registration scope");
+            printUtil.print(PrintUtil.TYPE.TIP, String.format("* The types of data sources that need to be registered are: %s", filterTypes));
         } else {
             printUtil.print(PrintUtil.TYPE.TIP, "Start registering data sources and plan to register all submitted data sources");
         }
@@ -87,7 +88,7 @@ public class RegisterCli extends CommonCli {
             PrintStream out = System.out;
             try(PrintStream p = new PrintStream(new ByteArrayOutputStream() {
                 @Override
-                public void write(int b) {
+                public synchronized void write(int b) {
                     if (showAllMessage) {
                         super.write(b);
                     }
@@ -201,6 +202,7 @@ public class RegisterCli extends CommonCli {
                                                             }
                                                             inputStream = new ByteArrayInputStream(finalTxt.getBytes(StandardCharsets.UTF_8));
                                                         } catch (Exception e) {
+                                                            printUtil.print(PrintUtil.TYPE.DEBUG, e.getMessage());
                                                         } finally {
                                                             try {
                                                                 if (null != scanner) scanner.close();
@@ -290,7 +292,7 @@ public class RegisterCli extends CommonCli {
                 }
             } finally {
                 if (unUploaded.toString().length() > 0) {
-                    printUtil.print(PrintUtil.TYPE.DEBUG, String.format("[INFO] Some connector that are not in the scope are registered this time: \n%s\nThe data connector type that needs to be registered is: %s\n", unUploaded.toString(), filterTypes));
+                    printUtil.print(PrintUtil.TYPE.DEBUG, String.format("[INFO] Some connector that are not in the scope are registered this time: %n%s%nThe data connector type that needs to be registered is: %s", unUploaded.toString(), filterTypes));
                 }
             }
             System.exit(0);
@@ -312,19 +314,19 @@ public class RegisterCli extends CommonCli {
     }
 
     protected Collection<File> getAllJarFiles(File[] paths) {
-        Set<File> path = new HashSet<>();
+        Set<File> pathSet = new HashSet<>();
         for (File s : paths) {
-            fileTypeDirector(s, path);
+            fileTypeDirector(s, pathSet);
         }
-        return path;
+        return pathSet;
     }
 
     protected void fileTypeDirector(File f, Set<File> pathSet) {
         int i = fileType(f);
         if (i == 1) {
-            File[] files = f.listFiles();
-            if (null != files && files.length > 0) {
-                pathSet.addAll(getAllJarFiles(files));
+            File[] listFiles = f.listFiles();
+            if (null != listFiles && listFiles.length > 0) {
+                pathSet.addAll(getAllJarFiles(listFiles));
             }
             return;
         }

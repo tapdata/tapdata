@@ -306,7 +306,7 @@ public class UploadFileService {
       msg = map.get("reqId") != null ? (String) map.get("message") : (String) map.get("msg");
       result = "fail";
     }
-    printUtil.print(PrintUtil.TYPE.DEBUG, "result:" + result + ", name:" + file.getName() + ", msg:" + msg + ", response:" + response);
+    printUtil.print(PrintUtil.TYPE.DEBUG, "result:" + result + ", name:" + (null == file ? "-" : file.getName()) + ", msg:" + msg + ", response:" + response);
   }
 
   public static RequestBody create(final MediaType mediaType, final InputStream inputStream) {
