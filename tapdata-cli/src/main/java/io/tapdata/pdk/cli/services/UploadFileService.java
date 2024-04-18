@@ -55,14 +55,22 @@ public class UploadFileService {
       printUtil.print(PrintUtil.TYPE.DEBUG, "generate token " + s);
 
       if (StringUtils.isBlank(s)) {
-        log.error("tm sever not found or generate token failed");
+        printUtil.print(PrintUtil.TYPE.ERROR, "TM sever not found or generate token failed");
         return;
       }
 
       Map map = JSON.parseObject(s, Map.class);
       Object data = map.get("data");
+      if (null == data) {
+        printUtil.print(PrintUtil.TYPE.ERROR, "TM sever not found or generate token failed");
+        return;
+      }
       JSONObject data1 = (JSONObject) data;
       token = (String) data1.get("id");
+      if (StringUtils.isBlank(token)) {
+        printUtil.print(PrintUtil.TYPE.ERROR, "TM sever not found or generate token failed");
+        return;
+      }
     }
 
     Map<String, String> params = new HashMap<>();

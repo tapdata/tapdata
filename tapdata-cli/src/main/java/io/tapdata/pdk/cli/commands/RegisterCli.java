@@ -81,9 +81,9 @@ public class RegisterCli extends CommonCli {
         printUtil = new PrintUtil(showAllMessage);
         List<String> filterTypes = generateSkipTypes();
         if (!filterTypes.isEmpty()) {
-            printUtil.print(String.format("* Starting to register data sources, plan to skip data sources that are not within the registration scope.\n* The types of data sources that need to be registered are: %s", filterTypes));
+            printUtil.print(PrintUtil.TYPE.TIP, String.format("* Starting to register data sources, plan to skip data sources that are not within the registration scope.\n* The types of data sources that need to be registered are: %s", filterTypes));
         } else {
-            printUtil.print("Start registering data sources and plan to register all submitted data sources");
+            printUtil.print(PrintUtil.TYPE.TIP, "Start registering data sources and plan to register all submitted data sources");
         }
         StringJoiner unUploaded = new StringJoiner("\n");
         files = getAllJarFile(files);
@@ -120,7 +120,7 @@ public class RegisterCli extends CommonCli {
                         connectionType = authentication;
                         if (needSkip(authentication, filterTypes)) {
                             needUpload = false;
-                            printUtil.print(PrintUtil.TYPE.INFO, String.format("... Skipped with (%s)", connectionType));
+                            printUtil.print(PrintUtil.TYPE.IGNORE, String.format("... Skipped with (%s)", connectionType));
                             break;
                         }
                         needUpload = true;
@@ -276,9 +276,7 @@ public class RegisterCli extends CommonCli {
                     }
                     if (file.isFile()) {
                         printUtil.print(PrintUtil.TYPE.INFO, " => uploading ");
-                        printUtil.print(PrintUtil.TYPE.DEBUG, file.getName() + " uploading... to url " + tmUrl);
                         UploadFileService.upload(inputStreamMap, file, jsons, latest, tmUrl, authToken, ak, sk, printUtil);
-                        printUtil.print(PrintUtil.TYPE.DEBUG, file.getName() + " registered successfully");
                         printUtil.print(PrintUtil.TYPE.INFO, String.format("* Register Connector: %s | (%s) Completed", file.getName(), connectionType));
                     } else {
                         printUtil.print(PrintUtil.TYPE.DEBUG, "File " + file + " doesn't exists");
@@ -292,9 +290,9 @@ public class RegisterCli extends CommonCli {
             }
             System.exit(0);
         } catch (Throwable throwable) {
-            printUtil.print(PrintUtil.TYPE.WARN, throwable.getMessage());
+            printUtil.print(PrintUtil.TYPE.ERROR, throwable.getMessage());
+            throwable.printStackTrace(System.out);
             if (showAllMessage) {
-                throwable.printStackTrace();
                 CommonUtils.logError(TAG, "Start failed", throwable);
             }
             System.exit(-1);

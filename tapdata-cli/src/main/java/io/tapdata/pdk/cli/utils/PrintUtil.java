@@ -21,11 +21,20 @@ public class PrintUtil {
             case DEBUG:
                 print(CommandLine.Help.Ansi.AUTO.string("@|fg(250) " + message + "|@"));
                 break;
+            case TIP:
+                print(CommandLine.Help.Ansi.AUTO.string("@|fg(246) " + message + "|@"));
+                break;
             case INFO:
                 print(CommandLine.Help.Ansi.AUTO.string("@|bold,fg(22) " + message + "|@"));
                 break;
             case WARN:
                 print(CommandLine.Help.Ansi.AUTO.string("@|bold,yellow,underline " + message + "|@"));
+                break;
+            case IGNORE:
+                print(CommandLine.Help.Ansi.AUTO.string("@|fg(166) " + message + "|@"));
+                break;
+            case ERROR:
+                print(CommandLine.Help.Ansi.AUTO.string("@|fg(124) " + message + "|@"));
                 break;
             default:
                 print(message);
@@ -42,6 +51,9 @@ public class PrintUtil {
         WARN,
         DEBUG,
         INFO,
-        APPEND
+        APPEND,
+        IGNORE,
+        TIP,
+        ERROR
     }
 }
