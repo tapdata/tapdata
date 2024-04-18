@@ -121,7 +121,7 @@ public class UploadFileService {
     }
   }
 
-  public static void upload(Param paramEntity) {
+  public static void uploadSourceToTM(Param paramEntity) {
     Map<String, InputStream> inputStreamMap = paramEntity.getInputStreamMap();
     File file = paramEntity.getFile();
     List<String> jsons = paramEntity.jsons;

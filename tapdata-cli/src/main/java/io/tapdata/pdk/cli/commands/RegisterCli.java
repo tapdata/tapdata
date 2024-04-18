@@ -207,6 +207,7 @@ public class RegisterCli extends CommonCli {
                                                             try {
                                                                 if (null != scanner) scanner.close();
                                                             } catch (Exception ignore) {
+                                                                //ignore
                                                             }
                                                         }
                                                     }
@@ -283,7 +284,7 @@ public class RegisterCli extends CommonCli {
                         param.setPrintUtil(printUtil);
                         param.setSk(sk);
                         param.setHostAndPort(tmUrl);
-                        UploadFileService.upload(param);
+                        UploadFileService.uploadSourceToTM(param);
                         printUtil.print(PrintUtil.TYPE.INFO, String.format("* Register Connector: %s | (%s) Completed", file.getName(), connectionType));
                     } else {
                         printUtil.print(PrintUtil.TYPE.DEBUG, "File " + file + " doesn't exists");
