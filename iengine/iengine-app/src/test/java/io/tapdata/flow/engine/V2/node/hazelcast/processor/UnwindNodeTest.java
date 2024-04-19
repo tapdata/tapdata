@@ -825,22 +825,26 @@ public class UnwindNodeTest extends BaseTest {
          * */
         event.before(null);
         handelResult1 = EventHandel.getHandelResult(node, event);
-        count = handelResult1.size() == 1;
+        count = handelResult1.size() == 2;
         Assert.assertTrue(
                 "Fail get 1 event from tapdata event by unwind node about update event which not have before map, from event: " + toJson(after)
                         + ", only " + handelResult1.size() + " after unwind node",
                 count);
         tapEvent0 = handelResult1.get(0);
-        type0 = tapEvent0 instanceof TapUpdateRecordEvent;
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
         Assert.assertTrue(
                 "Fail translate update event to one delete event after unwind node for the first event",
                 type0);
-        before0 = ((TapUpdateRecordEvent) tapEvent0).getBefore();
-        Map<String, Object> after0 = ((TapUpdateRecordEvent) tapEvent0).getAfter();
-        Assert.assertEquals(" The content of the first inserted event after processing by the Unwind node does not meet expectations,  It should be " +
-                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(after0), "{\"field\":2,\"id\":1}", toJson(after0));
-        Assert.assertEquals(" The content of the first inserted event before processing by the Unwind node does not meet expectations,  It should be " +
-                "null , but the result is  " + toJson(before0), "null", toJson(before0));
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first inserted event after processing by the Uwind node does not meet expectations,  It should be " +
+                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(before0), "{\"field\":2,\"id\":1}", toJson(before0));
+
+        tapEvent1 = handelResult1.get(1);
+        type1 = tapEvent1 instanceof TapInsertRecordEvent;
+        Assert.assertTrue("ail translate update event to insert event after unwind node for the second event", type1);
+        after1 = ((TapInsertRecordEvent) tapEvent1).getAfter();
+        Assert.assertEquals(" The content of the second inserted event after processing by the Uwind node does not meet expectations,  It should be " +
+                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(after1), "{\"field\":2,\"id\":1}", toJson(after1));
 
     }
 
@@ -890,7 +894,7 @@ public class UnwindNodeTest extends BaseTest {
         Map<String,String> flattenMap = new HashMap<>();
         flattenMap.put("t_id","id");
         flattenMap.put("t_name","name");
-        UnWindNodeUtil.serializationFlattenFields("t",record,document,true,flattenMap);
+        UnWindNodeUtil.serializationFlattenFields("t",record,document,true,"_");
         Assert.assertEquals(record.get("t_id"),"id");
         Assert.assertEquals(record.get("t_name"),"test");
 
@@ -912,7 +916,7 @@ public class UnwindNodeTest extends BaseTest {
         Map<String,String> flattenMap = new HashMap<>();
         flattenMap.put("t_id","id");
         flattenMap.put("t_name","name");
-        UnWindNodeUtil.serializationFlattenFields("t",record,null,true,flattenMap);
+        UnWindNodeUtil.serializationFlattenFields("t",record,null,true,"_");
         Assert.assertFalse(record.containsKey("t_id"));
     }
 
@@ -922,7 +926,7 @@ public class UnwindNodeTest extends BaseTest {
         flattenMap.put("t_id","id");
         flattenMap.put("t_name","name");
         Document document = new Document("id","id").append("name","test");
-        UnWindNodeUtil.serializationFlattenFields("t",null,document,true,flattenMap);
+        UnWindNodeUtil.serializationFlattenFields("t",null,document,true,"_");
         Assert.assertEquals(document,document);
     }
 
@@ -932,7 +936,7 @@ public class UnwindNodeTest extends BaseTest {
         Map<String, Object> record = new HashMap<>();
         record.put("t","t");
         String s = "test";
-        UnWindNodeUtil.serializationFlattenFields("t",record,s,true,flattenMap);
+        UnWindNodeUtil.serializationFlattenFields("t",record,s,true,"_");
         Assert.assertEquals("test",record.get("t"));
     }
 
@@ -944,7 +948,7 @@ public class UnwindNodeTest extends BaseTest {
         Map<String,String> flattenMap = new HashMap<>();
         flattenMap.put("t_id","id");
         flattenMap.put("t_name","name");
-        Map<String,Object> result = UnWindNodeUtil.containsPathAndSetValue("t",record,document,"",1,true,flattenMap);
+        Map<String,Object> result = UnWindNodeUtil.containsPathAndSetValue("t",record,document,"",1,true,"_");
         Assert.assertEquals(result.get("t_id"),"id");
         Assert.assertEquals(result.get("t_name"),"test");
     }
@@ -957,7 +961,7 @@ public class UnwindNodeTest extends BaseTest {
         Map<String,String> flattenMap = new HashMap<>();
         flattenMap.put("t_id","id");
         flattenMap.put("t_name","name");
-        Map<String,Object> result = UnWindNodeUtil.containsPathAndSetValue("t.id",record,document,"",1,false,flattenMap);
+        Map<String,Object> result = UnWindNodeUtil.containsPathAndSetValue("t.id",record,document,"",1,false,"_");
         Assert.assertNull(result);
     }
 
@@ -971,7 +975,7 @@ public class UnwindNodeTest extends BaseTest {
         Map<String,String> flattenMap = new HashMap<>();
         flattenMap.put("t_id","id");
         flattenMap.put("t_name","name");
-        Map<String,Object> result = UnWindNodeUtil.containsPathAndSetValue("t.id",record,document,"",1,false,flattenMap);
+        Map<String,Object> result = UnWindNodeUtil.containsPathAndSetValue("t.id",record,document,"",1,false,"_");
         Assert.assertNotNull(result);
     }
     @Test
