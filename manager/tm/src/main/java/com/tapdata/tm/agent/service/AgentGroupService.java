@@ -215,9 +215,20 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         if (CollectionUtils.isEmpty(groupIds)) {
             return Lists.newArrayList();
         }
-        Criteria criteria = findCriteria(groupIds);
-        update(Query.query(criteria),
-                new Update().set(AgentGroupTag.TAG_AGENT_IDS, newAgentIds), loginUser);
+        List<AgentGroupEntity> all = findAll(Query.query(Criteria.where("agentIds").in(newAgentIds)), loginUser);
+        List<String> cleanAgentIds = new ArrayList<>();
+        all.forEach(a -> {
+            String groupId = a.getGroupId();
+            if (!groupIds.contains(groupId)) {
+                cleanAgentIds.add(groupId);
+            }
+        });
+
+        update(Query.query(findCriteria(groupIds)), new Update().set(AgentGroupTag.TAG_AGENT_IDS, newAgentIds), loginUser);
+        if (!cleanAgentIds.isEmpty()) {
+            update(Query.query(findCriteria(cleanAgentIds)), new Update().set(AgentGroupTag.TAG_AGENT_IDS, new ArrayList<>()), loginUser);
+            groupIds.addAll(cleanAgentIds);
+        }
         return findAgentGroupInfoMany(groupIds, loginUser);
     }
 
