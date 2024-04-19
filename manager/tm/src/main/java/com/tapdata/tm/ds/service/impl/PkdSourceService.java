@@ -221,10 +221,12 @@ public class PkdSourceService {
 
 		}
 	}
-	public String checkJarMD5(String pdkHash, String fileName){
+	public String checkJarMD5(String pdkHash, int pdkBuildNumber){
 		String md5 = null;
-		Criteria criteria = Criteria.where("metadata.pdkHash").is(pdkHash).and("filename").is(fileName);
+		Criteria criteria = Criteria.where("metadata.pdkHash").is(pdkHash);
 		Query query = new Query(criteria);
+		criteria.and("metadata.pdkAPIBuildNumber").lte(pdkBuildNumber);
+		query.with(Sort.by("metadata.pdkAPIBuildNumber").descending());
 		GridFSFile gridFSFile = fileService.findOne(query);
 		if(null != gridFSFile && null != gridFSFile.getMetadata()){
 			md5 = (String) gridFSFile.getMetadata().get("md5");

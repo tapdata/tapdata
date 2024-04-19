@@ -116,7 +116,7 @@ public class PdkUtil {
 			 md5 = httpClientMongoOperator.findOne(
 					new HashMap<String, Object>(1) {{
 						put("pdkHash", pdkHash);
-						put("fileName", fileName);
+						put("pdkBuildNumber", CommonUtils.getPdkBuildNumer());
 					}}, "/pdk/checkMd5", String.class);
 			 if (null != md5){
 				 fileMd5Map.put(pdkHash, md5);

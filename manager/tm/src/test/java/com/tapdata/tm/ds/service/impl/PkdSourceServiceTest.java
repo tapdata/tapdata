@@ -69,14 +69,14 @@ public class PkdSourceServiceTest {
     class checkJarMD5{
         @Test
         void testCheckJarMD5(){
-            Criteria criteria = Criteria.where("metadata.pdkHash").is("111").and("filename").is("a.jar");
+            Criteria criteria = Criteria.where("metadata.pdkHash").is("111").and("meta.pdkAPIBuildNumber").is(14);
             Query query = new Query(criteria);
             GridFSFile gridFSFile = mock(GridFSFile.class);
             Document document = new Document();
             document.append("md5","123456");
             when(gridFSFile.getMetadata()).thenReturn(document);
             when(fileService.findOne(query)).thenReturn(gridFSFile);
-            String actual = pkdSourceService.checkJarMD5("111", "a.jar");
+            String actual = pkdSourceService.checkJarMD5("111", 14);
             assertEquals("123456",actual);
         }
     }
