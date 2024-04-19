@@ -1,6 +1,5 @@
 package io.tapdata.error;
 
-import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import io.tapdata.exception.TapExClass;
 import io.tapdata.exception.TapExCode;
 
@@ -149,4 +148,9 @@ public interface TaskProcessorExCode_11 {
 	)
 	String INIT_STREAM_OFFSET_SYNC_POINT_TYPE_IS_EMPTY = "11027";
 
+	@TapExCode(
+			describe = "Source node clone batch offset failed when wrap tapdata event",
+			describeCN = "在封装tapdata事件时，源节点克隆批量断点信息失败"
+	)
+	String SOURCE_CLONE_BATCH_OFFSET_FAILED = "11028";
 }
