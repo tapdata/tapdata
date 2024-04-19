@@ -126,8 +126,12 @@ public class ParentTaskDto extends SchedulableDto {
     /** 子任务状态*/
     private List<Status> statuses;
 
-    /** 状态*/
+    /** 任务状态*/
     private String status;
+
+    /**The data replication task list needs to add a field to display the milestone stage of the current task
+     * ：fulling(Full sync ongoing), full_completed(Full sync completed), incremental(Incremental sync ongoing)*/
+    private String syncStatus;
 
     /** 类型 [{label: '全量+增量', value: 'initial_sync+cdc'}, {label: '全量', value: 'initial_sync'}, {label: '增量', value: 'cdc'} ]*/
     @EqField

@@ -33,6 +33,7 @@ import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.constant.SyncStatus;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
@@ -153,6 +154,7 @@ public class TaskController extends BaseController {
 				taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
 				taskSaveService.supplementAlarm(task, user);
 				task.setStatus(null);
+				task.setSyncStatus(SyncStatus.NORMAL);
 
 				return taskService.updateById(task, user);
 			});
@@ -259,6 +261,7 @@ public class TaskController extends BaseController {
 				taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
 				taskSaveService.supplementAlarm(task, user);
 				task.setStatus(null);
+                task.setSyncStatus(SyncStatus.NORMAL);
 				return taskService.updateById(task, user);
 			});
 			return success(taskDto);

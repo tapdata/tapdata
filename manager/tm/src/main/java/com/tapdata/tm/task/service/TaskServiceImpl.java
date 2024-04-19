@@ -249,6 +249,7 @@ public class TaskServiceImpl extends TaskService{
     public TaskDto create(TaskDto taskDto, UserDetail user) {
         //新增任务校验
         taskDto.setStatus(TaskDto.STATUS_EDIT);
+        taskDto.setSyncStatus(SyncStatus.NORMAL);
         log.debug("The save task is complete and the task will be processed, task name = {}", taskDto.getName());
         DAG dag = taskDto.getDag();
 
@@ -1129,6 +1130,7 @@ public class TaskServiceImpl extends TaskService{
 
         taskDto.setName(copyName);
         taskDto.setStatus(TaskDto.STATUS_EDIT);
+        taskDto.setSyncStatus(SyncStatus.NORMAL);
         taskDto.setStatuses(new ArrayList<>());
         taskDto.setStartTime(null);
         taskDto.setStopTime(null);
@@ -1593,6 +1595,7 @@ public class TaskServiceImpl extends TaskService{
                     }
                     //产品认为不把STATUS_SCHEDULE_FAILED  展现到页面上，STATUS_SCHEDULE_FAILED就直接转为error状态
                     item.setStatus(TaskStatusEnum.getMapStatus(item.getStatus()));
+                    item.setSyncStatus(SyncStatus.NORMAL);
 
                     if (StringUtils.isNotBlank(item.getCrontabScheduleMsg())) {
                         item.setCrontabScheduleMsg(MessageUtil.getMessage(item.getCrontabScheduleMsg()));
@@ -1875,6 +1878,7 @@ public class TaskServiceImpl extends TaskService{
             for (TaskDto taskDto : taskDtos) {
                 ShareCacheVo shareCacheVo = new ShareCacheVo();
                 shareCacheVo.setStatus(taskDto.getStatus());
+                shareCacheVo.setSyncStatus(taskDto.getSyncStatus());
                 Node sourceNode = getSourceNode(taskDto);
                 if (null != sourceNode) {
                     String connectionId = ((DataParentNode) sourceNode).getConnectionId();
@@ -1910,6 +1914,7 @@ public class TaskServiceImpl extends TaskService{
                 shareCacheVo.setName(taskDto.getName());
                 shareCacheVo.setCreateUser(taskDto.getCreateUser());
                 shareCacheVo.setStatus(taskDto.getStatus());
+                shareCacheVo.setSyncStatus(taskDto.getSyncStatus());
                 shareCacheVo.setStatuses(taskDto.getStatuses());
                 shareCacheVo.setId(taskDto.getId().toString());
                 shareCacheVos.add(shareCacheVo);
@@ -1927,6 +1932,7 @@ public class TaskServiceImpl extends TaskService{
         shareCacheDetailVo.setId(id);
         shareCacheDetailVo.setName(taskDto.getName());
         shareCacheDetailVo.setStatus(taskDto.getStatus());
+        shareCacheDetailVo.setSyncStatus(taskDto.getSyncStatus());
         String connectionId = ((DataNode) sourceNode).getConnectionId();
         DataSourceConnectionDto connectionDto = dataSourceService.findOne(Query.query(Criteria.where("id").is(connectionId)));
         if (null != connectionDto) {
@@ -1955,6 +1961,7 @@ public class TaskServiceImpl extends TaskService{
 
     private TaskDto parseCacheToTaskDto(SaveShareCacheParam saveShareCacheParam, TaskDto taskDto) {
         taskDto.setStatus(TaskDto.STATUS_EDIT);
+        taskDto.setSyncStatus(SyncStatus.NORMAL);
         taskDto.setType(ParentTaskDto.TYPE_CDC);
         taskDto.setShareCache(true);
         taskDto.setLastUpdAt(new Date());
@@ -2767,6 +2774,7 @@ public class TaskServiceImpl extends TaskService{
                         sampleTaskVo.setCreateTime(t.getCreateAt());
                         sampleTaskVo.setLastUpdated(t.getLastUpdAt());
                         sampleTaskVo.setStatus(t.getStatus());
+                        sampleTaskVo.setSyncStatus(t.getSyncStatus());
                         sampleTaskVo.setSyncType(t.getSyncType());
                         sampleTaskVo.setSourceConnectionIds(sourceIds);
                         sampleTaskVo.setTargetConnectionId(tgtIds);
@@ -2851,6 +2859,7 @@ public class TaskServiceImpl extends TaskService{
                 agentGroupService.uploadAgentInfo(taskDto, user);
 
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
+                taskDto.setSyncStatus(SyncStatus.NORMAL);
                 taskDto.setStatuses(new ArrayList<>());
 							taskDto.setAttrs(new HashMap<>()); // 导出任务不保留运行时信息
                 jsonList.add(new TaskUpAndLoadDto("Task", JsonUtil.toJsonUseJackson(taskDto)));
@@ -3668,6 +3677,7 @@ public class TaskServiceImpl extends TaskService{
 
             taskDto.setListtags(null);
             taskDto.setStatus(TaskDto.STATUS_EDIT);
+            taskDto.setSyncStatus(SyncStatus.NORMAL);
             taskDto.setTaskRecordId(new ObjectId().toHexString()); // 导入后不读旧指标数据
 
             Map<String, Object> attrs = taskDto.getAttrs();
@@ -4329,6 +4339,7 @@ public class TaskServiceImpl extends TaskService{
         field.put("status", true);
         TaskDto statusTask = findById(taskDto.getId(), field);
         taskDto.setStatus(statusTask.getStatus());
+        taskDto.setSyncStatus(statusTask.getSyncStatus());
         if ((TaskDto.STATUS_STOP.equals(taskDto.getStatus()) || TaskDto.STATUS_STOPPING.equals(taskDto.getStatus())) && restart) {
             Update update = Update.update("restartFlag", true).set("restartUserId", user.getUserId());
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()));

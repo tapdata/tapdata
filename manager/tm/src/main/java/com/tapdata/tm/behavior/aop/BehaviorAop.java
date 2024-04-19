@@ -8,6 +8,7 @@ import com.tapdata.tm.behavior.service.BehaviorService;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.task.constant.SyncStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -187,6 +188,7 @@ public class BehaviorAop {
                 behavior.getAttrs().put("syncType", taskDto.getSyncType());
                 behavior.getAttrs().put("type", taskDto.getType());
                 behavior.getAttrs().put("status", taskDto.getStatus());
+                behavior.getAttrs().put(SyncStatus.SYN_STATUS, taskDto.getSyncStatus());
                 behaviorService.trace(behavior, userDetail);
             }
         } catch (Exception e) {
@@ -221,6 +223,7 @@ public class BehaviorAop {
                 behavior.getAttrs().put("syncType", taskDto.getSyncType());
                 behavior.getAttrs().put("type", taskDto.getType());
                 behavior.getAttrs().put("status", taskDto.getStatus());
+                behavior.getAttrs().put(SyncStatus.SYN_STATUS, taskDto.getSyncStatus());
                 behaviorService.trace(behavior, userDetail);
             }
         } catch (Exception e) {
@@ -256,6 +259,7 @@ public class BehaviorAop {
                 behavior.getAttrs().put("syncType", taskDto.getSyncType());
                 behavior.getAttrs().put("type", taskDto.getType());
                 behavior.getAttrs().put("status", taskDto.getStatus());
+                behavior.getAttrs().put(SyncStatus.SYN_STATUS, taskDto.getSyncStatus());
                 behaviorService.trace(behavior, userDetail);
             }
         } catch (Exception e) {
