@@ -974,8 +974,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					Map<String, Object> newMap = new HashMap<>();
 					try {
 						MapUtil.deepCloneMap(batchOffsetObj, newMap);
-					} catch (IllegalAccessException | InstantiationException e) {
-						throw new RuntimeException("Deep clone batch offset map failed: " + e.getMessage(), e);
+					} catch (Exception e) {
+						throw new TapCodeException(TaskProcessorExCode_11.SOURCE_CLONE_BATCH_OFFSET_FAILED, e);
 					}
 					tapdataEvent.setBatchOffset(newMap);
 					tapdataEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
