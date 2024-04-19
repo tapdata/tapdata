@@ -1,8 +1,16 @@
 package com.tapdata.entity.dataflow.batch;
 
-import java.io.Serializable;
+import com.tapdata.constant.MapUtil;
+import com.tapdata.exception.CloneException;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
+import org.apache.commons.lang3.SerializationUtils;
 
-public class BatchOffset implements Serializable {
+import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
+
+public class BatchOffset implements Serializable, Cloneable {
     private static final long serialVersionUID = 5599838762323297718L;
 
     public BatchOffset() {
@@ -37,5 +45,26 @@ public class BatchOffset implements Serializable {
     public void setStatus(String status) {
         this.status = status;
     }
+
+	@Override
+	public Object clone() throws CloneNotSupportedException {
+		BatchOffset batchOffset = (BatchOffset) super.clone();
+		batchOffset.setStatus(status);
+		if (offset instanceof Map) {
+			Map<String, Object> newOffset = new HashMap<>();
+			try {
+				MapUtil.deepCloneMap((Map) offset, newOffset);
+				batchOffset.setOffset(newOffset);
+			} catch (IllegalAccessException | InstantiationException e) {
+				throw new CloneException(e);
+			}
+		} else if (offset instanceof Serializable) {
+			batchOffset.setOffset(SerializationUtils.clone((Serializable) offset));
+		} else {
+			byte[] bytes = InstanceFactory.instance(ObjectSerializable.class).fromObject(offset);
+			batchOffset.setOffset(InstanceFactory.instance(ObjectSerializable.class).toObject(bytes));
+		}
+		return batchOffset;
+	}
 
 }
