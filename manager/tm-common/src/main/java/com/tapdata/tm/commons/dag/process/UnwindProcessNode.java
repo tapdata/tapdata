@@ -1,13 +1,13 @@
 package com.tapdata.tm.commons.dag.process;
 
-import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.NodeType;
+import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.schema.TapTable;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -47,6 +47,24 @@ public class UnwindProcessNode extends ProcessorNode {
      The default value is false. */
     private boolean preserveNullAndEmptyArrays;
 
+    /**
+     * The default mode of unwind is embedded.
+     * Embedded will save the original document object in the array,
+     * Flatten mode will flatten the document objects in the array
+     */
+    private UnwindModel unwindModel = UnwindModel.EMBEDDED;
+    /**
+     * When UnwindModel is in Flatten mode, ArrayModel mode needs to be selected.
+     * Object mode means that the selected array only contains object type data, and model derivation only retains subfields.
+     * Mixed mode means that the selected array contains object and primitive type data, model derivation will preserve parent and child fields.
+     * Basic mode means that the selected array contains basic type data and model derivation only retains the parent field.
+     */
+    private ArrayModel arrayModel;
+
+    private String joiner = "_";
+
+    private Map<String,String> flattenMap = new HashMap<>();
+
     public UnwindProcessNode() {
         super("unwind_processor");
     }
@@ -62,30 +80,38 @@ public class UnwindProcessNode extends ProcessorNode {
         Map<String, Field> originFieldMap = fields.stream().collect(Collectors.toMap(Field::getFieldName, f -> f));
         if (originFieldMap.containsKey(path)) {
             fields.remove(originFieldMap.get(path));
-            FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
-            fieldOperation.setType("Map");
-            fieldOperation.setField(path);
-            fieldOperation.setOp("CREATE");
-            fieldOperation.setTableName(outputSchema.getName());
-            fieldOperation.setJava_type("Map");
-            Field field = createField(this.getId(), outputSchema.getOriginalName(), fieldOperation);
-            field.setSource("job_analyze");
-            field.setTapType(FieldModTypeProcessorNode.calTapType("Map"));
-            outputSchema.getFields().add(field);
+            if(UnwindModel.FLATTEN.equals(unwindModel) && !ArrayModel.BASIC.equals(arrayModel) ){
+                fields.forEach(field -> {
+                    if(field.getFieldName().contains(path+".")){
+                        String newFieldName = field.getFieldName().replace(".",joiner);
+                        field.setFieldName(newFieldName);
+                        flattenMap.put(newFieldName,newFieldName.split("\\"+joiner)[1]);
+                    }
+                });
+            }
+            if(UnwindModel.EMBEDDED.equals(unwindModel)) {
+                outputSchema.getFields().add(deductionField("Map",path,outputSchema));
+            }else if(UnwindModel.FLATTEN.equals(unwindModel) && !ArrayModel.OBJECT.equals(arrayModel)) {
+                outputSchema.getFields().add(deductionField("String",path,outputSchema));
+            }
             if (null != includeArrayIndex && !"".equals(includeArrayIndex.trim())) {
-                FieldProcessorNode.Operation operation = new FieldProcessorNode.Operation();
-                operation.setType("Long");
-                operation.setField(includeArrayIndex);
-                operation.setOp("CREATE");
-                operation.setTableName(outputSchema.getName());
-                operation.setJava_type("Long");
-                Field fieldIndex = createField(this.getId(), outputSchema.getOriginalName(), operation);
-                fieldIndex.setSource("job_analyze");
-                fieldIndex.setTapType(FieldModTypeProcessorNode.calTapType("Long"));
-                outputSchema.getFields().add(fieldIndex);
+                outputSchema.getFields().add(deductionField("Long",includeArrayIndex,outputSchema));
             }
         }
         return outputSchema;
+    }
+
+    protected Field deductionField(String type,String path,Schema outputSchema){
+        FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
+        fieldOperation.setType(type);
+        fieldOperation.setField(path);
+        fieldOperation.setOp("CREATE");
+        fieldOperation.setTableName(outputSchema.getName());
+        fieldOperation.setJava_type(type);
+        Field field = createField(this.getId(), outputSchema.getOriginalName(), fieldOperation);
+        field.setSource("job_analyze");
+        field.setTapType(FieldModTypeProcessorNode.calTapType(type));
+        return field;
     }
 
     protected TapTable getTapTable(Node target, TaskDto taskDtoCopy) {
@@ -123,5 +149,37 @@ public class UnwindProcessNode extends ProcessorNode {
 
     public void setPreserveNullAndEmptyArrays(boolean preserveNullAndEmptyArrays) {
         this.preserveNullAndEmptyArrays = preserveNullAndEmptyArrays;
+    }
+
+    public UnwindModel getUnwindModel() {
+        return unwindModel;
+    }
+
+    public void setUnwindModel(UnwindModel unwindModel) {
+        this.unwindModel = unwindModel;
+    }
+
+    public ArrayModel getArrayModel() {
+        return arrayModel;
+    }
+
+    public void setArrayModel(ArrayModel arrayModel) {
+        this.arrayModel = arrayModel;
+    }
+
+    public String getJoiner() {
+        return joiner;
+    }
+
+    public void setJoiner(String joiner) {
+        this.joiner = joiner;
+    }
+
+    public Boolean whetherFlatten(){
+        return this.unwindModel.equals(UnwindModel.FLATTEN);
+    }
+
+    public Map<String,String> getFlattenMap(){
+        return this.flattenMap;
     }
 }

@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Queues;
 import com.hazelcast.jet.core.Inbox;
@@ -9,11 +10,14 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
+import com.tapdata.tm.commons.dag.DmlPolicy;
+import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
@@ -38,6 +42,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TapdataEventException;
+import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
@@ -142,6 +147,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private final ScheduledExecutorService flushOffsetExecutor;
     protected ISyncMetricCollector syncMetricCollector;
 
+	protected Boolean unwindProcess = false;
+
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 //        queueConsumerThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), r -> {
@@ -173,6 +180,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
+		checkUnwindConfiguration();
 	}
 
 	@Override
@@ -228,6 +236,29 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		obsLogger.info("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
 	}
 
+	protected void checkUnwindConfiguration(){
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		taskDto.getDag().getNodes().forEach(node -> {
+			if(node instanceof UnwindProcessNode) this.unwindProcess = true;
+		});
+		if(this.unwindProcess && getNode() instanceof TableNode){
+			DmlPolicy dmlPolicy = ((TableNode)getNode()).getDmlPolicy();
+			if(null != dmlPolicy){
+				DmlPolicyEnum insertPolicy = ((TableNode)getNode()).getDmlPolicy().getInsertPolicy();
+				if( null != insertPolicy && !insertPolicy.equals(DmlPolicyEnum.just_insert)){
+					dmlPolicy.setInsertPolicy(DmlPolicyEnum.just_insert);
+					obsLogger.warn("The node write strategy using Unwind must be just_insert,Will automatically modify the write policy.");
+				}
+			}else{
+				DmlPolicy policy = new DmlPolicy();
+				policy.setInsertPolicy(DmlPolicyEnum.just_insert);
+				policy.setUpdatePolicy(DmlPolicyEnum.ignore_on_nonexists);
+				((TableNode)getNode()).setDmlPolicy(policy);
+				obsLogger.warn("The node write strategy using Unwind must be just_insert,Will automatically modify the write policy.");
+			}
+		}
+	}
+
 	protected boolean createTable(TapTable tapTable, AtomicBoolean succeed) {
 		if (getNode().disabledNode()) {
 			obsLogger.info("Target node has been disabled, task will skip: create table");
@@ -239,9 +270,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			CreateTableFunction createTableFunction = getConnectorNode().getConnectorFunctions().getCreateTableFunction();
 			CreateTableV2Function createTableV2Function = getConnectorNode().getConnectorFunctions().getCreateTableV2Function();
 			createdTable = createTableV2Function != null || createTableFunction != null;
+			TapTable finalTapTable = new TapTable();
+			BeanUtil.copyProperties(tapTable,finalTapTable);
+			if(unwindProcess){
+				ignorePksAndIndices(finalTapTable, null);
+			}
 			if (createdTable) {
-				handleTapTablePrimaryKeys(tapTable);
-				tapCreateTableEvent.set(createTableEvent(tapTable));
+				handleTapTablePrimaryKeys(finalTapTable);
+				tapCreateTableEvent.set(createTableEvent(finalTapTable));
 				executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
 						.createTableEvent(tapCreateTableEvent.get())
 						.connectorContext(getConnectorNode().getConnectorContext())
@@ -264,9 +300,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						.connectorContext(getConnectorNode().getConnectorContext())
 						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
 			}
-			//
-//			String s = JSONUtil.obj2Json(Collections.singletonList(tapTable));
-			clientMongoOperator.insertOne(Collections.singletonList(tapTable),
+			clientMongoOperator.insertOne(Collections.singletonList(finalTapTable),
 					ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
 		} catch (Throwable throwable) {
 			Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);

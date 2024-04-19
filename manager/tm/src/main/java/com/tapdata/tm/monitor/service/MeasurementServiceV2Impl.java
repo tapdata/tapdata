@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.constant.Granularity;
+import com.tapdata.tm.monitor.constant.KeyWords;
 import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
@@ -1022,10 +1023,22 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
             result.add(vo);
         }
-
+        fixSyncRate(result, taskDto);
         return new Page<>(count, result.stream()
                 .sorted(Comparator.comparing(TableSyncStaticVo::getSyncRate).reversed())
                 .collect(Collectors.toList()));
+    }
+
+    protected void fixSyncRate(List<TableSyncStaticVo> tableSyncStaticVos, TaskDto taskDto) {
+        String status = taskDto.getStatus();
+        String type = taskDto.getType();
+        // task is initial_sync and status is complete, than fix sync rate, Do this for now, and then adjust accordingly
+        if (KeyWords.INITIAL_SYNC.equalsIgnoreCase(type) && KeyWords.COMPLETE.equalsIgnoreCase(status)) {
+            tableSyncStaticVos.forEach(t -> {
+                t.setFullSyncStatus(KeyWords.DONE);
+                t.setSyncRate(BigDecimal.ONE);
+            });
+        }
     }
 
 	@Override
