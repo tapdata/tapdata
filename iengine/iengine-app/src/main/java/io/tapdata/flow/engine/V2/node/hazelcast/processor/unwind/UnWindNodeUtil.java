@@ -275,9 +275,10 @@ public class UnWindNodeUtil {
 
     public static void serializationFlattenFields(String path,Map<String, Object> map, Object value,Boolean flatten,String joiner){
         if (null == value || null == map)return;
-        if(value instanceof Map && flatten && StringUtils.isNotBlank(joiner)){
+        if(value instanceof Map && flatten){
            Map<String,Object> object = (Map<String,Object>) value;
            map.remove(path);
+           if(StringUtils.isBlank(joiner))return;
            for(Map.Entry<String, Object> entry :object.entrySet()){
                map.put(path + joiner + entry.getKey(),entry.getValue());
             }
