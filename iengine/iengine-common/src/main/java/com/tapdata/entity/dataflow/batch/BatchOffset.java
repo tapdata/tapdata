@@ -48,23 +48,26 @@ public class BatchOffset implements Serializable, Cloneable {
 
 	@Override
 	public Object clone() throws CloneNotSupportedException {
-		BatchOffset batchOffset = (BatchOffset) super.clone();
-		batchOffset.setStatus(status);
-		if (offset instanceof Map) {
-			Map<String, Object> newOffset = new HashMap<>();
-			try {
-				MapUtil.deepCloneMap((Map) offset, newOffset);
-				batchOffset.setOffset(newOffset);
-			} catch (IllegalAccessException | InstantiationException e) {
-				throw new CloneException(e);
+		Object clone = super.clone();
+		if (clone instanceof BatchOffset) {
+			BatchOffset batchOffset = (BatchOffset) super.clone();
+			batchOffset.setStatus(status);
+			if (offset instanceof Map) {
+				Map<String, Object> newOffset = new HashMap<>();
+				try {
+					MapUtil.deepCloneMap((Map) offset, newOffset);
+					batchOffset.setOffset(newOffset);
+				} catch (IllegalAccessException | InstantiationException e) {
+					throw new CloneException(e);
+				}
+			} else if (offset instanceof Serializable) {
+				batchOffset.setOffset(SerializationUtils.clone((Serializable) offset));
+			} else {
+				byte[] bytes = InstanceFactory.instance(ObjectSerializable.class).fromObject(offset);
+				batchOffset.setOffset(InstanceFactory.instance(ObjectSerializable.class).toObject(bytes));
 			}
-		} else if (offset instanceof Serializable) {
-			batchOffset.setOffset(SerializationUtils.clone((Serializable) offset));
-		} else {
-			byte[] bytes = InstanceFactory.instance(ObjectSerializable.class).fromObject(offset);
-			batchOffset.setOffset(InstanceFactory.instance(ObjectSerializable.class).toObject(bytes));
 		}
-		return batchOffset;
+		return clone;
 	}
 
 }

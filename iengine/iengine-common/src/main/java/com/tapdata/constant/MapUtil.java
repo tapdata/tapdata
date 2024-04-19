@@ -20,6 +20,7 @@ import org.bson.Document;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -260,9 +261,11 @@ public class MapUtil {
 			} else if (value instanceof Cloneable) {
 				Object clone;
 				try {
-					clone = value.getClass().getMethod("clone").invoke(value);
+					Method cloneMethod = value.getClass().getDeclaredMethod("clone");
+					cloneMethod.setAccessible(true);
+					clone = cloneMethod.invoke(value);
 				} catch (InvocationTargetException e) {
-					throw new MapUtilException("Invoke clone method failed, class: " + value.getClass().getName(), e);
+					throw new MapUtilException("Invoke clone method failed, class: " + value.getClass().getName(), null != e.getTargetException() ? e.getTargetException() : e);
 				} catch (NoSuchMethodException e) {
 					throw new MapUtilException("No clone method found, class: " + value.getClass().getName(), e);
 				}
