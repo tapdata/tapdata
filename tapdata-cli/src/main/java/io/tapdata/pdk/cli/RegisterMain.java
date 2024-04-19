@@ -19,7 +19,7 @@ import java.util.Set;
  * @author aplomb
  */
 public class RegisterMain {
-	private static final String BASE_PATH = "/Users/xiao/kit/idea/tapdata-connectors/";//basePath();
+	private static final String BASE_PATH = basePath();
 
 	private enum ConnectorEnums {
 		// Empty(BASE_PATH + "connectors/dist/empty-connector-v1.1-SNAPSHOT.jar", "all", "empty"),
