@@ -110,24 +110,24 @@ class UpdateHandel implements EventHandel {
         List<TapEvent> events = new ArrayList<>();
         Map<String, Object> after = UnWindNodeUtil.getAfter(event);
         Map<String, Object> before = UnWindNodeUtil.getBefore(event);
+        Long referenceTime = ((TapUpdateRecordEvent) event).getReferenceTime();
+        TapDeleteRecordEvent delete = TapDeleteRecordEvent.create();
         if (null == before || before.isEmpty()) {
-            return UnWindNodeUtil.handelList(node, event, after, this);
+            delete.before(after);
         } else {
-            Long referenceTime = ((TapUpdateRecordEvent) event).getReferenceTime();
-            TapDeleteRecordEvent delete = TapDeleteRecordEvent.create();
             delete.before(before);
-            delete.referenceTime(referenceTime);
-            List<TapEvent> deletes = EventHandel.getHandelResult(node, delete);
-            if (null != deletes) {
-                events.addAll(deletes);
-            }
-            TapInsertRecordEvent insert = TapInsertRecordEvent.create();
-            insert.after(after);
-            insert.referenceTime(referenceTime);
-            List<TapEvent> inserts = EventHandel.getHandelResult(node, insert);
-            if (null != inserts) {
-                events.addAll(inserts);
-            }
+        }
+        delete.referenceTime(referenceTime);
+        List<TapEvent> deletes = EventHandel.getHandelResult(node, delete);
+        if (null != deletes) {
+            events.addAll(deletes);
+        }
+        TapInsertRecordEvent insert = TapInsertRecordEvent.create();
+        insert.after(after);
+        insert.referenceTime(referenceTime);
+        List<TapEvent> inserts = EventHandel.getHandelResult(node, insert);
+        if (null != inserts) {
+            events.addAll(inserts);
         }
         return events;
     }
