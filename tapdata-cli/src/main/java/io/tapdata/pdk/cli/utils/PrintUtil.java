@@ -16,33 +16,35 @@ public class PrintUtil {
             printAppend(message);
             return;
         }
-
-        switch (type) {
-            case DEBUG:
-                print(CommandLine.Help.Ansi.AUTO.string("@|fg(250) " + message + "|@"));
-                break;
-            case TIP:
-                print(CommandLine.Help.Ansi.AUTO.string("@|fg(246) " + message + "|@"));
-                break;
-            case INFO:
-                print(CommandLine.Help.Ansi.AUTO.string("@|bold,fg(22) " + message + "|@"));
-                break;
-            case WARN:
-                print(CommandLine.Help.Ansi.AUTO.string("@|bold,yellow,underline " + message + "|@"));
-                break;
-            case IGNORE:
-                print(CommandLine.Help.Ansi.AUTO.string("@|fg(166) " + message + "|@"));
-                break;
-            case ERROR:
-                print(CommandLine.Help.Ansi.AUTO.string("@|fg(124) " + message + "|@"));
-                break;
-            default:
-                print(message);
-        }
+        print(string(type, message));
     }
     public void printAppend(String message) {
         System.out.print(CommandLine.Help.Ansi.AUTO.string("@|bold,fg(250) " + message + "|@"));
     }
+
+    public String string(TYPE type, String message) {
+        switch (type) {
+            case DEBUG:
+                return CommandLine.Help.Ansi.AUTO.string("@|fg(250) " + message + "|@");
+            case TIP:
+                return CommandLine.Help.Ansi.AUTO.string("@|fg(246) " + message + "|@");
+            case INFO:
+                return CommandLine.Help.Ansi.AUTO.string("@|bold,fg(22) " + message + "|@");
+            case WARN:
+                return CommandLine.Help.Ansi.AUTO.string("@|bold,yellow,underline " + message + "|@");
+            case IGNORE:
+                return CommandLine.Help.Ansi.AUTO.string("@|fg(166) " + message + "|@");
+            case ERROR:
+                return CommandLine.Help.Ansi.AUTO.string("@|fg(124) " + message + "|@");
+            case OUTSHOOT:
+                return CommandLine.Help.Ansi.AUTO.string("@|fg(87) " + message + "|@");
+            case UN_OUTSHOOT:
+                return CommandLine.Help.Ansi.AUTO.string("@|fg(243) " + message + "|@");
+            default:
+                return message;
+        }
+    }
+
     public void print(String message) {
         System.out.println(message);
     }
@@ -54,6 +56,9 @@ public class PrintUtil {
         APPEND,
         IGNORE,
         TIP,
-        ERROR
+        ERROR,
+        OUTSHOOT,
+        UN_OUTSHOOT,
+        NORMAL
     }
 }

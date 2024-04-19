@@ -43,7 +43,7 @@ public class UploadFileService {
     List<String> jsons;
     boolean latest;
     String hostAndPort;
-    String accessCode;
+    String token;
     String ak;
     String sk;
     PrintUtil printUtil;
@@ -88,12 +88,12 @@ public class UploadFileService {
       this.hostAndPort = hostAndPort;
     }
 
-    public String getAccessCode() {
-      return accessCode;
+    public String getToken() {
+      return token;
     }
 
-    public void setAccessCode(String accessCode) {
-      this.accessCode = accessCode;
+    public void setToken(String token) {
+      this.token = token;
     }
 
     public String getAk() {
@@ -121,48 +121,51 @@ public class UploadFileService {
     }
   }
 
+  public static boolean isCloud(String ak) {
+    return StringUtils.isNotBlank(ak);
+  }
+
+  public static String findOpToken(String hostAndPort, String accessCode, PrintUtil printUtil) {
+    String token = null;
+    String tokenUrl = hostAndPort + "/api/users/generatetoken";
+    Map<String, String> param = new HashMap<>();
+    param.put("accesscode", accessCode);
+    String jsonString = JSON.toJSONString(param);
+    String s = OkHttpUtils.postJsonParams(tokenUrl, jsonString);
+
+    printUtil.print(PrintUtil.TYPE.DEBUG, "generate token " + s);
+    String error = "* TM sever not found or generate token failed";
+    if (StringUtils.isBlank(s)) {
+      printUtil.print(PrintUtil.TYPE.ERROR, error);
+      return null;
+    }
+
+    Map<?, ?> map = JSON.parseObject(s, Map.class);
+    Object data = map.get("data");
+    if (null == data) {
+      printUtil.print(PrintUtil.TYPE.ERROR, error);
+      return null;
+    }
+    JSONObject data1 = (JSONObject) data;
+    token = (String) data1.get("id");
+    if (StringUtils.isBlank(token)) {
+      printUtil.print(PrintUtil.TYPE.ERROR, error);
+      return token;
+    }
+    return token;
+  }
+
   public static void uploadSourceToTM(Param paramEntity) {
     Map<String, InputStream> inputStreamMap = paramEntity.getInputStreamMap();
     File file = paramEntity.getFile();
     List<String> jsons = paramEntity.jsons;
     boolean latest = paramEntity.latest;
     String hostAndPort = paramEntity.hostAndPort;
-    String accessCode = paramEntity.accessCode;
+    String token = paramEntity.token;
     String ak = paramEntity.ak;
     String sk = paramEntity.sk;
     PrintUtil printUtil = paramEntity.printUtil;
-    boolean cloud = StringUtils.isNotBlank(ak);
-
-
-    String token = null;
-    if (!cloud) {
-
-      String tokenUrl = hostAndPort + "/api/users/generatetoken";
-      Map<String, String> param = new HashMap<>();
-      param.put("accesscode", accessCode);
-      String jsonString = JSON.toJSONString(param);
-      String s = OkHttpUtils.postJsonParams(tokenUrl, jsonString);
-
-      printUtil.print(PrintUtil.TYPE.DEBUG, "generate token " + s);
-      String error = "TM sever not found or generate token failed";
-      if (StringUtils.isBlank(s)) {
-        printUtil.print(PrintUtil.TYPE.ERROR, error);
-        return;
-      }
-
-      Map map = JSON.parseObject(s, Map.class);
-      Object data = map.get("data");
-      if (null == data) {
-        printUtil.print(PrintUtil.TYPE.ERROR, error);
-        return;
-      }
-      JSONObject data1 = (JSONObject) data;
-      token = (String) data1.get("id");
-      if (StringUtils.isBlank(token)) {
-        printUtil.print(PrintUtil.TYPE.ERROR, error);
-        return;
-      }
-    }
+    boolean cloud = isCloud(ak);
 
     Map<String, String> params = new HashMap<>();
     params.put("ts", String.valueOf(System.currentTimeMillis()));
@@ -241,7 +244,6 @@ public class UploadFileService {
     final String method = "POST";
     HttpRequest request;
     if (cloud) {
-
       String bodyHash = Base64Util.encode(digest.digest());
 
       printUtil.print(PrintUtil.TYPE.DEBUG, String.format("bodyHash: %s", bodyHash));
@@ -298,7 +300,7 @@ public class UploadFileService {
 
     String response = request.body();
 
-    Map map = JSON.parseObject(response, Map.class);
+    Map<?, ?> map = JSON.parseObject(response, Map.class);
 
     String msg = "success";
     String result = "success";
@@ -306,7 +308,7 @@ public class UploadFileService {
       msg = map.get("reqId") != null ? (String) map.get("message") : (String) map.get("msg");
       result = "fail";
     }
-    printUtil.print(PrintUtil.TYPE.DEBUG, "result:" + result + ", name:" + (null == file ? "-" : file.getName()) + ", msg:" + msg + ", response:" + response);
+    printUtil.print(PrintUtil.TYPE.DEBUG, "* Register result: " + result + ", name:" + (null == file ? "-" : file.getName()) + ", msg:" + msg + ", response:" + response);
   }
 
   public static RequestBody create(final MediaType mediaType, final InputStream inputStream) {

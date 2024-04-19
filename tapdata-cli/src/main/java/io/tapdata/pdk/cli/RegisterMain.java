@@ -19,7 +19,7 @@ import java.util.Set;
  * @author aplomb
  */
 public class RegisterMain {
-	private static final String BASE_PATH = basePath();
+	private static final String BASE_PATH = "/Users/xiao/kit/idea/tapdata-connectors/";//basePath();
 
 	private enum ConnectorEnums {
 		// Empty(BASE_PATH + "connectors/dist/empty-connector-v1.1-SNAPSHOT.jar", "all", "empty"),
@@ -125,12 +125,16 @@ public class RegisterMain {
 		// -Dserver=http://192.168.1.132:31787
 		// -Dserver=http://192.168.1.181:31321
 		// -Dbeta=true
+		// -Dfilter=GA
+		// -Dthread=4
 
 		List<String> postList = new ArrayList<>();
 		//String server = System.getProperty("server", "https://v3.test.cloud.tapdata.net/tm");
 		String server = System.getProperty("server", "http://localhost:3000");
 		//String server = System.getProperty("server", "http://192.168.1.189:30205");
-		Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "", "-sk", "", "-t", server);
+		String filter = System.getProperty("filter", "");
+		String thread = System.getProperty("filter", "1");
+		Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "", "-sk", "","-f",filter,"-T", thread, "-t", server);
 		String[] tags = System.getProperty("tags", "all").split(",");
 		ConnectorEnums.addByTags(postList, tags);
 		Main.registerCommands().execute(postList.toArray(new String[0]));
