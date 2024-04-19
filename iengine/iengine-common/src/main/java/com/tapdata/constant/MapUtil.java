@@ -262,7 +262,6 @@ public class MapUtil {
 				Object clone;
 				try {
 					Method cloneMethod = value.getClass().getDeclaredMethod("clone");
-					cloneMethod.setAccessible(true);
 					clone = cloneMethod.invoke(value);
 				} catch (InvocationTargetException e) {
 					throw new MapUtilException("Invoke clone method failed, class: " + value.getClass().getName(), null != e.getTargetException() ? e.getTargetException() : e);
