@@ -891,9 +891,6 @@ public class UnwindNodeTest extends BaseTest {
         Map<String, Object> record = new HashMap<>();
         record.put("t","test");
         Document document = new Document("id","id").append("name","test");
-        Map<String,String> flattenMap = new HashMap<>();
-        flattenMap.put("t_id","id");
-        flattenMap.put("t_name","name");
         UnWindNodeUtil.serializationFlattenFields("t",record,document,true,"_");
         Assert.assertEquals(record.get("t_id"),"id");
         Assert.assertEquals(record.get("t_name"),"test");
@@ -913,18 +910,12 @@ public class UnwindNodeTest extends BaseTest {
     public void testObjectIsNull(){
         Map<String, Object> record = new HashMap<>();
         record.put("t","test");
-        Map<String,String> flattenMap = new HashMap<>();
-        flattenMap.put("t_id","id");
-        flattenMap.put("t_name","name");
         UnWindNodeUtil.serializationFlattenFields("t",record,null,true,"_");
         Assert.assertFalse(record.containsKey("t_id"));
     }
 
     @Test
     public void testRecordIsNull(){
-        Map<String,String> flattenMap = new HashMap<>();
-        flattenMap.put("t_id","id");
-        flattenMap.put("t_name","name");
         Document document = new Document("id","id").append("name","test");
         UnWindNodeUtil.serializationFlattenFields("t",null,document,true,"_");
         Assert.assertEquals(document,document);
@@ -932,7 +923,6 @@ public class UnwindNodeTest extends BaseTest {
 
     @Test
     public void testFlattenIsNullObject(){
-        Map<String,String> flattenMap = new HashMap<>();
         Map<String, Object> record = new HashMap<>();
         record.put("t","t");
         String s = "test";
@@ -945,9 +935,6 @@ public class UnwindNodeTest extends BaseTest {
         Map<String, Object> record = new HashMap<>();
         record.put("t","test");
         Document document = new Document("id","id").append("name","test");
-        Map<String,String> flattenMap = new HashMap<>();
-        flattenMap.put("t_id","id");
-        flattenMap.put("t_name","name");
         Map<String,Object> result = UnWindNodeUtil.containsPathAndSetValue("t",record,document,"",1,true,"_");
         Assert.assertEquals(result.get("t_id"),"id");
         Assert.assertEquals(result.get("t_name"),"test");
@@ -958,9 +945,6 @@ public class UnwindNodeTest extends BaseTest {
         Map<String, Object> record = new HashMap<>();
         record.put("t","test");
         Document document = new Document("id","id").append("name","test");
-        Map<String,String> flattenMap = new HashMap<>();
-        flattenMap.put("t_id","id");
-        flattenMap.put("t_name","name");
         Map<String,Object> result = UnWindNodeUtil.containsPathAndSetValue("t.id",record,document,"",1,false,"_");
         Assert.assertNull(result);
     }
@@ -972,9 +956,6 @@ public class UnwindNodeTest extends BaseTest {
         objectMap.put("id","test");
         record.put("t",objectMap);
         Document document = new Document("id","id").append("name","test");
-        Map<String,String> flattenMap = new HashMap<>();
-        flattenMap.put("t_id","id");
-        flattenMap.put("t_name","name");
         Map<String,Object> result = UnWindNodeUtil.containsPathAndSetValue("t.id",record,document,"",1,false,"_");
         Assert.assertNotNull(result);
     }
