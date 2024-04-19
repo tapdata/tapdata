@@ -233,6 +233,16 @@ public class PkdSourceService {
 		}
 		return md5;
 	}
+	public String checkJarMD5(String pdkHash, String fileName){
+		String md5 = null;
+		Criteria criteria = Criteria.where("metadata.pdkHash").is(pdkHash).and("filename").is(fileName);
+		Query query = new Query(criteria);
+		GridFSFile gridFSFile = fileService.findOne(query);
+		if(null != gridFSFile && null != gridFSFile.getMetadata()){
+			md5 = (String) gridFSFile.getMetadata().get("md5");
+		}
+		return md5;
+	}
 
 	public void uploadAndView(String pdkHash, Integer pdkBuildNumber, UserDetail user, PdkFileTypeEnum type, HttpServletResponse response) {
 		Criteria criteria = Criteria.where("pdkHash").is(pdkHash);

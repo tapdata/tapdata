@@ -85,4 +85,8 @@ public class PdkController extends BaseController {
     public ResponseMessage<String> checkFileMd5(@RequestParam("pdkHash") String pdkHash, @RequestParam("pdkBuildNumber") int pdkBuildNumber) {
         return success(pkdSourceService.checkJarMD5(pdkHash, pdkBuildNumber));
     }
+    @GetMapping(value = "/checkMd5")
+    public ResponseMessage<String> checkFileMd5(@RequestParam("pdkHash") String pdkHash, @RequestParam("fileName") String fileName) {
+        return success(pkdSourceService.checkJarMD5(pdkHash, fileName));
+    }
 }
