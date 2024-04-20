@@ -117,7 +117,7 @@ public class PdkUtil {
 					new HashMap<String, Object>(1) {{
 						put("pdkHash", pdkHash);
 						put("pdkBuildNumber", CommonUtils.getPdkBuildNumer());
-					}}, "/pdk/checkMd5", String.class);
+					}}, "/pdk/checkMd5/v2", String.class);
 			 if (null != md5){
 				 fileMd5Map.put(pdkHash, md5);
 			 }
