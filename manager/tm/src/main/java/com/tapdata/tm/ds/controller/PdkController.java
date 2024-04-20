@@ -81,7 +81,7 @@ public class PdkController extends BaseController {
                             HttpServletResponse response) {
         pkdSourceService.uploadAndView(pdkHash, null, getLoginUser(),PdkFileTypeEnum.MARKDOWN, response);
     }
-    @GetMapping(value = "/checkMd5")
+    @GetMapping(value = "/checkMd5/v2")
     public ResponseMessage<String> checkFileMd5(@RequestParam("pdkHash") String pdkHash, @RequestParam("pdkBuildNumber") int pdkBuildNumber) {
         return success(pkdSourceService.checkJarMD5(pdkHash, pdkBuildNumber));
     }
