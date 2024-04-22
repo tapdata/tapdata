@@ -9,7 +9,8 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.exception.NotSupportRecordEventTypeException;
+import io.tapdata.error.EngineExCode_33;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.PartitionResult;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.PartitionKeySelector;
@@ -35,6 +36,7 @@ import java.util.stream.IntStream;
  **/
 public class PartitionConcurrentProcessor {
 
+	public static final String PROCESS_QUEUE_IF_FULL_WAITING_FOR_ENQUEUE_MESSAGE = "process queue if full, waiting for enqueue";
 	private final String concurrentProcessThreadNamePrefix;
 
 	private static final String LOG_PREFIX = "[partition concurrent] ";
@@ -242,6 +244,8 @@ public class PartitionConcurrentProcessor {
 				}
 				if (tapdataEvent.isDML()) {
 					offsetEvent = processDML(tapdataEvent, singleMode);
+				} else if (tapdataEvent.isDDL()) {
+					processDDL(tapdataEvent);
 				} else {
 					if (tapdataEvent.isConcurrentWrite()) {
 						processSignalConcurrent(tapdataEvent);
@@ -282,7 +286,7 @@ public class PartitionConcurrentProcessor {
 
 			final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(partition);
 			final NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
-			offer2QueueIfRunning(queue, normalEvent, wrapPartitionErrorMsg(partition, "process queue if full, waiting for enqueue."));
+			offer2QueueIfRunning(queue, normalEvent, wrapPartitionErrorMsg(partition, PROCESS_QUEUE_IF_FULL_WAITING_FOR_ENQUEUE_MESSAGE));
 			if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
 				return tapdataEvent;
 			}
@@ -295,25 +299,24 @@ public class PartitionConcurrentProcessor {
 		return null;
 	}
 
-	protected void processDDL(TapdataEvent tapdataEvent, AtomicBoolean singleMode) throws InterruptedException {
-		singleMode.set(true);
+	protected void processDDL(TapdataEvent tapdataEvent) throws InterruptedException {
 		generateBarrierEvent();
 		final NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
-		offer2QueueIfRunning(partitionsQueue.get(DEFAULT_PARTITION), normalEvent, wrapPartitionErrorMsg(DEFAULT_PARTITION, "process queue if full, waiting for enqueue."));
+		offer2QueueIfRunning(partitionsQueue.get(DEFAULT_PARTITION), normalEvent, wrapPartitionErrorMsg(DEFAULT_PARTITION, PROCESS_QUEUE_IF_FULL_WAITING_FOR_ENQUEUE_MESSAGE));
 		waitingForProcessToCurrent();
 	}
 
 	protected void processSignalConcurrent(TapdataEvent tapdataEvent) throws InterruptedException {
 		LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(DEFAULT_PARTITION);
 		NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
-		offer2QueueIfRunning(queue, normalEvent, wrapPartitionErrorMsg(0, "process queue if full, waiting for enqueue."));
+		offer2QueueIfRunning(queue, normalEvent, wrapPartitionErrorMsg(0, PROCESS_QUEUE_IF_FULL_WAITING_FOR_ENQUEUE_MESSAGE));
 	}
 
 	protected void processSignalWithWait(TapdataEvent tapdataEvent) throws InterruptedException {
 		generateBarrierEvent();
 		LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(DEFAULT_PARTITION);
 		NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
-		offer2QueueIfRunning(queue, normalEvent, wrapPartitionErrorMsg(0, "process queue if full, waiting for enqueue."));
+		offer2QueueIfRunning(queue, normalEvent, wrapPartitionErrorMsg(0, PROCESS_QUEUE_IF_FULL_WAITING_FOR_ENQUEUE_MESSAGE));
 		waitingForProcessToCurrent();
 	}
 
@@ -333,7 +336,7 @@ public class PartitionConcurrentProcessor {
 			}
 		}
 
-		throw new NotSupportRecordEventTypeException(tapEvent.getClass().getName());
+		throw new TapCodeException(EngineExCode_33.NOT_SUPPORT_RECORD_EVENT_TYPE_EXCEPTION, "Not support TapRecordEvent type: " + tapEvent.getClass().getName());
 	}
 
 	protected boolean waitCountDownLath(CountDownLatch countDownLatch, Runnable traceOfEnabled) throws InterruptedException {
