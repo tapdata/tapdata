@@ -156,7 +156,72 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class TaskServiceImpl extends TaskService{
-    protected static final String CATALOG = "catalog";
+    public static final String USER_ID = "user_id";
+    public static final String COLLECTION_ID = "collectionId";
+    protected static final String PROCESSOR_THREAD_NUM="processorThreadNum";
+    protected static final String CATALOG="catalog";
+    protected static final String ELEMENT_TYEP="elementType";
+    protected static final String PROCESSOR="processor";
+    public static final String RM_ID_KEY = "rm_id";
+    public static final String SYNC_TYPE = "syncType";
+    public static final String ILLEGAL_ARGUMENT = "IllegalArgument";
+    public static final String INITIAL_SYNC_CDC = "initial_sync+cdc";
+    public static final String QUALIFIED_NAME = "qualified_name";
+    public static final String FIELDS = "fields";
+    public static final String IS_DELETED = "is_deleted";
+    public static final String THE_COPIED_TASK_DOES_NOT_EXIST = "The copied task does not exist";
+    public static final String CRONTAB_EXPRESSION_FLAG = "crontabExpressionFlag";
+    public static final String CONNECTION_ID = "connectionId";
+    public static final String TM_CURRENT_TIME = "tmCurrentTime";
+    public static final String PLAN_START_DATE_FLAG = "planStartDateFlag";
+    public static final String IS_PRIMARY_KEY = "isPrimaryKey";
+    public static final String INITIAL_SYNC = "initial_sync";
+    public static final String CURRENT_EVENT_TIMESTAMP = "currentEventTimestamp";
+    public static final String ATTRS = "attrs";
+    public static final String SYNC_POINTS = "syncPoints";
+    public static final String DAG_NODES = "dag.nodes";
+    public static final String REGEX = "$regex";
+    public static final String DELETE_TASK_HANDLE_EXCEPTION_ERROR_TASK_ID = "delete task, handle exception error, task id = {}";
+    public static final String TOTAL = "total";
+    public static final String CONNECTION_NAME = "connectionName";
+    public static final String TABLE = "table";
+    public static final String TASK_LIST_WARN_MESSAGE = "Task.ListWarnMessage";
+    public static final String EDGE_MILESTONES = "edgeMilestones";
+    public static final String SYNC_PROGRESS = "syncProgress";
+    public static final String TASK_NOT_FOUND = "Task.NotFound";
+    public static final String STATUS = "status";
+    public static final String CREATE_TIME = "createTime";
+    public static final String DAG_NODES_CONNECTION_ID = "dag.nodes.connectionId";
+    public static final String TABLE_NAME = "tableName";
+    public static final String COUNT = "count";
+    public static final String DATETIME_PATTERN = "yyyyMMdd";
+    public static final String METADATA_INSTANCES = "MetadataInstances";
+    public static final String CHILDREN = "children";
+    public static final String TARGET_PATH = "targetPath";
+    public static final String FIELD = "field";
+    public static final String COLLECTIONS = "collections";
+    public static final String RELATIONSHIPS = "relationships";
+    public static final String TASK_IMPORT_FORMAT_ERROR = "Task.ImportFormatError";
+    public static final String START_TIME = "startTime";
+    public static final String STOP_RETRY_TIMES = "stopRetryTimes";
+    public static final String SCHEDULE_DATE = "scheduleDate";
+    public static final String FUNCTION_RETRY_STATUS = "functionRetryStatus";
+    public static final String TASK_ID = "taskId";
+    public static final String MAPPINGS = "mappings";
+    public static final String TASK_RECORD_ID = "taskRecordId";
+    public static final String RESTART_FLAG = "restartFlag";
+    public static final String AGENT_ID = "agentId";
+    public static final String SOURCE = "source";
+    public static final String EMBEDDED_PATH = "embeddedPath";
+    public static final String COLUMN = "column";
+    public static final String STOPED_DATE = "stopedDate";
+    public static final String TARGET = "target";
+
+    @NotNull
+    private static String getTableName() {
+        return TABLE_NAME;
+    }
+
     private MessageServiceImpl messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private InspectService inspectService;
@@ -227,8 +292,8 @@ public class TaskServiceImpl extends TaskService{
 	public Supplier<TaskDto> dataPermissionFindById(ObjectId taskId, Field fields) {
 		return () -> {
 			if (null != fields) {
-				fields.put("user_id", true);
-				fields.put("syncType", true);
+				fields.put(USER_ID, true);
+				fields.put(SYNC_TYPE, true);
 				fields.put(DataPermissionHelper.FIELD_NAME, true);
 				fields.put(ConnHeartbeatUtils.TASK_RELATION_FIELD, true);
 			}
@@ -377,7 +442,7 @@ public class TaskServiceImpl extends TaskService{
         taskDto.setShareCdcEnable(getBoolValue(taskDto.getShareCdcEnable(), false));
 
         // 类型 [{label: '全量+增量', value: 'initial_sync+cdc'}, {label: '全量', value: 'initial_sync'}, {label: '增量', value: 'cdc'} ]
-        taskDto.setType(getStringValue(taskDto.getType(), "initial_sync+cdc"));
+        taskDto.setType(getStringValue(taskDto.getType(), INITIAL_SYNC_CDC));
 
         // 目标写入线程数
         taskDto.setWriteThreadSize(getIntValue(taskDto.getWriteThreadSize(), 8));
@@ -387,17 +452,6 @@ public class TaskServiceImpl extends TaskService{
         // 删除标记
         taskDto.set_deleted(false);
         taskDto.setStatuses(new ArrayList<>());
-    }
-
-    private void handleMessage(TaskDto taskDto, Map<String, List<Message>> validateMessage) {
-        log.debug("handle error message, task id = {}", taskDto.getId());
-        if (validateMessage.size() != 0) {
-            List<Message> messages = new ArrayList<>();
-            for (List<Message> value : validateMessage.values()) {
-                messages.addAll(value);
-            }
-            taskDto.setMessage(messages);
-        }
     }
 
     protected void beforeSave(TaskDto task, UserDetail user) {
@@ -574,81 +628,6 @@ public class TaskServiceImpl extends TaskService{
         return save(taskDto, user);
     }
 
-    private void supplementMigrateFieldMapping(TaskDto taskDto, UserDetail userDetail) {
-        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
-            return;
-        }
-
-        DAG dag = taskDto.getDag();
-        if (Objects.isNull(dag) || CollectionUtils.isEmpty(dag.getNodes())) {
-            return;
-        }
-
-        dag.getNodes().forEach(node -> {
-            if (node instanceof MigrateFieldRenameProcessorNode) {
-                MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) node;
-                LinkedList<TableFieldInfo> fieldsMapping = fieldNode.getFieldsMapping();
-
-                if (CollectionUtils.isNotEmpty(fieldsMapping)) {
-                    List<String> tableNames = fieldsMapping.stream()
-                            .map(TableFieldInfo::getOriginTableName)
-                            .collect(Collectors.toList());
-                    LinkedList<Node<?>> preNodes = node.getDag().getPreNodes(node.getId());
-                    if (CollectionUtils.isEmpty(preNodes)) {
-                        return;
-                    }
-                    Node previousNode = preNodes.getLast();
-
-                    List<MetadataInstancesDto> metaList = metadataInstancesService.findByNodeId(previousNode.getId(),
-                            userDetail, taskDto.getId().toHexString(), "qualified_name", "fields");
-                    Map<String, List<com.tapdata.tm.commons.schema.Field>> fieldMap = metaList.stream()
-                            .collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getFields));
-                    fieldsMapping.forEach(table -> {
-                        Operation operation = table.getOperation();
-                        LinkedList<FieldInfo> fields = table.getFields();
-
-                        List<String> fieldNames = Lists.newArrayList();
-                        if (CollectionUtils.isNotEmpty(fields)) {
-                            fieldNames = fields.stream().map(FieldInfo::getSourceFieldName).collect(Collectors.toList());
-                        }
-
-                        List<String> hiddenFields = table.getFields().stream().filter(t -> !t.getIsShow())
-                                .map(FieldInfo::getSourceFieldName)
-                                .collect(Collectors.toList());
-
-                        List<com.tapdata.tm.commons.schema.Field> tableFields = fieldMap.get(table.getOriginTableName());
-                        if (CollectionUtils.isNotEmpty(tableFields)) {
-                            for (com.tapdata.tm.commons.schema.Field field : tableFields) {
-                                String targetFieldName = field.getFieldName();
-                                if (!fieldNames.contains(targetFieldName)) {
-                                    if (CollectionUtils.isNotEmpty(hiddenFields) && hiddenFields.contains(targetFieldName)) {
-                                        continue;
-                                    }
-
-                                    if (StringUtils.isNotBlank(operation.getPrefix())) {
-                                        targetFieldName = operation.getPrefix().concat(targetFieldName);
-                                    }
-                                    if (StringUtils.isNotBlank(operation.getSuffix())) {
-                                        targetFieldName = targetFieldName.concat(operation.getSuffix());
-                                    }
-                                    if (StringUtils.isNotBlank(operation.getCapitalized())) {
-                                        if (CapitalizedEnum.fromValue(operation.getCapitalized()) == CapitalizedEnum.UPPER) {
-                                            targetFieldName = StringUtils.upperCase(targetFieldName);
-                                        } else {
-                                            targetFieldName = StringUtils.lowerCase(targetFieldName);
-                                        }
-                                    }
-                                    FieldInfo fieldInfo = new FieldInfo(field.getFieldName(), targetFieldName, true, "system");
-                                    fields.add(fieldInfo);
-                                }
-                            }
-                        }
-                    });
-                }
-            }
-        });
-    }
-
 
     public TaskDto updateShareCacheTask(String id, SaveShareCacheParam saveShareCacheParam, UserDetail user) {
         TaskDto taskDto = findById(MongoUtils.toObjectId(id));
@@ -676,7 +655,7 @@ public class TaskServiceImpl extends TaskService{
 
     public boolean checkTaskNameNotError(String newName, UserDetail user, ObjectId id) {
 
-        Criteria criteria = Criteria.where("name").is(newName).and("is_deleted").ne(true);
+        Criteria criteria = Criteria.where("name").is(newName).and(IS_DELETED).ne(true);
         if (id != null) {
             criteria.and("_id").ne(id);
         }
@@ -756,23 +735,11 @@ public class TaskServiceImpl extends TaskService{
 //        }
     }
 
-    private void saveInspect(TaskDto existedTask, TaskDto taskDto, UserDetail userDetail) {
-        try {
-            ObjectId taskId = taskDto.getId();
-            if (isInspectPropertyChanged(existedTask, taskDto)) {
-                inspectService.deleteByTaskId(taskId.toString());
-                inspectService.saveInspect(taskDto, userDetail);
-            }
-        } catch (Exception e) {
-            log.error("新建校验任务出错 {}", e.getMessage());
-        }
-    }
-
 
     //编辑一个复制，要根据属性判断是否删除原来的inspect
     //源数据库或者目标数据库变动，要删除
     //源表或者目标秒变动，要删除
-    private Boolean isInspectPropertyChanged(TaskDto existedTask, TaskDto newTask) {
+    protected Boolean isInspectPropertyChanged(TaskDto existedTask, TaskDto newTask) {
         Boolean changed = false;
 
         DatabaseNode existedSourceDataNode = (DatabaseNode) getSourceNode(existedTask);
@@ -782,6 +749,10 @@ public class TaskServiceImpl extends TaskService{
         DatabaseNode newSourceDataNode = (DatabaseNode) getSourceNode(newTask);
         DatabaseNode newTargetDataNode = (DatabaseNode) getTargetNode(newTask);
 
+        if (null == existedSourceDataNode || null == existedTargetDataNode ||
+                null == newSourceDataNode || null == newTargetDataNode){
+            throw new BizException(ILLEGAL_ARGUMENT,"dataNode");
+        }
         if (!existedSourceDataNode.getName().equals(newSourceDataNode.getName()) ||
                 !existedTargetDataNode.getName().equals(newTargetDataNode.getName())
         ) {
@@ -789,8 +760,8 @@ public class TaskServiceImpl extends TaskService{
         } else {
             List<SyncObjects> newSyncObjects = newTargetDataNode.getSyncObjects();
             List<SyncObjects> existedSyncObjects = existedTargetDataNode.getSyncObjects();
-            Optional<SyncObjects> newTableSyncObject = newSyncObjects.stream().filter(e -> "table".equals(e.getType())).findFirst();
-            Optional<SyncObjects> existedTableSyncObject = existedSyncObjects.stream().filter(e -> "table".equals(e.getType())).findFirst();
+            Optional<SyncObjects> newTableSyncObject = newSyncObjects.stream().filter(e -> TABLE.equals(e.getType())).findFirst();
+            Optional<SyncObjects> existedTableSyncObject = existedSyncObjects.stream().filter(e -> TABLE.equals(e.getType())).findFirst();
 
             if (existedTableSyncObject.isPresent() && newTableSyncObject.isPresent()) {
                 List<String> existedSourceTableNames = existedTableSyncObject.get().getObjectNames();
@@ -825,7 +796,7 @@ public class TaskServiceImpl extends TaskService{
             if (!importTask) {
                 Map<String, List<Message>> validateMessage = dag.validate();
                 if (!validateMessage.isEmpty()) {
-                    throw new BizException("Task.ListWarnMessage", validateMessage);
+                    throw new BizException(TASK_LIST_WARN_MESSAGE, validateMessage);
                 }
             }
         }
@@ -883,7 +854,7 @@ public class TaskServiceImpl extends TaskService{
         }
         if (!validateMessage.isEmpty()) {
             if (showListMsg) {
-                throw new BizException("Task.ListWarnMessage", validateMessage);
+                throw new BizException(TASK_LIST_WARN_MESSAGE, validateMessage);
             } else {
                 Message message = validateMessage.values().iterator().next().get(0);
                 throw new BizException(message.getCode(), message.getMsg());
@@ -979,7 +950,7 @@ public class TaskServiceImpl extends TaskService{
         //将任务删除标识改成true
         ObjectId id = taskDto.getId();
         Update update = resetUpdate();
-        update.set("is_deleted", true);
+        update.set(IS_DELETED, true);
         update(new Query(Criteria.where("_id").is(id)), update);
 
         //delete AutoInspectResults
@@ -1017,7 +988,7 @@ public class TaskServiceImpl extends TaskService{
             log.error("停止异常，但是共享缓存仍然删除 {}", e.getMessage());
         }
         //将任务删除标识改成true
-        update(new Query(Criteria.where("_id").is(id)), Update.update("is_deleted", true));
+        update(new Query(Criteria.where("_id").is(id)), Update.update(IS_DELETED, true));
 //        remove(id, user);
     }
 
@@ -1139,8 +1110,8 @@ public class TaskServiceImpl extends TaskService{
         }
         Map<String, Object> attrs = taskDto.getAttrs();
         if (null != attrs) {
-            attrs.remove("edgeMilestones");
-            attrs.remove("syncProgress");
+            attrs.remove(EDGE_MILESTONES);
+            attrs.remove(SYNC_PROGRESS);
         }
         //taskDto.setTemp(null);
         if(!checkCloudTaskLimit(id,user,false)){
@@ -1238,7 +1209,9 @@ public class TaskServiceImpl extends TaskService{
                 Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId);
                 updateById(id.toHexString(), update, user);
 
-                taskSnapshot.setTaskRecordId(lastTaskRecordId);
+                if (null != taskSnapshot){
+                    taskSnapshot.setTaskRecordId(lastTaskRecordId);
+                }
                 disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
                         new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, system ? "system" : user.getUserId(), new Date()));
             }
@@ -1285,7 +1258,7 @@ public class TaskServiceImpl extends TaskService{
     public TaskDto checkExistById(ObjectId id, UserDetail user) {
         TaskDto taskDto = findById(id, user);
         if (taskDto == null) {
-            throw new BizException("Task.NotFound", "The copied task does not exist");
+            throw new BizException(TASK_NOT_FOUND, THE_COPIED_TASK_DOES_NOT_EXIST);
         }
 
         return taskDto;
@@ -1305,7 +1278,7 @@ public class TaskServiceImpl extends TaskService{
         }
         TaskDto taskDto = findOne(query, user);
         if (taskDto == null) {
-            throw new BizException("Task.NotFound", "The copied task does not exist");
+            throw new BizException(TASK_NOT_FOUND, THE_COPIED_TASK_DOES_NOT_EXIST);
         }
 
         return taskDto;
@@ -1324,7 +1297,7 @@ public class TaskServiceImpl extends TaskService{
         }
         TaskDto taskDto = findOne(query);
         if (taskDto == null) {
-            throw new BizException("Task.NotFound", "The copied task does not exist");
+            throw new BizException(TASK_NOT_FOUND, THE_COPIED_TASK_DOES_NOT_EXIST);
         }
 
         return taskDto;
@@ -1361,7 +1334,7 @@ public class TaskServiceImpl extends TaskService{
                         mutiResponseMessage.setCode(responseMessage.getCode());
                         mutiResponseMessage.setMessage(responseMessage.getMessage());
                     } catch (Throwable ex) {
-                        log.warn("delete task, handle exception error, task id = {}", task.getId().toHexString());
+                        log.warn(DELETE_TASK_HANDLE_EXCEPTION_ERROR_TASK_ID, task.getId().toHexString());
                     }
                 }
             }
@@ -1372,7 +1345,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public int subCronOrPlanNum(TaskDto task, int runningNum) {
-        TaskDto taskScheduleFlag = findByTaskId(task.getId(), "planStartDateFlag", "crontabExpressionFlag");
+        TaskDto taskScheduleFlag = findByTaskId(task.getId(), PLAN_START_DATE_FLAG, CRONTAB_EXPRESSION_FLAG);
         if (checkIsCronOrPlanTask(taskScheduleFlag) && runningNum > 0) {
             runningNum -= 1;
         }
@@ -1408,7 +1381,7 @@ public class TaskServiceImpl extends TaskService{
                         mutiResponseMessage.setCode(responseMessage.getCode());
                         mutiResponseMessage.setMessage(responseMessage.getMessage());
                     } catch (Throwable ex) {
-                        log.warn("delete task, handle exception error, task id = {}",  taskId.toHexString());
+                        log.warn(DELETE_TASK_HANDLE_EXCEPTION_ERROR_TASK_ID,  taskId.toHexString());
                     }
                 }
             }
@@ -1447,7 +1420,7 @@ public class TaskServiceImpl extends TaskService{
                         mutiResponseMessage.setCode(responseMessage.getCode());
                         mutiResponseMessage.setMessage(responseMessage.getMessage());
                     } catch (Throwable ex) {
-                        log.warn("delete task, handle exception error, task id = {}",  taskId.toHexString());
+                        log.warn(DELETE_TASK_HANDLE_EXCEPTION_ERROR_TASK_ID,  taskId.toHexString());
                     }
                 }
             }
@@ -1478,7 +1451,7 @@ public class TaskServiceImpl extends TaskService{
                         mutiResponseMessage.setCode(responseMessage.getCode());
                         mutiResponseMessage.setMessage(responseMessage.getMessage());
                     } catch (Throwable ex) {
-                        log.warn("delete task, handle exception error, task id = {}",  taskId.toHexString());
+                        log.warn(DELETE_TASK_HANDLE_EXCEPTION_ERROR_TASK_ID,  taskId.toHexString());
                     }
                 }
             }
@@ -1509,17 +1482,17 @@ public class TaskServiceImpl extends TaskService{
             where = new Where();
             filter.setWhere(where);
         }
-        if (where.get("status") == null) {
+        if (where.get(STATUS) == null) {
             Document statusCondition = new Document();
             statusCondition.put("$nin", Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING));
-            where.put("status", statusCondition);
+            where.put(STATUS, statusCondition);
         }
         //过滤掉挖掘任务
-        String syncType = (String) where.get("syncType");
+        String syncType = (String) where.get(SYNC_TYPE);
         if (StringUtils.isBlank(syncType)) {
             Document logCollectorFilter = new Document();
             logCollectorFilter.put("$nin", Lists.of(TaskDto.SYNC_TYPE_LOG_COLLECTOR, TaskDto.SYNC_TYPE_CONN_HEARTBEAT));
-            where.put("syncType", logCollectorFilter);
+            where.put(SYNC_TYPE, logCollectorFilter);
         }
 
         //过滤调共享缓存任务
@@ -1528,17 +1501,17 @@ public class TaskServiceImpl extends TaskService{
         where.put("shareCache", notShareCache);
 
 
-        Boolean deleted = (Boolean) where.get("is_deleted");
+        Boolean deleted = (Boolean) where.get(IS_DELETED);
         if (deleted == null) {
             Document document = new Document();
             document.put("$ne", true);
-            where.put("is_deleted", document);
+            where.put(IS_DELETED, document);
         }
 
         Page<TaskDto> taskDtoPage = new Page<>();
         List<TaskDto> items = new ArrayList<>();
-        if (where.get("syncType") != null && (where.get("syncType") instanceof String)) {
-            String synType = (String) where.get("syncType");
+        if (where.get(SYNC_TYPE) != null && (where.get(SYNC_TYPE) instanceof String)) {
+            String synType = (String) where.get(SYNC_TYPE);
             if (SyncType.MIGRATE.getValue().equals(synType)) {
                 taskDtoPage = findDataCopyList(filter, userDetail);
             } else if (SyncType.SYNC.getValue().equals(synType)) {
@@ -1586,7 +1559,12 @@ public class TaskServiceImpl extends TaskService{
                             total += dto.getTotal();
                             finished += dto.getFinished();
                         }
-                        double process = finished / (total * 1d);
+                        double process;
+                        if (total == 0){
+                            process = 0;
+                        }else {
+                            process = finished / (total * 1d);
+                        }
                         if (process > 1) {
                             process = 1;
                         }
@@ -1672,7 +1650,7 @@ public class TaskServiceImpl extends TaskService{
      * @param userDetail
      * @return
      */
-    private Page<TaskDto> findDataCopyList(Filter filter, UserDetail userDetail) {
+    protected Page<TaskDto> findDataCopyList(Filter filter, UserDetail userDetail) {
         Where where = filter.getWhere();
 
         Criteria criteria = new Criteria();
@@ -1697,7 +1675,7 @@ public class TaskServiceImpl extends TaskService{
         criteria.andOperator(orToCriteria);
         query.addCriteria(criteria);
 			if (!userDetail.isRoot() && !DataPermissionHelper.setFilterConditions(true, query, userDetail)) {
-					criteria.and("user_id").is(userDetail.getUserId());
+					criteria.and(USER_ID).is(userDetail.getUserId());
 			}
 
         TmPageable tmPageable = new TmPageable();
@@ -1706,7 +1684,7 @@ public class TaskServiceImpl extends TaskService{
         tmPageable.setSize(filter.getLimit());
 
         String order = filter.getOrder() == null ? "createTime DESC" : String.valueOf(filter.getOrder());
-        String sortKey = order.contains("currentEventTimestamp") ? "currentEventTimestamp" : "createTime";
+        String sortKey = order.contains(CURRENT_EVENT_TIMESTAMP) ? CURRENT_EVENT_TIMESTAMP : CREATE_TIME;
         if (order.contains("ASC")) {
             tmPageable.setSort(Sort.by(sortKey).ascending());
         } else {
@@ -1745,7 +1723,7 @@ public class TaskServiceImpl extends TaskService{
      * @param userDetail
      * @return
      */
-    private Page<TaskDto> findDataDevList(Filter filter, UserDetail userDetail) {
+    protected Page<TaskDto> findDataDevList(Filter filter, UserDetail userDetail) {
         Query query = repository.filterToQuery(filter);
         query.limit(100000);
         query.skip(0);
@@ -1761,7 +1739,7 @@ public class TaskServiceImpl extends TaskService{
         return taskDtoPage;
     }
 
-    private Node getSourceNode(TaskDto taskDto) {
+    protected Node getSourceNode(TaskDto taskDto) {
         DAG dag = taskDto.getDag();
         if (dag == null) {
             return null;
@@ -1782,7 +1760,7 @@ public class TaskServiceImpl extends TaskService{
         return null;
     }
 
-    private Node getTargetNode(TaskDto taskDto) {
+    protected Node getTargetNode(TaskDto taskDto) {
         List<Edge> edges = taskDto.getDag().getEdges();
         if (CollectionUtils.isNotEmpty(edges)) {
             Edge edge = edges.get(0);
@@ -1818,13 +1796,6 @@ public class TaskServiceImpl extends TaskService{
      * @return 返回共享缓存任务的id, 起止时间
      */
     public LogCollectorResult searchLogCollector(String key) {
-        Criteria criteriaConnectionIds = Criteria.where("connectionIds").elemMatch(Criteria.where("$eq").is(key));
-        Criteria criteriaTables = Criteria.where("tableNames").elemMatch(Criteria.where("$eq").is(key));
-        Criteria criteria = Criteria.where("is_deleted").is(false).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector")
-                .orOperator(criteriaConnectionIds, criteriaTables));
-
-        Query query = new Query(criteria);
-        //query.fields().include()
         return new LogCollectorResult();
     }
 
@@ -1859,13 +1830,13 @@ public class TaskServiceImpl extends TaskService{
     public Page<ShareCacheVo> findShareCache(Filter filter, UserDetail userDetail) {
         Where where = filter.getWhere();
         List<String> connectionIds = new ArrayList();
-        if (null != where.get("connectionName")) {
-            Map connectionName = (Map) where.remove("connectionName");
-            String conectionNameStr = (String) connectionName.remove("$regex");
+        if (null != where.get(CONNECTION_NAME)) {
+            Map connectionName = (Map) where.remove(CONNECTION_NAME);
+            String conectionNameStr = (String) connectionName.remove(REGEX);
             connectionIds = dataSourceService.findIdByName(conectionNameStr);
             Map<String, Object> connectioIdMap = new HashMap<>();
             connectioIdMap.put("$in", connectionIds);
-            where.put("dag.nodes.connectionId", connectioIdMap);
+            where.put(DAG_NODES_CONNECTION_ID, connectioIdMap);
         }
 
 
@@ -1889,7 +1860,7 @@ public class TaskServiceImpl extends TaskService{
                     shareCacheVo.setTableName(tableName);
                     shareCacheVo.setCreateTime(taskDto.getCreateAt());
                     if (null != sourceNode.getAttrs()) {
-                        shareCacheVo.setFields((List<String>) sourceNode.getAttrs().get("fields"));
+                        shareCacheVo.setFields((List<String>) sourceNode.getAttrs().get(FIELDS));
                     }
 
                     if (taskDto.getCurrentEventTimestamp() != null) {
@@ -1931,6 +1902,9 @@ public class TaskServiceImpl extends TaskService{
         shareCacheDetailVo.setName(taskDto.getName());
         shareCacheDetailVo.setStatus(taskDto.getStatus());
         shareCacheDetailVo.setSyncStatus(taskDto.getSyncStatus());
+        if (null == sourceNode || null == targetNode){
+            throw new BizException(ILLEGAL_ARGUMENT,"sourceNode");
+        }
         String connectionId = ((DataNode) sourceNode).getConnectionId();
         DataSourceConnectionDto connectionDto = dataSourceService.findOne(Query.query(Criteria.where("id").is(connectionId)));
         if (null != connectionDto) {
@@ -1943,7 +1917,7 @@ public class TaskServiceImpl extends TaskService{
         shareCacheDetailVo.setCreateTime(taskDto.getCreateAt());
         shareCacheDetailVo.setCreateUser(taskDto.getCreateUser());
         if (null != sourceNode.getAttrs()) {
-            shareCacheDetailVo.setFields((List<String>) sourceNode.getAttrs().get("fields"));
+            shareCacheDetailVo.setFields((List<String>) sourceNode.getAttrs().get(FIELDS));
         }
 
         if (taskDto.getCurrentEventTimestamp() != null) {
@@ -1957,7 +1931,7 @@ public class TaskServiceImpl extends TaskService{
         return shareCacheDetailVo;
     }
 
-    private TaskDto parseCacheToTaskDto(SaveShareCacheParam saveShareCacheParam, TaskDto taskDto) {
+    protected TaskDto parseCacheToTaskDto(SaveShareCacheParam saveShareCacheParam, TaskDto taskDto) {
         taskDto.setStatus(TaskDto.STATUS_EDIT);
         taskDto.setSyncStatus(SyncStatus.NORMAL);
         taskDto.setType(ParentTaskDto.TYPE_CDC);
@@ -1990,17 +1964,17 @@ public class TaskServiceImpl extends TaskService{
 
             Map sourceNodeMap = nodeList.get(0);
             TableNode tableNode = new TableNode();
-            tableNode.setTableName((String) sourceNodeMap.get("tableName"));
-            tableNode.setType("table");
+            tableNode.setTableName((String) sourceNodeMap.get(TABLE_NAME));
+            tableNode.setType(TABLE);
             tableNode.setDatabaseType((String) sourceNodeMap.get("databaseType"));
-            tableNode.setConnectionId((String) sourceNodeMap.get("connectionId"));
+            tableNode.setConnectionId((String) sourceNodeMap.get(CONNECTION_ID));
 
+            Field field = new Field();
+            field.put("name", true);
             String connectionName = Optional.ofNullable(tableNode.getConnectionId())
                     .map(ObjectId::new)
                     .map(connId -> {
-                        return dataSourceService.findById(connId, new Field() {{
-                            put("name", true);
-                        }});
+                        return dataSourceService.findById(connId, field);
                     }).map(DataSourceConnectionDto::getName).orElse(null);
             if (null == connectionName) {
                 throw new BizException("Datasource.NotFound");
@@ -2008,8 +1982,8 @@ public class TaskServiceImpl extends TaskService{
             tableNode.setName(connectionName + "-" + tableNode.getTableName());
 
             Map<String, Object> attrs = new HashMap();
-            if (null != sourceNodeMap.get("attrs")) {
-                attrs = (Map<String, Object>) sourceNodeMap.get("attrs");
+            if (null != sourceNodeMap.get(ATTRS)) {
+                attrs = (Map<String, Object>) sourceNodeMap.get(ATTRS);
                 tableNode.setAttrs(attrs);
             }
 
@@ -2032,7 +2006,7 @@ public class TaskServiceImpl extends TaskService{
             edges.add(edge);
             tableNode.setId(sourceId);
             cacheNode.setId(targetId);
-            cacheNode.setFields((List<String>) attrs.get("fields"));
+            cacheNode.setFields((List<String>) attrs.get(FIELDS));
             cacheNode.setCacheName(saveShareCacheParam.getName());
             cacheNode.setName(cacheNode.getCacheName());
 
@@ -2058,15 +2032,15 @@ public class TaskServiceImpl extends TaskService{
     public Map<String, Object> chart(UserDetail user) {
         Map<String, Object> resultChart = new HashMap<>();
         Criteria criteria = new Criteria()
-                .and("is_deleted").ne(true)
-                .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
-                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
+                .and(IS_DELETED).ne(true)
+                .and(SYNC_TYPE).in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
+                .and(STATUS).nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
                 //共享缓存的任务设计的有点问题
                 .and("shareCache").ne(true);
 
 
         Query query = Query.query(criteria);
-        query.fields().include("syncType", "status", "statuses");
+        query.fields().include(SYNC_TYPE, STATUS, "statuses");
         //把任务都查询出来
         List<TaskDto> taskDtoList = DataPermissionMenuEnums.MigrateTack.checkAndSetFilter(
                 user, DataPermissionActionEnums.View, () -> findAllDto(query, user)
@@ -2091,11 +2065,11 @@ public class TaskServiceImpl extends TaskService{
 
 
     public Map<String, Integer> inspectChart(UserDetail user) {
-        Criteria criteria = Criteria.where("syncType").is(TaskDto.SYNC_TYPE_MIGRATE)
+        Criteria criteria = Criteria.where(SYNC_TYPE).is(TaskDto.SYNC_TYPE_MIGRATE)
                 .and("isAutoInspect").is(true)
-                .and("is_deleted").ne(true);
+                .and(IS_DELETED).ne(true);
         Query query = new Query(criteria);
-        query.fields().include("_id", "status", "isAutoInspect", "canOpenInspect", "attrs.autoInspectProgress.tableCounts", "attrs.autoInspectProgress.tableIgnore", "attrs.autoInspectProgress.step");
+        query.fields().include("_id", STATUS, "isAutoInspect", "canOpenInspect", "attrs.autoInspectProgress.tableCounts", "attrs.autoInspectProgress.tableIgnore", "attrs.autoInspectProgress.step");
 
         int openTaskNum = 0;
         int canTaskNum = 0;
@@ -2123,7 +2097,7 @@ public class TaskServiceImpl extends TaskService{
         }
 
         Map<String, Integer> chart5 = new HashMap<>();
-        chart5.put("total", openTaskNum);
+        chart5.put(TOTAL, openTaskNum);
         chart5.put("error", errorTaskNum);
         chart5.put("can", canTaskNum);
         chart5.put("diff", diffTaskNum);
@@ -2145,7 +2119,7 @@ public class TaskServiceImpl extends TaskService{
      *
      * @return
      */
-    private Map<String, Object> getDataCopyChart(List<TaskDto> migrateList) {
+    protected Map<String, Object> getDataCopyChart(List<TaskDto> migrateList) {
         Map<String, Object> dataCopyPreview = new HashMap();
 
 
@@ -2175,10 +2149,10 @@ public class TaskServiceImpl extends TaskService{
 
             Map<String, Object> singleMap = new HashMap();
             singleMap.put("_id", taskStatus);
-            singleMap.put("count", statusToDataCopyTaskMap.getOrDefault(taskStatus, Collections.emptyList()).size());
+            singleMap.put(COUNT, statusToDataCopyTaskMap.getOrDefault(taskStatus, Collections.emptyList()).size());
             dataCopyPreviewItems.add(singleMap);
         }
-        dataCopyPreview.put("total", migrateList.size());
+        dataCopyPreview.put(TOTAL, migrateList.size());
         dataCopyPreview.put("items", dataCopyPreviewItems);
         return dataCopyPreview;
     }
@@ -2188,7 +2162,7 @@ public class TaskServiceImpl extends TaskService{
      *
      * @return
      */
-    private Map<String, Object> getDataDevChart(List<TaskDto> synList) {
+    protected Map<String, Object> getDataDevChart(List<TaskDto> synList) {
         Map<String, Object> dataCopyPreview = new HashMap();
 
         Map<String, Long> statusToCount = new HashMap<>();
@@ -2204,10 +2178,10 @@ public class TaskServiceImpl extends TaskService{
         for (String taskStatus : allStatus) {
             Map<String, Object> singleMap = new HashMap();
             singleMap.put("_id", taskStatus);
-            singleMap.put("count", statusToCount.getOrDefault(taskStatus, 0L));
+            singleMap.put(COUNT, statusToCount.getOrDefault(taskStatus, 0L));
             dataCopyPreviewItems.add(singleMap);
         }
-        dataCopyPreview.put("total", synList.size());
+        dataCopyPreview.put(TOTAL, synList.size());
         dataCopyPreview.put("items", dataCopyPreviewItems);
         return dataCopyPreview;
     }
@@ -2250,9 +2224,9 @@ public class TaskServiceImpl extends TaskService{
             String taskId = taskDto.getId().toString();
 
             String type = taskDto.getType();
-            if ("initial_sync".equals(type)) {
+            if (INITIAL_SYNC.equals(type)) {
                 //设置全量开始时间
-                Date initStartTime = getMillstoneTime(taskDto, "READ_SNAPSHOT", "initial_sync");
+                Date initStartTime = getMillstoneTime(taskDto, "READ_SNAPSHOT", INITIAL_SYNC);
                 taskDetailVo.setInitStartTime(initStartTime);
             } else if ("cdc".equals(type)) {
                 //增量开始时间
@@ -2266,9 +2240,9 @@ public class TaskServiceImpl extends TaskService{
 //                //增量最大滞后时间
 //                taskDetailVo.setCdcDelayTime(getCdcDelayTime(taskId));
 
-            } else if ("initial_sync+cdc".equals(type)) {
+            } else if (INITIAL_SYNC_CDC.equals(type)) {
                 //全量开始时间
-                Date initStartTime = getMillstoneTime(taskDto, "READ_SNAPSHOT", "initial_sync");
+                Date initStartTime = getMillstoneTime(taskDto, "READ_SNAPSHOT", INITIAL_SYNC);
                 taskDetailVo.setInitStartTime(initStartTime);
 
                 //增量开始时间
@@ -2299,7 +2273,7 @@ public class TaskServiceImpl extends TaskService{
      * @param taskId
      * @return
      */
-    private Long getLastHour(String taskId) {
+    protected Long getLastHour(String taskId) {
         Long taskLastHour = null;
         try {
             FullSyncVO fullSyncVO = snapshotEdgeProgressService.syncOverview(taskId);
@@ -2321,7 +2295,7 @@ public class TaskServiceImpl extends TaskService{
      * @param TaskDto
      * @return
      */
-    private Date getMillstoneTime(TaskDto TaskDto, String code, String group) {
+    protected Date getMillstoneTime(TaskDto TaskDto, String code, String group) {
         Date millstoneTime = null;
         Optional<Milestone> optionalMilestone = Optional.empty();
         List<Milestone> milestones = TaskDto.getMilestones();
@@ -2335,43 +2309,8 @@ public class TaskServiceImpl extends TaskService{
         return millstoneTime;
     }
 
-//    /**
-//     * 增量延迟时间
-//     *
-//     * @return
-//     */
-//    private Long getCdcDelayTime(String taskId) {
-//        Long cdcDelayTime = null;
-//        MeasurementEntity measurementEntity = measurementService.findByTaskId(taskId);
-//        if (null != measurementEntity && null != measurementEntity.getStatistics() && null != measurementEntity.getStatistics().get("replicateLag")) {
-//            Number cdcDelayTimeNumber = (Number) measurementEntity.getStatistics().get("replicateLag");
-//            cdcDelayTime = cdcDelayTimeNumber.longValue();
-//        }
-//        return cdcDelayTime;
-//    }
-
-
-//    /**
-//     * 获取增量所处时间点
-//     *
-//     * @return
-//     */
-//    private Date getEventTime(String taskId) {
-//        Date eventTime = null;
-//        MeasurementEntity measurementEntity = measurementService.findByTaskId(taskId);
-//        if (null != measurementEntity) {
-//            Number cdcTimestamp = measurementEntity.getStatistics().getOrDefault("cdcTime", 0L);
-//            Long cdcMillSeconds = cdcTimestamp.longValue();
-//            if (cdcMillSeconds > 0) {
-//                eventTime = new Date(cdcMillSeconds);
-//            }
-//        }
-//        return eventTime;
-//    }
-
-
     public Boolean checkRun(String taskId, UserDetail user) {
-        TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user, "status");
+        TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user, STATUS);
         return TaskDto.STATUS_EDIT.equals(taskDto.getStatus()) || TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
     }
 
@@ -2427,15 +2366,15 @@ public class TaskServiceImpl extends TaskService{
         return taskStatsDto;
     }
 
-    private Map<String, Long> typeTaskStats(UserDetail userDetail) {
+    protected Map<String, Long> typeTaskStats(UserDetail userDetail) {
         org.springframework.data.mongodb.core.aggregation.Aggregation aggregation =
                 org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation(
-                        match(Criteria.where("user_id").is(userDetail.getUserId())
+                        match(Criteria.where(USER_ID).is(userDetail.getUserId())
                                 .and("customId").is(userDetail.getCustomerId())
-                                .and("is_deleted").ne(true)
-                                .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
-                                .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE,TaskDto.SYNC_TYPE_SYNC)),
-                        group("type").count().as("count")
+                                .and(IS_DELETED).ne(true)
+                                .and(STATUS).nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
+                                .and(SYNC_TYPE).in(TaskDto.SYNC_TYPE_MIGRATE,TaskDto.SYNC_TYPE_SYNC)),
+                        group("type").count().as(COUNT)
                 );
 
         Map<String, Long> taskTypeStats = new HashMap<>();
@@ -2454,11 +2393,11 @@ public class TaskServiceImpl extends TaskService{
             taskTypeStats.put(ParentTaskDto.TYPE_INITIAL_SYNC_CDC, 0L);
         }
         Long total = taskTypeStats.values().stream().reduce(Long::sum).orElse(0L);
-        taskTypeStats.put("total", total);
+        taskTypeStats.put(TOTAL, total);
         return taskTypeStats;
     }
 
-    private DataFlowInsightStatisticsDto mergerStatistics(List<LocalDate> localDates, DataFlowInsightStatisticsDto oldStatistics, DataFlowInsightStatisticsDto newStatistics) {
+    protected DataFlowInsightStatisticsDto mergerStatistics(List<LocalDate> localDates, DataFlowInsightStatisticsDto oldStatistics, DataFlowInsightStatisticsDto newStatistics) {
         Map<String, DataFlowInsightStatisticsDto.DataStatisticInfo> oldMap = new HashMap<>();
         if (oldStatistics != null && CollectionUtils.isNotEmpty(oldStatistics.getInputDataStatistics())) {
             oldMap = oldStatistics.getInputDataStatistics().stream().collect(Collectors.toMap(DataFlowInsightStatisticsDto.DataStatisticInfo::getTime, v -> v, (k1, k2) -> k2));
@@ -2471,7 +2410,7 @@ public class TaskServiceImpl extends TaskService{
 
         List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = new ArrayList<>();
 
-        final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+        final DateTimeFormatter format = DateTimeFormatter.ofPattern(DATETIME_PATTERN);
         for (LocalDate localDate : localDates) {
             String time = localDate.format(format);
             if (newMap.get(time) != null) {
@@ -2490,12 +2429,12 @@ public class TaskServiceImpl extends TaskService{
         return dataFlowInsightStatisticsDto;
     }
 
-    private List<LocalDate> getNewLocalDate(List<LocalDate> localDates, DataFlowInsightStatisticsDto oldStatistics) {
+    protected List<LocalDate> getNewLocalDate(List<LocalDate> localDates, DataFlowInsightStatisticsDto oldStatistics) {
         List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = oldStatistics.getInputDataStatistics();
         if (CollectionUtils.isEmpty(inputDataStatistics)) {
             return localDates;
         }
-        final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+        final DateTimeFormatter format = DateTimeFormatter.ofPattern(DATETIME_PATTERN);
         List<LocalDate> newLocalDates = new ArrayList<>();
         inputDataStatistics.remove(inputDataStatistics.size()-1);
         List<LocalDate> oldLocalDate = inputDataStatistics.stream().map(s -> LocalDate.parse(s.getTime(), format)).collect(Collectors.toList());
@@ -2534,7 +2473,7 @@ public class TaskServiceImpl extends TaskService{
 
     public DataFlowInsightStatisticsDto statsTransport(UserDetail userDetail, List<LocalDate> localDates) {
 
-        Criteria criteria = Criteria.where("is_deleted").ne(true);
+        Criteria criteria = Criteria.where(IS_DELETED).ne(true);
         Query query = new Query(criteria);
         query.fields().include("_id");
         List<TaskDto> allDto = findAllDto(query, userDetail);
@@ -2560,10 +2499,10 @@ public class TaskServiceImpl extends TaskService{
                 .and("tags.type").is("task");
         Query query1 = new Query(in);
         query1.fields().include("ss", "tags");
-        DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+        DateTimeFormatter format = DateTimeFormatter.ofPattern(DATETIME_PATTERN);
         List<MeasurementEntity> measurementEntities = measurementServiceV2.find(query1);
 
-        Map<String, List<MeasurementEntity>> taskMap = measurementEntities.stream().collect(Collectors.groupingBy(m -> m.getTags().get("taskId")));
+        Map<String, List<MeasurementEntity>> taskMap = measurementEntities.stream().collect(Collectors.groupingBy(m -> m.getTags().get(TASK_ID)));
 
 
 
@@ -2633,12 +2572,12 @@ public class TaskServiceImpl extends TaskService{
 
         Map<String, List<TaskDto>> taskMap = new HashMap<>();
         for (String connectionId : connectionIds) {
-            Criteria criteria = Criteria.where("dag.nodes.connectionId").is(connectionId)
-                    .and("is_deleted").ne(true);
+            Criteria criteria = Criteria.where(DAG_NODES_CONNECTION_ID).is(connectionId)
+                    .and(IS_DELETED).ne(true);
             if (StringUtils.isNotBlank(status)) {
-                criteria.and("status").is(status);
+                criteria.and(STATUS).is(status);
             } else {
-                criteria.and("status").nin(Lists.of(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED));
+                criteria.and(STATUS).nin(Lists.of(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED));
             }
             Query query = new Query(criteria);
             query.fields().include("dag");
@@ -2649,7 +2588,7 @@ public class TaskServiceImpl extends TaskService{
             be:
             for (TaskDto task : allTasks) {
                 DAG dag = task.getDag();
-                if (position.equals("source")) {
+                if (position.equals(SOURCE)) {
                     List<Node> sources = dag.getSources();
                     if (CollectionUtils.isNotEmpty(sources)) {
                         for (Node source : sources) {
@@ -2680,7 +2619,7 @@ public class TaskServiceImpl extends TaskService{
 
             Criteria criteria1 = Criteria.where("_id").in(containsTaskIds);
             Query query1 = new Query(criteria1);
-            query1.with(Sort.by("createTime").descending());
+            query1.with(Sort.by(CREATE_TIME).descending());
             List<TaskDto> taskDtos = findAllDto(new Query(criteria1), user);
             taskMap.put(connectionId, taskDtos);
         }
@@ -2690,13 +2629,13 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public long countTaskNumber(UserDetail user) {
-        return count(new Query(Criteria.where("is_deleted").is(false).and("status").nin(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING)), user);
+        return count(new Query(Criteria.where(IS_DELETED).is(false).and(STATUS).nin(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING)), user);
     }
 
     public List<SampleTaskVo> findByConId(String sourceConnectionId, String targetConnectionId, String syncType, String status, Where where, UserDetail user) {
 
         Criteria criteria = repository.whereToCriteria(where);
-        criteria.and("is_deleted").ne(true);
+        criteria.and(IS_DELETED).ne(true);
         List<String> conIds = new ArrayList<>();
         if (StringUtils.isNotBlank(sourceConnectionId)) {
             conIds.add(sourceConnectionId);
@@ -2707,19 +2646,19 @@ public class TaskServiceImpl extends TaskService{
         }
 
         if (CollectionUtils.isNotEmpty(conIds)) {
-            criteria.and("dag.nodes.connectionId").in(conIds);
+            criteria.and(DAG_NODES_CONNECTION_ID).in(conIds);
         }
 
         if (StringUtils.isNotBlank(syncType)) {
-            criteria.and("syncType").is(syncType);
+            criteria.and(SYNC_TYPE).is(syncType);
         } else {
-            criteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
+            criteria.and(SYNC_TYPE).in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
         }
 
         if (StringUtils.isNotBlank(status)) {
-            criteria.and("status").is(status);
+            criteria.and(STATUS).is(status);
         } else {
-            criteria.and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
+            criteria.and(STATUS).nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
         }
 
         Query query = new Query(criteria);
@@ -2825,20 +2764,6 @@ public class TaskServiceImpl extends TaskService{
         private long count;
     }
 
-    @Data
-    public static class Char2Group {
-        private long totalInput = 0;
-        private long totalOutput = 0;
-        private long totalInputDataSize = 0;
-        private long totalOutputDataSize = 0;
-        private long totalInsert = 0;
-        private long totalInsertSize = 0;
-        private long totalUpdate = 0;
-        private long totalUpdateSize = 0;
-        private long totalDelete = 0;
-        private long totalDeleteSize = 0;
-    }
-
 
     public void batchLoadTask(HttpServletResponse response, List<String> taskIds, UserDetail user) {
         List<TaskUpAndLoadDto> jsonList = new ArrayList<>();
@@ -2873,7 +2798,7 @@ public class TaskServiceImpl extends TaskService{
                                     metadataInstancesDto.setCustomId(null);
                                     metadataInstancesDto.setLastUpdBy(null);
                                     metadataInstancesDto.setUserId(null);
-                                    jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(metadataInstancesDto)));
+                                    jsonList.add(new TaskUpAndLoadDto(METADATA_INSTANCES, JsonUtil.toJsonUseJackson(metadataInstancesDto)));
                                 }
                             }
 
@@ -2889,8 +2814,8 @@ public class TaskServiceImpl extends TaskService{
                                 dataSourceConnectionDto.setDefinitionPdkAPIVersion(byPdkHash.getPdkAPIVersion());
                                 String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSourceConnectionDto, null);
                                 MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
-                                        Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)), user);
-                                jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
+                                        Query.query(Criteria.where(QUALIFIED_NAME).is(databaseQualifiedName).and(IS_DELETED).ne(true)), user);
+                                jsonList.add(new TaskUpAndLoadDto(METADATA_INSTANCES, JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
                                 jsonList.add(new TaskUpAndLoadDto("Connections", JsonUtil.toJsonUseJackson(dataSourceConnectionDto)));
                             }
 
@@ -2924,7 +2849,7 @@ public class TaskServiceImpl extends TaskService{
                 .withSink(sink)
                 .withSource(source)
                 .withUser(user);
-        ParseRelMig<TaskDto> redirect = (ParseRelMig<TaskDto>)ParseRelMig.redirect(param);
+        ParseRelMigFile redirect = ParseRelMig.redirect(param);
         List<TaskDto> tpTasks = redirect.parse();
         batchImport(tpTasks, user, cover, tags, new HashMap<>(), new HashMap<>());
         checkJsProcessorTestRun(user, tpTasks);
@@ -2956,7 +2881,7 @@ public class TaskServiceImpl extends TaskService{
 
         if (!Objects.requireNonNull(multipartFile.getOriginalFilename()).endsWith("json.gz")) {
             //不支持其他的格式文件
-            throw new BizException("Task.ImportFormatError");
+            throw new BizException(TASK_IMPORT_FORMAT_ERROR);
         }
 
         try {
@@ -2969,12 +2894,12 @@ public class TaskServiceImpl extends TaskService{
         } catch (Exception e) {
             //e.printStackTrace();
             //不支持其他的格式文件
-            throw new BizException("Task.ImportFormatError");
+            throw new BizException(TASK_IMPORT_FORMAT_ERROR);
         }
 
         if (taskUpAndLoadDtos == null) {
             //不支持其他的格式文件
-            throw new BizException("Task.ImportFormatError");
+            throw new BizException(TASK_IMPORT_FORMAT_ERROR);
         }
 
         List<MetadataInstancesDto> metadataInstancess = new ArrayList<>();
@@ -2988,7 +2913,7 @@ public class TaskServiceImpl extends TaskService{
                 if (StringUtils.isBlank(taskUpAndLoadDto.getJson())) {
                     continue;
                 }
-                if ("MetadataInstances".equals(taskUpAndLoadDto.getCollectionName())) {
+                if (METADATA_INSTANCES.equals(taskUpAndLoadDto.getCollectionName())) {
                     metadataInstancess.add(JsonUtil.parseJsonUseJackson(dtoJson, MetadataInstancesDto.class));
                 } else if ("Task".equals(taskUpAndLoadDto.getCollectionName())) {
                     tasks.add(JsonUtil.parseJsonUseJackson(dtoJson, TaskDto.class));
@@ -3052,8 +2977,8 @@ public class TaskServiceImpl extends TaskService{
         }
 
         for (TaskDto taskDto : taskDtos) {
-            Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true));
-            query.fields().include("_id", "user_id");
+            Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
+            query.fields().include("_id", USER_ID);
             TaskDto one = findOne(query, user);
 
             taskDto.setListtags(null);
@@ -3063,12 +2988,12 @@ public class TaskServiceImpl extends TaskService{
 
             Map<String, Object> attrs = taskDto.getAttrs();
             if (attrs != null) {
-                attrs.remove("edgeMilestones");
-                attrs.remove("syncProgress");
+                attrs.remove(EDGE_MILESTONES);
+                attrs.remove(SYNC_PROGRESS);
             }
 
             if (one == null) {
-                TaskDto one1 = findOne(new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true)));
+                TaskDto one1 = findOne(new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true)));
                 if (one1 != null) {
                     taskDto.setId(null);
                     taskDto.getDag().getNodes().forEach(node -> {
@@ -3113,7 +3038,7 @@ public class TaskServiceImpl extends TaskService{
                         continue;
                     }
                 }
-                repository.getMongoOperations().updateFirst(new Query(Criteria.where("_id").is(taskDto.getId())), Update.update("status", TaskDto.STATUS_EDIT), TaskEntity.class);
+                repository.getMongoOperations().updateFirst(new Query(Criteria.where("_id").is(taskDto.getId())), Update.update(STATUS, TaskDto.STATUS_EDIT), TaskEntity.class);
                 confirmById(taskDto, user, true, true);
             }
         }
@@ -3133,8 +3058,8 @@ public class TaskServiceImpl extends TaskService{
             List<Map<String, Map<String, Object>>> orList = (List) where.remove("or");
             for (Map<String, Map<String, Object>> orMap : orList) {
                 orMap.forEach((key, value) -> {
-                    if (value.containsKey("$regex")) {
-                        Object queryStr = value.get("$regex");
+                    if (value.containsKey(REGEX)) {
+                        Object queryStr = value.get(REGEX);
                         Criteria orCriteria = Criteria.where(key).regex(queryStr.toString());
                         criteriaList.add(orCriteria);
                     } else if (value.containsKey("$eq")) {
@@ -3215,13 +3140,13 @@ public class TaskServiceImpl extends TaskService{
             String connectionId = source.getConnectionId();
 
             Query instanceQuery = new Query();
-            instanceQuery.addCriteria(Criteria.where("source._id").is(connectionId).and("meta_type").is("table").and("is_deleted").ne("true"));
+            instanceQuery.addCriteria(Criteria.where("source._id").is(connectionId).and("meta_type").is(TABLE).and(IS_DELETED).ne("true"));
             metadataInstancesList = metadataInstancesService.findAll(instanceQuery);
 
         } else {
             List<String> qualifiedNameList = transformerItemList.stream().map(MetadataTransformerItemDto::getSinkQulifiedName).distinct().collect(Collectors.toList());
             Query instantiatedQuery = new Query();
-            instantiatedQuery.addCriteria(Criteria.where("qualified_name").in(qualifiedNameList));
+            instantiatedQuery.addCriteria(Criteria.where(QUALIFIED_NAME).in(qualifiedNameList));
 
             metadataInstancesList = metadataInstancesService.findAll(instantiatedQuery);
         }
@@ -3248,16 +3173,6 @@ public class TaskServiceImpl extends TaskService{
 //        return findAll(query);
     }
 
-//    public void updateStatus(ObjectId taskId, String status) {
-//        Query query = Query.query(Criteria.where("_id").is(taskId));
-//        Update update = Update.update("status", status).set("last_updated", new Date());
-//        update(query, update);
-//    }
-
-
-
-
-
     /**
      * 重置子任务之后，情况指标观察数据
      * @param taskId
@@ -3275,7 +3190,7 @@ public class TaskServiceImpl extends TaskService{
         Update set = resetUpdate();
         set.unset("temp")
                 .unset("milestones")
-                .unset("tmCurrentTime")
+                .unset(TM_CURRENT_TIME)
                 .set("agentTags", null)
                 .set("syncStatus", SyncStatus.NORMAL)
                 .set("scheduleTimes", null)
@@ -3285,8 +3200,8 @@ public class TaskServiceImpl extends TaskService{
 
 
         if (taskDto.getAttrs() != null) {
-            taskDto.getAttrs().remove("syncProgress");
-            taskDto.getAttrs().remove("edgeMilestones");
+            taskDto.getAttrs().remove(SYNC_PROGRESS);
+            taskDto.getAttrs().remove(EDGE_MILESTONES);
             taskDto.getAttrs().remove("milestone");
             taskDto.getAttrs().remove("nodeMilestones");
             taskDto.getAttrs().remove(TaskDto.ATTRS_USED_SHARE_CACHE);
@@ -3294,7 +3209,7 @@ public class TaskServiceImpl extends TaskService{
             taskDto.getAttrs().remove("SNAPSHOT_ORDER_LIST");
             AutoInspectUtil.removeProgress(taskDto.getAttrs());
 
-            set.set("attrs", taskDto.getAttrs());
+            set.set(ATTRS, taskDto.getAttrs());
         }
 
 
@@ -3303,14 +3218,14 @@ public class TaskServiceImpl extends TaskService{
 
         beforeSave(taskDto, user);
         set.unset("tempDag").set("isEdit", true);
-        Criteria criteriaTask = Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_RENEWING);
+        Criteria criteriaTask = Criteria.where("_id").is(taskDto.getId()).and(STATUS).is(TaskDto.STATUS_RENEWING);
         UpdateResult updateResult = update(new Query(criteriaTask), set, user);
 
         if (updateResult.getMatchedCount() > 0) {
             if (nodes != null) {
 
                 List<String> nodeIds = nodes.stream().map(Node::getId).collect(Collectors.toList());
-                Criteria criteria = Criteria.where("taskId").is(taskDto.getId().toHexString())
+                Criteria criteria = Criteria.where(TASK_ID).is(taskDto.getId().toHexString())
                         .and("type").is(TaskSnapshotProgress.ProgressType.EDGE_PROGRESS.name())
                         .orOperator(Criteria.where("srcNodeId").in(nodeIds),
                                 Criteria.where("tgtNodeId").in(nodeIds));
@@ -3318,7 +3233,7 @@ public class TaskServiceImpl extends TaskService{
 
                 snapshotEdgeProgressService.deleteAll(query);
 
-                Criteria criteria1 = Criteria.where("taskId").is(taskDto.getId().toHexString())
+                Criteria criteria1 = Criteria.where(TASK_ID).is(taskDto.getId().toHexString())
                         .and("type").is(TaskSnapshotProgress.ProgressType.TASK_PROGRESS.name());
                 Query query1 = new Query(criteria1);
 
@@ -3328,7 +3243,7 @@ public class TaskServiceImpl extends TaskService{
         return updateResult;
     }
 
-    private void sendRenewMq(TaskDto taskDto, UserDetail user, String opType) {
+    protected void sendRenewMq(TaskDto taskDto, UserDetail user, String opType) {
         DataSyncMq mq = new DataSyncMq();
         mq.setTaskId(taskDto.getId().toHexString());
         mq.setOpType(opType);
@@ -3349,16 +3264,16 @@ public class TaskServiceImpl extends TaskService{
     @NotNull
     private static Update resetUpdate() {
         Update update = new Update()
-                .unset("startTime")
+                .unset(START_TIME)
                 .unset("stopTime")
-                .unset("stopRetryTimes")
-                .unset("currentEventTimestamp")
+                .unset(STOP_RETRY_TIMES)
+                .unset(CURRENT_EVENT_TIMESTAMP)
                 .unset("snapshotDoneAt")
-                .unset("scheduleDate")
-                .unset("stopedDate")
+                .unset(SCHEDULE_DATE)
+                .unset(STOPED_DATE)
                 .unset("functionRetryEx")
                 .unset("taskRetryStatus")
-                .unset("functionRetryStatus");
+                .unset(FUNCTION_RETRY_STATUS);
         return update;
     }
 
@@ -3430,52 +3345,12 @@ public class TaskServiceImpl extends TaskService{
 
         if ("PostgreSQL".equalsIgnoreCase(databaseType) &&
                 DataSyncMq.OP_TYPE_DELETE.equals(opType) && MapUtils.isNotEmpty(taskDto.getAttrs())) {
-            return (String) attrs.get("connectionName");
+            if (null == attrs){
+                attrs = new HashMap<>();
+            }
+            return (String) attrs.get(CONNECTION_NAME);
         }
         return null;
-    }
-
-//    public boolean deleteById(TaskDto taskDto, UserDetail user) {
-//        //如果子任务在运行中，将任务停止，再删除（在这之前，应该提示用户这个风险）
-//        if (taskDto == null) {
-//            return true;
-//        }
-//
-//        sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
-//
-//        renewNotSendMq(taskDto, user);
-//
-//        if (runningStatus.contains(taskDto.getStatus())) {
-//            log.warn("task is run, can not delete it");
-//            throw new BizException("Task.DeleteTaskIsRun");
-//        }
-//
-//        //TODO 删除当前模块的模型推演
-//        resetFlag(taskDto.getId(), user, "deleteFlag");
-//        return super.deleteById(taskDto.getId(), user);
-//    }
-
-
-
-    private boolean compareDag(DAG dag, DAG old) {
-        List<Node> nodes = dag.getNodes();
-        List<Node> oldNodes = old.getNodes();
-        if (nodes.size() != oldNodes.size()) {
-            return false;
-        }
-
-        Map<String, Node> oldMap = oldNodes.stream().collect(Collectors.toMap(Node::getId, n -> n));
-        for (Node node : nodes) {
-            Node oldNode = oldMap.get(node.getId());
-            if (oldNode == null) {
-                return false;
-            }
-
-            if (!node.equals(oldNode)) {
-                return false;
-            }
-        }
-        return true;
     }
 
 
@@ -3525,7 +3400,7 @@ public class TaskServiceImpl extends TaskService{
         Update update = Update.update("lastStartDate", System.currentTimeMillis());
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             String taskRecordId = new ObjectId().toHexString();
-            update.set("taskRecordId", taskRecordId);
+            update.set(TASK_RECORD_ID, taskRecordId);
             taskDto.setTaskRecordId(taskRecordId);
 
             TaskEntity taskSnapshot = new TaskEntity();
@@ -3534,7 +3409,7 @@ public class TaskServiceImpl extends TaskService{
         }
         if (Objects.isNull(taskDto.getStartTime())) {
             DateTime date = DateUtil.date();
-            update.set("startTime", date);
+            update.set(START_TIME, date);
             taskDto.setStartTime(date);
         }
         update(Query.query(Criteria.where("_id").is(taskDto.getId().toHexString())), update);
@@ -3544,7 +3419,7 @@ public class TaskServiceImpl extends TaskService{
         if (!taskDto.getShareCache()) {
                 Map<String, List<Message>> validateMessage = taskDto.getDag().validate();
                 if (!validateMessage.isEmpty()) {
-                    throw new BizException("Task.ListWarnMessage", validateMessage);
+                    throw new BizException(TASK_LIST_WARN_MESSAGE, validateMessage);
             }
         }
         //日志挖掘
@@ -3617,13 +3492,13 @@ public class TaskServiceImpl extends TaskService{
                 log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
                 return;
             }
-            Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
+            Query query = new Query(Criteria.where("id").is(taskDto.getId()).and(STATUS).is(taskDto.getStatus()));
             //需要将重启标识清除
             Update set = Update.update("isEdit", false)
-                    .set("restartFlag", false)
-                    .unset("functionRetryStatus")
-                    .set("restartFlag", false)
-                    .set("stopRetryTimes", 0);
+                    .set(RESTART_FLAG, false)
+                    .unset(FUNCTION_RETRY_STATUS)
+                    .set(RESTART_FLAG, false)
+                    .set(STOP_RETRY_TIMES, 0);
             update(query, set, user);
             taskScheduleService.scheduling(taskDto, user);
         } finally {
@@ -3718,18 +3593,18 @@ public class TaskServiceImpl extends TaskService{
 
         //重启的特殊处理，共享挖掘的比较多
         Field field = new Field();
-        field.put("status", true);
+        field.put(STATUS, true);
         TaskDto statusTask = findById(taskDto.getId(), field);
         taskDto.setStatus(statusTask.getStatus());
         taskDto.setSyncStatus(statusTask.getSyncStatus());
         if ((TaskDto.STATUS_STOP.equals(taskDto.getStatus()) || TaskDto.STATUS_STOPPING.equals(taskDto.getStatus())) && restart) {
-            Update update = Update.update("restartFlag", true).set("restartUserId", user.getUserId());
+            Update update = Update.update(RESTART_FLAG, true).set("restartUserId", user.getUserId());
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()));
             update(query, update, user);
             return;
         }
 
-        Update stopUpdate = Update.update("stopedDate", System.currentTimeMillis());
+        Update stopUpdate = Update.update(STOPED_DATE, System.currentTimeMillis());
         if (CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
             stopUpdate.set("ldpNewTables", taskDto.getLdpNewTables());
         }
@@ -3751,12 +3626,12 @@ public class TaskServiceImpl extends TaskService{
         //将状态改为暂停中，给flowengin发送暂停消息，在回调的消息中将任务改为已暂停
         if (restart) {
             Update update = new Update();
-            update.set("restartFlag", true).set("restartUserId", user.getUserId());
+            update.set(RESTART_FLAG, true).set("restartUserId", user.getUserId());
             Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
             update(query1, update, user);
         }
 
-        Update update = Update.update("stopRetryTimes", 0);
+        Update update = Update.update(STOP_RETRY_TIMES, 0);
         updateById(taskDto.getId(), update, user);
 
 
@@ -3791,7 +3666,7 @@ public class TaskServiceImpl extends TaskService{
     public String running(ObjectId id, UserDetail user) {
 
         //判断子任务是否存在
-        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId", "startTime", "scheduleDate");
+        TaskDto taskDto = checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID, START_TIME, SCHEDULE_DATE);
         //将子任务状态改成运行中
         if (!TaskDto.STATUS_WAIT_RUN.equals(taskDto.getStatus())) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
@@ -3805,7 +3680,7 @@ public class TaskServiceImpl extends TaskService{
         });
 
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()));
-        Update update = Update.update("scheduleDate", null);
+        Update update = Update.update(SCHEDULE_DATE, null);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RUNNING, user);
         if (stateMachineResult.isFail()) {
@@ -3824,7 +3699,7 @@ public class TaskServiceImpl extends TaskService{
      */
     public String runError(ObjectId id, UserDetail user, String errMsg, String errStack) {
         //判断任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId");
+        TaskDto taskDto = checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID);
 
         //将子任务状态更新成错误.
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.ERROR, user);
@@ -3844,7 +3719,7 @@ public class TaskServiceImpl extends TaskService{
      */
     public String complete(ObjectId id, UserDetail user) {
         //判断子任务是否存在
-        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId");
+        TaskDto taskDto = checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.COMPLETED, user);
         if (stateMachineResult.isFail()) {
@@ -3862,7 +3737,7 @@ public class TaskServiceImpl extends TaskService{
      */
     public String stopped(ObjectId id, UserDetail user) {
         //判断子任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId", "agentId", "stopedDate", "restartFlag");
+        TaskDto taskDto = checkExistById(id, user, "dag", "name", STATUS, "_id", TASK_RECORD_ID, AGENT_ID, STOPED_DATE, RESTART_FLAG);
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.STOPPED, user);
 
@@ -3876,8 +3751,8 @@ public class TaskServiceImpl extends TaskService{
                 monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.INFO);
             });
 
-            Update update = Update.update("stopRetryTimes", 0).unset("stopedDate")
-                    .unset("functionRetryStatus");
+            Update update = Update.update(STOP_RETRY_TIMES, 0).unset(STOPED_DATE)
+                    .unset(FUNCTION_RETRY_STATUS);
             updateById(id, update, user);
 
             logCollectorService.endConnHeartbeat(user, taskDto); // 尝试停止心跳任务
@@ -3922,7 +3797,7 @@ public class TaskServiceImpl extends TaskService{
 
     public void updateNode(ObjectId objectId, String nodeId, Document param, UserDetail user) {
         TaskDto TaskDto = checkExistById(objectId, user);
-        Criteria criteria = Criteria.where("_id").is(objectId).and("dag.nodes").elemMatch(Criteria.where("id").is(nodeId));
+        Criteria criteria = Criteria.where("_id").is(objectId).and(DAG_NODES).elemMatch(Criteria.where("id").is(nodeId));
         Document set = (Document) param.get("$set");
         for (String s : set.keySet()) {
             set.put("dag.nodes.$." + s, set.get(s));
@@ -3947,14 +3822,14 @@ public class TaskServiceImpl extends TaskService{
 
     public void increaseClear(ObjectId taskId, String srcNode, String tgtNode, UserDetail user) {
         //清理只需要清楚syncProgress数据就行
-        TaskDto TaskDto = checkExistById(taskId, user, "attrs");
+        TaskDto TaskDto = checkExistById(taskId, user, ATTRS);
         clear(srcNode, tgtNode, user, TaskDto);
 
     }
 
-    private void clear(String srcNode, String tgtNode, UserDetail user, TaskDto TaskDto) {
+    protected void clear(String srcNode, String tgtNode, UserDetail user, TaskDto TaskDto) {
         Map<String, Object> attrs = TaskDto.getAttrs();
-        Object syncProgress = attrs.get("syncProgress");
+        Object syncProgress = attrs.get(SYNC_PROGRESS);
         if (syncProgress == null) {
             return;
         }
@@ -3964,13 +3839,13 @@ public class TaskServiceImpl extends TaskService{
 
         syncProgressMap.remove(JsonUtil.toJsonUseJackson(key));
 
-        Update update = Update.update("attrs", attrs);
+        Update update = Update.update(ATTRS, attrs);
         //不需要刷新主任状态， 所以调用super, 本来中重新的自带刷新主任务状态
         super.updateById(TaskDto.getId(), update, user);
     }
 
     public void increaseBacktracking(ObjectId taskId, String srcNode, String tgtNode, TaskDto.SyncPoint point, UserDetail user) {
-        TaskDto taskDto = checkExistById(taskId, user, "parentId", "attrs", "dag", "syncPoints");
+        TaskDto taskDto = checkExistById(taskId, user, "parentId", ATTRS, "dag", SYNC_POINTS);
         clear(srcNode, tgtNode, user, taskDto);
 
 
@@ -4000,7 +3875,7 @@ public class TaskServiceImpl extends TaskService{
             syncPoint.setConnectionId(((DataParentNode<?>) node).getConnectionId());
 
             if (exist) {
-                Criteria criteriaPoint = Criteria.where("_id").is(taskDto.getId()).and("syncPoints")
+                Criteria criteriaPoint = Criteria.where("_id").is(taskDto.getId()).and(SYNC_POINTS)
                         .elemMatch(Criteria.where("nodeId").is(node.getId()));
                 Update update = Update.update("syncPoints.$", syncPoint);
                 //更新内嵌文档
@@ -4008,53 +3883,16 @@ public class TaskServiceImpl extends TaskService{
             } else {
                 syncPoints.add(syncPoint);
                 Criteria criteriaPoint = Criteria.where("_id").is(taskDto.getId());
-                Update update = Update.update("syncPoints", syncPoints);
+                Update update = Update.update(SYNC_POINTS, syncPoints);
                 update(new Query(criteriaPoint), update);
             }
         }
 
     }
 
-
-
-//    public void reseted(ObjectId objectId, UserDetail userDetail) {
-//        TaskDto TaskDto = checkExistById(objectId, userDetail, "_id");
-//        if (TaskDto != null) {
-//            super.updateById(objectId, Update.update("resetFlag", true), userDetail);
-//        }
-//    }
-//
-//    public void deleted(ObjectId objectId, UserDetail userDetail) {
-//        TaskDto TaskDto = checkExistById(objectId, userDetail, "_id");
-//        if (TaskDto != null) {
-//            super.updateById(objectId, Update.update("deleteFlag", true), userDetail);
-//        }
-//    }
-
-    
-
-//    public boolean checkDeleteFlag(ObjectId id, UserDetail user) {
-//        TaskDto TaskDto = checkExistById(id, user, "deleteFlag");
-//        if (TaskDto.getDeleteFlag() != null) {
-//            return TaskDto.getDeleteFlag();
-//        }
-//        return false;
-//    }
-//
-//    public boolean checkResetFlag(ObjectId id, UserDetail user) {
-//        TaskDto TaskDto = checkExistById(id, user, "resetFlag");
-//        if (TaskDto.getResetFlag() != null) {
-//            return TaskDto.getResetFlag();
-//        }
-//        return false;
-//    }
-//    public void resetFlag(ObjectId id, UserDetail user, String flag) {
-//        updateById(id, new Update().unset(flag), user);
-//    }
-
     public void startPlanMigrateDagTask() {
-        Criteria migrateCriteria = Criteria.where("status").is(TaskDto.STATUS_WAIT_START)
-                .and("planStartDateFlag").is(true)
+        Criteria migrateCriteria = Criteria.where(STATUS).is(TaskDto.STATUS_WAIT_START)
+                .and(PLAN_START_DATE_FLAG).is(true)
                 .and("crontabScheduleMsg").is(null)
                 .and("planStartDate").lte(DateUtil.current());
         Query taskQuery = new Query(migrateCriteria);
@@ -4077,7 +3915,7 @@ public class TaskServiceImpl extends TaskService{
 							try {
 								start(taskDto, userDetail, "11");
 								//启动过后，应该更新掉这个自动启动计划
-								Update unset = new Update().unset("planStartDateFlag").unset("planStartDate");
+								Update unset = new Update().unset(PLAN_START_DATE_FLAG).unset("planStartDate");
 								updateById(taskDto.getId(), unset, finalUserMap.get(taskDto.getUserId()));
 							} catch (Exception e) {
 								log.warn("Start plan migrate task Failed: {}", e.getMessage(), e);
@@ -4093,11 +3931,11 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public void startPlanCronTask() {
-        Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
+        Criteria migrateCriteria = Criteria.where(CRONTAB_EXPRESSION_FLAG).is(true)
                 .and("type").in(ParentTaskDto.TYPE_INITIAL_SYNC, ParentTaskDto.TYPE_INITIAL_SYNC_CDC)
                 .and("crontabExpression").exists(true)
-                .and("is_deleted").is(false)
-                .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
+                .and(IS_DELETED).is(false)
+                .andOperator(Criteria.where(STATUS).nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
                         TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING,
                         TaskDto.STATUS_DELETE_FAILED));
         Query taskQuery = new Query(migrateCriteria);
@@ -4122,7 +3960,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public TaskDto findByCacheName(String cacheName, UserDetail user) {
-        Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where(CATALOG).is("memCache").and("cacheName").is(cacheName)).and("is_deleted").is(false);
+        Criteria taskCriteria = Criteria.where(DAG_NODES).elemMatch(Criteria.where(CATALOG).is("memCache").and("cacheName").is(cacheName)).and(IS_DELETED).is(false);
         Query query = new Query(taskCriteria);
 
         return findOne(query, user);
@@ -4134,8 +3972,8 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public TaskDto findByVersionTime(String id, Long time) {
-        Criteria criteria = Criteria.where("taskId").is(id);
-        criteria.and("tmCurrentTime").is(time);
+        Criteria criteria = Criteria.where(TASK_ID).is(id);
+        criteria.and(TM_CURRENT_TIME).is(time);
 
         Query query = new Query(criteria);
 
@@ -4155,8 +3993,8 @@ public class TaskServiceImpl extends TaskService{
      * @return
      */
     public void clean(String taskId, Long time) {
-        Criteria criteria = Criteria.where("taskId").is(taskId);
-        criteria.and("tmCurrentTime").gt(time);
+        Criteria criteria = Criteria.where(TASK_ID).is(taskId);
+        criteria.and(TM_CURRENT_TIME).gt(time);
 
         Query query = new Query(criteria);
         repository.getMongoOperations().remove(query, "DDlTaskHistories");
@@ -4192,7 +4030,7 @@ public class TaskServiceImpl extends TaskService{
         ObjectId taskObjectId = new ObjectId(taskId);
         TaskDto task = findById(taskObjectId);
         if (null == task) {
-            throw new BizException("Task.NotFound", "The task does not exist");
+            throw new BizException(TASK_NOT_FOUND, "The task does not exist");
         }
 
         Map<String, Object> logSetting = task.getLogSetting();
@@ -4213,7 +4051,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public Chart6Vo chart6(UserDetail user) {
-        Criteria criteria = Criteria.where("is_deleted").ne(true).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE);
+        Criteria criteria = Criteria.where(IS_DELETED).ne(true).and(SYNC_TYPE).in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE);
         Query query = new Query(criteria);
         query.fields().include("_id");
         List<TaskDto> allDto = findAllDto(query, user);
@@ -4284,7 +4122,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {
-        Query query = Query.query(Criteria.where("agentId").is(agentId).and("status").is(TaskDto.STATUS_STOPPING));
+        Query query = Query.query(Criteria.where(AGENT_ID).is(agentId).and(STATUS).is(TaskDto.STATUS_STOPPING));
         query.fields().include("_id");
         List<TaskDto> needStopTasks = findAllDto(query, userDetail);
         for (TaskDto needStopTask : needStopTasks) {
@@ -4295,11 +4133,11 @@ public class TaskServiceImpl extends TaskService{
 
     public List<TaskDto> getTaskStatsByTableNameOrConnectionId(String connectionId, String tableName, UserDetail userDetail) {
         if (StringUtils.isBlank(connectionId)) {
-            throw new BizException("IllegalArgument", "connectionId");
+            throw new BizException(ILLEGAL_ARGUMENT, CONNECTION_ID);
         }
         Criteria criteria = new Criteria();
         // tableName 不为空根据表查询。否则根据连接查询
-        criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true);
+        criteria.and(DAG_NODES_CONNECTION_ID).is(connectionId).and(IS_DELETED).ne(true);
         if (StringUtils.isNotBlank(tableName)) {
             criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
                     new Criteria().and("dag.nodes.syncObjects.objectNames").is(tableName)
@@ -4311,15 +4149,15 @@ public class TaskServiceImpl extends TaskService{
 
     public TableStatusInfoDto getTableStatus(String connectionId, String tableName, UserDetail userDetail) {
         if (StringUtils.isBlank(connectionId)) {
-            throw new BizException("IllegalArgument", "connectionId");
+            throw new BizException(ILLEGAL_ARGUMENT, CONNECTION_ID);
         }
         if (StringUtils.isBlank(tableName)) {
-            throw new BizException("IllegalArgument", "tableName");
+            throw new BizException(ILLEGAL_ARGUMENT, TABLE_NAME);
         }
         TableStatusInfoDto tableStatusInfoDto = new TableStatusInfoDto();
         Criteria criteria = new Criteria();
         // tableName 不为空根据表查询。否则根据连接查询
-        criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true);
+        criteria.and(DAG_NODES_CONNECTION_ID).is(connectionId).and(IS_DELETED).ne(true);
         criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
                 new Criteria().and("dag.nodes.tableNames").in(tableName),
                 new Criteria().and("dag.nodes.syncObjects.objectNames").in(tableName));
@@ -4376,7 +4214,7 @@ public class TaskServiceImpl extends TaskService{
         criteriaInspect.and("stats.target.connectionId").is(connectionId);
         criteriaInspect.and("stats.target.table").is(tableName);
         Query queryInspect = Query.query(criteriaInspect);
-        queryInspect.with(Sort.by("createTime").descending());
+        queryInspect.with(Sort.by(CREATE_TIME).descending());
         InspectResultDto inspectResultDto = inspectResultService.findOne(queryInspect,userDetail);
         if (inspectResultDto == null) {
             return true;
@@ -4444,9 +4282,9 @@ public class TaskServiceImpl extends TaskService{
 
 
     public List<TaskDto> findHeartbeatByConnectionId(String connectionId, String... includeFields) {
-        Query query = Query.query(Criteria.where("dag.nodes.connectionId").is(connectionId)
-                .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
-                .and("is_deleted").is(false)
+        Query query = Query.query(Criteria.where(DAG_NODES_CONNECTION_ID).is(connectionId)
+                .and(SYNC_TYPE).is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
+                .and(IS_DELETED).is(false)
         );
         if (null != includeFields && includeFields.length > 0) {
             query.fields().include(includeFields);
@@ -4457,8 +4295,8 @@ public class TaskServiceImpl extends TaskService{
 
     public TaskDto findHeartbeatByTaskId(String taskId, String... includeFields) {
         Query query = Query.query(Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is(taskId)
-                .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
-                .and("is_deleted").is(false)
+                .and(SYNC_TYPE).is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
+                .and(IS_DELETED).is(false)
         );
         if (null != includeFields && includeFields.length > 0) {
             query.fields().include(includeFields);
@@ -4469,7 +4307,7 @@ public class TaskServiceImpl extends TaskService{
 
     public int deleteHeartbeatByConnId(UserDetail user, String connId) {
         int deleteSize = 0;
-        List<TaskDto> heartbeatTasks = findHeartbeatByConnectionId(connId, "_id", "status", "is_deleted");
+        List<TaskDto> heartbeatTasks = findHeartbeatByConnectionId(connId, "_id", STATUS, IS_DELETED);
         if (null != heartbeatTasks) {
             TaskDto statusDto;
             for (TaskDto dto : heartbeatTasks) {
@@ -4485,7 +4323,7 @@ public class TaskServiceImpl extends TaskService{
                     } catch (InterruptedException e) {
                         throw new RuntimeException("Delete heartbeat task failed");
                     }
-                    statusDto = findByTaskId(dto.getId(), "status");
+                    statusDto = findByTaskId(dto.getId(), STATUS);
                 } while (null != statusDto);
 
                 remove(dto.getId(), user);
@@ -4497,12 +4335,12 @@ public class TaskServiceImpl extends TaskService{
 
 
     public int runningTaskNum(String processId, UserDetail userDetail) {
-        long workNum = count(Query.query(Criteria.where("agentId").is(processId)
-                .and("is_deleted").ne(true).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
-                .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
-                        .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
-                                Criteria.where("planStartDateFlag").is(true),
-                                Criteria.where("crontabExpressionFlag").is(true)
+        long workNum = count(Query.query(Criteria.where(AGENT_ID).is(processId)
+                .and(IS_DELETED).ne(true).and(SYNC_TYPE).in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .and(STATUS).nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
+                        .orOperator(Criteria.where(STATUS).in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
+                                Criteria.where(PLAN_START_DATE_FLAG).is(true),
+                                Criteria.where(CRONTAB_EXPRESSION_FLAG).is(true)
                         )), userDetail);
         return (int) workNum;
     }
@@ -4513,7 +4351,7 @@ public class TaskServiceImpl extends TaskService{
             return null;
         try {
             TaskEntity entity = new TaskEntity();
-            BeanUtils.copyProperties(dto, entity, "agentId", "startTime", "lastStartDate", "shareCdcStop", "shareCdcStopMessage");
+            BeanUtils.copyProperties(dto, entity, AGENT_ID, START_TIME, "lastStartDate", "shareCdcStop", "shareCdcStopMessage");
             return entity;
         } catch (Exception e) {
             log.error("Convert entity " + entityClass + " failed. {}", ThrowableUtils.getStackTraceByPn(e));
@@ -4539,25 +4377,25 @@ public class TaskServiceImpl extends TaskService{
     }
     public int findRunningTasksByAgentId(String processId){
         if (StringUtils.isBlank(processId.trim())) throw new IllegalArgumentException("process id can not be empty");
-        Query query = Query.query(Criteria.where("agentId").is(processId).and("status").is("running"));
+        Query query = Query.query(Criteria.where(AGENT_ID).is(processId).and(STATUS).is("running"));
         List<TaskDto> runningTasks = findAll(query);
         return runningTasks.size();
     }
 
     public int runningTaskNum(UserDetail userDetail) {
-        long workNum = count(Query.query(Criteria.where("is_deleted").ne(true)
-                .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
-                .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
-                .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
-                        Criteria.where("planStartDateFlag").is(true),
-                        Criteria.where("crontabExpressionFlag").is(true)
+        long workNum = count(Query.query(Criteria.where(IS_DELETED).ne(true)
+                .and(SYNC_TYPE).in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .and(STATUS).nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
+                .orOperator(Criteria.where(STATUS).in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
+                        Criteria.where(PLAN_START_DATE_FLAG).is(true),
+                        Criteria.where(CRONTAB_EXPRESSION_FLAG).is(true)
                 )), userDetail);
         return (int) workNum;
     }
 
     public boolean checkCloudTaskLimit(ObjectId taskId,UserDetail user,boolean checkCurrentTask){
         if (settingsService.isCloud()) {
-            TaskDto task = findByTaskId(taskId,"id","agentId","agentTags");
+            TaskDto task = findByTaskId(taskId,"id",AGENT_ID,"agentTags");
             CalculationEngineVo calculationEngineVo = workerService.calculationEngine(task, user, null);
             int runningNum;
             if(checkCurrentTask){

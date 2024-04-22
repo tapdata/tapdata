@@ -583,8 +583,8 @@ class HandlerUtilTest {
         class IncrProcessTimeTotalTest {
             @Test
             public void testIncrProcessTimeTotal() {
-                Long now = System.currentTimeMillis();
-                Long time = System.currentTimeMillis() - 10;
+                long now = System.currentTimeMillis();
+                long time = now - 10;
                 recorder.incrProcessTimeTotal(now, time);
                 Assertions.assertNotNull(recorder.getProcessTimeTotal());
                 Assertions.assertEquals(new Long(now - time), recorder.getProcessTimeTotal());
@@ -599,8 +599,8 @@ class HandlerUtilTest {
             @Test
             public void testIncrProcessTimeTotal1() {
                 recorder.setProcessTimeTotal(null);
-                Long now = System.currentTimeMillis();
-                Long time = System.currentTimeMillis() - 10;
+                long now = System.currentTimeMillis();
+                long time = now - 10;
                 recorder.incrProcessTimeTotal(now, time);
                 Assertions.assertNotNull(recorder.getProcessTimeTotal());
                 Assertions.assertEquals(new Long(now - time), recorder.getProcessTimeTotal());
@@ -609,8 +609,8 @@ class HandlerUtilTest {
             @Test
             public void testIncrProcessTimeTotal2() {
                 recorder.setProcessTimeTotal(0L);
-                Long now = System.currentTimeMillis();
-                Long time = System.currentTimeMillis() - 10;
+                long now = System.currentTimeMillis();
+                long time = now - 10;
                 recorder.incrProcessTimeTotal(now, time);
                 Assertions.assertNotNull(recorder.getProcessTimeTotal());
                 Assertions.assertEquals(new Long(now - time), recorder.getProcessTimeTotal());
@@ -622,9 +622,9 @@ class HandlerUtilTest {
 
             @Test
             public void testCalculateMaxReplicateLag() {
-                Long time = System.currentTimeMillis();
+                long time = System.currentTimeMillis();
                 List<Long> list = new ArrayList<>();
-                list.add(System.currentTimeMillis() - 10);
+                list.add(time - 10);
                 recorder.calculateMaxReplicateLag(time, list);
                 Assertions.assertNotNull(recorder.getReplicateLagTotal());
                 Assertions.assertEquals(new Long(10), recorder.getReplicateLagTotal());
@@ -633,9 +633,9 @@ class HandlerUtilTest {
             @Test
             public void testCalculateMaxReplicateLagNotNullOfReplicateLagTotal() {
                 recorder.setReplicateLagTotal(0L);
-                Long time = System.currentTimeMillis();
+                long time = System.currentTimeMillis();
                 List<Long> list = new ArrayList<>();
-                list.add(System.currentTimeMillis() - 10);
+                list.add(time - 10);
                 recorder.calculateMaxReplicateLag(time, list);
                 Assertions.assertNotNull(recorder.getReplicateLagTotal());
                 Assertions.assertEquals(new Long(10), recorder.getReplicateLagTotal());
