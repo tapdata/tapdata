@@ -66,7 +66,7 @@ public class GuangFaUtils {
 
 	public static boolean setAccessCode(Consumer<String> setAccessCode) {
 		if (isGuangFa()) {
-			String accessCode = getConf(ENV_PROPERTY_ACCESS_CODE, "3324cfdf-7d3e-4792-bd32-571638d4562f");
+			String accessCode = getConf(ENV_PROPERTY_ACCESS_CODE);
 			setAccessCode.accept(accessCode);
 			return true;
 		}
