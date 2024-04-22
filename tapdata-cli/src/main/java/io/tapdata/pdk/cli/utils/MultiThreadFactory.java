@@ -1,5 +1,7 @@
 package io.tapdata.pdk.cli.utils;
 
+import io.tapdata.pdk.cli.utils.split.SplitStage;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -9,9 +11,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-public class MultiThreadFactory<T> {
+/**
+ * @author Gavin'Xiao
+ * https://github.com/11000100111010101100111
+ * */
+public class MultiThreadFactory<T> implements SplitStage<T> {
     public static final int DEFAULT_THREAD_COUNT = 3;
     public static final int DEFAULT_EACH_PIECE_SIZE = 50;
+
+    SplitStage<T> splitStage;
 
     int threadCount;
     int eachPieceSize;
@@ -19,6 +27,13 @@ public class MultiThreadFactory<T> {
     public MultiThreadFactory(int threadCount, int eachPieceSize) {
         this.eachPieceSize = eachPieceSize;
         this.threadCount = Math.max(threadCount, 1);
+    }
+
+    public MultiThreadFactory<T> setSplitStage(SplitStage<T> splitStage) {
+        if (null != splitStage) {
+            this.splitStage = splitStage;
+        }
+        return this;
     }
 
     public MultiThreadFactory(int threadCount) {
@@ -36,7 +51,7 @@ public class MultiThreadFactory<T> {
     }
 
     private void handel(int threadCount, int eachPieceSize, List<T> data, ThreadConsumer<T> consumer) {
-        CopyOnWriteArraySet<List<T>> dataList = new CopyOnWriteArraySet<>(splitToPieces(new ArrayList<>(data), eachPieceSize));
+        CopyOnWriteArraySet<List<T>> dataList = new CopyOnWriteArraySet<>(splitStage.splitToPieces(new ArrayList<>(data), eachPieceSize));
         AtomicReference<Throwable> throwable = new AtomicReference<>();
         CountDownLatch countDownLatch = new CountDownLatch(threadCount);
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
@@ -81,7 +96,7 @@ public class MultiThreadFactory<T> {
         return null;
     }
 
-    public static <T> List<List<T>> splitToPieces(List<T> data, int eachPieceSize) {
+    public List<List<T>> splitToPieces(List<T> data, int eachPieceSize) {
         if (null == data || data.isEmpty()) {
             return new ArrayList<>();
         }

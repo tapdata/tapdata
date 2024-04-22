@@ -126,14 +126,14 @@ public class RegisterMain {
 		// -Dserver=http://192.168.1.181:31321
 		// -Dbeta=true
 		// -Dfilter=GA
-		// -Dthread=4
+		// -Dthread=1
 
 		List<String> postList = new ArrayList<>();
 		//String server = System.getProperty("server", "https://v3.test.cloud.tapdata.net/tm");
-		String server = System.getProperty("server", "http://localhost:3000");
-		//String server = System.getProperty("server", "http://192.168.1.189:30205");
+		String server = System.getProperty("server", "http://127.0.0.1:3000");
 		String filter = System.getProperty("filter", "");
-		String thread = System.getProperty("filter", "1");
+		String thread = System.getProperty("thread", "8");
+		//String server = System.getProperty("server", "http://192.168.1.189:30205");
 		Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "", "-sk", "","-f",filter,"-T", thread, "-t", server);
 		String[] tags = System.getProperty("tags", "all").split(",");
 		ConnectorEnums.addByTags(postList, tags);

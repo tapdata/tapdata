@@ -3,7 +3,11 @@ package io.tapdata.pdk.cli.utils;
 
 import picocli.CommandLine;
 
+import java.math.BigDecimal;
+import java.text.DecimalFormat;
+
 public class PrintUtil {
+    private static final DecimalFormat DECIMAL_FORMAT =  new DecimalFormat("#0.000");
     boolean showAllMessage;
     public PrintUtil(boolean showAllMessage) {
         this.showAllMessage = showAllMessage;
@@ -22,7 +26,7 @@ public class PrintUtil {
         System.out.print(CommandLine.Help.Ansi.AUTO.string("@|bold,fg(250) " + message + "|@"));
     }
 
-    public String string(TYPE type, String message) {
+    public static String string(TYPE type, String message) {
         switch (type) {
             case DEBUG:
                 return CommandLine.Help.Ansi.AUTO.string("@|fg(250) " + message + "|@");
@@ -45,8 +49,12 @@ public class PrintUtil {
         }
     }
 
-    public void print(String message) {
+    public static void print(String message) {
         System.out.println(message);
+    }
+
+    public static String formatDate(long times) {
+        return PrintUtil.string(PrintUtil.TYPE.OUTSHOOT, DECIMAL_FORMAT.format(new BigDecimal(System.currentTimeMillis() - times).divide(new BigDecimal(1000),3,BigDecimal.ROUND_HALF_UP)) + "m");
     }
 
     public enum TYPE {

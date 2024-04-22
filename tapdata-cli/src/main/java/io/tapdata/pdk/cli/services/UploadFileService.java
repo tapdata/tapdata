@@ -25,6 +25,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -37,6 +38,13 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 @Slf4j
 public class UploadFileService {
+  public static final String POST = "POST";
+  public static final String LATEST = "latest";
+  public static final String FILE = "file";
+  public static final String SOURCE = "source";
+
+  public static final String OP_URL = "%s/api/pdk/upload/source?access_token=%s";
+
   public static class Param {
     Map<String, InputStream> inputStreamMap;
     File file;
@@ -126,14 +134,13 @@ public class UploadFileService {
   }
 
   public static String findOpToken(String hostAndPort, String accessCode, PrintUtil printUtil) {
-    String token = null;
-    String tokenUrl = hostAndPort + "/api/users/generatetoken";
+    String tokenUrl = String.format("%s/api/users/generatetoken", hostAndPort);
     Map<String, String> param = new HashMap<>();
     param.put("accesscode", accessCode);
     String jsonString = JSON.toJSONString(param);
     String s = OkHttpUtils.postJsonParams(tokenUrl, jsonString);
 
-    printUtil.print(PrintUtil.TYPE.DEBUG, "generate token " + s);
+    printUtil.print(PrintUtil.TYPE.DEBUG, String.format("generate token %s", s));
     String error = "* TM sever not found or generate token failed";
     if (StringUtils.isBlank(s)) {
       printUtil.print(PrintUtil.TYPE.ERROR, error);
@@ -147,7 +154,7 @@ public class UploadFileService {
       return null;
     }
     JSONObject data1 = (JSONObject) data;
-    token = (String) data1.get("id");
+    String token = (String) data1.get("id");
     if (StringUtils.isBlank(token)) {
       printUtil.print(PrintUtil.TYPE.ERROR, error);
       return token;
@@ -155,6 +162,9 @@ public class UploadFileService {
     return token;
   }
 
+  /**
+   * @deprecated please use method to upload connector,
+   * */
   public static void uploadSourceToTM(Param paramEntity) {
     Map<String, InputStream> inputStreamMap = paramEntity.getInputStreamMap();
     File file = paramEntity.getFile();
@@ -309,6 +319,158 @@ public class UploadFileService {
       result = "fail";
     }
     printUtil.print(PrintUtil.TYPE.DEBUG, "* Register result: " + result + ", name:" + (null == file ? "-" : file.getName()) + ", msg:" + msg + ", response:" + response);
+  }
+
+  public static void uploadConnector(Param paramEntity) {
+    if (null == paramEntity.file) {
+      paramEntity.printUtil.print(PrintUtil.TYPE.DEBUG, "Ignore an empty connector file to register");
+      return;
+    }
+    if (isCloud(paramEntity.ak)) {
+      uploadSourceToTM(paramEntity);
+    } else {
+      uploadSourceToOP(paramEntity);
+    }
+  }
+
+  protected static Map<String, String> initHttpParam(Param paramEntity) {
+    Map<String, String> params = new HashMap<>();
+    params.put("ts", String.valueOf(System.currentTimeMillis()));
+    params.put("nonce", UUID.randomUUID().toString());
+    params.put("signVersion", "1.0");
+    params.put("accessKey", paramEntity.ak);
+    return params;
+  }
+
+  protected static void uploadSourceToOP(Param paramEntity) {
+    final String url = String.format(OP_URL, paramEntity.getHostAndPort(), paramEntity.getToken());
+    HttpRequest request = new HttpRequest(url, POST);
+    sendSource(request, paramEntity, String.valueOf(paramEntity.isLatest()));
+  }
+
+  protected static MessageDigest initMessageDigest(Param paramEntity) {
+    MessageDigest digest = null;
+    try {
+      digest = MessageDigest.getInstance("SHA-256");
+    } catch (NoSuchAlgorithmException e) {
+      throw new RuntimeException(e);
+    }
+    MultipartBody.Builder builder = new MultipartBody.Builder();
+    builder.setType(MultipartBody.FORM);
+    digest.update(FILE.getBytes(UTF_8));
+    File file = paramEntity.getFile();
+    digest.update(file.getName().getBytes(UTF_8));
+    try {
+      digest.update(IOUtil.readFile(file));
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    return digest;
+  }
+
+  protected static void uploadSourceToCloud(Param paramEntity) {
+    PrintUtil printUtil = paramEntity.printUtil;
+    Map<String, String> params = initHttpParam(paramEntity);
+    MessageDigest digest = initMessageDigest(paramEntity);
+
+    Optional.ofNullable(paramEntity.getInputStreamMap()).ifPresent(inputStreamMap -> {
+      for (Map.Entry<String, InputStream> entry : inputStreamMap.entrySet()) {
+        String k = entry.getKey();
+        InputStream v = entry.getValue();
+        byte[] inBytes;
+        try {
+          inBytes = IOUtil.readInputStream(v);
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+        v = new ByteArrayInputStream(inBytes);
+        digest.update(FILE.getBytes(UTF_8));
+        digest.update(k.getBytes(UTF_8));
+        digest.update(inBytes);
+        inputStreamMap.put(k, v);
+      }
+    });
+
+    //要上传的文字参数
+    Optional.ofNullable(paramEntity.jsons).ifPresent(jsons -> {
+      for (String json : jsons) {
+        digest.update(SOURCE.getBytes(UTF_8));
+        digest.update(json.getBytes());
+      }
+      // if the jsons size == 1, the data received by TM will be weird, adding an empty string helps TM receive the
+      // proper data; the empty string should be dealt in TM.
+      if (jsons.size() == 1) {
+        digest.update(SOURCE.getBytes(UTF_8));
+        digest.update("".getBytes());
+      }
+    });
+
+    // whether replace the latest version
+    String latestString = String.valueOf(paramEntity.isLatest());
+    digest.update(LATEST.getBytes(UTF_8));
+    digest.update(latestString.getBytes(UTF_8));
+
+    String bodyHash = Base64Util.encode(digest.digest());
+
+    printUtil.print(PrintUtil.TYPE.DEBUG, String.format("Hash body: %s", bodyHash));
+    BasicCredentials basicCredentials = new BasicCredentials(paramEntity.getAk(), paramEntity.getSk());
+    Signer signer = Signer.getSigner(basicCredentials);
+    String canonicalQueryString = SignUtil.canonicalQueryString(params);
+    String stringToSign = String.format("%s:%s:%s", POST, canonicalQueryString, bodyHash);
+
+    printUtil.print(PrintUtil.TYPE.DEBUG, String.format("Sign string is: %s", stringToSign));
+    String sign = signer.signString(stringToSign, basicCredentials);
+
+    params.put("sign", sign);
+    printUtil.print(PrintUtil.TYPE.DEBUG, String.format("Sign result is: %s", sign));
+
+    final String formatSingRegex = "%s=%s";
+    String queryString = params.keySet().stream().map(key -> {
+      try {
+        return String.format(formatSingRegex, SignUtil.percentEncode(key), SignUtil.percentEncode(params.get(key)));
+      } catch (UnsupportedEncodingException e) {
+        printUtil.print(PrintUtil.TYPE.WARN, String.format("Percent encode sing info failed, message: %s", e.getMessage()));
+      }
+      return String.format(formatSingRegex, key, params.get(key));
+    }).collect(Collectors.joining("&"));
+
+    final String url = String.format("%s/api/pdk/upload/source?%s", paramEntity.getHostAndPort(), queryString);
+    HttpRequest request = new HttpRequest(url, POST);
+    sendSource(request, paramEntity, latestString);
+  }
+
+  protected static void sendSource(HttpRequest request, Param paramEntity, String latestString) {
+    String fileName = paramEntity.getFile().getName();
+    request.part(FILE, fileName, "application/java-archive", paramEntity.getFile());
+    Optional.ofNullable(paramEntity.getInputStreamMap()).ifPresent(inputStreamMap -> {
+      for (Map.Entry<String, InputStream> entry : inputStreamMap.entrySet()) {
+        String k = entry.getKey();
+        request.part(FILE, k, "image/*", entry.getValue());
+      }
+    });
+    //要上传的文字参数
+    Optional.ofNullable(paramEntity.getJsons()).ifPresent(jsons -> {
+      for (String json : jsons) {
+        request.part(SOURCE, json);
+      }
+      // if the jsons size == 1, the data received by TM will be weird, adding an empty string helps TM receive the
+      // proper data; the empty string should be dealt in TM.
+      if (jsons.size() == 1) {
+        request.part(SOURCE, "");
+      }
+    });
+    // whether replace the latest version
+    request.part(LATEST, latestString);
+    String response = request.body();
+    Map<?, ?> map = JSON.parseObject(response, Map.class);
+    String msg = String.format("Connector %s register succeed", fileName);
+    PrintUtil printUtil = paramEntity.getPrintUtil();
+    if (!"ok".equals(map.get("code"))) {
+      msg = map.get("reqId") != null ? (String) map.get("message") : (String) map.get("msg");
+      printUtil.print(PrintUtil.TYPE.DEBUG, String.format("* Register %s, connector file name: %s, msg: %s, response: %s", PrintUtil.string(PrintUtil.TYPE.ERROR, "failed"), fileName, msg, response));
+      return;
+    }
+    printUtil.print(PrintUtil.TYPE.DEBUG, String.format("* Register %s, connector file name: %s, msg: %s, response: %s", PrintUtil.string(PrintUtil.TYPE.ERROR, "succeed"), fileName, msg, response));
   }
 
   public static RequestBody create(final MediaType mediaType, final InputStream inputStream) {
