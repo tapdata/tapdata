@@ -4,10 +4,11 @@ import io.tapdata.pdk.cli.utils.split.SplitStage;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -17,15 +18,11 @@ import java.util.stream.Collectors;
  * */
 public class MultiThreadFactory<T> implements SplitStage<T> {
     public static final int DEFAULT_THREAD_COUNT = 3;
-    public static final int DEFAULT_EACH_PIECE_SIZE = 50;
-
     SplitStage<T> splitStage;
 
     int threadCount;
-    int eachPieceSize;
 
-    public MultiThreadFactory(int threadCount, int eachPieceSize) {
-        this.eachPieceSize = eachPieceSize;
+    public MultiThreadFactory(int threadCount) {
         this.threadCount = Math.max(threadCount, 1);
     }
 
@@ -36,31 +33,28 @@ public class MultiThreadFactory<T> implements SplitStage<T> {
         return this;
     }
 
-    public MultiThreadFactory(int threadCount) {
-        this.threadCount = Math.max(threadCount, 1);
-        this.eachPieceSize = DEFAULT_EACH_PIECE_SIZE;
-    }
-
     public MultiThreadFactory() {
         this.threadCount = DEFAULT_THREAD_COUNT;
-        this.eachPieceSize = DEFAULT_EACH_PIECE_SIZE;
     }
 
     public void handel(List<T> data, ThreadConsumer<T> consumer) {
-        handel(threadCount, eachPieceSize, data, consumer);
+        handel(threadCount, data, consumer);
     }
 
-    private void handel(int threadCount, int eachPieceSize, List<T> data, ThreadConsumer<T> consumer) {
-        CopyOnWriteArraySet<List<T>> dataList = new CopyOnWriteArraySet<>(splitStage.splitToPieces(new ArrayList<>(data), eachPieceSize));
+    private void handel(int threadCount, List<T> data, ThreadConsumer<T> consumer) {
+        if (null == data || data.isEmpty()) return;
         AtomicReference<Throwable> throwable = new AtomicReference<>();
         CountDownLatch countDownLatch = new CountDownLatch(threadCount);
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
+        final AtomicInteger local = new AtomicInteger(0);
+        final List<T> execData = data.stream().filter(Objects::nonNull).collect(Collectors.toList());
+        if (execData.isEmpty()) return;
         try {
             for (int i = 0; i < threadCount; i++) {
                 executorService.submit(() -> {
                     try {
-                        List<T> eventSpilt;
-                        while ((eventSpilt = getOutEventList(dataList)) != null && !eventSpilt.isEmpty()) {
+                        T eventSpilt;
+                        while ((eventSpilt = getOutEvent(execData, local)) != null) {
                             consumer.accept(eventSpilt);
                         }
                     } catch (Exception e) {
@@ -84,14 +78,17 @@ public class MultiThreadFactory<T> implements SplitStage<T> {
     }
 
     public interface ThreadConsumer<T> {
-        public void accept(List<T> eventSpilt);
+        public void accept(T eventSpilt);
     }
 
-    private synchronized List<T> getOutEventList(CopyOnWriteArraySet<List<T>> tableLists) {
+    private T getOutEvent(List<T> tableLists, final AtomicInteger local) {
         if (null != tableLists) {
-            List<T> list = tableLists.stream().findFirst().orElseGet(ArrayList::new);
-            tableLists.remove(list);
-            return list;
+            T value;
+            synchronized (local) {
+                value = tableLists.get(local.get());
+                local.incrementAndGet();
+            }
+            return value;
         }
         return null;
     }
