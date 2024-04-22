@@ -51,17 +51,17 @@ import java.util.function.Consumer;
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR,TaskDto.SYNC_TYPE_MEM_CACHE})
 public class MilestoneAspectTask extends AbstractAspectTask {
 
-    private final static String KPI_TASK = "TASK";
-    private final static String KPI_DATA_NODE_INIT = "DATA_NODE_INIT";
-    private final static String KPI_NODE = "NODE";
-    private final static String KPI_SNAPSHOT = "SNAPSHOT";
-    private final static String KPI_CDC = "CDC";
-    private final static String KPI_SNAPSHOT_READ = "SNAPSHOT_READ";
-    private final static String KPI_OPEN_CDC_READ = "OPEN_CDC_READ";
-    private final static String KPI_CDC_READ = "CDC_READ";
-    private final static String KPI_SNAPSHOT_WRITE = "SNAPSHOT_WRITE";
-    private final static String KPI_CDC_WRITE = "CDC_WRITE";
-    private final static String KPI_TABLE_INIT = "TABLE_INIT";
+    protected final static String KPI_TASK = "TASK";
+    protected final static String KPI_DATA_NODE_INIT = "DATA_NODE_INIT";
+    protected final static String KPI_NODE = "NODE";
+    protected final static String KPI_SNAPSHOT = "SNAPSHOT";
+    protected final static String KPI_CDC = "CDC";
+    protected final static String KPI_SNAPSHOT_READ = "SNAPSHOT_READ";
+    protected final static String KPI_OPEN_CDC_READ = "OPEN_CDC_READ";
+    protected final static String KPI_CDC_READ = "CDC_READ";
+    protected final static String KPI_SNAPSHOT_WRITE = "SNAPSHOT_WRITE";
+    protected final static String KPI_CDC_WRITE = "CDC_WRITE";
+    protected final static String KPI_TABLE_INIT = "TABLE_INIT";
 
     private final Map<String, MilestoneEntity> milestones = new ConcurrentHashMap<>();
     private final Map<String, Map<String, MilestoneEntity>> nodeMilestones = new ConcurrentHashMap<>();
@@ -74,6 +74,10 @@ public class MilestoneAspectTask extends AbstractAspectTask {
 	private final AtomicLong snapshotTableProgress = new AtomicLong(0);
 
     public MilestoneAspectTask() {
+        init();
+    }
+
+    protected void init() {
         observerHandlers.register(PDKNodeInitAspect.class, this::handlePDKNodeInit);
         observerHandlers.register(DataNodeInitAspect.class, this::handleDataNodeInit);
         observerHandlers.register(DataNodeCloseAspect.class, this::handleDataNodeClose);
@@ -152,13 +156,15 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             taskMilestone(KPI_CDC, this::setFinish);
             task.setSyncStatus(SyncStatus.DO_CDC.getType());
         });
-        nodeRegister(WriteErrorAspect.class, (nodeId, aspect) -> nodeKpi(nodeId, KPI_SNAPSHOT_WRITE, m -> {
-            if (null == m.getEnd()) {
-                setError(aspect, m);
-            } else {
-                nodeKpi(nodeId, KPI_CDC_WRITE, m2 -> setError(aspect, m2));
-            }
-        }));
+        nodeRegister(WriteErrorAspect.class, (nodeId, aspect) -> {
+            nodeKpi(nodeId, KPI_SNAPSHOT_WRITE, m -> {
+                if (null == m.getEnd()) {
+                    setError(aspect, m);
+                } else {
+                    nodeKpi(nodeId, KPI_CDC_WRITE, m2 -> setError(aspect, m2));
+                }
+            });
+        });
     }
 
     @Override
@@ -196,36 +202,37 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         }
     }
 
-    private boolean hasSnapshot() {
+    protected boolean hasSnapshot() {
         return ParentTaskDto.TYPE_INITIAL_SYNC_CDC.equals(task.getType()) || ParentTaskDto.TYPE_INITIAL_SYNC.equals(task.getType());
     }
 
-    private boolean hasCdc() {
+    protected boolean hasCdc() {
         return ParentTaskDto.TYPE_INITIAL_SYNC_CDC.equals(task.getType()) || ParentTaskDto.TYPE_CDC.equals(task.getType());
     }
 
-    private Void handleDataNodeInit(DataNodeInitAspect aspect) {
+    protected Void handleDataNodeInit(DataNodeInitAspect aspect) {
         task.setSyncStatus(SyncStatus.DATA_NODE_INIT.getType());
         DataProcessorContext dataProcessorContext = aspect.getDataProcessorContext();
         String nodeId = nodeId(dataProcessorContext);
         nodeMilestones(nodeId, KPI_NODE, this::setRunning);
-			Node<?> node = dataProcessorContext.getNode();
-			if (null == node.predecessors() || node.predecessors().isEmpty()) {
-				if (node instanceof TableNode) {
-					snapshotTableCounts.addAndGet(1);
-				} else if (node instanceof DatabaseNode) {
-					DatabaseNode databaseNode = (DatabaseNode) node;
-					snapshotTableCounts.addAndGet(databaseNode.tableSize());
-				}
-				taskMilestone(KPI_SNAPSHOT, (tm) -> {
-					tm.setTotals(snapshotTableCounts.get());
-				});
-			}
+        Node<?> node = dataProcessorContext.getNode();
+        List<? extends Node<?>> predecessors = node.predecessors();
+        if (null == predecessors || predecessors.isEmpty()) {
+            if (node instanceof TableNode) {
+                snapshotTableCounts.addAndGet(1);
+            } else if (node instanceof DatabaseNode) {
+                DatabaseNode databaseNode = (DatabaseNode) node;
+                snapshotTableCounts.addAndGet(databaseNode.tableSize());
+            }
+            taskMilestone(KPI_SNAPSHOT, (tm) -> {
+                tm.setTotals(snapshotTableCounts.get());
+            });
+        }
         dataNodeInitMap.computeIfPresent(nodeId, (k, v) -> MilestoneStatus.RUNNING);
         return null;
     }
 
-    private Void handleDataNodeClose(DataNodeCloseAspect aspect) {
+    protected Void handleDataNodeClose(DataNodeCloseAspect aspect) {
         String nodeId = nodeId(aspect.getDataProcessorContext());
         nodeMilestones(nodeId, KPI_NODE, this::setFinish);
         dataNodeInitMap.computeIfPresent(nodeId, (k, v) -> MilestoneStatus.FINISH);
@@ -233,27 +240,27 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         return null;
     }
 
-    private Void handleProcessNodeInit(ProcessorNodeInitAspect aspect) {
+    protected Void handleProcessNodeInit(ProcessorNodeInitAspect aspect) {
         task.setSyncStatus(SyncStatus.PROCESS_NODE_INIT.getType());
         String nodeId = nodeId(aspect.getProcessorBaseContext());
         nodeMilestones(nodeId, KPI_NODE, this::setRunning);
         return null;
     }
 
-    private Void handleProcessNodeClose(ProcessorNodeCloseAspect aspect) {
+    protected Void handleProcessNodeClose(ProcessorNodeCloseAspect aspect) {
         task.setSyncStatus(SyncStatus.PROCESS_NODE_INIT_COMPLETED.getType());
         String nodeId = nodeId(aspect.getProcessorBaseContext());
         nodeMilestones(nodeId, KPI_NODE, this::setFinish);
         return null;
     }
 
-    private Void handlePDKNodeInit(PDKNodeInitAspect aspect) {
+    protected Void handlePDKNodeInit(PDKNodeInitAspect aspect) {
         String nodeId = nodeId(aspect.getDataProcessorContext());
         nodeMilestones(nodeId, KPI_NODE, this::setFinish);
         return null;
     }
 
-    private synchronized Void handleTableInit(TableInitFuncAspect aspect) {
+    protected synchronized Void handleTableInit(TableInitFuncAspect aspect) {
         String nodeId = nodeId(aspect.getDataProcessorContext());
         switch (aspect.getState()) {
             case TableInitFuncAspect.STATE_START:
@@ -292,7 +299,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         return null;
     }
 
-    private void storeMilestone() {
+    protected void storeMilestone() {
         try {
             // set task table init
             if (!TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType())) {
@@ -363,7 +370,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         }
     }
 
-    private void taskMilestone(String code, Consumer<MilestoneEntity> consumer) {
+    protected void taskMilestone(String code, Consumer<MilestoneEntity> consumer) {
         MilestoneEntity entity = milestones.get(code);
         if (null == entity) {
             synchronized (milestones) {
@@ -373,7 +380,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         if (null != consumer) consumer.accept(entity);
     }
 
-    private void nodeMilestones(String nodeId, String code, Consumer<MilestoneEntity> consumer) {
+    protected void nodeMilestones(String nodeId, String code, Consumer<MilestoneEntity> consumer) {
         Map<String, MilestoneEntity> nodeMap = nodeMilestones.get(nodeId);
         if (null == nodeMap) {
             synchronized (nodeMilestones) {
@@ -385,7 +392,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         consumer.accept(entity);
     }
 
-    private <T extends DataNodeAspect<T>> void nodeRegister(Class<T> clz, BiConsumer<String, T> consumer) {
+    protected <T extends DataNodeAspect<T>> void nodeRegister(Class<T> clz, BiConsumer<String, T> consumer) {
         observerHandlers.register(clz, aspect -> {
             String nodeId = nodeId(aspect.getDataProcessorContext());
             consumer.accept(nodeId, aspect);
@@ -393,7 +400,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         });
     }
 
-    private <T extends DataNodeAspect<T>> void nodeRegister(Class<T> clz, String code, BiConsumer<T, MilestoneEntity> consumer) {
+    protected  <T extends DataNodeAspect<T>> void nodeRegister(Class<T> clz, String code, BiConsumer<T, MilestoneEntity> consumer) {
         observerHandlers.register(clz, aspect -> {
             String nodeId = nodeId(aspect.getDataProcessorContext());
             nodeKpi(nodeId, code, m -> {
@@ -403,7 +410,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         });
     }
 
-    private void nodeKpi(String nodeId, String code, Consumer<MilestoneEntity> consumer) {
+    protected void nodeKpi(String nodeId, String code, Consumer<MilestoneEntity> consumer) {
         Map<String, MilestoneEntity> nodeMap = nodeMilestones.get(nodeId);
         if (null == nodeMap) {
             synchronized (nodeMilestones) {
@@ -415,14 +422,14 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         consumer.accept(entity);
     }
 
-    private String nodeId(ProcessorBaseContext context) {
+    protected String nodeId(ProcessorBaseContext context) {
         return Optional.ofNullable(context)
                 .map(ProcessorBaseContext::getNode)
                 .map(Element::getId)
                 .orElse(null);
     }
 
-    private void setRunning(MilestoneEntity milestone) {
+    protected void setRunning(MilestoneEntity milestone) {
         if (null == milestone.getBegin()) {
             milestone.setBegin(System.currentTimeMillis());
             milestone.setStatus(MilestoneStatus.RUNNING);
@@ -431,7 +438,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         milestone.setErrorMessage(null);
     }
 
-    private void setFinish(MilestoneEntity milestone) {
+    protected void setFinish(MilestoneEntity milestone) {
         if (null == milestone.getBegin()) {
             milestone.setBegin(System.currentTimeMillis());
         }
@@ -441,13 +448,13 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         }
     }
 
-    private <T extends AbsDataNodeErrorAspect<T>> void setError(T aspect, MilestoneEntity m) {
+    protected <T extends AbsDataNodeErrorAspect<T>> void setError(T aspect, MilestoneEntity m) {
         m.setEnd(System.currentTimeMillis());
         m.setStatus(MilestoneStatus.ERROR);
         m.setErrorMessage(Optional.ofNullable(aspect.getError()).map(Throwable::getMessage).orElse(null));
     }
 
-    private Consumer<MilestoneEntity> getErrorConsumer(String errorMessage) {
+    protected Consumer<MilestoneEntity> getErrorConsumer(String errorMessage) {
         return (m) -> {
             m.setEnd(System.currentTimeMillis());
             m.setStatus(MilestoneStatus.ERROR);
