@@ -120,10 +120,11 @@ public class RegisterCli extends CommonCli {
 
         try {
             printUtil.print(PrintUtil.TYPE.DEBUG, "* Start registering all connectors");
+            files = filterAllConnectorJar(files, filterTypes);
             long startRegister = System.currentTimeMillis();
             if (maxThreadCount == 1) {
                 printUtil.print(PrintUtil.TYPE.TIP, "* Start registering with single thread");
-                registerOneBatch(files, filterTypes, tmToken);
+                registerOneBatch(files, tmToken);
             } else {
                 printUtil.print(PrintUtil.TYPE.TIP, String.format("* Start registering with multi thread of %s workers", maxThreadCount));
                 final int eachSize = (files.length / maxThreadCount) + (files.length % maxThreadCount > 0 ? 1 : 0);
@@ -131,7 +132,7 @@ public class RegisterCli extends CommonCli {
                 multiThreadFactory.setSplitStage(new SplitByFileSizeImpl(maxThreadCount, printUtil));
                 multiThreadFactory.handel(Lists.newArrayList(files), fileListAnBatch -> {
                     File[] fs = new File[fileListAnBatch.size()];
-                    registerOneBatch(fileListAnBatch.toArray(fs), filterTypes, tmToken);
+                    registerOneBatch(fileListAnBatch.toArray(fs), tmToken);
                 });
             }
             printUtil.print(PrintUtil.TYPE.DEBUG, String.format("* Register all connectors completed cost time: %s", PrintUtil.formatDate(startRegister)));
@@ -187,7 +188,36 @@ public class RegisterCli extends CommonCli {
         }
     }
 
-    protected void registerOneBatch(File[] files, List<String> filterTypes, String tmToken) {
+    protected File[] filterAllConnectorJar(File[] files, List<String> filterTypes) {
+        if (filterTypes.isEmpty()) return files;
+        List<File> fs = new ArrayList<>();
+        for (File file : files) {
+            TapConnector connector = TapConnectorManager.getInstance().getTapConnectorByJarName(file.getName());
+            Collection<TapNodeInfo> tapNodeInfoCollection = connector.getTapNodeClassFactory().getConnectorTapNodeInfos();
+            boolean needUpload = true;
+            String connectionType = "";
+            for (TapNodeInfo nodeInfo : tapNodeInfoCollection) {
+                TapNodeSpecification specification = nodeInfo.getTapNodeSpecification();
+                String authentication = specification.getManifest().get("Authentication");
+                connectionType = authentication;
+                if (needSkip(authentication, filterTypes)) {
+                    needUpload = false;
+                    printUtil.print(PrintUtil.TYPE.IGNORE, String.format(" Connector: %s, Skipped with (%s)", file.getName(), connectionType));
+                    break;
+                }
+                needUpload = true;
+            }
+            if (!needUpload) {
+                printUtil.print(PrintUtil.TYPE.DEBUG, String.format("\t- skipped %s's source types is [%s], need register type list: %s", file.getName(), connectionType, filterTypes));
+                continue;
+            }
+            fs.add(file);
+        }
+        File[] result = new File[fs.size()];
+        return fs.toArray(result);
+    }
+
+    protected void registerOneBatch(File[] files, String tmToken) {
         try {
             for (File file : files) {
                 printUtil.print(PrintUtil.TYPE.NORMAL, String.format("* Register Connector: %s  Starting", file.getName()));
@@ -195,19 +225,12 @@ public class RegisterCli extends CommonCli {
                 TapConnector connector = TapConnectorManager.getInstance().getTapConnectorByJarName(file.getName());
                 Collection<TapNodeInfo> tapNodeInfoCollection = connector.getTapNodeClassFactory().getConnectorTapNodeInfos();
                 Map<String, InputStream> inputStreamMap = new HashMap<>();
-                boolean needUpload = true;
                 String connectionType = "";
                 try {
                     for (TapNodeInfo nodeInfo : tapNodeInfoCollection) {
                         TapNodeSpecification specification = nodeInfo.getTapNodeSpecification();
                         String authentication = specification.getManifest().get("Authentication");
                         connectionType = authentication;
-                        if (needSkip(authentication, filterTypes)) {
-                            needUpload = false;
-                            printUtil.print(PrintUtil.TYPE.IGNORE, String.format(" Connector: %s, Skipped with (%s)", file.getName(), connectionType));
-                            break;
-                        }
-                        needUpload = true;
                         String iconPath = specification.getIcon();
                         if (StringUtils.isNotBlank(iconPath)) {
                             InputStream is = nodeInfo.readResource(iconPath);
@@ -354,10 +377,6 @@ public class RegisterCli extends CommonCli {
                         o.put("tapTypeDataTypeMap", JSON.toJSONString(tapTypeDataTypeMap));
                         String jsonString = o.toJSONString();
                         jsons.add(jsonString);
-                    }
-                    if (!needUpload) {
-                        printUtil.print(PrintUtil.TYPE.DEBUG, String.format("\t- skipped %s's source types is [%s], need register type list: %s", file.getName(), connectionType, filterTypes));
-                        continue;
                     }
                     if (file.isFile()) {
                         UploadFileService.Param param = new UploadFileService.Param();
