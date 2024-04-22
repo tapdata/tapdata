@@ -470,7 +470,7 @@ public class UploadFileService {
       printUtil.print(PrintUtil.TYPE.DEBUG, String.format("* Register %s, connector file name: %s, msg: %s, response: %s", PrintUtil.string(PrintUtil.TYPE.ERROR, "failed"), fileName, msg, response));
       return;
     }
-    printUtil.print(PrintUtil.TYPE.DEBUG, String.format("* Register %s, connector file name: %s, msg: %s, response: %s", PrintUtil.string(PrintUtil.TYPE.ERROR, "succeed"), fileName, msg, response));
+    printUtil.print(PrintUtil.TYPE.DEBUG, String.format("* Register %s, connector file name: %s, msg: %s, response: %s", PrintUtil.string(PrintUtil.TYPE.INFO, "succeed"), fileName, msg, response));
   }
 
   public static RequestBody create(final MediaType mediaType, final InputStream inputStream) {
