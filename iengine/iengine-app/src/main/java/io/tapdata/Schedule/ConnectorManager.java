@@ -15,6 +15,7 @@ import com.tapdata.mongo.RestTemplateOperator;
 import com.tapdata.tm.commons.ping.PingDto;
 import com.tapdata.tm.commons.ping.PingType;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
+import com.tapdata.tm.utils.GuangFaUtils;
 import com.tapdata.tm.worker.WorkerSingletonException;
 import com.tapdata.tm.worker.WorkerSingletonLock;
 import io.tapdata.aspect.LoginSuccessfullyAspect;
@@ -438,7 +439,7 @@ public class ConnectorManager {
 		while (loginResp == null) {
 			try {
 
-				if (!appType.isCloud()) {
+				if (!appType.isCloud() && !GuangFaUtils.setAccessCode(s -> this.accessCode = s)) {
 
 					MongoTemplate mongoTemplate = clientMongoOperator.getMongoTemplate();
 					List<User> users = mongoTemplate.find(new Query(where("role").is(1)), User.class, "User");

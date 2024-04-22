@@ -8,6 +8,7 @@ import com.tapdata.entity.AppType;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
+import com.tapdata.tm.utils.GuangFaUtils;
 import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.error.PdkStateMapExCode_28;
 import io.tapdata.exception.TapCodeException;
@@ -67,7 +68,7 @@ public class PdkStateMap extends CleanRuleKVMap {
 	}
 
 	protected void initConstructMap(HazelcastInstance hazelcastInstance, String mapName) {
-		if (AppType.init().isCloud()) {
+		if (AppType.init().isCloud() || GuangFaUtils.isGuangFa()) {
 			initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), mapName);
 		} else {
 			ExternalStorageDto tapdataOrDefaultExternalStorage = ExternalStorageUtil.getTapdataOrDefaultExternalStorage();
