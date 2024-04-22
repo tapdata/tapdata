@@ -139,7 +139,7 @@ public class RegisterCli extends CommonCli {
             printUtil.print(PrintUtil.TYPE.WARN, String.format("* Register all connectors failed cost time: %s", PrintUtil.formatDate(start)));
             System.exit(-1);
         }
-        printUtil.print(PrintUtil.TYPE.UN_OUTSHOOT, String.format("* Register all connectors completed cost time: %s", PrintUtil.formatDate(start)));
+        printUtil.print(PrintUtil.TYPE.UN_OUTSHOOT, String.format("* Register command execute completed, cost time: %s", PrintUtil.formatDate(start)));
         System.exit(0);
         return 0;
     }
