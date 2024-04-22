@@ -25,7 +25,7 @@ public class CustomKafkaUtils {
 			Node targetNode = targets.get(0);
 			if (targetNode instanceof TableNode) {
 				String tableName = ((TableNode) targetNode).getTableName();
-				MetadataInstancesDto metadataInstancesDto = getMetadaInstancesDto(metadataList, targetNode.getId(), tableName);
+				MetadataInstancesDto metadataInstancesDto = getMetadaInstancesDto(metadataList, targetNode, tableName);
 				if (null == metadataInstancesDto) throw new RuntimeException("not found metadata instance");
 				if (customKafkaQualifiedNames.isEmpty()) throw new RuntimeException("not found kafka qualified name");
 
@@ -72,7 +72,7 @@ public class CustomKafkaUtils {
 			Node targetNode = targets.get(0);
 			if (targetNode instanceof TableNode) {
 				String tableName = ((TableNode) targetNode).getTableName();
-				MetadataInstancesDto metadataInstancesDto = getMetadaInstancesDto(metadataList, targetNode.getId(), tableName);
+				MetadataInstancesDto metadataInstancesDto = getMetadaInstancesDto(metadataList, targetNode, tableName);
 				if (null == metadataInstancesDto) throw new RuntimeException("not found metadata instance");
 				if (customKafkaQualifiedNames.isEmpty()) throw new RuntimeException("not found kafka qualified name");
 
@@ -95,10 +95,14 @@ public class CustomKafkaUtils {
 		throw new RuntimeException("not support kafka source node type: " + node.getType());
 	}
 
-	private static MetadataInstancesDto getMetadaInstancesDto(List<MetadataInstancesDto> metadataList, String nodeId, String tableName) {
+	private static MetadataInstancesDto getMetadaInstancesDto(List<MetadataInstancesDto> metadataList, Node targetNode, String tableName) {
 		for (MetadataInstancesDto metadataInstancesDto : metadataList) {
-			if (nodeId.equals(metadataInstancesDto.getNodeId()) && metadataInstancesDto.getName().equals(tableName)) {
-				return metadataInstancesDto;
+			if (targetNode instanceof TableNode) {
+				TableNode targetTableNode = (TableNode) targetNode;
+				boolean isTargetNodeMetadata = targetTableNode.getId().equals(metadataInstancesDto.getNodeId()) || targetTableNode.getConnectionId().equals(metadataInstancesDto.getSource().get_id());
+				if (isTargetNodeMetadata && metadataInstancesDto.getName().equals(tableName)) {
+					return metadataInstancesDto;
+				}
 			}
 		}
 		return null;
