@@ -1743,7 +1743,7 @@ public class TaskServiceImpl extends TaskService{
      * @param userDetail
      * @return
      */
-    private Page<TaskDto> findDataCopyList(Filter filter, UserDetail userDetail) {
+    protected Page<TaskDto> findDataCopyList(Filter filter, UserDetail userDetail) {
         Where where = filter.getWhere();
 
         Criteria criteria = new Criteria();
@@ -1816,7 +1816,7 @@ public class TaskServiceImpl extends TaskService{
      * @param userDetail
      * @return
      */
-    private Page<TaskDto> findDataDevList(Filter filter, UserDetail userDetail) {
+    protected Page<TaskDto> findDataDevList(Filter filter, UserDetail userDetail) {
         Query query = repository.filterToQuery(filter);
         query.limit(100000);
         query.skip(0);
@@ -2369,7 +2369,7 @@ public class TaskServiceImpl extends TaskService{
      * @param taskId
      * @return
      */
-    private Long getLastHour(String taskId) {
+    protected Long getLastHour(String taskId) {
         Long taskLastHour = null;
         try {
             FullSyncVO fullSyncVO = snapshotEdgeProgressService.syncOverview(taskId);
@@ -2391,7 +2391,7 @@ public class TaskServiceImpl extends TaskService{
      * @param TaskDto
      * @return
      */
-    private Date getMillstoneTime(TaskDto TaskDto, String code, String group) {
+    protected Date getMillstoneTime(TaskDto TaskDto, String code, String group) {
         Date millstoneTime = null;
         Optional<Milestone> optionalMilestone = Optional.empty();
         List<Milestone> milestones = TaskDto.getMilestones();

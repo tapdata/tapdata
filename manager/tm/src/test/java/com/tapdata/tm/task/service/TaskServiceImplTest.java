@@ -1,13 +1,16 @@
 package com.tapdata.tm.task.service;
 
+import cn.hutool.core.date.DateUnit;
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsServiceImpl;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
-import com.tapdata.tm.base.dto.MutiResponseMessage;
+import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -15,15 +18,25 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
+import com.tapdata.tm.disruptor.service.DisruptorService;
 import com.tapdata.tm.ds.service.impl.DataSourceServiceImpl;
+import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.message.constant.MsgTypeEnum;
+import com.tapdata.tm.message.service.MessageServiceImpl;
+import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
@@ -36,8 +49,10 @@ import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.bean.Chart6Vo;
+import com.tapdata.tm.task.bean.FullSyncVO;
 import com.tapdata.tm.task.dto.CheckEchoOneNodeParam;
 import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
@@ -57,13 +72,18 @@ import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
 import org.quartz.CronScheduleBuilder;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -1055,75 +1075,558 @@ class TaskServiceImplTest {
     @Nested
     class AfterRemove{
         private TaskAutoInspectResultsService taskAutoInspectResultsService;
+        private MessageServiceImpl messageService;
+        private MetadataInstancesServiceImpl metadataInstancesService;
+        private MetaDataHistoryService historyService;
+        private TaskCollectionObjService taskCollectionObjService;
         @BeforeEach
         void setUp(){
             taskService = mock(TaskServiceImpl.class);
             taskDto = mock(TaskDto.class);
             user = mock(UserDetail.class);
             taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
+            messageService = mock(MessageServiceImpl.class);
+            metadataInstancesService = mock(MetadataInstancesServiceImpl.class);
+            historyService = mock(MetaDataHistoryService.class);
+            taskCollectionObjService = mock(TaskCollectionObjService.class);
             ReflectionTestUtils.setField(taskService,"taskAutoInspectResultsService",taskAutoInspectResultsService);
+            ReflectionTestUtils.setField(taskService,"messageService",messageService);
+            ReflectionTestUtils.setField(taskService,"metadataInstancesService",metadataInstancesService);
+            ReflectionTestUtils.setField(taskService,"historyService",historyService);
+            ReflectionTestUtils.setField(taskService,"taskCollectionObjService",taskCollectionObjService);
         }
-//        @Test
+        @Test
+        @DisplayName("test afterRemove method for migrate")
         void test1(){
             when(taskDto.getSyncType()).thenReturn("migrate");
+            when(taskDto.getId()).thenReturn(mock(ObjectId.class));
             doCallRealMethod().when(taskService).afterRemove(taskDto,user);
             taskService.afterRemove(taskDto,user);
+            verify(messageService, new Times(1)).addMigration(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
+        }
+        @Test
+        @DisplayName("test afterRemove method for sync")
+        void test2(){
+            when(taskDto.getSyncType()).thenReturn("sync");
+            when(taskDto.getId()).thenReturn(mock(ObjectId.class));
+            doCallRealMethod().when(taskService).afterRemove(taskDto,user);
+            taskService.afterRemove(taskDto,user);
+            verify(messageService, new Times(1)).addSync(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
         }
     }
     @Nested
     class DeleteShareCache{
-
+        private ObjectId id;
+        @Test
+        void test1(){
+            id = mock(ObjectId.class);
+            taskService = mock(TaskServiceImpl.class);
+            doCallRealMethod().when(taskService).deleteShareCache(id,user);
+            taskService.deleteShareCache(id,user);
+            verify(taskService).update(any(Query.class),any(Update.class));
+        }
     }
     @Nested
     class CopyTest{
-
+        private ObjectId id;
+        private UserLogService userLogService;
+        @BeforeEach
+        void setUp(){
+            id = mock(ObjectId.class);
+            taskService = mock(TaskServiceImpl.class);
+            taskDto = mock(TaskDto.class);
+            userLogService = mock(UserLogService.class);
+            ReflectionTestUtils.setField(taskService,"userLogService",userLogService);
+        }
+        @Test
+        void test1(){
+            try (MockedStatic<SpringContextHelper> mb = Mockito
+                    .mockStatic(SpringContextHelper.class)) {
+                TaskServiceImpl service = mock(TaskServiceImpl.class);
+                mb.when(()->SpringContextHelper.getBean(TaskServiceImpl.class)).thenReturn(service);
+                id = mock(ObjectId.class);
+                when(taskService.checkExistById(id,user)).thenReturn(taskDto);
+                DAG dag = mock(DAG.class);
+                List<Node> nodes = new ArrayList<>();
+                DatabaseNode databaseNode = mock(DatabaseNode.class);
+                nodes.add(databaseNode);
+                when(databaseNode.getId()).thenReturn("111");
+                MergeTableNode mergeTableNode = mock(MergeTableNode.class);
+                nodes.add(mergeTableNode);
+                when(mergeTableNode.getId()).thenReturn("222");
+                MigrateFieldRenameProcessorNode renameProcessorNode = mock(MigrateFieldRenameProcessorNode.class);
+                nodes.add(renameProcessorNode);
+                when(renameProcessorNode.getId()).thenReturn("333");
+                when(dag.getNodes()).thenReturn(nodes);
+                when(taskDto.getDag()).thenReturn(dag);
+                List<TaskDto.SyncPoint> syncPoints = new ArrayList<>();
+                syncPoints.add(mock(TaskDto.SyncPoint.class));
+                when(taskDto.getSyncPoints()).thenReturn(syncPoints);
+                LinkedList<Edge> edges = new LinkedList<>();
+                Edge edge = mock(Edge.class);
+                edges.add(edge);
+                when(edge.getSource()).thenReturn("source");
+                when(edge.getTarget()).thenReturn("target");
+                when(dag.getEdges()).thenReturn(edges);
+                when(service.confirmById(any(TaskDto.class),any(UserDetail.class),anyBoolean())).thenReturn(taskDto);
+                doCallRealMethod().when(taskService).copy(id,user);
+                TaskDto actual = taskService.copy(id, user);
+                assertEquals(taskDto,actual);
+            }
+        }
     }
     @Nested
     class RenewTest{
-
+        private ObjectId id;
+        private boolean system;
+        private StateMachineService stateMachineService;
+        private TaskResetLogService taskResetLogService;
+        private DisruptorService disruptorService;
+        @BeforeEach
+        void setUp(){
+            id = mock(ObjectId.class);
+            taskService = mock(TaskServiceImpl.class);
+            taskDto = mock(TaskDto.class);
+            user = mock(UserDetail.class);
+            stateMachineService = mock(StateMachineService.class);
+            taskResetLogService = mock(TaskResetLogService.class);
+            disruptorService = mock(DisruptorService.class);
+            ReflectionTestUtils.setField(taskService,"stateMachineService",stateMachineService);
+            ReflectionTestUtils.setField(taskService,"taskResetLogService",taskResetLogService);
+            ReflectionTestUtils.setField(taskService,"disruptorService",disruptorService);
+        }
+        @Test
+        @DisplayName("test renew method when no agent")
+        void test1(){
+            system = true;
+            when(taskService.checkExistById(id,user)).thenReturn(taskDto);
+            when(taskService.findAgent(taskDto,user)).thenReturn(true);
+            doCallRealMethod().when(taskService).renew(id,user,system);
+            assertThrows(BizException.class,()->taskService.renew(id,user,system));
+        }
+        @Test
+        @DisplayName("test renew method normal")
+        void test2(){
+            system = true;
+            when(taskService.checkExistById(id,user)).thenReturn(taskDto);
+            when(taskService.findAgent(taskDto,user)).thenReturn(false);
+            StateMachineResult stateMachineResult = mock(StateMachineResult.class);
+            when(stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RENEW, user)).thenReturn(stateMachineResult);
+            when(stateMachineResult.isOk()).thenReturn(true);
+            when(taskDto.getId()).thenReturn(mock(ObjectId.class));
+            doCallRealMethod().when(taskService).renew(id,user,system);
+            taskService.renew(id,user,system);
+            verify(disruptorService,new Times(1)).sendMessage(any(DisruptorTopicEnum.class),any(TaskRecord.class));
+        }
+        @Test
+        @DisplayName("test renew method when state machine result is not ok")
+        void test3(){
+            system = true;
+            when(taskService.checkExistById(id,user)).thenReturn(taskDto);
+            when(taskService.findAgent(taskDto,user)).thenReturn(false);
+            StateMachineResult stateMachineResult = mock(StateMachineResult.class);
+            when(stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RENEW, user)).thenReturn(stateMachineResult);
+            when(stateMachineResult.isOk()).thenReturn(false);
+            doCallRealMethod().when(taskService).renew(id,user,system);
+            assertThrows(BizException.class,()->taskService.renew(id,user,system));
+        }
     }
     @Nested
     class AfterRenewTest{
+        private TaskAutoInspectResultsService taskAutoInspectResultsService;
+        private StateMachineService stateMachineService;
+        @BeforeEach
+        void setUp(){
+            taskService = mock(TaskServiceImpl.class);
+            user = mock(UserDetail.class);
+            taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
+            stateMachineService = mock(StateMachineService.class);
+            ReflectionTestUtils.setField(taskService,"taskAutoInspectResultsService",taskAutoInspectResultsService);
+            ReflectionTestUtils.setField(taskService,"stateMachineService",stateMachineService);
 
+        }
+        @Test
+        void test1(){
+            UpdateResult updateResult = mock(UpdateResult.class);
+            when(taskService.renewNotSendMq(taskDto,user)).thenReturn(updateResult);
+            when(updateResult.getMatchedCount()).thenReturn(1L);
+            StateMachineResult stateMachineResult = mock(StateMachineResult.class);
+            when(stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RENEW_DEL_SUCCESS, user)).thenReturn(stateMachineResult);
+            when(stateMachineResult.isFail()).thenReturn(true);
+            doCallRealMethod().when(taskService).afterRenew(taskDto,user);
+            taskService.afterRenew(taskDto,user);
+            verify(taskAutoInspectResultsService,new Times(1)).cleanResultsByTask(taskDto);
+        }
     }
     @Nested
     class CheckExistByIdTest{
-
+        private ObjectId id;
+        @BeforeEach
+        void setUp(){
+            id = mock(ObjectId.class);
+            taskService = mock(TaskServiceImpl.class);
+            user = mock(UserDetail.class);
+        }
+        @Test
+        @DisplayName("test checkExistById method when taskDto is null")
+        void test1(){
+            when(taskService.findById(id,user)).thenReturn(null);
+            doCallRealMethod().when(taskService).checkExistById(id,user);
+            assertThrows(BizException.class,()->taskService.checkExistById(id,user));
+        }
+        @Test
+        @DisplayName("test checkExistById method normal")
+        void test2(){
+            TaskDto dto = mock(TaskDto.class);
+            when(taskService.findById(id,user)).thenReturn(dto);
+            doCallRealMethod().when(taskService).checkExistById(id,user);
+            TaskDto actual = taskService.checkExistById(id, user);
+            assertEquals(dto,actual);
+        }
     }
     @Nested
     class CheckExistByIdWithFieldsTest{
-
+        private ObjectId id;
+        private String fields;
+        @BeforeEach
+        void setUp(){
+            id = mock(ObjectId.class);
+            fields = "test_field";
+            taskService = mock(TaskServiceImpl.class);
+            user = mock(UserDetail.class);
+        }
+        @Test
+        @DisplayName("test checkExistById with fields method when taskDto is null")
+        void test1(){
+            when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(null);
+            doCallRealMethod().when(taskService).checkExistById(id,user,fields);
+            assertThrows(BizException.class,()->taskService.checkExistById(id,user,fields));
+        }
+        @Test
+        @DisplayName("test checkExistById with fields method normal")
+        void test2(){
+            TaskDto dto = mock(TaskDto.class);
+            when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(dto);
+            doCallRealMethod().when(taskService).checkExistById(id,user,fields);
+            TaskDto actual = taskService.checkExistById(id, user, fields);
+            assertEquals(dto,actual);
+        }
     }
     @Nested
     class CheckExistByIdWithoutUser{
 
+        private ObjectId id;
+        private String fields;
+        @BeforeEach
+        void setUp(){
+            id = mock(ObjectId.class);
+            fields = "test_field";
+            taskService = mock(TaskServiceImpl.class);
+        }
+        @Test
+        @DisplayName("test checkExistById without user method when taskDto is null")
+        void test1(){
+            when(taskService.findOne(any(Query.class))).thenReturn(null);
+            doCallRealMethod().when(taskService).checkExistById(id,fields);
+            assertThrows(BizException.class,()->taskService.checkExistById(id,fields));
+        }
+        @Test
+        @DisplayName("test checkExistById without user method normal")
+        void test2(){
+            TaskDto dto = mock(TaskDto.class);
+            when(taskService.findOne(any(Query.class))).thenReturn(dto);
+            doCallRealMethod().when(taskService).checkExistById(id,fields);
+            TaskDto actual = taskService.checkExistById(id,fields);
+            assertEquals(dto,actual);
+        }
     }
     @Nested
     class BatchStopTest{
-
+        private List<ObjectId> taskIds;
+        private UserDetail user;
+        private HttpServletRequest request;
+        private HttpServletResponse response;
+        private ObjectId id;
+        private ExceptionHandler exceptionHandler;
+        @BeforeEach
+        void setUp(){
+            taskService = mock(TaskServiceImpl.class);
+            taskIds = new ArrayList<>();
+            id = mock(ObjectId.class);
+            taskIds.add(id);
+            user = mock(UserDetail.class);
+            request = mock(HttpServletRequest.class);
+            response = mock(HttpServletResponse.class);
+            exceptionHandler = mock(ExceptionHandler.class);
+            ReflectionTestUtils.setField(taskService,"exceptionHandler",exceptionHandler);
+        }
+        @Test
+        @DisplayName("test batchStop method with BizException")
+        void test1(){
+            BizException exception = new BizException("SystemError");
+            doThrow(exception).when(taskService).pause(id,user,false);
+            doCallRealMethod().when(taskService).batchStop(taskIds,user,request,response);
+            List<MutiResponseMessage> responseMessages = taskService.batchStop(taskIds, user, request, response);
+            assertEquals("SystemError",responseMessages.get(0).getCode());
+        }
+        @Test
+        @DisplayName("test batchStop method with exception")
+        @SneakyThrows
+        void test2(){
+            Exception e = mock(RuntimeException.class);
+            doThrow(e).when(taskService).pause(id,user,false);
+            ResponseMessage responseMessage = mock(ResponseMessage.class);
+            when(responseMessage.getCode()).thenReturn("error_code");
+            when(exceptionHandler.handlerException(e,request,response)).thenReturn(responseMessage);
+            doCallRealMethod().when(taskService).batchStop(taskIds,user,request,response);
+            List<MutiResponseMessage> responseMessages = taskService.batchStop(taskIds, user, request, response);
+            assertEquals("error_code",responseMessages.get(0).getCode());
+        }
     }
     @Nested
     class BatchDeleteTest{
+        private List<ObjectId> taskIds;
+        private UserDetail user;
+        private HttpServletRequest request;
+        private HttpServletResponse response;
+        private ObjectId id;
+        private InspectService inspectService;
+        private ExceptionHandler exceptionHandler;
+        @BeforeEach
+        void setUp(){
+            taskService = mock(TaskServiceImpl.class);
+            taskIds = new ArrayList<>();
+            id = mock(ObjectId.class);
+            taskIds.add(id);
+            user = mock(UserDetail.class);
+            request = mock(HttpServletRequest.class);
+            response = mock(HttpServletResponse.class);
+            inspectService = mock(InspectService.class);
+            ReflectionTestUtils.setField(taskService,"inspectService",inspectService);
+            exceptionHandler = mock(ExceptionHandler.class);
+            ReflectionTestUtils.setField(taskService,"exceptionHandler",exceptionHandler);
 
+        }
+        @Test
+        @DisplayName("test batchDelete method normal")
+        void test1(){
+            doCallRealMethod().when(taskService).batchDelete(taskIds,user,request,response);
+            List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskIds, user, request, response);
+            assertEquals("ok",responseMessages.get(0).getCode());
+        }
+        @Test
+        @DisplayName("test batchDelete method with BizExcception")
+        void test2(){
+            BizException exception = new BizException("Clear.Slot");
+            doThrow(exception).when(taskService).remove(id,user);
+            doCallRealMethod().when(taskService).batchDelete(taskIds,user,request,response);
+            List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskIds, user, request, response);
+            assertEquals("Clear.Slot",responseMessages.get(0).getCode());
+        }
+        @Test
+        @DisplayName("test batchDelete method with exception")
+        @SneakyThrows
+        void test3(){
+            Exception e = mock(RuntimeException.class);
+            doThrow(e).when(taskService).remove(id,user);
+            ResponseMessage responseMessage = mock(ResponseMessage.class);
+            when(responseMessage.getCode()).thenReturn("error_code");
+            when(exceptionHandler.handlerException(e,request,response)).thenReturn(responseMessage);
+            doCallRealMethod().when(taskService).batchDelete(taskIds,user,request,response);
+            List<MutiResponseMessage> responseMessages = taskService.batchDelete(taskIds, user, request, response);
+            assertEquals("error_code",responseMessages.get(0).getCode());
+        }
     }
     @Nested
     class BatchRenewTest{
+        private List<ObjectId> taskIds;
+        private UserDetail user;
+        private HttpServletRequest request;
+        private HttpServletResponse response;
+        private ObjectId id;
+        private ExceptionHandler exceptionHandler;
+        @BeforeEach
+        void setUp(){
+            taskService = mock(TaskServiceImpl.class);
+            taskIds = new ArrayList<>();
+            id = mock(ObjectId.class);
+            taskIds.add(id);
+            user = mock(UserDetail.class);
+            request = mock(HttpServletRequest.class);
+            response = mock(HttpServletResponse.class);
+            exceptionHandler = mock(ExceptionHandler.class);
+            ReflectionTestUtils.setField(taskService,"exceptionHandler",exceptionHandler);
 
+        }
+        @Test
+        @DisplayName("test batchRenew method normal")
+        void test1(){
+            doCallRealMethod().when(taskService).batchRenew(taskIds,user,request,response);
+            List<MutiResponseMessage> responseMessages = taskService.batchRenew(taskIds, user, request, response);
+            assertEquals("ok",responseMessages.get(0).getCode());
+        }
+        @Test
+        @DisplayName("test batchRenew method with BizExcception")
+        void test2(){
+            BizException exception = new BizException("Task.ResetAgentNotFound");
+            doThrow(exception).when(taskService).renew(id,user);
+            doCallRealMethod().when(taskService).batchRenew(taskIds,user,request,response);
+            List<MutiResponseMessage> responseMessages = taskService.batchRenew(taskIds, user, request, response);
+            assertEquals("Task.ResetAgentNotFound",responseMessages.get(0).getCode());
+        }
+        @Test
+        @DisplayName("test batchRenew method with exception")
+        @SneakyThrows
+        void test3(){
+            Exception e = mock(RuntimeException.class);
+            doThrow(e).when(taskService).renew(id,user);
+            ResponseMessage responseMessage = mock(ResponseMessage.class);
+            when(responseMessage.getCode()).thenReturn("error_code");
+            when(exceptionHandler.handlerException(e,request,response)).thenReturn(responseMessage);
+            doCallRealMethod().when(taskService).batchRenew(taskIds,user,request,response);
+            List<MutiResponseMessage> responseMessages = taskService.batchRenew(taskIds, user, request, response);
+            assertEquals("error_code",responseMessages.get(0).getCode());
+        }
     }
     @Nested
     class FindTest{
-
+        private Filter filter;
+        private TaskRepository repository;
+        @BeforeEach
+        void setUp(){
+            filter = new Filter();
+            user = mock(UserDetail.class);
+            repository = mock(TaskRepository.class);
+            taskService = spy(new TaskServiceImpl(repository));
+            when(repository.getMongoOperations()).thenReturn(mock(MongoTemplate.class));
+            new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
+        }
+        @Test
+        @DisplayName("test find method when is agent request")
+        void test1(){
+            taskService = spy(new TaskServiceImpl(mock(TaskRepository.class)));
+            try (MockedStatic<RequestContextHolder> mb = Mockito
+                    .mockStatic(RequestContextHolder.class)) {
+                ServletRequestAttributes attributes = mock(ServletRequestAttributes.class);
+                mb.when(RequestContextHolder::currentRequestAttributes).thenReturn(attributes);
+                HttpServletRequest mockReq = mock(HttpServletRequest.class);
+                when(attributes.getRequest()).thenReturn(mockReq);
+                when(mockReq.getHeader("user-agent")).thenReturn("Java");
+                taskService.find(filter, user);
+                verify(taskService,new Times(1)).deleteNotifyEnumData(anyList());
+            }
+        }
+        @Test
+        @DisplayName("test find method when sync type not instanceof String")
+        void test2(){
+            TaskRepository repository = mock(TaskRepository.class);
+            taskService = spy(new TaskServiceImpl(repository));
+            try (MockedStatic<RequestContextHolder> mb = Mockito
+                    .mockStatic(RequestContextHolder.class)) {
+                ServletRequestAttributes attributes = mock(ServletRequestAttributes.class);
+                mb.when(RequestContextHolder::currentRequestAttributes).thenReturn(attributes);
+                HttpServletRequest mockReq = mock(HttpServletRequest.class);
+                when(attributes.getRequest()).thenReturn(mockReq);
+                when(mockReq.getHeader("user-agent")).thenReturn("");
+                filter.setWhere(null);
+                taskService.find(filter, user);
+                verify(taskService,new Times(0)).findDataCopyList(filter,user);
+                verify(taskService,new Times(0)).findDataDevList(filter,user);
+            }
+        }
+        @Test
+        @DisplayName("test find method when sync type is migrate")
+        void test3(){
+            try (MockedStatic<RequestContextHolder> mb = Mockito
+                    .mockStatic(RequestContextHolder.class)) {
+                ServletRequestAttributes attributes = mock(ServletRequestAttributes.class);
+                mb.when(RequestContextHolder::currentRequestAttributes).thenReturn(attributes);
+                HttpServletRequest mockReq = mock(HttpServletRequest.class);
+                when(attributes.getRequest()).thenReturn(mockReq);
+                when(mockReq.getHeader("user-agent")).thenReturn("");
+                Where where = mock(Where.class);
+                when(where.get("syncType")).thenReturn("migrate");
+                filter.setWhere(where);
+                taskService.find(filter, user);
+                verify(taskService,new Times(1)).findDataCopyList(filter,user);
+            }
+        }
+        @Test
+        @DisplayName("test find method when sync type is sync")
+        void test4(){
+            try (MockedStatic<RequestContextHolder> mb = Mockito
+                    .mockStatic(RequestContextHolder.class)) {
+                ServletRequestAttributes attributes = mock(ServletRequestAttributes.class);
+                mb.when(RequestContextHolder::currentRequestAttributes).thenReturn(attributes);
+                HttpServletRequest mockReq = mock(HttpServletRequest.class);
+                when(attributes.getRequest()).thenReturn(mockReq);
+                when(mockReq.getHeader("user-agent")).thenReturn("");
+                Where where = mock(Where.class);
+                when(where.get("syncType")).thenReturn("sync");
+                filter.setWhere(where);
+                when(repository.filterToQuery(filter)).thenReturn(mock(Query.class));
+                taskService.find(filter, user);
+                verify(taskService,new Times(1)).findDataDevList(filter,user);
+            }
+        }
+        @Test
+        @DisplayName("test find method when sync type is heartbeat")
+        void test5(){
+            try (MockedStatic<RequestContextHolder> mb = Mockito
+                    .mockStatic(RequestContextHolder.class)) {
+                ServletRequestAttributes attributes = mock(ServletRequestAttributes.class);
+                mb.when(RequestContextHolder::currentRequestAttributes).thenReturn(attributes);
+                HttpServletRequest mockReq = mock(HttpServletRequest.class);
+                when(attributes.getRequest()).thenReturn(mockReq);
+                when(mockReq.getHeader("user-agent")).thenReturn("");
+                Where where = mock(Where.class);
+                when(where.get("syncType")).thenReturn("connHeartbeat");
+                filter.setWhere(where);
+                when(repository.filterToQuery(filter)).thenReturn(mock(Query.class));
+                taskService.find(filter, user);
+                verify(taskService,new Times(1)).findDataDevList(filter,user);
+            }
+        }
     }
     @Nested
     class DeleteNotifyEnumDataTest{
-
+        private List<TaskDto> taskDtoList;
+        @BeforeEach
+        void setUp(){
+            taskDtoList = new ArrayList<>();
+            taskService = mock(TaskServiceImpl.class);
+        }
+        @Test
+        @DisplayName("test deleteNotifyEnumData method for empty taskDtoList")
+        void test1(){
+            doCallRealMethod().when(taskService).deleteNotifyEnumData(taskDtoList);
+            taskService.deleteNotifyEnumData(taskDtoList);
+        }
+        @Test
+        @DisplayName("test deleteNotifyEnumData method normal")
+        void test2(){
+            TaskDto dto = mock(TaskDto.class);
+            List<AlarmSettingVO> alarmSettings = new ArrayList<>();
+            AlarmSettingVO alarmSettingVO = mock(AlarmSettingVO.class);
+            alarmSettings.add(alarmSettingVO);
+            when(dto.getAlarmSettings()).thenReturn(alarmSettings);
+            taskDtoList.add(dto);
+            DAG dag = mock(DAG.class);
+            when(dto.getDag()).thenReturn(dag);
+            List<Node> nodes = new ArrayList<>();
+            Node node = mock(Node.class);
+            when(node.getAlarmSettings()).thenReturn(alarmSettings);
+            nodes.add(node);
+            when(dag.getNodes()).thenReturn(nodes);
+            List<NotifyEnum> notifyEnums = new ArrayList<>();
+            notifyEnums.add(NotifyEnum.SMS);
+            when(alarmSettingVO.getNotify()).thenReturn(notifyEnums);
+            doCallRealMethod().when(taskService).deleteNotifyEnumData(taskDtoList);
+            taskService.deleteNotifyEnumData(taskDtoList);
+        }
     }
     @Nested
     class FindDataCopyListTest{
-
-    }
-    @Nested
-    class FindDataDevListTest{
 
     }
     @Nested
@@ -1141,45 +1644,178 @@ class TaskServiceImplTest {
     @Nested
     class CreateShareCacheTaskTest{
 
-    }@Nested
+    }
+    @Nested
     class FindShareCacheTest{
 
-    }@Nested
+    }
+    @Nested
     class FindShareCacheByIdTest{
 
     }@Nested
     class ParseCacheToTaskDtoTest{
 
-    }@Nested
+    }
+    @Nested
     class InspectChartTest{
 
-    }@Nested
+    }
+    @Nested
     class GetDataCopyChartTest{
 
-    }@Nested
+    }
+    @Nested
     class GetDataDevChartTest{
 
-    }@Nested
+    }
+    @Nested
     class FindByIdsTest{
-
-    }@Nested
+        @Test
+        void test(){
+            TaskRepository repository = mock(TaskRepository.class);
+            taskService = spy(new TaskServiceImpl(repository));
+            List<ObjectId> idList = new ArrayList<>();
+            ObjectId id = mock(ObjectId.class);
+            idList.add(id);
+            List<TaskEntity> taskEntityList = new ArrayList<>();
+            taskEntityList.add(mock(TaskEntity.class));
+            MongoTemplate template = mock(MongoTemplate.class);
+            when(repository.getMongoOperations()).thenReturn(template);
+            when(template.find(any(Query.class),any(Class.class))).thenReturn(taskEntityList);
+            List<TaskEntity> actual = taskService.findByIds(idList);
+            assertEquals(taskEntityList,actual);
+        }
+    }
+    @Nested
     class FindTaskDetailByIdTest{
-
-    }@Nested
+        private String id;
+        private Field field;
+        @BeforeEach
+        void setUp(){
+            TaskRepository repository = mock(TaskRepository.class);
+            taskService = spy(new TaskServiceImpl(repository));
+        }
+//        @Test
+        @DisplayName("test findTaskDetailById method ")
+        void test1(){
+            id = mock(ObjectId.class).toHexString();
+            doCallRealMethod().when(taskService).findTaskDetailById(id,field,user);
+            taskService.findTaskDetailById(id,field,user);
+        }
+    }
+    @Nested
     class GetLastHourTest{
-
-    }@Nested
+        private SnapshotEdgeProgressService snapshotEdgeProgressService;
+        @Test
+        void test1(){
+            try (MockedStatic<DateUtil> mb = Mockito
+                    .mockStatic(DateUtil.class)) {
+                Date start = new Date();
+                Date end = new Date();
+                mb.when(()->DateUtil.between(start,end,DateUnit.MS)).thenThrow(new RuntimeException());
+                String taskId = "111";
+                snapshotEdgeProgressService = mock(SnapshotEdgeProgressService.class);
+                taskService = mock(TaskServiceImpl.class);
+                ReflectionTestUtils.setField(taskService,"snapshotEdgeProgressService",snapshotEdgeProgressService);
+                FullSyncVO fullSyncVO = mock(FullSyncVO.class);
+                when(snapshotEdgeProgressService.syncOverview(taskId)).thenReturn(fullSyncVO);
+                when(fullSyncVO.getStartTs()).thenReturn(start);
+                when(fullSyncVO.getEndTs()).thenReturn(end);
+                doCallRealMethod().when(taskService).getLastHour(taskId);
+                Long actual = taskService.getLastHour(taskId);
+                assertEquals(null,actual);
+            }
+        }
+    }
+    @Nested
     class GetMillstoneTimeTest{
-
-    }@Nested
+        private String code;
+        private String group;
+        @Test
+        void test1(){
+            code = "111";
+            group = "222";
+            taskService = mock(TaskServiceImpl.class);
+            taskDto = mock(TaskDto.class);
+            doCallRealMethod().when(taskService).getMillstoneTime(taskDto,code,group);
+            Date actual = taskService.getMillstoneTime(taskDto, code, group);
+            assertEquals(null,actual);
+        }
+    }
+    @Nested
     class CheckRunTest{
+        private String taskId = "111";
+        private TaskDto dto;
+        @BeforeEach
+        void setUp(){
+            taskService = mock(TaskServiceImpl.class);
+            dto = mock(TaskDto.class);
+            when(taskService.checkExistById(MongoUtils.toObjectId(taskId), user, "status")).thenReturn(dto);
+        }
+        @Test
+        @DisplayName("test checkRun method for edit status")
+        void test1(){
+            when(dto.getStatus()).thenReturn("edit");
+            doCallRealMethod().when(taskService).checkRun(taskId,user);
+            Boolean actual = taskService.checkRun(taskId, user);
+            assertEquals(true,actual);
+        }
+        @Test
+        @DisplayName("test checkRun method for running status")
+        void test2(){
+            when(dto.getStatus()).thenReturn("running");
+            doCallRealMethod().when(taskService).checkRun(taskId,user);
+            Boolean actual = taskService.checkRun(taskId, user);
+            assertEquals(false,actual);
+        }
 
-    }@Nested
+    }
+    @Nested
     class FindTransformParamTest{
-
-    }@Nested
+        private String taskId = "111";
+        private TransformSchemaService transformSchemaService;
+        @Test
+        void test1(){
+            taskService = spy(new TaskServiceImpl(mock(TaskRepository.class)));
+            transformSchemaService = mock(TransformSchemaService.class);
+            ReflectionTestUtils.setField(taskService,"transformSchemaService",transformSchemaService);
+            try (MockedStatic<RequestContextHolder> mb = Mockito
+                    .mockStatic(RequestContextHolder.class)) {
+                TaskDto dto = mock(TaskDto.class);
+                doReturn(dto).when(taskService).checkExistById(MongoUtils.toObjectId(taskId), user);
+                ServletRequestAttributes attributes = mock(ServletRequestAttributes.class);
+                mb.when(RequestContextHolder::currentRequestAttributes).thenReturn(attributes);
+                HttpServletRequest mockReq = mock(HttpServletRequest.class);
+                when(attributes.getRequest()).thenReturn(mockReq);
+                when(mockReq.getHeader("user-agent")).thenReturn("Java");
+                doNothing().when(taskService).deleteNotifyEnumData(anyList());
+                taskService.findTransformParam(taskId,user);
+                verify(transformSchemaService,new Times(1)).getTransformParam(dto,user);
+            }
+        }
+    }
+    @Nested
     class FindTransformAllParam{
-
+        private String taskId = "111";
+        private TransformSchemaService transformSchemaService;
+        @Test
+        void test1(){
+            taskService = spy(new TaskServiceImpl(mock(TaskRepository.class)));
+            transformSchemaService = mock(TransformSchemaService.class);
+            ReflectionTestUtils.setField(taskService,"transformSchemaService",transformSchemaService);
+            try (MockedStatic<RequestContextHolder> mb = Mockito
+                    .mockStatic(RequestContextHolder.class)) {
+                doReturn(mock(TaskDto.class)).when(taskService).checkExistById(MongoUtils.toObjectId(taskId), user);
+                ServletRequestAttributes attributes = mock(ServletRequestAttributes.class);
+                mb.when(RequestContextHolder::currentRequestAttributes).thenReturn(attributes);
+                HttpServletRequest mockReq = mock(HttpServletRequest.class);
+                when(attributes.getRequest()).thenReturn(mockReq);
+                when(mockReq.getHeader("user-agent")).thenReturn("Java");
+                doNothing().when(taskService).deleteNotifyEnumData(anyList());
+                taskService.findTransformAllParam(taskId,user);
+                verify(taskService,new Times(1)).deleteNotifyEnumData(anyList());
+            }
+        }
     }
 
     @Test
