@@ -1062,4 +1062,19 @@ public class UnwindNodeTest extends BaseTest {
         TapDeleteRecordEvent e = UnWindNodeUtil.toDeleteEvent(event);
         Assertions.assertNotNull(e);
     }
+
+    @Test
+    public void testAddDeleteEvent() {
+        List<TapEvent> objects = new ArrayList<>();
+        TapInsertRecordEvent event = mock(TapInsertRecordEvent.class);
+        UnWindNodeUtil.addEvent(event, objects);
+        Assertions.assertEquals(0, objects.size());
+    }
+    @Test
+    public void testAddNullDeleteEvent() {
+        List<TapEvent> objects = new ArrayList<>();
+        TapDeleteRecordEvent event = mock(TapDeleteRecordEvent.class);
+        UnWindNodeUtil.addEvent(event, objects);
+        Assertions.assertEquals(1, objects.size());
+    }
 }
