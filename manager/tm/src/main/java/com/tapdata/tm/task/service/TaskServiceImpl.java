@@ -1595,7 +1595,6 @@ public class TaskServiceImpl extends TaskService{
                     }
                     //产品认为不把STATUS_SCHEDULE_FAILED  展现到页面上，STATUS_SCHEDULE_FAILED就直接转为error状态
                     item.setStatus(TaskStatusEnum.getMapStatus(item.getStatus()));
-                    item.setSyncStatus(SyncStatus.NORMAL);
 
                     if (StringUtils.isNotBlank(item.getCrontabScheduleMsg())) {
                         item.setCrontabScheduleMsg(MessageUtil.getMessage(item.getCrontabScheduleMsg()));

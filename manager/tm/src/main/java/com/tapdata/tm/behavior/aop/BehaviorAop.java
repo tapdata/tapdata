@@ -188,7 +188,6 @@ public class BehaviorAop {
                 behavior.getAttrs().put("syncType", taskDto.getSyncType());
                 behavior.getAttrs().put("type", taskDto.getType());
                 behavior.getAttrs().put("status", taskDto.getStatus());
-                behavior.getAttrs().put(SyncStatus.SYN_STATUS, taskDto.getSyncStatus());
                 behaviorService.trace(behavior, userDetail);
             }
         } catch (Exception e) {
@@ -223,7 +222,6 @@ public class BehaviorAop {
                 behavior.getAttrs().put("syncType", taskDto.getSyncType());
                 behavior.getAttrs().put("type", taskDto.getType());
                 behavior.getAttrs().put("status", taskDto.getStatus());
-                behavior.getAttrs().put(SyncStatus.SYN_STATUS, taskDto.getSyncStatus());
                 behaviorService.trace(behavior, userDetail);
             }
         } catch (Exception e) {
@@ -259,7 +257,6 @@ public class BehaviorAop {
                 behavior.getAttrs().put("syncType", taskDto.getSyncType());
                 behavior.getAttrs().put("type", taskDto.getType());
                 behavior.getAttrs().put("status", taskDto.getStatus());
-                behavior.getAttrs().put(SyncStatus.SYN_STATUS, taskDto.getSyncStatus());
                 behaviorService.trace(behavior, userDetail);
             }
         } catch (Exception e) {
