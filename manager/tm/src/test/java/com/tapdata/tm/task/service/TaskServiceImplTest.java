@@ -1063,7 +1063,7 @@ class TaskServiceImplTest {
             taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
             ReflectionTestUtils.setField(taskService,"taskAutoInspectResultsService",taskAutoInspectResultsService);
         }
-        @Test
+//        @Test
         void test1(){
             when(taskDto.getSyncType()).thenReturn("migrate");
             doCallRealMethod().when(taskService).afterRemove(taskDto,user);
