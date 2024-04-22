@@ -1687,7 +1687,7 @@ public class ConnectorManager {
 		this.mode = "cluster";
 
 		String isCloud = CommonUtils.getenv("isCloud");
-		if ("true".equals(isCloud)) {
+		if ("true".equals(isCloud) || GuangFaUtils.isGuangFa()) {
 			this.mongoURI = null;
 		} else {
 			String tapdataMongoUri = CommonUtils.getenv("TAPDATA_MONGO_URI");
