@@ -7,7 +7,6 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.schema.TapTable;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -63,8 +62,6 @@ public class UnwindProcessNode extends ProcessorNode {
 
     private String joiner = "_";
 
-    private Map<String,String> flattenMap = new HashMap<>();
-
     public UnwindProcessNode() {
         super("unwind_processor");
     }
@@ -85,11 +82,13 @@ public class UnwindProcessNode extends ProcessorNode {
                     if(field.getFieldName().contains(path+".")){
                         String newFieldName = field.getFieldName().replace(".",joiner);
                         field.setFieldName(newFieldName);
-                        flattenMap.put(newFieldName,newFieldName.split("\\"+joiner)[1]);
                     }
                 });
             }
             if(UnwindModel.EMBEDDED.equals(unwindModel)) {
+                for(Map.Entry<String, Field> fieldEntry :originFieldMap.entrySet()){
+                    if(fieldEntry.getKey().contains(path+"."))fields.remove(fieldEntry.getValue());
+                }
                 outputSchema.getFields().add(deductionField("Map",path,outputSchema));
             }else if(UnwindModel.FLATTEN.equals(unwindModel) && !ArrayModel.OBJECT.equals(arrayModel)) {
                 outputSchema.getFields().add(deductionField("String",path,outputSchema));
@@ -179,7 +178,4 @@ public class UnwindProcessNode extends ProcessorNode {
         return this.unwindModel.equals(UnwindModel.FLATTEN);
     }
 
-    public Map<String,String> getFlattenMap(){
-        return this.flattenMap;
-    }
 }

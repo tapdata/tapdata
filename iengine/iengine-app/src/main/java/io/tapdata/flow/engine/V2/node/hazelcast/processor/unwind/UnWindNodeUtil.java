@@ -6,6 +6,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 
 
@@ -103,10 +104,10 @@ public class UnWindNodeUtil {
     /**
      * record 中存在path路径的kv键值对时，更具unwind节点配置来做对应的操作
      * */
-    public static  Map<String, Object> containsPathAndSetValue(String path, Map<String, Object> map, Object value, String includeArrayIndex, long arrayIndexValue,Boolean flatten,Map<String,String> flattenMap){
+    public static  Map<String, Object> containsPathAndSetValue(String path, Map<String, Object> map, Object value, String includeArrayIndex, long arrayIndexValue,Boolean flatten,String joiner){
         Map<String, Object> copyMap = new HashMap<>();
         MapUtil.copyToNewMap(map, copyMap);
-        serializationFlattenFields(path,copyMap,value,flatten,flattenMap);
+        serializationFlattenFields(path,copyMap,value,flatten,joiner);
         if (copyMap.containsKey(path)) {
             copyMap.put(path, value);
             containsPathAndSetValue(copyMap, includeArrayIndex, arrayIndexValue);
@@ -165,7 +166,7 @@ public class UnWindNodeUtil {
                                TapEvent event,
                                EventHandel handel,
                                       Boolean flatten,
-                                      Map<String,String> flattenMap) {
+                                      String joiner) {
         if (result.isEmpty()) {
             if (preserveNullAndEmptyArrays) {
                 if (map.containsKey(path)) {
@@ -179,7 +180,7 @@ public class UnWindNodeUtil {
         }
         int index = 0;
         for (Object item : result) {
-            handel.copyEvent(events, containsPathAndSetValue(path, map, item, includeArrayIndex, index,flatten,flattenMap), event);
+            handel.copyEvent(events, containsPathAndSetValue(path, map, item, includeArrayIndex, index,flatten,joiner), event);
             index++;
         }
         return false;
@@ -199,7 +200,7 @@ public class UnWindNodeUtil {
                           TapEvent event,
                           EventHandel handel,
                                  Boolean flatten,
-                                 Map<String,String> flattenMap
+                                 String joiner
                                  ) {
         if (arr.length < 1) {
             if (preserveNullAndEmptyArrays) {
@@ -213,7 +214,7 @@ public class UnWindNodeUtil {
             return true;
         }
         for (int index = 0; index < arr.length; index++) {
-            handel.copyEvent(events, containsPathAndSetValue(path, map, arr[index], includeArrayIndex, index,flatten,flattenMap), event);
+            handel.copyEvent(events, containsPathAndSetValue(path, map, arr[index], includeArrayIndex, index,flatten,joiner), event);
         }
         return false;
     }
@@ -258,11 +259,11 @@ public class UnWindNodeUtil {
             }
             Object result = containsPath(path, map, containsKey);
             if (result instanceof Collection) {
-                if (collection((Collection<?>) result, events, includeArrayIndex, preserveNullAndEmptyArrays, map, path, parentMap, split, event, handel,node.whetherFlatten(),node.getFlattenMap())) {
+                if (collection((Collection<?>) result, events, includeArrayIndex, preserveNullAndEmptyArrays, map, path, parentMap, split, event, handel,node.whetherFlatten(),node.getJoiner())) {
                     return events;
                 }
             } else if (null != result && result.getClass().isArray()) {
-                if (array((Object[]) result, events, includeArrayIndex, preserveNullAndEmptyArrays, map, path, parentMap, split, event, handel,node.whetherFlatten(),node.getFlattenMap())) {
+                if (array((Object[]) result, events, includeArrayIndex, preserveNullAndEmptyArrays, map, path, parentMap, split, event, handel,node.whetherFlatten(),node.getJoiner())) {
                     return events;
                 }
             } else {
@@ -272,15 +273,14 @@ public class UnWindNodeUtil {
         return events;
     }
 
-    public static void serializationFlattenFields(String path,Map<String, Object> map, Object value,Boolean flatten,Map<String,String> flattenMap){
-        if (null == flattenMap || null == value || null == map)return;
+    public static void serializationFlattenFields(String path,Map<String, Object> map, Object value,Boolean flatten,String joiner){
+        if (null == value || null == map)return;
         if(value instanceof Map && flatten){
            Map<String,Object> object = (Map<String,Object>) value;
            map.remove(path);
-           for(Map.Entry<String, String> entry :flattenMap.entrySet()){
-               if(object.get(entry.getValue()) != null){
-                   map.put(entry.getKey(),object.get(entry.getValue()));
-               }
+           if(StringUtils.isBlank(joiner))return;
+           for(Map.Entry<String, Object> entry :object.entrySet()){
+               map.put(path + joiner + entry.getKey(),entry.getValue());
             }
         }else if(flatten){
             map.put(path,value.toString());
