@@ -82,5 +82,17 @@ public class PkdSourceServiceTest {
             String actual = pkdSourceService.checkJarMD5("111", 14);
             assertEquals("123456",actual);
         }
+        @Test
+        void testCheckJarMd5CompatibleOldEngine(){
+            Criteria criteria = Criteria.where("metadata.pdkHash").is("111").and("filename").is("a.jar");
+            Query query = new Query(criteria);
+            GridFSFile gridFSFile = mock(GridFSFile.class);
+            Document document = new Document();
+            document.append("md5","123456");
+            when(gridFSFile.getMetadata()).thenReturn(document);
+            when(fileService.findOne(query)).thenReturn(gridFSFile);
+            String actual = pkdSourceService.checkJarMD5("111", "a.jar");
+            assertEquals("123456",actual);
+        }
     }
 }

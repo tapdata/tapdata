@@ -54,10 +54,6 @@ public class PdkUtilTest {
                     try (MockedStatic<PdkSourceUtils> pdkSourceUtilsMockedStatic = Mockito
                             .mockStatic(PdkSourceUtils.class)) {
                         pdkSourceUtilsMockedStatic.when(() -> PdkSourceUtils.getFileMD5(any(File.class))).thenReturn("1234567890123456").thenReturn("123456");
-                        String dir = System.getProperty("user.dir") + File.separator + "dist";
-                        fileMd5Map = new ConcurrentHashMap();
-                        fileMd5Map.put(dir + "/mysql__67890__.jar", "1234567890123456");
-                        ReflectionTestUtils.setField(PdkUtil.class, "fileMd5Map", fileMd5Map);
                         when(httpClientMongoOperator.findOne(anyMap(), anyString(), any())).thenReturn("1234567890123456");
                         PdkUtil.downloadPdkFileIfNeed(httpClientMongoOperator, pdkHash, fileName, resourceId, callback);
                         verify(httpClientMongoOperator, new Times(1)).downloadFile(anyMap(), anyString(), anyString(), anyBoolean(), any());
@@ -81,9 +77,6 @@ public class PdkUtilTest {
                         String dir = System.getProperty("user.dir") + File.separator + "dist";
                         File file = new File(dir + "/mysql__67890__.jar");
                         file.createNewFile();
-                        fileMd5Map = new ConcurrentHashMap();
-                        fileMd5Map.put(dir + "/mysql__67890__.jar", "1234567890123456");
-                        ReflectionTestUtils.setField(PdkUtil.class, "fileMd5Map", fileMd5Map);
                         when(httpClientMongoOperator.findOne(anyMap(), anyString(), any())).thenReturn("1234567890123456");
                         PdkUtil.downloadPdkFileIfNeed(httpClientMongoOperator, pdkHash, fileName, resourceId, callback);
                         verify(httpClientMongoOperator, new Times(0)).downloadFile(anyMap(), anyString(), anyString(), anyBoolean(), any());

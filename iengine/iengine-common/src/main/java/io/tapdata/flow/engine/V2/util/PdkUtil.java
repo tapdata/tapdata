@@ -37,7 +37,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PdkUtil {
 
 	private static final Map<String, Object> pdkHashDownloadLockMap = new ConcurrentHashMap<>();
-	private static Map<String, String> fileMd5Map = new ConcurrentHashMap();
 	private static final String TAG;
 
 	static {
@@ -109,19 +108,11 @@ public class PdkUtil {
 	}
 
 	public static boolean reDownloadIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, File theFilePath){
-		String md5 = null;
-		if (fileMd5Map.containsKey(pdkHash)){
-			md5 = fileMd5Map.get(pdkHash);
-		} else {
-			 md5 = httpClientMongoOperator.findOne(
-					new HashMap<String, Object>(1) {{
-						put("pdkHash", pdkHash);
-						put("pdkBuildNumber", CommonUtils.getPdkBuildNumer());
-					}}, "/pdk/checkMd5", String.class);
-			 if (null != md5){
-				 fileMd5Map.put(pdkHash, md5);
-			 }
-		}
+		String md5 = httpClientMongoOperator.findOne(
+				new HashMap<String, Object>(1) {{
+					put("pdkHash", pdkHash);
+					put("pdkBuildNumber", CommonUtils.getPdkBuildNumer());
+				}}, "/pdk/checkMd5/v2", String.class);
 		String theFilePathMd5 = PdkSourceUtils.getFileMD5(theFilePath);
 		if (null != md5 && !md5.equals(theFilePathMd5)){
 			FileUtils.deleteQuietly(theFilePath);

@@ -28,5 +28,11 @@ public class PdkControllerTest {
             ResponseMessage<String> actual = pdkController.checkFileMd5("111", 14);
             assertEquals("123456",actual.getData());
         }
+        @Test
+        void testCheckFileMd5CompatibleOldEngine(){
+            when(pkdSourceService.checkJarMD5("111","a.jar")).thenReturn("123456");
+            ResponseMessage<String> actual = pdkController.checkFileMd5("111", "a.jar");
+            assertEquals("123456",actual.getData());
+        }
     }
 }
