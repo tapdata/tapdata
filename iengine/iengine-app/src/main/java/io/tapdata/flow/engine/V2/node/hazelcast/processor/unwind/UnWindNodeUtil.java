@@ -234,15 +234,14 @@ public class UnWindNodeUtil {
                            Map<String, Object> parentMap,
                            TapEvent event,
                            EventHandel handel) {
-        if (!(null == result && !preserveNullAndEmptyArrays)) {
-            if (containsKey.get()) {
-                containsPathAndSetValue(parentMap, includeArrayIndex, null);
-            }
-            events.add(event);
+        if (containsKey.get() && null == result && !preserveNullAndEmptyArrays) {
+            addEvent(event,events);
+            return true;
         }
-        if (null == result && !preserveNullAndEmptyArrays) {
-            events.add(toDeleteEvent((TapRecordEvent) event));
+        if (containsKey.get()) {
+            containsPathAndSetValue(parentMap, includeArrayIndex, null);
         }
+        events.add(event);
         return false;
     }
 
