@@ -1,13 +1,10 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor.unwind;
 
-import com.tapdata.tm.commons.dag.ArrayModel;
-import com.tapdata.tm.commons.dag.UnwindModel;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -112,16 +109,8 @@ class UpdateHandel implements EventHandel {
     public List<TapEvent> handel(UnwindProcessNode node, TapEvent event){
         List<TapEvent> events = new ArrayList<>();
         Map<String, Object> after = UnWindNodeUtil.getAfter(event);
-        Map<String, Object> before = UnWindNodeUtil.getBefore(event);
         Long referenceTime = ((TapUpdateRecordEvent) event).getReferenceTime();
-        TapDeleteRecordEvent delete = TapDeleteRecordEvent.create();
-        if (null == before || before.isEmpty()) {
-            delete.before(after);
-        } else {
-            delete.before(before);
-        }
-        delete.referenceTime(referenceTime);
-        List<TapEvent> deletes = EventHandel.getHandelResult(node, delete);
+        List<TapEvent> deletes = EventHandel.getHandelResult(node, UnWindNodeUtil.genericDeleteEvent(event));
         if (null != deletes) {
             events.addAll(deletes);
         }

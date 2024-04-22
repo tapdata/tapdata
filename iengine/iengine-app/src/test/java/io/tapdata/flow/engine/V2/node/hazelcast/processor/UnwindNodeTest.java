@@ -1035,7 +1035,7 @@ public class UnwindNodeTest extends BaseTest {
         TapUpdateRecordEvent event = mock(TapUpdateRecordEvent.class);
         when(event.getBefore()).thenReturn(null);
         TapDeleteRecordEvent e = UnWindNodeUtil.toDeleteEvent((TapRecordEvent) event);
-        Assertions.assertNull(e);
+        Assertions.assertNotNull(e);
     }
     @Test
     public void testUpdateToDeleteV2() {
@@ -1044,7 +1044,7 @@ public class UnwindNodeTest extends BaseTest {
         when(b.isEmpty()).thenReturn(true);
         when(event.getBefore()).thenReturn(b);
         TapDeleteRecordEvent e = UnWindNodeUtil.toDeleteEvent(event);
-        Assertions.assertNull(e);
+        Assertions.assertNotNull(e);
     }
     @Test
     public void testUpdateToDeleteV3() {
