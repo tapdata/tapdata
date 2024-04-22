@@ -62,20 +62,7 @@ public class HazelcastUnwindProcessNode extends HazelcastProcessorBaseNode {
         }
 
         List<TapEvent> eventList = EventHandel.getHandelResult(node, tapdataEvent.getTapEvent());
-        if (null == eventList || eventList.isEmpty()) {
-            TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
-            TapDeleteRecordEvent delete = TapDeleteRecordEvent.create();
-            Map<String, Object> after = UnWindNodeUtil.getAfter(tapEvent);
-            if(null != after){
-                if(node.getUnwindModel().equals(UnwindModel.FLATTEN) && node.getArrayModel().equals(ArrayModel.OBJECT)){
-                    after.remove(node.getPath());
-                }
-                delete.before(after);
-                delete.referenceTime(((TapRecordEvent) tapEvent).getReferenceTime());
-                cloneTapdataEvent.setTapEvent(delete);
-                consumer.accept(cloneTapdataEvent, processResult);
-            }
-        } else {
+        if (CollectionUtils.isNotEmpty(eventList)) {
             for (TapEvent e : eventList) {
                 TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
                 cloneTapdataEvent.setTapEvent(e);

@@ -7,17 +7,21 @@ import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.unwind.EventHandel;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.unwind.UnWindNodeUtil;
 import org.bson.Document;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 
 import java.text.DecimalFormat;
 import java.util.*;
 
 import static com.tapdata.tm.sdk.util.JacksonUtil.toJson;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 
 public class UnwindNodeTest extends BaseTest {
@@ -201,7 +205,7 @@ public class UnwindNodeTest extends BaseTest {
 
         //不指定索引字段，忽略null或empty
         List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
-        boolean count = handelResult.size() == 0;
+        boolean count = handelResult.size() == 1;
         Assert.assertTrue(
                 "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
                         + ", only " + handelResult.size() + " after unwind node",
@@ -265,7 +269,7 @@ public class UnwindNodeTest extends BaseTest {
 
         //不指定索引字段，忽略null或empty
         List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
-        boolean count = handelResult.size() == 0;
+        boolean count = handelResult.size() == 1;
         Assert.assertTrue(
                 "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
                         + ", only " + handelResult.size() + " after unwind node",
@@ -400,7 +404,7 @@ public class UnwindNodeTest extends BaseTest {
 
         //不指定索引字段，忽略null或empty
         List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
-        boolean count = handelResult.size() == 0;
+        boolean count = handelResult.size() == 1;
         Assert.assertTrue(
                 "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
                         + ", only " + handelResult.size() + " after unwind node",
@@ -465,7 +469,7 @@ public class UnwindNodeTest extends BaseTest {
 
         //不指定索引字段，忽略null或empty
         List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
-        boolean count = handelResult.size() == 0;
+        boolean count = handelResult.size() == 1;
         Assert.assertTrue(
                 "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
                         + ", only " + handelResult.size() + " after unwind node",
@@ -532,7 +536,7 @@ public class UnwindNodeTest extends BaseTest {
 
         //不指定索引字段，忽略null或empty
         List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
-        boolean count = handelResult.size() == 0;
+        boolean count = handelResult.size() == 1;
         Assert.assertTrue(
                 "Fail get 1 delete event from tapdata event by unwind node, from event: " + toJson(before)
                         + ", only " + handelResult.size() + " after unwind node",
@@ -1017,5 +1021,45 @@ public class UnwindNodeTest extends BaseTest {
         };
         boolean result = UnWindNodeUtil.array(objects,new ArrayList<>(),"test",true,map,"t",parentMap,new String[]{""},event,handel,false,null);
         Assert.assertFalse(result);
+    }
+
+    @Test
+    public void testInsertToDelete() {
+        TapRecordEvent event = mock(TapInsertRecordEvent.class);
+        TapDeleteRecordEvent e = UnWindNodeUtil.toDeleteEvent(event);
+        Assertions.assertNull(e);
+    }
+
+    @Test
+    public void testUpdateToDelete() {
+        TapUpdateRecordEvent event = mock(TapUpdateRecordEvent.class);
+        when(event.getBefore()).thenReturn(null);
+        TapDeleteRecordEvent e = UnWindNodeUtil.toDeleteEvent((TapRecordEvent) event);
+        Assertions.assertNull(e);
+    }
+    @Test
+    public void testUpdateToDeleteV2() {
+        TapUpdateRecordEvent event = mock(TapUpdateRecordEvent.class);
+        Map<String, Object> b = mock(Map.class);
+        when(b.isEmpty()).thenReturn(true);
+        when(event.getBefore()).thenReturn(b);
+        TapDeleteRecordEvent e = UnWindNodeUtil.toDeleteEvent(event);
+        Assertions.assertNull(e);
+    }
+    @Test
+    public void testUpdateToDeleteV3() {
+        TapUpdateRecordEvent event = mock(TapUpdateRecordEvent.class);
+        Map<String, Object> b = mock(Map.class);
+        when(b.isEmpty()).thenReturn(false);
+        when(event.getBefore()).thenReturn(b);
+        TapDeleteRecordEvent e = UnWindNodeUtil.toDeleteEvent(event);
+        Assertions.assertNotNull(e);
+    }
+
+    @Test
+    public void testDeleteToDelete() {
+        TapRecordEvent event = mock(TapDeleteRecordEvent.class);
+        TapDeleteRecordEvent e = UnWindNodeUtil.toDeleteEvent(event);
+        Assertions.assertNotNull(e);
     }
 }

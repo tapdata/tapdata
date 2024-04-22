@@ -5,9 +5,9 @@ import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.Document;
 
 
 import java.util.ArrayList;
@@ -175,6 +175,8 @@ public class UnWindNodeUtil {
                     parentMap.remove(split[split.length - 1]);
                 }
                 events.add(event);
+            } else {
+                addEvent(event, events);
             }
             return true;
         }
@@ -210,6 +212,8 @@ public class UnWindNodeUtil {
                     parentMap.remove(split[split.length - 1]);
                 }
                 events.add(event);
+            } else {
+                addEvent(event, events);
             }
             return true;
         }
@@ -235,6 +239,9 @@ public class UnWindNodeUtil {
                 containsPathAndSetValue(parentMap, includeArrayIndex, null);
             }
             events.add(event);
+        }
+        if (null == result && !preserveNullAndEmptyArrays) {
+            events.add(toDeleteEvent((TapRecordEvent) event));
         }
         return false;
     }
@@ -287,4 +294,25 @@ public class UnWindNodeUtil {
         }
     }
 
+    public static TapDeleteRecordEvent toDeleteEvent(TapRecordEvent event) {
+        if (event instanceof TapDeleteRecordEvent) {
+            return (TapDeleteRecordEvent) event;
+        } else if(event instanceof TapUpdateRecordEvent) {
+            Map<String, Object> before = ((TapUpdateRecordEvent) event).getBefore();
+            if (null != before && !before.isEmpty()) {
+                TapDeleteRecordEvent delete = TapDeleteRecordEvent.create().before(before);
+                delete.setReferenceTime(event.getReferenceTime());
+                delete.table(event.getTableId());
+                return delete;
+            }
+        }
+        return null;
+    }
+
+    public static void addEvent(TapEvent event, List<TapEvent> events) {
+        TapDeleteRecordEvent e = toDeleteEvent((TapRecordEvent) event);
+        if (null != e) {
+            events.add(e);
+        }
+    }
 }
