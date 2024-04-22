@@ -260,6 +260,8 @@ public class UnWindNodeUtil {
             if (null == parentMap || !containsKey.get()) {
                 if (preserveNullAndEmptyArrays) {
                     events.add(event);
+                } else {
+                    addEvent(event, events);
                 }
                 return events;
             }

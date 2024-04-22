@@ -84,9 +84,7 @@ class InsertHandel implements EventHandel {
 class DeleteHandel implements EventHandel {
     @Override
     public List<TapEvent> handel(UnwindProcessNode node, TapEvent event) {
-        List<TapEvent> result = new ArrayList<>();
-        result.add(event);
-        return result;
+        return UnWindNodeUtil.handelList(node, event, UnWindNodeUtil.getBefore(event), this);
     }
 
     @Override

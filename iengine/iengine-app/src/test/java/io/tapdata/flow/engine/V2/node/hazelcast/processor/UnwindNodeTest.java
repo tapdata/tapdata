@@ -45,7 +45,7 @@ public class UnwindNodeTest extends BaseTest {
         node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
         List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
-        boolean count = handelResult.size() == 1;
+        boolean count = handelResult.size() == 2;
         Assert.assertTrue(
                 "Fail get 2 delete event from tapdata event by unwind node, from event: " + toJson(before)
                         + ", only " + handelResult.size() + " after unwind node",
@@ -58,21 +58,21 @@ public class UnwindNodeTest extends BaseTest {
                 type0);
         Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "\"{\"field\":1,\"id\":1}\" , but the result is  " + toJson(before0), "{\"field\":[1,2],\"id\":1}", toJson(before0));
+                "\"{\"field\":1,\"id\":1}\" , but the result is  " + toJson(before0), "{\"field\":1,\"id\":1}", toJson(before0));
 
-        TapEvent tapEvent1 = handelResult.get(0);
+        TapEvent tapEvent1 = handelResult.get(1);
         boolean type1 = tapEvent1 instanceof TapDeleteRecordEvent;
         Assert.assertTrue("ail translate insert event to delete event after unwind node for the second event", type1);
         Map<String, Object> before1 = ((TapDeleteRecordEvent) tapEvent1).getBefore();
         Assert.assertEquals(" The content of the second delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(before1), "{\"field\":[1,2],\"id\":1}", toJson(before1));
+                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(before1), "{\"field\":2,\"id\":1}", toJson(before1));
 
         /**
          * unwind with IncludeArrayIndex
          * */
         node.setIncludeArrayIndex("index");
         handelResult = EventHandel.getHandelResult(node, event);
-        count = handelResult.size() == 1;
+        count = handelResult.size() == 2;
         Assert.assertTrue(
                 "Fail get 2 delete event from tapdata event by unwind node, from event: " + toJson(before)
                         + ", only " + handelResult.size() + " after unwind node",
@@ -85,14 +85,14 @@ public class UnwindNodeTest extends BaseTest {
                 type0);
         before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "{\"field\":1,\"index\":0,\"id\":1} , but the result is  " + toJson(before0), "{\"field\":[1,2],\"id\":1}", toJson(before0));
+                "{\"field\":1,\"index\":0,\"id\":1} , but the result is  " + toJson(before0), "{\"field\":1,\"index\":0,\"id\":1}", toJson(before0));
 
-        tapEvent1 = handelResult.get(0);
+        tapEvent1 = handelResult.get(1);
         type1 = tapEvent1 instanceof TapDeleteRecordEvent;
         Assert.assertTrue("ail translate insert event to delete event after unwind node for the second event", type1);
         before1 = ((TapDeleteRecordEvent) tapEvent1).getBefore();
         Assert.assertEquals(" The content of the second delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "{\"field\":2,\"index\":1,\"id\":1}, but the result is  " + toJson(before1), "{\"field\":[1,2],\"id\":1}", toJson(before1));
+                "{\"field\":2,\"index\":1,\"id\":1}, but the result is  " + toJson(before1), "{\"field\":2,\"index\":1,\"id\":1}", toJson(before1));
 
 
         /**
@@ -100,7 +100,7 @@ public class UnwindNodeTest extends BaseTest {
          * */
         node.setPreserveNullAndEmptyArrays(true);
         handelResult = EventHandel.getHandelResult(node, event);
-        count = handelResult.size() == 1;
+        count = handelResult.size() == 2;
         Assert.assertTrue(
                 "Fail get 2 delete event from tapdata event by unwind node, from event: " + toJson(before)
                         + ", only " + handelResult.size() + " after unwind node",
@@ -113,14 +113,14 @@ public class UnwindNodeTest extends BaseTest {
                 type0);
         before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "{\"field\":1,\"index\":0,\"id\":1}, but the result is  " + toJson(before0), "{\"field\":[1,2],\"id\":1}", toJson(before0));
+                "{\"field\":1,\"index\":0,\"id\":1}, but the result is  " + toJson(before0), "{\"field\":1,\"index\":0,\"id\":1}", toJson(before0));
 
-        tapEvent1 = handelResult.get(0);
+        tapEvent1 = handelResult.get(1);
         type1 = tapEvent1 instanceof TapDeleteRecordEvent;
         Assert.assertTrue("ail translate insert event to delete event after unwind node for the second event", type1);
         before1 = ((TapDeleteRecordEvent) tapEvent1).getBefore();
         Assert.assertEquals(" The content of the second delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "{\"field\":2,\"index\":1,\"id\":1}, but the result is  " + toJson(before1), "{\"field\":[1,2],\"id\":1}", toJson(before1));
+                "{\"field\":2,\"index\":1,\"id\":1}, but the result is  " + toJson(before1), "{\"field\":2,\"index\":1,\"id\":1}", toJson(before1));
     }
 
     /**
@@ -246,7 +246,7 @@ public class UnwindNodeTest extends BaseTest {
         before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
                 "{\"field\":null,\"index\":null,\"id\":1}, but the result is  " + toJson(before0),
-                "{\"field\":null,\"id\":1}",
+                "{\"field\":null,\"index\":null,\"id\":1}",
                 toJson(before0));
 
     }
@@ -290,7 +290,7 @@ public class UnwindNodeTest extends BaseTest {
                 type0);
         Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "{\"id\":1} , but the result is  " + toJson(before0), "{\"field\":[],\"id\":1}", toJson(before0));
+                "{\"id\":1} , but the result is  " + toJson(before0), "{\"id\":1}", toJson(before0));
 
 
         //指定索引字段，不忽略null或empty
@@ -309,7 +309,7 @@ public class UnwindNodeTest extends BaseTest {
                 type0);
         before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "{\"id\":1} , but the result is  " + toJson(before0), "{\"field\":[],\"id\":1}", toJson(before0));
+                "{\"id\":1} , but the result is  " + toJson(before0), "{\"id\":1}", toJson(before0));
 
     }
 
@@ -362,7 +362,7 @@ public class UnwindNodeTest extends BaseTest {
                 type0);
         before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "{\"field\":\"test case by gavin\",\"index\":null,\"id\":1} , but the result is  " + toJson(before0), "{\"field\":\"test case by gavin\",\"id\":1}", toJson(before0));
+                "{\"field\":\"test case by gavin\",\"index\":null,\"id\":1} , but the result is  " + toJson(before0), "{\"field\":\"test case by gavin\",\"index\":null,\"id\":1}", toJson(before0));
 
         //不指定索引字段，不忽略null或empty
         node.setPreserveNullAndEmptyArrays(true);
@@ -379,7 +379,7 @@ public class UnwindNodeTest extends BaseTest {
                 type0);
         before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "{\"field\":\"test case by gavin\",\"index\":null,\"id\":1} , but the result is  " + toJson(before0), "{\"field\":\"test case by gavin\",\"id\":1}", toJson(before0));
+                "{\"field\":\"test case by gavin\",\"index\":null,\"id\":1} , but the result is  " + toJson(before0), "{\"field\":\"test case by gavin\",\"index\":null,\"id\":1}", toJson(before0));
 
     }
 
@@ -510,7 +510,7 @@ public class UnwindNodeTest extends BaseTest {
         before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
                 "{\"field\":{\"array\":null,\"index\":null,\"key\":\"007\"},\"id\":1}, but the result is  " + toJson(before0),
-                "{\"field\":{\"array\":null,\"key\":\"007\"},\"id\":1}",
+                "{\"field\":{\"array\":null,\"index\":null,\"key\":\"007\"},\"id\":1}",
                 toJson(before0));
 
     }
@@ -557,7 +557,7 @@ public class UnwindNodeTest extends BaseTest {
                 type0);
         Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "{\"field\":{\"key\":\"007\"},\"id\":1} , but the result is  " + toJson(before0), "{\"field\":{\"array\":[],\"key\":\"007\"},\"id\":1}", toJson(before0));
+                "{\"field\":{\"key\":\"007\"},\"id\":1} , but the result is  " + toJson(before0), "{\"field\":{\"key\":\"007\"},\"id\":1}", toJson(before0));
 
 
         //指定索引字段，不忽略null或empty
@@ -576,7 +576,7 @@ public class UnwindNodeTest extends BaseTest {
                 type0);
         before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "{\"field\":{\"key\":\"007\"},\"id\":1} , but the result is  " + toJson(before0), "{\"field\":{\"array\":[],\"key\":\"007\"},\"id\":1}", toJson(before0));
+                "{\"field\":{\"key\":\"007\"},\"id\":1} , but the result is  " + toJson(before0), "{\"field\":{\"key\":\"007\"},\"id\":1}", toJson(before0));
 
     }
 
@@ -633,7 +633,7 @@ public class UnwindNodeTest extends BaseTest {
         before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
                 "{\"field\":{\"array\":\"test case by gavin\",\"index\":null,\"key\":\"007\"},\"id\":1} , but the result is  " + toJson(before0),
-                "{\"field\":{\"array\":\"test case by gavin\",\"key\":\"007\"},\"id\":1}",
+                "{\"field\":{\"array\":\"test case by gavin\",\"index\":null,\"key\":\"007\"},\"id\":1}",
                 toJson(before0));
 
         //不指定索引字段，不忽略null或empty
@@ -652,7 +652,7 @@ public class UnwindNodeTest extends BaseTest {
         before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
                 "{\"field\":{\"array\":\"test case by gavin\",\"index\":null,\"key\":\"007\"},\"id\":1}, but the result is  " + toJson(before0),
-                "{\"field\":{\"array\":\"test case by gavin\",\"key\":\"007\"},\"id\":1}",
+                "{\"field\":{\"array\":\"test case by gavin\",\"index\":null,\"key\":\"007\"},\"id\":1}",
                 toJson(before0));
 
     }
@@ -675,7 +675,7 @@ public class UnwindNodeTest extends BaseTest {
         node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
         List<TapEvent> handelResult1 = EventHandel.getHandelResult(node, event);
-        boolean count = handelResult1.size() == 1;
+        boolean count = handelResult1.size() == 2;
         Assert.assertTrue(
                 "Fail get 2 delete event from tapdata event by unwind node, from event: " + toJson(before)
                         + ", only " + handelResult1.size() + " after unwind node",
@@ -688,14 +688,14 @@ public class UnwindNodeTest extends BaseTest {
                 type0);
         Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "\"{\"field\":1,\"id\":1}\" , but the result is  " + toJson(before0), "{\"field\":[1,2],\"id\":1}", toJson(before0));
+                "\"{\"field\":1,\"id\":1}\" , but the result is  " + toJson(before0), "{\"field\":1,\"id\":1}", toJson(before0));
 
-        TapEvent tapEvent1 = handelResult1.get(0);
+        TapEvent tapEvent1 = handelResult1.get(1);
         boolean type1 = tapEvent1 instanceof TapDeleteRecordEvent;
         Assert.assertTrue("ail translate insert event to delete event after unwind node for the second event", type1);
         Map<String, Object> before1 = ((TapDeleteRecordEvent) tapEvent1).getBefore();
         Assert.assertEquals(" The content of the second delete event after processing by the Unwind node does not meet expectations,  It should be " +
-                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(before1), "{\"field\":[1,2],\"id\":1}", toJson(before1));
+                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(before1), "{\"field\":2,\"id\":1}", toJson(before1));
 
     }
 
@@ -814,7 +814,7 @@ public class UnwindNodeTest extends BaseTest {
                 type0);
         Map<String, Object> before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first inserted event after processing by the Uwind node does not meet expectations,  It should be " +
-                "\"{\"field\":1,\"id\":1}\" , but the result is  " + toJson(before0), "{\"field\":[1],\"id\":1}", toJson(before0));
+                "\"{\"field\":1,\"id\":1}\" , but the result is  " + toJson(before0), "{\"field\":1,\"id\":1}", toJson(before0));
 
         TapEvent tapEvent1 = handelResult1.get(1);
         boolean type1 = tapEvent1 instanceof TapInsertRecordEvent;
@@ -841,7 +841,7 @@ public class UnwindNodeTest extends BaseTest {
                 type0);
         before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
         Assert.assertEquals(" The content of the first inserted event after processing by the Uwind node does not meet expectations,  It should be " +
-                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(before0), "{\"field\":[2],\"id\":1}", toJson(before0));
+                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(before0), "{\"field\":2,\"id\":1}", toJson(before0));
 
         tapEvent1 = handelResult1.get(1);
         type1 = tapEvent1 instanceof TapInsertRecordEvent;
