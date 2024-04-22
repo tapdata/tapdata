@@ -18,7 +18,6 @@ import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.CustomKafkaUtils;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
@@ -31,6 +30,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.utils.GZIPUtil;
+import com.tapdata.tm.utils.GuangFaUtils;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.entity.Worker;
@@ -245,7 +245,7 @@ public class TransformSchemaService {
                     DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
 
                     String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto, taskDto.getId().toHexString());
-                    if (CustomKafkaUtils.checkSourceIsKafka(node)) {
+                    if (GuangFaUtils.checkSourceIsKafka(node)) {
                         kafkaSourceNode = (TableNode) node;
                         sourceConnectionDto = dataSourceConnectionDto;
                         customKafkaQualifiedNames.add(qualifiedName);
@@ -262,7 +262,7 @@ public class TransformSchemaService {
                     DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
 
                     List<String> metas = metadataInstancesService.findDatabaseNodeQualifiedName(node.getId(), user, taskDto, dataSourceConnectionDto, dataSourceDefinitionDto, includes);
-                    if (CustomKafkaUtils.checkSourceIsKafka(node)) {
+                    if (GuangFaUtils.checkSourceIsKafka(node)) {
                         kafkaSourceNode = databaseNode;
                         sourceConnectionDto = dataSourceConnectionDto;
                         customKafkaQualifiedNames.addAll(metas);
@@ -301,7 +301,7 @@ public class TransformSchemaService {
                     metadataList.addAll(metadataList1);
                 }
 
-                CustomKafkaUtils.updateSourceMetadataInstances(metadataList, kafkaSourceNode, sourceConnectionDto, customKafkaQualifiedNames, (dto, databaseType) -> fieldTypeToSource(dto, databaseType, user));
+                GuangFaUtils.updateSourceMetadataInstances(metadataList, kafkaSourceNode, sourceConnectionDto, customKafkaQualifiedNames, (dto, databaseType) -> fieldTypeToSource(dto, databaseType, user));
             }
         } else {
             Criteria criteria = Criteria.where("taskId").is(taskDto.getId().toHexString())

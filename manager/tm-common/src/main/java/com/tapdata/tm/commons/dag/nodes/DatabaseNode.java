@@ -19,7 +19,6 @@ import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.CustomKafkaUtils;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
