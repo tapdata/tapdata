@@ -164,35 +164,12 @@ public class RegisterCli extends CommonCli {
                             if(!key.equalsIgnoreCase("default")) {
                                 Map<String, Object> messagesForLan = (Map<String, Object>) messsages.get(key);
                                 if(messagesForLan != null) {
-                                    Object docPath = messagesForLan.get("doc");
-                                    if(docPath instanceof String) {
-                                        String docPathStr = (String) docPath;
-                                        if(!inputStreamMap.containsKey(docPathStr)) {
-                                            Optional.ofNullable(nodeInfo.readResource(docPathStr)).ifPresent(stream -> {
-                                                InputStream inputStream = stream;
-                                                if (null != replaceConfig){
-                                                    Scanner scanner = null;
-                                                    try {
-                                                        scanner = new Scanner(stream, "UTF-8");
-                                                        StringBuilder docTxt = new StringBuilder();
-                                                        while(scanner.hasNextLine()) {
-                                                            docTxt.append(scanner.nextLine()).append("\n");
-                                                        }
-                                                        String finalTxt = docTxt.toString();
-                                                        for (Map.Entry<String, Object> entry : replaceConfig.entrySet()) {
-                                                            finalTxt = finalTxt.replaceAll(entry.getKey(), String.valueOf(entry.getValue()));
-                                                        }
-                                                        inputStream = new ByteArrayInputStream(finalTxt.getBytes(StandardCharsets.UTF_8));
-                                                    } catch (Exception e) {} finally {
-                                                        try {
-                                                            if (null != scanner) scanner.close();
-                                                        }catch (Exception ignore){}
-                                                    }
-                                                }
-                                                inputStreamMap.put(docPathStr, inputStream);
-                                            });
-                                        }
-                                    }
+																	for (String mKey : messagesForLan.keySet()) {
+																		if (!("doc".equals(mKey) || mKey.startsWith("doc:"))) continue;
+																		String filePath = (String) messagesForLan.get(mKey);
+																		if (null == filePath || filePath.isEmpty()) continue;
+																		addFile(filePath, inputStreamMap, nodeInfo, replaceConfig);
+																	}
                                 }
                             }
                         }
@@ -269,6 +246,34 @@ public class RegisterCli extends CommonCli {
         }
         return 0;
     }
+
+		private void addFile(String filePath, Map<String, InputStream> inputStreamMap, TapNodeInfo nodeInfo, Map<String, Object> replaceConfig) {
+			if (!inputStreamMap.containsKey(filePath)) {
+				Optional.ofNullable(nodeInfo.readResource(filePath)).ifPresent(stream -> {
+					InputStream inputStream = stream;
+					if (null != replaceConfig) {
+						Scanner scanner = null;
+						try {
+							scanner = new Scanner(stream, "UTF-8");
+							StringBuilder docTxt = new StringBuilder();
+							while (scanner.hasNextLine()) {
+								docTxt.append(scanner.nextLine()).append("\n");
+							}
+							String finalTxt = docTxt.toString();
+							for (Map.Entry<String, Object> entry : replaceConfig.entrySet()) {
+								finalTxt = finalTxt.replaceAll(entry.getKey(), String.valueOf(entry.getValue()));
+							}
+							inputStream = new ByteArrayInputStream(finalTxt.getBytes(StandardCharsets.UTF_8));
+						} catch (Exception e) {} finally {
+							try {
+								if (null != scanner) scanner.close();
+							} catch (Exception ignore) {}
+						}
+					}
+					inputStreamMap.put(filePath, inputStream);
+				});
+			}
+		}
 
     private static final String path = "tapdata-cli/src/main/resources/replace/";
     private Map<String, Object> needReplaceKeyWords(TapNodeInfo nodeInfo, String replacePath){

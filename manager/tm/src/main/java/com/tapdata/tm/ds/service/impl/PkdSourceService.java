@@ -122,7 +122,6 @@ public class PkdSourceService {
 			// upload the associated files(jar/icons)
 			ObjectId jarObjectId = null;
 			ObjectId iconObjectId = null;
-			Map<String, String> langMap = Maps.newHashMap();
 			try {
 				Map<String, Object> fileInfo = Maps.newHashMap();
 				fileInfo.put("pdkHash", pdkHash);
@@ -136,45 +135,36 @@ public class PkdSourceService {
 					iconObjectId = fileService.storeFile(icon.getInputStream(), icon.getOriginalFilename(), null, fileInfo);
 				}
 				// 3. upload readeMe doc
-				if (!docMap.isEmpty()) {
-					if (Objects.nonNull(pdkSourceDto.getMessages())) {
-						pdkSourceDto.getMessages().forEach((k, v) -> {
-							if (v instanceof Map && Objects.nonNull(((Map<?, ?>) v).get("doc"))) {
-								langMap.put(k, ((Map<?, ?>) v).get("doc").toString());
+				Map<String, ObjectId> deduplicatioMap = new HashMap<>() ;
+				if (!docMap.isEmpty() && (Objects.nonNull(pdkSourceDto.getMessages()))) {
+					pdkSourceDto.getMessages().forEach((k, v) -> {
+						if (!(v instanceof Map)) return;
+
+						((Map<String, Object>) v).entrySet().forEach(langEntry -> {
+							if (!("doc".equals(langEntry.getKey()) || langEntry.getKey().startsWith("doc:"))) return;
+							if (null == langEntry.getValue()) return;
+							String path = langEntry.getValue().toString();
+							if (deduplicatioMap.containsKey(path)) {
+								langEntry.setValue(deduplicatioMap.get(path));
+								return;
+							}
+							CommonsMultipartFile doc = docMap.getOrDefault(path, null);
+							if (null == langEntry.getValue()) return;
+
+							try {
+								ObjectId docId = fileService.storeFile(
+									OEMReplaceUtil.replace(doc.getInputStream(), oemConfig),
+									doc.getOriginalFilename(),
+									null,
+									fileInfo);
+								langEntry.setValue(docId);
+								deduplicatioMap.put(langEntry.getKey(), docId);
+							} catch (IOException e) {
+								throw new BizException(e);
 							}
 						});
-					}
-					if (!langMap.isEmpty()) {
-						List<String> pathList = langMap.values().stream().distinct().collect(Collectors.toList());
-
-                        Map<String, ObjectId> pathMap = new HashMap<>();
-                        pathList.forEach(path -> {
-                            if (docMap.containsKey(path)) {
-                                CommonsMultipartFile doc = docMap.getOrDefault(path, null);
-                                try {
-                                    ObjectId docId = fileService.storeFile(
-                                            OEMReplaceUtil.replace(doc.getInputStream(), oemConfig),
-                                            doc.getOriginalFilename(),
-                                            null,
-                                            fileInfo );
-                                    pathMap.put(path, docId);
-                                } catch (IOException e) {
-                                    throw new BizException(e);
-                                }
-                            }
-                        });
-
-						pdkSourceDto.getMessages().forEach((k, v) -> {
-							if (v instanceof Map && Objects.nonNull(((Map<?, ?>) v).get("doc"))) {
-								String path = ((Map<?, ?>) v).get("doc").toString();
-								if (pathMap.containsKey(path)) {
-									((Map<String, Object>) v).put("doc", pathMap.get(path));
-								}
-							}
-						});
-					}
+					});
 				}
-
 			} catch (IOException e) {
 				throw new BizException("SystemError");
 			}
@@ -291,6 +281,46 @@ public class PkdSourceService {
 			} catch (IOException e) {
 				throw new RuntimeException(e);
 			}
+		}
+
+		fileService.viewImg(MongoUtils.toObjectId(resourceId), response);
+	}
+
+	public void downloadDoc(String pdkHash, Integer pdkBuildNumber, String filename, UserDetail user, HttpServletResponse response) throws IOException {
+		Criteria criteria = Criteria.where("pdkHash").is(pdkHash);
+		if (null != pdkBuildNumber) {
+			criteria.and("pdkAPIBuildNumber").is(pdkBuildNumber);
+		}
+
+		Query query = new Query(criteria);
+		query.fields().include("messages");
+		query.with(Sort.by("pdkAPIBuildNumber").descending());
+
+		DataSourceDefinitionDto one = dataSourceDefinitionService.findOne(query);
+		if (one == null) {
+			log.error("pdkHash is error pdkHash:{}", pdkHash);
+			response.sendError(404);
+			return;
+		}
+
+		if ("customer".equals(one.getScope()) && !user.getCustomerId().equals(one.getCustomId())) {
+			throw new BizException("PDK.DOWNLOAD.SOURCE.FAILED");
+		}
+
+		String resourceId = "";
+		String language = MessageUtil.getLanguage();
+		LinkedHashMap<String, Object> messages = one.getMessages();
+		if (messages != null) {
+			Object lan = messages.get(language);
+			if (Objects.nonNull(lan) && Objects.nonNull(((Map<?, ?>) lan).get(filename))) {
+				Object docId = ((Map<?, ?>) lan).get(filename);
+				resourceId = docId.toString();
+			}
+		}
+
+		if (StringUtils.isBlank(resourceId)) {
+			response.sendError(404);
+			return;
 		}
 
 		fileService.viewImg(MongoUtils.toObjectId(resourceId), response);
