@@ -12,15 +12,13 @@ import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.dag.*;
-import com.tapdata.tm.commons.dag.nodes.CacheNode;
-import com.tapdata.tm.commons.dag.nodes.DataParentNode;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
@@ -31,6 +29,8 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
 import com.tapdata.tm.ds.service.impl.DataSourceServiceImpl;
+import com.tapdata.tm.externalStorage.service.ExternalStorageService;
+import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -50,12 +50,16 @@ import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.bean.Chart6Vo;
 import com.tapdata.tm.task.bean.FullSyncVO;
+import com.tapdata.tm.task.bean.LogCollectorResult;
 import com.tapdata.tm.task.dto.CheckEchoOneNodeParam;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
+import com.tapdata.tm.task.vo.ShareCacheDetailVo;
+import com.tapdata.tm.task.vo.ShareCacheVo;
+import com.tapdata.tm.task.vo.TaskDetailVo;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -730,9 +734,8 @@ class TaskServiceImplTest {
         @BeforeEach
         void setUp() {
             taskService = mock(TaskServiceImpl.class);
-            taskDto = mock(TaskDto.class);
             user = mock(UserDetail.class);
-            id = "111";
+            id = "65bc933e6129fe73d7858cbd";
             saveShareCacheParam = mock(SaveShareCacheParam.class);
         }
         @Test
@@ -742,7 +745,8 @@ class TaskServiceImplTest {
             when(saveShareCacheParam.getName()).thenReturn("cache_name");
             doCallRealMethod().when(taskService).updateShareCacheTask(id,saveShareCacheParam,user);
             TaskDto actual = taskService.updateShareCacheTask(id, saveShareCacheParam, user);
-            assertEquals("cache_name", actual.getName());
+            verify(taskService,new Times(1)).parseCacheToTaskDto(saveShareCacheParam,dto);
+            verify(taskService,new Times(1)).updateById(any(TaskDto.class),any(UserDetail.class));
         }
     }
     @Nested
@@ -1627,46 +1631,365 @@ class TaskServiceImplTest {
     }
     @Nested
     class FindDataCopyListTest{
-
+        private Filter filter;
+        private InspectService inspectService;
+        private TaskRepository repository;
+        @BeforeEach
+        void setUp(){
+            filter = new Filter();
+            taskService = mock(TaskServiceImpl.class);
+            inspectService = mock(InspectService.class);
+            repository = mock(TaskRepository.class);
+            ReflectionTestUtils.setField(taskService,"inspectService",inspectService);
+            ReflectionTestUtils.setField(taskService,"repository",repository);
+            new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
+        }
+        @Test
+        void test1(){
+            Where where = new Where();
+            where.put("inspectResult","agreement");
+            filter.setWhere(where);
+            when(taskService.parseOrToCriteria(where)).thenReturn(mock(Criteria.class));
+            MongoTemplate template = mock(MongoTemplate.class);
+            when(repository.getMongoOperations()).thenReturn(template);
+            List<TaskEntity> taskEntityList = new ArrayList<>();
+            TaskEntity task = new TaskEntity();
+            ObjectId id = mock(ObjectId.class);
+            task.setId(id);
+            taskEntityList.add(task);
+            when(template.find(any(Query.class),any(Class.class))).thenReturn(taskEntityList);
+            List<InspectDto> inspectDtoList = new ArrayList<>();
+            InspectDto inspectDto = new InspectDto();
+            String flowId = "111";
+            when(id.toHexString()).thenReturn(flowId);
+            inspectDto.setFlowId(flowId);
+            inspectDto.setId(mock(ObjectId.class));
+            inspectDtoList.add(inspectDto);
+            when(inspectService.findByTaskIdList(anyList())).thenReturn(inspectDtoList);
+            doCallRealMethod().when(taskService).findDataCopyList(filter,user);
+            Page<TaskDto> actual = taskService.findDataCopyList(filter, user);
+            assertEquals(id,actual.getItems().get(0).getId());
+        }
     }
     @Nested
     class GetSourceNodeTest{
-
+        @BeforeEach
+        void beforeEach(){
+            taskDto = mock(TaskDto.class);
+            taskService = mock(TaskServiceImpl.class);
+        }
+        @Test
+        @DisplayName("test getSourceNode method when dag is null")
+        void test1(){
+            when(taskDto.getDag()).thenReturn(null);
+            doCallRealMethod().when(taskService).getSourceNode(taskDto);
+            Node actual = taskService.getSourceNode(taskDto);
+            assertEquals(null,actual);
+        }
+        @Test
+        @DisplayName("test getSourceNode method normal")
+        void test2(){
+            DAG dag = mock(DAG.class);
+            LinkedList<Edge> edges = new LinkedList();
+            Edge edge = mock(Edge.class);
+            edges.add(edge);
+            when(edge.getSource()).thenReturn("111");
+            when(dag.getEdges()).thenReturn(edges);
+            List<Node> nodeList = new ArrayList<>();
+            Node node = mock(Node.class);
+            nodeList.add(node);
+            when(node.getId()).thenReturn("111");
+            when(dag.getNodes()).thenReturn(nodeList);
+            when(taskDto.getDag()).thenReturn(dag);
+            doCallRealMethod().when(taskService).getSourceNode(taskDto);
+            Node actual = taskService.getSourceNode(taskDto);
+            assertEquals(nodeList.get(0),actual);
+        }
+        @Test
+        @DisplayName("test getSourceNode method when edges is empty")
+        void test3(){
+            DAG dag = mock(DAG.class);
+            LinkedList<Edge> edges = new LinkedList();
+            when(dag.getEdges()).thenReturn(edges);
+            when(taskDto.getDag()).thenReturn(dag);
+            doCallRealMethod().when(taskService).getSourceNode(taskDto);
+            Node actual = taskService.getSourceNode(taskDto);
+            assertEquals(null,actual);
+        }
     }
     @Nested
     class GetTargetNodeTest{
+        @BeforeEach
+        void beforeEach(){
+            taskDto = mock(TaskDto.class);
+            taskService = mock(TaskServiceImpl.class);
+        }
+        @Test
+        @DisplayName("test getTargetNode method normal")
+        void test1(){
+            DAG dag = mock(DAG.class);
+            LinkedList<Edge> edges = new LinkedList();
+            Edge edge = mock(Edge.class);
+            edges.add(edge);
+            when(edge.getTarget()).thenReturn("111");
+            when(dag.getEdges()).thenReturn(edges);
+            List<Node> nodeList = new ArrayList<>();
+            Node node = mock(Node.class);
+            nodeList.add(node);
+            when(node.getId()).thenReturn("111");
+            when(dag.getNodes()).thenReturn(nodeList);
+            when(taskDto.getDag()).thenReturn(dag);
+            doCallRealMethod().when(taskService).getTargetNode(taskDto);
+            Node actual = taskService.getTargetNode(taskDto);
+            assertEquals(nodeList.get(0),actual);
+        }
+        @Test
+        @DisplayName("test getTargetNode method when edges is empty")
+        void test2(){
+            DAG dag = mock(DAG.class);
+            LinkedList<Edge> edges = new LinkedList();
+            when(dag.getEdges()).thenReturn(edges);
+            when(taskDto.getDag()).thenReturn(dag);
+            doCallRealMethod().when(taskService).getTargetNode(taskDto);
+            Node actual = taskService.getTargetNode(taskDto);
+            assertEquals(null,actual);
+        }
 
     }
     @Nested
     class SearchLogCollectorTest{
+        @Test
+        void test1(){
+            String key = "111";
+            taskService = mock(TaskServiceImpl.class);
+            doCallRealMethod().when(taskService).searchLogCollector(key);
+            LogCollectorResult actual = taskService.searchLogCollector(key);
+            assertEquals(LogCollectorResult.class,actual.getClass());
 
+        }
     }
     @Nested
     class CreateShareCacheTaskTest{
-
+        private SaveShareCacheParam saveShareCacheParam;
+        private UserDetail user;
+        private HttpServletRequest request;
+        private HttpServletResponse response;
+        @BeforeEach
+        void beforeEach(){
+            saveShareCacheParam = mock(SaveShareCacheParam.class);
+            user = mock(UserDetail.class);
+            request = mock(HttpServletRequest.class);
+            response = mock(HttpServletResponse.class);
+        }
+        @Test
+        void test(){
+            TaskDto dto = mock(TaskDto.class);
+            when(taskService.confirmById(any(TaskDto.class),any(UserDetail.class),anyBoolean())).thenReturn(dto);
+            doCallRealMethod().when(taskService).createShareCacheTask(saveShareCacheParam,user,request,response);
+            TaskDto actual = taskService.createShareCacheTask(saveShareCacheParam, user, request, response);
+            assertEquals(dto,actual);
+            verify(taskService,new Times(1)).batchStart(anyList(),any(UserDetail.class),any(HttpServletRequest.class),any(HttpServletResponse.class));
+        }
     }
     @Nested
     class FindShareCacheTest{
-
+        private Filter filter;
+        private TaskRepository repository;
+        private DataSourceServiceImpl dataSourceService;
+        private ExternalStorageService externalStorageService;
+        @BeforeEach
+        void beforeEach(){
+            repository = mock(TaskRepository.class);
+            taskService = spy(new TaskServiceImpl(repository));
+            user = mock(UserDetail.class);
+            filter = new Filter();
+            dataSourceService = mock(DataSourceServiceImpl.class);
+            ReflectionTestUtils.setField(taskService,"dataSourceService",dataSourceService);
+            new DataPermissionHelper(mock(IDataPermissionHelper.class));
+            externalStorageService = mock(ExternalStorageService.class);
+            ReflectionTestUtils.setField(taskService,"externalStorageService",externalStorageService);
+        }
+        @Test
+        void test(){
+            Where where = new Where();
+            where.put("connectionName",new HashMap<>());
+            filter.setWhere(where);
+            List<TaskEntity> tasks = new ArrayList<>();
+            TaskEntity taskEntity = new TaskEntity();
+            ObjectId taskId = mock(ObjectId.class);
+            taskEntity.setId(taskId);
+            taskEntity.setName("test");
+            tasks.add(taskEntity);
+            when(repository.findAll(filter,user)).thenReturn(tasks);
+            TableNode sourceNode = mock(TableNode.class);
+            doReturn(sourceNode).when(taskService).getSourceNode(any(TaskDto.class));
+            when(dataSourceService.findOne(any(Query.class))).thenReturn(mock(DataSourceConnectionDto.class));
+            when(sourceNode.getAttrs()).thenReturn(new HashMap<>());
+            CacheNode cacheNode = mock(CacheNode.class);
+            doReturn(cacheNode).when(taskService).getTargetNode(any(TaskDto.class));
+            ObjectId id = mock(ObjectId.class);
+            when(id.toHexString()).thenReturn("111");
+            String externalStorageId = id.toHexString();
+            when(cacheNode.getExternalStorageId()).thenReturn(externalStorageId);
+            when(externalStorageService.findById(any())).thenReturn(mock(ExternalStorageDto.class));
+            doCallRealMethod().when(taskService).findShareCache(filter,user);
+            Page<ShareCacheVo> actual = taskService.findShareCache(filter, user);
+            assertEquals("test",actual.getItems().get(0).getName());
+        }
     }
     @Nested
     class FindShareCacheByIdTest{
-
-    }@Nested
+        private String id;
+        private DataSourceServiceImpl dataSourceService;
+        @BeforeEach
+        void beforeEach(){
+            id = "111";
+            taskService = mock(TaskServiceImpl.class);
+            dataSourceService = mock(DataSourceServiceImpl.class);
+            ReflectionTestUtils.setField(taskService,"dataSourceService",dataSourceService);
+        }
+        @Test
+        @DisplayName("test findShareCacheById method when source node is null")
+        void test1(){
+            TaskDto dto = mock(TaskDto.class);
+            when(taskService.findById(MongoUtils.toObjectId(id))).thenReturn(dto);
+            when(taskService.getSourceNode(dto)).thenReturn(null);
+            doCallRealMethod().when(taskService).findShareCacheById(id);
+            assertThrows(BizException.class,()->taskService.findShareCacheById(id));
+        }
+        @Test
+        @DisplayName("test findShareCacheById method normal")
+        void test2(){
+            TaskDto dto = mock(TaskDto.class);
+            when(taskService.findById(MongoUtils.toObjectId(id))).thenReturn(dto);
+            TableNode dataNode = mock(TableNode.class);
+            when(taskService.getSourceNode(dto)).thenReturn(dataNode);
+            CacheNode cacheNode = mock(CacheNode.class);
+            when(taskService.getTargetNode(dto)).thenReturn(cacheNode);
+            when(dataNode.getConnectionId()).thenReturn("222");
+            DataSourceConnectionDto connectionDto = mock(DataSourceConnectionDto.class);
+            when(dataSourceService.findOne(any(Query.class))).thenReturn(connectionDto);
+            ObjectId objectId = mock(ObjectId.class);
+            when(connectionDto.getId()).thenReturn(objectId);
+            when(dataNode.getAttrs()).thenReturn(new HashMap<>());
+            when(dto.getCurrentEventTimestamp()).thenReturn(1713846744L);
+            doCallRealMethod().when(taskService).findShareCacheById(id);
+            ShareCacheDetailVo actual = taskService.findShareCacheById(id);
+            assertEquals(objectId.toString(),actual.getConnectionId());
+        }
+    }
+    @Nested
     class ParseCacheToTaskDtoTest{
-
+        private SaveShareCacheParam saveShareCacheParam;
+        private TaskDto taskDto;
+        private HashMap sourceNodeMap;
+        private DataSourceServiceImpl dataSourceService;
+        @BeforeEach
+        void beforeEach(){
+            saveShareCacheParam = mock(SaveShareCacheParam.class);
+            taskDto = new TaskDto();
+            DAG dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(mock(Node.class));
+            when(dag.getSources()).thenReturn(nodes);
+            when(dag.getTargets()).thenReturn(nodes);
+            Map map = new HashMap();
+            ArrayList<Map> list = new ArrayList<>();
+            sourceNodeMap = mock(HashMap.class);
+            list.add(sourceNodeMap);
+            HashMap sourceNode1 = new HashMap();
+            list.add(sourceNode1);
+            map.put("nodes",list);
+            when(saveShareCacheParam.getDag()).thenReturn(map);
+            dataSourceService = mock(DataSourceServiceImpl.class);
+            ReflectionTestUtils.setField(taskService,"dataSourceService",dataSourceService);
+        }
+        @Test
+        @DisplayName("test parseCacheToTaskDto method when connectionName is null")
+        void test1(){
+            doCallRealMethod().when(taskService).parseCacheToTaskDto(saveShareCacheParam,taskDto);
+            assertThrows(BizException.class,()->taskService.parseCacheToTaskDto(saveShareCacheParam,taskDto));
+        }
+        @Test
+        @DisplayName("test parseCacheToTaskDto method normal")
+        void test2(){
+            try (MockedStatic<DAG> mb = Mockito
+                    .mockStatic(DAG.class)) {
+                DAG dag = mock(DAG.class);
+                mb.when(()->DAG.build(any(Dag.class))).thenReturn(dag);
+                when(sourceNodeMap.get("connectionId")).thenReturn("66225a960f79853715856105");
+                DataSourceConnectionDto dto = mock(DataSourceConnectionDto.class);
+                when(dto.getName()).thenReturn("test");
+                when(dataSourceService.findById(any(ObjectId.class),any(Field.class))).thenReturn(dto);
+                when(sourceNodeMap.get("attrs")).thenReturn(new HashMap<>());
+                doCallRealMethod().when(taskService).parseCacheToTaskDto(saveShareCacheParam,taskDto);
+                TaskDto actual = taskService.parseCacheToTaskDto(saveShareCacheParam, taskDto);
+                assertEquals(dag,actual.getDag());
+            }
+        }
     }
     @Nested
     class InspectChartTest{
-
+        private TaskAutoInspectResultsService taskAutoInspectResultsService;
+        @BeforeEach
+        void beforeEach(){
+            taskService = mock(TaskServiceImpl.class);
+            user = mock(UserDetail.class);
+            taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
+            ReflectionTestUtils.setField(taskService,"taskAutoInspectResultsService",taskAutoInspectResultsService);
+        }
+        @Test
+        void test1(){
+            List<TaskDto> taskDtos = new ArrayList<>();
+            TaskDto dto = mock(TaskDto.class);
+            taskDtos.add(dto);
+            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(taskDtos);
+            when(dto.getCanOpenInspect()).thenReturn(true);
+            when(dto.getStatus()).thenReturn("error");
+            ObjectId id = mock(ObjectId.class);
+            when(dto.getId()).thenReturn(id);
+            Set<String> taskSet = new HashSet<>();
+            taskSet.add(id.toHexString());
+            when(taskAutoInspectResultsService.groupByTask(user)).thenReturn(taskSet);
+            doCallRealMethod().when(taskService).inspectChart(user);
+            Map<String, Integer> actual = taskService.inspectChart(user);
+            assertEquals(1,actual.get("error"));
+            assertEquals(1,actual.get("can"));
+            assertEquals(1,actual.get("diff"));
+        }
     }
     @Nested
     class GetDataCopyChartTest{
-
+        private List<TaskDto> migrateList;
+        @Test
+        void test1(){
+            migrateList = new ArrayList<>();
+            TaskDto dto1 = mock(TaskDto.class);
+            TaskDto dto2 = mock(TaskDto.class);
+            migrateList.add(dto1);
+            migrateList.add(dto2);
+            when(dto1.getStatus()).thenReturn("paused");
+            when(dto1.getStatus()).thenReturn("scheduling");
+            doCallRealMethod().when(taskService).getDataCopyChart(migrateList);
+            Map<String, Object> actual = taskService.getDataCopyChart(migrateList);
+            assertEquals(2,actual.get("total"));
+        }
     }
     @Nested
     class GetDataDevChartTest{
-
+        private List<TaskDto> synList;
+        @Test
+        void test(){
+            synList = new ArrayList<>();
+            TaskDto dto1 = mock(TaskDto.class);
+            TaskDto dto2 = mock(TaskDto.class);
+            synList.add(dto1);
+            synList.add(dto2);
+            doCallRealMethod().when(taskService).getDataDevChart(synList);
+            Map<String, Object> actual = taskService.getDataDevChart(synList);
+            assertEquals(2,actual.size());
+        }
     }
     @Nested
     class FindByIdsTest{
@@ -1690,17 +2013,61 @@ class TaskServiceImplTest {
     class FindTaskDetailByIdTest{
         private String id;
         private Field field;
+        TaskRepository repository;
         @BeforeEach
         void setUp(){
-            TaskRepository repository = mock(TaskRepository.class);
+            repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
+            user = mock(UserDetail.class);
+            new DataPermissionHelper(mock(IDataPermissionHelper.class));
+            field = mock(Field.class);
+            ObjectId objectId = new ObjectId("6613954dc8a36646da142da3");
+            id = objectId.toHexString();
         }
-//        @Test
-        @DisplayName("test findTaskDetailById method ")
+        @Test
+        @DisplayName("test findTaskDetailById method for initial sync")
         void test1(){
-            id = mock(ObjectId.class).toHexString();
+            TaskEntity task = new TaskEntity();
+            task.setId(mock(ObjectId.class));
+            task.setType("initial_sync");
+            Optional<TaskEntity> entity = Optional.ofNullable(task);
+            when(repository.findById(any(ObjectId.class),any(Field.class),any(UserDetail.class))).thenReturn(entity);
+            Date date = new Date();
+            doReturn(date).when(taskService).getMillstoneTime(any(TaskDto.class),anyString(),anyString());
             doCallRealMethod().when(taskService).findTaskDetailById(id,field,user);
-            taskService.findTaskDetailById(id,field,user);
+            TaskDetailVo actual = taskService.findTaskDetailById(id, field, user);
+            assertEquals(date,actual.getInitStartTime());
+            assertEquals("initial_sync",actual.getType());
+        }
+        @Test
+        @DisplayName("test findTaskDetailById method for cdc")
+        void test2(){
+            TaskEntity task = new TaskEntity();
+            task.setId(mock(ObjectId.class));
+            task.setType("cdc");
+            Optional<TaskEntity> entity = Optional.ofNullable(task);
+            when(repository.findById(any(ObjectId.class),any(Field.class),any(UserDetail.class))).thenReturn(entity);
+            Date date = new Date();
+            doReturn(date).when(taskService).getMillstoneTime(any(TaskDto.class),anyString(),anyString());
+            doCallRealMethod().when(taskService).findTaskDetailById(id,field,user);
+            TaskDetailVo actual = taskService.findTaskDetailById(id, field, user);
+            assertEquals(date,actual.getCdcStartTime());
+            assertEquals("cdc",actual.getType());
+        }
+        @Test
+        @DisplayName("test findTaskDetailById method for initial sync")
+        void test3(){
+            TaskEntity task = new TaskEntity();
+            task.setId(mock(ObjectId.class));
+            task.setType("initial_sync+cdc");
+            Optional<TaskEntity> entity = Optional.ofNullable(task);
+            when(repository.findById(any(ObjectId.class),any(Field.class),any(UserDetail.class))).thenReturn(entity);
+            Date date = new Date();
+            doReturn(date).when(taskService).getMillstoneTime(any(TaskDto.class),anyString(),anyString());
+            doCallRealMethod().when(taskService).findTaskDetailById(id,field,user);
+            TaskDetailVo actual = taskService.findTaskDetailById(id, field, user);
+            assertEquals(date,actual.getInitStartTime());
+            assertEquals("initial_sync+cdc",actual.getType());
         }
     }
     @Nested

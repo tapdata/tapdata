@@ -2028,7 +2028,7 @@ public class TaskServiceImpl extends TaskService{
         return shareCacheDetailVo;
     }
 
-    private TaskDto parseCacheToTaskDto(SaveShareCacheParam saveShareCacheParam, TaskDto taskDto) {
+    protected TaskDto parseCacheToTaskDto(SaveShareCacheParam saveShareCacheParam, TaskDto taskDto) {
         taskDto.setStatus(TaskDto.STATUS_EDIT);
         taskDto.setType(ParentTaskDto.TYPE_CDC);
         taskDto.setShareCache(true);
@@ -2215,7 +2215,7 @@ public class TaskServiceImpl extends TaskService{
      *
      * @return
      */
-    private Map<String, Object> getDataCopyChart(List<TaskDto> migrateList) {
+    protected Map<String, Object> getDataCopyChart(List<TaskDto> migrateList) {
         Map<String, Object> dataCopyPreview = new HashMap();
 
 
@@ -2258,7 +2258,7 @@ public class TaskServiceImpl extends TaskService{
      *
      * @return
      */
-    private Map<String, Object> getDataDevChart(List<TaskDto> synList) {
+    protected Map<String, Object> getDataDevChart(List<TaskDto> synList) {
         Map<String, Object> dataCopyPreview = new HashMap();
 
         Map<String, Long> statusToCount = new HashMap<>();
