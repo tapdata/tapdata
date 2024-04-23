@@ -1,11 +1,22 @@
 package io.tapdata.milestone;
 
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.entity.ResponseBody;
+import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.DataNodeCloseAspect;
+import io.tapdata.aspect.DataNodeInitAspect;
+import io.tapdata.aspect.PDKNodeInitAspect;
+import io.tapdata.aspect.ProcessorNodeCloseAspect;
+import io.tapdata.aspect.ProcessorNodeInitAspect;
+import io.tapdata.aspect.TableInitFuncAspect;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AspectTask;
@@ -30,12 +41,15 @@ import io.tapdata.milestone.constants.MilestoneStatus;
 import io.tapdata.milestone.constants.SyncStatus;
 import io.tapdata.milestone.entity.MilestoneEntity;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
@@ -52,6 +66,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static io.tapdata.aspect.DataFunctionAspect.STATE_START;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -197,7 +212,7 @@ class MilestoneAspectTaskTest {
 				Consumer argument = w.getArgument(2, Consumer.class);
 				argument.accept(m);
 				return null;
-			}).when(milestoneAspectTask).nodeKpi(anyString(), anyString(), any(Consumer.class));
+			}).when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
 		}
 
 		@Nested
@@ -505,6 +520,7 @@ class MilestoneAspectTaskTest {
 				verifyAssert(1, 1, 1, 0);
 			}
 		}
+
 		@Nested
 		class OnStopTest {
 			TaskStopAspect stopAspect;
@@ -537,27 +553,642 @@ class MilestoneAspectTaskTest {
 
 		@Nested
 		class HandleDataNodeInitTest {
+			DataNodeInitAspect aspect;
+			DataProcessorContext dataProcessorContext;
+			Node node;
+			List<? extends Node> predecessors;
+			@BeforeEach
+			void init() {
+				predecessors = mock(List.class);
+				node = mock(Node.class);
+				aspect = mock(DataNodeInitAspect.class);
+				dataProcessorContext = mock(DataProcessorContext.class);
+				when(aspect.getDataProcessorContext()).thenReturn(dataProcessorContext);
+				doNothing().when(task).setSyncStatus(SyncStatus.DATA_NODE_INIT.getType());
+				when(milestoneAspectTask.nodeId(dataProcessorContext)).thenReturn("nodeId");
+				doNothing().when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				when(dataProcessorContext.getNode()).thenReturn(node);
+				when(node.predecessors()).thenReturn(predecessors);
+				when(predecessors.isEmpty()).thenReturn(false);
+				doNothing().when(tm).setTotals(anyLong());
+				doAnswer(a -> {
+					Consumer argument = a.getArgument(1, Consumer.class);
+					argument.accept(tm);
+					return null;
+				}).when(milestoneAspectTask).taskMilestone(anyString(), any(Consumer.class));
 
+				when(milestoneAspectTask.handleDataNodeInit(aspect)).thenCallRealMethod();
+			}
+
+			@Test
+			void testNormal() {
+				Assertions.assertNull(milestoneAspectTask.handleDataNodeInit(aspect));
+				verify(task).setSyncStatus(SyncStatus.DATA_NODE_INIT.getType());
+				verify(aspect).getDataProcessorContext();
+				verify(milestoneAspectTask).nodeId(dataProcessorContext);
+				verify(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				verify(dataProcessorContext).getNode();
+				verify(node).predecessors();
+				verify(predecessors).isEmpty();
+				verify(milestoneAspectTask, times(0)).taskMilestone(anyString(), any(Consumer.class));
+				verify(tm, times(0)).setTotals(anyLong());
+			}
+
+			@Test
+			void testPredecessorsIsNull() {
+				when(node.predecessors()).thenReturn(null);
+				Assertions.assertNull(milestoneAspectTask.handleDataNodeInit(aspect));
+				verify(task).setSyncStatus(SyncStatus.DATA_NODE_INIT.getType());
+				verify(aspect).getDataProcessorContext();
+				verify(milestoneAspectTask).nodeId(dataProcessorContext);
+				verify(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				verify(dataProcessorContext).getNode();
+				verify(node).predecessors();
+				verify(predecessors, times(0)).isEmpty();
+				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
+				verify(tm, times(1)).setTotals(anyLong());
+			}
+
+			@Test
+			void testPredecessorsIsEmpty() {
+				when(predecessors.isEmpty()).thenReturn(true);
+				Assertions.assertNull(milestoneAspectTask.handleDataNodeInit(aspect));
+				verify(task).setSyncStatus(SyncStatus.DATA_NODE_INIT.getType());
+				verify(aspect).getDataProcessorContext();
+				verify(milestoneAspectTask).nodeId(dataProcessorContext);
+				verify(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				verify(dataProcessorContext).getNode();
+				verify(node).predecessors();
+				verify(predecessors).isEmpty();
+				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
+				verify(tm, times(1)).setTotals(anyLong());
+			}
+
+			@Test
+			void testTableNode() {
+				node = mock(TableNode.class);
+				when(node.predecessors()).thenReturn(predecessors);
+				when(dataProcessorContext.getNode()).thenReturn(node);
+				Assertions.assertNull(milestoneAspectTask.handleDataNodeInit(aspect));
+				verify(task).setSyncStatus(SyncStatus.DATA_NODE_INIT.getType());
+				verify(aspect).getDataProcessorContext();
+				verify(milestoneAspectTask).nodeId(dataProcessorContext);
+				verify(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				verify(dataProcessorContext).getNode();
+				verify(node).predecessors();
+				verify(predecessors).isEmpty();
+				verify(milestoneAspectTask, times(0)).taskMilestone(anyString(), any(Consumer.class));
+				verify(tm, times(0)).setTotals(anyLong());
+			}
+
+			@Test
+			void testDatabaseNode() {
+				DatabaseNode databaseNode = mock(DatabaseNode.class);
+				when(databaseNode.tableSize()).thenReturn(1);
+				node = databaseNode;
+				when(node.predecessors()).thenReturn(predecessors);
+				when(dataProcessorContext.getNode()).thenReturn(node);
+				Assertions.assertNull(milestoneAspectTask.handleDataNodeInit(aspect));
+				verify(task).setSyncStatus(SyncStatus.DATA_NODE_INIT.getType());
+				verify(aspect).getDataProcessorContext();
+				verify(milestoneAspectTask).nodeId(dataProcessorContext);
+				verify(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				verify(dataProcessorContext).getNode();
+				verify(node).predecessors();
+				verify(node, times(0)).tableSize();
+				verify(predecessors).isEmpty();
+				verify(milestoneAspectTask, times(0)).taskMilestone(anyString(), any(Consumer.class));
+				verify(tm, times(0)).setTotals(anyLong());
+			}
 		}
+
 		@Nested
 		class HandleDataNodeCloseTest {
+			DataNodeCloseAspect aspect;
+			DataProcessorContext dataProcessorContext;
+			@BeforeEach
+			void init() {
+				aspect = mock(DataNodeCloseAspect.class);
+				dataProcessorContext = mock(DataProcessorContext.class);
+				when(aspect.getDataProcessorContext()).thenReturn(dataProcessorContext);
+				when(milestoneAspectTask.nodeId(dataProcessorContext)).thenReturn("nodeId");
+				doNothing().when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				doNothing().when(task).setSyncStatus(SyncStatus.DATA_NODE_INIT_COMPLETED.getType());
 
+				when(milestoneAspectTask.handleDataNodeClose(aspect)).thenCallRealMethod();
+			}
+			@Test
+			void testNormal() {
+				Assertions.assertNull(milestoneAspectTask.handleDataNodeClose(aspect));
+				verify(aspect).getDataProcessorContext();
+				verify(milestoneAspectTask).nodeId(dataProcessorContext);
+				verify(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				verify(task).setSyncStatus(SyncStatus.DATA_NODE_INIT_COMPLETED.getType());
+			}
 		}
+
 		@Nested
 		class HandleProcessNodeInitTest {
-
+			ProcessorNodeInitAspect aspect;
+			ProcessorBaseContext processorBaseContext;
+			@BeforeEach
+			void init() {
+				aspect = mock(ProcessorNodeInitAspect.class);
+				processorBaseContext = mock(ProcessorBaseContext.class);
+				doNothing().when(task).setSyncStatus(SyncStatus.PROCESS_NODE_INIT.getType());
+				when(aspect.getProcessorBaseContext()).thenReturn(processorBaseContext);
+				when(milestoneAspectTask.nodeId(processorBaseContext)).thenReturn("nodeId");
+				doNothing().when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				when(milestoneAspectTask.handleProcessNodeInit(aspect)).thenCallRealMethod();
+			}
+			@Test
+			void testNormal() {
+				Assertions.assertNull(milestoneAspectTask.handleProcessNodeInit(aspect));
+				verify(task).setSyncStatus(SyncStatus.PROCESS_NODE_INIT.getType());
+				verify(aspect).getProcessorBaseContext();
+				verify(milestoneAspectTask).nodeId(processorBaseContext);
+				verify(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+			}
 		}
+
 		@Nested
 		class HandleProcessNodeCloseTest {
-
+			ProcessorNodeCloseAspect aspect;
+			ProcessorBaseContext processorBaseContext;
+			@BeforeEach
+			void init() {
+				aspect = mock(ProcessorNodeCloseAspect.class);
+				processorBaseContext = mock(ProcessorBaseContext.class);
+				when(aspect.getProcessorBaseContext()).thenReturn(processorBaseContext);
+				when(milestoneAspectTask.nodeId(processorBaseContext)).thenReturn("nodeId");
+				doNothing().when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				when(milestoneAspectTask.handleProcessNodeClose(aspect)).thenCallRealMethod();
+			}
+			@Test
+			void testNormal() {
+				Assertions.assertNull(milestoneAspectTask.handleProcessNodeClose(aspect));
+				verify(aspect).getProcessorBaseContext();
+				verify(milestoneAspectTask).nodeId(processorBaseContext);
+				verify(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+			}
 		}
+
 		@Nested
 		class HandleTableInitTest {
+			PDKNodeInitAspect aspect;
+			DataProcessorContext processorBaseContext;
+			@BeforeEach
+			void init() {
+				aspect = mock(PDKNodeInitAspect.class);
+				processorBaseContext = mock(DataProcessorContext.class);
+				when(aspect.getDataProcessorContext()).thenReturn(processorBaseContext);
+				when(milestoneAspectTask.nodeId(processorBaseContext)).thenReturn("nodeId");
+				doNothing().when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				when(milestoneAspectTask.handlePDKNodeInit(aspect)).thenCallRealMethod();
+			}
+
+			@Test
+			void testNormal() {
+				Assertions.assertNull(milestoneAspectTask.handlePDKNodeInit(aspect));
+				verify(aspect).getDataProcessorContext();
+				verify(milestoneAspectTask).nodeId(processorBaseContext);
+				verify(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+			}
+		}
+
+		@Nested
+		class HandleTableInit {
+			TableInitFuncAspect aspect;
+			DataProcessorContext processorBaseContext;
+			@BeforeEach
+			void init() {
+				aspect = mock(TableInitFuncAspect.class);
+				processorBaseContext = mock(DataProcessorContext.class);
+				when(aspect.getDataProcessorContext()).thenReturn(processorBaseContext);
+				when(milestoneAspectTask.nodeId(processorBaseContext)).thenReturn("nodeId");
+				when(aspect.getState()).thenReturn(STATE_START);
+
+				when(milestoneAspectTask.handleTableInit(aspect)).thenCallRealMethod();
+			}
+			@Test
+			void testSTATE_START() {
+				doNothing().when(task).setSyncStatus(SyncStatus.TABLE_INIT_START.getType());
+				when(aspect.getTotals()).thenReturn(1L);
+				doNothing().when(milestoneAspectTask).setRunning(m);
+				doAnswer(a -> {
+					Consumer argument = a.getArgument(2, Consumer.class);
+					argument.accept(m);
+					return null;
+				}).when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				Assertions.assertNull(milestoneAspectTask.handleTableInit(aspect));
+				verify(aspect).getDataProcessorContext();
+				verify(milestoneAspectTask).nodeId(processorBaseContext);
+				verify(aspect).getState();
+				verify(m).setProgress(0L);
+				verify(aspect).getTotals();
+				verify(m).setTotals(1L);
+				verify(milestoneAspectTask).setRunning(m);
+				verify(task).setSyncStatus(SyncStatus.TABLE_INIT_START.getType());
+			}
+
+			@Test
+			void testSTATE_PROCESS() {
+				doNothing().when(task).setSyncStatus(SyncStatus.TABLE_INIT.getType());
+				when(aspect.getTotals()).thenReturn(1L);
+				when(aspect.getCompletedCounts()).thenReturn(1L);
+				doAnswer(a -> {
+					Consumer argument = a.getArgument(2, Consumer.class);
+					argument.accept(m);
+					return null;
+				}).when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				Assertions.assertNull(milestoneAspectTask.handleTableInit(aspect));
+				verify(aspect).getDataProcessorContext();
+				verify(milestoneAspectTask).nodeId(processorBaseContext);
+				verify(aspect).getState();
+				verify(m).setProgress(0L);
+				verify(aspect, times(0)).getCompletedCounts();
+				verify(aspect).getTotals();
+				verify(m).setTotals(1L);
+				verify(task).setSyncStatus(SyncStatus.TABLE_INIT.getType());
+			}
+
+			@Test
+			void testSTATE_ENDWithNullThrowable() {
+				doNothing().when(task).setSyncStatus(SyncStatus.TABLE_INIT_FAILED.getType());
+				when(aspect.getThrowable()).thenReturn(null);
+
+				when(aspect.getTotals()).thenReturn(1L);
+				doNothing().when(milestoneAspectTask).setFinish(m);
+				doAnswer(a -> {
+					Consumer argument = a.getArgument(2, Consumer.class);
+					argument.accept(m);
+					return null;
+				}).when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				Assertions.assertNull(milestoneAspectTask.handleTableInit(aspect));
+				verify(aspect).getDataProcessorContext();
+				verify(milestoneAspectTask).nodeId(processorBaseContext);
+				verify(aspect).getState();
+				verify(task).setSyncStatus(SyncStatus.TABLE_INIT_FAILED.getType());
+				verify(m).setProgress(0L);
+				verify(aspect, times(0)).getCompletedCounts();
+				verify(aspect, times(1)).getTotals();
+				verify(m).setTotals(1L);
+				verify(milestoneAspectTask, times(0)).setFinish(m);
+			}
+			@Test
+			void testSTATE_ENDWithoutNullThrowable() {
+				Throwable error = mock(Throwable.class);
+				when(error.getMessage()).thenReturn("message");
+				doNothing().when(task).setSyncStatus(SyncStatus.TABLE_INIT.getType());
+				when(aspect.getThrowable()).thenReturn(null);
+
+				when(aspect.getTotals()).thenReturn(1L);
+			    when(milestoneAspectTask.getErrorConsumer("message")).thenReturn(mock());
+				doAnswer(a -> {
+					Consumer argument = a.getArgument(2, Consumer.class);
+					argument.accept(m);
+					return null;
+				}).when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				Assertions.assertNull(milestoneAspectTask.handleTableInit(aspect));
+				verify(aspect).getDataProcessorContext();
+				verify(task).setSyncStatus(SyncStatus.TABLE_INIT.getType());
+				verify(aspect, times(0)).getThrowable();
+				verify(error, times(0)).getMessage();
+				verify(milestoneAspectTask).nodeId(processorBaseContext);
+				verify(milestoneAspectTask, times(0)).getErrorConsumer("message");
+			}
+
+			@Test
+			void testOther() {
+
+			}
+		}
+
+		@Nested
+		class StoreMilestoneWhenTargetNodeTableInitTest {
+			MilestoneEntity milestone;
+			AtomicLong totals, completed;
+			@BeforeEach
+			void init() {
+				milestone = new MilestoneEntity();
+				milestone.setBegin(0L);
+				totals = new AtomicLong(0L);
+				completed = new AtomicLong(0L);
+				when(m.getBegin()).thenReturn(1L);
+				when(m.getEnd()).thenReturn(1L);
+				when(m.getErrorMessage()).thenReturn("error");
+				when(m.getTotals()).thenReturn(1L);
+				when(m.getProgress()).thenReturn(1L);
+				doAnswer(a -> {
+					Consumer<MilestoneEntity> argument = (Consumer<MilestoneEntity>)a.getArgument(2, Consumer.class);
+					argument.accept(m);
+					return null;
+				}).when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				doCallRealMethod().when(milestoneAspectTask).storeMilestoneWhenTargetNodeTableInit(milestone, "nodeId", totals, completed);
+			}
+			@Test
+			void testNormal() {
+				milestoneAspectTask.storeMilestoneWhenTargetNodeTableInit(milestone, "nodeId", totals, completed);
+				Assertions.assertEquals(1L, totals.get());
+				Assertions.assertEquals(1L, completed.get());
+				Assertions.assertEquals(1L, milestone.getTotals());
+				Assertions.assertEquals(1L, milestone.getProgress());
+				Assertions.assertEquals(MilestoneStatus.ERROR, milestone.getStatus());
+				Assertions.assertEquals("error", milestone.getErrorMessage());
+			}
+			@Test
+			void testMGetEndIsNull() {
+				when(m.getEnd()).thenReturn(null);
+				milestoneAspectTask.storeMilestoneWhenTargetNodeTableInit(milestone, "nodeId", totals, completed);
+				Assertions.assertNull(milestone.getEnd());
+				Assertions.assertEquals(1L, totals.get());
+				Assertions.assertEquals(1L, completed.get());
+				Assertions.assertEquals(1L, milestone.getTotals());
+				Assertions.assertEquals(1L, milestone.getProgress());
+				Assertions.assertEquals(MilestoneStatus.ERROR, milestone.getStatus());
+				Assertions.assertEquals("error", milestone.getErrorMessage());
+			}
+			@Test
+			void testEntityGetEndIsNotNull() {
+				milestone.setEnd(0L);
+				milestoneAspectTask.storeMilestoneWhenTargetNodeTableInit(milestone, "nodeId", totals, completed);
+				Assertions.assertNotNull(milestone.getEnd());
+				Assertions.assertEquals(1L, totals.get());
+				Assertions.assertEquals(1L, completed.get());
+				Assertions.assertEquals(1L, milestone.getTotals());
+				Assertions.assertEquals(1L, milestone.getProgress());
+				Assertions.assertEquals(MilestoneStatus.ERROR, milestone.getStatus());
+				Assertions.assertEquals("error", milestone.getErrorMessage());
+			}
+			@Test
+			void testErrorMessageIsNull() {
+				when(m.getErrorMessage()).thenReturn(null);
+				milestone.setEnd(0L);
+				milestoneAspectTask.storeMilestoneWhenTargetNodeTableInit(milestone, "nodeId", totals, completed);
+				Assertions.assertNotNull(milestone.getEnd());
+				Assertions.assertEquals(1L, totals.get());
+				Assertions.assertEquals(1L, completed.get());
+				Assertions.assertEquals(1L, milestone.getTotals());
+				Assertions.assertEquals(1L, milestone.getProgress());
+				Assertions.assertNotEquals(MilestoneStatus.ERROR, milestone.getStatus());
+				Assertions.assertNotEquals("error", milestone.getErrorMessage());
+			}
+		}
+
+		@Nested
+		class StoreMilestoneWhenSyncTypeIsLogCollectorTest {
+			@BeforeEach
+			void init() {
+				doNothing().when(m).setStatus(MilestoneStatus.WAITING);
+				targetNodes.add("nodeId");
+				doNothing().when(m).setBegin(anyLong());
+				doNothing().when(m).setEnd(0L);
+				doNothing().when(m).setStatus(MilestoneStatus.RUNNING);
+				doNothing().when(milestoneAspectTask).storeMilestoneWhenTargetNodeTableInit(any(MilestoneEntity.class), anyString(), any(AtomicLong.class), any(AtomicLong.class));
+				when(m.getStatus()).thenReturn(MilestoneStatus.WAITING);
+				doNothing().when(m).setStatus(MilestoneStatus.FINISH);
+				doAnswer(a -> {
+					Consumer<MilestoneEntity> argument = (Consumer<MilestoneEntity>)a.getArgument(1, Consumer.class);
+					argument.accept(m);
+					return null;
+				}).when(milestoneAspectTask).taskMilestone(anyString(), any(Consumer.class));
+				doCallRealMethod().when(milestoneAspectTask).storeMilestoneWhenSyncTypeIsLogCollector();
+			}
+			@Test
+			void testNormal() {
+				milestoneAspectTask.storeMilestoneWhenSyncTypeIsLogCollector();
+				verify(m).setStatus(MilestoneStatus.WAITING);
+				verify(m).setBegin(anyLong());
+				verify(m).setEnd(0L);
+				verify(m).setStatus(MilestoneStatus.RUNNING);
+				verify(milestoneAspectTask).storeMilestoneWhenTargetNodeTableInit(any(MilestoneEntity.class), anyString(), any(AtomicLong.class), any(AtomicLong.class));
+				verify(m).getStatus();
+				verify(m).setStatus(MilestoneStatus.FINISH);
+				verify(milestoneAspectTask).taskMilestone(anyString(), any(Consumer.class));
+			}
+			@Test
+			void testLongValueNotEquals() {
+				doAnswer(a -> {
+					AtomicLong totals = a.getArgument(2, AtomicLong.class);
+					AtomicLong completed = a.getArgument(3, AtomicLong.class);
+					totals.set(100L);
+					completed.set(200L);
+					return null;
+				}).when(milestoneAspectTask).storeMilestoneWhenTargetNodeTableInit(any(MilestoneEntity.class), anyString(), any(AtomicLong.class), any(AtomicLong.class));
+
+				milestoneAspectTask.storeMilestoneWhenSyncTypeIsLogCollector();
+				verify(m).setStatus(MilestoneStatus.WAITING);
+				verify(m).setBegin(anyLong());
+				verify(m).setEnd(0L);
+				verify(m).setStatus(MilestoneStatus.RUNNING);
+				verify(milestoneAspectTask).storeMilestoneWhenTargetNodeTableInit(any(MilestoneEntity.class), anyString(), any(AtomicLong.class), any(AtomicLong.class));
+				verify(m).getStatus();
+				verify(m, times(0)).setStatus(MilestoneStatus.FINISH);
+				verify(milestoneAspectTask).taskMilestone(anyString(), any(Consumer.class));
+			}
+			@Test
+			void testStatusIsERROR() {
+				when(m.getStatus()).thenReturn(MilestoneStatus.ERROR);
+				milestoneAspectTask.storeMilestoneWhenSyncTypeIsLogCollector();
+				verify(m).setStatus(MilestoneStatus.WAITING);
+				verify(m).setBegin(anyLong());
+				verify(m).setEnd(0L);
+				verify(m).setStatus(MilestoneStatus.RUNNING);
+				verify(milestoneAspectTask).storeMilestoneWhenTargetNodeTableInit(any(MilestoneEntity.class), anyString(), any(AtomicLong.class), any(AtomicLong.class));
+				verify(m).getStatus();
+				verify(m, times(0)).setStatus(MilestoneStatus.FINISH);
+				verify(milestoneAspectTask).taskMilestone(anyString(), any(Consumer.class));
+			}
+			@Test
+			void testNodeSetIsEmpty() {
+				targetNodes.clear();
+				milestoneAspectTask.storeMilestoneWhenSyncTypeIsLogCollector();
+				verify(m).setStatus(MilestoneStatus.WAITING);
+				verify(m, times(0)).setBegin(anyLong());
+				verify(m, times(0)).setEnd(0L);
+				verify(m, times(0)).setStatus(MilestoneStatus.RUNNING);
+				verify(milestoneAspectTask, times(0)).storeMilestoneWhenTargetNodeTableInit(any(MilestoneEntity.class), anyString(), any(AtomicLong.class), any(AtomicLong.class));
+				verify(m, times(0)).getStatus();
+				verify(m, times(0)).setStatus(MilestoneStatus.FINISH);
+				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
+			}
 
 		}
+
+		@Nested
+		class StoreMilestoneDataNodeInitTest {
+			MilestoneEntity milestoneEntity;
+			@BeforeEach
+			void init() {
+				milestoneEntity = new MilestoneEntity();
+				milestoneEntity.setStatus(MilestoneStatus.WAITING);
+				dataNodeInitMap.put("1", MilestoneStatus.WAITING);
+				dataNodeInitMap.put("2", MilestoneStatus.FINISH);
+				doNothing().when(milestoneAspectTask).setFinish(milestoneEntity);
+				doCallRealMethod().when(milestoneAspectTask).storeMilestoneDataNodeInit(milestoneEntity);
+			}
+			@Test
+			void testNormal() {
+				milestoneAspectTask.storeMilestoneDataNodeInit(milestoneEntity);
+				Assertions.assertEquals(2L, milestoneEntity.getTotals());
+				Assertions.assertEquals(1L, milestoneEntity.getProgress());
+				Assertions.assertEquals(MilestoneStatus.RUNNING, milestoneEntity.getStatus());
+				Assertions.assertNotNull(milestoneEntity.getBegin());
+			}
+			@Test
+			void testFINISH() {
+				milestoneEntity.setStatus(MilestoneStatus.FINISH);
+				milestoneAspectTask.storeMilestoneDataNodeInit(milestoneEntity);
+				Assertions.assertNull(milestoneEntity.getTotals());
+				Assertions.assertNull(milestoneEntity.getProgress());
+				Assertions.assertNull(milestoneEntity.getBegin());
+			}
+			@Test
+			void testDataNodeInitMapIsEmpty() {
+				dataNodeInitMap.clear();
+				milestoneAspectTask.storeMilestoneDataNodeInit(milestoneEntity);
+				Assertions.assertEquals(0L, milestoneEntity.getTotals());
+				Assertions.assertEquals(0L, milestoneEntity.getProgress());
+				Assertions.assertNull(milestoneEntity.getBegin());
+			}
+			@Test
+			void testTotalEqualsProgress() {
+				milestoneEntity.setBegin(0L);
+				dataNodeInitMap.clear();
+				dataNodeInitMap.put("1", MilestoneStatus.FINISH);
+				milestoneAspectTask.storeMilestoneDataNodeInit(milestoneEntity);
+				Assertions.assertEquals(1L, milestoneEntity.getTotals());
+				Assertions.assertEquals(1L, milestoneEntity.getProgress());
+				Assertions.assertNotNull(milestoneEntity.getBegin());
+			}
+			@Test
+			void testProgressIsZero() {
+				milestoneEntity.setBegin(0L);
+				dataNodeInitMap.clear();
+				dataNodeInitMap.put("1", MilestoneStatus.WAITING);
+				milestoneAspectTask.storeMilestoneDataNodeInit(milestoneEntity);
+				Assertions.assertEquals(1L, milestoneEntity.getTotals());
+				Assertions.assertEquals(0L, milestoneEntity.getProgress());
+				Assertions.assertEquals(MilestoneStatus.WAITING, milestoneEntity.getStatus());
+				Assertions.assertNotNull(milestoneEntity.getBegin());
+			}
+		}
+
 		@Nested
 		class StoreMilestoneTest {
+			@BeforeEach
+			void init() {
+				when(task.getSyncType()).thenReturn(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
+				when(task.getSyncStatus()).thenReturn(SyncStatus.DATA_NODE_INIT.getType());
+				doNothing().when(milestoneAspectTask).storeMilestoneWhenSyncTypeIsLogCollector();
+				doNothing().when(milestoneAspectTask).taskMilestone(anyString(), any(Consumer.class));
+				when(clientMongoOperator.update(any(Query.class), any(Update.class), anyString())).thenReturn(mock(UpdateResult.class));
+				when(task.getId()).thenReturn(new ObjectId());
+				doNothing().when(log).warn(anyString(), anyString(), any(Exception.class));
+				doCallRealMethod().when(milestoneAspectTask).storeMilestone();
+			}
+			@Test
+			void testNormal() {
+				Assertions.assertDoesNotThrow(milestoneAspectTask::storeMilestone);
+				verify(task, times(1)).getSyncType();
+				verify(task, times(1)).getSyncStatus();
+				verify(milestoneAspectTask, times(0)).storeMilestoneWhenSyncTypeIsLogCollector();
+				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
+				verify(clientMongoOperator, times(1)).update(any(Query.class), any(Update.class), anyString());
+			}
+			@Test
+			void testNotSYNC_TYPE_LOG_COLLECTOR() {
+				when(task.getSyncType()).thenReturn(TaskDto.STATUS_EDIT);
+				Assertions.assertDoesNotThrow(milestoneAspectTask::storeMilestone);
+				verify(task, times(1)).getSyncType();
+				verify(task, times(1)).getSyncStatus();
+				verify(milestoneAspectTask, times(1)).storeMilestoneWhenSyncTypeIsLogCollector();
+				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
+				verify(clientMongoOperator, times(1)).update(any(Query.class), any(Update.class), anyString());
+			}
+			@Test
+			void testException() {
+				when(clientMongoOperator.update(any(Query.class), any(Update.class), anyString())).thenAnswer(a -> {
+					throw new Exception("Connection timeout");
+				});
+				try(MockedStatic<TmUnavailableException> tue = mockStatic(TmUnavailableException.class)) {
+					tue.when(() -> TmUnavailableException.notInstance(any(Exception.class))).thenReturn(false);
+					Assertions.assertDoesNotThrow(milestoneAspectTask::storeMilestone);
+					verify(task, times(1)).getSyncStatus();
+					tue.verify(() -> TmUnavailableException.notInstance(any(Exception.class)), times(1));
+					verify(log, times(0)).warn(anyString(), anyString(), any(Exception.class));
+				}
+			}
+			@Test
+			void testExceptionWithLogWarn() {
+				when(clientMongoOperator.update(any(Query.class), any(Update.class), anyString())).thenAnswer(a -> {
+					throw new Exception("Connection timeout");
+				});
+				try(MockedStatic<TmUnavailableException> tue = mockStatic(TmUnavailableException.class)) {
+					tue.when(() -> TmUnavailableException.notInstance(any(Exception.class))).thenReturn(true);
+					Assertions.assertDoesNotThrow(milestoneAspectTask::storeMilestone);
+					verify(task, times(1)).getSyncStatus();
+					tue.verify(() -> TmUnavailableException.notInstance(any(Exception.class)), times(1));
+					verify(log, times(1)).warn(anyString(), anyString(), any(Exception.class));
+				}
+			}
+		}
 
+		@Nested
+		class GetErrorConsumerTest {
+			@Test
+			void testNormal() {
+				when(milestoneAspectTask.getErrorConsumer("error")).thenCallRealMethod();
+				Consumer<MilestoneEntity> error = milestoneAspectTask.getErrorConsumer("error");
+				MilestoneEntity me = new MilestoneEntity();
+				error.accept(me);
+				Assertions.assertNotNull(me.getEnd());
+				Assertions.assertEquals(MilestoneStatus.ERROR, me.getStatus());
+				Assertions.assertEquals("error", me.getErrorMessage());
+			}
+		}
+
+		@Nested
+		class r{
+			SnapshotReadBeginAspect aspect;
+			DataProcessorContext dataProcessorContext;
+			BiConsumer<SnapshotReadBeginAspect, MilestoneEntity> consumer;
+			@BeforeEach
+			void init() {
+				consumer = mock(BiConsumer.class);
+				doNothing().when(consumer).accept(aspect, m);
+				aspect = mock(SnapshotReadBeginAspect.class);
+				dataProcessorContext = mock(DataProcessorContext.class);
+				when(milestoneAspectTask.nodeId(dataProcessorContext)).thenReturn("nodeId");
+				when(aspect.getDataProcessorContext()).thenReturn(dataProcessorContext);
+				doAnswer(a -> {
+					Consumer argument = a.getArgument(2, Consumer.class);
+					argument.accept(m);
+					return null;
+				}).when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+				when(observerHandlers.register(any(Class.class), any(Function.class))).thenAnswer(a -> {
+					Function argument = a.getArgument(1, Function.class);
+					argument.apply(aspect);
+					return observerHandlers;
+				});
+				doCallRealMethod().when(milestoneAspectTask).nodeRegister(SnapshotReadBeginAspect.class, "code", consumer);
+			}
+			@Test
+			void testNormal() {
+				milestoneAspectTask.nodeRegister(SnapshotReadBeginAspect.class, "code", consumer);
+				verify(aspect).getDataProcessorContext();
+				verify(milestoneAspectTask).nodeId(dataProcessorContext);
+				verify(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
+			}
+		}
+
+		@AfterEach
+		void close() {
+			dataNodeInitMap.clear();
+			milestones.clear();
+			nodeMilestones.clear();
+			targetNodes.clear();
+			dataNodeInitMap.clear();
 		}
 	}
 }

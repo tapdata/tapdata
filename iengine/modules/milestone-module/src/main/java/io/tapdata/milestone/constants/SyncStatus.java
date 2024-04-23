@@ -1,28 +1,29 @@
 package io.tapdata.milestone.constants;
 
 public enum SyncStatus {
+
     NORMAL(""),
 
-    TASK_INIT("task_init"),
+    TASK_INIT(SyncStatusTag.TASK_INIT_STATUS),
 
-    TABLE_INIT_START("task_init"),
-    TABLE_INIT("task_init"),
-    TABLE_INIT_COMPLETE("task_init"),
-    TABLE_INIT_FAILED("task_init"),
+    TABLE_INIT_START(SyncStatusTag.TASK_INIT_STATUS),
+    TABLE_INIT(SyncStatusTag.TASK_INIT_STATUS),
+    TABLE_INIT_COMPLETE(SyncStatusTag.TASK_INIT_STATUS),
+    TABLE_INIT_FAILED(SyncStatusTag.TASK_INIT_STATUS),
 
-    DATA_NODE_INIT("task_init"),
-    DATA_NODE_INIT_COMPLETED("task_init"),
+    DATA_NODE_INIT(SyncStatusTag.TASK_INIT_STATUS),
+    DATA_NODE_INIT_COMPLETED(SyncStatusTag.TASK_INIT_STATUS),
 
-    PROCESS_NODE_INIT("task_init"),
-    PROCESS_NODE_INIT_COMPLETED("task_init"),
+    PROCESS_NODE_INIT(SyncStatusTag.TASK_INIT_STATUS),
+    PROCESS_NODE_INIT_COMPLETED(SyncStatusTag.TASK_INIT_STATUS),
 
-    SNAPSHOT_INIT("do_snapshot"),
-    DO_SNAPSHOT("do_snapshot"),
-    SNAPSHOT_COMPLETED("snapshot_completed"),
+    SNAPSHOT_INIT(SyncStatusTag.DO_SNAPSHOT_STATUS),
+    DO_SNAPSHOT(SyncStatusTag.DO_SNAPSHOT_STATUS),
+    SNAPSHOT_COMPLETED(SyncStatusTag.DO_SNAPSHOT_STATUS),
     SNAPSHOT_FAILED("snapshot_failed"),
 
-    CDC_INIT("do_cdc"),
-    DO_CDC("do_cdc"),
+    CDC_INIT(SyncStatusTag.DO_CDC_STATUS),
+    DO_CDC(SyncStatusTag.DO_CDC_STATUS),
     CDC_FAILED("cdc_failed");
     String type;
 
