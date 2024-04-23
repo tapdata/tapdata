@@ -22,7 +22,10 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.IOUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.output.WriterOutputStream;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.poi.ss.formula.functions.T;
+import org.voovan.tools.collection.ArraySet;
 import picocli.CommandLine;
 
 import java.io.ByteArrayInputStream;
@@ -30,7 +33,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.Writer;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -182,38 +188,11 @@ public class RegisterCli extends CommonCli {
                                 if (!key.equalsIgnoreCase("default")) {
                                     Map<String, Object> messagesForLan = (Map<String, Object>) messsages.get(key);
                                     if (messagesForLan != null) {
-                                        Object docPath = messagesForLan.get("doc");
-                                        if (docPath instanceof String) {
-                                            String docPathStr = (String) docPath;
-                                            if (!inputStreamMap.containsKey(docPathStr)) {
-                                                Optional.ofNullable(nodeInfo.readResource(docPathStr)).ifPresent(stream -> {
-                                                    InputStream inputStream = stream;
-                                                    if (null != replaceConfig) {
-                                                        Scanner scanner = null;
-                                                        try {
-                                                            scanner = new Scanner(stream, "UTF-8");
-                                                            StringBuilder docTxt = new StringBuilder();
-                                                            while (scanner.hasNextLine()) {
-                                                                docTxt.append(scanner.nextLine()).append("\n");
-                                                            }
-                                                            String finalTxt = docTxt.toString();
-                                                            for (Map.Entry<String, Object> entry : replaceConfig.entrySet()) {
-                                                                finalTxt = finalTxt.replaceAll(entry.getKey(), String.valueOf(entry.getValue()));
-                                                            }
-                                                            inputStream = new ByteArrayInputStream(finalTxt.getBytes(StandardCharsets.UTF_8));
-                                                        } catch (Exception e) {
-                                                            printUtil.print(PrintUtil.TYPE.DEBUG, e.getMessage());
-                                                        } finally {
-                                                            try {
-                                                                if (null != scanner) scanner.close();
-                                                            } catch (Exception ignore) {
-                                                                //ignore
-                                                            }
-                                                        }
-                                                    }
-                                                    inputStreamMap.put(docPathStr, inputStream);
-                                                });
-                                            }
+                                        for (String mKey : messagesForLan.keySet()) {
+                                            if (!("doc".equals(mKey) || mKey.startsWith("doc:"))) continue;
+                                            String filePath = (String) messagesForLan.get(mKey);
+                                            if (null == filePath || filePath.isEmpty()) continue;
+                                            addFile(filePath, inputStreamMap, nodeInfo, replaceConfig);
                                         }
                                     }
                                 }
@@ -348,6 +327,30 @@ public class RegisterCli extends CommonCli {
             return 2;
         }
         return -1;
+    }
+
+    private void addFile(String filePath, Map<String, InputStream> inputStreamMap, TapNodeInfo nodeInfo, Map<String, Object> replaceConfig) {
+        if (!inputStreamMap.containsKey(filePath)) {
+            Optional.ofNullable(nodeInfo.readResource(filePath)).ifPresent(stream -> {
+                InputStream inputStream = stream;
+                if (null != replaceConfig) {
+                    try (Scanner scanner = new Scanner(stream, "UTF-8")) {
+                        StringBuilder docTxt = new StringBuilder();
+                        while (scanner.hasNextLine()) {
+                            docTxt.append(scanner.nextLine()).append("\n");
+                        }
+                        String finalTxt = docTxt.toString();
+                        for (Map.Entry<String, Object> entry : replaceConfig.entrySet()) {
+                            finalTxt = finalTxt.replaceAll(entry.getKey(), String.valueOf(entry.getValue()));
+                        }
+                        inputStream = new ByteArrayInputStream(finalTxt.getBytes(StandardCharsets.UTF_8));
+                    } catch (Exception e) {
+                        printUtil.print(PrintUtil.TYPE.DEBUG, e.getMessage());
+                    }
+                }
+                inputStreamMap.put(filePath, inputStream);
+            });
+        }
     }
 
     protected static final String PATH = "tapdata-cli/src/main/resources/replace/";
