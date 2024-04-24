@@ -199,6 +199,10 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		} else if (node instanceof LogCollectorNode) {
 			nodeConfig = ((LogCollectorNode) node).getNodeConfig();
 		}
+		if (null == nodeConfig) {
+			nodeConfig = new HashMap<>();
+		}
+		nodeConfig.put("doubleActive", taskDto.getDoubleActive());
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
 				PdkUtil.createNode(taskDto.getId().toHexString(),
 						databaseType,
