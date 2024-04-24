@@ -10,6 +10,9 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.dto.CheckEchoOneNodeParam;
 import com.tapdata.tm.task.repository.TaskRepository;
@@ -22,6 +25,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
@@ -460,5 +465,89 @@ class TaskServiceImplTest {
             taskService.checkUnwindProcess(mockDag);
             Assertions.assertNull(tableNode2.getDmlPolicy().getInsertPolicy());
         }
+    }
+    @Nested
+    class UpdateTaskAlarmTest{
+        TaskServiceImpl taskService = mock(TaskServiceImpl.class);
+
+        @Test
+        void testTaskIdIsNull(){
+            AlarmVO alarmVO = new AlarmVO();
+            alarmVO.setTaskId(null);
+            doCallRealMethod().when(taskService).updateTaskAlarm(alarmVO);
+            taskService.updateTaskAlarm(alarmVO);
+            verify(taskService,times(0)).update(any(Query.class),any(Update.class));
+        }
+
+        @Test
+        void testAlarmSettingsIsNull(){
+            AlarmVO alarmVO = new AlarmVO();
+            alarmVO.setTaskId("test");
+            alarmVO.setAlarmSettings(new ArrayList<>());
+            doCallRealMethod().when(taskService).updateTaskAlarm(alarmVO);
+            taskService.updateTaskAlarm(alarmVO);
+            verify(taskService,times(0)).update(any(Query.class),any(Update.class));
+        }
+
+        @Test
+        void testAlarmRulesIsNull(){
+            AlarmVO alarmVO = new AlarmVO();
+            alarmVO.setTaskId("test");
+            AlarmSettingVO alarmSettingVO = new AlarmSettingVO();
+            List<AlarmSettingVO> list = new ArrayList<>();
+            list.add(alarmSettingVO);
+            alarmVO.setAlarmSettings(list);
+            alarmVO.setAlarmRules(null);
+            doCallRealMethod().when(taskService).updateTaskAlarm(alarmVO);
+            taskService.updateTaskAlarm(alarmVO);
+            verify(taskService,times(0)).update(any(Query.class),any(Update.class));
+        }
+
+        @Test
+        void testTaskAlarm(){
+            AlarmVO alarmVO = new AlarmVO();
+            alarmVO.setTaskId(new ObjectId().toHexString());
+            AlarmSettingVO alarmSettingVO = new AlarmSettingVO();
+            List<AlarmSettingVO> alarmSettingVOListst = new ArrayList<>();
+            alarmSettingVOListst.add(alarmSettingVO);
+            AlarmRuleVO alarmRuleVO = new AlarmRuleVO();
+            List<AlarmRuleVO> alarmRuleVOS = new ArrayList<>();
+            alarmRuleVOS.add(alarmRuleVO);
+            alarmVO.setAlarmSettings(alarmSettingVOListst);
+            alarmVO.setAlarmRules(alarmRuleVOS);
+            doCallRealMethod().when(taskService).updateTaskAlarm(alarmVO);
+            taskService.updateTaskAlarm(alarmVO);
+            when(taskService.update(any(Query.class),any(Update.class))).thenAnswer(invocationOnMock -> {
+                Update update = invocationOnMock.getArgument(1);
+                Assertions.assertTrue(update.getUpdateObject().containsKey("alarmSettings"));
+                return null;
+            });
+            verify(taskService,times(1)).update(any(Query.class),any(Update.class));
+        }
+
+        @Test
+        void testTaskNodeAlarm(){
+            AlarmVO alarmVO = new AlarmVO();
+            alarmVO.setNodeId("tst");
+            alarmVO.setTaskId(new ObjectId().toHexString());
+            AlarmSettingVO alarmSettingVO = new AlarmSettingVO();
+            List<AlarmSettingVO> alarmSettingVOListst = new ArrayList<>();
+            alarmSettingVOListst.add(alarmSettingVO);
+            AlarmRuleVO alarmRuleVO = new AlarmRuleVO();
+            List<AlarmRuleVO> alarmRuleVOS = new ArrayList<>();
+            alarmRuleVOS.add(alarmRuleVO);
+            alarmVO.setAlarmSettings(alarmSettingVOListst);
+            alarmVO.setAlarmRules(alarmRuleVOS);
+            doCallRealMethod().when(taskService).updateTaskAlarm(alarmVO);
+            taskService.updateTaskAlarm(alarmVO);
+            when(taskService.update(any(Query.class),any(Update.class))).thenAnswer(invocationOnMock -> {
+                Update update = invocationOnMock.getArgument(1);
+                Assertions.assertTrue(update.getUpdateObject().containsKey("dag.nodes.$[element].alarmSettings"));
+                return null;
+            });
+            verify(taskService,times(1)).update(any(Query.class),any(Update.class));
+        }
+
+
     }
 }

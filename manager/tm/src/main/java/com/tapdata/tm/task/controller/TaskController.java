@@ -18,6 +18,7 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
 import com.tapdata.tm.config.security.UserDetail;
@@ -1384,5 +1385,11 @@ public class TaskController extends BaseController {
     @GetMapping("checkCloudTaskLimit/{taskId}")
     public ResponseMessage<Boolean> checkCloudTaskLimit(@PathVariable(value = "taskId") String taskId){
         return success(taskService.checkCloudTaskLimit(MongoUtils.toObjectId(taskId),getLoginUser(),true));
+    }
+
+    @PostMapping("/updateTaskAlarm")
+    public ResponseMessage<Void> updateTaskAlarm(@RequestBody AlarmVO alarm){
+        taskService.updateTaskAlarm(alarm);
+        return success();
     }
 }

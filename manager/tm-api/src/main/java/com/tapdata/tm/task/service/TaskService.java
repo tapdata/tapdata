@@ -11,6 +11,7 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskRunHistoryDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.monitor.param.IdParam;
@@ -289,6 +290,8 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     public abstract int runningTaskNum(UserDetail userDetail);
 
     public abstract boolean checkCloudTaskLimit(ObjectId taskId, UserDetail user, boolean checkCurrentTask);
+
+    public abstract void updateTaskAlarm(AlarmVO alarm);
 
     @Data
     @AllArgsConstructor

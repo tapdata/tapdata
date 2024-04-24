@@ -35,6 +35,7 @@ import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.commons.util.*;
@@ -5180,7 +5181,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     protected void checkUnwindProcess(DAG dag){
-        if(CollectionUtils.isEmpty(dag.getNodes()))return;
+        if(null == dag || CollectionUtils.isEmpty(dag.getNodes()))return;
         AtomicBoolean check = new AtomicBoolean(false);
         dag.getNodes().forEach(node -> {
             if(node instanceof UnwindProcessNode) check.set(true);
@@ -5192,5 +5193,23 @@ public class TaskServiceImpl extends TaskService{
                 }
             });
         }
+    }
+
+    @Override
+    public void updateTaskAlarm(AlarmVO alarm) {
+        if(StringUtils.isBlank(alarm.getTaskId())
+                || CollectionUtils.isEmpty(alarm.getAlarmSettings())
+                || CollectionUtils.isEmpty(alarm.getAlarmRules()))return;
+        Criteria criteria = new Criteria("_id").is(MongoUtils.toObjectId(alarm.getTaskId()));
+        Update update = new Update();
+        if(StringUtils.isNotBlank(alarm.getNodeId())){
+            update.set("dag.nodes.$[element].alarmSettings",alarm.getAlarmSettings())
+                    .set("dag.nodes.$[element].alarmRules",alarm.getAlarmRules())
+                    .filterArray(Criteria.where("element.id").is(alarm.getNodeId()));
+        }else{
+            update.set("alarmSettings",alarm.getAlarmSettings()).set("alarmRules",alarm.getAlarmRules());
+        }
+        Query query = Query.query(criteria);
+        update(query,update);
     }
 }
