@@ -6,6 +6,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.dataflow.TableBatchReadStatus;
+import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
@@ -835,6 +837,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					// Restart source runner
 					if (null != sourceRunner) {
 						this.sourceRunnerFirstTime.set(false);
+						newTables.forEach(id -> BatchOffsetUtil.updateBatchOffset(syncProgress, id, null, TableBatchReadStatus.RUNNING.name()));
 						restartPdkConnector();
 					} else {
 						String error = "Source runner is null";
@@ -971,8 +974,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					Map<String, Object> newMap = new HashMap<>();
 					try {
 						MapUtil.deepCloneMap(batchOffsetObj, newMap);
-					} catch (IllegalAccessException | InstantiationException e) {
-						throw new RuntimeException("Deep clone batch offset map failed: " + e.getMessage(), e);
+					} catch (Exception e) {
+						throw new TapCodeException(TaskProcessorExCode_11.SOURCE_CLONE_BATCH_OFFSET_FAILED, e);
 					}
 					tapdataEvent.setBatchOffset(newMap);
 					tapdataEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
@@ -1070,6 +1073,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				removeMetadata.add(qualifiedName);
 				obsLogger.info("Drop table schema transform finished");
 			} else {
+				BatchOffsetUtil.updateBatchOffsetWhenTableRename(syncProgress, tapEvent);
 				qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(tableId);
 				obsLogger.info("Alter table in memory, qualified name: " + qualifiedName);
 				dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);

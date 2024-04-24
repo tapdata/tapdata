@@ -11,4 +11,9 @@ public class TapdataCompleteSnapshotEvent extends TapdataEvent {
 	public TapdataCompleteSnapshotEvent() {
 		this.syncStage = SyncStage.INITIAL_SYNC;
 	}
+
+	@Override
+	public boolean isConcurrentWrite() {
+		return false;
+	}
 }

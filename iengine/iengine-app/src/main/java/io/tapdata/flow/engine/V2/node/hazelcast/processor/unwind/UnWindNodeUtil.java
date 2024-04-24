@@ -6,6 +6,9 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
+
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -101,25 +104,28 @@ public class UnWindNodeUtil {
     /**
      * record 中存在path路径的kv键值对时，更具unwind节点配置来做对应的操作
      * */
-    public static  Map<String, Object> containsPathAndSetValue(String path, Map<String, Object> record, Object value, String includeArrayIndex, long arrayIndexValue){
+    public static  Map<String, Object> containsPathAndSetValue(String path, Map<String, Object> map, Object value, String includeArrayIndex, long arrayIndexValue,Boolean flatten,String joiner){
         Map<String, Object> copyMap = new HashMap<>();
-        MapUtil.copyToNewMap(record, copyMap);
+        MapUtil.copyToNewMap(map, copyMap);
+        serializationFlattenFields(path,copyMap,value,flatten,joiner);
         if (copyMap.containsKey(path)) {
             copyMap.put(path, value);
             containsPathAndSetValue(copyMap, includeArrayIndex, arrayIndexValue);
             return copyMap;
         }
         Map<String, Object> result = copyMap;
-        String[] keys = path.split("\\.");
-        final AtomicBoolean containsKey = new AtomicBoolean(false);
-        for (int index = 0; index < keys.length - 1; index++) {
-            Object fromMap = getFromMap(result, keys[index], containsKey);
-            if (!(fromMap instanceof Map)) {
-                return null;
+        if(!flatten){
+            String[] keys = path.split("\\.");
+            final AtomicBoolean containsKey = new AtomicBoolean(false);
+            for (int index = 0; index < keys.length - 1; index++) {
+                Object fromMap = getFromMap(result, keys[index], containsKey);
+                if (!(fromMap instanceof Map)) {
+                    return null;
+                }
+                result = (Map<String, Object>) fromMap;
             }
-            result = (Map<String, Object>) fromMap;
+            result.put(keys[keys.length - 1], value);
         }
-        result.put(keys[keys.length - 1], value);
         containsPathAndSetValue(result, includeArrayIndex, arrayIndexValue);
         return copyMap;
     }
@@ -158,7 +164,9 @@ public class UnWindNodeUtil {
                                Map<String, Object> parentMap,
                                String[] split,
                                TapEvent event,
-                               EventHandel handel ) {
+                               EventHandel handel,
+                                      Boolean flatten,
+                                      String joiner) {
         if (result.isEmpty()) {
             if (preserveNullAndEmptyArrays) {
                 if (map.containsKey(path)) {
@@ -172,7 +180,7 @@ public class UnWindNodeUtil {
         }
         int index = 0;
         for (Object item : result) {
-            handel.copyEvent(events, containsPathAndSetValue(path, map, item, includeArrayIndex, index), event);
+            handel.copyEvent(events, containsPathAndSetValue(path, map, item, includeArrayIndex, index,flatten,joiner), event);
             index++;
         }
         return false;
@@ -190,7 +198,10 @@ public class UnWindNodeUtil {
                           Map<String, Object> parentMap,
                           String[] split,
                           TapEvent event,
-                          EventHandel handel ) {
+                          EventHandel handel,
+                                 Boolean flatten,
+                                 String joiner
+                                 ) {
         if (arr.length < 1) {
             if (preserveNullAndEmptyArrays) {
                 if (map.containsKey(path)) {
@@ -203,7 +214,7 @@ public class UnWindNodeUtil {
             return true;
         }
         for (int index = 0; index < arr.length; index++) {
-            handel.copyEvent(events, containsPathAndSetValue(path, map, arr[index], includeArrayIndex, index), event);
+            handel.copyEvent(events, containsPathAndSetValue(path, map, arr[index], includeArrayIndex, index,flatten,joiner), event);
         }
         return false;
     }
@@ -248,11 +259,11 @@ public class UnWindNodeUtil {
             }
             Object result = containsPath(path, map, containsKey);
             if (result instanceof Collection) {
-                if (collection((Collection<?>) result, events, includeArrayIndex, preserveNullAndEmptyArrays, map, path, parentMap, split, event, handel)) {
+                if (collection((Collection<?>) result, events, includeArrayIndex, preserveNullAndEmptyArrays, map, path, parentMap, split, event, handel,node.whetherFlatten(),node.getJoiner())) {
                     return events;
                 }
             } else if (null != result && result.getClass().isArray()) {
-                if (array((Object[]) result, events, includeArrayIndex, preserveNullAndEmptyArrays, map, path, parentMap, split, event, handel)) {
+                if (array((Object[]) result, events, includeArrayIndex, preserveNullAndEmptyArrays, map, path, parentMap, split, event, handel,node.whetherFlatten(),node.getJoiner())) {
                     return events;
                 }
             } else {
@@ -260,6 +271,20 @@ public class UnWindNodeUtil {
             }
         }
         return events;
+    }
+
+    public static void serializationFlattenFields(String path,Map<String, Object> map, Object value,Boolean flatten,String joiner){
+        if (null == value || null == map)return;
+        if(value instanceof Map && flatten){
+           Map<String,Object> object = (Map<String,Object>) value;
+           map.remove(path);
+           if(StringUtils.isBlank(joiner))return;
+           for(Map.Entry<String, Object> entry :object.entrySet()){
+               map.put(path + joiner + entry.getKey(),entry.getValue());
+            }
+        }else if(flatten){
+            map.put(path,value.toString());
+        }
     }
 
 }

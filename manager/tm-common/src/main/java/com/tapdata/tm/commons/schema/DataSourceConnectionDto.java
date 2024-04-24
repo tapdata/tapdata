@@ -45,6 +45,8 @@ public class DataSourceConnectionDto extends BaseDto implements IDataPermissionD
         private String definitionPdkId;
         private String definitionBuildNumber;
         private List<String> definitionTags;
+        /** 导入导出的时候需要用到*/
+        private String definitionPdkAPIVersion;
 
         /**
          * 用户区分是不是pdk数据源类型

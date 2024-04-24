@@ -2,12 +2,15 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import base.BaseTest;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.tapdata.tm.commons.dag.UnwindModel;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.unwind.EventHandel;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.unwind.UnWindNodeUtil;
+import org.bson.Document;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -35,6 +38,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
         List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
         boolean count = handelResult.size() == 2;
@@ -192,6 +196,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
 
         //不指定索引字段，忽略null或empty
@@ -256,6 +261,7 @@ public class UnwindNodeTest extends BaseTest {
 
         UnwindProcessNode node = new UnwindProcessNode();
         node.setPath("field");
+        node.setUnwindModel(UnwindModel.EMBEDDED);
 
         //不指定索引字段，忽略null或empty
         List<TapEvent> handelResult = EventHandel.getHandelResult(node, event);
@@ -316,6 +322,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
 
         //不指定索引字段，忽略null或empty
@@ -388,6 +395,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field.array");
 
         //不指定索引字段，忽略null或empty
@@ -452,6 +460,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field.array");
 
         //不指定索引字段，忽略null或empty
@@ -518,6 +527,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field.array");
 
         //不指定索引字段，忽略null或empty
@@ -582,6 +592,7 @@ public class UnwindNodeTest extends BaseTest {
         event.setReferenceTime(System.currentTimeMillis());
 
         UnwindProcessNode node = new UnwindProcessNode();
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field.array");
 
         //不指定索引字段，忽略null或empty
@@ -657,6 +668,7 @@ public class UnwindNodeTest extends BaseTest {
         event.before(before);
         event.setReferenceTime(System.currentTimeMillis());
         UnwindProcessNode node = new UnwindProcessNode();
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
         List<TapEvent> handelResult1 = EventHandel.getHandelResult(node, event);
         boolean count = handelResult1.size() == 2;
@@ -698,6 +710,7 @@ public class UnwindNodeTest extends BaseTest {
         event.after(after);
         event.setReferenceTime(System.currentTimeMillis());
         UnwindProcessNode node = new UnwindProcessNode();
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
         List<TapEvent> handelResult1 = EventHandel.getHandelResult(node, event);
         boolean count = handelResult1.size() == 2;
@@ -777,6 +790,7 @@ public class UnwindNodeTest extends BaseTest {
         event.before(before);
         event.setReferenceTime(System.currentTimeMillis());
         UnwindProcessNode node = new UnwindProcessNode();
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
 
         /**
@@ -811,22 +825,26 @@ public class UnwindNodeTest extends BaseTest {
          * */
         event.before(null);
         handelResult1 = EventHandel.getHandelResult(node, event);
-        count = handelResult1.size() == 1;
+        count = handelResult1.size() == 2;
         Assert.assertTrue(
                 "Fail get 1 event from tapdata event by unwind node about update event which not have before map, from event: " + toJson(after)
                         + ", only " + handelResult1.size() + " after unwind node",
                 count);
         tapEvent0 = handelResult1.get(0);
-        type0 = tapEvent0 instanceof TapUpdateRecordEvent;
+        type0 = tapEvent0 instanceof TapDeleteRecordEvent;
         Assert.assertTrue(
                 "Fail translate update event to one delete event after unwind node for the first event",
                 type0);
-        before0 = ((TapUpdateRecordEvent) tapEvent0).getBefore();
-        Map<String, Object> after0 = ((TapUpdateRecordEvent) tapEvent0).getAfter();
-        Assert.assertEquals(" The content of the first inserted event after processing by the Unwind node does not meet expectations,  It should be " +
-                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(after0), "{\"field\":2,\"id\":1}", toJson(after0));
-        Assert.assertEquals(" The content of the first inserted event before processing by the Unwind node does not meet expectations,  It should be " +
-                "null , but the result is  " + toJson(before0), "null", toJson(before0));
+        before0 = ((TapDeleteRecordEvent) tapEvent0).getBefore();
+        Assert.assertEquals(" The content of the first inserted event after processing by the Uwind node does not meet expectations,  It should be " +
+                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(before0), "{\"field\":2,\"id\":1}", toJson(before0));
+
+        tapEvent1 = handelResult1.get(1);
+        type1 = tapEvent1 instanceof TapInsertRecordEvent;
+        Assert.assertTrue("ail translate update event to insert event after unwind node for the second event", type1);
+        after1 = ((TapInsertRecordEvent) tapEvent1).getAfter();
+        Assert.assertEquals(" The content of the second inserted event after processing by the Uwind node does not meet expectations,  It should be " +
+                "\"{\"field\":2,\"id\":1}\" , but the result is  " + toJson(after1), "{\"field\":2,\"id\":1}", toJson(after1));
 
     }
 
@@ -852,6 +870,7 @@ public class UnwindNodeTest extends BaseTest {
             events.add(event);
         }
         UnwindProcessNode node = new UnwindProcessNode();
+        node.setUnwindModel(UnwindModel.EMBEDDED);
         node.setPath("field");
         long start = System.currentTimeMillis();
         for (TapEvent event : events) {
@@ -866,5 +885,137 @@ public class UnwindNodeTest extends BaseTest {
         System.out.println("\t- QPS is approximately: " +
                 (new DecimalFormat("0.000")).format(((double)( Float.parseFloat((new DecimalFormat("0.0000000000")).format(arraySize / cost)) * 1000)) / 10000) + " w/s");
         System.out.println("=====================================================");
+    }
+    @Test
+    public void testFlattenMapIsNotNull(){
+        Map<String, Object> record = new HashMap<>();
+        record.put("t","test");
+        Document document = new Document("id","id").append("name","test");
+        UnWindNodeUtil.serializationFlattenFields("t",record,document,true,"_");
+        Assert.assertEquals(record.get("t_id"),"id");
+        Assert.assertEquals(record.get("t_name"),"test");
+
+    }
+
+    @Test
+    public void testFlattenMapIsNull(){
+        Map<String, Object> record = new HashMap<>();
+        record.put("t","test");
+        Document document = new Document("id","id").append("name","test");
+        UnWindNodeUtil.serializationFlattenFields("t",record,document,true,null);
+        Assert.assertFalse(record.containsKey("t_id"));
+    }
+
+    @Test
+    public void testObjectIsNull(){
+        Map<String, Object> record = new HashMap<>();
+        record.put("t","test");
+        UnWindNodeUtil.serializationFlattenFields("t",record,null,true,"_");
+        Assert.assertFalse(record.containsKey("t_id"));
+    }
+
+    @Test
+    public void testRecordIsNull(){
+        Document document = new Document("id","id").append("name","test");
+        UnWindNodeUtil.serializationFlattenFields("t",null,document,true,"_");
+        Assert.assertEquals(document,document);
+    }
+
+    @Test
+    public void testFlattenIsNullObject(){
+        Map<String, Object> record = new HashMap<>();
+        record.put("t","t");
+        String s = "test";
+        UnWindNodeUtil.serializationFlattenFields("t",record,s,true,"_");
+        Assert.assertEquals("test",record.get("t"));
+    }
+
+    @Test
+    public void testContainsPathAndSetValueFlattenIsTrue(){
+        Map<String, Object> record = new HashMap<>();
+        record.put("t","test");
+        Document document = new Document("id","id").append("name","test");
+        Map<String,Object> result = UnWindNodeUtil.containsPathAndSetValue("t",record,document,"",1,true,"_");
+        Assert.assertEquals(result.get("t_id"),"id");
+        Assert.assertEquals(result.get("t_name"),"test");
+    }
+
+    @Test
+    public void testContainsPathAndSetValueFlattenIsFalse(){
+        Map<String, Object> record = new HashMap<>();
+        record.put("t","test");
+        Document document = new Document("id","id").append("name","test");
+        Map<String,Object> result = UnWindNodeUtil.containsPathAndSetValue("t.id",record,document,"",1,false,"_");
+        Assert.assertNull(result);
+    }
+
+    @Test
+    public void testContainsPathAndSetValueFlattenIsFalseAndObjectIsNotNull(){
+        Map<String, Object> record = new HashMap<>();
+        Map<String, Object> objectMap = new HashMap<>();
+        objectMap.put("id","test");
+        record.put("t",objectMap);
+        Document document = new Document("id","id").append("name","test");
+        Map<String,Object> result = UnWindNodeUtil.containsPathAndSetValue("t.id",record,document,"",1,false,"_");
+        Assert.assertNotNull(result);
+    }
+    @Test
+    public void testArray(){
+        Object[] objects = {};
+        Map<String, Object> map = new HashMap<>();
+        map.put("t","test");
+        Map<String, Object> parentMap = new HashMap<>();
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 1);
+        List<Integer> arr = new ArrayList<>();
+        arr.add(1);
+        arr.add(2);
+        before.put("field", arr);
+        TapDeleteRecordEvent event = TapDeleteRecordEvent.create();
+        event.before(before);
+        event.setReferenceTime(System.currentTimeMillis());
+        EventHandel handel = new EventHandel() {
+            @Override
+            public List<TapEvent> handel(UnwindProcessNode node, TapEvent event) {
+                return null;
+            }
+
+            @Override
+            public void copyEvent(List<TapEvent> events, Map<String, Object> item, TapEvent event) {
+
+            }
+        };
+        boolean result = UnWindNodeUtil.array(objects,new ArrayList<>(),"test",true,map,"t",parentMap,new String[]{""},event,handel,false,null);
+        Assert.assertTrue(result);
+    }
+
+    @Test
+    public void testArrayIsNotNull(){
+        Object[] objects = {"test1","test2"};
+        Map<String, Object> map = new HashMap<>();
+        map.put("t","test");
+        Map<String, Object> parentMap = new HashMap<>();
+        Map<String, Object> before = new HashMap<>();
+        before.put("id", 1);
+        List<Integer> arr = new ArrayList<>();
+        arr.add(1);
+        arr.add(2);
+        before.put("field", arr);
+        TapDeleteRecordEvent event = TapDeleteRecordEvent.create();
+        event.before(before);
+        event.setReferenceTime(System.currentTimeMillis());
+        EventHandel handel = new EventHandel() {
+            @Override
+            public List<TapEvent> handel(UnwindProcessNode node, TapEvent event) {
+                return null;
+            }
+
+            @Override
+            public void copyEvent(List<TapEvent> events, Map<String, Object> item, TapEvent event) {
+
+            }
+        };
+        boolean result = UnWindNodeUtil.array(objects,new ArrayList<>(),"test",true,map,"t",parentMap,new String[]{""},event,handel,false,null);
+        Assert.assertFalse(result);
     }
 }

@@ -1,6 +1,7 @@
 package com.tapdata.constant;
 
 import com.tapdata.entity.RelateDatabaseField;
+import com.tapdata.exception.MapUtilException;
 import io.tapdata.annotation.Ignore;
 import jdk.nashorn.api.scripting.ScriptObjectMirror;
 import jdk.nashorn.internal.objects.NativeBoolean;
@@ -18,6 +19,8 @@ import org.bson.Document;
 
 import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -255,10 +258,19 @@ public class MapUtil {
 				List newObject = (List) value.getClass().newInstance();
 				ListUtil.serialCloneList((List) value, newObject);
 				newMap.put(key, newObject);
-			} else if (value instanceof Serializable) {
-				Serializable serl = (Serializable) value;
-				Serializable clone = SerializationUtils.clone(serl);
+			} else if (value instanceof Cloneable) {
+				Object clone;
+				try {
+					Method cloneMethod = value.getClass().getDeclaredMethod("clone");
+					clone = cloneMethod.invoke(value);
+				} catch (InvocationTargetException e) {
+					throw new MapUtilException("Invoke clone method failed, class: " + value.getClass().getName(), null != e.getTargetException() ? e.getTargetException() : e);
+				} catch (NoSuchMethodException e) {
+					throw new MapUtilException("No clone method found, class: " + value.getClass().getName(), e);
+				}
 				newMap.put(key, clone);
+			} else if (value instanceof Serializable) {
+				newMap.put(key, SerializationUtils.clone((Serializable) value));
 			} else {
 				newMap.put(key, value);
 			}

@@ -30,4 +30,9 @@ public class TapdataCompleteTableSnapshotEvent extends TapdataEvent {
 		super.clone(tapdataEvent);
 		((TapdataCompleteTableSnapshotEvent) tapdataEvent).setSourceTableName(sourceTableName);
 	}
+
+	@Override
+	public boolean isConcurrentWrite() {
+		return false;
+	}
 }

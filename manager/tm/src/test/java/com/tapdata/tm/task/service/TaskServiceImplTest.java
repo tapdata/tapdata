@@ -2,13 +2,17 @@ package com.tapdata.tm.task.service;
 
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
+import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.dto.CheckEchoOneNodeParam;
+import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -20,6 +24,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -356,6 +362,103 @@ class TaskServiceImplTest {
             verify(workerService, times(1)).findAvailableAgentByAccessNode(user, taskProcessIdList);
             verify(availableAgentByAccessNode, times(1)).isEmpty();
             verify(taskDto, times(1)).getAccessNodeType();
+        }
+    }
+
+    @Nested
+    class FindProcessNodeListWithGroupTest {
+        List<String> accessNodeProcessIdList;
+        List<String> list;
+
+        @BeforeEach
+        void init() {
+            accessNodeProcessIdList = mock(List.class);
+            list = mock(List.class);
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenReturn(list);
+            when(list.isEmpty()).thenReturn(false);
+            when(accessNodeProcessIdList.addAll(list)).thenReturn(true);
+            when(taskService.findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user)).thenCallRealMethod();
+        }
+
+        @Test
+        void testNormal() {
+            Assertions.assertFalse(taskService.findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user));
+            verify(accessNodeProcessIdList, times(1)).addAll(list);
+        }
+
+        @Test
+        void testEmptyList() {
+            when(list.isEmpty()).thenReturn(true);
+            Assertions.assertFalse(taskService.findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user));
+            verify(accessNodeProcessIdList, times(0)).addAll(list);
+        }
+
+        @Test
+        void testThrow() {
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenAnswer(a -> {
+                throw new BizException("Failed");
+            });
+            Assertions.assertThrows(BizException.class, () -> taskService.findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user));
+            verify(accessNodeProcessIdList, times(0)).addAll(list);
+        }
+
+        @Test
+        void testThrowV2() {
+            when(list.isEmpty()).thenReturn(false);
+            when(agentGroupService.getProcessNodeListWithGroup(taskDto, user)).thenAnswer(a -> {
+                throw new BizException("group.agent.not.available");
+            });
+            Assertions.assertTrue(taskService.findProcessNodeListWithGroup(taskDto, accessNodeProcessIdList, user));
+            verify(accessNodeProcessIdList, times(0)).addAll(list);
+        }
+    }
+    @Nested
+    class CheckUnwindProcessTest{
+        TaskServiceImpl taskService = new TaskServiceImpl(mock(TaskRepository.class));
+        @Test
+        void testNodesIsNull(){
+            DAG dag = mock(DAG.class);
+            when(dag.getNodes()).thenReturn(null);
+            taskService.checkUnwindProcess(dag);
+            Assertions.assertNull(dag.getNodes());
+        }
+        @Test
+        void testHasUnwindProcess(){
+            List<Node> nodes = new ArrayList<>();
+            UnwindProcessNode unwindProcessNode = new UnwindProcessNode();
+            unwindProcessNode.setId("source123");
+            nodes.add(unwindProcessNode);
+            TableNode tableNode = new TableNode();
+            tableNode.setId("target123");
+            tableNode.setDmlPolicy(new DmlPolicy());
+            nodes.add(tableNode);
+            Dag dag = new Dag();
+            dag.setNodes(nodes);
+            Edge edge=new Edge("source123","target123");
+            List<Edge> edges = Arrays.asList(edge);
+            dag.setEdges(edges);
+            DAG mockDag =  DAG.build(dag);
+            taskService.checkUnwindProcess(mockDag);
+            Assertions.assertEquals(tableNode.getDmlPolicy().getInsertPolicy(), DmlPolicyEnum.just_insert);
+        }
+        @Test
+        void testNotHasUnwindProcess(){
+            List<Node> nodes = new ArrayList<>();
+            TableNode tableNode1 = new TableNode();
+            tableNode1.setId("source123");
+            nodes.add(tableNode1);
+            TableNode tableNode2 = new TableNode();
+            tableNode2.setId("target123");
+            tableNode2.setDmlPolicy(new DmlPolicy());
+            nodes.add(tableNode2);
+            Dag dag = new Dag();
+            dag.setNodes(nodes);
+            Edge edge=new Edge("source123","target123");
+            List<Edge> edges = Arrays.asList(edge);
+            dag.setEdges(edges);
+            DAG mockDag =  DAG.build(dag);
+            taskService.checkUnwindProcess(mockDag);
+            Assertions.assertNull(tableNode2.getDmlPolicy().getInsertPolicy());
         }
     }
 }
