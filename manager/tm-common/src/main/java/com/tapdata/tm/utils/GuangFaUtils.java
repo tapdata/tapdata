@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -27,7 +26,6 @@ public class GuangFaUtils {
 	private static final Logger LOGGER = LoggerFactory.getLogger(GuangFaUtils.class);
 
 	private static final String ENV_PROPERTY_NAME = "TAPD8_GUANG_FA";
-	private static final String ENV_PROPERTY_ACCESS_CODE = "TAPD8_ACCESS_CODE";
 	private static Boolean isGuangFa = null;
 
 	private GuangFaUtils() {
@@ -64,14 +62,6 @@ public class GuangFaUtils {
 		return isGuangFa;
 	}
 
-	public static boolean setAccessCode(Consumer<String> setAccessCode) {
-		if (isGuangFa()) {
-			String accessCode = getConf(ENV_PROPERTY_ACCESS_CODE);
-			setAccessCode.accept(accessCode);
-			return true;
-		}
-		return false;
-	}
 
 	public static void updateSourceMetadataInstances(List<MetadataInstancesDto> metadataList, Node node, DataSourceConnectionDto sourceConnectionDto, List<String> customKafkaQualifiedNames, BiFunction<MetadataInstancesDto, String, MetadataInstancesDto> fun) {
 		if (null == sourceConnectionDto) return;

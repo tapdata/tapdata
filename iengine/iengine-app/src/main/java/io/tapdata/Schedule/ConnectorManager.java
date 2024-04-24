@@ -439,7 +439,7 @@ public class ConnectorManager {
 		while (loginResp == null) {
 			try {
 
-				if (!appType.isCloud() && !GuangFaUtils.setAccessCode(s -> this.accessCode = s)) {
+				if (!appType.isCloud() && !GuangFaUtils.isGuangFa()) {
 
 					MongoTemplate mongoTemplate = clientMongoOperator.getMongoTemplate();
 					List<User> users = mongoTemplate.find(new Query(where("role").is(1)), User.class, "User");
