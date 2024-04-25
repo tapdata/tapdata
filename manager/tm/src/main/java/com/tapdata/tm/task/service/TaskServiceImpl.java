@@ -249,7 +249,6 @@ public class TaskServiceImpl extends TaskService{
     public TaskDto create(TaskDto taskDto, UserDetail user) {
         //新增任务校验
         taskDto.setStatus(TaskDto.STATUS_EDIT);
-        taskDto.setSyncStatus(SyncStatus.NORMAL);
         log.debug("The save task is complete and the task will be processed, task name = {}", taskDto.getName());
         DAG dag = taskDto.getDag();
 
@@ -1202,6 +1201,7 @@ public class TaskServiceImpl extends TaskService{
         boolean needCreateRecord = !Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_WAIT_START).contains(taskDto.getStatus());
         //boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
         TaskEntity taskSnapshot = null;
+        taskDto.setSyncStatus(SyncStatus.NORMAL);
         if (needCreateRecord) {
             taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
@@ -3895,6 +3895,7 @@ public class TaskServiceImpl extends TaskService{
                 .unset("milestones")
                 .unset("tmCurrentTime")
                 .set("agentTags", null)
+                .set("syncStatus", SyncStatus.NORMAL)
                 .set("scheduleTimes", null)
                 .set("scheduleTime", null)
                 .set("messages", null)
