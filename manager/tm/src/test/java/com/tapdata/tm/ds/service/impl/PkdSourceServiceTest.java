@@ -12,6 +12,7 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -69,6 +70,20 @@ public class PkdSourceServiceTest {
     class checkJarMD5{
         @Test
         void testCheckJarMD5(){
+            Criteria criteria = Criteria.where("metadata.pdkHash").is("111");
+            Query query = new Query(criteria);
+            criteria.and("metadata.pdkAPIBuildNumber").lte(14);
+            query.with(Sort.by("metadata.pdkAPIBuildNumber").descending());
+            GridFSFile gridFSFile = mock(GridFSFile.class);
+            Document document = new Document();
+            document.append("md5","123456");
+            when(gridFSFile.getMetadata()).thenReturn(document);
+            when(fileService.findOne(query)).thenReturn(gridFSFile);
+            String actual = pkdSourceService.checkJarMD5("111", 14);
+            assertEquals("123456",actual);
+        }
+        @Test
+        void testCheckJarMd5CompatibleOldEngine(){
             Criteria criteria = Criteria.where("metadata.pdkHash").is("111").and("filename").is("a.jar");
             Query query = new Query(criteria);
             GridFSFile gridFSFile = mock(GridFSFile.class);

@@ -8,6 +8,7 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.tm.commons.dag.DAG;
@@ -59,8 +60,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -75,6 +78,7 @@ import static org.mockito.Mockito.*;
 class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	private HazelcastSourcePdkBaseNode instance;
 	private MockHazelcastSourcePdkBaseNode mockInstance;
+	SyncProgress syncProgress;
 
 	@BeforeEach
 	void beforeEach() {
@@ -90,6 +94,8 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			}
 		};
+		syncProgress = mock(SyncProgress.class);
+		ReflectionTestUtils.setField(mockInstance, "syncProgress", syncProgress);
 	}
 
 	@Nested
@@ -735,7 +741,6 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			fakeBatchOffset.put("test", 1);
 			syncProgress.setBatchOffset(PdkUtil.encodeOffset(fakeBatchOffset));
 			instance.readBatchOffset();
-
 			assertNotNull(syncProgress.getBatchOffsetObj());
 			assertInstanceOf(Map.class, syncProgress.getBatchOffsetObj());
 			assertEquals(1, ((Map) syncProgress.getBatchOffsetObj()).get("test"));
@@ -1164,4 +1169,5 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(instance, times(1)).errorHandle(any(Throwable.class), anyString());
 		}
 	}
+
 }
