@@ -157,7 +157,6 @@ public class MilestoneAspectTask extends AbstractAspectTask {
 
     @Override
     public void onStart(TaskStartAspect startAspect) {
-        //task.setSyncStatus(KPI_TASK);
         log.info("Start task milestones: {}({})", task.getId().toHexString(), task.getName());
         taskMilestone(KPI_TASK, this::setFinish);
         if (!TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType())) {
@@ -335,9 +334,6 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         }
         m.setTotals(totals);
         m.setProgress(progress);
-//        if (!MilestoneStatus.WAITING.equals(m.getStatus())) {
-//            task.setSyncStatus(KPI_DATA_NODE_INIT);
-//        }
     }
 
     protected void storeMilestone() {
@@ -347,11 +343,13 @@ public class MilestoneAspectTask extends AbstractAspectTask {
                 storeMilestoneWhenSyncTypeIsLogCollector();
             }
             taskMilestone(KPI_DATA_NODE_INIT, this::storeMilestoneDataNodeInit);
-            clientMongoOperator.update(
-                    Query.query(Criteria.where("_id").is(task.getId()))
-                    , Update.update("attrs.milestone", milestones).set("attrs.nodeMilestones", nodeMilestones)
-                            .set("syncStatus", getTaskSyncStatus())
-                    , ConnectorConstant.TASK_COLLECTION);
+            synchronized (milestones) {
+                clientMongoOperator.update(
+                        Query.query(Criteria.where("_id").is(task.getId()))
+                        , Update.update("attrs.milestone", milestones).set("attrs.nodeMilestones", nodeMilestones)
+                                .set("syncStatus", getTaskSyncStatus())
+                        , ConnectorConstant.TASK_COLLECTION);
+            }
         } catch (Exception e) {
             if (TmUnavailableException.notInstance(e)) {
                 log.warn("Save milestone failed: {}", e.getMessage(), e);
@@ -360,26 +358,24 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     }
 
     protected String getTaskSyncStatus() {
-        synchronized (milestones) {
-            Collection<MilestoneEntity> values = new ArrayList<>(milestones.values());
-            List<MilestoneEntity> sorted = values.stream()
-                    .filter(m -> Objects.nonNull(m) && !MilestoneStatus.WAITING.equals(m.getStatus()))
-                    .sorted((m1, m2) -> {
-                        MilestoneStatus s1 = m1.getStatus();
-                        MilestoneStatus s2 = m2.getStatus();
-                        if (KPI_CDC.equals(m1.getCode())) return -1;
-                        if (KPI_CDC.equals(m2.getCode())) return 1;
-                        if (MilestoneStatus.RUNNING.equals(s1)) return -1;
-                        if (MilestoneStatus.RUNNING.equals(s2)) return 1;
-                        Long e1 = m1.getEnd();
-                        Long e2 = m2.getEnd();
-                        if (null == e1) e1 = 0L;
-                        if (null == e2) e2 = 0L;
-                        return e2.intValue() - e1.intValue();
-                    }).collect(Collectors.toList());
-            if (sorted.isEmpty()) return KPI_TASK;
-            return sorted.get(0).getCode();
-        }
+        Collection<MilestoneEntity> values = new ArrayList<>(milestones.values());
+        List<MilestoneEntity> sorted = values.stream()
+                .filter(m -> Objects.nonNull(m) && !MilestoneStatus.WAITING.equals(m.getStatus()))
+                .sorted((m1, m2) -> {
+                    MilestoneStatus s1 = m1.getStatus();
+                    MilestoneStatus s2 = m2.getStatus();
+                    if (KPI_CDC.equals(m1.getCode())) return -1;
+                    if (KPI_CDC.equals(m2.getCode())) return 1;
+                    if (MilestoneStatus.RUNNING.equals(s1)) return -1;
+                    if (MilestoneStatus.RUNNING.equals(s2)) return 1;
+                    Long e1 = m1.getEnd();
+                    Long e2 = m2.getEnd();
+                    if (null == e1) e1 = 0L;
+                    if (null == e2) e2 = 0L;
+                    return e2.intValue() - e1.intValue();
+                }).collect(Collectors.toList());
+        if (sorted.isEmpty()) return KPI_TASK;
+        return sorted.get(0).getCode();
     }
 
     protected void taskMilestone(String code, Consumer<MilestoneEntity> consumer) {
@@ -392,9 +388,6 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         if (null != consumer) {
             consumer.accept(entity);
         }
-//        if (MilestoneStatus.RUNNING.equals(entity.getStatus())) {
-//            task.setSyncStatus(code);
-//        }
     }
 
     protected void nodeMilestones(String nodeId, String code, Consumer<MilestoneEntity> consumer) {
