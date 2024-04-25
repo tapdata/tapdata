@@ -931,6 +931,8 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 .and("tags.type").is("table")
                 .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
+        querySyncByTableName(dto,criteria);
+
         TmPageable tmPageable = new TmPageable();
         tmPageable.setPage(dto.getPage());
         tmPageable.setSize(dto.getSize());
@@ -1038,6 +1040,12 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 t.setFullSyncStatus(KeyWords.DONE);
                 t.setSyncRate(BigDecimal.ONE);
             });
+        }
+    }
+
+    public void querySyncByTableName(TableSyncStaticDto dto, Criteria criteria){
+        if(StringUtils.isNotBlank(dto.getTableName())){
+            criteria.and("tags.table").regex(dto.getTableName());
         }
     }
 

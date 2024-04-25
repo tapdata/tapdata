@@ -16,6 +16,8 @@ public class TableSyncStaticDto {
     private Integer page;
     private Integer size;
 
+    private String tableName;
+
     public Integer getSize() {
         return size > 100 ? 20 : size;
     }
