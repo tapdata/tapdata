@@ -120,18 +120,14 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             nodeMilestones(nodeId, KPI_OPEN_CDC_READ, this::setFinish);
             nodeMilestones(nodeId, KPI_CDC_READ, this::setRunning);
         });
-        nodeRegister(CDCReadErrorAspect.class, (nodeId, aspect) -> {
-            nodeMilestones(nodeId, KPI_OPEN_CDC_READ, m -> {
-                if (null == m.getEnd()) {
-                    setError(aspect, m);
-                } else {
-                    nodeMilestones(nodeId, KPI_CDC_READ, m2 -> setError(aspect, m2));
-                }
-            });
-        });
-        nodeRegister(SnapshotWriteBeginAspect.class, KPI_SNAPSHOT_WRITE, (aspect, m) -> {
-            setRunning(m);
-        });
+        nodeRegister(CDCReadErrorAspect.class, (nodeId, aspect) -> nodeMilestones(nodeId, KPI_OPEN_CDC_READ, m -> {
+            if (null == m.getEnd()) {
+                setError(aspect, m);
+            } else {
+                nodeMilestones(nodeId, KPI_CDC_READ, m2 -> setError(aspect, m2));
+            }
+        }));
+        nodeRegister(SnapshotWriteBeginAspect.class, KPI_SNAPSHOT_WRITE, (aspect, m) -> setRunning(m));
         nodeRegister(SnapshotWriteEndAspect.class, KPI_SNAPSHOT_WRITE, (aspect, m) -> {
             setFinish(m);
             if (snapshotTableProgress.get() >= snapshotTableCounts.get()) {
@@ -200,6 +196,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         DataProcessorContext dataProcessorContext = aspect.getDataProcessorContext();
         String nodeId = nodeId(dataProcessorContext);
         nodeMilestones(nodeId, KPI_NODE, this::setRunning);
+        taskMilestone(KPI_DATA_NODE_INIT, this::setRunning);
         Node<?> node = dataProcessorContext.getNode();
         List<? extends Node<?>> predecessors = node.predecessors();
         if (null == predecessors || predecessors.isEmpty()) {
@@ -225,6 +222,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     protected Void handleProcessNodeInit(ProcessorNodeInitAspect aspect) {
         String nodeId = nodeId(aspect.getProcessorBaseContext());
         nodeMilestones(nodeId, KPI_NODE, this::setRunning);
+        taskMilestone(KPI_DATA_NODE_INIT, this::setRunning);
         return null;
     }
 
@@ -244,6 +242,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         String nodeId = nodeId(aspect.getDataProcessorContext());
         switch (aspect.getState()) {
             case STATE_START:
+                taskMilestone(KPI_TABLE_INIT, this::setRunning);
                 targetNodes.add(nodeId);
                 nodeMilestones(nodeId, KPI_TABLE_INIT, milestone -> {
                     milestone.setProgress(0L);
@@ -252,12 +251,14 @@ public class MilestoneAspectTask extends AbstractAspectTask {
                 });
                 break;
             case STATE_PROCESS:
+                taskMilestone(KPI_TABLE_INIT, this::setRunning);
                 nodeMilestones(nodeId, KPI_TABLE_INIT, milestone -> {
                     milestone.setProgress(aspect.getCompletedCounts());
                     milestone.setTotals(aspect.getTotals());
                 });
                 break;
             case STATE_END:
+                taskMilestone(KPI_TABLE_INIT, this::setFinish);
                 Throwable error = aspect.getThrowable();
                 if (null == error) {
                     nodeMilestones(nodeId, KPI_TABLE_INIT, milestone -> {
@@ -272,7 +273,6 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             default:
                 break;
         }
-        //task.setSyncStatus(KPI_TABLE_INIT);
         return null;
     }
 

@@ -579,7 +579,7 @@ class MilestoneAspectTaskTest {
 				verify(dataProcessorContext).getNode();
 				verify(node).predecessors();
 				verify(predecessors).isEmpty();
-				verify(milestoneAspectTask, times(0)).taskMilestone(anyString(), any(Consumer.class));
+				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
 				verify(tm, times(0)).setTotals(anyLong());
 			}
 
@@ -593,7 +593,7 @@ class MilestoneAspectTaskTest {
 				verify(dataProcessorContext).getNode();
 				verify(node).predecessors();
 				verify(predecessors, times(0)).isEmpty();
-				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
+				verify(milestoneAspectTask, times(2)).taskMilestone(anyString(), any(Consumer.class));
 				verify(tm, times(1)).setTotals(anyLong());
 			}
 
@@ -607,7 +607,7 @@ class MilestoneAspectTaskTest {
 				verify(dataProcessorContext).getNode();
 				verify(node).predecessors();
 				verify(predecessors).isEmpty();
-				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
+				verify(milestoneAspectTask, times(2)).taskMilestone(anyString(), any(Consumer.class));
 				verify(tm, times(1)).setTotals(anyLong());
 			}
 
@@ -623,7 +623,7 @@ class MilestoneAspectTaskTest {
 				verify(dataProcessorContext).getNode();
 				verify(node).predecessors();
 				verify(predecessors).isEmpty();
-				verify(milestoneAspectTask, times(0)).taskMilestone(anyString(), any(Consumer.class));
+				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
 				verify(tm, times(0)).setTotals(anyLong());
 			}
 
@@ -642,7 +642,7 @@ class MilestoneAspectTaskTest {
 				verify(node).predecessors();
 				verify(node, times(0)).tableSize();
 				verify(predecessors).isEmpty();
-				verify(milestoneAspectTask, times(0)).taskMilestone(anyString(), any(Consumer.class));
+				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
 				verify(tm, times(0)).setTotals(anyLong());
 			}
 		}
