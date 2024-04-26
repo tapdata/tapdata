@@ -76,7 +76,7 @@ wait_tm_start() {
         local seconds_left=$((timeout - SECONDS))
         printf "\r* Wait Starting, Left %02d / 300 Seconds..." "$seconds_left"
         sleep 1
-        curl --fail "http://localhost:30000" &> /dev/null
+        curl --fail "http://localhost:3000" &> /dev/null
         if [[ $? -ne 0 ]]; then
             continue
         else
