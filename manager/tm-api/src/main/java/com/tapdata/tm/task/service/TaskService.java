@@ -291,7 +291,6 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract boolean checkCloudTaskLimit(ObjectId taskId, UserDetail user, boolean checkCurrentTask);
 
-    public abstract void updateTaskAlarm(AlarmVO alarm);
 
     @Data
     @AllArgsConstructor

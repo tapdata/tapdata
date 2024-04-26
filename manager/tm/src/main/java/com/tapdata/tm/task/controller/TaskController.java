@@ -1386,10 +1386,4 @@ public class TaskController extends BaseController {
     public ResponseMessage<Boolean> checkCloudTaskLimit(@PathVariable(value = "taskId") String taskId){
         return success(taskService.checkCloudTaskLimit(MongoUtils.toObjectId(taskId),getLoginUser(),true));
     }
-
-    @PostMapping("/updateTaskAlarm")
-    public ResponseMessage<Void> updateTaskAlarm(@RequestBody AlarmVO alarm){
-        taskService.updateTaskAlarm(alarm);
-        return success();
-    }
 }

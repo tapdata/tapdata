@@ -5195,21 +5195,4 @@ public class TaskServiceImpl extends TaskService{
         }
     }
 
-    @Override
-    public void updateTaskAlarm(AlarmVO alarm) {
-        if(StringUtils.isBlank(alarm.getTaskId())
-                || CollectionUtils.isEmpty(alarm.getAlarmSettings())
-                || CollectionUtils.isEmpty(alarm.getAlarmRules()))return;
-        Criteria criteria = new Criteria("_id").is(MongoUtils.toObjectId(alarm.getTaskId()));
-        Update update = new Update();
-        if(StringUtils.isNotBlank(alarm.getNodeId())){
-            update.set("dag.nodes.$[element].alarmSettings",alarm.getAlarmSettings())
-                    .set("dag.nodes.$[element].alarmRules",alarm.getAlarmRules())
-                    .filterArray(Criteria.where("element.id").is(alarm.getNodeId()));
-        }else{
-            update.set("alarmSettings",alarm.getAlarmSettings()).set("alarmRules",alarm.getAlarmRules());
-        }
-        Query query = Query.query(criteria);
-        update(query,update);
-    }
 }

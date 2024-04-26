@@ -32,6 +32,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.constant.Type;
@@ -82,9 +83,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class AlarmServiceImpl implements AlarmService {
+    private final static String ERROR = "TapOssNonSupportFunctionException";
     @Override
     public void save(AlarmInfo info) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ERROR);
     }
 
     @Override
@@ -99,12 +101,12 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void close(String[] ids, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ERROR);
     }
 
     @Override
     public Page<AlarmListInfoVo> list(String status, Long start, Long end, String keyword, Integer page, Integer size, UserDetail userDetail, Locale locale) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ERROR);
     }
 
     @Override
@@ -117,12 +119,12 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public List<AlarmInfo> find(String taskId, String nodeId, AlarmKeyEnum key) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ERROR);
     }
 
     @Override
     public void closeWhenTaskRunning(String taskId) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ERROR);
     }
 
     @Override
@@ -136,7 +138,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public MessageDto add(MessageDto messageDto, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ERROR);
     }
 
     @Override
@@ -146,16 +148,21 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ERROR);
     }
 
     @Override
     public boolean checkOpen(List<AlarmSettingVO> alarmSettingVOS, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ERROR);
     }
 
     @Override
     public void closeWhenInspectTaskRunning(String id) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ERROR);
+    }
+
+    @Override
+    public void updateTaskAlarm(AlarmVO alarm) {
+        throw new BizException(ERROR);
     }
 }
