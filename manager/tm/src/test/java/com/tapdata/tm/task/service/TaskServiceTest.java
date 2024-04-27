@@ -25,6 +25,9 @@ import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.bean.Chart6Vo;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.task.service.batchin.ParseRelMigFile;
+import com.tapdata.tm.task.service.batchin.dto.RelMigBaseDto;
+import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -648,26 +651,43 @@ public class TaskServiceTest {
     }
     @Nested
     class importRmProjectTest{
+        ParseRelMigFile parseRelMigFile;
         TaskRepository taskRepository=mock(TaskRepository.class);
         TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
         UserDetail userDetail;
         FileInputStream fileInputStream;
+        MockMultipartFile mockMultipartFile;
+        String rmJson;
         @BeforeEach
-        void beforeEach() throws FileNotFoundException {
+        void beforeEach() throws Exception {
             userDetail = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
                     "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
             URL resource = this.getClass().getClassLoader().getResource("test.relmig");
             fileInputStream=new FileInputStream(resource.getFile());
+            mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
+            String rmJson = new String(mockMultipartFile.getBytes());
         }
         @Test
         void importRmProjectTest() throws IOException {
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
-            String rmJson = new String(mockMultipartFile.getBytes());
+
             HashMap<String, Object> rmProject = new ObjectMapper().readValue(rmJson, HashMap.class);
             HashMap<String, Object> project = (HashMap<String, Object>) rmProject.get("project");
             HashMap<String, Object> content = (HashMap<String, Object>) project.get("content");
             HashMap<String, Object> contentCollections = (HashMap<String, Object>) content.get("collections");
-            Map<String, String> stringStringMap = taskService.parseTaskFromRm(rmJson, "123", "123", userDetail);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigStr(rmJson);
+            param.setRelMigInfo(rmProject);
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, String> stringStringMap = parseRelMigFile.doParse("sourceConnectionId", "targetConnectionId", userDetail);
             TaskDto taskDto=null;
             for(String taskKey:stringStringMap.keySet()){
                 taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(taskKey), TaskDto.class);
@@ -676,13 +696,23 @@ public class TaskServiceTest {
         }
         @Test
         void nullImportRmProjectTest(){
-            assertThrows(BizException.class,()->{taskService.parseTaskFromRm(null, "123", "123", userDetail);});
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            assertThrows(Exception.class,()->{parseRelMigFile.doParse("sourceConnectionId", "targetConnectionId", userDetail);});
         }
         @Test
         void replaceIdTest() throws IOException {
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
-            String s = new String(mockMultipartFile.getBytes());
-            Map<String, Object> rmProject = new ObjectMapper().readValue(s, HashMap.class);
+            Map<String, Object> rmProject = new ObjectMapper().readValue(rmJson, HashMap.class);
             Map<String, Object> project = (Map<String, Object>) rmProject.get("project");
             Map<String, Object> content = (Map<String, Object>) project.get("content");
             Map<String, Object> contentMapping = (Map<String, Object>) content.get("mappings");
@@ -701,7 +731,19 @@ public class TaskServiceTest {
                 contentMappingCollectionId=collectionId;
                 contentMappingKey=key;
             }
-            taskService.replaceRmProjectId(rmProject);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.replaceRmProjectId();
             Set<String> afterStrings = contentCollections.keySet();
             String afterCollectionKey=null;
             for(String afterKey1:afterStrings){
@@ -722,9 +764,7 @@ public class TaskServiceTest {
         @Test
         void testReplaceRelationShipsKey() throws IOException {
             Map<String, String> globalIdMap = new HashMap<>();
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
-            String s = new String(mockMultipartFile.getBytes());
-            Map<String, Object> rmProject = new ObjectMapper().readValue(s, HashMap.class);
+            Map<String, Object> rmProject = new ObjectMapper().readValue(rmJson, HashMap.class);
             Map<String, Object> project = (Map<String, Object>) rmProject.get("project");
             Map<String, Object> content = (Map<String, Object>) project.get("content");
             Map<String, Object> relationships = content.get("relationships") == null ? new HashMap<>() : (Map<String, Object>) content.get("relationships");
@@ -742,7 +782,20 @@ public class TaskServiceTest {
             for(String key:mappingsMap.keySet()){
                 relationShipMappingsKey=key;
             }
-            taskService.replaceRelationShipsKey(globalIdMap,content);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigStr(rmJson);
+            param.setRelMigInfo(rmProject);
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.replaceRelationShipsKey(globalIdMap,content);
             String afterCollectionKey=null;
             for(String key:collectionMap.keySet()){
                 afterCollectionKey=key;
@@ -765,9 +818,20 @@ public class TaskServiceTest {
             taskService.setCustomSqlService(customSqlService);
             DateNodeService dataNodeService = mock(DateNodeService.class);
             taskService.setDateNodeService(dataNodeService);
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
-            String s = new String(mockMultipartFile.getBytes());
-            Map<String, String> stringStringMap = taskService.parseTaskFromRm(s, "123", "123", userDetail);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigStr(rmJson);
+            param.setRelMigInfo(new ObjectMapper().readValue(rmJson, HashMap.class));
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, String> stringStringMap = parseRelMigFile.doParse("sourceConnectionId", "targetConnectionId", userDetail);
             TaskDto taskDto=null;
             for(String s1: stringStringMap.keySet()){
                 taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(s1), TaskDto.class);
@@ -787,7 +851,20 @@ public class TaskServiceTest {
             FileInputStream fileInputStream = new FileInputStream(resource.getFile());
             MockMultipartFile mockMultipartFile = new MockMultipartFile("EmployeeSchema.relmig", fileInputStream);
             String s = new String(mockMultipartFile.getBytes());
-            Map<String, String> stringStringMap = taskService.parseTaskFromRm(s, "123", "123", userDetail);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigStr(s);
+            param.setRelMigInfo(new ObjectMapper().readValue(s, HashMap.class));
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, String> stringStringMap = parseRelMigFile.doParse("sourceConnectionId", "targetConnectionId", userDetail);
             TaskDto taskDto = null;
             for (String key : stringStringMap.keySet()) {
                 System.out.println();
@@ -810,7 +887,7 @@ public class TaskServiceTest {
         TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
         Map<String, Object> parent;
         Map<String, Map<String, Map<String, Object>>> renameFields;
-
+        ParseRelMigFile parseRelMigFile;
 
         @BeforeEach
         void beforeSetUp(){
@@ -857,7 +934,20 @@ public class TaskServiceTest {
             foreignKeyAttrs.put("column","ShipperID");
             columnsAttrs.put("foreignKey",foreignKeyAttrs);
             parentColumns.put("ShipVia",columnsAttrs);
-            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
+
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.parentColumnsFindJoinKeys(parent, renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
             assertEquals(1,joinKeys.size());
             Map<String, String> stringStringMap = joinKeys.get(0);
             String sourceJoinKey = stringStringMap.get("source");
@@ -880,7 +970,19 @@ public class TaskServiceTest {
             foreignKeyAttrs.put("column","ShipperID");
             columnsAttrs.put("foreignKey",foreignKeyAttrs);
             parentColumns.put("ShipVia",columnsAttrs);
-            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
             assertEquals(1,joinKeys.size());
             Map<String, String> stringStringMap = joinKeys.get(0);
             String sourceJoinKey = stringStringMap.get("source");
@@ -897,7 +999,19 @@ public class TaskServiceTest {
             Map<String, Object> parentColumns=new HashMap<>();
             Map<String, Object> columnsAttrs=new HashMap<>();
             parentColumns.put("ShipVia",columnsAttrs);
-            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
             assertEquals(0,joinKeys.size());
         }
         @DisplayName("test parnet column table is not child table")
@@ -915,7 +1029,19 @@ public class TaskServiceTest {
             foreignKeyAttrs.put("column","ShipperID");
             columnsAttrs.put("foreignKey",foreignKeyAttrs);
             parentColumns.put("ShipVia",columnsAttrs);
-            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
             assertEquals(0,joinKeys.size());
         }
     }
@@ -923,35 +1049,85 @@ public class TaskServiceTest {
     class GetEmbeddedDocumentPathTest{
         TaskRepository taskRepository=mock(TaskRepository.class);
         TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
+        ParseRelMigFile parseRelMigFile;
+
         @DisplayName("test parent path is empty string,use embeddedPath")
         @Test
         void test1(){
-            Map<String,String> setting=new HashMap<>();
+            Map<String,Object> setting=new HashMap<>();
             setting.put("embeddedPath","abc");
-            String targetPath = taskService.getEmbeddedDocumentPath("", setting);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String targetPath = parseRelMigFile.getEmbeddedDocumentPath("", setting);
             assertEquals("abc",targetPath);
         }
         @DisplayName("test parent path is not empty string,embeddedPath is null")
         @Test
         void test2(){
-            Map<String,String> setting=new HashMap<>();
-            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
+            Map<String,Object> setting=new HashMap<>();
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String targetPath = parseRelMigFile.getEmbeddedDocumentPath("parentPath", setting);
             assertEquals("parentPath",targetPath);
         }
         @DisplayName("test parent path is not empty string,embeddedPath is not null")
         @Test
         void test3(){
-            Map<String,String> setting=new HashMap<>();
+            Map<String,Object> setting=new HashMap<>();
             setting.put("embeddedPath","abc");
-            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String targetPath = parseRelMigFile.getEmbeddedDocumentPath("parentPath", setting);
             assertEquals("parentPath.abc",targetPath);
         }
         @DisplayName("test parent path is not empty string,embeddedPaht is empty str")
         @Test
         void test4(){
-            Map<String,String> setting=new HashMap<>();
+            Map<String,Object> setting=new HashMap<>();
             setting.put("embeddedPath","");
-            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String targetPath = parseRelMigFile.getEmbeddedDocumentPath("parentPath", setting);
             assertEquals("parentPath",targetPath);
         }
     }
@@ -976,6 +1152,7 @@ public class TaskServiceTest {
     }
     @Nested
     class GetNewNameMapTest{
+        ParseRelMigFile parseRelMigFile;
         TaskRepository taskRepository=mock(TaskRepository.class);
         TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
         @DisplayName("test get newname map is pk")
@@ -987,7 +1164,19 @@ public class TaskServiceTest {
             Map<String,Object> source=new HashMap<>();
             source.put("name","EmployeeId");
             source.put("isPrimaryKey",true);
-            Map<String, Object> newNameMap = taskService.getNewNameMap(target, source);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, Object> newNameMap = parseRelMigFile.getNewNameMap(target, source);
             assertEquals("employeeId",newNameMap.get("target"));
             assertEquals(true,newNameMap.get("isPrimaryKey"));
         }
@@ -1000,7 +1189,19 @@ public class TaskServiceTest {
             Map<String,Object> source=new HashMap<>();
             source.put("name","EmployeeId");
             source.put("isPrimaryKey",false);
-            Map<String, Object> newNameMap = taskService.getNewNameMap(target, source);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, Object> newNameMap = parseRelMigFile.getNewNameMap(target, source);
             assertEquals("employeeId",newNameMap.get("target"));
             assertEquals(false,newNameMap.get("isPrimaryKey"));
         }
@@ -1015,7 +1216,19 @@ public class TaskServiceTest {
             Map<String,Object> source=new HashMap<>();
             source.put("name","EmployeeId");
             source.put("isPrimaryKey",false);
-            Map<String, Object> deleteOperation = taskService.getDeleteOperation(source.get("name"), source.get("isPrimaryKey"));
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, Object> deleteOperation = parseRelMigFile.getDeleteOperation(source.get("name"), source.get("isPrimaryKey"));
             assertEquals("EmployeeId",deleteOperation.get("field"));
             assertEquals("REMOVE",deleteOperation.get("op"));
             assertEquals("true",deleteOperation.get("operand"));
@@ -1030,7 +1243,19 @@ public class TaskServiceTest {
             Map<String,Object> source=new HashMap<>();
             source.put("name","EmployeeId");
             source.put("isPrimaryKey",false);
-            Map<String, Object> renameOperation = taskService.getRenameOperation(source.get("name"), target.get("name"));
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, Object> renameOperation = parseRelMigFile.getRenameOperation(source.get("name"), target.get("name"));
             assertEquals("EmployeeId",renameOperation.get("field"));
             assertEquals("RENAME",renameOperation.get("op"));
             assertEquals("employeeId",renameOperation.get("operand"));
@@ -1053,7 +1278,19 @@ public class TaskServiceTest {
             deleteOperation.put("operand", "true");
             deleteOperation.put("label", "CustomerId");
             deleteOperationList.add(deleteOperation);
-            String sourceId = taskService.addDeleteNode("customer", deleteOperationList,  "souceId",nodes, edges);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String sourceId = parseRelMigFile.addDeleteNode("customer", deleteOperationList,  "souceId",nodes, edges);
             assertNotEquals("souceId",sourceId);
             assertEquals(1,nodes.size());
             Map<String, Object> nodeMap = nodes.get(0);
@@ -1071,7 +1308,19 @@ public class TaskServiceTest {
             fieldRenameOperation.put("op", "RENAME");
             fieldRenameOperation.put("operand", "customerId");
             fieldRenameOperationList.add(fieldRenameOperation);
-            String sourceId = taskService.addRenameNode("customer", fieldRenameOperationList, "souceId",nodes, edges);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String sourceId = parseRelMigFile.addRenameNode("customer", fieldRenameOperationList, "souceId",nodes, edges);
             assertNotEquals("souceId",sourceId);
             assertEquals(1,nodes.size());
             Map<String, Object> nodeMap = nodes.get(0);
@@ -1084,7 +1333,19 @@ public class TaskServiceTest {
             List<Map<String, Object>> edges = new ArrayList<>();
             String script = "function process(){}";
             String declareScript = "retrun record";
-            String sourceId = taskService.addJSNode("customer", script, declareScript, nodes, "sourceId", edges);
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String sourceId = parseRelMigFile.addJSNode("customer", script, declareScript, nodes, "sourceId", edges);
             assertNotEquals("souceId",sourceId);
             assertEquals(1,nodes.size());
             Map<String, Object> nodeMap = nodes.get(0);
@@ -1125,7 +1386,19 @@ public class TaskServiceTest {
             newFieldMap.put("source","OrderID");
             newFieldMap.put("target","orderId");
             sourceJoinKeyMapping.put("orderId",newFieldMap);
-            taskService.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations,contentRenameOperations,"childId",sourceJoinKeyMapping,"orderId");
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations,contentRenameOperations,"childId",sourceJoinKeyMapping,"orderId");
             assertEquals(0,childDeleteOperationsList.size());
             assertEquals(2,childRenameOperationsList.size());
         }
@@ -1136,7 +1409,19 @@ public class TaskServiceTest {
             newFieldMap.put("source","OrderId");
             newFieldMap.put("target","orderId");
             sourceJoinKeyMapping.put("productId",newFieldMap);
-            taskService.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations,contentRenameOperations,"childId",sourceJoinKeyMapping,"productId");
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations,contentRenameOperations,"childId",sourceJoinKeyMapping,"productId");
             assertEquals(1,childDeleteOperationsList.size());
             assertEquals(1,childRenameOperationsList.size());
         }
@@ -1164,7 +1449,19 @@ public class TaskServiceTest {
             newFieldMap.put("source","OrderID");
             newFieldMap.put("target","orderId");
             sourceJoinKeyMapping.put("orderId",newFieldMap);
-            boolean flag = taskService.removeDeleteOperation(deleteOperationsList, sourceJoinKeyMapping, "orderId");
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            boolean flag = parseRelMigFile.removeDeleteOperation(deleteOperationsList, sourceJoinKeyMapping, "orderId");
             assertEquals(true,flag);
         }
         @DisplayName("test removeDeleteOperation when joinkey not in deleteOperation")
@@ -1175,7 +1472,19 @@ public class TaskServiceTest {
             newFieldMap.put("source","OrderId");
             newFieldMap.put("target","orderId");
             sourceJoinKeyMapping.put("productId",newFieldMap);
-            boolean flag = taskService.removeDeleteOperation(deleteOperationsList, sourceJoinKeyMapping, "productId");
+            ParseParam<RelMigBaseDto> param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            boolean flag = parseRelMigFile.removeDeleteOperation(deleteOperationsList, sourceJoinKeyMapping, "productId");
             assertEquals(false,flag);
         }
     }
