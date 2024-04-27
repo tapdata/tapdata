@@ -1,14 +1,15 @@
 package com.tapdata.tm.task.service.batchin;
 
+import cn.hutool.core.collection.CollUtil;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.service.batchin.constant.KeyWords;
-import com.tapdata.tm.task.service.batchin.dto.RelMigBaseDto;
 import com.tapdata.tm.task.service.batchin.dto.TablePathInfo;
 import com.tapdata.tm.task.service.batchin.entity.AddJsNodeParam;
 import com.tapdata.tm.task.service.batchin.entity.AddMergerNodeParam;
 import com.tapdata.tm.task.service.batchin.entity.DoMergeParam;
+import com.tapdata.tm.task.service.batchin.entity.GenericPropertiesParam;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import org.apache.commons.lang3.StringUtils;
 
@@ -23,18 +24,18 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBaseDto> {
-    Map<String, Object> relMigInfo;
+public abstract class ParseRelMigFile implements ParseRelMig<TaskDto> {
+    protected Map<String, Object> relMigInfo;
     protected String version;
     protected Map<String, Object> project;
     protected Map<String, Object> schema;
     protected List<Map<String, Object>> queries;
-    protected ParseParam<RelMigBaseDto> param;
+    protected ParseParam param;
     protected Map<String, Object> content;
 
-    public ParseRelMigFile(ParseParam<RelMigBaseDto> param) {
+    protected ParseRelMigFile(ParseParam param) {
         this.param = param;
-        this.relMigInfo = param.getRelMigInfo();
+        this.relMigInfo = Optional.ofNullable(param.getRelMigInfo()).orElse(new HashMap<>());
         this.version = String.valueOf(relMigInfo.get(KeyWords.VERSION));
         this.project = parseMap(getFromMap(relMigInfo, KeyWords.PROJECT));
         this.schema = parseMap(getFromMap(relMigInfo, KeyWords.SCHEMA));
@@ -42,7 +43,7 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
         this.content = parseMap(getFromMap(project, KeyWords.CONTENT));
     }
 
-    public List<String> addJsNode(AddJsNodeParam param) {
+    public List<String> addJsNodeIfInNeed(AddJsNodeParam param) {
         String sourceConnectionId = param.getSourceConnectionId();
         Map<String, Map<String, Map<String, Object>>> renameFields = param.getRenameFields();
         Map<String, String> sourceToJs = param.getSourceToJs();
@@ -56,21 +57,21 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
         for (String key : contentMapping.keySet()) {
             Map<String, Object> node = new HashMap<>();
             Map<String, Object> contentMappingValue = parseMap(getFromMap(contentMapping, key));
-            if (!contentMappingValue.get("collectionId").equals(task.get("id"))) {
+            if (!contentMappingValue.get(KeyWords.COLLECTION_ID).equals(task.get(KeyWords.ID))) {
                 continue;
             }
 
             TablePathInfo tablePathInfo = getTablePathInfo(contentMappingValue);
             String tpTable = tablePathInfo.getTable();
 
-            node.put("type", "table");
-            node.put("tableName", tpTable);
-            node.put("name", tpTable);
-            node.put("id", key);
-            node.put("connectionId", sourceConnectionId);
+            node.put(KeyWords.TYPE, KeyWords.TABLE);
+            node.put(KeyWords.TABLE_NAME, tpTable);
+            node.put(KeyWords.NAME, tpTable);
+            node.put(KeyWords.ID, key);
+            node.put(KeyWords.CONNECTION_ID, sourceConnectionId);
             nodes.add(node);
 
-            Map<String, Object> fields = parseMap(getFromMap(contentMappingValue, "fields"));
+            Map<String, Object> fields = parseMap(getFromMap(contentMappingValue, KeyWords.FIELDS));
 
             List<Map<String, Object>> renameOperations = new ArrayList<>();
             List<Map<String, Object>> deleteOperations = new ArrayList<>();
@@ -82,10 +83,10 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
             addRenameOrDeleteField(fields, tableRenameFields, renameOperations, deleteOperations);
 
             // JS script generator
-            String declareScript = "";
+            String declareScript = KeyWords.EMPTY;
             String jsScript = jsScriptGenerator(contentMappingValue);
 
-            String sourceId = (String) node.get("id");
+            String sourceId = (String) node.get(KeyWords.ID);
             //add jsNode
             if (!KeyWords.EMPTY.equals(jsScript)) {
                 sourceId = addJSNode(tpTable, jsScript, declareScript, nodes, sourceId, edges);
@@ -99,7 +100,7 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
                 sourceId = addDeleteNode(tpTable, deleteOperations, sourceId, nodes, edges);
             }
             // save mapping
-            sourceToJs.put((String) node.get("id"), sourceId);
+            sourceToJs.put((String) node.get(KeyWords.ID), sourceId);
             sourceNodes.add(sourceId);
         }
         return sourceNodes;
@@ -111,23 +112,18 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
                                           List<Map<String, Object>> deleteOperations) {
         for (String field : fields.keySet()) {
             Map<String, Object> fieldMap = parseMap(getFromMap(fields, field));
-            Map<String, Object> source = parseMap(getFromMap(fieldMap, "source"));
-            Map<String, Object> target = parseMap(getFromMap(fieldMap, "target"));
+            Map<String, Object> source = parseMap(getFromMap(fieldMap, KeyWords.SOURCE));
+            Map<String, Object> target = parseMap(getFromMap(fieldMap, KeyWords.TARGET));
             Map<String, Object> newName = getNewNameMap(target, source);
-            tableRenameFields.put(source.get("name").toString(), newName);
-            Object isPk = source.get("isPrimaryKey");
-            if (!(Boolean) target.get("included")) {
-                Map<String, Object> deleteOperation = getDeleteOperation(source.get("name").toString(), isPk);
+            tableRenameFields.put(source.get(KeyWords.NAME).toString(), newName);
+            Object isPk = source.get(KeyWords.IS_PRIMARY_KEY);
+            if (!Boolean.TRUE.equals(target.get(KeyWords.INCLUDED))) {
+                Map<String, Object> deleteOperation = getDeleteOperation(source.get(KeyWords.NAME).toString(), isPk);
                 deleteOperations.add(deleteOperation);
-                continue;
+            } else if (!source.get(KeyWords.NAME).equals(target.get(KeyWords.NAME))) {
+                Map<String, Object> renameOperation = getRenameOperation(source.get(KeyWords.NAME), target.get(KeyWords.NAME));
+                renameOperations.add(renameOperation);
             }
-
-            if (source.get("name").equals(target.get("name"))) {
-                continue;
-            }
-
-            Map<String, Object> renameOperation = getRenameOperation(source.get("name"), target.get("name"));
-            renameOperations.add(renameOperation);
         }
     }
 
@@ -136,11 +132,11 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
      * **/
     public String jsScriptGenerator(Map<String, Object> contentMappingValue) {
         StringBuilder script = new StringBuilder();
-        Map<String, Object> calculatedFields = parseMap(getFromMap(contentMappingValue, "calculatedFields"));
+        Map<String, Object> calculatedFields = parseMap(getFromMap(contentMappingValue, KeyWords.CALCULATED_FIELDS));
         for (String field : calculatedFields.keySet()) {
             Map<String, Object> fieldMap = parseMap(getFromMap(calculatedFields, field));
-            String newFieldName = (String) fieldMap.get("name");
-            String newFieldExpression = (String) fieldMap.get("expression");
+            String newFieldName = (String) fieldMap.get(KeyWords.NAME);
+            String newFieldExpression = (String) fieldMap.get(KeyWords.EXPRESSION);
             newFieldExpression = newFieldExpression.replace("columns[", "record[");
             script.append("\trecord[\"")
                     .append(newFieldName)
@@ -149,7 +145,7 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
                     .append(";\n");
         }
 
-        if (!script.toString().equals("")) {
+        if (!script.toString().equals(KeyWords.EMPTY)) {
             script.insert(0, "function process(record){");
             script.append("    return record;\n}");
         }
@@ -198,30 +194,38 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
         Map<String, Map<String, Map<String, Object>>> renameFields = param.getRenameFields();
         Map<String, List<Map<String, Object>>> contentDeleteOperations = param.getContentDeleteOperations();
         Map<String, List<Map<String, Object>>> contentRenameOperations = param.getContentRenameOperations();
-        Map<String, Object> full = parseMap(getFromMap(schema, "full"));
+        Map<String, Object> full = parseMap(getFromMap(schema, KeyWords.FULL));
         List<Map<String, Object>> mergeProperties = new ArrayList<>();
-        Map<String, Object> relationships = content.get("relationships") == null ? new HashMap<>() : parseMap(getFromMap(content, "relationships"));
-        Map<String, Object> relationshipsMapping = relationships.get("mappings") == null ? new HashMap<>() : parseMap(getFromMap(relationships, "mappings"));
+        Map<String, Object> relationships = content.get(KeyWords.RELATIONSHIPS) == null ? new HashMap<>() : parseMap(getFromMap(content, KeyWords.RELATIONSHIPS));
+        Map<String, Object> relationshipsMapping = relationships.get(KeyWords.MAPPINGS) == null ? new HashMap<>() : parseMap(getFromMap(relationships, KeyWords.MAPPINGS));
 
-        mergeNode.put("type", "merge_table_processor");
-        mergeNode.put("name", "merge");
-        mergeNode.put("id", mergeNodeId);
+        mergeNode.put(KeyWords.TYPE, "merge_table_processor");
+        mergeNode.put(KeyWords.NAME, "merge");
+        mergeNode.put(KeyWords.ID, mergeNodeId);
         mergeNode.put(CATALOG, PROCESSOR);
         mergeNode.put("mergeMode", "main_table_first");
-        mergeNode.put("isTransformed", false);
+        mergeNode.put(KeyWords.IS_TRANSFORMED, false);
         Map<String, Object> rootProperties = new HashMap<>();
-        rootProperties.put("targetPath", "");
-        rootProperties.put("id", sourceToJs.get(rootNodeId));
-        rootProperties.put(RM_ID_KEY, rootNodeId);
+        rootProperties.put(KeyWords.TARGET_PATH, KeyWords.EMPTY);
+        rootProperties.put(KeyWords.ID, sourceToJs.get(rootNodeId));
+        rootProperties.put(RM_ID, rootNodeId);
         rootProperties.put("mergeType", "updateOrInsert");
         TablePathInfo tablePathInfo = getTablePathInfo(contentMapping, rootNodeId);
         String tpTable = tablePathInfo.getTable();
-        rootProperties.put("tableName", tpTable);
-        genProperties(rootProperties, contentMapping, relationshipsMapping, full, sourceToJs, renameFields, contentDeleteOperations, contentRenameOperations);
+        rootProperties.put(KeyWords.TABLE_NAME, tpTable);
+        GenericPropertiesParam propertiesParam = GenericPropertiesParam.of()
+                .withParent(rootProperties)
+                .withContentMapping(contentMapping)
+                .withRelationshipsMapping(relationshipsMapping)
+                .withFull(full)
+                .withSourceToJS(sourceToJs)
+                .withRenameFields(renameFields)
+                .withContentDeleteOperations(contentDeleteOperations).withContentRenameOperations(contentRenameOperations);
+        genericProperties(propertiesParam);
         mergeProperties.add(rootProperties);
         mergeNode.put("mergeProperties", mergeProperties);
         boolean needMergeNode = true;
-        List<Object> children = (List<Object>) rootProperties.get("children");
+        List<Object> children = (List<Object>) rootProperties.get(KeyWords.CHILDREN);
         if (children == null || children.isEmpty()) {
             needMergeNode = false;
         }
@@ -241,24 +245,23 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
         Map<String, Map<String, Map<String, Object>>> renameFields = param.getRenameFields();
         Map<String, List<Map<String, Object>>> contentRenameOperations = param.getContentRenameOperations();
         Map<String, List<Map<String, Object>>> contentDeleteOperations = param.getContentDeleteOperations();
-        Map<String, Object> schema = parseMap(getFromMap(relMigInfo, KeyWords.SCHEMA));
         nodes.add(mergeNode);
         for (String sourceId : sourceNodes) {
             Map<String, Object> edge = new HashMap<>();
-            edge.put("source", sourceId);
-            edge.put("target", mergeNodeId);
+            edge.put(KeyWords.SOURCE, sourceId);
+            edge.put(KeyWords.TARGET, mergeNodeId);
             edges.add(edge);
         }
         contentDeleteOperations.forEach((k, v) -> {
             Map<String, Object> contentMappingValue = parseMap(getFromMap(contentMapping, k));
             TablePathInfo pathInfo = getTablePathInfo(contentMappingValue);
             String finalTable = pathInfo.getTable();
-            v.removeIf((delOp) -> {
-                boolean flag = Boolean.TRUE.equals(delOp.get("isPk"));
+            v.removeIf(delOp -> {
+                boolean flag = Boolean.TRUE.equals(delOp.get(KeyWords.IS_PK));
                 if (flag) {
                     Map<String, Map<String, Object>> map = renameFields.get(finalTable);
-                    String name = delOp.get("field").toString();
-                    Map<String, Object> renameOperation = getRenameOperation(name, map.get(name).get("target").toString());
+                    String name = delOp.get(KeyWords.FIELD).toString();
+                    Map<String, Object> renameOperation = getRenameOperation(name, map.get(name).get(KeyWords.TARGET).toString());
                     contentRenameOperations.get(k).add(renameOperation);
                 }
                 return flag;
@@ -290,9 +293,9 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
         List<Map<String, Object>> tpTasks = getTaskInfoList();
         for (Map<String, Object> task : tpTasks) {
             task.put("editVersion", System.currentTimeMillis());
-            task.put("syncType", "sync");
-            task.put("type", "initial_sync+cdc");
-            task.put("mappingTemplate", "sync");
+            task.put("syncType", KeyWords.SYNC);
+            task.put(KeyWords.TYPE, "initial_sync+cdc");
+            task.put("mappingTemplate", KeyWords.SYNC);
             task.put("status", "edit");
             task.put("user_id", user.getUserId());
             task.put("customId", user.getCustomerId());
@@ -309,7 +312,7 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
             // 把源节点都加进去, 这里如果有一些 字段改名, 或者新字段生成的操作, 增加一个 JS 处理器
             Map<String, List<Map<String, Object>>> contentDeleteOperations = new HashMap<>();
             Map<String, List<Map<String, Object>>> contentRenameOperations = new HashMap<>();
-            List<String> sourceNodes = addJsNode(AddJsNodeParam.of().withSourceConnectionId(sourceConnectionId)
+            List<String> sourceNodes = addJsNodeIfInNeed(AddJsNodeParam.of().withSourceConnectionId(sourceConnectionId)
                     .withRenameFields(renameFields)
                     .withSourceToJs(sourceToJs)
                     .withContentMapping(contentMapping).withContentDeleteOperations(contentDeleteOperations)
@@ -317,33 +320,19 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
                     .withTask(task)
                     .withEdges(edges)
                     .withNodes(nodes));
-
-            String rootNodeId = "";
-            String rootTableName = "";
+            String rootTableName = KeyWords.EMPTY;
             Map<String, Object> rootContentMappingValue = new HashMap<>();
-            for (String key : contentMapping.keySet()) {
-                Map<String, Object> contentMappingValue = parseMap(getFromMap(contentMapping, key));
-                if (!contentMappingValue.get("collectionId").equals(task.get("id"))) {
-                    continue;
-                }
-                Map<String, Object> setting = parseMap(getFromMap(contentMappingValue, "settings"));
-                if (setting == null) {
-                    continue;
-                }
-                String type = (String) setting.get("type");
-                if (type == null) {
-                    continue;
-                }
-                if (type.equals("NEW_DOCUMENT")) {
-                    rootNodeId = key;
-                    rootContentMappingValue = contentMappingValue;
-                    TablePathInfo table = getTablePathInfo(rootContentMappingValue);
-                    rootTableName = table.getTable();
-                    break;
-                }
+            List<String> keyAfterFilterByNewDocument = contentMapping.keySet().stream()
+                    .filter(key -> keyAfterByNewDocumentFilter(key, contentMapping, task))
+                    .collect(Collectors.toList());
+            String rootNodeId = KeyWords.EMPTY;
+            if(!keyAfterFilterByNewDocument.isEmpty()) {
+                rootNodeId = keyAfterFilterByNewDocument.get(0);
+                rootContentMappingValue = parseMap(getFromMap(contentMapping, rootNodeId));
+                TablePathInfo table = getTablePathInfo(rootContentMappingValue);
+                rootTableName = table.getTable();
             }
-
-            if (rootNodeId == null || rootNodeId.equals("")) {
+            if (StringUtils.isBlank(rootNodeId)) {
                 continue;
             }
 
@@ -373,41 +362,52 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
 
             // 把目标节点加进去
             Map<String, Object> targetNode = new HashMap<>();
-            targetNode.put("type", "table");
+            targetNode.put(KeyWords.TYPE, KeyWords.TABLE);
             targetNode.put("existDataProcessMode", "keepData");
-            targetNode.put("name", targetModelName);
-            targetNode.put("id", task.get("id"));
-            targetNode.put("connectionId", targetConnectionId);
-            targetNode.put("tableName", targetModelName);
+            targetNode.put(KeyWords.NAME, targetModelName);
+            targetNode.put(KeyWords.ID, task.get(KeyWords.ID));
+            targetNode.put(KeyWords.CONNECTION_ID, targetConnectionId);
+            targetNode.put(KeyWords.TABLE_NAME, targetModelName);
             List<String> updateConditionFields = new ArrayList<>();
             Map<String, Map<String, Object>> rootRenameFields = renameFields.get(rootTableName);
-            Map<String, Object> rootFields = parseMap(getFromMap(rootContentMappingValue, "fields"));
+            Map<String, Object> rootFields = parseMap(getFromMap(rootContentMappingValue, KeyWords.FIELDS));
             for (String field : rootFields.keySet()) {
                 Map<String, Object> fieldMap = parseMap(getFromMap(rootFields, field));
-                Map<String, Object> source = parseMap(getFromMap(fieldMap, "source"));
-                Boolean isPrimaryKey = (Boolean) source.get("isPrimaryKey");
-                if (isPrimaryKey != null && isPrimaryKey) {
-                    updateConditionFields.add(rootRenameFields.get(field).get("target").toString());
+                Map<String, Object> source = parseMap(getFromMap(fieldMap, KeyWords.SOURCE));
+                if (Boolean.TRUE.equals(source.get(KeyWords.IS_PRIMARY_KEY))) {
+                    updateConditionFields.add(rootRenameFields.get(field).get(KeyWords.TARGET).toString());
                 }
             }
 
             targetNode.put("updateConditionFields", updateConditionFields);
             nodes.add(targetNode);
             Map<String, Object> edge = new HashMap<>();
-            if (needMergeNode) {
-                edge.put("source", mergeNodeId);
-            } else {
-                edge.put("source", sourceNodes.get(0));
-            }
-            edge.put("target", targetNode.get("id"));
+            edge.put(KeyWords.SOURCE, needMergeNode ? mergeNodeId : sourceNodes.get(0));
+            edge.put(KeyWords.TARGET, targetNode.get(KeyWords.ID));
             edges.add(edge);
 
             dag.put("nodes", nodes);
             dag.put("edges", edges);
             task.put("dag", dag);
-            parsedTpTasks.put((String) task.get("id"), JsonUtil.toJson(task));
+            parsedTpTasks.put((String) task.get(KeyWords.ID), JsonUtil.toJson(task));
         }
         return parsedTpTasks;
+    }
+    
+    protected boolean keyAfterByNewDocumentFilter(String key, Map<String, Object> contentMapping, Map<String, Object> task) {
+        Map<String, Object> contentMappingValue = parseMap(getFromMap(contentMapping, key));
+        if (!contentMappingValue.get(KeyWords.COLLECTION_ID).equals(task.get(KeyWords.ID))) {
+            return false;
+        }
+        Map<String, Object> setting = parseMap(getFromMap(contentMappingValue, KeyWords.SETTINGS));
+        if (Objects.isNull(setting)) {
+            return false;
+        }
+        Object type = setting.get(KeyWords.TYPE);
+        if (Objects.isNull(type)) {
+            return false;
+        }
+        return KeyWords.NEW_DOCUMENT.equals(type);
     }
 
     public void resetMap(Map<String, Object> map, Map<String, String> globalIdMap) {
@@ -422,7 +422,6 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
 
     public void replaceRmProjectId() {
         Map<String, String> globalIdMap = new HashMap<>();
-        Map<String, Object> content = parseMap(getFromMap(project, KeyWords.CONTENT));
         Map<String, Object> contentCollections = parseMap(getFromMap(content, KeyWords.COLLECTIONS));
         resetMap(contentCollections, globalIdMap);
 
@@ -432,7 +431,7 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
         Set<String> contentMappingKeys = new HashSet<>(contentMapping.keySet());
         for (String key : contentMappingKeys) {
             Map<String, Object> mapping = parseMap(getFromMap(contentMapping, key));
-            mapping.put("collectionId", replaceId((String) mapping.get("collectionId"), globalIdMap));
+            mapping.put(KeyWords.COLLECTION_ID, replaceId((String) mapping.get(KeyWords.COLLECTION_ID), globalIdMap));
         }
         replaceRelationShipsKey(globalIdMap, content);
     }
@@ -440,19 +439,19 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
     public String addJSNode(String tpTable, String script, String declareScript, List<Map<String, Object>> nodes, String sourceId, List<Map<String, Object>> edges) {
         String jsId = UUID.randomUUID().toString().toLowerCase();
         Map<String, Object> jsNode = new HashMap<>();
-        jsNode.put("type", "js_processor");
-        jsNode.put("name", tpTable);
-        jsNode.put("id", jsId);
+        jsNode.put(KeyWords.TYPE, "js_processor");
+        jsNode.put(KeyWords.NAME, tpTable);
+        jsNode.put(KeyWords.ID, jsId);
         jsNode.put("jsType", 1);
         jsNode.put(PROCESSOR_THREAD_NUM, 1);
         jsNode.put(CATALOG, PROCESSOR);
-        jsNode.put(ELEMENT_TYPE, "Node");
+        jsNode.put(ELEMENT_TYPE, KeyWords.NODE);
         jsNode.put("script", script);
         jsNode.put("declareScript", declareScript);
         nodes.add(jsNode);
         Map<String, Object> edge = new HashMap<>();
-        edge.put("source", sourceId);
-        edge.put("target", jsId);
+        edge.put(KeyWords.SOURCE, sourceId);
+        edge.put(KeyWords.TARGET, jsId);
         edges.add(edge);
         return jsId;
     }
@@ -460,19 +459,19 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
     public String addRenameNode(String tpTable, List<Map<String, Object>> renameOperations, String sourceId, List<Map<String, Object>> nodes, List<Map<String, Object>> edges) {
         Map<String, Object> renameNode = new HashMap<>();
         String renameId = UUID.randomUUID().toString().toLowerCase();
-        renameNode.put("id", renameId);
+        renameNode.put(KeyWords.ID, renameId);
         renameNode.put(CATALOG, PROCESSOR);
-        renameNode.put(ELEMENT_TYPE, "Node");
-        renameNode.put("fieldsNameTransform", "");
-        renameNode.put("isTransformed", false);
-        renameNode.put("name", "Rename " + tpTable);
+        renameNode.put(ELEMENT_TYPE, KeyWords.NODE);
+        renameNode.put("fieldsNameTransform", KeyWords.EMPTY);
+        renameNode.put(KeyWords.IS_TRANSFORMED, false);
+        renameNode.put(KeyWords.NAME, "Rename " + tpTable);
         renameNode.put(PROCESSOR_THREAD_NUM, 1);
-        renameNode.put("type", "field_rename_processor");
+        renameNode.put(KeyWords.TYPE, "field_rename_processor");
         nodes.add(renameNode);
-        renameNode.put("operations", renameOperations);
+        renameNode.put(KeyWords.OPERATIONS, renameOperations);
         Map<String, Object> edge = new HashMap<>();
-        edge.put("source", sourceId);
-        edge.put("target", renameId);
+        edge.put(KeyWords.SOURCE, sourceId);
+        edge.put(KeyWords.TARGET, renameId);
         edges.add(edge);
         sourceId = renameId;
         return sourceId;
@@ -481,18 +480,18 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
     public String addDeleteNode(String tpTable, List<Map<String, Object>> deleteOperations, String sourceId, List<Map<String, Object>> nodes, List<Map<String, Object>> edges) {
         Map<String, Object> deleteNode = new HashMap<>();
         String deleteId = UUID.randomUUID().toString().toLowerCase();
-        deleteNode.put("id", deleteId);
+        deleteNode.put(KeyWords.ID, deleteId);
         deleteNode.put(CATALOG, PROCESSOR);
         deleteNode.put("deleteAllFields", false);
-        deleteNode.put(ELEMENT_TYPE, "Node");
-        deleteNode.put("name", "Delete " + tpTable);
-        deleteNode.put("type", "field_add_del_processor");
+        deleteNode.put(ELEMENT_TYPE, KeyWords.NODE);
+        deleteNode.put(KeyWords.NAME, "Delete " + tpTable);
+        deleteNode.put(KeyWords.TYPE, "field_add_del_processor");
         deleteNode.put(PROCESSOR_THREAD_NUM, 1);
-        deleteNode.put("operations", deleteOperations);
+        deleteNode.put(KeyWords.OPERATIONS, deleteOperations);
         nodes.add(deleteNode);
         Map<String, Object> edge = new HashMap<>();
-        edge.put("source", sourceId);
-        edge.put("target", deleteId);
+        edge.put(KeyWords.SOURCE, sourceId);
+        edge.put(KeyWords.TARGET, deleteId);
         edges.add(edge);
         sourceId = deleteId;
         return sourceId;
@@ -500,28 +499,28 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
 
     public Map<String, Object> getDeleteOperation(Object deleteFieldName, Object isPrimaryKey) {
         Map<String, Object> deleteOperation = new HashMap<>();
-        deleteOperation.put("id", UUID.randomUUID().toString().toLowerCase());
-        deleteOperation.put("field", deleteFieldName);
-        deleteOperation.put("op", "REMOVE");
-        deleteOperation.put("operand", "true");
+        deleteOperation.put(KeyWords.ID, UUID.randomUUID().toString().toLowerCase());
+        deleteOperation.put(KeyWords.FIELD, deleteFieldName);
+        deleteOperation.put(KeyWords.OP, "REMOVE");
+        deleteOperation.put(KeyWords.OPERAND, "true");
         deleteOperation.put("label", deleteFieldName);
-        deleteOperation.put("isPk", isPrimaryKey);
+        deleteOperation.put(KeyWords.IS_PK, isPrimaryKey);
         return deleteOperation;
     }
 
     public Map<String, Object> getRenameOperation(Object source, Object target) {
         Map<String, Object> fieldRenameOperation = new HashMap<>();
-        fieldRenameOperation.put("id", UUID.randomUUID().toString().toLowerCase());
-        fieldRenameOperation.put("field", source);
-        fieldRenameOperation.put("op", "RENAME");
-        fieldRenameOperation.put("operand", target);
+        fieldRenameOperation.put(KeyWords.ID, UUID.randomUUID().toString().toLowerCase());
+        fieldRenameOperation.put(KeyWords.FIELD, source);
+        fieldRenameOperation.put(KeyWords.OP, "RENAME");
+        fieldRenameOperation.put(KeyWords.OPERAND, target);
         return fieldRenameOperation;
     }
 
     public Map<String, Object> getNewNameMap(Map<String, Object> target, Map<String, Object> source) {
         Map<String, Object> newName = new HashMap<>();
-        newName.put("target", target.get("name").toString());
-        newName.put("isPrimaryKey", (Boolean) source.get("isPrimaryKey"));
+        newName.put(KeyWords.TARGET, target.get(KeyWords.NAME).toString());
+        newName.put(KeyWords.IS_PRIMARY_KEY, source.get(KeyWords.IS_PRIMARY_KEY));
         return newName;
     }
 
@@ -537,10 +536,12 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
             case 2:
                 tablePathInfo.setSchema(tablePathAfterSplit[0]);
                 tablePathInfo.setTable(tablePathAfterSplit[1]);
+                break;
             case 3:
                 tablePathInfo.setDatabase(tablePathAfterSplit[0]);
                 tablePathInfo.setSchema(tablePathAfterSplit[1]);
                 tablePathInfo.setTable(tablePathAfterSplit[2]);
+                break;
             default:
         }
         return tablePathInfo;
@@ -569,78 +570,85 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
         childNode.put(KeyWords.ARRAY_KEYS, arrayKeys);
     }
 
-    public void genProperties(Map<String, Object> parent, Map<String, Object> contentMapping, Map<String, Object> relationshipsMapping, Map<String, Object> full, Map<String, String> sourceToJS, Map<String, Map<String, Map<String, Object>>> renameFields, Map<String, List<Map<String, Object>>> contentDeleteOperations, Map<String, List<Map<String, Object>>> contentRenameOperations) {
-        String parentId = (String) parent.get(RM_ID_KEY);
+    public void genericProperties(GenericPropertiesParam param) {
+        Map<String, Object> parent = param.getParent();
+        Map<String, Object> relationshipsMapping = param.getRelationshipsMapping();
+        String parentId = (String) parent.get(RM_ID);
         List<String> children = (List<String>) (parseMap(getFromMap(relationshipsMapping, parentId))).get(KeyWords.CHILDREN);
-        if (children == null || children.size() == 0) {
-            return;
+        if (!CollUtil.isEmpty(children)) {
+            List<Map<String, Object>> childrenNode = new ArrayList<>();
+            children.stream().forEach(child -> childrenNode.add(scanOneChildren(param, child)));
+            parent.put(KeyWords.CHILDREN, childrenNode);
         }
-        List<Map<String, Object>> childrenNode = new ArrayList<>();
-        for (String child : children) {
-            Map<String, Object> childNode = new HashMap<>();
-            Map<String, Object> map = parseMap(getFromMap(contentMapping, child));
-            Map<String, Object> setting = parseMap(getFromMap(map, KeyWords.SETTINGS));
+    }
+    
+    public Map<String, Object> scanOneChildren(GenericPropertiesParam param, String child) {
+        Map<String, Object> parent = param.getParent();
+        String parentId = (String) parent.get(RM_ID);
+        Map<String, Object> contentMapping = param.getContentMapping();
+        Map<String, Object> full = param.getFull();
+        Map<String, String> sourceToJS = param.getSourceToJS();
+        Map<String, Object> relationshipsMapping = param.getRelationshipsMapping();
+        Map<String, Map<String, Map<String, Object>>> renameFields = param.getRenameFields();
+        Map<String, List<Map<String, Object>>> contentDeleteOperations = param.getContentDeleteOperations();
+        Map<String, List<Map<String, Object>>> contentRenameOperations = param.getContentRenameOperations();
+        Map<String, Object> childNode = new HashMap<>();
+        Map<String, Object> map = parseMap(getFromMap(contentMapping, child));
+        Map<String, Object> setting = parseMap(getFromMap(map, KeyWords.SETTINGS));
 
-            TablePathInfo tableInfo = getTablePathInfo(contentMapping, child);
-            Map<String, Object> tables = getTableSchema(full, tableInfo);
+        TablePathInfo tableInfo = getTablePathInfo(contentMapping, child);
+        Map<String, Object> tables = getTableSchema(full, tableInfo);
 
-            String tpTable = tableInfo.getTable();
-            List<Map<String, String>> joinKeys = new ArrayList<>();
-            Map<String, Object> currentTable = parseMap(getFromMap(tables, tpTable));
-            Map<String, Object> currentColumns = parseMap(getFromMap(currentTable, KeyWords.COLUMNS));
-            Map<String, Map<String, Object>> currentRenameFields = renameFields.get(tpTable);
-            Map<String, Object> parentTable = parseMap(getFromMap(tables, String.valueOf(parent.get(KeyWords.TABLE_NAME))));
-            Map<String, Object> parentColumns = parseMap(getFromMap(parentTable, KeyWords.COLUMNS));
-            Map<String, Map<String, Object>> parentRenameFields = renameFields.get(String.valueOf(parent.get(KeyWords.TABLE_NAME)));
+        String tpTable = tableInfo.getTable();
+        List<Map<String, String>> joinKeys = new ArrayList<>();
+        Map<String, Object> currentTable = parseMap(getFromMap(tables, tpTable));
+        Map<String, Object> currentColumns = parseMap(getFromMap(currentTable, KeyWords.COLUMNS));
+        Map<String, Map<String, Object>> currentRenameFields = renameFields.get(tpTable);
+        Map<String, Object> parentTable = parseMap(getFromMap(tables, String.valueOf(parent.get(KeyWords.TABLE_NAME))));
+        Map<String, Object> parentColumns = parseMap(getFromMap(parentTable, KeyWords.COLUMNS));
+        Map<String, Map<String, Object>> parentRenameFields = renameFields.get(String.valueOf(parent.get(KeyWords.TABLE_NAME)));
 
-            String parentTargetPath = (String) parent.get(KeyWords.TARGET_PATH);
-            if (parentTargetPath == null) {
-                parentTargetPath = KeyWords.EMPTY;
-            }
-            String mergeType = KeyWords.UPDATE_WRITE;
-            String targetPath = KeyWords.EMPTY;
-            String type = String.valueOf(setting.get(KeyWords.TYPE)).toUpperCase();
-            switch (type) {
-                case KeyWords.NEW_DOCUMENT:
-                    targetPath = parentTargetPath;
-                    break;
-                case KeyWords.EMBEDDED_DOCUMENT:
-                    targetPath = getEmbeddedDocumentPath(parentTargetPath, setting);
-                    break;
-                case KeyWords.EMBEDDED_DOCUMENT_ARRAY:
-                    final String embeddedPath = String.valueOf(setting.get(KeyWords.EMBEDDED_PATH));
-                    if (!KeyWords.EMPTY.equals(parentTargetPath)) {
-                        targetPath = embeddedPath;
-                    } else {
-                        targetPath = String.format(KeyWords.FROMAT, parentTargetPath, embeddedPath) ;
-                    }
-                    mergeType = KeyWords.UPDATE_INTO_ARRAY;
-                    Map<String, Object> fields = parseMap(getFromMap(map, KeyWords.FIELDS));
-                    scanAllFieldKeys(currentRenameFields, childNode, fields);
-                    break;
-                default:
-                    // doNothing
-            }
+        String parentTargetPath = (String) Optional.ofNullable(parent.get(KeyWords.TARGET_PATH)).orElse(KeyWords.EMPTY);
+        String mergeType = KeyWords.UPDATE_WRITE;
+        String targetPath = KeyWords.EMPTY;
+        String type = String.valueOf(setting.get(KeyWords.TYPE)).toUpperCase();
+        switch (type) {
+            case KeyWords.NEW_DOCUMENT:
+                targetPath = parentTargetPath;
+                break;
+            case KeyWords.EMBEDDED_DOCUMENT:
+                targetPath = getEmbeddedDocumentPath(parentTargetPath, setting);
+                break;
+            case KeyWords.EMBEDDED_DOCUMENT_ARRAY:
+                final String embeddedPath = String.valueOf(setting.get(KeyWords.EMBEDDED_PATH));
+                targetPath = KeyWords.EMPTY.equals(parentTargetPath) ?
+                        String.format(KeyWords.FROMAT, parentTargetPath, embeddedPath)
+                        : embeddedPath;
+                mergeType = KeyWords.UPDATE_INTO_ARRAY;
+                Map<String, Object> fields = parseMap(getFromMap(map, KeyWords.FIELDS));
+                scanAllFieldKeys(currentRenameFields, childNode, fields);
+                break;
+            default:
+                // doNothing
+        }
 
 
-            childNode.put(KeyWords.TARGET_PATH, targetPath);
-            childNode.put(KeyWords.MERGE_TYPE, mergeType);
+        childNode.put(KeyWords.TARGET_PATH, targetPath);
+        childNode.put(KeyWords.MERGE_TYPE, mergeType);
 
-            childNode.put(KeyWords.TABLE_NAME, tpTable);
-            childNode.put(KeyWords.CHILDREN, new ArrayList<>());
-            childNode.put(KeyWords.ID, sourceToJS.get(child));
-            childNode.put(RM_ID_KEY, child);
+        childNode.put(KeyWords.TABLE_NAME, tpTable);
+        childNode.put(KeyWords.CHILDREN, new ArrayList<>());
+        childNode.put(KeyWords.ID, sourceToJS.get(child));
+        childNode.put(RM_ID, child);
 
-            // 由于使用外键做关联, 所以似乎 RM 只能合并来自一个源的数据, 所以 tables 表结构使用其中一个就可以
+        // 由于使用外键做关联, 所以似乎 RM 只能合并来自一个源的数据, 所以 tables 表结构使用其中一个就可以
 
-            Map<String, Map<String, String>> sourceJoinKeyMapping = new HashMap<>();
-            Map<String, Map<String, String>> targetJoinKeyMapping = new HashMap<>();
-            for (String columnKey : currentColumns.keySet()) {
-                Map<String, Object> column = parseMap(getFromMap(currentColumns, columnKey));
-                Map<String, Object> foreignKey = parseMap(getFromMap(column, KeyWords.FOREIGN_KEY));
-                if (foreignKey == null) {
-                    continue;
-                }
+        Map<String, Map<String, String>> sourceJoinKeyMapping = new HashMap<>();
+        Map<String, Map<String, String>> targetJoinKeyMapping = new HashMap<>();
+        for (String columnKey : currentColumns.keySet()) {
+            Map<String, Object> column = parseMap(getFromMap(currentColumns, columnKey));
+            Optional.ofNullable(getFromMap(column, KeyWords.FOREIGN_KEY)).ifPresent(fk -> {
+                Map<String, Object> foreignKey = parseMap(fk);
                 if (String.valueOf(foreignKey.get(KeyWords.TABLE)).equals(parent.get(KeyWords.TABLE_NAME))) {
                     Map<String, String> joinKey = new HashMap<>();
                     String sourceJoinKey = currentRenameFields.get(columnKey).get(KeyWords.TARGET).toString();
@@ -663,20 +671,27 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
                     targetJoinKeyMapping.put(targetJoinKey, targetNewFieldMap);
                     joinKeys.add(joinKey);
                 }
-            }
-
-            parentColumnsFindJoinKeys(parent, renameFields, parentColumns, tpTable, joinKeys, sourceJoinKeyMapping, targetJoinKeyMapping);
-            childNode.put(KeyWords.JOIN_KEYS, joinKeys);
-            joinKeys.forEach(joinKeyMap -> {
-                String sourceJoinKey = joinKeyMap.get(KeyWords.SOURCE);
-                addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations, contentRenameOperations, child, sourceJoinKeyMapping, sourceJoinKey);
-                String targetJoinKey = joinKeyMap.get(KeyWords.TARGET);
-                addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations, contentRenameOperations, parentId, targetJoinKeyMapping, targetJoinKey);
             });
-            genProperties(childNode, contentMapping, relationshipsMapping, full, sourceToJS, renameFields, contentDeleteOperations, contentRenameOperations);
-            childrenNode.add(childNode);
         }
-        parent.put(KeyWords.CHILDREN, childrenNode);
+
+        parentColumnsFindJoinKeys(parent, renameFields, parentColumns, tpTable, joinKeys, sourceJoinKeyMapping, targetJoinKeyMapping);
+        childNode.put(KeyWords.JOIN_KEYS, joinKeys);
+        joinKeys.forEach(joinKeyMap -> {
+            String sourceJoinKey = joinKeyMap.get(KeyWords.SOURCE);
+            addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations, contentRenameOperations, child, sourceJoinKeyMapping, sourceJoinKey);
+            String targetJoinKey = joinKeyMap.get(KeyWords.TARGET);
+            addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations, contentRenameOperations, parentId, targetJoinKeyMapping, targetJoinKey);
+        });
+        GenericPropertiesParam propertiesParam = GenericPropertiesParam.of()
+                .withParent(childNode)
+                .withContentMapping(contentMapping)
+                .withRelationshipsMapping(relationshipsMapping)
+                .withFull(full)
+                .withSourceToJS(sourceToJS)
+                .withRenameFields(renameFields)
+                .withContentDeleteOperations(contentDeleteOperations).withContentRenameOperations(contentRenameOperations);
+        genericProperties(propertiesParam);
+        return childNode;
     }
 
     public String replaceId(String id, Map<String, String> globalIdMap) {
@@ -689,10 +704,10 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
     }
 
     public void replaceRelationShipsKey(Map<String, String> globalIdMap, Map<String, Object> content) {
-        Map<String, Object> relationships = content.get("relationships") == null ? new HashMap<>() : parseMap(getFromMap(content, "relationships"));
-        Map<String, Object> relationshipsCollection = relationships.get("collections") == null ? new HashMap<>() : parseMap(getFromMap(relationships, "collections"));
+        Map<String, Object> relationships = content.get(KeyWords.RELATIONSHIPS) == null ? new HashMap<>() : parseMap(getFromMap(content, KeyWords.RELATIONSHIPS));
+        Map<String, Object> relationshipsCollection = relationships.get(KeyWords.COLLECTIONS) == null ? new HashMap<>() : parseMap(getFromMap(relationships, KeyWords.COLLECTIONS));
         Set<String> relationshipsCollectionKeys = new HashSet<>(relationshipsCollection.keySet());
-        Map<String, Object> relationshipsMapping = relationships.get("mappings") == null ? new HashMap<>() : parseMap(getFromMap(relationships, KeyWords.MAPPINGS));
+        Map<String, Object> relationshipsMapping = relationships.get(KeyWords.MAPPINGS) == null ? new HashMap<>() : parseMap(getFromMap(relationships, KeyWords.MAPPINGS));
         for (String key : relationshipsCollectionKeys) {
             Map<String, Object> collection = parseMap(getFromMap(relationshipsCollection, key));
             String replaceKey = replaceId(key, globalIdMap);
@@ -706,7 +721,7 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
             for (String oldMappingId : oldMappingIds) {
                 newMappingIds.add(replaceId(oldMappingId, globalIdMap));
             }
-            collection.put("mappings", newMappingIds);
+            collection.put(KeyWords.MAPPINGS, newMappingIds);
         }
 
         Set<String> relationshipsMappingKeys = new HashSet<>(relationshipsMapping.keySet());
@@ -719,63 +734,65 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
 
         for (String key : relationshipsMapping.keySet()) {
             Map<String, Object> mapping = parseMap(getFromMap(relationshipsMapping, key));
-            List<String> oldChildren = (List<String>) mapping.get("children");
+            List<String> oldChildren = (List<String>) mapping.get(KeyWords.CHILDREN);
             List<String> newChildren = new ArrayList<>();
             for (String oldChild : oldChildren) {
                 newChildren.add(replaceId(oldChild, globalIdMap));
             }
-            mapping.put("children", newChildren);
+            mapping.put(KeyWords.CHILDREN, newChildren);
         }
     }
 
     public Map<String, Object> getTableSchema(Map<String, Object> full, TablePathInfo tableInfo) {
-        Map<String, Object> databasesLayer = parseMap(getFromMap(full, "databases"));
+        Map<String, Object> databasesLayer = parseMap(getFromMap(full, KeyWords.DATABASE));
         Map<String, Object> currentDatabaseSchema = parseMap(getFromMap(databasesLayer, tableInfo.getDatabase()));
-        Map<String, Object> schemasLayer = parseMap(getFromMap(currentDatabaseSchema, "schemas"));
+        Map<String, Object> schemasLayer = parseMap(getFromMap(currentDatabaseSchema, KeyWords.SCHEMA));
         Map<String, Object> currentSchema = parseMap(getFromMap(schemasLayer, tableInfo.getSchema()));
-        return parseMap(getFromMap(currentSchema, "tables"));
+        return parseMap(getFromMap(currentSchema, KeyWords.TABLES));
     }
 
     public String getEmbeddedDocumentPath(String parentTargetPath, Map<String, Object> setting) {
         String targetPath;
-        if (parentTargetPath.equals("")) {
-            targetPath = String.valueOf(setting.get("embeddedPath"));
+        if (KeyWords.EMPTY.equals(parentTargetPath)) {
+            targetPath = String.valueOf(setting.get(KeyWords.EMBEDDED_PATH));
         } else {
-            Object embeddedPath = setting.get("embeddedPath");
+            Object embeddedPath = setting.get(KeyWords.EMBEDDED_PATH);
             if (null == embeddedPath || StringUtils.isBlank(String.valueOf(embeddedPath))) {
                 targetPath = parentTargetPath;
             } else {
-                targetPath = parentTargetPath + "." + String.valueOf(embeddedPath);
+                targetPath = String.format(KeyWords.FROMAT, parentTargetPath, embeddedPath);
             }
         }
         return targetPath;
     }
 
     public void parentColumnsFindJoinKeys(Map<String, Object> parent, Map<String, Map<String, Map<String, Object>>> renameFields, Map<String, Object> parentColumns, String tpTable, List<Map<String, String>> joinKeys, Map<String, Map<String, String>> souceJoinKeyMapping, Map<String, Map<String, String>> targetJoinKeyMapping) {
-        Map<String, Map<String, Object>> parentRenameFields = renameFields.get((String) parent.get("tableName"));
+        Object tableName = parent.get(KeyWords.TABLE_NAME);
+        Map<String, Map<String, Object>> parentRenameFields = renameFields.get(String.valueOf(tableName));
         for (String columnKey : parentColumns.keySet()) {
             Map<String, Object> column = parseMap(getFromMap(parentColumns, columnKey));
-            Map<String, Object> foreignKey = parseMap(getFromMap(column, "foreignKey"));
+            Map<String, Object> foreignKey = parseMap(getFromMap(column, KeyWords.FOREIGN_KEY));
             if (foreignKey == null) {
                 continue;
             }
-            if (null != tpTable && tpTable.equals(foreignKey.get("table"))) {
+            if (null != tpTable && tpTable.equals(foreignKey.get(KeyWords.TABLE))) {
                 Map<String, String> joinKey = new HashMap<>();
-                String sourceJoinKey = renameFields.get(tpTable).get(((String) foreignKey.get("column"))).get("target").toString();
+                Object columnObj = foreignKey.get(KeyWords.COLUMN);
+                String sourceJoinKey = renameFields.get(tpTable).get(String.valueOf(columnObj)).get(KeyWords.TARGET).toString();
                 Map<String, String> sourceNewFieldMap = new HashMap<>();
-                sourceNewFieldMap.put("source", (String) foreignKey.get("column"));
-                sourceNewFieldMap.put("target", sourceJoinKey);
+                sourceNewFieldMap.put(KeyWords.SOURCE, (String) foreignKey.get(KeyWords.COLUMN));
+                sourceNewFieldMap.put(KeyWords.TARGET, sourceJoinKey);
                 souceJoinKeyMapping.put(sourceJoinKey, sourceNewFieldMap);
-                joinKey.put("source", sourceJoinKey);
+                joinKey.put(KeyWords.SOURCE, sourceJoinKey);
                 Map<String, String> targetNewFieldMap = new HashMap<>();
-                String targetJoinKey = parentRenameFields.get(columnKey).get("target").toString();
-                targetNewFieldMap.put("source", columnKey);
-                targetNewFieldMap.put("target", targetJoinKey);
-                String targetPath = parent.get("targetPath").toString();
+                String targetJoinKey = parentRenameFields.get(columnKey).get(KeyWords.TARGET).toString();
+                targetNewFieldMap.put(KeyWords.SOURCE, columnKey);
+                targetNewFieldMap.put(KeyWords.TARGET, targetJoinKey);
+                String targetPath = parent.get(KeyWords.TARGET_PATH).toString();
                 if (!StringUtils.isBlank(targetPath)) {
-                    targetJoinKey = targetPath + "." + targetJoinKey;
+                    targetJoinKey = String.format(KeyWords.FROMAT, targetPath, targetJoinKey);
                 }
-                joinKey.put("target", targetJoinKey);
+                joinKey.put(KeyWords.TARGET, targetJoinKey);
                 targetJoinKeyMapping.put(targetJoinKey, targetNewFieldMap);
                 joinKeys.add(joinKey);
             }
@@ -787,17 +804,17 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto, RelMigBase
         boolean removeJoinKeyFlag = removeDeleteOperation(childDeleteOperations, joinKeyMapping, joinKey);
         if (removeJoinKeyFlag) {
             List<Map<String, Object>> childRenameOperations = contentRenameOperations.get(tableId);
-            Map<String, Object> renameOperation = getRenameOperation(joinKeyMapping.get(joinKey).get("source"), joinKeyMapping.get(joinKey).get("target"));
+            Map<String, Object> renameOperation = getRenameOperation(joinKeyMapping.get(joinKey).get(KeyWords.SOURCE), joinKeyMapping.get(joinKey).get(KeyWords.TARGET));
             childRenameOperations.add(renameOperation);
         }
     }
 
     public boolean removeDeleteOperation(List<Map<String, Object>> deleteOperations, Map<String, Map<String, String>> joinKeyMapping, String joinKey) {
-        return deleteOperations.removeIf((delOperations) -> {
-            String deleteField = (String) delOperations.get("field");
+        return deleteOperations.removeIf(delOperations -> {
+            String deleteField = (String) delOperations.get(KeyWords.FIELD);
             Map<String, String> joinKeyInfo = joinKeyMapping.get(joinKey);
             if (null != joinKeyInfo) {
-                String originalField = joinKeyInfo.get("source");
+                String originalField = joinKeyInfo.get(KeyWords.SOURCE);
                 return null != deleteField && deleteField.equals(originalField);
             }
             return false;

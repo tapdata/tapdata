@@ -7,9 +7,6 @@ import com.tapdata.tm.task.service.batchin.ParseRelMigFile;
 public enum ParseRelMigFileVersionMapping {
     V1_2_0("1.2.0", ParseBaseVersionRelMigImpl.class),
     V1_3_0("1.3.0", ParseRelMig13OrMoreImpl.class),
-    V1_4_0("1.4.0", ParseRelMig13OrMoreImpl.class),
-    V1_5_0("1.5.0", ParseRelMig13OrMoreImpl.class),
-    V1_6_0("1.6.0", ParseRelMig13OrMoreImpl.class),
     UN_KNOW("*", ParseRelMig13OrMoreImpl.class)
     ;
     String version;

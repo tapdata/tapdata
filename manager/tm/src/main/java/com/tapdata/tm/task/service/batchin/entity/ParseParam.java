@@ -1,18 +1,16 @@
 package com.tapdata.tm.task.service.batchin.entity;
 
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.task.service.batchin.dto.RelMigBaseDto;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
-public class ParseParam<Dto extends RelMigBaseDto> {
+public class ParseParam {
     MultipartFile multipartFile;
     String source;
     String sink;
     UserDetail user;
 
-    Dto relMig;
     String relMigStr;
     Map<String, Object> relMigInfo;
 
@@ -24,7 +22,7 @@ public class ParseParam<Dto extends RelMigBaseDto> {
         this.multipartFile = multipartFile;
     }
 
-    public ParseParam<Dto> withMultipartFile(MultipartFile multipartFile) {
+    public ParseParam withMultipartFile(MultipartFile multipartFile) {
         this.multipartFile = multipartFile;
         return this;
     }
@@ -37,7 +35,7 @@ public class ParseParam<Dto extends RelMigBaseDto> {
         this.source = source;
     }
 
-    public ParseParam<Dto> withSource(String source) {
+    public ParseParam withSource(String source) {
         this.source = source;
         return this;
     }
@@ -50,7 +48,7 @@ public class ParseParam<Dto extends RelMigBaseDto> {
         this.sink = sink;
     }
 
-    public ParseParam<Dto> withSink(String sink) {
+    public ParseParam withSink(String sink) {
         this.sink = sink;
         return this;
     }
@@ -63,17 +61,9 @@ public class ParseParam<Dto extends RelMigBaseDto> {
         this.user = user;
     }
 
-    public ParseParam<Dto> withUser(UserDetail user) {
+    public ParseParam withUser(UserDetail user) {
         this.user = user;
         return this;
-    }
-
-    public Dto getRelMig() {
-        return relMig;
-    }
-
-    public void setRelMig(Dto relMig) {
-        this.relMig = relMig;
     }
 
     public String getRelMigStr() {

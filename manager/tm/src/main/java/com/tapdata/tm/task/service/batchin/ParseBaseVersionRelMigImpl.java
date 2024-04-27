@@ -1,8 +1,8 @@
 package com.tapdata.tm.task.service.batchin;
 
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.task.service.batchin.dto.RelMigBaseDto;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import org.bson.types.ObjectId;
 
@@ -16,7 +16,7 @@ import java.util.Map;
  * */
 public class ParseBaseVersionRelMigImpl extends ParseRelMigFile {
 
-    public ParseBaseVersionRelMigImpl(ParseParam<RelMigBaseDto> param) {
+    public ParseBaseVersionRelMigImpl(ParseParam param) {
         super(param);
     }
 
@@ -35,8 +35,7 @@ public class ParseBaseVersionRelMigImpl extends ParseRelMigFile {
             }
             return tpTasks;
         } catch (Exception e) {
-            e.printStackTrace();
-            throw e;
+            throw new BizException("relMig.parse.failed", e.getMessage());
         }
     }
 }

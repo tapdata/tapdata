@@ -85,10 +85,8 @@ import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
-import com.tapdata.tm.task.service.batchin.ParseBaseVersionRelMigImpl;
 import com.tapdata.tm.task.service.batchin.ParseRelMig;
 import com.tapdata.tm.task.service.batchin.ParseRelMigFile;
-import com.tapdata.tm.task.service.batchin.dto.RelMigBaseDto;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
@@ -2910,8 +2908,9 @@ public class TaskServiceImpl extends TaskService{
         fileService1.viewImg1(json, response, fileName.get() + ".json.gz");
     }
 
+    @Override
     public void importRmProject(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags, String source, String sink) throws IOException {
-        ParseParam<RelMigBaseDto> param = new ParseParam()
+        ParseParam param = new ParseParam()
                 .withMultipartFile(multipartFile)
                 .withSink(sink)
                 .withSource(source)
