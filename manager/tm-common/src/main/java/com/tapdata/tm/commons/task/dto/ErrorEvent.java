@@ -7,7 +7,6 @@ import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.bson.types.ObjectId;
-import org.springframework.data.annotation.Transient;
 
 import java.io.Serializable;
 
@@ -20,7 +19,7 @@ public class ErrorEvent implements Serializable {
     private String message;
 
     private String code;
-    @Transient
+
     private String stacks;
 
     private Boolean skip = false;
