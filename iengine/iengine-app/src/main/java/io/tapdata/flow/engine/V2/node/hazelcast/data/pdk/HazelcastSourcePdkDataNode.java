@@ -1257,8 +1257,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	protected List<QueryOperator> constructQueryOperator(List<String> timeList,QueryOperator queryOperator){
-		if(CollectionUtils.isEmpty(timeList))return null;
 		List<QueryOperator> result = new ArrayList<>();
+		if(CollectionUtils.isEmpty(timeList))return result;
 		QueryOperator start = new QueryOperator();
 		start.setKey(queryOperator.getKey());
 		start.setOperator(QueryOperator.GTE);

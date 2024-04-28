@@ -1421,7 +1421,8 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("timeList is null")
 		@Test
 		void test(){
-			Assertions.assertNull(hazelcastSourcePdkDataNode.constructQueryOperator(null,new QueryOperator()));
+			List<QueryOperator> result = hazelcastSourcePdkDataNode.constructQueryOperator(null,new QueryOperator());
+			Assertions.assertEquals(0,result.size());
 		}
 
 		@DisplayName("Main process")

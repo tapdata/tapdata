@@ -10,6 +10,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TimeTransFormationUtil {
+    private TimeTransFormationUtil() {
+        throw new IllegalStateException("TimeTransFormationUtil class");
+    }
     private final static DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     
     public static List<String> calculatedTimeRange(LocalDateTime currentDateTime, QueryOperator queryOperator,Long offsetHours){
