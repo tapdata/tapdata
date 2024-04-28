@@ -338,8 +338,16 @@ public class TaskController extends BaseController {
 		) {
 			Field fields = parseField(fieldsJson);
 			UserDetail user = getLoginUser();
+            Field finalFields;
+            if(null == fields){
+                finalFields = new Field();
+            }else{
+                finalFields = fields;
+            }
+            finalFields.put("errorEvents.stacks",false);
+            finalFields.put("attrs.SNAPSHOT_ORDER_LIST",false);
 			TaskDto taskDto = dataPermissionCheckOfId(request, user, MongoUtils.toObjectId(id), DataPermissionActionEnums.View,
-				() -> taskService.findById(MongoUtils.toObjectId(id), fields, user)
+				() -> taskService.findById(MongoUtils.toObjectId(id), finalFields, user)
 			);
 			if (taskDto != null) {
 				if (StringUtils.isNotBlank(taskRecordId) && !taskRecordId.equals(taskDto.getTaskRecordId())) {
