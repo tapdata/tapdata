@@ -38,16 +38,14 @@ import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.GZIPUtil;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MessageUtil;
-import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.github.openlg.graphlib.Graph;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.pdk.apis.entity.QueryOperator;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -66,6 +64,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -1392,5 +1391,23 @@ public class TaskController extends BaseController {
     @GetMapping("checkCloudTaskLimit/{taskId}")
     public ResponseMessage<Boolean> checkCloudTaskLimit(@PathVariable(value = "taskId") String taskId){
         return success(taskService.checkCloudTaskLimit(MongoUtils.toObjectId(taskId),getLoginUser(),true));
+    }
+
+
+    @GetMapping("/getCurrentEngineTime")
+    public ResponseMessage<String> getCurrentEngineTime(){
+        UserDetail userDetail = getLoginUser();
+        String workerDate = workerService.getWorkerCurrentTime(userDetail);
+        return success(workerDate);
+    }
+
+    @GetMapping("/calculatedTimeRange")
+    public ResponseMessage<List<String>> calculatedTimeRange(@RequestBody QueryOperator queryOperator,
+                                                       @RequestParam(required = false)Long offsetHours){
+        UserDetail userDetail = getLoginUser();
+        String workerDate = workerService.getWorkerCurrentTime(userDetail);
+        LocalDateTime workerLocalTime = TimeTransFormationUtil.formatDateTime(workerDate);
+        List<String> range = TimeTransFormationUtil.calculatedTimeRange(workerLocalTime,queryOperator,offsetHours);
+        return success(range);
     }
 }

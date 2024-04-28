@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.utils.TimeTransFormationUtil;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.taskmilestones.*;
@@ -1195,7 +1196,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		TableNode tableNode = (TableNode) dataProcessorContext.getNode();
 		TapAdvanceFilter tapAdvanceFilter = new TapAdvanceFilter();
 		if (isTableFilter(tableNode)) {
-			List<QueryOperator> conditions = tableNode.getConditions();
+			List<QueryOperator> conditions = timeTransformation(tableNode.getConditions(),tableNode.getOffsetHours());
 			if (CollectionUtils.isNotEmpty(conditions)) {
 				String tableName = tableNode.getTableName();
 				TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
@@ -1239,6 +1240,38 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		return tapAdvanceFilter;
 	}
+
+	protected List<QueryOperator> timeTransformation(List<QueryOperator> conditions,Long offsetHours){
+		List<QueryOperator> finalConditions = new ArrayList<>();
+		for(QueryOperator queryOperator : conditions){
+			LocalDateTime currentDateTime = LocalDateTime.now();
+			if(queryOperator.isFastQuery()){
+				List<String> timeList = TimeTransFormationUtil.calculatedTimeRange(currentDateTime,queryOperator,offsetHours);
+				List<QueryOperator> result = constructQueryOperator(timeList,queryOperator);
+				if(CollectionUtils.isNotEmpty(result))finalConditions.addAll(result);
+			}else{
+				finalConditions.add(queryOperator);
+			}
+		}
+		return finalConditions;
+	}
+
+	protected List<QueryOperator> constructQueryOperator(List<String> timeList,QueryOperator queryOperator){
+		if(CollectionUtils.isEmpty(timeList))return null;
+		List<QueryOperator> result = new ArrayList<>();
+		QueryOperator start = new QueryOperator();
+		start.setKey(queryOperator.getKey());
+		start.setOperator(QueryOperator.GTE);
+		start.setValue(timeList.get(0));
+		QueryOperator end = new QueryOperator();
+		end.setKey(queryOperator.getKey());
+		end.setOperator(QueryOperator.LTE);
+		end.setValue(timeList.get(1));
+		result.add(start);
+		result.add(end);
+		return result;
+	}
+
 
 	protected void excludeRemoveTable(List<String> tableNames) {
 		if (null == tableNames) {
