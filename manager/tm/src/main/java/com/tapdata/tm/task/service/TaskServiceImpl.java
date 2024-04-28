@@ -4561,7 +4561,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     protected void checkUnwindProcess(DAG dag){
-        if(CollectionUtils.isEmpty(dag.getNodes()))return;
+        if(null == dag || CollectionUtils.isEmpty(dag.getNodes()))return;
         AtomicBoolean check = new AtomicBoolean(false);
         dag.getNodes().forEach(node -> {
             if(node instanceof UnwindProcessNode) check.set(true);
@@ -4574,4 +4574,5 @@ public class TaskServiceImpl extends TaskService{
             });
         }
     }
+
 }
