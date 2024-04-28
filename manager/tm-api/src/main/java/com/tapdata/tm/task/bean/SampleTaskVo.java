@@ -17,6 +17,7 @@ public class SampleTaskVo {
     private Date lastUpdated;
     /** 状态 */
     private String status;
+    private String syncStatus;
     /** 任务类型  数据复制还是数据开发 */
     private String syncType;
     /** 增量时间点 */
