@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service.batchin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.task.service.batchin.constant.KeyWords;
 import com.tapdata.tm.task.service.batchin.constant.ParseRelMigFileVersionMapping;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
@@ -11,7 +12,7 @@ import java.lang.reflect.Constructor;
 import java.util.List;
 import java.util.Map;
 
-public interface ParseRelMig<T>  {
+public interface ParseRelMig<T extends ParentTaskDto>  {
     String PROCESSOR_THREAD_NUM = "processorThreadNum";
     String CATALOG = "catalog";
     String ELEMENT_TYPE = "elementType";
