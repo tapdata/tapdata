@@ -28,11 +28,11 @@ public class ParseBaseVersionRelMigImpl extends ParseRelMigFile {
                 return new ArrayList<>();
             }
             List<TaskDto> tpTasks = new ArrayList<>();
-            for (String key : tasks.keySet()) {
-                TaskDto tpTask = JsonUtil.parseJsonUseJackson(tasks.get(key), TaskDto.class);
+            tasks.forEach((key, value) -> {
+                TaskDto tpTask = JsonUtil.parseJsonUseJackson(value, TaskDto.class);
                 tpTask.setTransformTaskId(new ObjectId().toHexString());
                 tpTasks.add(tpTask);
-            }
+            });
             return tpTasks;
         } catch (Exception e) {
             throw new BizException("relMig.parse.failed", e.getMessage());
