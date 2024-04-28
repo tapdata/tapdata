@@ -19,6 +19,7 @@ public class ErrorEvent implements Serializable {
     private String message;
 
     private String code;
+
     private String stacks;
 
     private Boolean skip = false;

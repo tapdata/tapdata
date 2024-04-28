@@ -107,6 +107,10 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
     /** 状态*/
     private String status;
 
+    /** The data replication task list needs to add a field to display the milestone stage of the current task
+     * io.tapdata.milestone.constants.SyncStatus */
+    private String syncStatus;
+
     /** 类型 [{label: '全量+增量', value: 'initial_sync+cdc'}, {label: '全量', value: 'initial_sync'}, {label: '增量', value: 'cdc'} ]*/
     private String type;
 

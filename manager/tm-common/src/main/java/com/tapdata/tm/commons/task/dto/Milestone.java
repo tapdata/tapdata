@@ -24,5 +24,6 @@ public class Milestone implements Serializable {
     private String errorMessage;
     private Long start;
     private String status;
+    private String syncStatus;
     private String group;
 }
