@@ -290,7 +290,6 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract boolean checkCloudTaskLimit(ObjectId taskId, UserDetail user, boolean checkCurrentTask);
 
-
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
