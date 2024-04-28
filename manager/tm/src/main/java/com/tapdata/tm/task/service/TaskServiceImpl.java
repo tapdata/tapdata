@@ -1134,6 +1134,7 @@ public class TaskServiceImpl extends TaskService{
         taskDto.setStopTime(null);
         taskDto.setErrorTime(null);
         taskDto.setCrontabScheduleMsg(null);
+        taskDto.setErrorEvents(null);
         if (taskDto.getAttrs() != null) {
             taskDto.getAttrs().remove("SNAPSHOT_ORDER_LIST");
         }
