@@ -49,6 +49,7 @@ import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.permissions.service.DataPermissionService;
+import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
@@ -63,12 +64,14 @@ import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
+import io.tapdata.exception.TapCodeException;
 import lombok.SneakyThrows;
 import org.bson.BsonValue;
 import org.bson.Document;
@@ -78,6 +81,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
 import org.quartz.CronScheduleBuilder;
+import org.slf4j.Logger;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -110,7 +114,6 @@ class TaskServiceImplTest {
     TaskServiceImpl taskService;
     AgentGroupService agentGroupService;
     WorkerService workerService;
-
     TaskDto taskDto;
     UserDetail user;
     @BeforeEach
@@ -531,7 +534,6 @@ class TaskServiceImplTest {
         private Field fields;
         @Test
         void test1(){
-            taskService = mock(TaskServiceImpl.class);
             taskId = new ObjectId("6613954dc8a36646da142da3");
             fields = new Field();
             TaskDto dto = mock(TaskDto.class);
@@ -548,7 +550,6 @@ class TaskServiceImplTest {
         private TransformSchemaService transformSchemaService;
         @BeforeEach
         void setUp(){
-            taskService = mock(TaskServiceImpl.class);
             taskDto = mock(TaskDto.class);
             user = mock(UserDetail.class);
             customSqlService = mock(CustomSqlService.class);
@@ -599,7 +600,6 @@ class TaskServiceImplTest {
     class BeforeSaveTest{
         @BeforeEach
         void setUp() {
-            taskService = mock(TaskServiceImpl.class);
             taskDto = mock(TaskDto.class);
             user = mock(UserDetail.class);
         }
@@ -664,7 +664,6 @@ class TaskServiceImplTest {
         private TransformSchemaAsyncService transformSchemaAsyncService;
         @BeforeEach
         void setUp() {
-            taskService = mock(TaskServiceImpl.class);
             taskDto = mock(TaskDto.class);
             user = mock(UserDetail.class);
             measurementServiceV2 = mock(MeasurementServiceV2.class);
@@ -751,7 +750,6 @@ class TaskServiceImplTest {
         private SaveShareCacheParam saveShareCacheParam;
         @BeforeEach
         void setUp() {
-            taskService = mock(TaskServiceImpl.class);
             user = mock(UserDetail.class);
             id = "65bc933e6129fe73d7858cbd";
             saveShareCacheParam = mock(SaveShareCacheParam.class);
@@ -773,7 +771,6 @@ class TaskServiceImplTest {
         private ObjectId id;
         @BeforeEach
         void setUp(){
-            taskService = mock(TaskServiceImpl.class);
             user = mock(UserDetail.class);
         }
         @Test
@@ -797,7 +794,6 @@ class TaskServiceImplTest {
     class CheckTaskNameNotErrorTest{
         @Test
         void testNormal(){
-            taskService = mock(TaskServiceImpl.class);
             user = mock(UserDetail.class);
             String newName = "test_name";
             ObjectId id = mock(ObjectId.class);
@@ -813,7 +809,6 @@ class TaskServiceImplTest {
         private MonitoringLogsService monitoringLogsService;
         @BeforeEach
         void setUp(){
-            taskService = mock(TaskServiceImpl.class);
             user = mock(UserDetail.class);
             taskDto = mock(TaskDto.class);
             monitoringLogsService = mock(MonitoringLogsService.class);
@@ -842,11 +837,6 @@ class TaskServiceImplTest {
     }
     @Nested
     class CheckDDLConflictTest{
-        @BeforeEach
-        void setUp(){
-            taskService = mock(TaskServiceImpl.class);
-            taskDto = mock(TaskDto.class);
-        }
         @Test
         @DisplayName("test checkDDLConflict method when source node is not empty")
         void test1(){
@@ -879,7 +869,6 @@ class TaskServiceImplTest {
         private DatabaseNode newTargetDataNode;
         @BeforeEach
         void setUp(){
-            taskService = mock(TaskServiceImpl.class);
             existedSourceDataNode = mock(DatabaseNode.class);
             existedTargetDataNode = mock(DatabaseNode.class);
             newSourceDataNode = mock(DatabaseNode.class);
@@ -953,9 +942,6 @@ class TaskServiceImplTest {
         private StateMachineService stateMachineService;
         @BeforeEach
         void setUp(){
-            taskService = mock(TaskServiceImpl.class);
-            taskDto = mock(TaskDto.class);
-            user = mock(UserDetail.class);
             confirm = true;
             importTask = false;
             stateMachineService = mock(StateMachineService.class);
@@ -1058,8 +1044,6 @@ class TaskServiceImplTest {
         private TaskResetLogService taskResetLogService;
         @BeforeEach
         void setUp(){
-            taskService = mock(TaskServiceImpl.class);
-            user = mock(UserDetail.class);
             id = mock(ObjectId.class);
             stateMachineService = mock(StateMachineService.class);
             taskResetLogService = mock(TaskResetLogService.class);
@@ -1103,9 +1087,6 @@ class TaskServiceImplTest {
         private TaskCollectionObjService taskCollectionObjService;
         @BeforeEach
         void setUp(){
-            taskService = mock(TaskServiceImpl.class);
-            taskDto = mock(TaskDto.class);
-            user = mock(UserDetail.class);
             taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
             messageService = mock(MessageServiceImpl.class);
             metadataInstancesService = mock(MetadataInstancesServiceImpl.class);
@@ -1142,7 +1123,6 @@ class TaskServiceImplTest {
         @Test
         void test1(){
             id = mock(ObjectId.class);
-            taskService = mock(TaskServiceImpl.class);
             doCallRealMethod().when(taskService).deleteShareCache(id,user);
             taskService.deleteShareCache(id,user);
             verify(taskService).update(any(Query.class),any(Update.class));
@@ -1155,7 +1135,6 @@ class TaskServiceImplTest {
         @BeforeEach
         void setUp(){
             id = mock(ObjectId.class);
-            taskService = mock(TaskServiceImpl.class);
             taskDto = mock(TaskDto.class);
             userLogService = mock(UserLogService.class);
             ReflectionTestUtils.setField(taskService,"userLogService",userLogService);
@@ -1207,9 +1186,6 @@ class TaskServiceImplTest {
         @BeforeEach
         void setUp(){
             id = mock(ObjectId.class);
-            taskService = mock(TaskServiceImpl.class);
-            taskDto = mock(TaskDto.class);
-            user = mock(UserDetail.class);
             stateMachineService = mock(StateMachineService.class);
             taskResetLogService = mock(TaskResetLogService.class);
             disruptorService = mock(DisruptorService.class);
@@ -1259,8 +1235,6 @@ class TaskServiceImplTest {
         private StateMachineService stateMachineService;
         @BeforeEach
         void setUp(){
-            taskService = mock(TaskServiceImpl.class);
-            user = mock(UserDetail.class);
             taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
             stateMachineService = mock(StateMachineService.class);
             ReflectionTestUtils.setField(taskService,"taskAutoInspectResultsService",taskAutoInspectResultsService);
@@ -1286,8 +1260,6 @@ class TaskServiceImplTest {
         @BeforeEach
         void setUp(){
             id = mock(ObjectId.class);
-            taskService = mock(TaskServiceImpl.class);
-            user = mock(UserDetail.class);
         }
         @Test
         @DisplayName("test checkExistById method when taskDto is null")
@@ -1314,8 +1286,6 @@ class TaskServiceImplTest {
         void setUp(){
             id = mock(ObjectId.class);
             fields = "test_field";
-            taskService = mock(TaskServiceImpl.class);
-            user = mock(UserDetail.class);
         }
         @Test
         @DisplayName("test checkExistById with fields method when taskDto is null")
@@ -1342,7 +1312,6 @@ class TaskServiceImplTest {
         void setUp(){
             id = mock(ObjectId.class);
             fields = "test_field";
-            taskService = mock(TaskServiceImpl.class);
         }
         @Test
         @DisplayName("test checkExistById without user method when taskDto is null")
@@ -1371,11 +1340,9 @@ class TaskServiceImplTest {
         private ExceptionHandler exceptionHandler;
         @BeforeEach
         void setUp(){
-            taskService = mock(TaskServiceImpl.class);
             taskIds = new ArrayList<>();
             id = mock(ObjectId.class);
             taskIds.add(id);
-            user = mock(UserDetail.class);
             request = mock(HttpServletRequest.class);
             response = mock(HttpServletResponse.class);
             exceptionHandler = mock(ExceptionHandler.class);
@@ -1415,11 +1382,9 @@ class TaskServiceImplTest {
         private ExceptionHandler exceptionHandler;
         @BeforeEach
         void setUp(){
-            taskService = mock(TaskServiceImpl.class);
             taskIds = new ArrayList<>();
             id = mock(ObjectId.class);
             taskIds.add(id);
-            user = mock(UserDetail.class);
             request = mock(HttpServletRequest.class);
             response = mock(HttpServletResponse.class);
             inspectService = mock(InspectService.class);
@@ -1468,11 +1433,9 @@ class TaskServiceImplTest {
         private ExceptionHandler exceptionHandler;
         @BeforeEach
         void setUp(){
-            taskService = mock(TaskServiceImpl.class);
             taskIds = new ArrayList<>();
             id = mock(ObjectId.class);
             taskIds.add(id);
-            user = mock(UserDetail.class);
             request = mock(HttpServletRequest.class);
             response = mock(HttpServletResponse.class);
             exceptionHandler = mock(ExceptionHandler.class);
@@ -1652,7 +1615,6 @@ class TaskServiceImplTest {
         @BeforeEach
         void setUp(){
             taskDtoList = new ArrayList<>();
-            taskService = mock(TaskServiceImpl.class);
         }
         @Test
         @DisplayName("test deleteNotifyEnumData method for empty taskDtoList")
@@ -1691,7 +1653,6 @@ class TaskServiceImplTest {
         @BeforeEach
         void setUp(){
             filter = new Filter();
-            taskService = mock(TaskServiceImpl.class);
             inspectService = mock(InspectService.class);
             repository = mock(TaskRepository.class);
             ReflectionTestUtils.setField(taskService,"inspectService",inspectService);
@@ -1727,11 +1688,6 @@ class TaskServiceImplTest {
     }
     @Nested
     class GetSourceNodeTest{
-        @BeforeEach
-        void beforeEach(){
-            taskDto = mock(TaskDto.class);
-            taskService = mock(TaskServiceImpl.class);
-        }
         @Test
         @DisplayName("test getSourceNode method when dag is null")
         void test1(){
@@ -1815,7 +1771,6 @@ class TaskServiceImplTest {
         @Test
         void test1(){
             String key = "111";
-            taskService = mock(TaskServiceImpl.class);
             doCallRealMethod().when(taskService).searchLogCollector(key);
             LogCollectorResult actual = taskService.searchLogCollector(key);
             assertEquals(LogCollectorResult.class,actual.getClass());
@@ -1898,7 +1853,6 @@ class TaskServiceImplTest {
         @BeforeEach
         void beforeEach(){
             id = "111";
-            taskService = mock(TaskServiceImpl.class);
             dataSourceService = mock(DataSourceServiceImpl.class);
             ReflectionTestUtils.setField(taskService,"dataSourceService",dataSourceService);
         }
@@ -1988,8 +1942,6 @@ class TaskServiceImplTest {
         private TaskAutoInspectResultsService taskAutoInspectResultsService;
         @BeforeEach
         void beforeEach(){
-            taskService = mock(TaskServiceImpl.class);
-            user = mock(UserDetail.class);
             taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
             ReflectionTestUtils.setField(taskService,"taskAutoInspectResultsService",taskAutoInspectResultsService);
         }
@@ -2169,7 +2121,6 @@ class TaskServiceImplTest {
         private TaskDto dto;
         @BeforeEach
         void setUp(){
-            taskService = mock(TaskServiceImpl.class);
             dto = mock(TaskDto.class);
             when(taskService.checkExistById(MongoUtils.toObjectId(taskId), user, "status")).thenReturn(dto);
         }
@@ -2245,7 +2196,6 @@ class TaskServiceImplTest {
         @Test
         @DisplayName("test sendRenewMq method normal")
         void test1(){
-            taskService = mock(TaskServiceImpl.class);
             messageQueueService = mock(MessageQueueServiceImpl.class);
             ReflectionTestUtils.setField(taskService,"messageQueueService",messageQueueService);
             taskDto = mock(TaskDto.class);
@@ -2263,7 +2213,6 @@ class TaskServiceImplTest {
         private Worker worker;
         @BeforeEach
         void beforeEach(){
-            taskService = mock(TaskServiceImpl.class);
             workerService = mock(WorkerService.class);
             ReflectionTestUtils.setField(taskService,"workerService",workerService);
             taskDto = new TaskDto();
@@ -2344,9 +2293,7 @@ class TaskServiceImplTest {
         @BeforeEach
         void beforeEach(){
             id = mock(ObjectId.class);
-            user = mock(UserDetail.class);
             dto = mock(TaskDto.class);
-            taskService = mock(TaskServiceImpl.class);
             monitoringLogsService = mock(MonitoringLogsService.class);
             ReflectionTestUtils.setField(taskService,"monitoringLogsService",monitoringLogsService);
         }
@@ -2377,9 +2324,6 @@ class TaskServiceImplTest {
         private LogCollectorService logCollectorService;
         @BeforeEach
         void beforeEach(){
-            taskService = mock(TaskServiceImpl.class);
-            taskDto = mock(TaskDto.class);
-            user = mock(UserDetail.class);
             startFlag = "11";
             lockControlService = mock(LockControlService.class);
             disruptorService = mock(DisruptorService.class);
@@ -2460,7 +2404,6 @@ class TaskServiceImplTest {
         @BeforeEach
         void beforeEach(){
             dto = mock(TaskDto.class);
-            taskService = mock(TaskServiceImpl.class);
             user = mock(UserDetail.class);
             disruptorService = mock(DisruptorService.class);
             ReflectionTestUtils.setField(taskService,"disruptorService",disruptorService);
@@ -2493,7 +2436,6 @@ class TaskServiceImplTest {
         private String agentId;
         @BeforeEach
         void beforeEach(){
-            taskService = mock(TaskServiceImpl.class);
             taskDto = mock(TaskDto.class);
             id = mock(ObjectId.class);
             when(taskDto.getId()).thenReturn(id);
@@ -2574,7 +2516,6 @@ class TaskServiceImplTest {
         @Test
         @DisplayName("test sendStoppingMsg method normal")
         void test1(){
-            taskService = mock(TaskServiceImpl.class);
             taskId = "111";
             agentId = "222";
             user = mock(UserDetail.class);
@@ -2594,9 +2535,7 @@ class TaskServiceImplTest {
         private StateMachineService stateMachineService;
         @BeforeEach
         void beforeEach(){
-            taskService = mock(TaskServiceImpl.class);
             id = mock(ObjectId.class);
-            user = mock(UserDetail.class);
             dto = mock(TaskDto.class);
             when(taskService.checkExistById(id,user, "_id", "status", "name", "taskRecordId", "startTime", "scheduleDate")).thenReturn(dto);
             monitoringLogsService = mock(MonitoringLogsService.class);
@@ -2645,7 +2584,6 @@ class TaskServiceImplTest {
         private StateMachineService stateMachineService;
         @BeforeEach
         void beforeEach(){
-            taskService = mock(TaskServiceImpl.class);
             id = mock(ObjectId.class);
             user = mock(UserDetail.class);
             dto = mock(TaskDto.class);
@@ -2682,7 +2620,6 @@ class TaskServiceImplTest {
         private StateMachineService stateMachineService;
         @BeforeEach
         void beforeEach(){
-            taskService = mock(TaskServiceImpl.class);
             id = mock(ObjectId.class);
             user = mock(UserDetail.class);
             dto = mock(TaskDto.class);
@@ -2721,7 +2658,6 @@ class TaskServiceImplTest {
         private LogCollectorService logCollectorService;
         @BeforeEach
         void beforeEach(){
-            taskService = mock(TaskServiceImpl.class);
             id = mock(ObjectId.class);
             user = mock(UserDetail.class);
             dto = mock(TaskDto.class);
@@ -2764,7 +2700,6 @@ class TaskServiceImplTest {
         private TaskDto dto;
         @BeforeEach
         void beforeEach(){
-            taskService = mock(TaskServiceImpl.class);
             id = mock(ObjectId.class);
             user = mock(UserDetail.class);
             dto = mock(TaskDto.class);
@@ -2799,7 +2734,6 @@ class TaskServiceImplTest {
         @Test
         @DisplayName("test updateNode method normal")
         void test(){
-            taskService = mock(TaskServiceImpl.class);
             objectId = mock(ObjectId.class);
             param = mock(Document.class);
             Map<String, Object> map = new HashMap<>();
@@ -2821,7 +2755,6 @@ class TaskServiceImplTest {
         @Test
         @DisplayName("test updateSyncProgress method normal")
         void test(){
-            taskService = mock(TaskServiceImpl.class);
             taskId = mock(ObjectId.class);
             Map<String, Object> map = new HashMap<>();
             map.put("test1","test2");
@@ -3988,6 +3921,302 @@ class TaskServiceImplTest {
             });
             taskService.renewNotSendMq(taskDto,mock(UserDetail.class));
         }
+    }
+    @Nested
+    class IncreaseClearTest{
+        private ObjectId taskId;
+        private String srcNode;
+        private String tgtNode;
+        @Test
+        @DisplayName("test increaseClear method normal")
+        void test(){
+            taskId = mock(ObjectId.class);
+            srcNode = "111";
+            tgtNode = "222";
+            TaskDto dto = mock(TaskDto.class);
+            when(taskService.checkExistById(taskId,user,"attrs")).thenReturn(dto);
+            doCallRealMethod().when(taskService).increaseClear(taskId,srcNode,tgtNode,user);
+            taskService.increaseClear(taskId,srcNode,tgtNode,user);
+            verify(taskService).clear(srcNode,tgtNode,user,dto);
+        }
+    }
+    @Nested
+    class ClearTest{
+        private String srcNode;
+        private String tgtNode;
+        private TaskDto dto;
+        private TaskRepository repository;
+        @BeforeEach
+        void beforeEach(){
+            srcNode = "111";
+            tgtNode = "111";
+            dto = new TaskDto();
+            repository = mock(TaskRepository.class);
+            taskService = spy(new TaskServiceImpl(repository));
+        }
+        @Test
+        @DisplayName("test clear method when syncProgress is null")
+        void test1(){
+            Map<String, Object> attrs = new HashMap<>();
+            dto.setAttrs(attrs);
+            taskService.clear(srcNode,tgtNode,user,dto);
+            verify(repository,new Times(0)).updateFirst(any(Query.class),any(Update.class),any(UserDetail.class));
+        }
+        @Test
+        @DisplayName("test clear method normal")
+        void test2(){
+            Map<String, Object> attrs = new HashMap<>();
+            Map syncProgressMap = new HashMap();
+            syncProgressMap.put("111","test1");
+            syncProgressMap.put("222","test2");
+            attrs.put("syncProgress",syncProgressMap);
+            dto.setAttrs(attrs);
+            dto.setId(mock(ObjectId.class));
+            taskService.clear(srcNode,tgtNode,user,dto);
+            verify(repository,new Times(1)).updateFirst(any(Query.class),any(Update.class),any(UserDetail.class));
+        }
+    }
+    @Nested
+    class IncreaseBacktrackingTest{
+        private ObjectId taskId;
+        private String srcNode;
+        private String tgtNode;
+        private TaskDto.SyncPoint point;
+        private DAG dag;
+        private TaskDto dto;
+        private ObjectId id;
+        @BeforeEach
+        void beforeEach(){
+            taskId = mock(ObjectId.class);
+            srcNode = "111";
+            tgtNode = "222";
+            point = mock(TaskDto.SyncPoint.class);
+            dto = mock(TaskDto.class);
+            when(taskService.checkExistById(taskId, user, "parentId", "attrs", "dag", "syncPoints")).thenReturn(dto);
+            dag = mock(DAG.class);
+            when(dto.getDag()).thenReturn(dag);
+            id = mock(ObjectId.class);
+            when(dto.getId()).thenReturn(id);
+        }
+        @Test
+        @DisplayName("test increaseBacktracking method when sync points is empty")
+        void test1(){
+            try (MockedStatic<Criteria> mb = Mockito
+                    .mockStatic(Criteria.class)) {
+                Criteria criteria = mock(Criteria.class);
+                mb.when(()->Criteria.where(anyString())).thenReturn(criteria);
+                when(criteria.is(id)).thenReturn(mock(Criteria.class));
+                when(dag.getNode(tgtNode)).thenReturn(mock(DataParentNode.class));
+                List<TaskDto.SyncPoint> syncPoints = new ArrayList<>();
+                when(dto.getSyncPoints()).thenReturn(syncPoints);
+                doCallRealMethod().when(taskService).increaseBacktracking(taskId,srcNode,tgtNode,point,user);
+                taskService.increaseBacktracking(taskId,srcNode,tgtNode,point,user);
+                verify(criteria,new Times(0)).elemMatch(any(Criteria.class));
+            }
+        }
+        @Test
+        @DisplayName("test increaseBacktracking method for when sync points is not empty")
+        void test2(){
+            try (MockedStatic<Criteria> mb = Mockito
+                    .mockStatic(Criteria.class)) {
+                Criteria criteria = mock(Criteria.class);
+                mb.when(()->Criteria.where(anyString())).thenReturn(criteria);
+                Criteria mock = mock(Criteria.class);
+                when(criteria.is(any())).thenReturn(mock);
+                when(mock.and(anyString())).thenReturn(mock);
+                when(mock.elemMatch(any(Criteria.class))).thenReturn(mock);
+                DataParentNode node = mock(DataParentNode.class);
+                when(node.getId()).thenReturn("111");
+                when(dag.getNode(tgtNode)).thenReturn(node);
+                List<TaskDto.SyncPoint> syncPoints = new ArrayList<>();
+                TaskDto.SyncPoint item1 = mock(TaskDto.SyncPoint.class);
+                syncPoints.add(item1);
+                when(item1.getNodeId()).thenReturn("222");
+                TaskDto.SyncPoint item2 = mock(TaskDto.SyncPoint.class);
+                syncPoints.add(item2);
+                when(item1.getNodeId()).thenReturn("111");
+                when(dto.getSyncPoints()).thenReturn(syncPoints);
+                doCallRealMethod().when(taskService).increaseBacktracking(taskId,srcNode,tgtNode,point,user);
+                taskService.increaseBacktracking(taskId,srcNode,tgtNode,point,user);
+                verify(mock,new Times(1)).elemMatch(any(Criteria.class));
+            }
+        }
+    }
+    @Nested
+    class StartPlanMigrateDagTask{
+        private UserService userService;
+        private StateMachineService stateMachineService;
+        private MonitoringLogsService monitoringLogsService;
+        @BeforeEach
+        void beforeEach(){
+            List<TaskDto> taskList = new ArrayList<>();
+            TaskDto dto = mock(TaskDto.class);
+            taskList.add(dto);
+            when(dto.getTransformed()).thenReturn(true);
+            when(dto.getId()).thenReturn(mock(ObjectId.class));
+            when(dto.getUserId()).thenReturn("111");
+            when(taskService.findAll(any(Query.class))).thenReturn(taskList);
+            userService = mock(UserService.class);
+            stateMachineService = mock(StateMachineService.class);
+            monitoringLogsService = mock(MonitoringLogsService.class);
+            ReflectionTestUtils.setField(taskService,"userService",userService);
+            ReflectionTestUtils.setField(taskService,"stateMachineService",stateMachineService);
+            ReflectionTestUtils.setField(taskService,"monitoringLogsService",monitoringLogsService);
+        }
+        @Test
+        @DisplayName("test startPlanMigrateDagTask method when task list is empty")
+        void test1(){
+            when(taskService.findAll(any(Query.class))).thenReturn(null);
+            doCallRealMethod().when(taskService).startPlanMigrateDagTask();
+            taskService.startPlanMigrateDagTask();
+            verify(userService,new Times(0)).getUserByIdList(anyList());
+        }
+        @Test
+        @DisplayName("test startPlanMigrateDagTask method normal")
+        void test2(){
+            List<UserDetail> userList = new ArrayList<>();
+            UserDetail userDetail = mock(UserDetail.class);
+            userList.add(userDetail);
+            when(userDetail.getUserId()).thenReturn("111");
+            when(userService.getUserByIdList(anyList())).thenReturn(userList);
+            doCallRealMethod().when(taskService).startPlanMigrateDagTask();
+            taskService.startPlanMigrateDagTask();
+            verify(taskService,new Times(1)).updateById(any(ObjectId.class),any(Update.class),any(UserDetail.class));
+        }
+        @Test
+        @DisplayName("test startPlanMigrateDagTask method for TapCodeException")
+        void test3(){
+            List<UserDetail> userList = new ArrayList<>();
+            UserDetail userDetail = mock(UserDetail.class);
+            userList.add(userDetail);
+            when(userDetail.getUserId()).thenReturn("111");
+            when(userService.getUserByIdList(anyList())).thenReturn(userList);
+            doThrow(TapCodeException.class).when(taskService).start(any(TaskDto.class),any(UserDetail.class),anyString());
+            doCallRealMethod().when(taskService).startPlanMigrateDagTask();
+            taskService.startPlanMigrateDagTask();
+            verify(monitoringLogsService,new Times(1)).startTaskErrorStackTrace(any(TaskDto.class),any(UserDetail.class),any(Throwable.class),any(Level.class));
+        }
+        @Test
+        @DisplayName("test startPlanMigrateDagTask method for other exception")
+        void test4(){
+            List<UserDetail> userList = new ArrayList<>();
+            UserDetail userDetail = mock(UserDetail.class);
+            userList.add(userDetail);
+            when(userDetail.getUserId()).thenReturn("111");
+            when(userService.getUserByIdList(anyList())).thenReturn(userList);
+            doThrow(RuntimeException.class).when(taskService).start(any(TaskDto.class),any(UserDetail.class),anyString());
+            doCallRealMethod().when(taskService).startPlanMigrateDagTask();
+            taskService.startPlanMigrateDagTask();
+            verify(monitoringLogsService,new Times(1)).startTaskErrorStackTrace(any(TaskDto.class),any(UserDetail.class),any(Throwable.class),any(Level.class));
+        }
+    }
+    @Nested
+    class StartPlanCronTaskTest{
+        private ScheduleService scheduleService;
+        @BeforeEach
+        void beforeEach(){
+            List<TaskDto> taskList = new ArrayList<>();
+            TaskDto dto = mock(TaskDto.class);
+            taskList.add(dto);
+            when(dto.getTransformed()).thenReturn(true);
+            when(dto.getId()).thenReturn(mock(ObjectId.class));
+            when(dto.getUserId()).thenReturn("111");
+            when(taskService.findAll(any(Query.class))).thenReturn(taskList);
+            scheduleService = mock(ScheduleService.class);
+            ReflectionTestUtils.setField(taskService,"scheduleService",scheduleService);
+        }
+        @Test
+        @DisplayName("test startPlanCronTask method normal")
+        void test1(){
+            doCallRealMethod().when(taskService).startPlanCronTask();
+            taskService.startPlanCronTask();
+            verify(scheduleService).executeTask(any(TaskDto.class));
+        }
+        @Test
+        @DisplayName("test startPlanCronTask method with exception")
+        void test2(){
+            doThrow(RuntimeException.class).when(scheduleService).executeTask(any(TaskDto.class));
+            doCallRealMethod().when(taskService).startPlanCronTask();
+            taskService.startPlanCronTask();
+            verify(scheduleService).executeTask(any(TaskDto.class));
+        }
+    }
+    @Nested
+    class FindByVersionTime{
+        private String id;
+        private Long time;
+        private TaskRepository repository;
+        @BeforeEach
+        void beforeEach(){
+            id = "662877df9179877be8b37074";
+            time = 1713846744L;
+            repository = mock(TaskRepository.class);
+            taskService = spy(new TaskServiceImpl(repository));
+        }
+        @Test
+        @DisplayName("test findByVersionTime method when dDlTaskHistories is null")
+        void test1(){
+            MongoTemplate template = mock(MongoTemplate.class);
+            when(repository.getMongoOperations()).thenReturn(template);
+            when(template.findOne(any(Query.class),any(Class.class),anyString())).thenReturn(null);
+            TaskDto dto = mock(TaskDto.class);
+            doReturn(dto).when(taskService).findById(any(ObjectId.class));
+            TaskDto actual = taskService.findByVersionTime(id, time);
+            assertEquals(dto,actual);
+        }
+        @Test
+        @DisplayName("test findByVersionTime method when dDlTaskHistories is not null")
+        void test2(){
+            MongoTemplate template = mock(MongoTemplate.class);
+            when(repository.getMongoOperations()).thenReturn(template);
+            TaskDto dto = new TaskDto();
+            when(template.findOne(any(Query.class),any(Class.class),anyString())).thenReturn(dto);
+            TaskDto actual = taskService.findByVersionTime(id, time);
+            assertEquals(id,actual.getId().toHexString());
+        }
+    }
+    @Nested
+    class Clean{
+
+    }
+    @Nested
+    class TotalAutoInspectResultsDiffTablesTest{
+
+    }
+    @Nested
+    class UpdateTaskLogSettingTest{
+
+    }
+    @Nested
+    class Chart6Test{
+
+    }
+    @Nested
+    class StopTaskIfNeedByAgentIdTest{
+
+    }
+    @Nested
+    class GetTaskStatsByTableNameOrConnectionIdTest{
+
+    }
+    @Nested
+    class GetTableStatusTest{
+
+    }
+    @Nested
+    class JudgeTargetInspectTest{
+
+    }
+    @Nested
+    class JudgeTargetNodeTest{
+
+    }
+    @Nested
+    class FindHeartbeatByTaskIdTest{
+
+    }
+    @Nested
+    class DeleteHeartbeatByConnIdTest{
 
     }
 }
