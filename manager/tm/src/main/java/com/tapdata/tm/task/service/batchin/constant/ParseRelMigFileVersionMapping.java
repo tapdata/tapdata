@@ -22,11 +22,11 @@ public enum ParseRelMigFileVersionMapping {
     }
 
     public static Class<? extends ParseRelMig> getInstance(String versionStr) {
-        if (null == versionStr) return V1_2_0.value;
+        if (null == versionStr) return UN_KNOW.value;
         ParseRelMigFileVersionMapping[] values = values();
         for (ParseRelMigFileVersionMapping value : values) {
             if (value.getVersion().equalsIgnoreCase(versionStr)) return value.value;
         }
-        return V1_2_0.value;
+        return UN_KNOW.value;
     }
 }
