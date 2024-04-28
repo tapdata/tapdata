@@ -2,18 +2,29 @@ package com.tapdata.tm.disruptor.handler;
 
 import cn.hutool.extra.spring.SpringUtil;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.DmlPolicy;
+import com.tapdata.tm.commons.dag.Edge;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.task.bean.SyncTaskStatusDto;
 import com.tapdata.tm.task.service.TaskService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.bson.types.ObjectId;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -75,4 +86,81 @@ public class UpdateRecordStatusEventHandlerTest {
             }
         }
     }
+
+    @Nested
+    class logCollectorAlarmTest{
+        @Test
+        @DisplayName("Shared mining task stopped")
+        void test1(){
+            SyncTaskStatusDto syncTaskStatusDto = new SyncTaskStatusDto();
+            syncTaskStatusDto.setTaskId(new ObjectId().toHexString());
+            syncTaskStatusDto.setTaskName("test");
+            syncTaskStatusDto.setTaskStatus("stop");
+            TaskDto taskDto = new TaskDto();
+            List<Node> nodeList = new ArrayList<>();
+            LogCollectorNode logCollectorNode = new LogCollectorNode();
+            List<String> ids = new ArrayList<>();
+            ids.add("test");
+            logCollectorNode.setId("source123");
+            logCollectorNode.setConnectionIds(ids);
+            TableNode tableNode2 = new TableNode();
+            tableNode2.setId("target123");
+            tableNode2.setDmlPolicy(new DmlPolicy());
+            nodeList.add(tableNode2);
+            nodeList.add(logCollectorNode);
+            Dag dag = new Dag();
+            Edge edge=new Edge("source123","target123");
+            List<Edge> edges = Arrays.asList(edge);
+            dag.setEdges(edges);
+            dag.setNodes(nodeList);
+            DAG mockDag =  DAG.build(dag);
+            taskDto.setDag(mockDag);
+            taskDto.setRestartFlag(false);
+            when(taskService.findById(any(),any(Field.class))).thenReturn(taskDto);
+            when(taskService.updateMany(any(),any())).thenAnswer(invocationOnMock -> {
+                Update update = invocationOnMock.getArgument(1);
+                Assertions.assertNotNull(update.getUpdateObject().get("$set"));
+                return null;
+            });
+            handler.logCollectorAlarm(syncTaskStatusDto);
+        }
+
+        @Test
+        @DisplayName("Shared mining merge")
+        void test2(){
+            SyncTaskStatusDto syncTaskStatusDto = new SyncTaskStatusDto();
+            syncTaskStatusDto.setTaskId(new ObjectId().toHexString());
+            syncTaskStatusDto.setTaskName("test");
+            syncTaskStatusDto.setTaskStatus("stop");
+            TaskDto taskDto = new TaskDto();
+            List<Node> nodeList = new ArrayList<>();
+            LogCollectorNode logCollectorNode = new LogCollectorNode();
+            List<String> ids = new ArrayList<>();
+            ids.add("test");
+            logCollectorNode.setId("source123");
+            logCollectorNode.setConnectionIds(ids);
+            TableNode tableNode2 = new TableNode();
+            tableNode2.setId("target123");
+            tableNode2.setDmlPolicy(new DmlPolicy());
+            nodeList.add(tableNode2);
+            nodeList.add(logCollectorNode);
+            Dag dag = new Dag();
+            Edge edge=new Edge("source123","target123");
+            List<Edge> edges = Arrays.asList(edge);
+            dag.setEdges(edges);
+            dag.setNodes(nodeList);
+            DAG mockDag =  DAG.build(dag);
+            taskDto.setDag(mockDag);
+            taskDto.setRestartFlag(true);
+            when(taskService.findById(any(),any(Field.class))).thenReturn(taskDto);
+            when(taskService.updateMany(any(),any())).thenAnswer(invocationOnMock -> {
+                Update update = invocationOnMock.getArgument(1);
+                Assertions.assertNull(update.getUpdateObject().get("$set"));
+                return null;
+            });
+            handler.logCollectorAlarm(syncTaskStatusDto);
+        }
+    }
+
+
 }
