@@ -10,9 +10,6 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.dto.CheckEchoOneNodeParam;
 import com.tapdata.tm.task.repository.TaskRepository;
@@ -25,8 +22,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
