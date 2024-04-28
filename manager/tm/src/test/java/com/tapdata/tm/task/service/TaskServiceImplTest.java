@@ -22,6 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
@@ -33,13 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 
 class TaskServiceImplTest {
@@ -459,6 +454,20 @@ class TaskServiceImplTest {
             DAG mockDag =  DAG.build(dag);
             taskService.checkUnwindProcess(mockDag);
             Assertions.assertNull(tableNode2.getDmlPolicy().getInsertPolicy());
+        }
+    }
+
+    @Nested
+    class FindByCacheName{
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(mock(TaskRepository.class)));
+        @Test
+        void test(){
+            doAnswer(invocationOnMock -> {
+                Query query = invocationOnMock.getArgument(0);
+                Assertions.assertEquals(query.getQueryObject().get("is_deleted"),false);
+                return null;
+            }).when(taskService).findOne(any(Query.class),any(UserDetail.class));
+            taskService.findByCacheName("test",mock(UserDetail.class));
         }
     }
 }
