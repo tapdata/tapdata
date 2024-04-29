@@ -67,6 +67,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -875,5 +876,17 @@ public class WorkerServiceImpl extends WorkerService{
                 .and("isDeleted").ne(true)
                 .and("agentTags").ne("disabledScheduleTask");
         return count(Query.query(criteria));
+    }
+
+    public String getWorkerCurrentTime(UserDetail userDetail){
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        List<Worker> workerList = findAvailableAgent(userDetail);
+        if(CollectionUtils.isNotEmpty(workerList)){
+            Worker worker = workerList.get(0);
+            if( null != worker.getWorkerDate()){
+                return simpleDateFormat.format(worker.getWorkerDate());
+            }
+        }
+        return simpleDateFormat.format(new Date());
     }
 }

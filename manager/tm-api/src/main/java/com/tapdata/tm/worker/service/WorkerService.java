@@ -100,4 +100,6 @@ public abstract class WorkerService extends BaseService<WorkerDto, Worker, Objec
     public abstract Long getAvailableAgentCount();
 
     public abstract Long getLastCheckAvailableAgentCount();
+
+    public abstract String getWorkerCurrentTime(UserDetail userDetail);
 }
