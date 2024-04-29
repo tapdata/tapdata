@@ -35,6 +35,9 @@ public class TapEventPartitionKeySelector implements PartitionKeySelector<TapEve
 			getPartitionValue(partitionValue, keys, row);
 		}
 
+		if (null != partitionValue && !CollectionUtils.isEmpty(partitionValue)) {
+			partitionValue = convert2OriginValue(partitionValue);
+		}
 		return partitionValue;
 	}
 

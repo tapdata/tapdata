@@ -1133,6 +1133,7 @@ public class TaskServiceImpl extends TaskService{
         taskDto.setStopTime(null);
         taskDto.setErrorTime(null);
         taskDto.setCrontabScheduleMsg(null);
+        taskDto.setErrorEvents(null);
         if (taskDto.getAttrs() != null) {
             taskDto.getAttrs().remove("SNAPSHOT_ORDER_LIST");
         }
@@ -4121,7 +4122,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public TaskDto findByCacheName(String cacheName, UserDetail user) {
-        Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where(CATALOG).is("memCache").and("cacheName").is(cacheName));
+        Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where(CATALOG).is("memCache").and("cacheName").is(cacheName)).and("is_deleted").is(false);
         Query query = new Query(taskCriteria);
 
         return findOne(query, user);

@@ -8,6 +8,7 @@ import com.tapdata.tm.worker.WorkerSingletonLock;
 import io.tapdata.utils.AppType;
 import org.apache.commons.lang3.StringUtils;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -57,6 +58,7 @@ public class WorkerHeatBeatReports {
 		value.put("usedMemory", usedMemory);
 		value.put("metricValues", connectorManager.getMetricValues());
 		value.put("worker_type", ConnectorConstant.WORKER_TYPE_CONNECTOR);
+		value.put("worker_date", new Date());
 
 		connectorManager.setPlatformInfo(value);
 		configIfNotBlank("version", value::put);
