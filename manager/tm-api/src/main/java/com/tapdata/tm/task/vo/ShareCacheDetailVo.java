@@ -21,6 +21,7 @@ public class ShareCacheDetailVo extends BaseVo {
   private String tableName;
   private String connectionId;
   private String status;
+  private String syncStatus;
   private Long ttl;
   private Date createTime;
   private Date cacheTimeAt;

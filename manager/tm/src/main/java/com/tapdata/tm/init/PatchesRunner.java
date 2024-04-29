@@ -4,11 +4,11 @@ import cn.hutool.core.io.IORuntimeException;
 import cn.hutool.core.io.IoUtil;
 import com.tapdata.tm.init.scanners.JavaPatchScanner;
 import com.tapdata.tm.init.scanners.ScriptPatchScanner;
-import io.tapdata.utils.AppType;
 import com.tapdata.tm.utils.TMStartMsgUtil;
 import com.tapdata.tm.utils.TmStartMsg;
 import com.tapdata.tm.verison.dto.VersionDto;
 import com.tapdata.tm.verison.service.VersionService;
+import io.tapdata.utils.AppType;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.LogManager;
@@ -33,7 +33,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -162,18 +162,10 @@ public class PatchesRunner implements ApplicationRunner {
      * @param scanners    scanner instance
      * @return patches
      */
-    private List<IPatch> scanPatches(AppType appType, PatchVersion appVersion, PatchVersion softVersion, IPatchScanner... scanners) {
+    protected List<IPatch> scanPatches(AppType appType, PatchVersion appVersion, PatchVersion softVersion, IPatchScanner... scanners) {
         List<IPatch> patches = new ArrayList<>();
 
-        Function<PatchVersion, Boolean> isVersion;
-        if (null == appVersion) {
-            logger.info("Scan {} patches in last version: {}", appType, softVersion);
-            isVersion = (patchVersion) -> patchVersion.compareTo(softVersion) <= 0;
-//            isVersion = (patchVersion) -> patchVersion.compareVersion(softVersion) == 0 && patchVersion.compareTo(softVersion) <= 0;
-        } else {
-            logger.info("Scan {} patches from {} to {}", appType, appVersion, softVersion);
-            isVersion = (patchVersion) -> patchVersion.compareTo(appVersion) > 0 && patchVersion.compareTo(softVersion) <= 0;
-        }
+        Predicate<PatchVersion> isVersion = getVersionChecker(appType, softVersion, appVersion);
 
         for (IPatchScanner scanner : scanners) {
             scanner.scanPatches(patches, isVersion);
@@ -194,4 +186,15 @@ public class PatchesRunner implements ApplicationRunner {
         }
         return ResourceUtils.CLASSPATH_URL_PREFIX + "init/idaas";
     }
+
+    public static Predicate<PatchVersion> getVersionChecker(AppType appType, PatchVersion softVersion, PatchVersion appVersion) {
+        if (null == appVersion) {
+            logger.info("Scan {} patches in last version: {}", appType, softVersion);
+            return patchVersion -> patchVersion.compareTo(softVersion) <= 0;
+        } else {
+            logger.info("Scan {} patches from {} to {}", appType, appVersion, softVersion);
+            return patchVersion -> patchVersion.compareTo(appVersion) > 0 && patchVersion.compareTo(softVersion) <= 0;
+        }
+    }
+
 }

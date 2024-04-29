@@ -156,11 +156,18 @@ jobs:
         run: |
           apt install -y jq
       - name: SonarQube Quality Gate check
+        id: sonar
         uses: sonarsource/sonarqube-quality-gate-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           scanMetadataReportFile: tapdata/target/sonar/report-task.txt
+      - name: Send SonarQube Quality Gate to Pr Comment
+        if: ${{ always() && steps.sonar.outcome == 'failure' }}
+        run: |
+          cd tapdata/build/ && bash check_sonarqube.sh --project-key=tapdata --branch=${{ env.OPENSOURCE_BRANCH }} \
+            --sonar-token=${{ secrets.SONAR_TOKEN }} --github-token=${{ secrets.TAPDATA_ENT_CICD_TOKEN }} \
+            --repo=tapdata --pr-number=${{ github.event.pull_request.number }}
 
   Build-And-Deploy:
     if: ${{ github.event_name == 'schedule' || inputs.mrci_run }}

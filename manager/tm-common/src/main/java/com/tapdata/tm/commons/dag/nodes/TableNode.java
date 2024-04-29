@@ -150,6 +150,9 @@ public class TableNode extends DataNode {
     /** 自定义sql条件 */
     @EqField
     private Integer  limit;
+    /** 时差偏移量*/
+    @EqField
+    private Long offsetHours;
 
     /** 增量方式  logCdc  polling */
     private String cdcMode;
