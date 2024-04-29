@@ -28,15 +28,14 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapTimeForm;
 import io.tapdata.pdk.apis.entity.TapTimeUnit;
-import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
@@ -47,6 +46,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.junit.Assert;
 import org.junit.jupiter.api.*;
@@ -271,7 +271,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 		tapTable.setNameFieldMap(nameFieldMap);
 		tapTable.setName("test");
 		tapTable.setId("test");
-		TapTableMap<String, TapTable>  tapTableMap =TapTableMap.create("test",tapTable);
+		TapTableMap<String, TapTable>  tapTableMap = TapTableMap.create("test",tapTable);
 
 		when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
 		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode,"batchFilterRead");
@@ -1371,59 +1371,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 		}
 	}
 
-	@Test
-	@DisplayName("test QueryOperator ")
-	void testQueryOperator() {
-		String dateTime = "2023-12-20 12:23:20";
-		QueryOperator queryOperator = new QueryOperator("createTime", dateTime, 1);
-		queryOperator(dateTime, queryOperator);
-		Assert.assertTrue(queryOperator.getOriginalValue() == dateTime);
-	}
-
-
-	@Test
-	@DisplayName("test QueryOperator HasOriginalValue ")
-	void testQueryOperatorHasOriginalValue() {
-		String dateTime = "2021-12-20 12:23:24";
-		QueryOperator queryOperator = new QueryOperator("createTime", dateTime, 1);
-		queryOperator.setOriginalValue(dateTime);
-		queryOperator(dateTime, queryOperator);
-		LocalDateTime localDateTime;
-		String datetimeFormat = "yyyy-MM-dd HH:mm:ss";
-		try {
-			localDateTime = LocalDateTime.parse(dateTime, DateTimeFormatter.ofPattern(datetimeFormat));
-		} catch (Exception e) {
-			throw new RuntimeException("The input string format is incorrect, expected format: " + datetimeFormat + ", actual value: " + dateTime);
-		}
-		ZonedDateTime gmtZonedDateTime = localDateTime.atZone(ZoneId.of("GMT"));
-		DateTime expectedValue = new DateTime(gmtZonedDateTime);
-		Assert.assertTrue(expectedValue.compareTo((DateTime) queryOperator.getValue()) == 0);
-	}
-
-
-	public void queryOperator(String dateTime,QueryOperator queryOperator){
-		List<QueryOperator> conditions = new ArrayList<>();
-
-		conditions.add(queryOperator);
-		TableNode tableNodeTemp =new TableNode();
-		tableNodeTemp.setIsFilter(true);
-		tableNodeTemp.setConditions(conditions);
-		tableNodeTemp.setTableName("test");
-		when(dataProcessorContext.getNode()).thenReturn((Node) tableNodeTemp);
-		TapTable tapTable = new TapTable();
-		LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap<>();
-		TapField tapField = new TapField("createTime", "TapDateTime");
-		tapField.setTapType(new TapDateTime());
-		nameFieldMap.put("createTime",tapField);
-		tapTable.setNameFieldMap(nameFieldMap);
-		tapTable.setName("test");
-		tapTable.setId("test");
-		TapTableMap<String, TapTable>  tapTableMap =TapTableMap.create("test",tapTable);
-
-		when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
-		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode,"batchFilterRead");
-
-	}
 	@Nested
 	class timeTransformationTest{
 		@DisplayName("Query the data of the previous day")
