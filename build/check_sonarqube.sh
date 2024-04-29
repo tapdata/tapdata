@@ -77,6 +77,7 @@ if [[ $QUALITY_GATE_STATUS == "ERROR" ]]; then
       COMMENT+="- Status: **$status**, MetricKey: **$metricKey**, ActualValue: **$actualValue**\n"
     fi
   done
+  COMMENT+="\n\nSee Sonar Scan Result at: $BASE_URI/dashboard?branch=$BRANCH&id=$PROJECT_KEY"
   info "Send message to Github Pr Comment"
   if [[ -z $PR_NUMBER ]]; then
     warn "variable PR_NUMBER is not set, sending termination."
