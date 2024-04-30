@@ -119,14 +119,41 @@ default username is: admin@admin.com, default password is admin
 
 Materialized view is a special feature of tapdata, You can give full play to the characteristics of MongoDB document database and create the data model you need, try enjoy it !
 
+In this example, I will make a view using 2 tables in MySQL: order and product, make product as a embedded document of order, here is the step:
+
 1. Create MySQL and MongoDB data source
 
 2. In the left navigation panel, click Data Pipelines -> Data Transformation
 
 3. On the right side of the page, click Create
 
-4. 
+4. Click mysql data source in left up side, then drag and drop order table and product table onto the canvas
 
+5. Drag and drop "Master-slave merge" node in left bottom side onto the canvas
+
+6. Drag a line from the order table to Master-slave merge
+
+7. Drag a line from the product table to Master-slave merge
+
+8. Drag and drop MongoDB data source onto the canvas, and drag a line from the "Master-slave merge" node to MongoDB node
+
+<img src='./assets/example-4-1.jpg'></img>
+
+9. Click "Master-slave merge" node, then drag product table into order table in the right side in "Table Name"
+
+<img src='./assets/example-4-2.jpg'></img>
+
+10. Click "Master-slave merge" node, then click product table, config Data write model to "Match and Merge", Field write path to "product", Association Conditions to "order_id" => "order_id", then you can see Schema in bottom changed
+
+11. Click MongoDB node, and config target table name as order_with_product, update condition field config as "order_id"
+
+<img src='./assets/example-4-2.jpg'></img>
+
+12. Click the Save button in the upper right corner, then click the Start button
+
+13. Observe the indicators and events on the task page until data is in sync
+
+14. Check collection order_with_product in MongoDB, and you will see the data model
 
 </details>
 
@@ -152,7 +179,13 @@ Using the data verification feature, you can quickly check whether the synchroni
 </details>
 
 ## Architecture
+Tapdata's complete service consists of two processes and a database.
 
+Among them, the management process provides front-end interface hosting and task scheduling capabilities
+
+the computing engine provides task execution capabilities
+
+the database is MongoDB, which provides state persistence capabilities.
 
 ## License
 Tapdata is under the Apache 2.0 license. See the [LICENSE](https://github.com/tapdata/tapdata/blob/main/LICENSE) file for details.
