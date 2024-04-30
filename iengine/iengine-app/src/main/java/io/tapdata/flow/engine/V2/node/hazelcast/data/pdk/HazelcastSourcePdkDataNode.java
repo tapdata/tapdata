@@ -383,9 +383,15 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																		obsLogger.info("Execute result is null");
 																		return;
 																	}
-																	List<Map<String, Object>> maps = (List<Map<String, Object>>) executeResult.getResult();
-																	List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
-																	consumer.accept(events, null);
+
+																	Object result= executeResult.getResult();
+																	if (result instanceof List) {
+																		List<Map<String, Object>> maps = (List<Map<String, Object>>) executeResult.getResult();
+																		List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
+																		consumer.accept(events, null);
+																	}else {
+																		obsLogger.info("Execute result is {}",result);
+																	}
 																});
 															} else {
 																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
