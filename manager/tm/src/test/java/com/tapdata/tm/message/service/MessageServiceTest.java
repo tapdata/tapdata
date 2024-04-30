@@ -438,7 +438,7 @@ class MessageServiceTest {
         verify(mockMailUtils,times(1)).sendHtmlMail(Arrays.asList("test@test.com"),"Hi, username: ", "name", resultClickHref,SystemEnum.SYNC, MsgTypeEnum.CONNECTED);
     }
     @Test
-    void testInformUser_SendingEmailByMessageDto() throws InvocationTargetException, IllegalAccessException{
+    void testInformUser_SendingEmailByMessageDto() throws InvocationTargetException, IllegalAccessException {
         try(MockedStatic<SpringContextHelper> springContextHelperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)){
             springContextHelperMockedStatic.when(()->SpringContextHelper.getBean(UserService.class)).thenReturn(mockUserService);
             Notification notification = new Notification();
@@ -478,7 +478,7 @@ class MessageServiceTest {
         }
     }
     @Test
-    void testInformUser_SendingEmailBoundaryByMessageDto() throws InvocationTargetException, IllegalAccessException{
+    void testInformUser_SendingEmailBoundaryByMessageDto() throws InvocationTargetException, IllegalAccessException {
         try(MockedStatic<SpringContextHelper> springContextHelperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)){
             springContextHelperMockedStatic.when(()->SpringContextHelper.getBean(UserService.class)).thenReturn(mockUserService);
             Notification notification = new Notification();
@@ -541,7 +541,6 @@ class MessageServiceTest {
                     "agent-xxxxxx",null,
                     "The instance (agent-xxxxxx) you subscribed to will expire in 1 days to avoid affecting the running of your tasks. Please renew in time.");
         }
-
     }
     @Test
     void testInformUser_SendingEmailOnAgentExpired() throws InvocationTargetException, IllegalAccessException{
@@ -588,7 +587,6 @@ class MessageServiceTest {
                     "agent-xxxxxx",null,
                     "The instance (agent-xxxxxx) you subscribed to has expired. Please keep your auto-renewal account with sufficient balance and the system will automatically renew it for you. If the renewal is not completed, please contact customer service for assistance.");
         }
-
     }
     @Test
     void testCheckSending(){
