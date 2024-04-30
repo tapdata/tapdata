@@ -42,13 +42,20 @@ default username is: admin@admin.com, default password is admin
 <details>
     <summary><h4>🗂️ Create Datasource and Test it</h4></summary>
 1. Login tapdata platform
+
 2. In the left navigation panel, click Connections
+
 3. On the right side of the page, click Create
+
 4. In the pop-up dialog, search and select MySQL
+
 5. On the page that you are redirected to, follow the instructions below to fill in the connection information for MySQL
-[![]](./assets/example-1-create-mysql-connection.jpg)
+
+[](./assets/example-1-create-mysql-connection.jpg)
+
 6. Click Test, make sure all test pass, then click Save
-[![]](./assets/example-1-test.jpg)
+
+[](./assets/example-1-test.jpg)
 
 </details>
 
