@@ -1,191 +1,190 @@
+<div align="center">
+<a href="https://tapdata.io/">
 <img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
-<p align="center">
-    <a href="https://github.com/tapdata/tapdata/graphs/contributors" alt="Contributors">
-        <img src="https://img.shields.io/github/contributors/tapdata/tapdata" /></a>
-    <a href="https://github.com/tapdata/tapdata/pulse" alt="Activity">
-        <img src="https://img.shields.io/github/commit-activity/m/tapdata/tapdata" /></a>
-    <a href="https://tapdata.github.io/tapdata">
-        <img src="https://github.com/tapdata/tapdata/actions/workflows/docker-image.yml/badge.svg" alt="build status"></a>
-</p>
+</a>
+<br/><br/>
 
-[中文简要文档地址](https://github.com/tapdata/tapdata/blob/master/README.zh-CN.md)
+[![LICENSE](https://img.shields.io/github/license/tapdata/tapdata.svg)](https://github.com/tapdata/tapdata/blob/main/LICENSE)
+[![Contributors](https://img.shields.io/github/contributors/tapdata/tapdata)](https://github.com/tapdata/tapdata/graphs/contributors)
+[![Activity](https://img.shields.io/github/commit-activity/m/tapdata/tapdata)](https://github.com/tapdata/tapdata/pulse)
+[![Release](https://img.shields.io/github/v/tag/tapdata/tapdata.svg?sort=semver)](https://github.com/tapdata/tapdata/releases)
 
-[English Readme](https://github.com/tapdata/tapdata/blob/master/README.md)
+</div>
 
-## 完整在线文档地址: https://tapdata.github.io/
-## Tapdata 为什么而存在
-Tapdata 是新一代的实时数据平台, 通过把企业核心数据实时集中到中央化数据平台的方式并通过API 或者反向同步方式, 为下游的交互式应用, 微服务或交互式分析提供新鲜实时的数据
+---
 
-你也可以使用Tapdata作为一个实时数据集成（ETL）工具, 提供各种异构数据库之间的实时复制能力
+[![Try It Online](<https://img.shields.io/badge/-Try%20It%20Online%20%E2%86%92-rgb(255,140,0)?style=for-the-badge>)](https://cloud.tapdata.net)
+[![Official Website](<https://img.shields.io/badge/-Official%20Website%20%E2%86%92-rgb(59,71,229)?style=for-the-badge>)](https://cloud.tapdata.net)
+[![Docs](<https://img.shields.io/badge/-Online%20Document%20%E2%86%92-rgb(0,205,102)?style=for-the-badge>)](https://docs.tapdata.io)
 
-## Tapdata 架构图 
-<img src="https://github.com/tapdata/tapdata/raw/master/assets/tapdata-ldp.png" width="900px"/>
 
-## 安装准备
-### 环境准备
-1. 在开始之前, 请保证您的环境安装了 Docker
-2. 当前工具仅在 Linux 下进行过完整测试, 其他操作系统的适配正在进行中
-3. 克隆当前仓库代码到本地: `git clone https://github.com/tapdata/tapdata.git && cd tapdata`
+## What is Tapdata ?
+Tapdata是一个实时数据集成平台，可以实现数据库、SaaS服务、应用程序、文件等各种系统之间的数据实时同步。
 
-### 快速启动
-1. 执行 `bash build/quick-use.sh` 会快速启动一个使用环境, 然后会自动进入 tapshell 交互客户端
-2. 下次进入环境时, 可执行 `bash bin/tapshell.sh` 进入交互命令行工具
+通过拖放操作即可轻松构建同步任务，从建表到全量、增量同步，所有流程完全自动化。
+
+1. [核心功能](https://docs.tapdata.io/cloud/introduction/features)
+2. [支持的数据源](https://docs.tapdata.io/cloud/introduction/supported-databases)
+
+欲了解更多详情，请阅读在线文档 [docs](https://docs.tapdata.io/)
  
-### 从源码编译启动
-1. 执行 `bash build/quick-dev.sh` 会从源码编译, 并启动一个完整的使用环境,  然后会自动进入 tapshell 交互客户端
-2. 下次进入环境时, 可执行 `bash bin/tapshell.sh` 进入交互命令行工具
+## 快速开始
+### 使用云服务开始体验
+Tapdata服务在云服务中可用，您可以使用完全托管的服务，或将引擎部署到您的专用网络
 
-### 环境清理
-1. 执行 `bash build/clean.sh` 会清理包括编译中间产物, 编译镜像, 运行容器在内的全部内容, 但是会保留运行的任务配置与进度等信息
-2. 如果需要删除任务运行配置, 请删除主目录的 data 目录即可
+试用 https://cloud.tapdata.io/，支持google和github账户登录，免费试用，无需信用卡，立即开始您的实时数据之旅。
 
-## 使用说明
-1. 在环境启动后, 可通过 `bash bin/tapshell.sh` 进入交互客户端
+### 使用本地部署开始体验
+运行命令 `docker run -d -p 3030:3030 github.com/tapdata/tapdata-opensource:latest`, 等待 3 分钟, 然后即可访问 http://localhost:3030/ 获取服务
 
-交互客户端可使用命令模式, 或者 Shell API 模式进行实时数据平台的使用
+默认的用户名是: admin@admin.com, 默认的密码是: admin
 
-### 基本概念
-1. 数据连接器: 平台支持的数据连接类型, 比如 Mysql, PG, MongoDB
-2. 数据源: 通过连接器创建的具体的数据来源
-3. 数据表: 具有一定数据结构的数据集合
-4. 任务: 
+## 示例
+<details>
+    <summary><h4>🗂️ 创建数据源, 并做连接测试</h4></summary>
 
-### 查看资源
-1. 查看支持的数据连接器
-```
->>> show connectors
-1839d8 MongoDB
-183a77 Mysql
-183af5 PostgreSQL
-```
+1. 登录tapdata平台
 
-2. 查看创建的数据源
-```
->>> show datasources
-id         status     database_type        name
-183afa     ready      MongoDB              mongodb
-```
+2. 在左侧导航面板中，单击“连接”
 
-3. 查看数据源下的表
-```
->>> use mongodb
-datasource switch to: mongodb
+3. 在页面右侧，点击“创建”
 
->>> show tables
-```
+4. 在弹出的对话框中，搜索并选择MySQL
 
-4. 查看数据表的结构
-```
->>> use mongodb
-datasource switch to: mongodb
+5. 在跳转到的页面中，按照以下说明填写MySQL的连接信息
 
->>> desc CAR_CLAIM
-{
-    "_id": "OBJECT_ID",
-    "SETTLED_DATE": "DATE_TIME",
-    "CLAIM_ID": "STRING",
-    "SETTLED_AMOUNT": "INT32",
-    "CLAIM_REASON": "STRING",
-    "POLICY_ID": "STRING",
-    "CLAIM_DATE": "DATE_TIME",
-    "LAST_CHANGE": "DATE_TIME",
-    "CLAIM_AMOUNT": "INT32"
-}
-```
+<img src="./assets/example-1-create-mysql-connection.jpg"></img>
 
-5. 查看任务列表, 分别为 任务id, 名字, 状态, 类型
-```
->>> show jobs
-system has 3 jobs
-18415a: migrate                                    running      sync/initial_sync+cdc
-1843e1: migrate2                                   error        sync/initial_sync+cdc
-```
+6. 单击“测试”，确保所有测试通过，然后单击“保存”
 
-### 操作数据源
-```
-# mongodb
->>> source = DataSource("mongodb", "$name").uri("$uri")
+<img src="./assets/example-1-test.jpg"></img>
 
-# mysql
->>> source = DataSource("mysql", "$name").host("$host").port($port).username("$username").port($port).db("$db")
+</details>
 
-# pg
->>> source = DataSource("postgres", "$name").host("$host").port($port).username("$username").port($port).db("$db").schema("$schema").logPluginName("wal2json")
+<details>
+    <summary><h4>🗂️ 将数据从 MySQL 同步到 MongoDB</h4></summary>
 
-# 保存数据源, 并加载表结构
->>> source.save()
+1. 创建MySQL和MongoDB数据源
 
-# 重新加载表结构
->>> validate datasource $name
+2. 在左侧导航面板中，单击数据管道 -> 数据复制
 
-# 删除数据源
->>> delete datasource $name
-```
+3. 在页面右侧，点击“创建”
 
-### 操作任务
-1. 同步一张表, 默认为全量+增量同步
-```
-# 创建一个工作流
->>> p = Pipeline("$name")
+4. 将 MySQL 和 MongoDB 数据源拖放到画布上
 
-# 使用 readFrom 从源读取数据, 使用 writeTo 将其写向目标
->>> p.readFrom("$source_name.$table").writeTo("$sink_name.$table")
+5. 从MySQL数据源拖一行到MongoDB
 
-# 启动任务
->>> p.start()
+6. 配置MySQL数据源，选择需要同步的数据表
 
-# 监控工作流的任务, 查看指标与日志
->>> p.monitor()
->>> p.logs()
+<img src='./assets/example-2-config-mysql.jpg'></img>
 
-# 停止任务
->>> p.stop()
+7. 单击右上角的“保存”按钮，然后单击“开始”按钮
 
-# 列出任务
->>> show jobs
+8. 观察任务页面的指示灯和事件，直至数据同步
 
-# 监控任务, 查看指标与日志
->>> monitor job $name
->>> logs job $name [tail=False] [limit=10] [t=30]
+<img src='./assets/example-2-metrics.jpg'></img>
 
-# 停止任务
->>> stop job $name
+</details>
 
-# 删除任务
->>> delete job $name
-```
+<details>
+    <summary><h4>🗂️ 使用简单的 ETL 从 MySQL 到 PostgreSQL</h4></summary>
 
-2. 同步一张表, 并使用自定义函数进行一些简单数据处理, 目前你可以使用 Python3 语法来进行函数的定义
-```
-# 1. 定义一个方法, 对 record 进行变换, 并返回 record
->>> def fn(record):
-        record["x"] = 1
-        return record
+1. 创建MySQL和PostgreSQL数据源
 
-# 2. 使用 processor 算子指定变换方法
->>> p.readFrom(...).processor(fn).writeTo(...)
-```
+2. 在左侧导航面板中，单击数据管道 -> 数据转换
 
-3. 同步多张表
-```
-# 创建一个工作流
->>> p = Pipeline("$name")
+3. 在页面右侧，点击“创建”
 
-# 新建一个包含多张数据表的数据读取源, 支持正则匹配
->>> source = Source("$datasource_name", ["table1", "table2"...])
->>> source = Source("$datasource_name", table_re="xxx.*")
+4. 将 MySQL 和 PostgreSQL 数据源拖放到画布上
 
-# 通过 writeTo 方法, 可修改同步表的前后缀
->>> p.readFrom(source).writeTo("$datasource_name", prefix="", suffix="")
-```
+5. 从MySQL数据源拖一行到PostgreSQL
 
+6. 单击连接线上的加号并选择“字段重命名”
 
-## 开源 License
-Tapdata 使用 Apache V2 License
+<img src='./assets/example-3-field-rename-1.jpg'></img>
+
+7. 单击Field Rename节点，将config表单中的i_price更改为price，i_data更改为data
+
+<img src='./assets/example-3-field-rename-2.jpg'></img>
+
+8. 单击右上角的“保存”按钮，然后单击“开始”按钮
+
+9. 观察任务页面的指示灯和事件，直至数据同步
+
+<img src='./assets/example-3-metrics.jpg'></img>
+
+</details>
+
+<details>
+    <summary><h4>🗂️ 在 MongoDB 中制作物化视图</h4></summary>
+
+物化视图是tapdata的特色功能，您可以充分发挥MongoDB文档数据库的特性，创建您需要的数据模型，尝试享受吧！
+
+在这个例子中，我将使用MySQL中的2个表创建一个视图：订单和产品，将产品作为订单的嵌入文档，步骤如下：
+
+1. 创建MySQL和MongoDB数据源
+
+2. 在左侧导航面板中，单击数据管道 -> 数据转换
+
+3. 在页面右侧，点击“创建”
+
+4. 点击左上角的mysql数据源，然后将订单表和产品表拖放到画布上
+
+5. 将左下侧的“主从合并”节点拖放到画布上
+
+6. 从订单表拖一条线到主从合并
+
+7. 从产品表拖一条线到主从合并
+
+8. 将MongoDB数据源拖放到画布上，并从“主从合并”节点拖一条线到MongoDB节点
+
+<img src='./assets/example-4-1.jpg'></img>
+
+9. 点击“主从合并”节点，然后将产品表拖入“表名”右侧的订单表中
+
+<img src='./assets/example-4-2.jpg'></img>
+
+10. 点击“主从合并”节点，然后点击产品表，配置数据写入模式为“匹配合并”，字段写入路径为“产品”，关联条件为“order_id”=>“order_id”，即可 请参阅底部的架构已更改
+
+11. 点击MongoDB节点，配置目标表名为order_with_product，更新条件字段配置为“order_id”
+
+<img src='./assets/example-4-2.jpg'></img>
+
+12. 单击右上角的“保存”按钮，然后单击“开始”按钮
+
+13. 观察任务页面的指示灯和事件，直至数据同步
+
+14. 检查MongoDB中的集合order_with_product，您将看到数据模型
+
+</details>
+
+<details>
+    <summary><h4>🗂️ 数据校验检查</h4></summary>
+
+利用数据校验功能，可以快速检查同步数据是否一致、准确
+
+1. 在左侧导航面板中，点击数据管道 -> 数据验证
+
+2. 在页面右侧，点击任务一致性验证
+
+3. 选择1个任务，有效类型选择“所有字段验证”，这意味着系统将检查所有记录的所有字段
+
+<img src='./assets/example-5-config.jpg'></img>
+
+4. 单击“保存”，然后单击任务列表中的“执行”
+
+5. 等待验证任务完成，点击任务列表中的结果，查看验证结果
+
+<img src='./assets/example-5-result.jpg'></img>
+
+</details>
+
+## 架构图
+![Alt Text](./assets/559f2a22-1ffd-4ac0-972f-aee706f51469.gif)
+
+## 许可证
+Tapdata 项目使用 Apache 2.0 许可证, 请参照 [LICENSE](https://github.com/tapdata/tapdata/blob/main/LICENSE)
 
 ## 加入我们
-- 微信
-<img src="https://github.com/tapdata/tapdata/raw/master/assets/wechat-qr-code.jpg" width="300px"/>
-
-- [Slack](https://join.slack.com/t/tapdatacommunity/shared_invite/zt-1biraoxpf-NRTsap0YLlAp99PHIVC9eA)
-
+- [发送邮件](mailto:team@tapdata.io)
+- [加入 Slack](https://join.slack.com/t/tapdatacommunity/shared_invite/zt-1biraoxpf-NRTsap0YLlAp99PHIVC9eA)
