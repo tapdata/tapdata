@@ -14,6 +14,8 @@
 ---
 
 [![Try It Online](<https://img.shields.io/badge/-Try%20It%20Online%20%E2%86%92-rgb(255,140,0)?style=for-the-badge>)](https://cloud.tapdata.net)
+[![Official Website](<https://img.shields.io/badge/-Official%20Website%20%E2%86%92-rgb(59,71,229)?style=for-the-badge>)](https://cloud.tapdata.net)
+[![Docs](<https://img.shields.io/badge/-Online%20Document%20%E2%86%92-rgb(0,255,127)?style=for-the-badge>)](https://docs.tapdata.io)
 
 
 ## What is Tapdata ?
