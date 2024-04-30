@@ -15,7 +15,7 @@
 
 [![Try It Online](<https://img.shields.io/badge/-Try%20It%20Online%20%E2%86%92-rgb(255,140,0)?style=for-the-badge>)](https://cloud.tapdata.net)
 [![Official Website](<https://img.shields.io/badge/-Official%20Website%20%E2%86%92-rgb(59,71,229)?style=for-the-badge>)](https://cloud.tapdata.net)
-[![Docs](<https://img.shields.io/badge/-Online%20Document%20%E2%86%92-rgb(0,238,118)?style=for-the-badge>)](https://docs.tapdata.io)
+[![Docs](<https://img.shields.io/badge/-Online%20Document%20%E2%86%92-rgb(0,205,102)?style=for-the-badge>)](https://docs.tapdata.io)
 
 
 ## What is Tapdata ?
@@ -34,11 +34,28 @@ Tapdata service is available in cloud service, you can use fully-managed service
 Try on https://cloud.tapdata.io/, support googld and github user login, free trial, no credit card needed, start your real-time data journey immediately.
 
 ### Start with local deploy
-RUN `docker run -itd -p 3030:3030 github.com/tapdata/tapdata-opensource:latest bash`, then you can get it from http://localhost:3030, default username is: admin@admin.com, default password is admin
+RUN `docker run -d -p 3030:3030 github.com/tapdata/tapdata-opensource:latest`, wait for 3 minutes, then you can get it from http://localhost:3030/
+
+default username is: admin@admin.com, default password is admin
 
 ### Example
-#### Sync Data From MySQL To MongoDB
+<details>
+    <summary><h4>🗂️ Sync Data From MySQL To MongoDB</h4></summary>
+</details>
 
+<details>
+    <summary><h4>🗂️ MySQL To PostgreSQL with ETL</h4></summary>
+</details>
+
+
+<details>
+    <summary><h4>🗂️ Making materialized views in MongoDB</h4></summary>
+</details>
+
+
+<details>
+    <summary><h4>🗂️ Data consistency check</h4></summary>
+</details>
 
 ## Architecture
 
