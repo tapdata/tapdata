@@ -10,7 +10,7 @@
 
 
 ## Online Document: https://docs.tapdata.io/
-## Cloud Service: https://cloud.tapdata.io/
+## Cloud Service: https://cloud.tapdata.io/  
 
 ## What is Tapdata?
 Tapdata is a real-time data integration platform that enables data to be synchronized in real-time among various systems such as databases, SaaS services, applications, and files.
