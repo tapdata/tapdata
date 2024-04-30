@@ -56,12 +56,33 @@ default username is: admin@admin.com, default password is admin
 
 6. Click Test, make sure all test pass, then click Save
 
-< img src="./assets/example-1-test.jpg"></img>
+<img src="./assets/example-1-test.jpg"></img>
 
 </details>
 
 <details>
     <summary><h4>🗂️ Sync Data From MySQL To MongoDB</h4></summary>
+
+1. Create MySQL and MongoDB data source
+
+2. In the left navigation panel, click Data Pipelines -> Data Replications
+
+3. On the right side of the page, click Create
+
+4. Drag and drop MySQL and MongoDB data sources onto the canvas
+
+5. Drag a line from the MySQL data source to MongoDB
+
+6. Configure the MySQL data source and select the data tables you want to synchronize
+
+<img src='./assets/example-2-config-mysql.jpg'></img>
+
+7. Click the Save button in the upper right corner, then click the Start button
+
+8. Observe the indicators and events on the task page until data synchronization is completed
+
+<img src='./assets/example-2-metrics.jpg'></img>
+
 </details>
 
 <details>
