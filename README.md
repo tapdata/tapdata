@@ -29,7 +29,7 @@ For more details, please read [docs](https://docs.tapdata.io/)
  
 ### Quick Start
 1. SAAS Free Trial(NO Credit Card Required): visit https://cloud.tapdata.io/, start your real-time data journey immediately.
-2. Self host deploy: RUN `docker run -itd -p 3000:3000 github.com/tapdata/tapdata-opensource:latest bash`, then you can get it from http://localhost:3000, default username is: admin@admin.com, default password is admin
+2. Self host deploy: RUN `docker run -itd -p 3030:3030 github.com/tapdata/tapdata-opensource:latest bash`, then you can get it from http://localhost:3030, default username is: admin@admin.com, default password is admin
 
 ### Example
 #### Sync Data From MySQL To MongoDB
