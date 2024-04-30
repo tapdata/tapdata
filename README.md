@@ -187,6 +187,8 @@ the computing engine provides task execution capabilities
 
 the database is MongoDB, which provides state persistence capabilities.
 
+<img src='./assets/architecture.png'></img>
+
 ## License
 Tapdata is under the Apache 2.0 license. See the [LICENSE](https://github.com/tapdata/tapdata/blob/main/LICENSE) file for details.
 
