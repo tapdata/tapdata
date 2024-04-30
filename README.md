@@ -1,10 +1,11 @@
 <div align="center">
-    <a href="https://tapdata.io/">
-        <img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
-    </a>
-    <br/><br/>
+<a href="https://tapdata.io/">
+<img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
+</a>
+<br/><br/>
 
-    [![LICENSE](https://img.shields.io/github/license/tapdata/tapdata.svg)](https://github.com/tapdata/tapdata/blob/main/LICENSE)
+[![LICENSE](https://img.shields.io/github/license/tapdata/tapdata.svg)](https://github.com/tapdata/tapdata/blob/main/LICENSE)
+
 </div>
 
 ---
