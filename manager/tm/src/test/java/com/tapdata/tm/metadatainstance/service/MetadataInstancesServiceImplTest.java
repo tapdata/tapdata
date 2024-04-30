@@ -17,7 +17,6 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.*;
@@ -41,6 +40,7 @@ import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
 import com.tapdata.tm.metadatainstance.vo.MetaTableCheckVo;
+import com.tapdata.tm.metadatainstance.vo.MetaTableVo;
 import com.tapdata.tm.metadatainstance.vo.MetadataInstancesVo;
 import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
 import com.tapdata.tm.permissions.DataPermissionHelper;
@@ -2189,6 +2189,42 @@ public class MetadataInstancesServiceImplTest {
 	}
 	@Nested
 	class TableSearchTest{
+		String connectionId;
+		String keyword;
+		String lastId;
+		Integer pageSize;
+		@Test
+		@DisplayName("test tableSearch method normal")
+		void test1(){
+			lastId = "65bc933c6129fe73d7858b40";
+			pageSize = 10;
+			keyword = "test";
+			List<MetadataInstancesDto> metaData = new ArrayList<>();
+			MetadataInstancesDto dto = new MetadataInstancesDto();
+			dto.setId(mock(ObjectId.class));
+			dto.setName("name");
+			dto.setOriginalName("originalName");
+			dto.setComment("");
+			metaData.add(dto);
+			doReturn(metaData).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			List<MetaTableVo> actual = metadataInstancesService.tableSearch(connectionId, keyword, lastId, pageSize, userDetail);
+			assertEquals("name",actual.get(0).getName());
+			assertEquals("originalName",actual.get(0).getOriginalName());
+			assertEquals("",actual.get(0).getComment());
+		}
+		@Test
+		@DisplayName("test tableSearch method simple")
+		void test2(){
+			keyword = "test";
+			pageSize = 0;
+			List<MetadataInstancesDto> metaData = new ArrayList<>();
+			doReturn(metaData).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			List<MetaTableVo> actual = metadataInstancesService.tableSearch(connectionId, keyword, lastId, pageSize, userDetail);
+			assertEquals(null,actual);
+		}
+	}
+	@Nested
+	class CheckTableNamesTest{
 		@Test
 		@DisplayName("test checkTableNames method when metaData is null")
 		void test1(){
@@ -2213,10 +2249,6 @@ public class MetadataInstancesServiceImplTest {
 			assertEquals(1,actual.getExitsTables().size());
 			assertEquals(1,actual.getErrorTables().size());
 		}
-	}
-	@Nested
-	class CheckTableNamesTest{
-
 	}
 	@Nested
 	class FindTablesByIdTest{
@@ -2244,10 +2276,6 @@ public class MetadataInstancesServiceImplTest {
 	}
 	@Nested
 	class LinkLogicTest{
-		@Test
-		void test1(){
-
-		}
 	}
 	@Nested
 	class DeleteTaskMetadataTest{

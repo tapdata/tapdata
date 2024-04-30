@@ -2366,7 +2366,7 @@ public class TaskServiceImpl extends TaskService{
         return taskStatsDto;
     }
 
-    private Map<String, Long> typeTaskStats(UserDetail userDetail) {
+    protected Map<String, Long> typeTaskStats(UserDetail userDetail) {
         org.springframework.data.mongodb.core.aggregation.Aggregation aggregation =
                 org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation(
                         match(Criteria.where(USER_ID).is(userDetail.getUserId())
@@ -2397,7 +2397,7 @@ public class TaskServiceImpl extends TaskService{
         return taskTypeStats;
     }
 
-    private DataFlowInsightStatisticsDto mergerStatistics(List<LocalDate> localDates, DataFlowInsightStatisticsDto oldStatistics, DataFlowInsightStatisticsDto newStatistics) {
+    protected DataFlowInsightStatisticsDto mergerStatistics(List<LocalDate> localDates, DataFlowInsightStatisticsDto oldStatistics, DataFlowInsightStatisticsDto newStatistics) {
         Map<String, DataFlowInsightStatisticsDto.DataStatisticInfo> oldMap = new HashMap<>();
         if (oldStatistics != null && CollectionUtils.isNotEmpty(oldStatistics.getInputDataStatistics())) {
             oldMap = oldStatistics.getInputDataStatistics().stream().collect(Collectors.toMap(DataFlowInsightStatisticsDto.DataStatisticInfo::getTime, v -> v, (k1, k2) -> k2));
@@ -2429,7 +2429,7 @@ public class TaskServiceImpl extends TaskService{
         return dataFlowInsightStatisticsDto;
     }
 
-    private List<LocalDate> getNewLocalDate(List<LocalDate> localDates, DataFlowInsightStatisticsDto oldStatistics) {
+    protected List<LocalDate> getNewLocalDate(List<LocalDate> localDates, DataFlowInsightStatisticsDto oldStatistics) {
         List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = oldStatistics.getInputDataStatistics();
         if (CollectionUtils.isEmpty(inputDataStatistics)) {
             return localDates;
@@ -3960,7 +3960,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public TaskDto findByCacheName(String cacheName, UserDetail user) {
-        Criteria taskCriteria = Criteria.where(DAG_NODES).elemMatch(Criteria.where(CATALOG).is("memCache").and("cacheName").is(cacheName)).and("is_deleted").is(false);
+        Criteria taskCriteria = Criteria.where(DAG_NODES).elemMatch(Criteria.where(CATALOG).is("memCache").and("cacheName").is(cacheName)).and(IS_DELETED).is(false);
         Query query = new Query(taskCriteria);
 
         return findOne(query, user);

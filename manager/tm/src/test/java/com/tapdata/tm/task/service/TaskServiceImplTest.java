@@ -27,6 +27,7 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
 import com.tapdata.tm.ds.service.impl.DataSourceServiceImpl;
@@ -41,6 +42,7 @@ import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
 import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
+import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
@@ -59,10 +61,13 @@ import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.task.service.batchin.ParseRelMigFile;
+import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
+import com.tapdata.tm.task.vo.TaskStatsDto;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.service.UserLogService;
@@ -71,6 +76,7 @@ import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
+import io.tapdata.common.sample.request.Sample;
 import io.tapdata.exception.TapCodeException;
 import lombok.SneakyThrows;
 import org.bson.BsonValue;
@@ -81,14 +87,13 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
 import org.quartz.CronScheduleBuilder;
-import org.slf4j.Logger;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -96,9 +101,11 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.net.URL;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -110,8 +117,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
 import static org.springframework.beans.BeanUtils.copyProperties;
 
 
@@ -128,7 +133,6 @@ class TaskServiceImplTest {
         ReflectionTestUtils.setField(taskService, "agentGroupService", agentGroupService);
         workerService = mock(WorkerService.class);
         ReflectionTestUtils.setField(taskService, "workerService", workerService);
-
         taskDto = mock(TaskDto.class);
         user = mock(UserDetail.class);
     }
@@ -140,14 +144,11 @@ class TaskServiceImplTest {
         void init() {
             temp = mock(TaskDto.class);
             when(taskDto.getId()).thenReturn(mock(ObjectId.class));
-
             when(taskService.findById(any(ObjectId.class))).thenReturn(temp);
-
             doNothing().when(taskService).checkTaskInspectFlag(taskDto);
             doNothing().when(taskService).checkDagAgentConflict(taskDto,user,true);
             doNothing().when(taskService).checkDDLConflict(taskDto);
             when(taskService.confirmById(taskDto, user, true, false)).thenReturn(mock(TaskDto.class));
-
             when(taskService.confirmById(taskDto, user, true)).thenCallRealMethod();
         }
 
@@ -538,7 +539,7 @@ class TaskServiceImplTest {
         private ObjectId taskId;
         private Field fields;
         @Test
-        void test1(){
+        void testDataPermissionFindByIdNormal(){
             taskId = new ObjectId("6613954dc8a36646da142da3");
             fields = new Field();
             TaskDto dto = mock(TaskDto.class);
@@ -1145,7 +1146,7 @@ class TaskServiceImplTest {
             ReflectionTestUtils.setField(taskService,"userLogService",userLogService);
         }
         @Test
-        void test1(){
+        void testCopy(){
             try (MockedStatic<SpringContextHelper> mb = Mockito
                     .mockStatic(SpringContextHelper.class)) {
                 TaskServiceImpl service = mock(TaskServiceImpl.class);
@@ -1247,7 +1248,7 @@ class TaskServiceImplTest {
 
         }
         @Test
-        void test1(){
+        void testAfterRenew(){
             UpdateResult updateResult = mock(UpdateResult.class);
             when(taskService.renewNotSendMq(taskDto,user)).thenReturn(updateResult);
             when(updateResult.getMatchedCount()).thenReturn(1L);
@@ -1665,7 +1666,7 @@ class TaskServiceImplTest {
             new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
         }
         @Test
-        void test1(){
+        void testFindDataCopyList(){
             Where where = new Where();
             where.put("inspectResult","agreement");
             filter.setWhere(where);
@@ -1796,7 +1797,7 @@ class TaskServiceImplTest {
             response = mock(HttpServletResponse.class);
         }
         @Test
-        void test(){
+        void testCreateShareCacheTask(){
             TaskDto dto = mock(TaskDto.class);
             when(taskService.confirmById(any(TaskDto.class),any(UserDetail.class),anyBoolean())).thenReturn(dto);
             doCallRealMethod().when(taskService).createShareCacheTask(saveShareCacheParam,user,request,response);
@@ -1824,7 +1825,7 @@ class TaskServiceImplTest {
             ReflectionTestUtils.setField(taskService,"externalStorageService",externalStorageService);
         }
         @Test
-        void test(){
+        void testFindShareCacheNormal(){
             Where where = new Where();
             where.put("connectionName",new HashMap<>());
             filter.setWhere(where);
@@ -1951,7 +1952,7 @@ class TaskServiceImplTest {
             ReflectionTestUtils.setField(taskService,"taskAutoInspectResultsService",taskAutoInspectResultsService);
         }
         @Test
-        void test1(){
+        void testInspectChartNormal(){
             List<TaskDto> taskDtos = new ArrayList<>();
             TaskDto dto = mock(TaskDto.class);
             taskDtos.add(dto);
@@ -1974,7 +1975,7 @@ class TaskServiceImplTest {
     class GetDataCopyChartTest{
         private List<TaskDto> migrateList;
         @Test
-        void test1(){
+        void testGetDataCopyChartNormal(){
             migrateList = new ArrayList<>();
             TaskDto dto1 = mock(TaskDto.class);
             TaskDto dto2 = mock(TaskDto.class);
@@ -1991,7 +1992,7 @@ class TaskServiceImplTest {
     class GetDataDevChartTest{
         private List<TaskDto> synList;
         @Test
-        void test(){
+        void testGetDataDevChartNormal(){
             synList = new ArrayList<>();
             TaskDto dto1 = mock(TaskDto.class);
             TaskDto dto2 = mock(TaskDto.class);
@@ -2005,7 +2006,7 @@ class TaskServiceImplTest {
     @Nested
     class FindByIdsTest{
         @Test
-        void test(){
+        void testFindByIdsNormal(){
             TaskRepository repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
             List<ObjectId> idList = new ArrayList<>();
@@ -2085,7 +2086,7 @@ class TaskServiceImplTest {
     class GetLastHourTest{
         private SnapshotEdgeProgressService snapshotEdgeProgressService;
         @Test
-        void test1(){
+        void testGetLastHourNormal(){
             try (MockedStatic<DateUtil> mb = Mockito
                     .mockStatic(DateUtil.class)) {
                 Date start = new Date();
@@ -2152,7 +2153,7 @@ class TaskServiceImplTest {
         private String taskId = "111";
         private TransformSchemaService transformSchemaService;
         @Test
-        void test1(){
+        void testFindTransformParamNormal(){
             taskService = spy(new TaskServiceImpl(mock(TaskRepository.class)));
             transformSchemaService = mock(TransformSchemaService.class);
             ReflectionTestUtils.setField(taskService,"transformSchemaService",transformSchemaService);
@@ -2176,7 +2177,7 @@ class TaskServiceImplTest {
         private String taskId = "111";
         private TransformSchemaService transformSchemaService;
         @Test
-        void test1(){
+        void testFindTransformAllParam(){
             taskService = spy(new TaskServiceImpl(mock(TaskRepository.class)));
             transformSchemaService = mock(TransformSchemaService.class);
             ReflectionTestUtils.setField(taskService,"transformSchemaService",transformSchemaService);
@@ -3356,315 +3357,6 @@ class TaskServiceImplTest {
         }
     }
     @Nested
-    class importRmProjectTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
-        UserDetail userDetail;
-        FileInputStream fileInputStream;
-        @BeforeEach
-        void beforeEach() throws FileNotFoundException {
-            userDetail = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
-                    "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
-            URL resource = this.getClass().getClassLoader().getResource("test.relmig");
-            fileInputStream=new FileInputStream(resource.getFile());
-        }
-        @Test
-        void importRmProjectTest() throws IOException {
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
-            String rmJson = new String(mockMultipartFile.getBytes());
-            HashMap<String, Object> rmProject = new ObjectMapper().readValue(rmJson, HashMap.class);
-            HashMap<String, Object> project = (HashMap<String, Object>) rmProject.get("project");
-            HashMap<String, Object> content = (HashMap<String, Object>) project.get("content");
-            HashMap<String, Object> contentCollections = (HashMap<String, Object>) content.get("collections");
-//            Map<String, String> stringStringMap = taskService.parseTaskFromRm(rmJson, "123", "123", userDetail);
-            TaskDto taskDto=null;
-//            for(String taskKey:stringStringMap.keySet()){
-//                taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(taskKey), TaskDto.class);
-//            }
-//            assertEquals(5,stringStringMap.size());
-        }
-        @Test
-        void nullImportRmProjectTest(){
-//            assertThrows(BizException.class,()->{taskService.parseTaskFromRm(null, "123", "123", userDetail);});
-        }
-//        @Test
-        void replaceIdTest() throws IOException {
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
-            String s = new String(mockMultipartFile.getBytes());
-            Map<String, Object> rmProject = new ObjectMapper().readValue(s, HashMap.class);
-            Map<String, Object> project = (Map<String, Object>) rmProject.get("project");
-            Map<String, Object> content = (Map<String, Object>) project.get("content");
-            Map<String, Object> contentMapping = (Map<String, Object>) content.get("mappings");
-            Map<String, Object> contentCollections = (Map<String, Object>) content.get("collections");
-            Set<String> collectionKeys = contentCollections.keySet();
-            String collectionKey=null;
-            for(String key:collectionKeys){
-                collectionKey=key;
-            }
-            Set<String> contentMappingKeys = contentMapping.keySet();
-            String contentMappingKey=null;
-            String contentMappingCollectionId=null;
-            for(String key:contentMappingKeys){
-                Map<String, Object> mapping = (Map<String, Object>) contentMapping.get(key);
-                String collectionId = (String)mapping.get("collectionId");
-                contentMappingCollectionId=collectionId;
-                contentMappingKey=key;
-            }
-//            taskService.replaceRmProjectId(rmProject);
-            Set<String> afterStrings = contentCollections.keySet();
-            String afterCollectionKey=null;
-            for(String afterKey1:afterStrings){
-                afterCollectionKey=afterKey1;
-            }
-            Set<String> afterContentMappingKeys = contentMapping.keySet();
-            String afterContentMappingCollectionId=null;
-            String afterContentMappingKey=null;
-            for(String key:afterContentMappingKeys){
-                Map<String, Object> mapping = (Map<String, Object>) contentMapping.get(key);
-                afterContentMappingCollectionId = (String)mapping.get("collectionId");
-                afterContentMappingKey=key;
-            }
-            assertNotEquals(collectionKey,afterCollectionKey);
-            assertNotEquals(contentMappingKey,afterContentMappingKey);
-            assertNotEquals(contentMappingCollectionId,afterContentMappingCollectionId);
-        }
-//        @Test
-        void testReplaceRelationShipsKey() throws IOException {
-            Map<String, String> globalIdMap = new HashMap<>();
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
-            String s = new String(mockMultipartFile.getBytes());
-            Map<String, Object> rmProject = new ObjectMapper().readValue(s, HashMap.class);
-            Map<String, Object> project = (Map<String, Object>) rmProject.get("project");
-            Map<String, Object> content = (Map<String, Object>) project.get("content");
-            Map<String, Object> relationships = content.get("relationships") == null ? new HashMap<>() : (Map<String, Object>) content.get("relationships");
-            Map<String, Object> collectionMap = (Map<String, Object>) relationships.get("collections");
-            Map<String, Object> mappingsMap = (Map<String, Object>) relationships.get("mappings");
-            String collectionKey=null;
-            for(String key:collectionMap.keySet()){
-                collectionKey=key;
-            }
-            String mappingKey=null;
-            for(String key:mappingsMap.keySet()){
-                mappingKey=key;
-            }
-            String relationShipMappingsKey=null;
-            for(String key:mappingsMap.keySet()){
-                relationShipMappingsKey=key;
-            }
-//            taskService.replaceRelationShipsKey(globalIdMap,content);
-            String afterCollectionKey=null;
-            for(String key:collectionMap.keySet()){
-                afterCollectionKey=key;
-            }
-            String afterMappingKey=null;
-            for(String key:mappingsMap.keySet()){
-                afterMappingKey=key;
-            }
-            String afterRelationShipMappingsKey=null;
-            for(String key:mappingsMap.keySet()){
-                afterRelationShipMappingsKey=key;
-            }
-            assertNotEquals(collectionKey,afterCollectionKey);
-            assertNotEquals(afterMappingKey,mappingKey);
-            assertNotEquals(afterRelationShipMappingsKey,relationShipMappingsKey);
-        }
-//        @Test
-        void testImportRmProject() throws IOException {
-            CustomSqlService customSqlService = mock(CustomSqlService.class);
-            taskService.setCustomSqlService(customSqlService);
-            DateNodeService dataNodeService = mock(DateNodeService.class);
-            taskService.setDateNodeService(dataNodeService);
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
-            String s = new String(mockMultipartFile.getBytes());
-//            Map<String, String> stringStringMap = taskService.parseTaskFromRm(s, "123", "123", userDetail);
-            TaskDto taskDto=null;
-//            for(String s1: stringStringMap.keySet()){
-//                taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(s1), TaskDto.class);
-//            }
-            try (MockedStatic<BeanUtils> beanUtilsMockedStatic = mockStatic(BeanUtils.class);MockedStatic<DataPermissionHelper> dataPermissionHelperMockedStatic = mockStatic(DataPermissionHelper.class)) {
-                BeanUtils.copyProperties(any(),any());
-                TaskEntity taskEntity = taskService.convertToEntity(TaskEntity.class, taskDto);
-                when(taskRepository.importEntity(any(),any())).thenReturn(taskEntity);
-                MongoTemplate mongoTemplate = mock(MongoTemplate.class);
-                when(taskRepository.getMongoOperations()).thenReturn(mongoTemplate);
-                assertThrows(BizException.class,()->{taskService.importRmProject(mockMultipartFile,userDetail,false,new ArrayList<>(),"123","123");});
-            }
-        }
-//        @Test
-        void testGenProperties() throws IOException {
-            URL resource = this.getClass().getClassLoader().getResource("EmployeeSchema.relmig");
-            FileInputStream fileInputStream = new FileInputStream(resource.getFile());
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("EmployeeSchema.relmig", fileInputStream);
-            String s = new String(mockMultipartFile.getBytes());
-//            Map<String, String> stringStringMap = taskService.parseTaskFromRm(s, "123", "123", userDetail);
-            TaskDto taskDto = null;
-//            for (String key : stringStringMap.keySet()) {
-//                System.out.println();
-//                taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(key), TaskDto.class);
-//            }
-            ;
-            List<Node> nodes = taskDto.getDag().getNodes();
-            boolean flag = false;
-            for (Node node : nodes) {
-                if (node.getType().equals("merge_table_processor")) {
-                    flag = true;
-                }
-            }
-            assertTrue(flag);
-        }
-    }
-    @Nested
-    class ParentColumnsFindJoinKeysClass{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
-        Map<String, Object> parent;
-        Map<String, Map<String, Map<String, Object>>> renameFields;
-
-
-        @BeforeEach
-        void beforeSetUp(){
-            parent = new HashMap<>();
-            parent.put("rm_id", "rm_id -> eb1243b6-e7dc-4b84-b094-e719f9275512");
-            parent.put("tableName", "Orders");
-            renameFields = new HashMap<>();
-
-            Map<String,Map<String,Object>> orderFieldMap=new HashMap<>();
-            Map<String,Object> idAttrs=new HashMap<>();
-            idAttrs.put("isPrimaryKey", false);
-            idAttrs.put("target","_id");
-            Map<String,Object> orderIdAttrs=new HashMap<>();
-            orderIdAttrs.put("isPrimaryKey",true);
-            orderIdAttrs.put("target","orderId");
-            Map<String,Object> shipViaAttrs=new HashMap<>();
-            shipViaAttrs.put("target","shipVia");
-            shipViaAttrs.put("isPrimaryKey",false);
-            orderFieldMap.put("ShipVia",shipViaAttrs);
-            orderFieldMap.put("_id",idAttrs);
-            orderFieldMap.put("OrderID",orderIdAttrs);
-
-            Map<String,Map<String,Object>> shipperFieldMap=new HashMap<>();
-            Map<String,Object> shipperIdAttrs=new HashMap<>();
-            shipperIdAttrs.put("target","shipperId");
-            shipperIdAttrs.put("isPrimaryKey",true);
-            shipperFieldMap.put("ShipperID",shipperIdAttrs);
-
-            renameFields.put("Shippers",shipperFieldMap);
-            renameFields.put("Orders",orderFieldMap);
-        }
-        @DisplayName("test parent column have foreignKey,and foreignKey table is child table")
-//        @Test
-        void test1(){
-            parent.put("targetPath", "");
-            Map<String, Map<String,String>> souceJoinKeyMapping=new HashMap<>();
-            Map<String, Map<String,String>> targetJoinKeyMapping=new HashMap<>();
-            List<Map<String, String>> joinKeys=new ArrayList<>();
-            Map<String, Object> parentColumns=new HashMap<>();
-            Map<String, Object> columnsAttrs=new HashMap<>();
-            Map<String,Object> foreignKeyAttrs=new HashMap<>();
-            foreignKeyAttrs.put("name","FK_Orders_Shippers");
-            foreignKeyAttrs.put("table","Shippers");
-            foreignKeyAttrs.put("column","ShipperID");
-            columnsAttrs.put("foreignKey",foreignKeyAttrs);
-            parentColumns.put("ShipVia",columnsAttrs);
-//            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
-            assertEquals(1,joinKeys.size());
-            Map<String, String> stringStringMap = joinKeys.get(0);
-            String sourceJoinKey = stringStringMap.get("source");
-            String targetJoinKey = stringStringMap.get("target");
-            assertEquals("shipperId",sourceJoinKey);
-            assertEquals("shipVia",targetJoinKey);
-        }
-        @DisplayName("test parent column have foreignKey,foreignKey table is child table and have targetPath")
-//        @Test
-        void test2(){
-            parent.put("targetPath", "orders");
-            Map<String, Map<String,String>> souceJoinKeyMapping=new HashMap<>();
-            Map<String, Map<String,String>> targetJoinKeyMapping=new HashMap<>();
-            List<Map<String, String>> joinKeys=new ArrayList<>();
-            Map<String, Object> parentColumns=new HashMap<>();
-            Map<String, Object> columnsAttrs=new HashMap<>();
-            Map<String,Object> foreignKeyAttrs=new HashMap<>();
-            foreignKeyAttrs.put("name","FK_Orders_Shippers");
-            foreignKeyAttrs.put("table","Shippers");
-            foreignKeyAttrs.put("column","ShipperID");
-            columnsAttrs.put("foreignKey",foreignKeyAttrs);
-            parentColumns.put("ShipVia",columnsAttrs);
-//            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
-            assertEquals(1,joinKeys.size());
-            Map<String, String> stringStringMap = joinKeys.get(0);
-            String sourceJoinKey = stringStringMap.get("source");
-            String targetJoinKey = stringStringMap.get("target");
-            assertEquals("shipperId",sourceJoinKey);
-            assertEquals("orders.shipVia",targetJoinKey);
-        }
-        @DisplayName("test parent column no have foreignKey")
-        @Test
-        void test3(){
-            Map<String, Map<String,String>> souceJoinKeyMapping=new HashMap<>();
-            Map<String, Map<String,String>> targetJoinKeyMapping=new HashMap<>();
-            List<Map<String, String>> joinKeys=new ArrayList<>();
-            Map<String, Object> parentColumns=new HashMap<>();
-            Map<String, Object> columnsAttrs=new HashMap<>();
-            parentColumns.put("ShipVia",columnsAttrs);
-//            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
-            assertEquals(0,joinKeys.size());
-        }
-        @DisplayName("test parnet column table is not child table")
-        @Test
-        void test4(){
-            parent.put("targetPath", "");
-            Map<String, Map<String,String>> souceJoinKeyMapping=new HashMap<>();
-            Map<String, Map<String,String>> targetJoinKeyMapping=new HashMap<>();
-            List<Map<String, String>> joinKeys=new ArrayList<>();
-            Map<String, Object> parentColumns=new HashMap<>();
-            Map<String, Object> columnsAttrs=new HashMap<>();
-            Map<String,Object> foreignKeyAttrs=new HashMap<>();
-            foreignKeyAttrs.put("name","FK_Orders_Shippers");
-            foreignKeyAttrs.put("table","testTable");
-            foreignKeyAttrs.put("column","ShipperID");
-            columnsAttrs.put("foreignKey",foreignKeyAttrs);
-            parentColumns.put("ShipVia",columnsAttrs);
-//            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
-            assertEquals(0,joinKeys.size());
-        }
-    }
-    @Nested
-    class GetEmbeddedDocumentPathTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
-        @DisplayName("test parent path is empty string,use embeddedPath")
-        @Test
-        void test1(){
-            Map<String,String> setting=new HashMap<>();
-            setting.put("embeddedPath","abc");
-//            String targetPath = taskService.getEmbeddedDocumentPath("", setting);
-//            assertEquals("abc",targetPath);
-        }
-        @DisplayName("test parent path is not empty string,embeddedPath is null")
-        @Test
-        void test2(){
-            Map<String,String> setting=new HashMap<>();
-//            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
-//            assertEquals("parentPath",targetPath);
-        }
-        @DisplayName("test parent path is not empty string,embeddedPath is not null")
-        @Test
-        void test3(){
-            Map<String,String> setting=new HashMap<>();
-            setting.put("embeddedPath","abc");
-//            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
-//            assertEquals("parentPath.abc",targetPath);
-        }
-        @DisplayName("test parent path is not empty string,embeddedPaht is empty str")
-        @Test
-        void test4(){
-            Map<String,String> setting=new HashMap<>();
-            setting.put("embeddedPath","");
-//            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
-//            assertEquals("parentPath",targetPath);
-        }
-    }
-    @Nested
     class RunningTaskNumWithProcessIdTest{
         @Test
         void testRunningTaskNumWithProcessId(){
@@ -3684,211 +3376,535 @@ class TaskServiceImplTest {
         }
     }
     @Nested
-    class GetNewNameMapTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
-        @DisplayName("test get newname map is pk")
+    class RenameTest{
+        private String taskId;
+        private String newName;
         @Test
+        @DisplayName("test rename method when newName equals taskDto name")
         void test1(){
-            Map<String,Object> target=new HashMap<>();
-            target.put("name","employeeId");
-            target.put("included",true);
-            Map<String,Object> source=new HashMap<>();
-            source.put("name","EmployeeId");
-            source.put("isPrimaryKey",true);
-//            Map<String, Object> newNameMap = taskService.getNewNameMap(target, source);
-//            assertEquals("employeeId",newNameMap.get("target"));
-//            assertEquals(true,newNameMap.get("isPrimaryKey"));
+            taskId = "662877df9179877be8b37074";
+            newName = "name";
+            when(taskDto.getName()).thenReturn("name");
+            when(taskService.checkExistById(any(ObjectId.class),any(UserDetail.class),anyString())).thenReturn(taskDto);
+            doCallRealMethod().when(taskService).rename(taskId,newName,user);
+            taskService.rename(taskId,newName,user);
+            verify(taskService,never()).checkTaskName(newName,user,MongoUtils.toObjectId(taskId));
         }
-        @DisplayName("test get newname map is not pk")
         @Test
+        @DisplayName("test rename method normal")
         void test2(){
-            Map<String,Object> target=new HashMap<>();
-            target.put("name","employeeId");
-            target.put("included",true);
-            Map<String,Object> source=new HashMap<>();
-            source.put("name","EmployeeId");
-            source.put("isPrimaryKey",false);
-//            Map<String, Object> newNameMap = taskService.getNewNameMap(target, source);
-//            assertEquals("employeeId",newNameMap.get("target"));
-//            assertEquals(false,newNameMap.get("isPrimaryKey"));
+            taskId = "662877df9179877be8b37074";
+            newName = "name";
+            when(taskDto.getName()).thenReturn("task");
+            when(taskService.checkExistById(any(ObjectId.class),any(UserDetail.class),anyString())).thenReturn(taskDto);
+            doCallRealMethod().when(taskService).rename(taskId,newName,user);
+            taskService.rename(taskId,newName,user);
+            verify(taskService).checkTaskName(newName,user,MongoUtils.toObjectId(taskId));
+            verify(taskService).updateById(any(ObjectId.class),any(Update.class),any(UserDetail.class));
         }
     }
     @Nested
-    class GetOperationTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
-        @DisplayName("test get deleteOperation")
+    class StatsTest{
         @Test
-        void test1(){
-            Map<String,Object> source=new HashMap<>();
-            source.put("name","EmployeeId");
-            source.put("isPrimaryKey",false);
-//            Map<String, Object> deleteOperation = taskService.getDeleteOperation(source.get("name"), source.get("isPrimaryKey"));
-//            assertEquals("EmployeeId",deleteOperation.get("field"));
-//            assertEquals("REMOVE",deleteOperation.get("op"));
-//            assertEquals("true",deleteOperation.get("operand"));
-//            assertEquals("EmployeeId",deleteOperation.get("label"));
-        }
-        @DisplayName("test get renameOperation")
-        @Test
-        void test2(){
-            Map<String,Object> target=new HashMap<>();
-            target.put("name","employeeId");
-            target.put("included",true);
-            Map<String,Object> source=new HashMap<>();
-            source.put("name","EmployeeId");
-            source.put("isPrimaryKey",false);
-//            Map<String, Object> renameOperation = taskService.getRenameOperation(source.get("name"), target.get("name"));
-//            assertEquals("EmployeeId",renameOperation.get("field"));
-//            assertEquals("RENAME",renameOperation.get("op"));
-//            assertEquals("employeeId",renameOperation.get("operand"));
-        }
-    }
-    @Nested
-    class AddProcessorNodeTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
-        @DisplayName("test add delete node")
-//        @Test
-        void test1(){
-            List<Map<String, Object>> nodes=new ArrayList<>();
-            List<Map<String, Object>> edges =new ArrayList<>();
-            Map<String, Object> deleteOperation = new HashMap<>();
-            List<Map<String, Object>> deleteOperationList=new ArrayList<>();
-            deleteOperation.put("id", UUID.randomUUID().toString().toLowerCase());
-            deleteOperation.put("field", "CustomerId");
-            deleteOperation.put("op", "REMOVE");
-            deleteOperation.put("operand", "true");
-            deleteOperation.put("label", "CustomerId");
-            deleteOperationList.add(deleteOperation);
-//            String sourceId = taskService.addDeleteNode("customer", deleteOperationList,  "souceId",nodes, edges);
-//            assertNotEquals("souceId",sourceId);
-            assertEquals(1,nodes.size());
-            Map<String, Object> nodeMap = nodes.get(0);
-            assertEquals("Delete customer",nodeMap.get("name"));
-            assertEquals("field_add_del_processor",nodeMap.get("type"));
-        }
-        @DisplayName("test add rename node")
-//        @Test
-        void test2(){
-            List<Map<String, Object>> nodes=new ArrayList<>();
-            List<Map<String, Object>> edges =new ArrayList<>();
-            List<Map<String, Object>> fieldRenameOperationList=new ArrayList<>();
-            Map<String, Object> fieldRenameOperation = new HashMap<>();
-            fieldRenameOperation.put("field", "CustomerId");
-            fieldRenameOperation.put("op", "RENAME");
-            fieldRenameOperation.put("operand", "customerId");
-            fieldRenameOperationList.add(fieldRenameOperation);
-//            String sourceId = taskService.addRenameNode("customer", fieldRenameOperationList, "souceId",nodes, edges);
-//            assertNotEquals("souceId",sourceId);
-            assertEquals(1,nodes.size());
-            Map<String, Object> nodeMap = nodes.get(0);
-            assertEquals("Rename customer",nodeMap.get("name"));
-            assertEquals("field_rename_processor",nodeMap.get("type"));
-        }
-//        @Test
-        void test3(){
-            List<Map<String, Object>> nodes = new ArrayList<>();
-            List<Map<String, Object>> edges = new ArrayList<>();
-            String script = "function process(){}";
-            String declareScript = "retrun record";
-//            String sourceId = taskService.addJSNode("customer", script, declareScript, nodes, "sourceId", edges);
-//            assertNotEquals("souceId",sourceId);
-            assertEquals(1,nodes.size());
-            Map<String, Object> nodeMap = nodes.get(0);
-            assertEquals("customer",nodeMap.get("name"));
-            assertEquals("js_processor",nodeMap.get("type"));
-        }
-    }
-    @Nested
-    class RemoveDeleteOperationIfJoinKeyIsDeletedTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
-        List<Map<String, Object>> childDeleteOperationsList=new ArrayList<>();
-        List<Map<String, Object>> childRenameOperationsList =new ArrayList();
-        Map<String, List<Map<String, Object>>> contentDeleteOperations = new HashMap<>();
-        Map<String, List<Map<String, Object>>> contentRenameOperations =new HashMap<>();
-        @BeforeEach
-        void beforeSetUp(){
-            Map<String, Object> deleteOperations =new HashMap<>();
-            deleteOperations.put("op","REMOVE");
-            deleteOperations.put("field", "OrderID");
-            deleteOperations.put("label" ,"OrderID");
-            deleteOperations.put("operand","true");
-            deleteOperations.put("id", UUID.randomUUID().toString().toLowerCase());
-            childDeleteOperationsList.add(deleteOperations);
-            Map<String,Object> renameOperations =new HashMap<>();
-            renameOperations.put("op","RENAME");
-            renameOperations.put("field" , "UnitPrice");
-            renameOperations.put("id", UUID.randomUUID().toString().toLowerCase());
-            renameOperations.put("operand","unitPrice");
-            childRenameOperationsList.add(renameOperations);
-            contentDeleteOperations.put("childId",childDeleteOperationsList);
-            contentRenameOperations.put("childId",childRenameOperationsList);
-        }
-//        @Test
-        void test1(){
-            Map<String,Map<String, String>> sourceJoinKeyMapping =new HashMap<>();
-            Map<String,String> newFieldMap=new HashMap<>();
-            newFieldMap.put("source","OrderID");
-            newFieldMap.put("target","orderId");
-            sourceJoinKeyMapping.put("orderId",newFieldMap);
-//            taskService.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations,contentRenameOperations,"childId",sourceJoinKeyMapping,"orderId");
-            assertEquals(0,childDeleteOperationsList.size());
-            assertEquals(2,childRenameOperationsList.size());
-        }
-        @Test
-        void test2(){
-            Map<String,Map<String, String>> sourceJoinKeyMapping =new HashMap<>();
-            Map<String,String> newFieldMap=new HashMap<>();
-            newFieldMap.put("source","OrderId");
-            newFieldMap.put("target","orderId");
-            sourceJoinKeyMapping.put("productId",newFieldMap);
-//            taskService.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations,contentRenameOperations,"childId",sourceJoinKeyMapping,"productId");
-            assertEquals(1,childDeleteOperationsList.size());
-            assertEquals(1,childRenameOperationsList.size());
-        }
-    }
-    @Nested
-    class RemoveDeleteOperationTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
-        List<Map<String, Object>> deleteOperationsList=new ArrayList<>();
-        @BeforeEach
-        void beforeSetUp(){
-            Map<String, Object> deleteOperations =new HashMap<>();
-            deleteOperations.put("op","REMOVE");
-            deleteOperations.put("field", "OrderID");
-            deleteOperations.put("label" ,"OrderID");
-            deleteOperations.put("operand","true");
-            deleteOperations.put("id", UUID.randomUUID().toString().toLowerCase());
-            deleteOperationsList.add(deleteOperations);
-        }
-        @DisplayName("test removeDeleteOperation when joinkey in deleteOperation")
-        @Test
-        void test1(){
-            Map<String,Map<String, String>> sourceJoinKeyMapping =new HashMap<>();
-            Map<String,String> newFieldMap=new HashMap<>();
-            newFieldMap.put("source","OrderID");
-            newFieldMap.put("target","orderId");
-            sourceJoinKeyMapping.put("orderId",newFieldMap);
-//            boolean flag = taskService.removeDeleteOperation(deleteOperationsList, sourceJoinKeyMapping, "orderId");
-//            assertEquals(true,flag);
-        }
-        @DisplayName("test removeDeleteOperation when joinkey not in deleteOperation")
-        @Test
-        void test2(){
-            Map<String,Map<String, String>> sourceJoinKeyMapping =new HashMap<>();
-            Map<String,String> newFieldMap=new HashMap<>();
-            newFieldMap.put("source","OrderId");
-            newFieldMap.put("target","orderId");
-            sourceJoinKeyMapping.put("productId",newFieldMap);
-//            boolean flag = taskService.removeDeleteOperation(deleteOperationsList, sourceJoinKeyMapping, "productId");
-//            assertEquals(false,flag);
-        }
-    }
+        void testStatsNormal(){
+            Map<String, Long> taskTypeStats = new HashMap<>();
+            when(taskService.typeTaskStats(user)).thenReturn(taskTypeStats);
+            doCallRealMethod().when(taskService).stats(user);
+            TaskStatsDto actual = taskService.stats(user);
+            assertEquals(taskTypeStats,actual.getTaskTypeStats());
 
+        }
+    }
+    @Nested
+    class TypeTaskStatsTest{
+        @Test
+        void testTypeTaskStats(){
+            TaskRepository repository = mock(TaskRepository.class);
+            taskService = spy(new TaskServiceImpl(repository));
+            List<TaskServiceImpl.Char1Group> mappedResults = new ArrayList();
+            TaskServiceImpl.Char1Group char1Group = new TaskServiceImpl.Char1Group();
+            char1Group.set_id("111");
+            mappedResults.add(char1Group);
+            Document rawResults = new Document();
+            AggregationResults<TaskServiceImpl.Char1Group> result = new AggregationResults<>(mappedResults,rawResults);
+            when(repository.aggregate(any(org.springframework.data.mongodb.core.aggregation.Aggregation.class),any(Class.class))).thenReturn(result);
+            Map<String, Long> actual = taskService.typeTaskStats(user);
+            assertEquals(0,actual.get("total"));
+        }
+    }
+    @Nested
+    class MergerStatisticsTest{
+        private List<LocalDate> localDates;
+        private DataFlowInsightStatisticsDto oldStatistics;
+        private com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto newStatistics;
+        private String time;
+        @BeforeEach
+        void beforeEach(){
+            localDates = new ArrayList<>();
+            LocalDate localDate = LocalDate.now();
+            localDates.add(localDate);
+            final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+            time = localDate.format(format);
+        }
+        @Test
+        @DisplayName("test mergerStatistics method when newMap get time not null")
+        void test1(){
+            oldStatistics = new DataFlowInsightStatisticsDto();
+            List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputData = new ArrayList<>();
+            inputData.add(new DataFlowInsightStatisticsDto.DataStatisticInfo(time,new BigInteger("1")));
+            newStatistics = new DataFlowInsightStatisticsDto();
+            newStatistics.setInputDataStatistics(inputData);
+            doCallRealMethod().when(taskService).mergerStatistics(localDates,oldStatistics,newStatistics);
+            DataFlowInsightStatisticsDto actual = taskService.mergerStatistics(localDates, oldStatistics, newStatistics);
+            assertEquals(new BigInteger("1"),actual.getTotalInputDataCount());
+        }
+        @Test
+        @DisplayName("test mergerStatistics method when newMAp get time not null")
+        void test2(){
+            oldStatistics = new DataFlowInsightStatisticsDto();
+            List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputData = new ArrayList<>();
+            inputData.add(new DataFlowInsightStatisticsDto.DataStatisticInfo(time,new BigInteger("1")));
+            oldStatistics.setInputDataStatistics(inputData);
+            newStatistics = new DataFlowInsightStatisticsDto();
+            doCallRealMethod().when(taskService).mergerStatistics(localDates,oldStatistics,newStatistics);
+            DataFlowInsightStatisticsDto actual = taskService.mergerStatistics(localDates, oldStatistics, newStatistics);
+            assertEquals(new BigInteger("1"),actual.getTotalInputDataCount());
+        }
+    }
+    @Nested
+    class GetNewLocalDateTest{
+        private List<LocalDate> localDates;
+        private DataFlowInsightStatisticsDto oldStatistics;
+        private String time;
+        private LocalDate localDate;
+        @BeforeEach
+        void beforeEach(){
+            localDates = new ArrayList<>();
+            localDate = LocalDate.now();
+            localDates.add(localDate);
+            final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+            time = localDate.format(format);
+            oldStatistics = new DataFlowInsightStatisticsDto();
+        }
+        @Test
+        @DisplayName("test getNewLocalDate method when inputDataStatistics is empty")
+        void test1(){
+            List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputData = new ArrayList<>();
+            oldStatistics.setInputDataStatistics(inputData);
+            doCallRealMethod().when(taskService).getNewLocalDate(localDates,oldStatistics);
+            List<LocalDate> actual = taskService.getNewLocalDate(localDates, oldStatistics);
+            assertEquals(localDate,actual.get(0));
+        }
+        @Test
+        @DisplayName("test getNewLocalDate method when oldLocalDate contains localDate")
+        void test2(){
+            List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputData = new ArrayList<>();
+            inputData.add(new DataFlowInsightStatisticsDto.DataStatisticInfo(time,new BigInteger("1")));
+            inputData.add(new DataFlowInsightStatisticsDto.DataStatisticInfo("20240101",new BigInteger("1")));
+            oldStatistics.setInputDataStatistics(inputData);
+            doCallRealMethod().when(taskService).getNewLocalDate(localDates,oldStatistics);
+            List<LocalDate> actual = taskService.getNewLocalDate(localDates, oldStatistics);
+            assertEquals(0,actual.size());
+        }
+        @Test
+        @DisplayName("test getNewLocalDate method when oldLocalDate not contains localDate")
+        void test3(){
+            List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputData = new ArrayList<>();
+            inputData.add(new DataFlowInsightStatisticsDto.DataStatisticInfo("20240101",new BigInteger("1")));
+            oldStatistics.setInputDataStatistics(inputData);
+            doCallRealMethod().when(taskService).getNewLocalDate(localDates,oldStatistics);
+            List<LocalDate> actual = taskService.getNewLocalDate(localDates, oldStatistics);
+            assertEquals(localDate,actual.get(0));
+        }
+    }
+    @Nested
+    class StatsTransportTest{
+        @Test
+        @DisplayName("test statsTransport method when oldStatistics is null")
+        void test1(){
+            doCallRealMethod().when(taskService).statsTransport(user);
+            taskService.statsTransport(user);
+            verify(taskService).statsTransport(any(UserDetail.class),anyList());
+        }
+    }
+    @Nested
+    class statsTransportWithListTest{
+        private List<LocalDate> localDates;
+        private String time;
+        private LocalDate localDate;
+        private MeasurementServiceV2 measurementServiceV2;
+        @BeforeEach
+        void beforeEach(){
+            localDates = new ArrayList<>();
+            localDate = LocalDate.now();
+            localDates.add(localDate);
+            final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+            time = localDate.format(format);
+            measurementServiceV2 = mock(MeasurementServiceV2.class);
+            ReflectionTestUtils.setField(taskService,"measurementServiceV2",measurementServiceV2);
+        }
+        @Test
+        void testStatsTransportNormal(){
+            List<TaskDto> allDto = new ArrayList<>();
+            TaskDto dto = new TaskDto();
+            dto.setId(mock(ObjectId.class));
+            allDto.add(dto);
+            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(allDto);
+            List<MeasurementEntity> measurementEntities = new ArrayList<>();
+            MeasurementEntity entity = new MeasurementEntity();
+            Map<String, String> map = new HashMap<>();
+            map.put("taskId","111");
+            entity.setTags(map);
+            List<Sample> samples = new ArrayList<>();
+            Sample sample = new Sample();
+            sample.setDate(new Date());
+            Map<String, Number> vs = new HashMap<>();
+            sample.setVs(vs);
+            samples.add(sample);
+            entity.setSamples(samples);
+            measurementEntities.add(entity);
+            when(measurementServiceV2.find(any(Query.class))).thenReturn(measurementEntities);
+            doCallRealMethod().when(taskService).statsTransport(user,localDates);
+            DataFlowInsightStatisticsDto actual = taskService.statsTransport(user, localDates);
+            assertNotEquals(null,actual);
+        }
+    }
+    @Nested
+    class GetByConIdOfTargetNodeTest{
+        List<String> connectionIds;
+        String status;
+        String position;
+        int page;
+        int pageSize;
+        @Test
+        @DisplayName("test getByConIdOfTargetNode method for source")
+        void test1(){
+            connectionIds = new ArrayList<>();
+            connectionIds.add("111");
+            status = "running";
+            position = "source";
+            List<TaskDto> allTasks = new ArrayList<>();
+            TaskDto dto = new TaskDto();
+            DAG dag = mock(DAG.class);
+            List<Node> source = new ArrayList<>();
+            Node node = new TableNode();
+            ((DataParentNode)node).setConnectionId("111");
+            source.add(node);
+            when(dag.getSources()).thenReturn(source);
+            dto.setDag(dag);
+            allTasks.add(dto);
+            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(allTasks);
+            doCallRealMethod().when(taskService).getByConIdOfTargetNode(connectionIds,status,position,user,page,pageSize);
+            Map<String, List<TaskDto>> actual = taskService.getByConIdOfTargetNode(connectionIds, status, position, user, page, pageSize);
+            assertEquals(allTasks,actual.get("111"));
+        }
+        @Test
+        @DisplayName("test getByConIdOfTargetNode method for target")
+        void test2(){
+            connectionIds = new ArrayList<>();
+            connectionIds.add("111");
+            position = "target";
+            List<TaskDto> allTasks = new ArrayList<>();
+            TaskDto dto = new TaskDto();
+            DAG dag = mock(DAG.class);
+            List<Node> target = new ArrayList<>();
+            Node node = new TableNode();
+            ((DataParentNode)node).setConnectionId("111");
+            target.add(node);
+            when(dag.getTargets()).thenReturn(target);
+            dto.setDag(dag);
+            allTasks.add(dto);
+            doCallRealMethod().when(taskService).getByConIdOfTargetNode(connectionIds,status,position,user,page,pageSize);
+            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(allTasks);
+            Map<String, List<TaskDto>> actual = taskService.getByConIdOfTargetNode(connectionIds, status, position, user, page, pageSize);
+            assertEquals(allTasks,actual.get("111"));
+        }
+    }
+    @Nested
+    class FindByConIdTest{
+        private String sourceConnectionId;
+        private String targetConnectionId;
+        private String syncType;
+        private String status;
+        private Where where;
+        private TaskRepository repository;
+        @BeforeEach
+        void beforeEach(){
+            where = new Where();
+            repository = mock(TaskRepository.class);
+            taskService = spy(new TaskServiceImpl(repository));
+            when(repository.whereToCriteria(where)).thenReturn(new Criteria());
+        }
+        @Test
+        void testFindByConIdTest(){
+            sourceConnectionId = "111";
+            targetConnectionId = "222";
+            syncType = "migrate";
+            status = "running";
+            List<TaskDto> tasks = new ArrayList<>();
+            TaskDto dto = new TaskDto();
+            DAG dag = mock(DAG.class);
+            List<Node> source = new ArrayList<>();
+            source.add(new TableNode());
+            when(dag.getSources()).thenReturn(source);
+            List<Node> target = new ArrayList<>();
+            Node node = new TableNode();
+            ((DataParentNode)node).setConnectionId("222");
+            target.add(node);
+            when(dag.getTargets()).thenReturn(target);
+            dto.setDag(dag);
+            dto.setId(mock(ObjectId.class));
+            tasks.add(dto);
+            LinkedList<Edge> edges = new LinkedList<>();
+            edges.add(mock(Edge.class));
+            when(dag.getEdges()).thenReturn(edges);
+            doReturn(tasks).when(taskService).findAllDto(any(Query.class),any(UserDetail.class));
+            taskService.findByConId(sourceConnectionId,targetConnectionId,syncType,status,where,user);
+        }
+    }
+    @Nested
+    class importRmProjectTest {
+        ParseRelMigFile parseRelMigFile;
+        TaskRepository taskRepository = mock(TaskRepository.class);
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(taskRepository));
+        UserDetail userDetail;
+        FileInputStream fileInputStream;
+        MockMultipartFile mockMultipartFile;
+        String rmJson;
+
+        @BeforeEach
+        void beforeEach() throws Exception {
+            userDetail = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
+                    "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
+            URL resource = this.getClass().getClassLoader().getResource("test.relmig");
+            fileInputStream = new FileInputStream(resource.getFile());
+            mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
+            rmJson = new String(mockMultipartFile.getBytes());
+        }
+
+        @Test
+        void importRmProjectTest() throws IOException {
+
+            HashMap<String, Object> rmProject = new ObjectMapper().readValue(rmJson, HashMap.class);
+            HashMap<String, Object> project = (HashMap<String, Object>) rmProject.get("project");
+            HashMap<String, Object> content = (HashMap<String, Object>) project.get("content");
+            HashMap<String, Object> contentCollections = (HashMap<String, Object>) content.get("collections");
+            ParseParam param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigStr(rmJson);
+            param.setRelMigInfo(rmProject);
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, String> stringStringMap = parseRelMigFile.doParse("sourceConnectionId", "targetConnectionId", userDetail);
+            TaskDto taskDto = null;
+            for (String taskKey : stringStringMap.keySet()) {
+                taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(taskKey), TaskDto.class);
+            }
+            assertEquals(5, stringStringMap.size());
+        }
+
+        @Test
+        void nullImportRmProjectTest() {
+            ParseParam param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            assertDoesNotThrow(() -> {
+                parseRelMigFile.doParse("sourceConnectionId", "targetConnectionId", userDetail);
+            });
+        }
+
+        @Test
+        void replaceIdTest() throws IOException {
+            Map<String, Object> rmProject = new ObjectMapper().readValue(rmJson, HashMap.class);
+            Map<String, Object> project = (Map<String, Object>) rmProject.get("project");
+            Map<String, Object> content = (Map<String, Object>) project.get("content");
+            Map<String, Object> contentMapping = (Map<String, Object>) content.get("mappings");
+            Map<String, Object> contentCollections = (Map<String, Object>) content.get("collections");
+            Set<String> collectionKeys = contentCollections.keySet();
+            String collectionKey = null;
+            for (String key : collectionKeys) {
+                collectionKey = key;
+            }
+            Set<String> contentMappingKeys = contentMapping.keySet();
+            String contentMappingKey = null;
+            String contentMappingCollectionId = null;
+            for (String key : contentMappingKeys) {
+                Map<String, Object> mapping = (Map<String, Object>) contentMapping.get(key);
+                String collectionId = (String) mapping.get("collectionId");
+                contentMappingCollectionId = collectionId;
+                contentMappingKey = key;
+            }
+            ParseParam param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.replaceRmProjectId();
+            Set<String> afterStrings = contentCollections.keySet();
+            String afterCollectionKey = null;
+            for (String afterKey1 : afterStrings) {
+                afterCollectionKey = afterKey1;
+            }
+            Set<String> afterContentMappingKeys = contentMapping.keySet();
+            String afterContentMappingCollectionId = null;
+            String afterContentMappingKey = null;
+            for (String key : afterContentMappingKeys) {
+                Map<String, Object> mapping = (Map<String, Object>) contentMapping.get(key);
+                afterContentMappingCollectionId = (String) mapping.get("collectionId");
+                afterContentMappingKey = key;
+            }
+            assertEquals(collectionKey, afterCollectionKey);
+            assertEquals(contentMappingKey, afterContentMappingKey);
+            assertEquals(contentMappingCollectionId, afterContentMappingCollectionId);
+        }
+
+        @Test
+        void testReplaceRelationShipsKey() throws IOException {
+            Map<String, String> globalIdMap = new HashMap<>();
+            Map<String, Object> rmProject = new ObjectMapper().readValue(rmJson, HashMap.class);
+            Map<String, Object> project = (Map<String, Object>) rmProject.get("project");
+            Map<String, Object> content = (Map<String, Object>) project.get("content");
+            Map<String, Object> relationships = content.get("relationships") == null ? new HashMap<>() : (Map<String, Object>) content.get("relationships");
+            Map<String, Object> collectionMap = (Map<String, Object>) relationships.get("collections");
+            Map<String, Object> mappingsMap = (Map<String, Object>) relationships.get("mappings");
+            String collectionKey = null;
+            for (String key : collectionMap.keySet()) {
+                collectionKey = key;
+            }
+            String mappingKey = null;
+            for (String key : mappingsMap.keySet()) {
+                mappingKey = key;
+            }
+            String relationShipMappingsKey = null;
+            for (String key : mappingsMap.keySet()) {
+                relationShipMappingsKey = key;
+            }
+            ParseParam param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigStr(rmJson);
+            param.setRelMigInfo(rmProject);
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.replaceRelationShipsKey(globalIdMap, content);
+            String afterCollectionKey = null;
+            for (String key : collectionMap.keySet()) {
+                afterCollectionKey = key;
+            }
+            String afterMappingKey = null;
+            for (String key : mappingsMap.keySet()) {
+                afterMappingKey = key;
+            }
+            String afterRelationShipMappingsKey = null;
+            for (String key : mappingsMap.keySet()) {
+                afterRelationShipMappingsKey = key;
+            }
+            assertNotEquals(collectionKey, afterCollectionKey);
+            assertNotEquals(afterMappingKey, mappingKey);
+            assertNotEquals(afterRelationShipMappingsKey, relationShipMappingsKey);
+        }
+
+        @Test
+        void testImportRmProject() throws IOException {
+            CustomSqlService customSqlService = mock(CustomSqlService.class);
+            taskService.setCustomSqlService(customSqlService);
+            DateNodeService dataNodeService = mock(DateNodeService.class);
+            taskService.setDateNodeService(dataNodeService);
+            ParseParam param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigStr(rmJson);
+            param.setRelMigInfo(new ObjectMapper().readValue(rmJson, HashMap.class));
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, String> stringStringMap = parseRelMigFile.doParse("sourceConnectionId", "targetConnectionId", userDetail);
+            TaskDto taskDto = null;
+            for (String s1 : stringStringMap.keySet()) {
+                taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(s1), TaskDto.class);
+            }
+            try (MockedStatic<BeanUtils> beanUtilsMockedStatic = mockStatic(BeanUtils.class); MockedStatic<DataPermissionHelper> dataPermissionHelperMockedStatic = mockStatic(DataPermissionHelper.class)) {
+                BeanUtils.copyProperties(any(), any());
+                TaskEntity taskEntity = taskService.convertToEntity(TaskEntity.class, taskDto);
+                when(taskRepository.importEntity(any(), any())).thenReturn(taskEntity);
+                MongoTemplate mongoTemplate = mock(MongoTemplate.class);
+                when(taskRepository.getMongoOperations()).thenReturn(mongoTemplate);
+                assertThrows(BizException.class, () -> {
+                    taskService.importRmProject(mockMultipartFile, userDetail, false, new ArrayList<>(), "123", "123");
+                });
+            }
+        }
+
+        @Test
+        void testGenProperties() throws IOException {
+            URL resource = this.getClass().getClassLoader().getResource("EmployeeSchema.relmig");
+            FileInputStream fileInputStream = new FileInputStream(resource.getFile());
+            MockMultipartFile mockMultipartFile = new MockMultipartFile("EmployeeSchema.relmig", fileInputStream);
+            String s = new String(mockMultipartFile.getBytes());
+            ParseParam param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigStr(s);
+            param.setRelMigInfo(new ObjectMapper().readValue(s, HashMap.class));
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, String> stringStringMap = parseRelMigFile.doParse("sourceConnectionId", "targetConnectionId", userDetail);
+            TaskDto taskDto = null;
+            for (String key : stringStringMap.keySet()) {
+                System.out.println();
+                taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(key), TaskDto.class);
+            }
+            ;
+            List<Node> nodes = taskDto.getDag().getNodes();
+            boolean flag = false;
+            for (Node node : nodes) {
+                if (node.getType().equals("merge_table_processor")) {
+                    flag = true;
+                }
+            }
+            assertTrue(flag);
+        }
+    }
     @Nested
     class ReNewNotSendMqTest{
         TaskRepository taskRepository=mock(TaskRepository.class);
