@@ -29,18 +29,16 @@ For more details, please read [docs](https://docs.tapdata.io/)
  
 ### Quick Start
 1. SAAS Free Trial(NO Credit Card Required): visit https://cloud.tapdata.io/, start your real-time data journey immediately.
-2. Self host deploy:
-    1. Install Docker
-    2. Exec: `docker run -itd -p 3000:3000 github.com/tapdata/tapdata-opensource:latest bash`, then you can get it from http://localhost:3000, default username is: admin@admin.com, default password is admin
+2. Self host deploy: RUN `docker run -itd -p 3000:3000 github.com/tapdata/tapdata-opensource:latest bash`, then you can get it from http://localhost:3000, default username is: admin@admin.com, default password is admin
 
 ### Example
 #### Sync Data From MySQL To MongoDB
 
 
+## Architecture
 
 ## License
 Tapdata is under the Apache 2.0 license. See the [LICENSE](https://github.com/tapdata/tapdata/blob/main/LICENSE) file for details.
-
 
 ## Join now
 - [Send Email](mailto:team@tapdata.io)
