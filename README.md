@@ -29,16 +29,29 @@ For more details, please read [docs](https://docs.tapdata.io/)
  
 ## Quick Start
 ### Start with cloud service
-Tapdata service is available in cloud service, you can use fully-managed service, or deploy engine yourself
+Tapdata service is available in cloud service, you can use fully-managed service, or deploy engine to your private network
 
-Try on https://cloud.tapdata.io/, support googld and github user login, free trial, no credit card needed, start your real-time data journey immediately.
+Try on https://cloud.tapdata.io/, support google and github account login, free trial, NO credit card needed, start your real-time data journey immediately.
 
 ### Start with local deploy
 RUN `docker run -d -p 3030:3030 github.com/tapdata/tapdata-opensource:latest`, wait for 3 minutes, then you can get it from http://localhost:3030/
 
 default username is: admin@admin.com, default password is admin
 
-### Example
+## Examples
+<details>
+    <summary><h4>🗂️ Create Datasource and Test it</h4></summary>
+1. Login tapdata platform
+2. In the left navigation panel, click Connections
+3. On the right side of the page, click Create
+4. In the pop-up dialog, search and select MySQL
+5. On the page that you are redirected to, follow the instructions below to fill in the connection information for MySQL
+[![]](./assets/example-1-create-mysql-connection.jpg)
+6. Click Test, make sure all test pass, then click Save
+[![]](./assets/example-1-test.jpg)
+
+</details>
+
 <details>
     <summary><h4>🗂️ Sync Data From MySQL To MongoDB</h4></summary>
 </details>
@@ -58,6 +71,7 @@ default username is: admin@admin.com, default password is admin
 </details>
 
 ## Architecture
+
 
 ## License
 Tapdata is under the Apache 2.0 license. See the [LICENSE](https://github.com/tapdata/tapdata/blob/main/LICENSE) file for details.
