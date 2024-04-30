@@ -6,12 +6,17 @@ import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.dag.nodes.CacheNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.observable.logging.ObsLogger;
@@ -438,5 +443,58 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(connectorCapabilities,times(1)).alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
 		}
 
+	}
+
+	@Nested
+	class GenerateNodeConfigTest {
+
+		@BeforeEach
+		void setUp(){
+			hazelcastPdkBaseNode = mock(HazelcastPdkBaseNode.class);
+			doCallRealMethod().when(hazelcastPdkBaseNode).generateNodeConfig(any(), any());
+		}
+
+		@Test
+		void testTableNode() {
+			Map<String, Object> nodeConfig = TapSimplify.map(TapSimplify.entry("key", "value"));
+			TableNode node1 = new TableNode();
+			node1.setNodeConfig(null);
+			TableNode node2 = new TableNode();
+			node2.setNodeConfig(nodeConfig);
+			Assertions.assertEquals(1, hazelcastPdkBaseNode.generateNodeConfig(node1, true).size());
+			Assertions.assertTrue(hazelcastPdkBaseNode.generateNodeConfig(node1, true).containsKey("doubleActive"));
+			Assertions.assertEquals(2, hazelcastPdkBaseNode.generateNodeConfig(node2, true).size());
+		}
+
+		@Test
+		void testDatabaseNode() {
+			Map<String, Object> nodeConfig = TapSimplify.map(TapSimplify.entry("key", "value"));
+			DatabaseNode node1 = new DatabaseNode();
+			node1.setNodeConfig(null);
+			DatabaseNode node2 = new DatabaseNode();
+			node2.setNodeConfig(nodeConfig);
+			Assertions.assertEquals(1, hazelcastPdkBaseNode.generateNodeConfig(node1, true).size());
+			Assertions.assertTrue(hazelcastPdkBaseNode.generateNodeConfig(node1, true).containsKey("doubleActive"));
+			Assertions.assertEquals(2, hazelcastPdkBaseNode.generateNodeConfig(node2, true).size());
+		}
+
+		@Test
+		void testLogCollectorNode() {
+			Map<String, Object> nodeConfig = TapSimplify.map(TapSimplify.entry("key", "value"));
+			LogCollectorNode node1 = new LogCollectorNode();
+			node1.setNodeConfig(null);
+			LogCollectorNode node2 = new LogCollectorNode();
+			node2.setNodeConfig(nodeConfig);
+			Assertions.assertEquals(1, hazelcastPdkBaseNode.generateNodeConfig(node1, true).size());
+			Assertions.assertTrue(hazelcastPdkBaseNode.generateNodeConfig(node1, true).containsKey("doubleActive"));
+			Assertions.assertEquals(2, hazelcastPdkBaseNode.generateNodeConfig(node2, true).size());
+		}
+
+		@Test
+		void testOtherNode() {
+			CacheNode node = new CacheNode();
+			Assertions.assertEquals(1, hazelcastPdkBaseNode.generateNodeConfig(node, true).size());
+			Assertions.assertTrue(hazelcastPdkBaseNode.generateNodeConfig(node, true).containsKey("doubleActive"));
+		}
 	}
 }

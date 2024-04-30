@@ -104,7 +104,7 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
         }
     }
 
-    private void logCollectorAlarm(SyncTaskStatusDto data) {
+    protected void logCollectorAlarm(SyncTaskStatusDto data) {
         String taskId = data.getTaskId();
         String taskName = data.getTaskName();
         String taskStatus = data.getTaskStatus();
@@ -114,7 +114,9 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
         field.put("syncType", true);
         field.put("status", true);
         field.put("dag", true);
+        field.put("restartFlag",true);
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), field);
+        boolean restartFlag = taskDto.getRestartFlag();
         if (null == taskDto) {
             return;
         }
@@ -152,9 +154,11 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
         switch (taskStatus) {
             case TaskDto.STATUS_ERROR:
             case TaskDto.STATUS_STOP:
-                update = new Update()
-                        .set("shareCdcStop", true)
-                        .set("shareCdcStopMessage", SHARE_CDC_TASK_STOP_WARNING_KEY);
+                if(!restartFlag){
+                    update = new Update()
+                            .set("shareCdcStop", true)
+                            .set("shareCdcStopMessage", SHARE_CDC_TASK_STOP_WARNING_KEY);
+                }
                 break;
             case TaskDto.STATUS_WAIT_RUN:
             case TaskDto.STATUS_RUNNING:

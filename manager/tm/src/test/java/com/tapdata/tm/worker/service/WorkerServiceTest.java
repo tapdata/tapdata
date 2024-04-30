@@ -23,8 +23,7 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import org.bson.BsonValue;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -32,10 +31,9 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -280,5 +278,33 @@ class WorkerServiceTest {
             Map<String, WorkerProcessInfoDto> result =  workerService.getProcessInfo(Arrays.asList("test"),mock(UserDetail.class));
             assertEquals(1,result.get("test").getRunningNum());
         }
+    }
+    @Nested
+    class GetWorkerCurrentTimeTest{
+        @DisplayName("Test main process")
+        @Test
+        void test() throws ParseException {
+            String date = "2024-04-26 11:00:00";
+            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            List<Worker> workerList = new ArrayList<>();
+            Worker worker = new Worker();
+            worker.setWorkerDate(simpleDateFormat.parse(date));
+            workerList.add(worker);
+            doReturn(workerList).when(workerService).findAvailableAgent(any());
+            String result = workerService.getWorkerCurrentTime(mock(UserDetail.class));
+            Assertions.assertEquals(date,result);
+        }
+
+        @DisplayName("workerDate is null")
+        @Test
+        void test1(){
+            List<Worker> workerList = new ArrayList<>();
+            Worker worker = new Worker();
+            workerList.add(worker);
+            doReturn(workerList).when(workerService).findAvailableAgent(any());
+            String result = workerService.getWorkerCurrentTime(mock(UserDetail.class));
+            Assertions.assertNotNull(result);
+        }
+
     }
 }

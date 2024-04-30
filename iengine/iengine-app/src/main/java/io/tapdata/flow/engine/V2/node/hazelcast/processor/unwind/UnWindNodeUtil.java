@@ -5,9 +5,9 @@ import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.Document;
 
 
 import java.util.ArrayList;
@@ -168,14 +168,7 @@ public class UnWindNodeUtil {
                                       Boolean flatten,
                                       String joiner) {
         if (result.isEmpty()) {
-            if (preserveNullAndEmptyArrays) {
-                if (map.containsKey(path)) {
-                    parentMap.remove(path);
-                } else {
-                    parentMap.remove(split[split.length - 1]);
-                }
-                events.add(event);
-            }
+            filterByPreserveNullAndEmptyArrays(events, preserveNullAndEmptyArrays, map, path, parentMap, split, event);
             return true;
         }
         int index = 0;
@@ -203,14 +196,7 @@ public class UnWindNodeUtil {
                                  String joiner
                                  ) {
         if (arr.length < 1) {
-            if (preserveNullAndEmptyArrays) {
-                if (map.containsKey(path)) {
-                    parentMap.remove(path);
-                } else {
-                    parentMap.remove(split[split.length - 1]);
-                }
-                events.add(event);
-            }
+            filterByPreserveNullAndEmptyArrays(events, preserveNullAndEmptyArrays, map, path, parentMap, split, event);
             return true;
         }
         for (int index = 0; index < arr.length; index++) {
@@ -230,12 +216,14 @@ public class UnWindNodeUtil {
                            Map<String, Object> parentMap,
                            TapEvent event,
                            EventHandel handel) {
-        if (!(null == result && !preserveNullAndEmptyArrays)) {
-            if (containsKey.get()) {
-                containsPathAndSetValue(parentMap, includeArrayIndex, null);
-            }
-            events.add(event);
+        if (containsKey.get()) {
+            containsPathAndSetValue(parentMap, includeArrayIndex, null);
         }
+        if (containsKey.get() && null == result && !preserveNullAndEmptyArrays) {
+            addEvent(event,events);
+            return true;
+        }
+        events.add(event);
         return false;
     }
 
@@ -254,6 +242,8 @@ public class UnWindNodeUtil {
             if (null == parentMap || !containsKey.get()) {
                 if (preserveNullAndEmptyArrays) {
                     events.add(event);
+                } else {
+                    addEvent(event, events);
                 }
                 return events;
             }
@@ -286,5 +276,55 @@ public class UnWindNodeUtil {
             map.put(path,value.toString());
         }
     }
+
+    public static TapDeleteRecordEvent toDeleteEvent(TapRecordEvent event) {
+        if (event instanceof TapDeleteRecordEvent) {
+            return (TapDeleteRecordEvent) event;
+        } else if(event instanceof TapUpdateRecordEvent) {
+            return genericDeleteEvent(event);
+        }
+        return null;
+    }
+
+    public static TapDeleteRecordEvent genericDeleteEvent(TapEvent event) {
+        Map<String, Object> after = UnWindNodeUtil.getAfter(event);
+        Map<String, Object> before = UnWindNodeUtil.getBefore(event);
+        Long referenceTime = ((TapUpdateRecordEvent) event).getReferenceTime();
+        TapDeleteRecordEvent delete = TapDeleteRecordEvent.create();
+        if (null == before || before.isEmpty()) {
+            delete.before(after);
+        } else {
+            delete.before(before);
+        }
+        delete.referenceTime(referenceTime);
+        return delete;
+    }
+
+    public static void filterByPreserveNullAndEmptyArrays(List<TapEvent> events,
+                                                          boolean preserveNullAndEmptyArrays,
+                                                          Map<String, Object> map,
+                                                          String path,
+                                                          Map<String, Object> parentMap,
+                                                          String[] split,
+                                                          TapEvent event) {
+        if (map.containsKey(path)) {
+            parentMap.remove(path);
+        } else {
+            parentMap.remove(split[split.length - 1]);
+        }
+        if (preserveNullAndEmptyArrays) {
+            events.add(event);
+        } else {
+            addEvent(event, events);
+        }
+    }
+
+    public static void addEvent(TapEvent event, List<TapEvent> events) {
+        TapDeleteRecordEvent e = toDeleteEvent((TapRecordEvent) event);
+        if (null != e) {
+            events.add(e);
+        }
+    }
+
 
 }

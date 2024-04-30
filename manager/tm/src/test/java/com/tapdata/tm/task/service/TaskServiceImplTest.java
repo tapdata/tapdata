@@ -88,6 +88,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -103,6 +104,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.*;
@@ -4218,5 +4223,19 @@ class TaskServiceImplTest {
     @Nested
     class DeleteHeartbeatByConnIdTest{
 
+    }
+
+    @Nested
+    class FindByCacheName{
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(mock(TaskRepository.class)));
+        @Test
+        void test(){
+            doAnswer(invocationOnMock -> {
+                Query query = invocationOnMock.getArgument(0);
+                Assertions.assertEquals(query.getQueryObject().get("is_deleted"),false);
+                return null;
+            }).when(taskService).findOne(any(Query.class),any(UserDetail.class));
+            taskService.findByCacheName("test",mock(UserDetail.class));
+        }
     }
 }

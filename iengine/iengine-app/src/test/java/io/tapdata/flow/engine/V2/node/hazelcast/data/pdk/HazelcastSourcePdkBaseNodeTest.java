@@ -875,7 +875,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			syncPoint.setNodeId(instance.getNode().getId());
 			syncPoint.setPointType("localTZ");
 			long syncDateTime = System.currentTimeMillis();
-			syncPoint.setDateTime(System.currentTimeMillis());
+			syncPoint.setDateTime(syncDateTime);
 			List<TaskDto.SyncPoint> syncPoints = new ArrayList<>();
 			syncPoints.add(syncPoint);
 			dataProcessorContext.getTaskDto().setSyncPoints(syncPoints);

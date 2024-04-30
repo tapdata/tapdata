@@ -6,6 +6,7 @@ import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
+import com.tapdata.tm.task.constant.SyncStatus;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
@@ -33,6 +34,7 @@ public class TaskRestartScheduleTest {
             TaskDto taskDto = new TaskDto();
             taskDto.setUserId(userId);
             taskDto.setStatus(TaskDto.STATUS_WAIT_RUN);
+            taskDto.setSyncStatus(SyncStatus.NORMAL);
             taskDto.setScheduledTime(new Date(System.currentTimeMillis() - 40000));
             List<TaskDto> all = new ArrayList<>();
             all.add(taskDto);

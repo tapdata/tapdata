@@ -31,6 +31,7 @@ import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.task.constant.SyncStatus;
 import com.tapdata.tm.task.service.TaskNodeService;
 import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.service.TaskService;
@@ -568,6 +569,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         BeanUtils.copyProperties(taskDto, taskDtoCopy);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
+        taskDtoCopy.setSyncStatus(SyncStatus.NORMAL);
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
             DatabaseNode first = dtoDag.getSourceNode().getFirst();
             first.setTableNames(Lists.of(tableName));
@@ -666,6 +668,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         BeanUtils.copyProperties(taskDto, taskDtoCopy);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
+        taskDtoCopy.setSyncStatus(SyncStatus.NORMAL);
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
             DatabaseNode first = dtoDag.getSourceNode().getFirst();
             first.setTableNames(Lists.of(tableName));

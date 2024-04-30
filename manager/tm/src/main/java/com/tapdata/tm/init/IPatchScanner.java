@@ -3,7 +3,7 @@ package com.tapdata.tm.init;
 import lombok.NonNull;
 
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -17,5 +17,5 @@ public interface IPatchScanner {
      * @param patches   patch list
      * @param isVersion check function
      */
-    void scanPatches(@NonNull List<IPatch> patches, @NonNull Function<PatchVersion, Boolean> isVersion);
+    void scanPatches(@NonNull List<IPatch> patches, @NonNull Predicate<PatchVersion> isVersion);
 }

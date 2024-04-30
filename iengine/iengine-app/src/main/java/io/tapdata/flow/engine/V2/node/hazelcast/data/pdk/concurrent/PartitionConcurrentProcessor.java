@@ -279,8 +279,7 @@ public class PartitionConcurrentProcessor {
 			if (toSingleMode(tapEvent, partitionValue, singleMode)) {
 				partition = 0;
 			} else {
-				final List<Object> partitionOriginalValues = keySelector.convert2OriginValue(partitionValue);
-				final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionOriginalValues);
+				final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionValue);
 				partition = partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
 			}
 
