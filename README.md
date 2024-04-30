@@ -87,7 +87,6 @@ default username is: admin@admin.com, default password is admin
 
 <details>
     <summary><h4>🗂️ MySQL To PostgreSQL with Simple ETL</h4></summary>
-</details>
 
 1. Create MySQL and PostgreSQL data source
 
@@ -113,9 +112,10 @@ default username is: admin@admin.com, default password is admin
 
 <img src='./assets/example-3-metrics.jpg'></img>
 
+</details>
+
 <details>
     <summary><h4>🗂️ Making materialized views in MongoDB</h4></summary>
-</details>
 
 Materialized view is a special feature of tapdata, You can give full play to the characteristics of MongoDB document database and create the data model you need, try enjoy it !
 
@@ -128,9 +128,10 @@ Materialized view is a special feature of tapdata, You can give full play to the
 4. 
 
 
+</details>
+
 <details>
     <summary><h4>🗂️ Data consistency check</h4></summary>
-</details>
 
 Using the data verification feature, you can quickly check whether the synchronized data is consistent and accurate
 
@@ -147,6 +148,8 @@ Using the data verification feature, you can quickly check whether the synchroni
 5. Wait validation task finished, click Result in the task list, and check the validation result
 
 <img src='./assets/example-5-result.jpg'></img>
+
+</details>
 
 ## Architecture
 
