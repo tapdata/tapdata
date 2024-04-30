@@ -187,6 +187,12 @@ the computing engine provides task execution capabilities
 
 the database is MongoDB, which provides state persistence capabilities.
 
+<img src='./assets/architecture.jpg'></img>
+
+During data processing, the Tapdata engine reads data or transaction logs from the database source, and applies them directly to the target database after parsing.
+
+This controls the end-to-end delay within a few seconds, and because no storage middleware is used, the system Deployment is simpler
+
 <img src='./assets/architecture.png'></img>
 
 ## License
