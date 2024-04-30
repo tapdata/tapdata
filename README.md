@@ -2,9 +2,9 @@
     <a href="https://tapdata.io/">
         <img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
     </a>
-    <br/>
-    [!LICENSE](https://img.shields.io/github/license/tapdata/tapdata.svg)](https://github.com/tapdata/tapdata/blob/main/LICENSE)
-    [!Contributors](https://img.shields.io/github/contributors/tapdata/tapdata)](https://github.com/tapdata/tapdata/pulse)
+    <br/><br/>
+
+    [![LICENSE](https://img.shields.io/github/license/tapdata/tapdata.svg)](https://github.com/tapdata/tapdata/blob/main/LICENSE)
 </div>
 
 ---
