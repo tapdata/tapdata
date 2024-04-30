@@ -56,7 +56,7 @@ default username is: admin@admin.com, default password is admin
 
 6. Click Test, make sure all test pass, then click Save
 
-[](./assets/example-1-test.jpg)
+< img src="./assets/example-1-test.jpg"></img>
 
 </details>
 
