@@ -11,6 +11,7 @@ import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -346,6 +347,43 @@ public class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
             when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)node);
             hazelcastTargetPdkBaseNode.checkUnwindConfiguration();
             verify(obsLogger,times(1)).warn(any());
+        }
+    }
+    @Nested
+    class IsCDCConcurrentTest{
+        ObsLogger obsLogger;
+        @BeforeEach
+        void setUp() {
+            obsLogger = mock(ObsLogger.class);
+            ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"cdcConcurrentWriteNum",8);
+            ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"obsLogger",obsLogger);
+        }
+        @Test
+        void testUnwindProcess(){
+            TableNode node = mock(TableNode.class);
+            List predecessors = new ArrayList<>();
+            UnwindProcessNode unwindProcessNode = new UnwindProcessNode();
+            predecessors.add(unwindProcessNode);
+            when(node.predecessors()).thenReturn(predecessors);
+            when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)node);
+            doCallRealMethod().when(hazelcastTargetPdkBaseNode).isCDCConcurrent(true);
+            boolean result = hazelcastTargetPdkBaseNode.isCDCConcurrent(true);
+            Assertions.assertFalse(result);
+            verify(obsLogger,times(1)).info(any());
+        }
+
+        @Test
+        void testMergeTableNode(){
+            TableNode node = mock(TableNode.class);
+            List predecessors = new ArrayList<>();
+            MergeTableNode mergeTableNode = new MergeTableNode();
+            predecessors.add(mergeTableNode);
+            when(node.predecessors()).thenReturn(predecessors);
+            when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)node);
+            doCallRealMethod().when(hazelcastTargetPdkBaseNode).isCDCConcurrent(true);
+            boolean result = hazelcastTargetPdkBaseNode.isCDCConcurrent(true);
+            Assertions.assertFalse(result);
+            verify(obsLogger,times(1)).info(any());
         }
     }
 
