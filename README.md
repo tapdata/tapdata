@@ -23,7 +23,7 @@ Tapdata is a real-time data integration platform that enables data to be synchro
 The synchronization tasks can be easily built through drag-and-drop operations, from table creation to full and incremental synchronization, all processes are fully automated.
 
 1. [Key Features](https://docs.tapdata.io/cloud/introduction/features)
-2. [Support Connectors](https://docs.tapdata.io/cloud/prerequisites/)
+2. [Supported Connectors](https://docs.tapdata.io/cloud/introduction/supported-databases)
 
 For more details, please read [docs](https://docs.tapdata.io/)
  
@@ -79,25 +79,74 @@ default username is: admin@admin.com, default password is admin
 
 7. Click the Save button in the upper right corner, then click the Start button
 
-8. Observe the indicators and events on the task page until data synchronization is completed
+8. Observe the indicators and events on the task page until data is in sync
 
 <img src='./assets/example-2-metrics.jpg'></img>
 
 </details>
 
 <details>
-    <summary><h4>🗂️ MySQL To PostgreSQL with ETL</h4></summary>
+    <summary><h4>🗂️ MySQL To PostgreSQL with Simple ETL</h4></summary>
 </details>
 
+1. Create MySQL and PostgreSQL data source
+
+2. In the left navigation panel, click Data Pipelines -> Data Transformation
+
+3. On the right side of the page, click Create
+
+4. Drag and drop MySQL and PostgreSQL data sources onto the canvas
+
+5. Drag a line from the MySQL data source to PostgreSQL
+
+6. Click the plus sign on the connection line and select Field Rename
+
+<img src='./assets/example-3-field-rename-1.jpg'></img>
+
+7. Click Field Rename node, change i_price to price, i_data to data in config form
+
+<img src='./assets/example-3-field-rename-2.jpg'></img>
+
+8. Click the Save button in the upper right corner, then click the Start button
+
+9. Observe the indicators and events on the task page until data is in sync
+
+<img src='./assets/example-3-metrics.jpg'></img>
 
 <details>
     <summary><h4>🗂️ Making materialized views in MongoDB</h4></summary>
 </details>
 
+Materialized view is a special feature of tapdata, You can give full play to the characteristics of MongoDB document database and create the data model you need, try enjoy it !
+
+1. Create MySQL and MongoDB data source
+
+2. In the left navigation panel, click Data Pipelines -> Data Transformation
+
+3. On the right side of the page, click Create
+
+4. 
+
 
 <details>
     <summary><h4>🗂️ Data consistency check</h4></summary>
 </details>
+
+Using the data verification feature, you can quickly check whether the synchronized data is consistent and accurate
+
+1. In the left navigation panel, click Data Pipelines -> Data Validation
+
+2. On the right side of the page, click Task Consistency Validation
+
+3. Choose 1 task, and valid type choose "All Fields Validation", it means system will check all fields for all record
+
+<img src='./assets/example-5-config.jpg'></img>
+
+4. Click Save, then click Execute in the task list
+
+5. Wait validation task finished, click Result in the task list, and check the validation result
+
+<img src='./assets/example-5-result.jpg'></img>
 
 ## Architecture
 
