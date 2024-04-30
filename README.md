@@ -179,21 +179,7 @@ Using the data verification feature, you can quickly check whether the synchroni
 </details>
 
 ## Architecture
-Tapdata's complete service consists of two processes and a database.
-
-Among them, the management process provides front-end interface hosting and task scheduling capabilities
-
-the computing engine provides task execution capabilities
-
-the database is MongoDB, which provides state persistence capabilities.
-
-<img src='./assets/architecture.jpg'></img>
-
-During data processing, the Tapdata engine reads data or transaction logs from the database source, and applies them directly to the target database after parsing.
-
-This controls the end-to-end delay within a few seconds, and because no storage middleware is used, the system Deployment is simpler
-
-<img src='./assets/architecture.png'></img>
+<img src='./assets/559f2a22-1ffd-4ac0-972f-aee706f51469.gif'></img>
 
 ## License
 Tapdata is under the Apache 2.0 license. See the [LICENSE](https://github.com/tapdata/tapdata/blob/main/LICENSE) file for details.
