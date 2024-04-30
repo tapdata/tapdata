@@ -2,8 +2,6 @@ package com.tapdata.entity.dataflow.batch;
 
 import com.tapdata.constant.MapUtil;
 import com.tapdata.exception.CloneException;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.ObjectSerializable;
 import org.apache.commons.lang3.SerializationUtils;
 
 import java.io.Serializable;
@@ -50,7 +48,7 @@ public class BatchOffset implements Serializable, Cloneable {
 	public Object clone() throws CloneNotSupportedException {
 		Object clone = super.clone();
 		if (clone instanceof BatchOffset) {
-			BatchOffset batchOffset = (BatchOffset) super.clone();
+			BatchOffset batchOffset = (BatchOffset) clone;
 			batchOffset.setStatus(status);
 			if (offset instanceof Map) {
 				Map<String, Object> newOffset = new HashMap<>();
@@ -63,8 +61,7 @@ public class BatchOffset implements Serializable, Cloneable {
 			} else if (offset instanceof Serializable) {
 				batchOffset.setOffset(SerializationUtils.clone((Serializable) offset));
 			} else {
-				byte[] bytes = InstanceFactory.instance(ObjectSerializable.class).fromObject(offset);
-				batchOffset.setOffset(InstanceFactory.instance(ObjectSerializable.class).toObject(bytes));
+				batchOffset.setOffset(offset);
 			}
 		}
 		return clone;
