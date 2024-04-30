@@ -179,7 +179,7 @@ Using the data verification feature, you can quickly check whether the synchroni
 </details>
 
 ## Architecture
-<img src='./assets/559f2a22-1ffd-4ac0-972f-aee706f51469.gif'></img>
+![Alt Text](./assets/559f2a22-1ffd-4ac0-972f-aee706f51469.gif)
 
 ## License
 Tapdata is under the Apache 2.0 license. See the [LICENSE](https://github.com/tapdata/tapdata/blob/main/LICENSE) file for details.
