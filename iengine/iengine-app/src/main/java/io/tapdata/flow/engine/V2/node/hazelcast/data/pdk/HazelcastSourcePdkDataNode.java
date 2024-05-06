@@ -54,6 +54,7 @@ import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -415,13 +416,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																	}
 
 																	Object result= executeResult.getResult();
-																	if (result instanceof List) {
-																		List<Map<String, Object>> maps = (List<Map<String, Object>>) executeResult.getResult();
-																		List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
-																		consumer.accept(events, null);
-																	}else {
-																		obsLogger.info("The execution result is:{}, because the result is not a list it will be ignored.",result);
-																	}
+																	handleCustomCommandResult(result,tableName,consumer,obsLogger);
 																});
 															} else {
 																batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
@@ -471,6 +466,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 		}
 		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
+	}
+
+	private void handleCustomCommandResult(Object result, String tableName, BiConsumer<List<TapEvent>, Object> consumer, ObsLogger obsLogger){
+		if (result instanceof List) {
+			List<Map<String, Object>> maps = (List<Map<String, Object>>) result;
+			List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
+			consumer.accept(events, null);
+		}else {
+			obsLogger.info("The execution result is:{}, because the result is not a list it will be ignored.",result);
+		}
 	}
 
 	private void createTargetIndex(List<String> updateConditionFields, boolean createUnique, String tableId, TapTable tapTable) {
