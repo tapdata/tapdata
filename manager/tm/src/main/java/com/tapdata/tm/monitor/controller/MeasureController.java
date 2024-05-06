@@ -79,11 +79,12 @@ public class MeasureController extends BaseController {
     @Operation(summary = "全量信息接口")
     @GetMapping("/full_statistics")
     public ResponseMessage<Page<TableSyncStaticVo>> querySyncStatic (@RequestParam String taskRecordId,
+                                                                     @RequestParam(required = false) String tableName,
                                                                      @RequestParam(defaultValue = "1") Integer page,
                                                                      @RequestParam(defaultValue = "20") Integer size) {
 			UserDetail userDetail = getLoginUser();
 			userDetail.setFreeAuth();
-			return success(measurementServiceV2.querySyncStatic(new TableSyncStaticDto(taskRecordId, page, size), userDetail));
+			return success(measurementServiceV2.querySyncStatic(new TableSyncStaticDto(taskRecordId, page, size,tableName), userDetail));
     }
 
     @Operation(summary = "表同步状态统计")

@@ -4,6 +4,8 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import cn.hutool.core.io.IoUtil;
 import com.tapdata.tm.init.*;
+import com.tapdata.tm.init.ex.FindScriptPatchException;
+import com.tapdata.tm.init.ex.ReadScriptPatchException;
 import com.tapdata.tm.init.patches.JsonFilePatch;
 import io.tapdata.utils.AppType;
 import lombok.NonNull;
@@ -17,7 +19,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -35,7 +37,7 @@ public class ScriptPatchScanner implements IPatchScanner {
     }
 
     @Override
-    public void scanPatches(@NonNull List<IPatch> patches, @NonNull Function<PatchVersion, Boolean> isVersion) {
+    public void scanPatches(@NonNull List<IPatch> patches, @NonNull Predicate<PatchVersion> isVersion) {
         switch (patchType.getAppType()) {
             case DFS:
                 parse(patches, PatchesRunner.patchDir(AppType.DFS) + "/*.json", isVersion);
@@ -49,32 +51,33 @@ public class ScriptPatchScanner implements IPatchScanner {
         }
     }
 
-    private void parse(List<IPatch> patches, String path, Function<PatchVersion, Boolean> isVersion) {
-        Resource[] resources;
-        try {
-            PathMatchingResourcePatternResolver pathMatchingResourcePatternResolver = new PathMatchingResourcePatternResolver();
-            resources = pathMatchingResourcePatternResolver.getResources(path);
-        } catch (IOException e) {
-            throw new RuntimeException("Load script failed: " + path, e);
-        }
-
-        for (Resource resource : resources) {
+    private void parse(List<IPatch> patches, String path, Predicate<PatchVersion> isVersion) {
+        for (Resource resource : getResources(path)) {
             String currentVersion = FileUtil.mainName(resource.getFilename());
             if (null == currentVersion) {
-                logger.info("Script version is null, skip script file: {}", resource.getFilename());
+                logger.warn("Script version is null, skip script file: {}", resource.getFilename());
                 continue;
             }
             PatchVersion version = PatchVersion.valueOf(currentVersion);
-            if (!isVersion.apply(version)) {
-                logger.info("The init script has been executed {}, skip...", currentVersion);
+            if (Boolean.FALSE.equals(isVersion.test(version))) {
+                logger.debug("The init script has been executed {}, skip...", currentVersion);
                 continue;
             }
             try (InputStream is = resource.getInputStream()) {
                 String scriptStr = IoUtil.read(is, StandardCharsets.UTF_8);
                 patches.add(new JsonFilePatch(patchType, version, resource.getFilename(), scriptStr, allVariables));
             } catch (IORuntimeException | IOException e) {
-                throw new RuntimeException("Error reading script file: " + resource.getFilename(), e);
+                throw new ReadScriptPatchException(e, resource.getFilename());
             }
+        }
+    }
+
+    protected Resource[] getResources(String path) {
+        try {
+            PathMatchingResourcePatternResolver pathMatchingResourcePatternResolver = new PathMatchingResourcePatternResolver();
+            return pathMatchingResourcePatternResolver.getResources(path);
+        } catch (IOException e) {
+            throw new FindScriptPatchException(e , path);
         }
     }
 }

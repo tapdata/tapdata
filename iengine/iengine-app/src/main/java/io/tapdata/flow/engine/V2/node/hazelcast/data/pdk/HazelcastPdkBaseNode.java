@@ -57,10 +57,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
@@ -82,6 +79,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	protected Integer readBatchSize;
 	protected Integer increaseReadSize;
+	private static final String DOUBLE_ACTIVE = "doubleActive";
 	protected TapRecordSkipDetector skipDetector;
 	private PdkStateMap pdkStateMap;
 
@@ -191,14 +189,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Node<?> node = dataProcessorContext.getNode();
 		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
 		initDmlPolicy(node, connectorCapabilities);
-		Map<String, Object> nodeConfig = null;
-		if (node instanceof TableNode) {
-			nodeConfig = ((TableNode) node).getNodeConfig();
-		} else if (node instanceof DatabaseNode) {
-			nodeConfig = ((DatabaseNode) node).getNodeConfig();
-		} else if (node instanceof LogCollectorNode) {
-			nodeConfig = ((LogCollectorNode) node).getNodeConfig();
-		}
+		Map<String, Object> nodeConfig = generateNodeConfig(node, taskDto.getDoubleActive());
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
 				PdkUtil.createNode(taskDto.getId().toHexString(),
 						databaseType,
@@ -217,6 +208,22 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		logger.info(String.format("Create PDK connector on node %s[%s] complete | Associate id: %s", getNode().getName(), getNode().getId(), associateId));
 		processorBaseContext.setPdkAssociateId(this.associateId);
 		AspectUtils.executeAspect(PDKNodeInitAspect.class, () -> new PDKNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
+	}
+
+	protected Map<String, Object> generateNodeConfig(Node<?> node, Boolean doubleActive) {
+		Map<String, Object> nodeConfig = null;
+		if (node instanceof TableNode) {
+			nodeConfig = ((TableNode) node).getNodeConfig();
+		} else if (node instanceof DatabaseNode) {
+			nodeConfig = ((DatabaseNode) node).getNodeConfig();
+		} else if (node instanceof LogCollectorNode) {
+			nodeConfig = ((LogCollectorNode) node).getNodeConfig();
+		}
+		if (null == nodeConfig) {
+			nodeConfig = new HashMap<>();
+		}
+		nodeConfig.put(DOUBLE_ACTIVE, doubleActive);
+		return nodeConfig;
 	}
 
 	protected void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {
