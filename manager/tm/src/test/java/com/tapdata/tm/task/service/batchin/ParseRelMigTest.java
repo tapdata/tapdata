@@ -45,7 +45,7 @@ class ParseRelMigTest {
             when(multipartFile.getBytes()).thenReturn("{\"version\":\"1.2.0\"}".getBytes());
             try(MockedStatic<ParseRelMig> prm = Mockito.mockStatic(ParseRelMig.class)) {
                 prm.when(() -> ParseRelMig.redirect(param)).thenCallRealMethod();
-                ParseRelMigFile redirect = ParseRelMig.redirect(param);
+                ParseRelMig redirect = ParseRelMig.redirect(param);
                 Assertions.assertNotNull(redirect);
                 Assertions.assertEquals(ParseBaseVersionRelMigImpl.class.getName(), redirect.getClass().getName());
             }
@@ -55,7 +55,7 @@ class ParseRelMigTest {
             when(multipartFile.getBytes()).thenReturn("{\"version\":\"1.3.0\"}".getBytes());
             try(MockedStatic<ParseRelMig> prm = Mockito.mockStatic(ParseRelMig.class)) {
                 prm.when(() -> ParseRelMig.redirect(param)).thenCallRealMethod();
-                ParseRelMigFile redirect = ParseRelMig.redirect(param);
+                ParseRelMig redirect = ParseRelMig.redirect(param);
                 Assertions.assertNotNull(redirect);
                 Assertions.assertEquals(ParseRelMig13OrMoreImpl.class.getName(), redirect.getClass().getName());
             }
