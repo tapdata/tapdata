@@ -416,7 +416,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																	}
 
 																	Object result= executeResult.getResult();
-																	handleCustomCommandResult(result,tableName,consumer,obsLogger);
+																	handleCustomCommandResult(result,tableName,consumer);
 																});
 															} else {
 																batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
@@ -468,7 +468,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
 	}
 
-	private void handleCustomCommandResult(Object result, String tableName, BiConsumer<List<TapEvent>, Object> consumer, ObsLogger obsLogger){
+	private void handleCustomCommandResult(Object result, String tableName, BiConsumer<List<TapEvent>, Object> consumer){
 		if (result instanceof List) {
 			List<Map<String, Object>> maps = (List<Map<String, Object>>) result;
 			List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());

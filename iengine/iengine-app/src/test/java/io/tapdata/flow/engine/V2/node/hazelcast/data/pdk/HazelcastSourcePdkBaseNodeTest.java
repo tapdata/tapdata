@@ -1192,7 +1192,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			}
 		};
 		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode,"handleCustomCommandResult",
-				list,tableName,consumer,Mockito.mock(ObsLogger.class));
+				list,tableName,consumer);
 	}
 
 
@@ -1204,11 +1204,12 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		BiConsumer<List<TapEvent>, Object> consumer = new BiConsumer<List<TapEvent>, Object>() {
 			@Override
 			public void accept(List<TapEvent> tapEvents, Object o) {
-				Assert.assertTrue(tapEvents.isEmpty());
+				Assert.assertTrue(!tapEvents.isEmpty());
 			}
 		};
+		ReflectionTestUtils.setField(hazelcastSourcePdkDataNode,"obsLogger",Mockito.mock(ObsLogger.class));
 		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode,"handleCustomCommandResult",
-				excepted,tableName,consumer,Mockito.mock(ObsLogger.class));
+				excepted,tableName,consumer);
 	}
 
 
