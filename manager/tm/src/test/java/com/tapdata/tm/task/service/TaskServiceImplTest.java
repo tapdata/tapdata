@@ -4171,6 +4171,22 @@ class TaskServiceImplTest {
         }
     }
     @Nested
+    class UpdateDagTest{
+        @Test
+        void testUpdateDagNormal(){
+            TaskUpdateDagService taskUpdateDagService = mock(TaskUpdateDagService.class);
+            ReflectionTestUtils.setField(taskService,"taskUpdateDagService",taskUpdateDagService);
+            boolean saveHistory = false;
+            ObjectId id = mock(ObjectId.class);
+            when(taskDto.getId()).thenReturn(id);
+            TaskDto oldTask = mock(TaskDto.class);
+            when(taskService.checkExistById(id,user)).thenReturn(oldTask);
+            doCallRealMethod().when(taskService).updateDag(taskDto,user,saveHistory);
+            taskService.updateDag(taskDto,user,saveHistory);
+            verify(taskUpdateDagService).updateDag(taskDto,oldTask,user,saveHistory);
+        }
+    }
+    @Nested
     class FindByVersionTime{
         private String id;
         private Long time;
@@ -4741,9 +4757,40 @@ class TaskServiceImplTest {
         }
     }
     @Nested
+    class FindHeartbeatByConnectionIdTest{
+        private String connectionId;
+        private String includeFields;
+        @Test
+        @DisplayName("test findHeartbeatByTaskId method when includeFields is null")
+        void test1(){
+            connectionId = "111";
+            Query query = Query.query(Criteria.where("dag.nodes.connectionId").is(connectionId)
+                    .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
+                    .and("is_deleted").is(false)
+            );
+            doCallRealMethod().when(taskService).findHeartbeatByConnectionId(connectionId);
+            taskService.findHeartbeatByConnectionId(connectionId);
+            verify(taskService).findAll(query);
+        }
+        @Test
+        @DisplayName("test findHeartbeatByTaskId method normal")
+        void test2(){
+            connectionId = "111";
+            includeFields = "field";
+            Query query = Query.query(Criteria.where("dag.nodes.connectionId").is(connectionId)
+                    .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
+                    .and("is_deleted").is(false)
+            );
+            query.fields().include(includeFields);
+            doCallRealMethod().when(taskService).findHeartbeatByConnectionId(connectionId,includeFields);
+            taskService.findHeartbeatByConnectionId(connectionId,includeFields);
+            verify(taskService).findAll(query);
+        }
+    }
+    @Nested
     class FindHeartbeatByTaskIdTest{
-        String taskId;
-        String includeFields;
+        private String taskId;
+        private String includeFields;
         @Test
         @DisplayName("test findHeartbeatByTaskId method when includeFields is null")
         void test1(){
