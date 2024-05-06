@@ -390,7 +390,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																		List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
 																		consumer.accept(events, null);
 																	}else {
-																		obsLogger.info("Execute result is {}",result);
+																		obsLogger.info("The execution result is not a list and will be ignored");
 																	}
 																});
 															} else {
