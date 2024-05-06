@@ -1,0 +1,11 @@
+[
+  {
+    "createIndexes": "fs.chunks",
+    "indexes": [
+      {
+        "key": {"files_id": 1},
+        "background": true
+      }
+    ]
+  }
+]
