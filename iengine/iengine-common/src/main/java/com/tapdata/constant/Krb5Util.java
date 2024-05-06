@@ -3,8 +3,6 @@ package com.tapdata.constant;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import sun.security.krb5.Config;
-import sun.security.krb5.KrbException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -207,52 +205,6 @@ public class Krb5Util {
 			throw new RuntimeException("Save kerberos conf failed: " + savePath, e);
 		}
 		return dir;
-	}
-
-	/**
-	 * 更新 Kafka 配置
-	 *
-	 * @param serviceName 服务名
-	 * @param principal   主体
-	 * @param krb5Path    授权配置目录
-	 * @param krb5Conf    授权配置
-	 * @param conf        kafka配置
-	 */
-	public static void updateKafkaConf(String serviceName, String principal, String krb5Path, String krb5Conf, Map<String, Object> conf) {
-		try {
-			String krb5ConfPath = confPath(krb5Path);
-			String saslJaasConfig = saslJaasConfig(krb5Path, principal);
-
-			conf.put("security.protocol", "SASL_PLAINTEXT");
-			conf.put("sasl.mechanism", "GSSAPI");
-			conf.put("sasl.kerberos.service.name", serviceName);
-			conf.put("sasl.jaas.config", saslJaasConfig);
-			System.setProperty("java.security.krb5.conf", krb5ConfPath);
-
-			String realm = null;
-			if (null != principal) {
-				String[] arr = principal.split("@");
-				if (arr.length == 2) realm = arr[1].trim();
-			}
-			if (null == realm || realm.isEmpty()) {
-				logger.warn("Parse krb5 realm failed: " + principal);
-				return;
-			}
-
-			krb5Conf = decodeConf(krb5Conf);
-			Map<String, Map<String, String>> realms = getRealms(krb5Conf);
-			Map<String, String> currentRealms = realms.get(realm);
-			if (null != currentRealms && currentRealms.containsKey("kdc")) {
-				System.setProperty("java.security.krb5.realm", realm);
-				System.setProperty("java.security.krb5.kdc", currentRealms.get("kdc"));
-
-				Config.refresh();
-			} else {
-				logger.warn("Not found kdc in realm '{}' >> {}", realm, krb5Conf);
-			}
-		} catch (KrbException e) {
-			throw new RuntimeException("Refresh krb5 config failed", e);
-		}
 	}
 
 

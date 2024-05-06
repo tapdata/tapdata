@@ -7,7 +7,7 @@ import com.tapdata.entity.values.*;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.ConvertLog;
 import io.tapdata.exception.ConvertException;
-import jdk.nashorn.internal.runtime.Undefined;
+//import jdk.nashorn.internal.runtime.Undefined;
 import org.apache.commons.collections.MapUtils;
 import org.apache.kafka.connect.data.SchemaBuilder;
 
@@ -70,9 +70,9 @@ public interface ConverterProvider {
 	default Object commTargetValueConverter(Object data) throws ConvertException {
 
 		try {
-			if (data instanceof Undefined) {
+			/*if (data instanceof Undefined) {
 				data = null;
-			}
+			}*/
 		} catch (Exception e) {
 			throw new ConvertException(ConvertLog.ERR_COMMON_TARGET_0001.getErrCode(),
 					String.format(ConvertLog.ERR_COMMON_TARGET_0001.getMessage(), data, "Undefined", "null", e.getMessage()));

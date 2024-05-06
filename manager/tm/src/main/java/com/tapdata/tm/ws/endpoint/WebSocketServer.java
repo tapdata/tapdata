@@ -36,11 +36,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
-import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.net.InetSocketAddress;
 import java.util.*;
@@ -324,7 +324,7 @@ public class WebSocketServer extends TextWebSocketHandler {
 
 			ReturnCallback<?> callback = WebSocketManager.getAndRemoveResultCallback(messageInfo.getReqId());
 			if (callback != null) {
-				Type[] type = ((ParameterizedTypeImpl) callback.getClass().getGenericSuperclass()).getActualTypeArguments();
+				Type[] type = ((ParameterizedType) callback.getClass().getGenericSuperclass()).getActualTypeArguments();
 				try {
 					if (ResultWrap.OK.equals(result.getCode())) {
 						Object argument = null;

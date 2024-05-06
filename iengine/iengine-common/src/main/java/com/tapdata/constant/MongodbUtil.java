@@ -47,7 +47,7 @@ import com.tapdata.mongo.DateCodec;
 import com.tapdata.mongo.FloatCodec;
 import com.tapdata.mongo.ObjectIdCodec;
 import com.tapdata.mongo.StringCodec;
-import com.tapdata.mongo.UndifinedCodec;
+//import com.tapdata.mongo.UndifinedCodec;
 import io.tapdata.exception.BaseDatabaseUtilException;
 import io.tapdata.exception.MongodbException;
 import org.apache.commons.collections.CollectionUtils;
@@ -335,7 +335,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 
 		CodecRegistry codecRegistry = MongodbUtil.customCodecRegistry(
 				Arrays.asList(
-						new BigIntegerCodec(), new BigDecimalCodec(), new FloatCodec(), new UndifinedCodec(), new ByteArrayCodec(),
+						new BigIntegerCodec(), new BigDecimalCodec(), new FloatCodec(), new ByteArrayCodec(),
 						new DateCodec(), new StringCodec()
 				),
 				replacments
@@ -359,7 +359,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 
 		CodecRegistry codecRegistry = MongodbUtil.customCodecRegistry(
 				Arrays.asList(
-						new BigIntegerCodec(), new BigDecimalCodec(), new FloatCodec(), new UndifinedCodec(), new ByteArrayCodec(),
+						new BigIntegerCodec(), new BigDecimalCodec(), new FloatCodec(), new ByteArrayCodec(),
 						new DateCodec(), new StringCodec(), new ObjectIdCodec()
 				),
 				replacments
