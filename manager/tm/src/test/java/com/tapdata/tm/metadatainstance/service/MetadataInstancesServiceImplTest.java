@@ -2251,12 +2251,58 @@ public class MetadataInstancesServiceImplTest {
 		}
 	}
 	@Nested
-	class FindTablesByIdTest{
-
-	}
-	@Nested
 	class BatchImportTest{
-
+		List<MetadataInstancesDto> metadataInstancesDtos;
+		boolean cover;
+		Map<String, DataSourceConnectionDto> conMap;
+		@BeforeEach
+		void beforeEach(){
+			metadataInstancesDtos = new ArrayList<>();
+			DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+			connectionDto.setId(mock(ObjectId.class));
+			conMap = new HashMap<>();
+			conMap.put("662877df9179877be8b37074",connectionDto);
+		}
+		@Test
+		@DisplayName("test batchImport method normal")
+		void test1(){
+			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+			metadataInstancesDto.setQualifiedName("qualifiedName");
+			metadataInstancesDto.setId(new ObjectId("662877df9179877be8b37075"));
+			SourceDto sourceDto = new SourceDto();
+			sourceDto.setId(new ObjectId("662877df9179877be8b37074"));
+			metadataInstancesDto.setSource(sourceDto);
+			metadataInstancesDtos.add(metadataInstancesDto);
+			doReturn(metadataInstancesDto).when(metadataInstancesService).importEntity(metadataInstancesDto,userDetail);
+			Map<String, MetadataInstancesDto> actual = metadataInstancesService.batchImport(metadataInstancesDtos, userDetail, cover, conMap);
+			assertEquals(metadataInstancesDto,actual.get("662877df9179877be8b37075"));
+		}
+		@Test
+		@DisplayName("test batchImport method simple")
+		void test2(){
+			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+			metadataInstancesDto.setQualifiedName("qualifiedName");
+			metadataInstancesDto.setId(new ObjectId("662877df9179877be8b37075"));
+			metadataInstancesDtos.add(metadataInstancesDto);
+			doReturn(metadataInstancesDto).when(metadataInstancesService).importEntity(metadataInstancesDto,userDetail);
+			Map<String, MetadataInstancesDto> actual = metadataInstancesService.batchImport(metadataInstancesDtos, userDetail, cover, conMap);
+			assertEquals(metadataInstancesDto,actual.get("662877df9179877be8b37075"));
+		}
+		@Test
+		@DisplayName("test batchImport method when connectionId not null and connectionDto is null")
+		void test3(){
+			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+			metadataInstancesDto.setQualifiedName("qualifiedName");
+			metadataInstancesDto.setId(new ObjectId("662877df9179877be8b37075"));
+			SourceDto sourceDto = new SourceDto();
+			sourceDto.set_id("662877df9179877be8b37074");
+			metadataInstancesDto.setSource(sourceDto);
+			metadataInstancesDtos.add(metadataInstancesDto);
+			conMap.clear();
+			doReturn(metadataInstancesDto).when(metadataInstancesService).importEntity(metadataInstancesDto,userDetail);
+			Map<String, MetadataInstancesDto> actual = metadataInstancesService.batchImport(metadataInstancesDtos, userDetail, cover, conMap);
+			assertEquals(metadataInstancesDto,actual.get("662877df9179877be8b37075"));
+		}
 	}
 	@Nested
 	class GetTapTableTest{

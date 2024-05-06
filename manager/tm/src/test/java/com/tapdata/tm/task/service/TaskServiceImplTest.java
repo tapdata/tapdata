@@ -7,16 +7,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsServiceImpl;
 import com.tapdata.tm.agent.service.AgentGroupService;
+import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
+import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.*;
-import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -24,6 +23,7 @@ import com.tapdata.tm.commons.schema.MetadataTransformerDto;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
@@ -32,7 +32,11 @@ import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
 import com.tapdata.tm.ds.service.impl.DataSourceServiceImpl;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
+import com.tapdata.tm.inspect.bean.Source;
+import com.tapdata.tm.inspect.bean.Stats;
 import com.tapdata.tm.inspect.dto.InspectDto;
+import com.tapdata.tm.inspect.dto.InspectResultDto;
+import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.lock.service.LockControlService;
 import com.tapdata.tm.message.constant.Level;
@@ -43,6 +47,7 @@ import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
 import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
+import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
@@ -56,9 +61,11 @@ import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.constant.TableStatusEnum;
 import com.tapdata.tm.task.dto.CheckEchoOneNodeParam;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
+import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.batchin.ParseRelMigFile;
@@ -79,6 +86,7 @@ import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.exception.TapCodeException;
 import lombok.SneakyThrows;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.BsonValue;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -4197,48 +4205,606 @@ class TaskServiceImplTest {
         }
     }
     @Nested
-    class Clean{
-
+    class CleanTest{
+        private MetaDataHistoryService historyService;
+        private TaskRepository repository;
+        @BeforeEach
+        void beforeEach(){
+            repository = mock(TaskRepository.class);
+            taskService = spy(new TaskServiceImpl(repository));
+            historyService = mock(MetaDataHistoryService.class);
+            ReflectionTestUtils.setField(taskService,"historyService",historyService);
+        }
+        @Test
+        void testCleanNormal(){
+            String taskId = "111";
+            Long time = 1713846744L;
+            when(repository.getMongoOperations()).thenReturn(mock(MongoTemplate.class));
+            taskService.clean(taskId,time);
+            verify(historyService).clean(taskId,time);
+        }
     }
     @Nested
     class TotalAutoInspectResultsDiffTablesTest{
-
+        private IdParam param;
+        private TaskAutoInspectResultsService taskAutoInspectResultsService;
+        private String taskId;
+        @BeforeEach
+        void beforeEach(){
+            param = new IdParam();
+            taskId = "662877df9179877be8b37074";
+            param.setId(taskId);
+            taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
+            ReflectionTestUtils.setField(taskService,"taskAutoInspectResultsService",taskAutoInspectResultsService);
+        }
+        @Test
+        @DisplayName("test totalAutoInspectResultsDiffTables method when taskDto is null")
+        void test1(){
+            doCallRealMethod().when(taskService).totalAutoInspectResultsDiffTables(param);
+            Map<String, Object> actual = taskService.totalAutoInspectResultsDiffTables(param);
+            assertEquals(0,actual.size());
+        }
+        @Test
+        @DisplayName("test totalAutoInspectResultsDiffTables method when progress is null")
+        void test2(){
+            TaskDto taskDto = new TaskDto();
+            when(taskService.findByTaskId(new ObjectId(taskId), AutoInspectConstants.AUTO_INSPECT_PROGRESS_PATH)).thenReturn(taskDto);
+            doCallRealMethod().when(taskService).totalAutoInspectResultsDiffTables(param);
+            Map<String, Object> actual = taskService.totalAutoInspectResultsDiffTables(param);
+            assertEquals(0,actual.size());
+        }
+        @Test
+        @DisplayName("test totalAutoInspectResultsDiffTables method when map is null")
+        void test3(){
+            TaskDto taskDto = new TaskDto();
+            Map<String, Object> attr = new HashMap<>();
+            attr.put("autoInspectProgress",mock(AutoInspectProgress.class));
+            taskDto.setAttrs(attr);
+            when(taskService.findByTaskId(new ObjectId(taskId), AutoInspectConstants.AUTO_INSPECT_PROGRESS_PATH)).thenReturn(taskDto);
+            when(taskAutoInspectResultsService.totalDiffTables(taskId)).thenReturn(null);
+            doCallRealMethod().when(taskService).totalAutoInspectResultsDiffTables(param);
+            Map<String, Object> actual = taskService.totalAutoInspectResultsDiffTables(param);
+            assertEquals(2,actual.size());
+        }
+        @Test
+        @DisplayName("test totalAutoInspectResultsDiffTables method normal")
+        void test4(){
+            TaskDto taskDto = new TaskDto();
+            Map<String, Object> attr = new HashMap<>();
+            attr.put("autoInspectProgress",mock(AutoInspectProgress.class));
+            taskDto.setAttrs(attr);
+            when(taskService.findByTaskId(new ObjectId(taskId), AutoInspectConstants.AUTO_INSPECT_PROGRESS_PATH)).thenReturn(taskDto);
+            Map<String, Object> map = new HashMap<>();
+            when(taskAutoInspectResultsService.totalDiffTables(taskId)).thenReturn(map);
+            doCallRealMethod().when(taskService).totalAutoInspectResultsDiffTables(param);
+            Map<String, Object> actual = taskService.totalAutoInspectResultsDiffTables(param);
+            assertEquals(4,actual.size());
+        }
     }
     @Nested
     class UpdateTaskLogSettingTest{
-
+        private String taskId;
+        private LogSettingParam logSettingParam;
+        @BeforeEach
+        void beforeEach(){
+            taskId = "65bc933c6129fe73d7858b40";
+            logSettingParam = new LogSettingParam();
+        }
+        @Test
+        @DisplayName("test updateTaskLogSetting method when task is null")
+        void test1(){
+            when(taskService.findById(new ObjectId(taskId))).thenReturn(null);
+            doCallRealMethod().when(taskService).updateTaskLogSetting(taskId,logSettingParam,user);
+            assertThrows(BizException.class,()->taskService.updateTaskLogSetting(taskId,logSettingParam,user));
+        }
+        @Test
+        @DisplayName("test updateTaskLogSetting method when level equals debug")
+        void test2(){
+            TaskDto task = new TaskDto();
+            Map<String, Object> logSetting = new HashMap<>();
+            task.setLogSetting(logSetting);
+            logSettingParam.setLevel("debug");
+            when(taskService.findById(new ObjectId(taskId))).thenReturn(task);
+            doCallRealMethod().when(taskService).updateTaskLogSetting(taskId,logSettingParam,user);
+            taskService.updateTaskLogSetting(taskId,logSettingParam,user);
+            verify(taskService).updateById(any(ObjectId.class),any(Update.class),any(UserDetail.class));
+        }
+        @Test
+        @DisplayName("test updateTaskLogSetting method when level not equals debug")
+        void test3(){
+            TaskDto task = new TaskDto();
+            logSettingParam.setLevel("info");
+            when(taskService.findById(new ObjectId(taskId))).thenReturn(task);
+            doCallRealMethod().when(taskService).updateTaskLogSetting(taskId,logSettingParam,user);
+            taskService.updateTaskLogSetting(taskId,logSettingParam,user);
+            verify(taskService).updateById(any(ObjectId.class),any(Update.class),any(UserDetail.class));
+        }
     }
     @Nested
     class Chart6Test{
-
+        private MeasurementServiceV2 measurementServiceV2;
+        @BeforeEach
+        void beforeEach(){
+            measurementServiceV2 = mock(MeasurementServiceV2.class);
+            ReflectionTestUtils.setField(taskService,"measurementServiceV2",measurementServiceV2);
+        }
+        @Test
+        @DisplayName("test chart6 method normal")
+        void test1(){
+            List<TaskDto> allDto = new ArrayList<>();
+            TaskDto task = new TaskDto();
+            String id = "65bc933c6129fe73d7858b40";
+            task.setId(new ObjectId(id));
+            allDto.add(task);
+            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(allDto);
+            MeasurementEntity measurement = new MeasurementEntity();
+            List<Sample> samples = new ArrayList<>();
+            Sample sample = new Sample();
+            sample.setDate(new Date());
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("inputInsertTotal",1);
+            vs.put("outputInsertTotal",1);
+            vs.put("inputUpdateTotal",1);
+            vs.put("inputDeleteTotal",1);
+            sample.setVs(vs);
+            samples.add(sample);
+            measurement.setSamples(samples);
+            when(measurementServiceV2.findLastMinuteByTaskId(id)).thenReturn(measurement);
+            doCallRealMethod().when(taskService).chart6(user);
+            Chart6Vo actual = taskService.chart6(user);
+            assertNotEquals(3,actual.getInputTotal());
+            assertNotEquals(1,actual.getInsertedTotal());
+            assertNotEquals(1,actual.getOutputTotal());
+            assertNotEquals(1,actual.getUpdatedTotal());
+            assertNotEquals(1,actual.getDeletedTotal());
+        }
+        @Test
+        @DisplayName("test chart6 method when ids is empty")
+        void test2(){
+            List<TaskDto> allDto = new ArrayList<>();
+            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(allDto);
+            doCallRealMethod().when(taskService).chart6(user);
+            Chart6Vo actual = taskService.chart6(user);
+            assertNotEquals(0,actual.getInputTotal());
+            assertNotEquals(0,actual.getInsertedTotal());
+            assertNotEquals(0,actual.getOutputTotal());
+            assertNotEquals(0,actual.getUpdatedTotal());
+            assertNotEquals(0,actual.getDeletedTotal());
+        }
+        @Test
+        @DisplayName("test chart6 method when measurement is null")
+        void test3(){
+            List<TaskDto> allDto = new ArrayList<>();
+            TaskDto task = new TaskDto();
+            String id = "65bc933c6129fe73d7858b40";
+            task.setId(new ObjectId(id));
+            allDto.add(task);
+            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(allDto);
+            when(measurementServiceV2.findLastMinuteByTaskId(id)).thenReturn(null);
+            doCallRealMethod().when(taskService).chart6(user);
+            Chart6Vo actual = taskService.chart6(user);
+            assertNotEquals(0,actual.getInputTotal());
+            assertNotEquals(0,actual.getInsertedTotal());
+            assertNotEquals(0,actual.getOutputTotal());
+            assertNotEquals(0,actual.getUpdatedTotal());
+            assertNotEquals(0,actual.getDeletedTotal());
+        }
+        @Test
+        @DisplayName("test chart6 method when samples is empty")
+        void test4(){
+            List<TaskDto> allDto = new ArrayList<>();
+            TaskDto task = new TaskDto();
+            String id = "65bc933c6129fe73d7858b40";
+            task.setId(new ObjectId(id));
+            allDto.add(task);
+            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(allDto);
+            MeasurementEntity measurement = new MeasurementEntity();
+            when(measurementServiceV2.findLastMinuteByTaskId(id)).thenReturn(measurement);
+            doCallRealMethod().when(taskService).chart6(user);
+            Chart6Vo actual = taskService.chart6(user);
+            assertNotEquals(0,actual.getInputTotal());
+            assertNotEquals(0,actual.getInsertedTotal());
+            assertNotEquals(0,actual.getOutputTotal());
+            assertNotEquals(0,actual.getUpdatedTotal());
+            assertNotEquals(0,actual.getDeletedTotal());
+        }
     }
     @Nested
     class StopTaskIfNeedByAgentIdTest{
-
+        @Test
+        void testStopTaskIfNeedByAgentIdNormal(){
+            String agentId = "111";
+            List<TaskDto> needStopTasks = new ArrayList<>();
+            TaskDto task = new TaskDto();
+            ObjectId id = mock(ObjectId.class);
+            task.setId(id);
+            needStopTasks.add(task);
+            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(needStopTasks);
+            doCallRealMethod().when(taskService).stopTaskIfNeedByAgentId(agentId,user);
+            taskService.stopTaskIfNeedByAgentId(agentId,user);
+            verify(taskService).stopped(id,user);
+        }
     }
     @Nested
     class GetTaskStatsByTableNameOrConnectionIdTest{
-
+        private String connectionId;
+        private String tableName;
+        @Test
+        @DisplayName("test getTaskStatsByTableNameOrConnectionId method when connectionId is blank")
+        void test1(){
+            connectionId = "";
+            doCallRealMethod().when(taskService).getTaskStatsByTableNameOrConnectionId(connectionId,tableName,user);
+            assertThrows(BizException.class,()->taskService.getTaskStatsByTableNameOrConnectionId(connectionId,tableName,user));
+        }
+        @Test
+        @DisplayName("test getTaskStatsByTableNameOrConnectionId method when tableName is blank")
+        void test2(){
+            connectionId = "111";
+            tableName = "";
+            doCallRealMethod().when(taskService).getTaskStatsByTableNameOrConnectionId(connectionId,tableName,user);
+            taskService.getTaskStatsByTableNameOrConnectionId(connectionId,tableName,user);
+            Criteria criteria = new Criteria();
+            criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true);
+            Query query = Query.query(criteria);
+            verify(taskService).findAllDto(query,user);
+        }
+        @Test
+        @DisplayName("test getTaskStatsByTableNameOrConnectionId method normal")
+        void test3(){
+            connectionId = "111";
+            tableName = "table1";
+            doCallRealMethod().when(taskService).getTaskStatsByTableNameOrConnectionId(connectionId,tableName,user);
+            taskService.getTaskStatsByTableNameOrConnectionId(connectionId,tableName,user);
+            Criteria criteria = new Criteria();
+            criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true);
+            criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
+                    new Criteria().and("dag.nodes.syncObjects.objectNames").is(tableName));
+            Query query = Query.query(criteria);
+            verify(taskService).findAllDto(query,user);
+        }
     }
     @Nested
     class GetTableStatusTest{
-
+        private String connectionId;
+        private String tableName;
+        private MeasurementServiceV2 measurementServiceV2;
+        @BeforeEach
+        void beforeEach(){
+            measurementServiceV2 = mock(MeasurementServiceV2.class);
+            ReflectionTestUtils.setField(taskService,"measurementServiceV2",measurementServiceV2);
+        }
+        @Test
+        @DisplayName("test getTableStatus method when connectionId is blank")
+        void test1(){
+            connectionId = "";
+            doCallRealMethod().when(taskService).getTableStatus(connectionId,tableName,user);
+            assertThrows(BizException.class,()->taskService.getTableStatus(connectionId,tableName,user));
+        }
+        @Test
+        @DisplayName("test getTableStatus method when tableName is blank")
+        void test2(){
+            connectionId = "111";
+            tableName = "";
+            doCallRealMethod().when(taskService).getTableStatus(connectionId,tableName,user);
+            assertThrows(BizException.class,()->taskService.getTableStatus(connectionId,tableName,user));
+        }
+        @Test
+        @DisplayName("test getTableStatus method when status is running")
+        void test3(){
+            connectionId = "111";
+            tableName = "table1";
+            List<TaskDto> list = new ArrayList<>();
+            TaskDto task = new TaskDto();
+            task.setId(mock(ObjectId.class));
+            task.setStatus("running");
+            list.add(task);
+            when(taskService.findAll(any(Query.class))).thenReturn(list);
+            when(taskService.judgeTargetNode(task,tableName)).thenReturn(true);
+            when(taskService.judgeTargetInspect(connectionId,tableName,user)).thenReturn(true);
+            doCallRealMethod().when(taskService).getTableStatus(connectionId,tableName,user);
+            TableStatusInfoDto actual = taskService.getTableStatus(connectionId, tableName, user);
+            assertEquals(TableStatusEnum.STATUS_NORMAL.getValue(),actual.getStatus());
+        }
+        @Test
+        @DisplayName("test getTableStatus method when status is edit")
+        void test4(){
+            connectionId = "111";
+            tableName = "table1";
+            List<TaskDto> list = new ArrayList<>();
+            TaskDto task = new TaskDto();
+            task.setId(mock(ObjectId.class));
+            task.setStatus("edit");
+            list.add(task);
+            when(taskService.findAll(any(Query.class))).thenReturn(list);
+            when(taskService.judgeTargetNode(task,tableName)).thenReturn(true);
+            when(taskService.judgeTargetInspect(connectionId,tableName,user)).thenReturn(false);
+            doCallRealMethod().when(taskService).getTableStatus(connectionId,tableName,user);
+            TableStatusInfoDto actual = taskService.getTableStatus(connectionId, tableName, user);
+            assertEquals(TableStatusEnum.STATUS_DRAFT.getValue(),actual.getStatus());
+        }
+        @Test
+        @DisplayName("test getTableStatus method when judgeTargetInspect is error")
+        void test5(){
+            connectionId = "111";
+            tableName = "table1";
+            List<TaskDto> list = new ArrayList<>();
+            TaskDto task = new TaskDto();
+            task.setId(mock(ObjectId.class));
+            task.setStatus("running");
+            list.add(task);
+            when(taskService.findAll(any(Query.class))).thenReturn(list);
+            when(taskService.judgeTargetNode(task,tableName)).thenReturn(true);
+            when(taskService.judgeTargetInspect(connectionId,tableName,user)).thenReturn(false);
+            doCallRealMethod().when(taskService).getTableStatus(connectionId,tableName,user);
+            TableStatusInfoDto actual = taskService.getTableStatus(connectionId, tableName, user);
+            assertEquals(TableStatusEnum.STATUS_ERROR.getValue(),actual.getStatus());
+        }
+        @Test
+        @DisplayName("test getTableStatus method when exist is false")
+        void test6(){
+            connectionId = "111";
+            tableName = "table1";
+            doCallRealMethod().when(taskService).getTableStatus(connectionId,tableName,user);
+            TableStatusInfoDto actual = taskService.getTableStatus(connectionId, tableName, user);
+            assertEquals(TableStatusEnum.STATUS_DRAFT.getValue(),actual.getStatus());
+        }
+        @Test
+        @DisplayName("test getTableStatus method when status is error")
+        void test7(){
+            connectionId = "111";
+            tableName = "table1";
+            List<TaskDto> list = new ArrayList<>();
+            TaskDto task = new TaskDto();
+            task.setId(mock(ObjectId.class));
+            task.setStatus("error");
+            list.add(task);
+            when(taskService.findAll(any(Query.class))).thenReturn(list);
+            when(taskService.judgeTargetNode(task,tableName)).thenReturn(true);
+            doCallRealMethod().when(taskService).getTableStatus(connectionId,tableName,user);
+            TableStatusInfoDto actual = taskService.getTableStatus(connectionId, tableName, user);
+            assertEquals(TableStatusEnum.STATUS_ERROR.getValue(),actual.getStatus());
+        }
     }
     @Nested
     class JudgeTargetInspectTest{
-
+        private String connectionId;
+        private String tableName;
+        private InspectResultService inspectResultService;
+        @BeforeEach
+        void beforeEach(){
+            connectionId = "111";
+            tableName = "table1";
+            inspectResultService = mock(InspectResultService.class);
+            ReflectionTestUtils.setField(taskService,"inspectResultService",inspectResultService);
+        }
+        @Test
+        @DisplayName("test judgeTargetInspect method when inspectResultDto is null")
+        void test1(){
+            doCallRealMethod().when(taskService).judgeTargetInspect(connectionId,tableName,user);
+            boolean actual = taskService.judgeTargetInspect(connectionId, tableName, user);
+            assertEquals(true,actual);
+        }
+        @Test
+        @DisplayName("test judgeTargetInspect method when status is error")
+        void test2(){
+            InspectResultDto inspectResultDto = new InspectResultDto();
+            List<Stats> statsList = new ArrayList<>();
+            Stats stats = new Stats();
+            Source target = new Source();
+            target.setConnectionId("111");
+            target.setTable("table1");
+            stats.setTarget(target);
+            stats.setStatus("ERROR");
+            statsList.add(stats);
+            inspectResultDto.setStats(statsList);
+            when(inspectResultService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(inspectResultDto);
+            doCallRealMethod().when(taskService).judgeTargetInspect(connectionId,tableName,user);
+            boolean actual = taskService.judgeTargetInspect(connectionId, tableName, user);
+            assertEquals(false,actual);
+        }
+        @Test
+        @DisplayName("test judgeTargetInspect method when status is done")
+        void test3(){
+            InspectResultDto inspectResultDto = new InspectResultDto();
+            List<Stats> statsList = new ArrayList<>();
+            Stats stats = new Stats();
+            Source target = new Source();
+            target.setConnectionId("111");
+            target.setTable("table1");
+            stats.setTarget(target);
+            stats.setStatus("DONE");
+            stats.setResult("PASSED");
+            statsList.add(stats);
+            inspectResultDto.setStats(statsList);
+            when(inspectResultService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(inspectResultDto);
+            doCallRealMethod().when(taskService).judgeTargetInspect(connectionId,tableName,user);
+            boolean actual = taskService.judgeTargetInspect(connectionId, tableName, user);
+            assertEquals(true,actual);
+        }
+        @Test
+        @DisplayName("test judgeTargetInspect method when status is running")
+        void test4(){
+            InspectResultDto inspectResultDto = new InspectResultDto();
+            List<Stats> statsList = new ArrayList<>();
+            Stats stats = new Stats();
+            Source target = new Source();
+            target.setConnectionId("111");
+            target.setTable("table1");
+            stats.setTarget(target);
+            stats.setStatus("RUNNING");
+            statsList.add(stats);
+            inspectResultDto.setStats(statsList);
+            when(inspectResultService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(inspectResultDto);
+            doCallRealMethod().when(taskService).judgeTargetInspect(connectionId,tableName,user);
+            boolean actual = taskService.judgeTargetInspect(connectionId, tableName, user);
+            assertEquals(true,actual);
+        }
+        @Test
+        @DisplayName("test judgeTargetInspect method when statsList is empty")
+        void test5(){
+            InspectResultDto inspectResultDto = new InspectResultDto();
+            when(inspectResultService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(inspectResultDto);
+            doCallRealMethod().when(taskService).judgeTargetInspect(connectionId,tableName,user);
+            boolean actual = taskService.judgeTargetInspect(connectionId, tableName, user);
+            assertEquals(false,actual);
+        }
     }
     @Nested
     class JudgeTargetNodeTest{
-
+        private TaskDto taskDto;
+        private String tableName;
+        @Test
+        @DisplayName("test judgeTargetNode method for databaseNode")
+        void test1(){
+            tableName = "table1";
+            taskDto = new TaskDto();
+            DAG dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            LinkedList<Edge> edges = new LinkedList<>();
+            Edge edge = new Edge();
+            edge.setTarget("111");
+            edges.add(edge);
+            when(dag.getEdges()).thenReturn(edges);
+            List<Node> nodeList = new ArrayList<>();
+            Node node = new DatabaseNode();
+            node.setId("111");
+            nodeList.add(node);
+            DatabaseNode nodeTemp = (DatabaseNode) node;
+            List<SyncObjects> syncObjectsList = new ArrayList<>();
+            SyncObjects syncObjects = new SyncObjects();
+            List<String> objectNames = new ArrayList<>();
+            objectNames.add("table1");
+            syncObjects.setObjectNames(objectNames);
+            syncObjectsList.add(syncObjects);
+            nodeTemp.setSyncObjects(syncObjectsList);
+            when(dag.getNodes()).thenReturn(nodeList);
+            doCallRealMethod().when(taskService).judgeTargetNode(taskDto,tableName);
+            boolean actual = taskService.judgeTargetNode(taskDto, tableName);
+            assertEquals(true,actual);
+        }
+        @Test
+        @DisplayName("test judgeTargetNode method for tableNode")
+        void test2(){
+            tableName = "table1";
+            taskDto = new TaskDto();
+            DAG dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            LinkedList<Edge> edges = new LinkedList<>();
+            Edge edge = new Edge();
+            edge.setTarget("111");
+            edges.add(edge);
+            when(dag.getEdges()).thenReturn(edges);
+            List<Node> nodeList = new ArrayList<>();
+            Node node = new TableNode();
+            node.setId("111");
+            nodeList.add(node);
+            TableNode tableNode = (TableNode) node;
+            tableNode.setTableName("table1");
+            when(dag.getNodes()).thenReturn(nodeList);
+            doCallRealMethod().when(taskService).judgeTargetNode(taskDto,tableName);
+            boolean actual = taskService.judgeTargetNode(taskDto, tableName);
+            assertEquals(true,actual);
+        }
+        @Test
+        @DisplayName("test judgeTargetNode method for jsProcessorNode")
+        void test3(){
+            tableName = "table1";
+            taskDto = new TaskDto();
+            DAG dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            LinkedList<Edge> edges = new LinkedList<>();
+            Edge edge = new Edge();
+            edge.setTarget("111");
+            edges.add(edge);
+            when(dag.getEdges()).thenReturn(edges);
+            List<Node> nodeList = new ArrayList<>();
+            Node node = new JsProcessorNode();
+            node.setId("111");
+            nodeList.add(node);
+            when(dag.getNodes()).thenReturn(nodeList);
+            doCallRealMethod().when(taskService).judgeTargetNode(taskDto,tableName);
+            boolean actual = taskService.judgeTargetNode(taskDto, tableName);
+            assertEquals(false,actual);
+        }
+        @Test
+        @DisplayName("test judgeTargetNode method when edges is empty")
+        void test4(){
+            tableName = "table1";
+            taskDto = new TaskDto();
+            DAG dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            LinkedList<Edge> edges = new LinkedList<>();
+            when(dag.getEdges()).thenReturn(edges);
+            doCallRealMethod().when(taskService).judgeTargetNode(taskDto,tableName);
+            boolean actual = taskService.judgeTargetNode(taskDto, tableName);
+            assertEquals(false,actual);
+        }
     }
     @Nested
     class FindHeartbeatByTaskIdTest{
-
+        String taskId;
+        String includeFields;
+        @Test
+        @DisplayName("test findHeartbeatByTaskId method when includeFields is null")
+        void test1(){
+            taskId = "111";
+            Query query = Query.query(Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is(taskId)
+                    .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
+                    .and("is_deleted").is(false)
+            );
+            doCallRealMethod().when(taskService).findHeartbeatByTaskId(taskId);
+            taskService.findHeartbeatByTaskId(taskId);
+            verify(taskService).findOne(query);
+        }
+        @Test
+        @DisplayName("test findHeartbeatByTaskId method normal")
+        void test2(){
+            taskId = "111";
+            includeFields = "field";
+            Query query = Query.query(Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is(taskId)
+                    .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
+                    .and("is_deleted").is(false)
+            );
+            query.fields().include(includeFields);
+            doCallRealMethod().when(taskService).findHeartbeatByTaskId(taskId,includeFields);
+            taskService.findHeartbeatByTaskId(taskId,includeFields);
+            verify(taskService).findOne(query);
+        }
     }
     @Nested
     class DeleteHeartbeatByConnIdTest{
-
+        @Test
+        @DisplayName("test deleteHeartbeatByConnId method when heartbeatTasks is null")
+        void test1(){
+            String connId = "111";
+            when(taskService.findHeartbeatByConnectionId(connId, "_id", "status", "is_deleted")).thenReturn(null);
+            doCallRealMethod().when(taskService).deleteHeartbeatByConnId(user,connId);
+            int actual = taskService.deleteHeartbeatByConnId(user, connId);
+            assertEquals(0,actual);
+        }
+        @Test
+        @DisplayName("test deleteHeartbeatByConnId method when status is running")
+        void test2(){
+            String connId = "111";
+            List<TaskDto> heartbeatTasks = new ArrayList<>();
+            TaskDto task = new TaskDto();
+            task.setStatus("running");
+            ObjectId id = mock(ObjectId.class);
+            task.setId(id);
+            heartbeatTasks.add(task);
+            TaskDto task1 = new TaskDto();
+            task1.setStatus("edit");
+            heartbeatTasks.add(task1);
+            TaskDto task2 = new TaskDto();
+            task2.setStatus("stopping");
+            heartbeatTasks.add(task2);
+            when(taskService.findHeartbeatByConnectionId(connId, "_id", "status", "is_deleted")).thenReturn(heartbeatTasks);
+            when(taskService.findByTaskId(any(ObjectId.class),anyString())).thenReturn(task,task1,task2);
+            doCallRealMethod().when(taskService).deleteHeartbeatByConnId(user,connId);
+            int actual = taskService.deleteHeartbeatByConnId(user, connId);
+            assertEquals(3,actual);
+            verify(taskService,new Times(2)).findByTaskId(any(ObjectId.class),anyString());
+        }
     }
 
     @Nested
