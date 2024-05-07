@@ -1,0 +1,280 @@
+{
+  "name": "TestMysql",
+  "connection_type": "source_and_target",
+  "database_type": "Mysql",
+  "definitionScope": "public",
+  "definitionVersion": "1.0-SNAPSHOT",
+  "definitionGroup": "io.tapdata",
+  "definitionPdkId": "mysql",
+  "definitionBuildNumber": "null",
+  "definitionTags": [
+    "Database",
+    "ssl",
+    "doubleActive"
+  ],
+  "pdkType": "pdk",
+  "pdkHash": "a5af410b12afca476edf4a650c133ddf135bf76542a67787ed6f7f7d53ba712",
+  "capabilities": [
+    {
+      "id": "run_raw_command_function",
+      "type": 11
+    },
+    {
+      "id": "execute_command_function",
+      "type": 11
+    },
+    {
+      "id": "batch_read_function",
+      "type": 11
+    },
+    {
+      "id": "stream_read_function",
+      "type": 11
+    },
+    {
+      "id": "batch_count_function",
+      "type": 11
+    },
+    {
+      "id": "timestamp_to_stream_offset_function",
+      "type": 11
+    },
+    {
+      "id": "write_record_function",
+      "type": 11
+    },
+    {
+      "id": "query_by_advance_filter_function",
+      "type": 11
+    },
+    {
+      "id": "create_table_v2_function",
+      "type": 11
+    },
+    {
+      "id": "clear_table_function",
+      "type": 11
+    },
+    {
+      "id": "drop_table_function",
+      "type": 11
+    },
+    {
+      "id": "create_index_function",
+      "type": 11
+    },
+    {
+      "id": "query_indexes_function",
+      "type": 11
+    },
+    {
+      "id": "alter_field_attributes_function",
+      "type": 11
+    },
+    {
+      "id": "alter_field_name_function",
+      "type": 11
+    },
+    {
+      "id": "drop_field_function",
+      "type": 11
+    },
+    {
+      "id": "new_field_function",
+      "type": 11
+    },
+    {
+      "id": "transaction_begin_function",
+      "type": 11
+    },
+    {
+      "id": "transaction_commit_function",
+      "type": 11
+    },
+    {
+      "id": "transaction_rollback_function",
+      "type": 11
+    },
+    {
+      "id": "get_table_info_function",
+      "type": 11
+    },
+    {
+      "id": "get_table_names_function",
+      "type": 11
+    },
+    {
+      "id": "error_handle_function",
+      "type": 11
+    },
+    {
+      "id": "dml_insert_policy",
+      "type": 20,
+      "alternatives": [
+        "update_on_exists",
+        "ignore_on_exists",
+        "just_insert"
+      ]
+    },
+    {
+      "id": "dml_update_policy",
+      "type": 20,
+      "alternatives": [
+        "ignore_on_nonexists",
+        "insert_on_nonexists"
+      ]
+    },
+    {
+      "id": "api_server_supported",
+      "type": 20
+    },
+    {
+      "id": "source_incremental_update_event_have_before",
+      "type": 20
+    },
+    {
+      "id": "new_field_event",
+      "type": 10
+    },
+    {
+      "id": "alter_field_name_event",
+      "type": 10
+    },
+    {
+      "id": "alter_field_attributes_event",
+      "type": 10
+    },
+    {
+      "id": "drop_field_event",
+      "type": 10
+    }
+  ],
+  "retry": 0,
+  "status": "ready",
+  "openTableExcludeFilter": false,
+  "project": "",
+  "transformed": true,
+  "submit": true,
+  "kafkaConsumerRequestTimeout": 0,
+  "kafkaConsumerUseTransactional": false,
+  "kafkaMaxPollRecords": 0,
+  "kafkaPollTimeoutMS": 0,
+  "kafkaMaxFetchBytes": 0,
+  "kafkaMaxFetchWaitMS": 0,
+  "kafkaIgnoreInvalidRecord": false,
+  "kafkaProducerRequestTimeout": 0,
+  "kafkaProducerUseTransactional": false,
+  "kafkaRetries": 0,
+  "kafkaBatchSize": 0,
+  "kafkaAcks": "-1",
+  "kafkaLingerMS": 0,
+  "kafkaDeliveryTimeoutMS": 0,
+  "kafkaMaxRequestSize": 0,
+  "kafkaMaxBlockMS": 0,
+  "kafkaBufferMemory": 0,
+  "kafkaCompressionType": "",
+  "kafkaPartitionKey": "",
+  "kafkaIgnorePushError": false,
+  "agentTags": [],
+  "shareCdcEnable": false,
+  "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION",
+  "accessNodeProcessIdList": [],
+  "loadAllTables": true,
+  "shareCDCExternalStorageId": "",
+  "schemaUpdateHour": "default",
+  "heartbeatEnable": false,
+  "createTime": "2024-05-06T08:52:01.349Z",
+  "last_updated": "2024-05-06T08:52:01.349Z",
+  "user_id": "62bc5008d4958d013d97c7a6",
+  "lastUpdBy": "62bc5008d4958d013d97c7a6",
+  "createUser": "admin@admin.com",
+  "testTime": 1714985523144,
+  "loadSchemaField": true,
+  "response_body": {
+    "retry": 0,
+    "validate_details": [
+      {
+        "show_msg": "PDK Connector version",
+        "status": "passed",
+        "sort": 0,
+        "fail_message": " (build: 2024-05-06 14:36:57)",
+        "required": true,
+        "cost": 0
+      },
+      {
+        "show_msg": "Check host port is valid",
+        "status": "passed",
+        "sort": 0,
+        "fail_message": "connected to localhost:3306 succeed!",
+        "required": true,
+        "cost": 0
+      },
+      {
+        "show_msg": "Connection",
+        "status": "passed",
+        "sort": 0,
+        "fail_message": "login succeed!",
+        "required": true,
+        "cost": 0
+      },
+      {
+        "show_msg": "Version",
+        "status": "passed",
+        "sort": 0,
+        "fail_message": "MySQL 8.2",
+        "required": true,
+        "cost": 0
+      },
+      {
+        "show_msg": "Write",
+        "status": "passed",
+        "sort": 0,
+        "required": true,
+        "cost": 0
+      },
+      {
+        "show_msg": "Read",
+        "status": "passed",
+        "sort": 0,
+        "required": true,
+        "cost": 0
+      },
+      {
+        "show_msg": "Check binlog mode",
+        "status": "passed",
+        "sort": 0,
+        "required": true,
+        "cost": 0
+      },
+      {
+        "show_msg": "Check binlog row image",
+        "status": "passed",
+        "sort": 0,
+        "required": true,
+        "cost": 0
+      },
+      {
+        "show_msg": "Read log",
+        "status": "passed",
+        "sort": 0,
+        "required": true,
+        "cost": 0
+      }
+    ]
+  },
+  "testCount": 0,
+  "connectionString": "localhost:3306/test",
+  "loadFieldsStatus": "finished",
+  "everLoadSchema": true,
+  "lastUpdate": 1714985523161,
+  "loadCount": 25,
+  "loadSchemaTime": "2024-05-06T08:52:03.528Z",
+  "schemaVersion": "b3104816-fe0c-4c10-b5bc-24e3542e737e",
+  "tableCount": 25,
+  "loadFieldErrMsg": "",
+  "STATUS_INVALID": "invalid",
+  "STATUS_READY": "ready",
+  "STATUS_TESTING": "testing",
+  "lastStatus": "ready",
+  "plain_password": ""
+}
