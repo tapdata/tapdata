@@ -276,7 +276,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				}
 				tapTable.add(tapField);
 			}
-			oldSubFields(tapTable, oldNameFieldMap, after);
+			retainedOldSubFields(tapTable, oldNameFieldMap, after);
 		}
 
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
@@ -302,7 +302,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		return tapTable;
 	}
 
-	private void oldSubFields(TapTable tapTable, LinkedHashMap<String, TapField> oldNameFieldMap, Map<String, Object> afterValue) {
+	private void retainedOldSubFields(TapTable tapTable, LinkedHashMap<String, TapField> oldNameFieldMap, Map<String, Object> afterValue) {
 		if (CollUtil.isEmpty(oldNameFieldMap)) {
 			return;
 		}
