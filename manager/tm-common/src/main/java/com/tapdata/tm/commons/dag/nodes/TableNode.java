@@ -4,6 +4,8 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
+import com.tapdata.tm.commons.dag.dynamic.DynamicTableResult;
+import com.tapdata.tm.commons.dag.dynamic.DynamicTableRule;
 import com.tapdata.tm.commons.dag.event.WriteEvent;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
@@ -40,6 +42,21 @@ public class TableNode extends DataNode {
     /** */
     @EqField
     private String tableName;
+
+    /** Do you want to enable dynamic table names and add suffixes according to the rules*/
+    @EqField
+    private Boolean dynamicTableName;
+
+    /** should save old table name when you open dynamic table name*/
+    @EqField
+    private String oldTableName;
+
+    /** Default rule is DateTime{yyyy-mm-dd}
+     * @see com.tapdata.tm.commons.dag.dynamic.DynamicTableRule
+     * */
+    @EqField
+    private String dynamicTableRule;
+
     /** 全量自定义sql*/
     @EqField
     private String totalsql;
@@ -185,7 +202,7 @@ public class TableNode extends DataNode {
         if (service == null)
             return null;
 
-        Schema schema = service.loadSchema(ownerId(), toObjectId(connectionId), tableName);
+        Schema schema = service.loadSchema(ownerId(), toObjectId(connectionId), getSchemaName());
         if (schema != null) {
             schema.setSourceNodeDatabaseType(getDatabaseType());
         }
@@ -195,7 +212,8 @@ public class TableNode extends DataNode {
 
     @Override
     public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
-        if (StringUtils.isBlank(tableName)) {
+        this.dynamicTableName();
+        if (StringUtils.isBlank(getSchemaName())) {
             return null;
         }
 
@@ -297,5 +315,20 @@ public class TableNode extends DataNode {
         private String field;
         /** 指定的轮询字段默认值 */
         private String defaultValue;
+    }
+
+    protected void dynamicTableName() {
+        if (!Boolean.TRUE.equals(dynamicTableName)) {
+            return;
+        }
+        DynamicTableResult dynamicTable = DynamicTableRule.getDynamicTable(null != oldTableName ? oldTableName : tableName, dynamicTableRule);
+        if (null != dynamicTable) {
+            this.oldTableName = dynamicTable.getOldName();
+            this.tableName = dynamicTable.getDynamicName();
+        }
+    }
+
+    protected String getSchemaName() {
+        return null == oldTableName ? tableName : oldTableName;
     }
 }
