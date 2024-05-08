@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 
+import cn.hutool.core.collection.CollUtil;
 import com.hazelcast.jet.core.Inbox;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.entity.TapdataEvent;
@@ -47,6 +48,7 @@ import java.io.Closeable;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 
@@ -274,6 +276,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				}
 				tapTable.add(tapField);
 			}
+			oldSubFields(tapTable, oldNameFieldMap, after);
 		}
 
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
@@ -297,6 +300,21 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			}
 		}
 		return tapTable;
+	}
+
+	private void oldSubFields(TapTable tapTable, LinkedHashMap<String, TapField> oldNameFieldMap, Map<String, Object> afterValue) {
+		if (CollUtil.isEmpty(oldNameFieldMap)) {
+			return;
+		}
+		oldNameFieldMap.entrySet().stream().filter(entry -> {
+			String key = entry.getKey();
+			int index = key.lastIndexOf(".");
+			if (index > 0) {
+				String fatherFieldName = key.substring(0, index);
+				return afterValue.containsKey(fatherFieldName) && !afterValue.containsKey(key);
+			}
+			return false;
+		}).forEach(e -> tapTable.add(e.getValue()));
 	}
 
 	@NotNull
