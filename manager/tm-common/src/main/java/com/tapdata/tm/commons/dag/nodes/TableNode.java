@@ -10,7 +10,6 @@ import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.JoinTable;
-import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import lombok.Data;
@@ -231,7 +230,7 @@ public class TableNode extends DataNode {
         }
         outputSchema.setOriginalName(tableName);
         handleAppendWrite(outputSchema);
-        return outputSchema;
+        return SchemaUtils.removeSubFieldsWhichFromFreeSchema(service.getDataSource(connectionId), outputSchema);
     }
 
     @Override
