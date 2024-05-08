@@ -199,7 +199,7 @@ public class SchemaUtils {
         return schemas;
     }
     public static Schema removeSubFieldsWhichFromFreeSchema(DataSourceConnectionDto dataSource, Schema schema) {
-        if (!SchemaUtils.dataBaseIsFreeSchema(dataSource)) {
+        if (SchemaUtils.dataBaseIsFreeSchema(dataSource)) {
             return schema;
         }
         SchemaUtils.removeSubFieldsWhichFromFreeSchema(schema);
