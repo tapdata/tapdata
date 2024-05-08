@@ -1,8 +1,5 @@
 package com.tapdata.tm.commons.dag.dynamic;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-
 public enum DynamicTableRule {
     DEFAULT("default", DynamicTableNameByDate.class),
     ;
@@ -19,23 +16,5 @@ public enum DynamicTableRule {
             if (value.name.equals(ruleName)) return value;
         }
         return DEFAULT;
-    }
-
-    public static DynamicTableResult getDynamicTable(String tableName, String ruleName) {
-        Class<? extends DynamicTableStage> stage = getRule(ruleName).stage;
-        try {
-            Constructor<? extends DynamicTableStage> constructor = stage.getConstructor(String.class, String.class);
-            DynamicTableStage dynamicTableStage = constructor.newInstance(tableName, ruleName);
-            return dynamicTableStage.genericTableName();
-        } catch (InstantiationException e) {
-
-        } catch (InvocationTargetException e) {
-
-        } catch (NoSuchMethodException e) {
-
-        } catch (IllegalAccessException e) {
-
-        }
-        return null;
     }
 }

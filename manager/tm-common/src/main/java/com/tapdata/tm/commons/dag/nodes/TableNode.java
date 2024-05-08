@@ -4,15 +4,15 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
+import com.tapdata.tm.commons.dag.dynamic.DynamicTableConfig;
+import com.tapdata.tm.commons.dag.dynamic.DynamicTableNameUtil;
 import com.tapdata.tm.commons.dag.dynamic.DynamicTableResult;
-import com.tapdata.tm.commons.dag.dynamic.DynamicTableRule;
 import com.tapdata.tm.commons.dag.event.WriteEvent;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.JoinTable;
-import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import lombok.Data;
@@ -45,7 +45,7 @@ public class TableNode extends DataNode {
 
     /** Do you want to enable dynamic table names and add suffixes according to the rules*/
     @EqField
-    private Boolean dynamicTableName;
+    private Boolean needDynamicTableName;
 
     /** should save old table name when you open dynamic table name*/
     @EqField
@@ -55,7 +55,7 @@ public class TableNode extends DataNode {
      * @see com.tapdata.tm.commons.dag.dynamic.DynamicTableRule
      * */
     @EqField
-    private String dynamicTableRule;
+    private DynamicTableConfig dynamicTableRule;
 
     /** 全量自定义sql*/
     @EqField
@@ -318,10 +318,10 @@ public class TableNode extends DataNode {
     }
 
     protected void dynamicTableName() {
-        if (!Boolean.TRUE.equals(dynamicTableName)) {
+        if (!Boolean.TRUE.equals(needDynamicTableName)) {
             return;
         }
-        DynamicTableResult dynamicTable = DynamicTableRule.getDynamicTable(null != oldTableName ? oldTableName : tableName, dynamicTableRule);
+        DynamicTableResult dynamicTable = DynamicTableNameUtil.getDynamicTable(null != oldTableName ? oldTableName : tableName, dynamicTableRule);
         if (null != dynamicTable) {
             this.oldTableName = dynamicTable.getOldName();
             this.tableName = dynamicTable.getDynamicName();
