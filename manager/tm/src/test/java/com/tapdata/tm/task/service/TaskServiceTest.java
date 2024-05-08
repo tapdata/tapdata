@@ -25,6 +25,8 @@ import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.bean.Chart6Vo;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.task.service.batchin.ParseRelMigFile;
+import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -244,17 +246,17 @@ public class TaskServiceTest {
 
         @BeforeEach
         void beforeEach() {
-            repository=mock(TaskRepository.class);
+            repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
-            taskEntity=new TaskEntity();
+            taskEntity = new TaskEntity();
             taskEntity.setUserId("6393f084c162f518b18165c3");
             taskEntity.setAgentId("632327dd287a904778c0a13c-1gd0l7dvk");
             taskEntity.setName("test");
             taskEntity.setId(MongoUtils.toObjectId("6324562fc5c0a4052d821d90"));
-            settingsService=mock(SettingsServiceImpl.class);
+            settingsService = mock(SettingsServiceImpl.class);
             when(settingsService.isCloud()).thenReturn(true);
             taskService.setSettingsService(settingsService);
-            taskScheduleService=mock(TaskScheduleService.class);
+            taskScheduleService = mock(TaskScheduleService.class);
             taskService.setTaskScheduleService(taskScheduleService);
         }
 
@@ -303,40 +305,44 @@ public class TaskServiceTest {
             }
         }
     }
+
     @Nested
-    class TestSubCronOrPlanNum{
+    class TestSubCronOrPlanNum {
         TaskRepository taskRepository;
         TaskEntity taskEntity;
         TaskDto taskDto;
+
         @BeforeEach
-        void beforeEach(){
-            taskEntity=new TaskEntity();
+        void beforeEach() {
+            taskEntity = new TaskEntity();
             taskEntity.setId(MongoUtils.toObjectId("6324562fc5c0a4052d821d90"));
 
-            taskDto=new TaskDto();
-            BeanUtils.copyProperties(taskEntity,taskDto);
+            taskDto = new TaskDto();
+            BeanUtils.copyProperties(taskEntity, taskDto);
             taskRepository = mock(TaskRepository.class);
-            taskService=spy(new TaskServiceImpl(taskRepository));
+            taskService = spy(new TaskServiceImpl(taskRepository));
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()));
             query.fields().include("planStartDateFlag", "crontabExpressionFlag");
             when(taskRepository.findOne(query)).thenReturn(Optional.ofNullable(taskEntity));
         }
+
         @DisplayName("test cron task sub 1")
         @Test
-        void testSubCronOrPlanNum(){
+        void testSubCronOrPlanNum() {
             taskEntity.setCrontabExpressionFlag(true);
             try (MockedStatic<DataPermissionHelper> dataPermissionHelperMockedStatic = mockStatic(DataPermissionHelper.class)) {
                 int result = taskService.subCronOrPlanNum(taskDto, 3);
-                assertEquals(2,result);
+                assertEquals(2, result);
             }
         }
+
         @DisplayName("test not cron task don't sub 1")
         @Test
-        void testNoCronOrPlanTask(){
+        void testNoCronOrPlanTask() {
             taskEntity.setCrontabExpressionFlag(null);
             try (MockedStatic<DataPermissionHelper> dataPermissionHelperMockedStatic = mockStatic(DataPermissionHelper.class)) {
                 int result = taskService.subCronOrPlanNum(taskDto, 3);
-                assertEquals(3,result);
+                assertEquals(3, result);
             }
         }
     }
@@ -352,27 +358,29 @@ public class TaskServiceTest {
 
         final UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
+
         @BeforeEach
         void beforeEach() {
             new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
             taskService = new TaskServiceImpl(taskRepository);
             taskService.setSettingsService(settingsService);
             taskService.setTaskScheduleService(taskScheduleService);
-            ReflectionTestUtils.setField(taskService,"workerService",workerService);
+            ReflectionTestUtils.setField(taskService, "workerService", workerService);
         }
+
         @Test
-        void test_isDass(){
+        void test_isDass() {
             when(settingsService.isCloud()).thenReturn(false);
             ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
-            boolean result = taskService.checkCloudTaskLimit(taskId,user,true);
+            boolean result = taskService.checkCloudTaskLimit(taskId, user, true);
             assertTrue(result);
         }
 
         @Test
-        void test_isCloudLimit(){
+        void test_isCloudLimit() {
             ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
             Query query = new Query(Criteria.where("_id").is(taskId));
-            query.fields().include("id","agentId","agentTags");
+            query.fields().include("id", "agentId", "agentTags");
             TaskEntity mockTask = new TaskEntity();
             mockTask.setCrontabExpressionFlag(false);
             mockTask.setId(MongoUtils.toObjectId("632454d5287a904778c40f8d"));
@@ -381,24 +389,24 @@ public class TaskServiceTest {
                 when(settingsService.isCloud()).thenReturn(true);
                 when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
                 TaskDto mockTaskDto = new TaskDto();
-                BeanUtils.copyProperties(mockTask,mockTaskDto);
+                BeanUtils.copyProperties(mockTask, mockTaskDto);
                 CalculationEngineVo mockEngineVo = new CalculationEngineVo();
                 mockEngineVo.setTaskLimit(5);
                 mockEngineVo.setRunningNum(5);
-                when(workerService.calculationEngine(mockTaskDto,user,null)).thenReturn(mockEngineVo);
+                when(workerService.calculationEngine(mockTaskDto, user, null)).thenReturn(mockEngineVo);
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
-                boolean result = taskService.checkCloudTaskLimit(taskId,user,true);
+                boolean result = taskService.checkCloudTaskLimit(taskId, user, true);
                 assertFalse(result);
             }
         }
 
         @Test
-        void test_isCloudLimitNotReached(){
+        void test_isCloudLimitNotReached() {
             ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
             Query query = new Query(Criteria.where("_id").is(taskId));
-            query.fields().include("id","agentId","agentTags");
+            query.fields().include("id", "agentId", "agentTags");
             TaskEntity mockTask = new TaskEntity();
             mockTask.setCrontabExpressionFlag(false);
             mockTask.setId(MongoUtils.toObjectId("632454d5287a904778c40f8d"));
@@ -407,24 +415,24 @@ public class TaskServiceTest {
                 when(settingsService.isCloud()).thenReturn(true);
                 when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
                 TaskDto mockTaskDto = new TaskDto();
-                BeanUtils.copyProperties(mockTask,mockTaskDto);
+                BeanUtils.copyProperties(mockTask, mockTaskDto);
                 CalculationEngineVo mockEngineVo = new CalculationEngineVo();
                 mockEngineVo.setTaskLimit(5);
                 mockEngineVo.setRunningNum(4);
-                when(workerService.calculationEngine(mockTaskDto,user,null)).thenReturn(mockEngineVo);
+                when(workerService.calculationEngine(mockTaskDto, user, null)).thenReturn(mockEngineVo);
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
-                boolean result = taskService.checkCloudTaskLimit(taskId,user,true);
+                boolean result = taskService.checkCloudTaskLimit(taskId, user, true);
                 assertTrue(result);
             }
         }
 
         @Test
-        void test_isCloudLimitScheduling(){
+        void test_isCloudLimitScheduling() {
             ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
             Query query = new Query(Criteria.where("_id").is(taskId));
-            query.fields().include("id","agentId","agentTags");
+            query.fields().include("id", "agentId", "agentTags");
             TaskEntity mockTask = new TaskEntity();
             mockTask.setCrontabExpressionFlag(true);
             mockTask.setId(MongoUtils.toObjectId("632454d5287a904778c40f8d"));
@@ -433,22 +441,22 @@ public class TaskServiceTest {
                 when(settingsService.isCloud()).thenReturn(true);
                 when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
                 TaskDto mockTaskDto = new TaskDto();
-                BeanUtils.copyProperties(mockTask,mockTaskDto);
+                BeanUtils.copyProperties(mockTask, mockTaskDto);
                 CalculationEngineVo mockEngineVo = new CalculationEngineVo();
                 mockEngineVo.setTaskLimit(5);
                 mockEngineVo.setRunningNum(5);
-                when(workerService.calculationEngine(mockTaskDto,user,null)).thenReturn(mockEngineVo);
+                when(workerService.calculationEngine(mockTaskDto, user, null)).thenReturn(mockEngineVo);
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
-                boolean result = taskService.checkCloudTaskLimit(taskId,user,true);
+                boolean result = taskService.checkCloudTaskLimit(taskId, user, true);
                 assertTrue(result);
             }
         }
     }
 
     @Nested
-    class TestCopy{
+    class TestCopy {
         TaskRepository taskRepository = mock(TaskRepository.class);
 
         SettingsServiceImpl settingsService = mock(SettingsServiceImpl.class);
@@ -461,6 +469,7 @@ public class TaskServiceTest {
 
         final UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
+
         @BeforeEach
         void beforeEach() {
             new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
@@ -468,11 +477,11 @@ public class TaskServiceTest {
             taskService.setSettingsService(settingsService);
             taskService.setTaskScheduleService(taskScheduleService);
             taskService.setUserLogService(serLogService);
-            ReflectionTestUtils.setField(taskService,"workerService",workerService);
+            ReflectionTestUtils.setField(taskService, "workerService", workerService);
         }
 
         @Test
-        void test_copySchedulingTask(){
+        void test_copySchedulingTask() {
             ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
             TaskEntity mockTask = new TaskEntity();
             mockTask.setCrontabExpressionFlag(true);
@@ -482,32 +491,32 @@ public class TaskServiceTest {
                  MockedStatic<SpringContextHelper> helperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
                 serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
                 TaskDto mockTaskDto = new TaskDto();
-                BeanUtils.copyProperties(mockTask,mockTaskDto);
-                when(taskRepository.findById(taskId,user)).thenReturn(Optional.of(mockTask));
+                BeanUtils.copyProperties(mockTask, mockTaskDto);
+                when(taskRepository.findById(taskId, user)).thenReturn(Optional.of(mockTask));
                 when(settingsService.isCloud()).thenReturn(true);
                 Query query = new Query(Criteria.where("_id").is(taskId));
-                query.fields().include("id","agentId","agentTags");
+                query.fields().include("id", "agentId", "agentTags");
                 when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
                 CalculationEngineVo mockEngineVo = new CalculationEngineVo();
                 mockEngineVo.setTaskLimit(5);
                 mockEngineVo.setRunningNum(4);
-                when(workerService.calculationEngine(mockTaskDto,user,null)).thenReturn(mockEngineVo);
+                when(workerService.calculationEngine(mockTaskDto, user, null)).thenReturn(mockEngineVo);
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
                 TaskServiceImpl mockTaskService = mock(TaskServiceImpl.class);
-                helperMockedStatic.when(()->SpringContextHelper.getBean(TaskServiceImpl.class)).thenReturn(mockTaskService);
-                when(mockTaskService.confirmById(any(TaskDto.class),any(UserDetail.class),any(Boolean.class))).thenAnswer(invocationOnMock -> {
+                helperMockedStatic.when(() -> SpringContextHelper.getBean(TaskServiceImpl.class)).thenReturn(mockTaskService);
+                when(mockTaskService.confirmById(any(TaskDto.class), any(UserDetail.class), any(Boolean.class))).thenAnswer(invocationOnMock -> {
                     return invocationOnMock.<TaskDto>getArgument(0);
                 });
-                TaskDto result = taskService.copy(taskId,user);
+                TaskDto result = taskService.copy(taskId, user);
                 assertTrue(result.getCrontabExpressionFlag());
-                assertEquals("test",result.getCrontabExpression());
+                assertEquals("test", result.getCrontabExpression());
             }
         }
 
         @Test
-        void test_copySchedulingTaskLimit(){
+        void test_copySchedulingTaskLimit() {
             ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
             TaskEntity mockTask = new TaskEntity();
             mockTask.setCrontabExpressionFlag(true);
@@ -516,32 +525,32 @@ public class TaskServiceTest {
                  MockedStatic<SpringContextHelper> helperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
                 serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
                 TaskDto mockTaskDto = new TaskDto();
-                BeanUtils.copyProperties(mockTask,mockTaskDto);
-                when(taskRepository.findById(taskId,user)).thenReturn(Optional.of(mockTask));
+                BeanUtils.copyProperties(mockTask, mockTaskDto);
+                when(taskRepository.findById(taskId, user)).thenReturn(Optional.of(mockTask));
                 when(settingsService.isCloud()).thenReturn(true);
                 Query query = new Query(Criteria.where("_id").is(taskId));
-                query.fields().include("id","agentId","agentTags");
+                query.fields().include("id", "agentId", "agentTags");
                 when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
                 CalculationEngineVo mockEngineVo = new CalculationEngineVo();
                 mockEngineVo.setTaskLimit(5);
                 mockEngineVo.setRunningNum(5);
-                when(workerService.calculationEngine(mockTaskDto,user,null)).thenReturn(mockEngineVo);
+                when(workerService.calculationEngine(mockTaskDto, user, null)).thenReturn(mockEngineVo);
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
                 TaskServiceImpl mockTaskService = mock(TaskServiceImpl.class);
-                helperMockedStatic.when(()->SpringContextHelper.getBean(TaskServiceImpl.class)).thenReturn(mockTaskService);
-                when(mockTaskService.confirmById(any(TaskDto.class),any(UserDetail.class),any(Boolean.class))).thenAnswer(invocationOnMock -> {
+                helperMockedStatic.when(() -> SpringContextHelper.getBean(TaskServiceImpl.class)).thenReturn(mockTaskService);
+                when(mockTaskService.confirmById(any(TaskDto.class), any(UserDetail.class), any(Boolean.class))).thenAnswer(invocationOnMock -> {
                     return invocationOnMock.<TaskDto>getArgument(0);
                 });
-                TaskDto result = taskService.copy(taskId,user);
+                TaskDto result = taskService.copy(taskId, user);
                 assertFalse(result.getCrontabExpressionFlag());
                 assertNull(result.getCrontabExpression());
             }
         }
 
         @Test
-        void test_copyNormalTaskLimit(){
+        void test_copyNormalTaskLimit() {
             ObjectId taskId = MongoUtils.toObjectId("632454d5287a904778c40f8d");
             TaskEntity mockTask = new TaskEntity();
             mockTask.setId(MongoUtils.toObjectId("632454d5287a904778c40f8d"));
@@ -549,58 +558,63 @@ public class TaskServiceTest {
                  MockedStatic<SpringContextHelper> helperMockedStatic = Mockito.mockStatic(SpringContextHelper.class)) {
                 serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
                 TaskDto mockTaskDto = new TaskDto();
-                BeanUtils.copyProperties(mockTask,mockTaskDto);
-                when(taskRepository.findById(taskId,user)).thenReturn(Optional.of(mockTask));
+                BeanUtils.copyProperties(mockTask, mockTaskDto);
+                when(taskRepository.findById(taskId, user)).thenReturn(Optional.of(mockTask));
                 when(settingsService.isCloud()).thenReturn(true);
                 Query query = new Query(Criteria.where("_id").is(taskId));
-                query.fields().include("id","agentId","agentTags");
+                query.fields().include("id", "agentId", "agentTags");
                 when(taskRepository.findOne(query)).thenReturn(Optional.of(mockTask));
                 CalculationEngineVo mockEngineVo = new CalculationEngineVo();
                 mockEngineVo.setTaskLimit(5);
                 mockEngineVo.setRunningNum(4);
-                when(workerService.calculationEngine(mockTaskDto,user,null)).thenReturn(mockEngineVo);
+                when(workerService.calculationEngine(mockTaskDto, user, null)).thenReturn(mockEngineVo);
                 Query mockQuery = new Query(Criteria.where("_id").is(taskId));
                 mockQuery.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(taskRepository.findOne(mockQuery)).thenReturn(Optional.of(mockTask));
                 TaskServiceImpl mockTaskService = mock(TaskServiceImpl.class);
-                helperMockedStatic.when(()->SpringContextHelper.getBean(TaskServiceImpl.class)).thenReturn(mockTaskService);
-                when(mockTaskService.confirmById(any(TaskDto.class),any(UserDetail.class),any(Boolean.class))).thenAnswer(invocationOnMock -> {
+                helperMockedStatic.when(() -> SpringContextHelper.getBean(TaskServiceImpl.class)).thenReturn(mockTaskService);
+                when(mockTaskService.confirmById(any(TaskDto.class), any(UserDetail.class), any(Boolean.class))).thenAnswer(invocationOnMock -> {
                     return invocationOnMock.<TaskDto>getArgument(0);
                 });
-                TaskDto result = taskService.copy(taskId,user);
+                TaskDto result = taskService.copy(taskId, user);
                 assertNull(result.getCrontabExpressionFlag());
                 assertNull(result.getCrontabExpression());
             }
         }
     }
+
     @Nested
-    class TestRunningTaskNum{
+    class TestRunningTaskNum {
         TaskRepository taskRepository = mock(TaskRepository.class);
         final UserDetail user = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
+
         @BeforeEach
         void beforeEach() {
             taskService = new TaskServiceImpl(taskRepository);
         }
+
         @Test
-        void testRunningTaskNum(){
+        void testRunningTaskNum() {
             long except = 5L;
             when(taskRepository.count(Query.query(Criteria.where("is_deleted").ne(true)
                     .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
-                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
+                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING)
                     .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
                             Criteria.where("planStartDateFlag").is(true),
                             Criteria.where("crontabExpressionFlag").is(true)
-                    )),user)).thenReturn(except);
+                    )), user)).thenReturn(except);
             long result = taskService.runningTaskNum(user);
-            assertEquals(except,result);
+            assertEquals(except, result);
         }
     }
+
     @Nested
-    class ChartTest{
+    class ChartTest {
         TaskRepository taskRepository = mock(TaskRepository.class);
-//        @Test
-        void testChartNormal(){
+
+        //        @Test
+        void testChartNormal() {
             new DataPermissionHelper(mock(DataPermissionHelperImpl.class)); //when repository.find call methods in DataPermissionHelper class this line is need
             try (MockedStatic<DataPermissionService> mb = Mockito
                     .mockStatic(DataPermissionService.class)) {
@@ -629,165 +643,251 @@ public class TaskServiceTest {
                 taskDtoList.add(taskDto3);
                 taskDtoList.add(taskDto4);
                 taskDtoList.add(taskDto5);
-                doReturn(taskDtoList).when(taskService).findAllDto(any(),any());
-                when(permission.MigrateTack.checkAndSetFilter(user, DataPermissionActionEnums.View, () -> taskService.findAllDto(any(),any()))).thenReturn(taskDtoList);
+                doReturn(taskDtoList).when(taskService).findAllDto(any(), any());
+                when(permission.MigrateTack.checkAndSetFilter(user, DataPermissionActionEnums.View, () -> taskService.findAllDto(any(), any()))).thenReturn(taskDtoList);
                 doReturn(new HashMap()).when(taskService).inspectChart(user);
                 Chart6Vo chart6Vo = mock(Chart6Vo.class);
                 doReturn(chart6Vo).when(taskService).chart6(user);
                 Map<String, Object> actual = taskService.chart(user);
                 Map chart1 = (Map) actual.get("chart1");
-                assertEquals(3,chart1.get("total"));
+                assertEquals(3, chart1.get("total"));
                 Map chart3 = (Map) actual.get("chart3");
-                assertEquals(2,chart3.get("total"));
+                assertEquals(2, chart3.get("total"));
                 Map chart5 = (Map) actual.get("chart5");
-                assertEquals(0,chart5.size());
-                assertEquals(chart6Vo,actual.get("chart6"));
+                assertEquals(0, chart5.size());
+                assertEquals(chart6Vo, actual.get("chart6"));
             }
 
         }
     }
+
     @Nested
-    class importRmProjectTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
+    class importRmProjectTest {
+        ParseRelMigFile parseRelMigFile;
+        TaskRepository taskRepository = mock(TaskRepository.class);
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(taskRepository));
         UserDetail userDetail;
         FileInputStream fileInputStream;
+        MockMultipartFile mockMultipartFile;
+        String rmJson;
+
         @BeforeEach
-        void beforeEach() throws FileNotFoundException {
+        void beforeEach() throws Exception {
             userDetail = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
                     "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
             URL resource = this.getClass().getClassLoader().getResource("test.relmig");
-            fileInputStream=new FileInputStream(resource.getFile());
+            fileInputStream = new FileInputStream(resource.getFile());
+            mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
+            rmJson = new String(mockMultipartFile.getBytes());
         }
+
         @Test
         void importRmProjectTest() throws IOException {
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
-            String rmJson = new String(mockMultipartFile.getBytes());
+
             HashMap<String, Object> rmProject = new ObjectMapper().readValue(rmJson, HashMap.class);
             HashMap<String, Object> project = (HashMap<String, Object>) rmProject.get("project");
             HashMap<String, Object> content = (HashMap<String, Object>) project.get("content");
             HashMap<String, Object> contentCollections = (HashMap<String, Object>) content.get("collections");
-            Map<String, String> stringStringMap = taskService.parseTaskFromRm(rmJson, "123", "123", userDetail);
-            TaskDto taskDto=null;
-            for(String taskKey:stringStringMap.keySet()){
+            ParseParam param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigStr(rmJson);
+            param.setRelMigInfo(rmProject);
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, String> stringStringMap = parseRelMigFile.doParse("sourceConnectionId", "targetConnectionId", userDetail);
+            TaskDto taskDto = null;
+            for (String taskKey : stringStringMap.keySet()) {
                 taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(taskKey), TaskDto.class);
             }
-            assertEquals(5,stringStringMap.size());
+            assertEquals(5, stringStringMap.size());
         }
+
         @Test
-        void nullImportRmProjectTest(){
-            assertThrows(BizException.class,()->{taskService.parseTaskFromRm(null, "123", "123", userDetail);});
+        void nullImportRmProjectTest() {
+            ParseParam param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            assertDoesNotThrow(() -> {
+                parseRelMigFile.doParse("sourceConnectionId", "targetConnectionId", userDetail);
+            });
         }
+
         @Test
         void replaceIdTest() throws IOException {
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
-            String s = new String(mockMultipartFile.getBytes());
-            Map<String, Object> rmProject = new ObjectMapper().readValue(s, HashMap.class);
+            Map<String, Object> rmProject = new ObjectMapper().readValue(rmJson, HashMap.class);
             Map<String, Object> project = (Map<String, Object>) rmProject.get("project");
             Map<String, Object> content = (Map<String, Object>) project.get("content");
             Map<String, Object> contentMapping = (Map<String, Object>) content.get("mappings");
             Map<String, Object> contentCollections = (Map<String, Object>) content.get("collections");
             Set<String> collectionKeys = contentCollections.keySet();
-            String collectionKey=null;
-            for(String key:collectionKeys){
-                collectionKey=key;
+            String collectionKey = null;
+            for (String key : collectionKeys) {
+                collectionKey = key;
             }
             Set<String> contentMappingKeys = contentMapping.keySet();
-            String contentMappingKey=null;
-            String contentMappingCollectionId=null;
-            for(String key:contentMappingKeys){
+            String contentMappingKey = null;
+            String contentMappingCollectionId = null;
+            for (String key : contentMappingKeys) {
                 Map<String, Object> mapping = (Map<String, Object>) contentMapping.get(key);
-                String collectionId = (String)mapping.get("collectionId");
-                contentMappingCollectionId=collectionId;
-                contentMappingKey=key;
+                String collectionId = (String) mapping.get("collectionId");
+                contentMappingCollectionId = collectionId;
+                contentMappingKey = key;
             }
-            taskService.replaceRmProjectId(rmProject);
+            ParseParam param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.replaceRmProjectId();
             Set<String> afterStrings = contentCollections.keySet();
-            String afterCollectionKey=null;
-            for(String afterKey1:afterStrings){
-                afterCollectionKey=afterKey1;
+            String afterCollectionKey = null;
+            for (String afterKey1 : afterStrings) {
+                afterCollectionKey = afterKey1;
             }
             Set<String> afterContentMappingKeys = contentMapping.keySet();
-            String afterContentMappingCollectionId=null;
-            String afterContentMappingKey=null;
-            for(String key:afterContentMappingKeys){
+            String afterContentMappingCollectionId = null;
+            String afterContentMappingKey = null;
+            for (String key : afterContentMappingKeys) {
                 Map<String, Object> mapping = (Map<String, Object>) contentMapping.get(key);
-                afterContentMappingCollectionId = (String)mapping.get("collectionId");
-                afterContentMappingKey=key;
+                afterContentMappingCollectionId = (String) mapping.get("collectionId");
+                afterContentMappingKey = key;
             }
-            assertNotEquals(collectionKey,afterCollectionKey);
-            assertNotEquals(contentMappingKey,afterContentMappingKey);
-            assertNotEquals(contentMappingCollectionId,afterContentMappingCollectionId);
+            assertEquals(collectionKey, afterCollectionKey);
+            assertEquals(contentMappingKey, afterContentMappingKey);
+            assertEquals(contentMappingCollectionId, afterContentMappingCollectionId);
         }
+
         @Test
         void testReplaceRelationShipsKey() throws IOException {
             Map<String, String> globalIdMap = new HashMap<>();
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
-            String s = new String(mockMultipartFile.getBytes());
-            Map<String, Object> rmProject = new ObjectMapper().readValue(s, HashMap.class);
+            Map<String, Object> rmProject = new ObjectMapper().readValue(rmJson, HashMap.class);
             Map<String, Object> project = (Map<String, Object>) rmProject.get("project");
             Map<String, Object> content = (Map<String, Object>) project.get("content");
             Map<String, Object> relationships = content.get("relationships") == null ? new HashMap<>() : (Map<String, Object>) content.get("relationships");
             Map<String, Object> collectionMap = (Map<String, Object>) relationships.get("collections");
             Map<String, Object> mappingsMap = (Map<String, Object>) relationships.get("mappings");
-            String collectionKey=null;
-            for(String key:collectionMap.keySet()){
-                collectionKey=key;
+            String collectionKey = null;
+            for (String key : collectionMap.keySet()) {
+                collectionKey = key;
             }
-            String mappingKey=null;
-            for(String key:mappingsMap.keySet()){
-                mappingKey=key;
+            String mappingKey = null;
+            for (String key : mappingsMap.keySet()) {
+                mappingKey = key;
             }
-            String relationShipMappingsKey=null;
-            for(String key:mappingsMap.keySet()){
-                relationShipMappingsKey=key;
+            String relationShipMappingsKey = null;
+            for (String key : mappingsMap.keySet()) {
+                relationShipMappingsKey = key;
             }
-            taskService.replaceRelationShipsKey(globalIdMap,content);
-            String afterCollectionKey=null;
-            for(String key:collectionMap.keySet()){
-                afterCollectionKey=key;
+            ParseParam param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigStr(rmJson);
+            param.setRelMigInfo(rmProject);
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.replaceRelationShipsKey(globalIdMap, content);
+            String afterCollectionKey = null;
+            for (String key : collectionMap.keySet()) {
+                afterCollectionKey = key;
             }
-            String afterMappingKey=null;
-            for(String key:mappingsMap.keySet()){
-                afterMappingKey=key;
+            String afterMappingKey = null;
+            for (String key : mappingsMap.keySet()) {
+                afterMappingKey = key;
             }
-            String afterRelationShipMappingsKey=null;
-            for(String key:mappingsMap.keySet()){
-                afterRelationShipMappingsKey=key;
+            String afterRelationShipMappingsKey = null;
+            for (String key : mappingsMap.keySet()) {
+                afterRelationShipMappingsKey = key;
             }
-            assertNotEquals(collectionKey,afterCollectionKey);
-            assertNotEquals(afterMappingKey,mappingKey);
-            assertNotEquals(afterRelationShipMappingsKey,relationShipMappingsKey);
+            assertNotEquals(collectionKey, afterCollectionKey);
+            assertNotEquals(afterMappingKey, mappingKey);
+            assertNotEquals(afterRelationShipMappingsKey, relationShipMappingsKey);
         }
+
         @Test
         void testImportRmProject() throws IOException {
             CustomSqlService customSqlService = mock(CustomSqlService.class);
             taskService.setCustomSqlService(customSqlService);
             DateNodeService dataNodeService = mock(DateNodeService.class);
             taskService.setDateNodeService(dataNodeService);
-            MockMultipartFile mockMultipartFile = new MockMultipartFile("test.relmig", fileInputStream);
-            String s = new String(mockMultipartFile.getBytes());
-            Map<String, String> stringStringMap = taskService.parseTaskFromRm(s, "123", "123", userDetail);
-            TaskDto taskDto=null;
-            for(String s1: stringStringMap.keySet()){
+            ParseParam param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigStr(rmJson);
+            param.setRelMigInfo(new ObjectMapper().readValue(rmJson, HashMap.class));
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, String> stringStringMap = parseRelMigFile.doParse("sourceConnectionId", "targetConnectionId", userDetail);
+            TaskDto taskDto = null;
+            for (String s1 : stringStringMap.keySet()) {
                 taskDto = JsonUtil.parseJsonUseJackson(stringStringMap.get(s1), TaskDto.class);
             }
-            try (MockedStatic<BeanUtils> beanUtilsMockedStatic = mockStatic(BeanUtils.class);MockedStatic<DataPermissionHelper> dataPermissionHelperMockedStatic = mockStatic(DataPermissionHelper.class)) {
-                BeanUtils.copyProperties(any(),any());
+            try (MockedStatic<BeanUtils> beanUtilsMockedStatic = mockStatic(BeanUtils.class); MockedStatic<DataPermissionHelper> dataPermissionHelperMockedStatic = mockStatic(DataPermissionHelper.class)) {
+                BeanUtils.copyProperties(any(), any());
                 TaskEntity taskEntity = taskService.convertToEntity(TaskEntity.class, taskDto);
-                when(taskRepository.importEntity(any(),any())).thenReturn(taskEntity);
+                when(taskRepository.importEntity(any(), any())).thenReturn(taskEntity);
                 MongoTemplate mongoTemplate = mock(MongoTemplate.class);
                 when(taskRepository.getMongoOperations()).thenReturn(mongoTemplate);
-                assertThrows(BizException.class,()->{taskService.importRmProject(mockMultipartFile,userDetail,false,new ArrayList<>(),"123","123");});
+                assertThrows(BizException.class, () -> {
+                    taskService.importRmProject(mockMultipartFile, userDetail, false, new ArrayList<>(), "123", "123");
+                });
             }
         }
+
         @Test
         void testGenProperties() throws IOException {
             URL resource = this.getClass().getClassLoader().getResource("EmployeeSchema.relmig");
             FileInputStream fileInputStream = new FileInputStream(resource.getFile());
             MockMultipartFile mockMultipartFile = new MockMultipartFile("EmployeeSchema.relmig", fileInputStream);
             String s = new String(mockMultipartFile.getBytes());
-            Map<String, String> stringStringMap = taskService.parseTaskFromRm(s, "123", "123", userDetail);
+            ParseParam param = new ParseParam()
+                    .withMultipartFile(mockMultipartFile)
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(userDetail);
+            param.setRelMigStr(s);
+            param.setRelMigInfo(new ObjectMapper().readValue(s, HashMap.class));
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, String> stringStringMap = parseRelMigFile.doParse("sourceConnectionId", "targetConnectionId", userDetail);
             TaskDto taskDto = null;
             for (String key : stringStringMap.keySet()) {
                 System.out.println();
@@ -804,389 +904,650 @@ public class TaskServiceTest {
             assertTrue(flag);
         }
     }
+
     @Nested
-    class ParentColumnsFindJoinKeysClass{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
+    class ParentColumnsFindJoinKeysClass {
+        TaskRepository taskRepository = mock(TaskRepository.class);
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(taskRepository));
         Map<String, Object> parent;
         Map<String, Map<String, Map<String, Object>>> renameFields;
-
+        ParseRelMigFile parseRelMigFile;
 
         @BeforeEach
-        void beforeSetUp(){
+        void beforeSetUp() {
             parent = new HashMap<>();
             parent.put("rm_id", "rm_id -> eb1243b6-e7dc-4b84-b094-e719f9275512");
             parent.put("tableName", "Orders");
             renameFields = new HashMap<>();
 
-            Map<String,Map<String,Object>> orderFieldMap=new HashMap<>();
-            Map<String,Object> idAttrs=new HashMap<>();
+            Map<String, Map<String, Object>> orderFieldMap = new HashMap<>();
+            Map<String, Object> idAttrs = new HashMap<>();
             idAttrs.put("isPrimaryKey", false);
-            idAttrs.put("target","_id");
-            Map<String,Object> orderIdAttrs=new HashMap<>();
-            orderIdAttrs.put("isPrimaryKey",true);
-            orderIdAttrs.put("target","orderId");
-            Map<String,Object> shipViaAttrs=new HashMap<>();
-            shipViaAttrs.put("target","shipVia");
-            shipViaAttrs.put("isPrimaryKey",false);
-            orderFieldMap.put("ShipVia",shipViaAttrs);
-            orderFieldMap.put("_id",idAttrs);
-            orderFieldMap.put("OrderID",orderIdAttrs);
+            idAttrs.put("target", "_id");
+            Map<String, Object> orderIdAttrs = new HashMap<>();
+            orderIdAttrs.put("isPrimaryKey", true);
+            orderIdAttrs.put("target", "orderId");
+            Map<String, Object> shipViaAttrs = new HashMap<>();
+            shipViaAttrs.put("target", "shipVia");
+            shipViaAttrs.put("isPrimaryKey", false);
+            orderFieldMap.put("ShipVia", shipViaAttrs);
+            orderFieldMap.put("_id", idAttrs);
+            orderFieldMap.put("OrderID", orderIdAttrs);
 
-            Map<String,Map<String,Object>> shipperFieldMap=new HashMap<>();
-            Map<String,Object> shipperIdAttrs=new HashMap<>();
-            shipperIdAttrs.put("target","shipperId");
-            shipperIdAttrs.put("isPrimaryKey",true);
-            shipperFieldMap.put("ShipperID",shipperIdAttrs);
+            Map<String, Map<String, Object>> shipperFieldMap = new HashMap<>();
+            Map<String, Object> shipperIdAttrs = new HashMap<>();
+            shipperIdAttrs.put("target", "shipperId");
+            shipperIdAttrs.put("isPrimaryKey", true);
+            shipperFieldMap.put("ShipperID", shipperIdAttrs);
 
-            renameFields.put("Shippers",shipperFieldMap);
-            renameFields.put("Orders",orderFieldMap);
+            renameFields.put("Shippers", shipperFieldMap);
+            renameFields.put("Orders", orderFieldMap);
         }
+
         @DisplayName("test parent column have foreignKey,and foreignKey table is child table")
         @Test
-        void test1(){
+        void test1() {
             parent.put("targetPath", "");
-            Map<String, Map<String,String>> souceJoinKeyMapping=new HashMap<>();
-            Map<String, Map<String,String>> targetJoinKeyMapping=new HashMap<>();
-            List<Map<String, String>> joinKeys=new ArrayList<>();
-            Map<String, Object> parentColumns=new HashMap<>();
-            Map<String, Object> columnsAttrs=new HashMap<>();
-            Map<String,Object> foreignKeyAttrs=new HashMap<>();
-            foreignKeyAttrs.put("name","FK_Orders_Shippers");
-            foreignKeyAttrs.put("table","Shippers");
-            foreignKeyAttrs.put("column","ShipperID");
-            columnsAttrs.put("foreignKey",foreignKeyAttrs);
-            parentColumns.put("ShipVia",columnsAttrs);
-            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
-            assertEquals(1,joinKeys.size());
+            Map<String, Map<String, String>> souceJoinKeyMapping = new HashMap<>();
+            Map<String, Map<String, String>> targetJoinKeyMapping = new HashMap<>();
+            List<Map<String, String>> joinKeys = new ArrayList<>();
+            Map<String, Object> parentColumns = new HashMap<>();
+            Map<String, Object> columnsAttrs = new HashMap<>();
+            Map<String, Object> foreignKeyAttrs = new HashMap<>();
+            foreignKeyAttrs.put("name", "FK_Orders_Shippers");
+            foreignKeyAttrs.put("table", "Shippers");
+            foreignKeyAttrs.put("column", "ShipperID");
+            columnsAttrs.put("foreignKey", foreignKeyAttrs);
+            parentColumns.put("ShipVia", columnsAttrs);
+
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.parentColumnsFindJoinKeys(parent, renameFields, parentColumns, "Shippers", joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
+            assertEquals(1, joinKeys.size());
             Map<String, String> stringStringMap = joinKeys.get(0);
             String sourceJoinKey = stringStringMap.get("source");
             String targetJoinKey = stringStringMap.get("target");
-            assertEquals("shipperId",sourceJoinKey);
-            assertEquals("shipVia",targetJoinKey);
+            assertEquals("shipperId", sourceJoinKey);
+            assertEquals("shipVia", targetJoinKey);
         }
+
         @DisplayName("test parent column have foreignKey,foreignKey table is child table and have targetPath")
         @Test
-        void test2(){
+        void test2() {
             parent.put("targetPath", "orders");
-            Map<String, Map<String,String>> souceJoinKeyMapping=new HashMap<>();
-            Map<String, Map<String,String>> targetJoinKeyMapping=new HashMap<>();
-            List<Map<String, String>> joinKeys=new ArrayList<>();
-            Map<String, Object> parentColumns=new HashMap<>();
-            Map<String, Object> columnsAttrs=new HashMap<>();
-            Map<String,Object> foreignKeyAttrs=new HashMap<>();
-            foreignKeyAttrs.put("name","FK_Orders_Shippers");
-            foreignKeyAttrs.put("table","Shippers");
-            foreignKeyAttrs.put("column","ShipperID");
-            columnsAttrs.put("foreignKey",foreignKeyAttrs);
-            parentColumns.put("ShipVia",columnsAttrs);
-            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
-            assertEquals(1,joinKeys.size());
+            Map<String, Map<String, String>> souceJoinKeyMapping = new HashMap<>();
+            Map<String, Map<String, String>> targetJoinKeyMapping = new HashMap<>();
+            List<Map<String, String>> joinKeys = new ArrayList<>();
+            Map<String, Object> parentColumns = new HashMap<>();
+            Map<String, Object> columnsAttrs = new HashMap<>();
+            Map<String, Object> foreignKeyAttrs = new HashMap<>();
+            foreignKeyAttrs.put("name", "FK_Orders_Shippers");
+            foreignKeyAttrs.put("table", "Shippers");
+            foreignKeyAttrs.put("column", "ShipperID");
+            columnsAttrs.put("foreignKey", foreignKeyAttrs);
+            parentColumns.put("ShipVia", columnsAttrs);
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.parentColumnsFindJoinKeys(parent, renameFields, parentColumns, "Shippers", joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
+            assertEquals(1, joinKeys.size());
             Map<String, String> stringStringMap = joinKeys.get(0);
             String sourceJoinKey = stringStringMap.get("source");
             String targetJoinKey = stringStringMap.get("target");
-            assertEquals("shipperId",sourceJoinKey);
-            assertEquals("orders.shipVia",targetJoinKey);
+            assertEquals("shipperId", sourceJoinKey);
+            assertEquals("orders.shipVia", targetJoinKey);
         }
+
         @DisplayName("test parent column no have foreignKey")
         @Test
-        void test3(){
-            Map<String, Map<String,String>> souceJoinKeyMapping=new HashMap<>();
-            Map<String, Map<String,String>> targetJoinKeyMapping=new HashMap<>();
-            List<Map<String, String>> joinKeys=new ArrayList<>();
-            Map<String, Object> parentColumns=new HashMap<>();
-            Map<String, Object> columnsAttrs=new HashMap<>();
-            parentColumns.put("ShipVia",columnsAttrs);
-            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
-            assertEquals(0,joinKeys.size());
+        void test3() {
+            Map<String, Map<String, String>> souceJoinKeyMapping = new HashMap<>();
+            Map<String, Map<String, String>> targetJoinKeyMapping = new HashMap<>();
+            List<Map<String, String>> joinKeys = new ArrayList<>();
+            Map<String, Object> parentColumns = new HashMap<>();
+            Map<String, Object> columnsAttrs = new HashMap<>();
+            parentColumns.put("ShipVia", columnsAttrs);
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.parentColumnsFindJoinKeys(parent, renameFields, parentColumns, "Shippers", joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
+            assertEquals(0, joinKeys.size());
         }
+
         @DisplayName("test parnet column table is not child table")
         @Test
-        void test4(){
+        void test4() {
             parent.put("targetPath", "");
-            Map<String, Map<String,String>> souceJoinKeyMapping=new HashMap<>();
-            Map<String, Map<String,String>> targetJoinKeyMapping=new HashMap<>();
-            List<Map<String, String>> joinKeys=new ArrayList<>();
-            Map<String, Object> parentColumns=new HashMap<>();
-            Map<String, Object> columnsAttrs=new HashMap<>();
-            Map<String,Object> foreignKeyAttrs=new HashMap<>();
-            foreignKeyAttrs.put("name","FK_Orders_Shippers");
-            foreignKeyAttrs.put("table","testTable");
-            foreignKeyAttrs.put("column","ShipperID");
-            columnsAttrs.put("foreignKey",foreignKeyAttrs);
-            parentColumns.put("ShipVia",columnsAttrs);
-            taskService.parentColumnsFindJoinKeys(parent,renameFields,parentColumns,"Shippers",joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
-            assertEquals(0,joinKeys.size());
+            Map<String, Map<String, String>> souceJoinKeyMapping = new HashMap<>();
+            Map<String, Map<String, String>> targetJoinKeyMapping = new HashMap<>();
+            List<Map<String, String>> joinKeys = new ArrayList<>();
+            Map<String, Object> parentColumns = new HashMap<>();
+            Map<String, Object> columnsAttrs = new HashMap<>();
+            Map<String, Object> foreignKeyAttrs = new HashMap<>();
+            foreignKeyAttrs.put("name", "FK_Orders_Shippers");
+            foreignKeyAttrs.put("table", "testTable");
+            foreignKeyAttrs.put("column", "ShipperID");
+            columnsAttrs.put("foreignKey", foreignKeyAttrs);
+            parentColumns.put("ShipVia", columnsAttrs);
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.parentColumnsFindJoinKeys(parent, renameFields, parentColumns, "Shippers", joinKeys, souceJoinKeyMapping, targetJoinKeyMapping);
+            assertEquals(0, joinKeys.size());
         }
     }
+
     @Nested
-    class GetEmbeddedDocumentPathTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
+    class GetEmbeddedDocumentPathTest {
+        TaskRepository taskRepository = mock(TaskRepository.class);
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(taskRepository));
+        ParseRelMigFile parseRelMigFile;
+
         @DisplayName("test parent path is empty string,use embeddedPath")
         @Test
-        void test1(){
-            Map<String,String> setting=new HashMap<>();
-            setting.put("embeddedPath","abc");
-            String targetPath = taskService.getEmbeddedDocumentPath("", setting);
-            assertEquals("abc",targetPath);
+        void test1() {
+            Map<String, Object> setting = new HashMap<>();
+            setting.put("embeddedPath", "abc");
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String targetPath = parseRelMigFile.getEmbeddedDocumentPath("", setting);
+            assertEquals("abc", targetPath);
         }
+
         @DisplayName("test parent path is not empty string,embeddedPath is null")
         @Test
-        void test2(){
-            Map<String,String> setting=new HashMap<>();
-            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
-            assertEquals("parentPath",targetPath);
+        void test2() {
+            Map<String, Object> setting = new HashMap<>();
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String targetPath = parseRelMigFile.getEmbeddedDocumentPath("parentPath", setting);
+            assertEquals("parentPath", targetPath);
         }
+
         @DisplayName("test parent path is not empty string,embeddedPath is not null")
         @Test
-        void test3(){
-            Map<String,String> setting=new HashMap<>();
-            setting.put("embeddedPath","abc");
-            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
-            assertEquals("parentPath.abc",targetPath);
+        void test3() {
+            Map<String, Object> setting = new HashMap<>();
+            setting.put("embeddedPath", "abc");
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String targetPath = parseRelMigFile.getEmbeddedDocumentPath("parentPath", setting);
+            assertEquals("parentPath.abc", targetPath);
         }
+
         @DisplayName("test parent path is not empty string,embeddedPaht is empty str")
         @Test
-        void test4(){
-            Map<String,String> setting=new HashMap<>();
-            setting.put("embeddedPath","");
-            String targetPath = taskService.getEmbeddedDocumentPath("parentPath", setting);
-            assertEquals("parentPath",targetPath);
+        void test4() {
+            Map<String, Object> setting = new HashMap<>();
+            setting.put("embeddedPath", "");
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String targetPath = parseRelMigFile.getEmbeddedDocumentPath("parentPath", setting);
+            assertEquals("parentPath", targetPath);
         }
     }
+
     @Nested
-    class RunningTaskNumWithProcessIdTest{
+    class RunningTaskNumWithProcessIdTest {
         @Test
-        void testRunningTaskNumWithProcessId(){
+        void testRunningTaskNumWithProcessId() {
             TaskRepository taskRepository = mock(TaskRepository.class);
             taskService = new TaskServiceImpl(taskRepository);
             long except = 5L;
             UserDetail userDetail = mock(UserDetail.class);
             when(taskRepository.count(Query.query(Criteria.where("agentId").is("111")
                     .and("is_deleted").ne(true).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
-                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED,TaskDto.STATUS_DELETING)
+                    .and("status").nin(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING)
                     .orOperator(Criteria.where("status").in(TaskDto.STATUS_RUNNING, TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_WAIT_RUN),
                             Criteria.where("planStartDateFlag").is(true),
                             Criteria.where("crontabExpressionFlag").is(true)
                     )), userDetail)).thenReturn(except);
             long result = taskService.runningTaskNum("111", userDetail);
-            assertEquals(except,result);
+            assertEquals(except, result);
         }
     }
+
     @Nested
-    class GetNewNameMapTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
+    class GetNewNameMapTest {
+        ParseRelMigFile parseRelMigFile;
+        TaskRepository taskRepository = mock(TaskRepository.class);
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(taskRepository));
+
         @DisplayName("test get newname map is pk")
         @Test
-        void test1(){
-            Map<String,Object> target=new HashMap<>();
-            target.put("name","employeeId");
-            target.put("included",true);
-            Map<String,Object> source=new HashMap<>();
-            source.put("name","EmployeeId");
-            source.put("isPrimaryKey",true);
-            Map<String, Object> newNameMap = taskService.getNewNameMap(target, source);
-            assertEquals("employeeId",newNameMap.get("target"));
-            assertEquals(true,newNameMap.get("isPrimaryKey"));
+        void test1() {
+            Map<String, Object> target = new HashMap<>();
+            target.put("name", "employeeId");
+            target.put("included", true);
+            Map<String, Object> source = new HashMap<>();
+            source.put("name", "EmployeeId");
+            source.put("isPrimaryKey", true);
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, Object> newNameMap = parseRelMigFile.getNewNameMap(target, source);
+            assertEquals("employeeId", newNameMap.get("target"));
+            assertEquals(true, newNameMap.get("isPrimaryKey"));
         }
+
         @DisplayName("test get newname map is not pk")
         @Test
-        void test2(){
-            Map<String,Object> target=new HashMap<>();
-            target.put("name","employeeId");
-            target.put("included",true);
-            Map<String,Object> source=new HashMap<>();
-            source.put("name","EmployeeId");
-            source.put("isPrimaryKey",false);
-            Map<String, Object> newNameMap = taskService.getNewNameMap(target, source);
-            assertEquals("employeeId",newNameMap.get("target"));
-            assertEquals(false,newNameMap.get("isPrimaryKey"));
+        void test2() {
+            Map<String, Object> target = new HashMap<>();
+            target.put("name", "employeeId");
+            target.put("included", true);
+            Map<String, Object> source = new HashMap<>();
+            source.put("name", "EmployeeId");
+            source.put("isPrimaryKey", false);
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, Object> newNameMap = parseRelMigFile.getNewNameMap(target, source);
+            assertEquals("employeeId", newNameMap.get("target"));
+            assertEquals(false, newNameMap.get("isPrimaryKey"));
         }
     }
+
     @Nested
-    class GetOperationTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
+    class GetOperationTest {
+        TaskRepository taskRepository = mock(TaskRepository.class);
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(taskRepository));
+
         @DisplayName("test get deleteOperation")
         @Test
-        void test1(){
-            Map<String,Object> source=new HashMap<>();
-            source.put("name","EmployeeId");
-            source.put("isPrimaryKey",false);
-            Map<String, Object> deleteOperation = taskService.getDeleteOperation(source.get("name"), source.get("isPrimaryKey"));
-            assertEquals("EmployeeId",deleteOperation.get("field"));
-            assertEquals("REMOVE",deleteOperation.get("op"));
-            assertEquals("true",deleteOperation.get("operand"));
-            assertEquals("EmployeeId",deleteOperation.get("label"));
+        void test1() {
+            Map<String, Object> source = new HashMap<>();
+            source.put("name", "EmployeeId");
+            source.put("isPrimaryKey", false);
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, Object> deleteOperation = parseRelMigFile.getDeleteOperation(source.get("name"), source.get("isPrimaryKey"));
+            assertEquals("EmployeeId", deleteOperation.get("field"));
+            assertEquals("REMOVE", deleteOperation.get("op"));
+            assertEquals("true", deleteOperation.get("operand"));
+            assertEquals("EmployeeId", deleteOperation.get("label"));
         }
+
         @DisplayName("test get renameOperation")
         @Test
-        void test2(){
-            Map<String,Object> target=new HashMap<>();
-            target.put("name","employeeId");
-            target.put("included",true);
-            Map<String,Object> source=new HashMap<>();
-            source.put("name","EmployeeId");
-            source.put("isPrimaryKey",false);
-            Map<String, Object> renameOperation = taskService.getRenameOperation(source.get("name"), target.get("name"));
-            assertEquals("EmployeeId",renameOperation.get("field"));
-            assertEquals("RENAME",renameOperation.get("op"));
-            assertEquals("employeeId",renameOperation.get("operand"));
+        void test2() {
+            Map<String, Object> target = new HashMap<>();
+            target.put("name", "employeeId");
+            target.put("included", true);
+            Map<String, Object> source = new HashMap<>();
+            source.put("name", "EmployeeId");
+            source.put("isPrimaryKey", false);
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            Map<String, Object> renameOperation = parseRelMigFile.getRenameOperation(source.get("name"), target.get("name"));
+            assertEquals("EmployeeId", renameOperation.get("field"));
+            assertEquals("RENAME", renameOperation.get("op"));
+            assertEquals("employeeId", renameOperation.get("operand"));
         }
     }
+
     @Nested
-    class AddProcessorNodeTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
+    class AddProcessorNodeTest {
+        TaskRepository taskRepository = mock(TaskRepository.class);
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(taskRepository));
+
         @DisplayName("test add delete node")
         @Test
-        void test1(){
-            List<Map<String, Object>> nodes=new ArrayList<>();
-            List<Map<String, Object>> edges =new ArrayList<>();
+        void test1() {
+            List<Map<String, Object>> nodes = new ArrayList<>();
+            List<Map<String, Object>> edges = new ArrayList<>();
             Map<String, Object> deleteOperation = new HashMap<>();
-            List<Map<String, Object>> deleteOperationList=new ArrayList<>();
+            List<Map<String, Object>> deleteOperationList = new ArrayList<>();
             deleteOperation.put("id", UUID.randomUUID().toString().toLowerCase());
             deleteOperation.put("field", "CustomerId");
             deleteOperation.put("op", "REMOVE");
             deleteOperation.put("operand", "true");
             deleteOperation.put("label", "CustomerId");
             deleteOperationList.add(deleteOperation);
-            String sourceId = taskService.addDeleteNode("customer", deleteOperationList,  "souceId",nodes, edges);
-            assertNotEquals("souceId",sourceId);
-            assertEquals(1,nodes.size());
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String sourceId = parseRelMigFile.addDeleteNode("customer", deleteOperationList, "souceId", nodes, edges);
+            assertNotEquals("souceId", sourceId);
+            assertEquals(1, nodes.size());
             Map<String, Object> nodeMap = nodes.get(0);
-            assertEquals("Delete customer",nodeMap.get("name"));
-            assertEquals("field_add_del_processor",nodeMap.get("type"));
+            assertEquals("Delete customer", nodeMap.get("name"));
+            assertEquals("field_add_del_processor", nodeMap.get("type"));
         }
+
         @DisplayName("test add rename node")
         @Test
-        void test2(){
-            List<Map<String, Object>> nodes=new ArrayList<>();
-            List<Map<String, Object>> edges =new ArrayList<>();
-            List<Map<String, Object>> fieldRenameOperationList=new ArrayList<>();
+        void test2() {
+            List<Map<String, Object>> nodes = new ArrayList<>();
+            List<Map<String, Object>> edges = new ArrayList<>();
+            List<Map<String, Object>> fieldRenameOperationList = new ArrayList<>();
             Map<String, Object> fieldRenameOperation = new HashMap<>();
             fieldRenameOperation.put("field", "CustomerId");
             fieldRenameOperation.put("op", "RENAME");
             fieldRenameOperation.put("operand", "customerId");
             fieldRenameOperationList.add(fieldRenameOperation);
-            String sourceId = taskService.addRenameNode("customer", fieldRenameOperationList, "souceId",nodes, edges);
-            assertNotEquals("souceId",sourceId);
-            assertEquals(1,nodes.size());
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String sourceId = parseRelMigFile.addRenameNode("customer", fieldRenameOperationList, "souceId", nodes, edges);
+            assertNotEquals("souceId", sourceId);
+            assertEquals(1, nodes.size());
             Map<String, Object> nodeMap = nodes.get(0);
-            assertEquals("Rename customer",nodeMap.get("name"));
-            assertEquals("field_rename_processor",nodeMap.get("type"));
+            assertEquals("Rename customer", nodeMap.get("name"));
+            assertEquals("field_rename_processor", nodeMap.get("type"));
         }
+
         @Test
-        void test3(){
+        void test3() {
             List<Map<String, Object>> nodes = new ArrayList<>();
             List<Map<String, Object>> edges = new ArrayList<>();
             String script = "function process(){}";
             String declareScript = "retrun record";
-            String sourceId = taskService.addJSNode("customer", script, declareScript, nodes, "sourceId", edges);
-            assertNotEquals("souceId",sourceId);
-            assertEquals(1,nodes.size());
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            String sourceId = parseRelMigFile.addJSNode("customer", script, declareScript, nodes, "sourceId", edges);
+            assertNotEquals("souceId", sourceId);
+            assertEquals(1, nodes.size());
             Map<String, Object> nodeMap = nodes.get(0);
-            assertEquals("customer",nodeMap.get("name"));
-            assertEquals("js_processor",nodeMap.get("type"));
-        }
-    }
-    @Nested
-    class RemoveDeleteOperationIfJoinKeyIsDeletedTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
-        List<Map<String, Object>> childDeleteOperationsList=new ArrayList<>();
-        List<Map<String, Object>> childRenameOperationsList =new ArrayList();
-        Map<String, List<Map<String, Object>>> contentDeleteOperations = new HashMap<>();
-        Map<String, List<Map<String, Object>>> contentRenameOperations =new HashMap<>();
-        @BeforeEach
-        void beforeSetUp(){
-            Map<String, Object> deleteOperations =new HashMap<>();
-            deleteOperations.put("op","REMOVE");
-            deleteOperations.put("field", "OrderID");
-            deleteOperations.put("label" ,"OrderID");
-            deleteOperations.put("operand","true");
-            deleteOperations.put("id", UUID.randomUUID().toString().toLowerCase());
-            childDeleteOperationsList.add(deleteOperations);
-            Map<String,Object> renameOperations =new HashMap<>();
-            renameOperations.put("op","RENAME");
-            renameOperations.put("field" , "UnitPrice");
-            renameOperations.put("id", UUID.randomUUID().toString().toLowerCase());
-            renameOperations.put("operand","unitPrice");
-            childRenameOperationsList.add(renameOperations);
-            contentDeleteOperations.put("childId",childDeleteOperationsList);
-            contentRenameOperations.put("childId",childRenameOperationsList);
-        }
-        @Test
-        void test1(){
-            Map<String,Map<String, String>> sourceJoinKeyMapping =new HashMap<>();
-            Map<String,String> newFieldMap=new HashMap<>();
-            newFieldMap.put("source","OrderID");
-            newFieldMap.put("target","orderId");
-            sourceJoinKeyMapping.put("orderId",newFieldMap);
-            taskService.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations,contentRenameOperations,"childId",sourceJoinKeyMapping,"orderId");
-            assertEquals(0,childDeleteOperationsList.size());
-            assertEquals(2,childRenameOperationsList.size());
-        }
-        @Test
-        void test2(){
-            Map<String,Map<String, String>> sourceJoinKeyMapping =new HashMap<>();
-            Map<String,String> newFieldMap=new HashMap<>();
-            newFieldMap.put("source","OrderId");
-            newFieldMap.put("target","orderId");
-            sourceJoinKeyMapping.put("productId",newFieldMap);
-            taskService.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations,contentRenameOperations,"childId",sourceJoinKeyMapping,"productId");
-            assertEquals(1,childDeleteOperationsList.size());
-            assertEquals(1,childRenameOperationsList.size());
-        }
-    }
-    @Nested
-    class RemoveDeleteOperationTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
-        List<Map<String, Object>> deleteOperationsList=new ArrayList<>();
-        @BeforeEach
-        void beforeSetUp(){
-            Map<String, Object> deleteOperations =new HashMap<>();
-            deleteOperations.put("op","REMOVE");
-            deleteOperations.put("field", "OrderID");
-            deleteOperations.put("label" ,"OrderID");
-            deleteOperations.put("operand","true");
-            deleteOperations.put("id", UUID.randomUUID().toString().toLowerCase());
-            deleteOperationsList.add(deleteOperations);
-        }
-        @DisplayName("test removeDeleteOperation when joinkey in deleteOperation")
-        @Test
-        void test1(){
-            Map<String,Map<String, String>> sourceJoinKeyMapping =new HashMap<>();
-            Map<String,String> newFieldMap=new HashMap<>();
-            newFieldMap.put("source","OrderID");
-            newFieldMap.put("target","orderId");
-            sourceJoinKeyMapping.put("orderId",newFieldMap);
-            boolean flag = taskService.removeDeleteOperation(deleteOperationsList, sourceJoinKeyMapping, "orderId");
-            assertEquals(true,flag);
-        }
-        @DisplayName("test removeDeleteOperation when joinkey not in deleteOperation")
-        @Test
-        void test2(){
-            Map<String,Map<String, String>> sourceJoinKeyMapping =new HashMap<>();
-            Map<String,String> newFieldMap=new HashMap<>();
-            newFieldMap.put("source","OrderId");
-            newFieldMap.put("target","orderId");
-            sourceJoinKeyMapping.put("productId",newFieldMap);
-            boolean flag = taskService.removeDeleteOperation(deleteOperationsList, sourceJoinKeyMapping, "productId");
-            assertEquals(false,flag);
+            assertEquals("customer", nodeMap.get("name"));
+            assertEquals("js_processor", nodeMap.get("type"));
         }
     }
 
     @Nested
-    class ReNewNotSendMqTest{
-        TaskRepository taskRepository=mock(TaskRepository.class);
-        TaskServiceImpl taskService=spy(new TaskServiceImpl(taskRepository));
+    class RemoveDeleteOperationIfJoinKeyIsDeletedTest {
+        TaskRepository taskRepository = mock(TaskRepository.class);
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(taskRepository));
+        List<Map<String, Object>> childDeleteOperationsList = new ArrayList<>();
+        List<Map<String, Object>> childRenameOperationsList = new ArrayList();
+        Map<String, List<Map<String, Object>>> contentDeleteOperations = new HashMap<>();
+        Map<String, List<Map<String, Object>>> contentRenameOperations = new HashMap<>();
+
+        @BeforeEach
+        void beforeSetUp() {
+            Map<String, Object> deleteOperations = new HashMap<>();
+            deleteOperations.put("op", "REMOVE");
+            deleteOperations.put("field", "OrderID");
+            deleteOperations.put("label", "OrderID");
+            deleteOperations.put("operand", "true");
+            deleteOperations.put("id", UUID.randomUUID().toString().toLowerCase());
+            childDeleteOperationsList.add(deleteOperations);
+            Map<String, Object> renameOperations = new HashMap<>();
+            renameOperations.put("op", "RENAME");
+            renameOperations.put("field", "UnitPrice");
+            renameOperations.put("id", UUID.randomUUID().toString().toLowerCase());
+            renameOperations.put("operand", "unitPrice");
+            childRenameOperationsList.add(renameOperations);
+            contentDeleteOperations.put("childId", childDeleteOperationsList);
+            contentRenameOperations.put("childId", childRenameOperationsList);
+        }
+
+        @Test
+        void test1() {
+            Map<String, Map<String, String>> sourceJoinKeyMapping = new HashMap<>();
+            Map<String, String> newFieldMap = new HashMap<>();
+            newFieldMap.put("source", "OrderID");
+            newFieldMap.put("target", "orderId");
+            sourceJoinKeyMapping.put("orderId", newFieldMap);
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations, contentRenameOperations, "childId", sourceJoinKeyMapping, "orderId");
+            assertEquals(0, childDeleteOperationsList.size());
+            assertEquals(2, childRenameOperationsList.size());
+        }
+
+        @Test
+        void test2() {
+            Map<String, Map<String, String>> sourceJoinKeyMapping = new HashMap<>();
+            Map<String, String> newFieldMap = new HashMap<>();
+            newFieldMap.put("source", "OrderId");
+            newFieldMap.put("target", "orderId");
+            sourceJoinKeyMapping.put("productId", newFieldMap);
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            parseRelMigFile.addRenameOpIfDeleteOpHasJoinKey(contentDeleteOperations, contentRenameOperations, "childId", sourceJoinKeyMapping, "productId");
+            assertEquals(1, childDeleteOperationsList.size());
+            assertEquals(1, childRenameOperationsList.size());
+        }
+    }
+
+    @Nested
+    class RemoveDeleteOperationTest {
+        TaskRepository taskRepository = mock(TaskRepository.class);
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(taskRepository));
+        List<Map<String, Object>> deleteOperationsList = new ArrayList<>();
+
+        @BeforeEach
+        void beforeSetUp() {
+            Map<String, Object> deleteOperations = new HashMap<>();
+            deleteOperations.put("op", "REMOVE");
+            deleteOperations.put("field", "OrderID");
+            deleteOperations.put("label", "OrderID");
+            deleteOperations.put("operand", "true");
+            deleteOperations.put("id", UUID.randomUUID().toString().toLowerCase());
+            deleteOperationsList.add(deleteOperations);
+        }
+
+        @DisplayName("test removeDeleteOperation when joinkey in deleteOperation")
+        @Test
+        void test1() {
+            Map<String, Map<String, String>> sourceJoinKeyMapping = new HashMap<>();
+            Map<String, String> newFieldMap = new HashMap<>();
+            newFieldMap.put("source", "OrderID");
+            newFieldMap.put("target", "orderId");
+            sourceJoinKeyMapping.put("orderId", newFieldMap);
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            boolean flag = parseRelMigFile.removeDeleteOperation(deleteOperationsList, sourceJoinKeyMapping, "orderId");
+            assertEquals(true, flag);
+        }
+
+        @DisplayName("test removeDeleteOperation when joinkey not in deleteOperation")
+        @Test
+        void test2() {
+            Map<String, Map<String, String>> sourceJoinKeyMapping = new HashMap<>();
+            Map<String, String> newFieldMap = new HashMap<>();
+            newFieldMap.put("source", "OrderId");
+            newFieldMap.put("target", "orderId");
+            sourceJoinKeyMapping.put("productId", newFieldMap);
+            ParseParam param = new ParseParam()
+                    .withSink("sink")
+                    .withSource("source")
+                    .withUser(null);
+            param.setRelMigStr("{}");
+            param.setRelMigInfo(new HashMap<>());
+            ParseRelMigFile parseRelMigFile = new ParseRelMigFile(param) {
+                @Override
+                public List<TaskDto> parse() {
+                    return null;
+                }
+            };
+            boolean flag = parseRelMigFile.removeDeleteOperation(deleteOperationsList, sourceJoinKeyMapping, "productId");
+            assertEquals(false, flag);
+        }
+    }
+
+    @Nested
+    class ReNewNotSendMqTest {
+        TaskRepository taskRepository = mock(TaskRepository.class);
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(taskRepository));
+
         @DisplayName("test errorEvents is null")
         @Test
-        void test(){
+        void test() {
             TaskDto taskDto = new TaskDto();
             taskDto.setDag(mock(DAG.class));
             UpdateResult updateResult = new UpdateResult() {
@@ -1210,12 +1571,12 @@ public class TaskServiceTest {
                     return null;
                 }
             };
-            when(taskRepository.update(any(Query.class),any(Update.class),any())).thenAnswer(invocationOnMock -> {
+            when(taskRepository.update(any(Query.class), any(Update.class), any())).thenAnswer(invocationOnMock -> {
                 Update update = invocationOnMock.getArgument(1);
                 Assertions.assertNull(update.getUpdateObject().get("errorEvents"));
                 return updateResult;
             });
-            taskService.renewNotSendMq(taskDto,mock(UserDetail.class));
+            taskService.renewNotSendMq(taskDto, mock(UserDetail.class));
         }
 
     }

@@ -365,12 +365,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private boolean isCDCConcurrent(Boolean cdcConcurrent) {
+	protected boolean isCDCConcurrent(Boolean cdcConcurrent) {
 		cdcConcurrent = cdcConcurrent && cdcConcurrentWriteNum > 1;
 		List<? extends Node<?>> predecessors = getNode().predecessors();
 		for (Node<?> predecessor : predecessors) {
-			if (predecessor instanceof MergeTableNode) {
-				obsLogger.info("CDC concurrent write is disabled because the node has a merge table node");
+			if (predecessor instanceof MergeTableNode || predecessor instanceof UnwindProcessNode) {
+				obsLogger.info("CDC concurrent write is disabled because the node has a merge table node or unwind process node");
 				cdcConcurrent = false;
 			}
 		}

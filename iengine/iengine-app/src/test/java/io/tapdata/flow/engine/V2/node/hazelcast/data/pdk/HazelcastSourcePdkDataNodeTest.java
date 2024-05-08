@@ -34,6 +34,8 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
+import io.tapdata.pdk.apis.entity.TapTimeForm;
+import io.tapdata.pdk.apis.entity.TapTimeUnit;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
@@ -269,7 +271,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 		tapTable.setNameFieldMap(nameFieldMap);
 		tapTable.setName("test");
 		tapTable.setId("test");
-		TapTableMap<String, TapTable>  tapTableMap =TapTableMap.create("test",tapTable);
+		TapTableMap<String, TapTable>  tapTableMap = TapTableMap.create("test",tapTable);
 
 		when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
 		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode,"batchFilterRead");
@@ -1366,6 +1368,54 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				verify(obsLogger, times(1)).isDebugEnabled();
 				verify(obsLogger, times(0)).debug("An error when sourceRunnerLock.unlock(), message: {}", "exp", e);
 			}
+		}
+	}
+
+	@Nested
+	class timeTransformationTest{
+		@DisplayName("Query the data of the previous day")
+		@Test
+		void test(){
+			List<QueryOperator> conditions = new ArrayList<>();
+			QueryOperator queryOperator = new QueryOperator();
+			queryOperator.setFastQuery(true);
+			queryOperator.setForm(TapTimeForm.BEFORE);
+			queryOperator.setUnit(TapTimeUnit.HOUR);
+			queryOperator.setNumber(1L);
+			conditions.add(queryOperator);
+			List<QueryOperator> result =  hazelcastSourcePdkDataNode.timeTransformation(conditions,null);
+			Assertions.assertEquals(result.size(),2);
+			Assertions.assertEquals(result.get(0).getOperator(),2);
+			Assertions.assertEquals(result.get(1).getOperator(),4);
+		}
+		@DisplayName("Specify query conditions")
+		@Test
+		void test1(){
+			List<QueryOperator> conditions = new ArrayList<>();
+			QueryOperator queryOperator = new QueryOperator();
+			queryOperator.setFastQuery(false);
+			conditions.add(queryOperator);
+			List<QueryOperator> result =  hazelcastSourcePdkDataNode.timeTransformation(conditions,null);
+			Assertions.assertEquals(result.size(),1);
+		}
+	}
+	@Nested
+	class constructQueryOperatorTest{
+		@DisplayName("timeList is null")
+		@Test
+		void test(){
+			List<QueryOperator> result = hazelcastSourcePdkDataNode.constructQueryOperator(null,new QueryOperator());
+			Assertions.assertEquals(0,result.size());
+		}
+
+		@DisplayName("Main process")
+		@Test
+		void test1(){
+			List<String> timeList = new ArrayList<>();
+			timeList.add("test1");
+			timeList.add("test2");
+			List<QueryOperator> result = hazelcastSourcePdkDataNode.constructQueryOperator(timeList,new QueryOperator());
+			Assertions.assertEquals(2,result.size());
 		}
 	}
 }

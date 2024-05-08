@@ -9,6 +9,7 @@ import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -82,5 +83,11 @@ public class AlarmController extends BaseController {
     @GetMapping("channels")
     public ResponseMessage<List<AlarmChannelDto>> alarmChannel (){
         return success(alarmService.getAvailableChannels());
+    }
+
+    @PostMapping("/updateTaskAlarm")
+    public ResponseMessage<Void> updateTaskAlarm(@RequestBody AlarmVO alarm){
+        alarmService.updateTaskAlarm(alarm);
+        return success();
     }
 }
