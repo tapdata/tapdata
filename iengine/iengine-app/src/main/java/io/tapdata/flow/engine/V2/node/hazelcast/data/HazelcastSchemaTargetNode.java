@@ -308,10 +308,21 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		}
 		oldNameFieldMap.entrySet().stream().filter(entry -> {
 			String key = entry.getKey();
-			int index = key.lastIndexOf(".");
+			int index = key.indexOf(".");
 			if (index > 0) {
 				String fatherFieldName = key.substring(0, index);
-				return afterValue.containsKey(fatherFieldName) && !afterValue.containsKey(key);
+				if (afterValue.containsKey(fatherFieldName) && !afterValue.containsKey(key)) {
+					TapField oldFatherField = oldNameFieldMap.get(fatherFieldName);
+					if (null == oldFatherField) {
+						return false;
+					}
+					TapField afterField = tapTable.getNameFieldMap().get(fatherFieldName);
+					if (null == afterField || null == afterField.getTapType()) {
+						return false;
+					}
+					return afterField.getTapType().getType() == oldFatherField.getTapType().getType();
+				}
+				return false;
 			}
 			return false;
 		}).forEach(e -> tapTable.add(e.getValue()));

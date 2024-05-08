@@ -225,7 +225,7 @@ public class SchemaUtils {
                 .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
         //4. Otherwise, delete the current attribute
-        //fields.removeAll(afterFilterField);
+        fields.removeAll(afterFilterField);
     }
 
     public static boolean isFreeSchemaFields(Map<String, Field> allFieldMap, Map.Entry<String, Field> fieldEntry) {
