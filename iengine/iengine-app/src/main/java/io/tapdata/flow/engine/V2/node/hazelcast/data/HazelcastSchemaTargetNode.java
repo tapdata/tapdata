@@ -302,7 +302,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		return tapTable;
 	}
 
-	private void retainedOldSubFields(TapTable tapTable, LinkedHashMap<String, TapField> oldNameFieldMap, Map<String, Object> afterValue) {
+	protected void retainedOldSubFields(TapTable tapTable, LinkedHashMap<String, TapField> oldNameFieldMap, Map<String, Object> afterValue) {
 		if (CollUtil.isEmpty(oldNameFieldMap)) {
 			return;
 		}
@@ -311,21 +311,28 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			int index = key.indexOf(".");
 			if (index > 0) {
 				String fatherFieldName = key.substring(0, index);
-				if (afterValue.containsKey(fatherFieldName) && !afterValue.containsKey(key)) {
-					TapField oldFatherField = oldNameFieldMap.get(fatherFieldName);
-					if (null == oldFatherField) {
-						return false;
-					}
-					TapField afterField = tapTable.getNameFieldMap().get(fatherFieldName);
-					if (null == afterField || null == afterField.getTapType()) {
-						return false;
-					}
-					return afterField.getTapType().getType() == oldFatherField.getTapType().getType();
-				}
-				return false;
+				return needRetainedOldSubField(tapTable, afterValue, oldNameFieldMap, key, fatherFieldName);
 			}
 			return false;
 		}).forEach(e -> tapTable.add(e.getValue()));
+	}
+
+	private boolean needRetainedOldSubField(TapTable tapTable,
+											Map<String, Object> afterValue,
+											LinkedHashMap<String, TapField> oldNameFieldMap,
+											String key, String fatherFieldName) {
+		if (afterValue.containsKey(fatherFieldName) && !afterValue.containsKey(key)) {
+			TapField oldFatherField = oldNameFieldMap.get(fatherFieldName);
+			if (null == oldFatherField) {
+				return false;
+			}
+			TapField afterField = tapTable.getNameFieldMap().get(fatherFieldName);
+			if (null == afterField || null == afterField.getTapType()) {
+				return false;
+			}
+			return afterField.getTapType().getType() == oldFatherField.getTapType().getType();
+		}
+		return false;
 	}
 
 	@NotNull

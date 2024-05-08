@@ -208,7 +208,7 @@ public class SchemaUtils {
 
     public static boolean dataBaseIsFreeSchema(DataSourceConnectionDto dataSource) {
         List<String> definitionTags = dataSource.getDefinitionTags();
-        return CollUtil.isNotEmpty(definitionTags) || !definitionTags.contains(SCHEMA_FREE);
+        return CollUtil.isNotEmpty(definitionTags) && definitionTags.contains(SCHEMA_FREE);
     }
 
     public static void removeSubFieldsWhichFromFreeSchema(Schema schema) {

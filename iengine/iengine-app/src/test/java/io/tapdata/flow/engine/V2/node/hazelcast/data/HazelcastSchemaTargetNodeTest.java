@@ -2,8 +2,13 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.tm.commons.dag.Node;
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapArray;
+import io.tapdata.entity.schema.type.TapMap;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -13,7 +18,10 @@ import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -69,6 +77,128 @@ class HazelcastSchemaTargetNodeTest extends BaseHazelcastNodeTest {
 			when(dataProcessorContext.getNode()).thenReturn((Node) spyNode);
 			IllegalArgumentException illegalArgumentException = assertThrows(IllegalArgumentException.class, () -> hazelcastSchemaTargetNode.doInit(jetContext));
 			assertEquals("HazelcastSchemaTargetNode only allows one predecessor node", illegalArgumentException.getMessage());
+		}
+	}
+
+	@Nested
+	@DisplayName("Test preserving sub attributes after model inference on Js nodes")
+	class RetainedOldSubFields{
+		HazelcastSchemaTargetNode hstn;
+		TapTable tapTable;
+		LinkedHashMap<String, TapField> oldNameFieldMap;
+		TapField f;
+		LinkedHashMap<String, TapField> nameFieldMap;
+		TapField field;
+		Map<String, Object> afterValue;
+		@BeforeEach
+		void init() {
+			hstn = mock(HazelcastSchemaTargetNode.class);
+
+			f = mock(TapField.class);
+			field = mock(TapField.class);
+
+			tapTable = new TapTable("id");
+			nameFieldMap = new LinkedHashMap<>();
+			nameFieldMap.put("f", f);
+			when(f.getTapType()).thenReturn(new TapMap());
+			tapTable.setNameFieldMap(nameFieldMap);
+
+			oldNameFieldMap = new LinkedHashMap<>();
+			oldNameFieldMap.put("f", field);
+			when(field.getTapType()).thenReturn(new TapMap());
+			afterValue = new HashMap<>();
+
+			doCallRealMethod().when(hstn).retainedOldSubFields(tapTable, oldNameFieldMap, afterValue);
+		}
+		@Test
+		void testNormal() {
+			Assertions.assertDoesNotThrow(() -> hstn.retainedOldSubFields(tapTable, oldNameFieldMap, afterValue));
+			Assertions.assertEquals(1, tapTable.getNameFieldMap().size());
+			Assertions.assertNotNull(tapTable.getNameFieldMap().get("f"));
+		}
+
+		@Test
+		void testOldNameFieldMapIsEmpty() {
+			oldNameFieldMap.clear();
+			Assertions.assertDoesNotThrow(() -> hstn.retainedOldSubFields(tapTable, oldNameFieldMap, afterValue));
+			Assertions.assertEquals(1, tapTable.getNameFieldMap().size());
+			Assertions.assertNotNull(tapTable.getNameFieldMap().get("f"));
+		}
+
+		@Test
+		void testContainsSubFieldButNotContainsSubField() {
+			TapField subField = mock(TapField.class);
+			when(subField.getName()).thenReturn("f.id");
+			oldNameFieldMap.put("f.id", subField);
+			afterValue.put("f", new HashMap<>());
+			Assertions.assertDoesNotThrow(() -> hstn.retainedOldSubFields(tapTable, oldNameFieldMap, afterValue));
+			Assertions.assertEquals(2, tapTable.getNameFieldMap().size());
+			Assertions.assertNotNull(tapTable.getNameFieldMap().get("f.id"));
+		}
+		@Test
+		void testContainsSubFieldAndContainsSubField() {
+			TapField subField = mock(TapField.class);
+			when(subField.getName()).thenReturn("f.id");
+			oldNameFieldMap.put("f.id", subField);
+			afterValue.put("f", new HashMap<>());
+			afterValue.put("f.id", "id");
+			Assertions.assertDoesNotThrow(() -> hstn.retainedOldSubFields(tapTable, oldNameFieldMap, afterValue));
+			Assertions.assertEquals(1, tapTable.getNameFieldMap().size());
+			Assertions.assertNull(tapTable.getNameFieldMap().get("f.id"));
+		}
+
+		@Test
+		void testNotContainsSubFieldButNotContainsSubField() {
+			TapField subField = mock(TapField.class);
+			when(subField.getName()).thenReturn("f.id");
+			oldNameFieldMap.put("f.id", subField);
+			Assertions.assertDoesNotThrow(() -> hstn.retainedOldSubFields(tapTable, oldNameFieldMap, afterValue));
+			Assertions.assertEquals(1, tapTable.getNameFieldMap().size());
+			Assertions.assertNull(tapTable.getNameFieldMap().get("f.id"));
+		}
+		@Test
+		void testOldNameFieldMapNotContainsFatherField() {
+			TapField subField = mock(TapField.class);
+			when(subField.getName()).thenReturn("f.id");
+			oldNameFieldMap.put("f.id", subField);
+			oldNameFieldMap.remove("f");
+			afterValue.put("f", new HashMap<>());
+			Assertions.assertDoesNotThrow(() -> hstn.retainedOldSubFields(tapTable, oldNameFieldMap, afterValue));
+			Assertions.assertEquals(1, tapTable.getNameFieldMap().size());
+			Assertions.assertNull(tapTable.getNameFieldMap().get("f.id"));
+		}
+		@Test
+		void testTapTableNotContainsFatherField() {
+			TapField subField = mock(TapField.class);
+			when(subField.getName()).thenReturn("f.id");
+			nameFieldMap.remove("f");
+			oldNameFieldMap.put("f.id", subField);
+			afterValue.put("f", new HashMap<>());
+			Assertions.assertDoesNotThrow(() -> hstn.retainedOldSubFields(tapTable, oldNameFieldMap, afterValue));
+			Assertions.assertEquals(0, tapTable.getNameFieldMap().size());
+			Assertions.assertNull(tapTable.getNameFieldMap().get("f.id"));
+		}
+		@Test
+		void testTapTableContainsFatherFieldButFieldTapTypeIsNull() {
+			TapField subField = mock(TapField.class);
+			when(subField.getName()).thenReturn("f.id");
+			when(f.getTapType()).thenReturn(null);
+			oldNameFieldMap.put("f.id", subField);
+			afterValue.put("f", new HashMap<>());
+			Assertions.assertDoesNotThrow(() -> hstn.retainedOldSubFields(tapTable, oldNameFieldMap, afterValue));
+			Assertions.assertEquals(1, tapTable.getNameFieldMap().size());
+			Assertions.assertNull(tapTable.getNameFieldMap().get("f.id"));
+		}
+		@Test
+		void testBeforeTapNotContainsAfterTap() {
+			TapField subField = mock(TapField.class);
+			when(subField.getName()).thenReturn("f.id");
+			when(f.getTapType()).thenReturn(new TapArray());
+			oldNameFieldMap.put("f.id", subField);
+			afterValue.put("f", new HashMap<>());
+			Assertions.assertDoesNotThrow(() -> hstn.retainedOldSubFields(tapTable, oldNameFieldMap, afterValue));
+			Assertions.assertEquals(1, tapTable.getNameFieldMap().size());
+			Assertions.assertNull(tapTable.getNameFieldMap().get("f.id"));
 		}
 	}
 }
