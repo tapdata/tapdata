@@ -2924,7 +2924,7 @@ public class TaskServiceImpl extends TaskService{
                 .withSink(sink)
                 .withSource(source)
                 .withUser(user);
-        ParseRelMigFile redirect = ParseRelMig.redirect(param);
+        ParseRelMig<TaskDto> redirect = (ParseRelMig<TaskDto>)ParseRelMig.redirect(param);
         List<TaskDto> tpTasks = redirect.parse();
         batchImport(tpTasks, user, cover, tags, new HashMap<>(), new HashMap<>());
         checkJsProcessorTestRun(user, tpTasks);

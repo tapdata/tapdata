@@ -413,9 +413,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																		obsLogger.info("Execute result is null");
 																		return;
 																	}
-																	List<Map<String, Object>> maps = (List<Map<String, Object>>) executeResult.getResult();
-																	List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
-																	consumer.accept(events, null);
+
+																	Object result= executeResult.getResult();
+																	handleCustomCommandResult(result,tableName,consumer);
 																});
 															} else {
 																batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
@@ -465,6 +465,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 		}
 		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
+	}
+
+	private void handleCustomCommandResult(Object result, String tableName, BiConsumer<List<TapEvent>, Object> consumer){
+		if (result instanceof List) {
+			List<Map<String, Object>> maps = (List<Map<String, Object>>) result;
+			List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
+			consumer.accept(events, null);
+		}else {
+			obsLogger.info("The execution result is:{}, because the result is not a list it will be ignored.",result);
+		}
 	}
 
 	private void createTargetIndex(List<String> updateConditionFields, boolean createUnique, String tableId, TapTable tapTable) {
