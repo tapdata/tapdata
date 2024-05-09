@@ -74,7 +74,6 @@ import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.schedule.ChartSchedule;
 import com.tapdata.tm.schedule.service.ScheduleService;
-import com.tapdata.tm.schedule.transform.TransformSchemaServiceImpl;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
