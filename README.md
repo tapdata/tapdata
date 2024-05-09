@@ -1,6 +1,6 @@
 <div align="center">
 <a href="https://tapdata.io/">
-<img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
+<img src="./assets/tapdata-banner.jpg" width="600px"/>
 </a>
 <br/><br/>
 
