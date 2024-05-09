@@ -8,7 +8,7 @@ abstract class DynamicTableStage {
     protected String tableName;
     protected DynamicTableConfig dynamicRule;
 
-    public DynamicTableStage(String tableName, DynamicTableConfig dynamicRule) {
+    protected DynamicTableStage(String tableName, DynamicTableConfig dynamicRule) {
         this.tableName = tableName;
         if (null == dynamicRule) {
             dynamicRule = DynamicTableConfig.of()
