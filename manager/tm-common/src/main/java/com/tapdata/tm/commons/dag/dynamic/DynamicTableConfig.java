@@ -6,8 +6,6 @@ import lombok.ToString;
 import java.io.Serializable;
 import java.util.Map;
 
-@EqualsAndHashCode
-@ToString
 public class DynamicTableConfig implements Serializable {
     /**
      * generate dynamic table name rule type
