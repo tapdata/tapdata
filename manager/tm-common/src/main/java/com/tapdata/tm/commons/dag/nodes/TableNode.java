@@ -322,14 +322,24 @@ public class TableNode extends DataNode {
             this.tableName = getSchemaName();
             return;
         }
+        if (null == dynamicTableRule) {
+            dynamicTableRule = DynamicTableConfig.of();
+        }
         DynamicTableResult dynamicTable = DynamicTableNameUtil.getDynamicTable(getSchemaName(), dynamicTableRule);
         if (null != dynamicTable) {
             this.oldTableName = dynamicTable.getOldName();
             this.tableName = dynamicTable.getDynamicName();
+            this.dynamicTableRule.setAfterDynamicTableName(this.tableName);
         }
     }
 
     protected String getSchemaName() {
+        if (null != dynamicTableRule) {
+            String afterDynamicTableName = this.dynamicTableRule.getAfterDynamicTableName();
+            if (null != afterDynamicTableName && !afterDynamicTableName.equals(tableName)) {
+                return tableName;
+            }
+        }
         return null == oldTableName ? tableName : oldTableName;
     }
 }

@@ -86,6 +86,17 @@ class TableNodeTest {
                 Assertions.assertEquals("table", node.getOldTableName());
             }
         }
+        @Test
+        void testDynamicTableConfigIsNull() {
+            ReflectionTestUtils.setField(node, "dynamicTableRule", null);
+            ReflectionTestUtils.setField(node, "needDynamicTableName", true);
+            try(MockedStatic<DynamicTableNameUtil> dtnu = mockStatic(DynamicTableNameUtil.class)) {
+                dtnu.when(() -> DynamicTableNameUtil.getDynamicTable(anyString(), any(DynamicTableConfig.class))).thenReturn(dynamicTable);
+                Assertions.assertDoesNotThrow(() -> node.dynamicTableName());
+                Assertions.assertEquals("newName", node.getTableName());
+                Assertions.assertEquals("table", node.getOldTableName());
+            }
+        }
     }
 
     @Nested
@@ -102,6 +113,28 @@ class TableNodeTest {
         }
         @Test
         void testOldTableNameNotNull() {
+            ReflectionTestUtils.setField(node, "oldTableName", "oldTable");
+            Assertions.assertEquals("oldTable", node.getSchemaName());
+        }
+        @Test
+        void testDynamicTableConfigIsNull() {
+            ReflectionTestUtils.setField(node, "dynamicTableRule", null);
+            ReflectionTestUtils.setField(node, "oldTableName", "oldTable");
+            Assertions.assertEquals("oldTable", node.getSchemaName());
+        }
+        @Test
+        void testDynamicTableConfigNotNullButAfterDynamicTableNameNotNull() {
+            DynamicTableConfig of = DynamicTableConfig.of();
+            of.setAfterDynamicTableName("t");
+            ReflectionTestUtils.setField(node, "dynamicTableRule", of);
+            ReflectionTestUtils.setField(node, "oldTableName", "oldTable");
+            Assertions.assertEquals("table", node.getSchemaName());
+        }
+        @Test
+        void testDynamicTableConfigNotNullButAfterDynamicTableNameEqualsTableName() {
+            DynamicTableConfig of = DynamicTableConfig.of();
+            of.setAfterDynamicTableName("table");
+            ReflectionTestUtils.setField(node, "dynamicTableRule", of);
             ReflectionTestUtils.setField(node, "oldTableName", "oldTable");
             Assertions.assertEquals("oldTable", node.getSchemaName());
         }

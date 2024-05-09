@@ -1,8 +1,5 @@
 package com.tapdata.tm.commons.dag.dynamic;
 
-import lombok.EqualsAndHashCode;
-import lombok.ToString;
-
 import java.io.Serializable;
 import java.util.Map;
 
@@ -17,6 +14,8 @@ public class DynamicTableConfig implements Serializable {
     private CouplingLocation couplingLocation;
 
     private Map<String, Object> params;
+
+    private String afterDynamicTableName;
 
     public static DynamicTableConfig of() {
         return new DynamicTableConfig();
@@ -72,5 +71,13 @@ public class DynamicTableConfig implements Serializable {
 
     public Map<String, Object> getParams() {
         return params;
+    }
+
+    public String getAfterDynamicTableName() {
+        return afterDynamicTableName;
+    }
+
+    public void setAfterDynamicTableName(String afterDynamicTableName) {
+        this.afterDynamicTableName = afterDynamicTableName;
     }
 }
