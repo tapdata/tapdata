@@ -1,7 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 
-import cn.hutool.core.collection.CollUtil;
 import com.hazelcast.jet.core.Inbox;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.entity.TapdataEvent;
@@ -22,13 +21,10 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.TapType;
-import io.tapdata.entity.schema.value.TapValue;
-import io.tapdata.entity.simplify.TapSimplify;
-import io.tapdata.entity.utils.JavaTypesToTapTypes;
 import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.error.VirtualTargetExCode_14;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.util.ProcessNodeSchemaUtil;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -48,7 +44,6 @@ import java.io.Closeable;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 
@@ -250,33 +245,9 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			LinkedHashMap<String, TapField> oldNameFieldMap = getOldNameFieldMap(tapEvent.getTableId());
 			for (Map.Entry<String, Object> entry : after.entrySet()) {
 				String fieldName = entry.getKey();
-				if (obsLogger.isDebugEnabled()) {
-					obsLogger.debug("entry type: {} - {}", fieldName, entry.getValue().getClass());
-				}
-				TapType tapType;
-				if (entry.getValue() instanceof TapValue) {
-					TapValue<?, ?> tapValue = (TapValue<?, ?>) entry.getValue();
-					tapType = tapValue.getTapType();
-				} else {
-					tapType = JavaTypesToTapTypes.toTapType(entry.getValue());
-					if (tapType == null) {
-						tapType = TapSimplify.tapRaw();
-					}
-				}
-				TapField tapField = null;
-				if (oldNameFieldMap != null) {
-					TapField oldTapField = oldNameFieldMap.get(fieldName);
-					if (oldTapField != null && oldTapField.getTapType() != null
-							&& (oldTapField.getTapType().getType() == tapType.getType() || tapType.getType() == TapType.TYPE_RAW)) {
-						tapField = oldTapField;
-					}
-				}
-				if (tapField == null) {
-					tapField = new TapField().name(fieldName).tapType(tapType);
-				}
-				tapTable.add(tapField);
+				ProcessNodeSchemaUtil.scanTapField(tapTable, oldNameFieldMap, fieldName, entry.getValue(), obsLogger);
 			}
-			retainedOldSubFields(tapTable, oldNameFieldMap, after);
+			ProcessNodeSchemaUtil.retainedOldSubFields(tapTable, oldNameFieldMap, after);
 		}
 
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
@@ -300,39 +271,6 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			}
 		}
 		return tapTable;
-	}
-
-	protected void retainedOldSubFields(TapTable tapTable, LinkedHashMap<String, TapField> oldNameFieldMap, Map<String, Object> afterValue) {
-		if (CollUtil.isEmpty(oldNameFieldMap)) {
-			return;
-		}
-		oldNameFieldMap.entrySet().stream().filter(entry -> {
-			String key = entry.getKey();
-			int index = key.indexOf(".");
-			if (index > 0) {
-				String fatherFieldName = key.substring(0, index);
-				return needRetainedOldSubField(tapTable, afterValue, oldNameFieldMap, key, fatherFieldName);
-			}
-			return false;
-		}).forEach(e -> tapTable.add(e.getValue()));
-	}
-
-	private boolean needRetainedOldSubField(TapTable tapTable,
-											Map<String, Object> afterValue,
-											LinkedHashMap<String, TapField> oldNameFieldMap,
-											String key, String fatherFieldName) {
-		if (afterValue.containsKey(fatherFieldName) && !afterValue.containsKey(key)) {
-			TapField oldFatherField = oldNameFieldMap.get(fatherFieldName);
-			if (null == oldFatherField) {
-				return false;
-			}
-			TapField afterField = tapTable.getNameFieldMap().get(fatherFieldName);
-			if (null == afterField || null == afterField.getTapType()) {
-				return false;
-			}
-			return afterField.getTapType().getType() == oldFatherField.getTapType().getType();
-		}
-		return false;
 	}
 
 	@NotNull
