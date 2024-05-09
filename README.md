@@ -60,7 +60,7 @@ For more details, please read [docs](https://docs.tapdata.io/)
 5. Use MongoDB to build your unified data hub.
  
 ## Quick Start
-### Start with local docker
+### Start with docker
 RUN `docker run -d -p 3030:3030 github.com/tapdata/tapdata-opensource:latest`, wait for 3 minutes, then you can get it from http://localhost:3030/
 
 default username is: admin@admin.com, default password is admin
