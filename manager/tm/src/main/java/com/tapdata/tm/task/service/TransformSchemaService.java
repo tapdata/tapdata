@@ -542,4 +542,38 @@ public class TransformSchemaService {
         }
         return false;
     }
+
+    /**
+     * transform schema before target node do dynamic table name
+     * */
+    public void transformSchemaBeforeDynamicTableName(TaskDto taskDto, UserDetail user) {
+        if (!TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
+            return;
+        }
+        DAG dag = taskDto.getDag();
+        List<Node> targets = dag.getTargets();
+        for (Node<?> target : targets) {
+            if (target instanceof TableNode) {
+                TableNode tableNode = (TableNode)target;
+                if (Boolean.TRUE.equals(tableNode.getNeedDynamicTableName())) {
+                    transformSchemaAndUpdateTask(taskDto, user);
+                    return;
+                }
+            }
+        }
+    }
+
+    public void transformSchemaAndUpdateTask(TaskDto taskDto, UserDetail user) {
+        DAG dag = taskDto.getDag();
+        transformSchema(dag, user, taskDto.getId());
+        //For now, update like this to save the primary keys data generated in the inference of the join node
+        long count = dag.getNodes().stream()
+                .filter(n -> NodeEnum.join_processor.name().equals(n.getType()))
+                .count();
+        if (count != 0) {
+            Update update = new Update();
+            update.set("dag", taskDto.getDag());
+            taskService.updateById(taskDto.getId(), update, user);
+        }
+    }
 }

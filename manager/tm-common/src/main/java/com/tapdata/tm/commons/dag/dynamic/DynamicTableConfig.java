@@ -1,11 +1,17 @@
 package com.tapdata.tm.commons.dag.dynamic;
 
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
+
+import java.io.Serializable;
 import java.util.Map;
 
-public class DynamicTableConfig {
+@EqualsAndHashCode
+@ToString
+public class DynamicTableConfig implements Serializable {
     /**
      * generate dynamic table name rule type
-     * */
+     */
     private String ruleType;
 
     private String couplingSymbols;
@@ -22,14 +28,17 @@ public class DynamicTableConfig {
         this.ruleType = ruleType;
         return this;
     }
+
     public DynamicTableConfig withCouplingSymbols(String couplingSymbols) {
         this.couplingSymbols = couplingSymbols;
         return this;
     }
+
     public DynamicTableConfig withCouplingLocation(CouplingLocation couplingLocation) {
         this.couplingLocation = couplingLocation;
         return this;
     }
+
     public DynamicTableConfig withParams(Map<String, Object> params) {
         this.params = params;
         return this;
