@@ -565,15 +565,17 @@ public class TransformSchemaService {
 
     public void transformSchemaAndUpdateTask(TaskDto taskDto, UserDetail user) {
         DAG dag = taskDto.getDag();
-        transformSchema(dag, user, taskDto.getId());
+        ObjectId taskId = taskDto.getId();
+        transformSchema(dag, user, taskId);
         //For now, update like this to save the primary keys data generated in the inference of the join node
-        long count = dag.getNodes().stream()
+        long count = dag.getNodes()
+                .stream()
                 .filter(n -> NodeEnum.join_processor.name().equals(n.getType()))
                 .count();
         if (count != 0) {
             Update update = new Update();
-            update.set("dag", taskDto.getDag());
-            taskService.updateById(taskDto.getId(), update, user);
+            update.set("dag", dag);
+            taskService.updateById(taskId, update, user);
         }
     }
 }
