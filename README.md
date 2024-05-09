@@ -42,6 +42,13 @@ For more details, please read [docs](https://docs.tapdata.io/)
 
 <br />
 
+### Build materialized views in MongoDB
+|                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| <b>Document-style view.</b><br />Support for embedded documents and arrays, deeply integrated with MongoDB.<br /><br/><b>Multi-table association</b><br />Supports multi-table association, hierarchical nesting, multiple join conditions, and convenient construction of 1:1 and 1:N models.<br /><br /><b>Multi-table stream merging</b><br/>Unified batch and stream processing, multi-table updates in any order, with eventually consistent results. | <img src="./assets/tapdata-view.jpg" width="800"/> |
+
+<br />
+
 ## Primary Use Cases
 1. Synchronize data from traditional RDBMS to modern databases such as MongoDB, Elasticsearch (ES), or Redis to support new business uses.
 2. Consolidate data from various databases into a unified data warehouse.
@@ -201,7 +208,7 @@ Using the data verification feature, you can quickly check whether the synchroni
 </details>
 
 ## Architecture
-![Alt Text](./assets/559f2a22-1ffd-4ac0-972f-aee706f51469.gif)
+![Alt Text](./assets/tapdata-ldp.png)
 
 ## License
 Tapdata is under the Apache 2.0 license. See the [LICENSE](https://github.com/tapdata/tapdata/blob/main/LICENSE) file for details.
