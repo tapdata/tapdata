@@ -319,6 +319,7 @@ public class TableNode extends DataNode {
 
     protected void dynamicTableName() {
         if (!Boolean.TRUE.equals(needDynamicTableName)) {
+            this.tableName = getSchemaName();
             return;
         }
         DynamicTableResult dynamicTable = DynamicTableNameUtil.getDynamicTable(getSchemaName(), dynamicTableRule);
