@@ -19,24 +19,38 @@
 
 
 ## What is Tapdata ?
-Tapdata is a real-time data integration platform that enables data to be synchronized in real-time among various systems such as databases, SaaS services, applications, and files.
+Tapdata is a CDC-based, Real-Time data integration platform that enables data to be synchronized in real-time among various systems such as databases, SaaS services, applications, and files.
 The synchronization tasks can be easily built through drag-and-drop operations, from table creation to full and incremental synchronization, all processes are fully automated.
 
-1. [Key Features](https://docs.tapdata.io/cloud/introduction/features)
-2. [Supported Connectors](https://docs.tapdata.io/cloud/introduction/supported-databases)
+1. [Supported Connectors](https://docs.tapdata.io/cloud/introduction/supported-databases)
+2. [FAQ](https://docs.tapdata.io/faq/)
 
 For more details, please read [docs](https://docs.tapdata.io/)
+
+## Key Features
+1. Perform real-time full and incremental data synchronization between different databases, with automatic table creation, and automatic switching between full and incremental synchronization.
+2. Operate through a visual interface, allowing task construction via drag-and-drop, without the need for in-depth database knowledge.
+3. Monitor synchronization performance, task progress, key events, and logs with comprehensive visual process monitoring.
+4. Support common open-source and proprietary databases, and accommodate various data warehouses as targets.
+5. Support MongoDB as the target, enabling the construction of complex data models with unified batch and stream processing.
+
+## Primary Use Cases
+1. Synchronize data from traditional RDBMS to modern databases such as MongoDB, Elasticsearch (ES), or Redis to support new business uses.
+2. Consolidate data from various databases into a unified data warehouse.
+3. Stream database changes to Kafka.
+4. Perform data synchronization between heterogeneous databases.
+5. Use MongoDB to build your unified data hub.
  
 ## Quick Start
+### Start with local docker
+RUN `docker run -d -p 3030:3030 github.com/tapdata/tapdata-opensource:latest`, wait for 3 minutes, then you can get it from http://localhost:3030/
+
+default username is: admin@admin.com, default password is admin
+
 ### Start with cloud service
 Tapdata service is available in cloud service, you can use fully-managed service, or deploy engine to your private network
 
 Try on https://cloud.tapdata.io/, support google and github account login, free trial, NO credit card needed, start your real-time data journey immediately.
-
-### Start with local deploy
-RUN `docker run -d -p 3030:3030 github.com/tapdata/tapdata-opensource:latest`, wait for 3 minutes, then you can get it from http://localhost:3030/
-
-default username is: admin@admin.com, default password is admin
 
 ## Examples
 <details>
