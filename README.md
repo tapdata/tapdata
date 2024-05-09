@@ -198,6 +198,6 @@ Using the data verification feature, you can quickly check whether the synchroni
 ## License
 Tapdata is under the Apache 2.0 license. See the [LICENSE](https://github.com/tapdata/tapdata/blob/main/LICENSE) file for details.
 
-## Join now
+## Contact Us
 - [Send Email](mailto:team@tapdata.io)
 - [Slack channel](https://join.slack.com/t/tapdatacommunity/shared_invite/zt-1biraoxpf-NRTsap0YLlAp99PHIVC9eA)
