@@ -28,11 +28,13 @@ The synchronization tasks can be easily built through drag-and-drop operations, 
 For more details, please read [docs](https://docs.tapdata.io/)
 
 ## Key Features
-1. Perform real-time full and incremental data synchronization between different databases, with automatic table creation, and automatic switching between full and incremental synchronization.
-2. Operate through a visual interface, allowing task construction via drag-and-drop, without the need for in-depth database knowledge.
-3. Monitor synchronization performance, task progress, key events, and logs with comprehensive visual process monitoring.
-4. Support common open-source and proprietary databases, and accommodate various data warehouses as targets.
-5. Support MongoDB as the target, enabling the construction of complex data models with unified batch and stream processing.
+### End-To-End Visual UI
+
+|                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| <b>Full Process Automation</b><br />Automatic table creation, and Automatic switching between Full and Incremental synchronization.<br /><br/><b>Drag-And-Drop</b><br />Operate through a visual interface, allowing task construction via drag-and-drop, without the need for in-depth database knowledge.<br /><br /><b>Monitor</b>Monitor synchronization performance, task progress, key events, and logs with comprehensive visual process monitoring.<br /> | <img src="./assets/monitor.jpg" /> |
+
+<br />
 
 ## Primary Use Cases
 1. Synchronize data from traditional RDBMS to modern databases such as MongoDB, Elasticsearch (ES), or Redis to support new business uses.
