@@ -13,7 +13,7 @@ public class DynamicTableConfig implements Serializable {
 
     private CouplingLocation couplingLocation;
 
-    private Map<String, Object> params;
+    private transient Map<String, Object> params;
 
     private String afterDynamicTableName;
 
