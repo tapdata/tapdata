@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.util.Map;
 
 public class DynamicTableConfig implements Serializable {
+    private static final long serialVersionUID = -6192500357089533037L;
     /**
      * generate dynamic table name rule type
      */
