@@ -51,6 +51,10 @@ public class TableNode extends DataNode {
     @EqField
     private String oldTableName;
 
+    /** */
+    @EqField
+    private String dynamicTableName;
+
     /** Default rule is DateTime{yyyy-mm-dd}
      * @see com.tapdata.tm.commons.dag.dynamic.DynamicTableRule
      * */
@@ -202,7 +206,7 @@ public class TableNode extends DataNode {
         if (service == null)
             return null;
 
-        Schema schema = service.loadSchema(ownerId(), toObjectId(connectionId), getSchemaName());
+        Schema schema = service.loadSchema(ownerId(), toObjectId(connectionId), tableName);
         if (schema != null) {
             schema.setSourceNodeDatabaseType(getDatabaseType());
         }
@@ -212,8 +216,10 @@ public class TableNode extends DataNode {
 
     @Override
     public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
+        dynamicTableName = tableName;
         this.dynamicTableName();
-        if (StringUtils.isBlank(getSchemaName())) {
+        tableName = dynamicTableName;
+        if (StringUtils.isBlank(tableName)) {
             return null;
         }
 
@@ -319,27 +325,34 @@ public class TableNode extends DataNode {
 
     protected void dynamicTableName() {
         if (!Boolean.TRUE.equals(needDynamicTableName)) {
-            this.tableName = getSchemaName();
+            this.dynamicTableName = getSchemaName();
+            this.oldTableName = dynamicTableName;
             return;
         }
         if (null == dynamicTableRule) {
             dynamicTableRule = DynamicTableConfig.of();
         }
-        DynamicTableResult dynamicTable = DynamicTableNameUtil.getDynamicTable(getSchemaName(), dynamicTableRule);
+        DynamicTableResult dynamicTable = DynamicTableNameUtil.getDynamicTable(
+                Optional.ofNullable(getSchemaName()).orElse(tableName),
+                dynamicTableRule
+        );
         if (null != dynamicTable) {
             this.oldTableName = dynamicTable.getOldName();
-            this.tableName = dynamicTable.getDynamicName();
-            this.dynamicTableRule.setAfterDynamicTableName(this.tableName);
+            this.dynamicTableName = dynamicTable.getDynamicName();
+            this.dynamicTableRule.setAfterDynamicTableName(this.dynamicTableName);
         }
     }
 
     protected String getSchemaName() {
         if (null != dynamicTableRule) {
             String afterDynamicTableName = this.dynamicTableRule.getAfterDynamicTableName();
-            if (null != afterDynamicTableName && !afterDynamicTableName.equals(tableName)) {
-                return tableName;
+            if (null != afterDynamicTableName && !afterDynamicTableName.equals(dynamicTableName)) {
+                return dynamicTableName;
             }
         }
-        return null == oldTableName ? tableName : oldTableName;
+        if (null == oldTableName) {
+            return null == dynamicTableName ? tableName : dynamicTableName;
+        }
+        return oldTableName;
     }
 }
