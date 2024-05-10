@@ -4,13 +4,15 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
+import com.tapdata.tm.commons.dag.dynamic.DynamicTableConfig;
+import com.tapdata.tm.commons.dag.dynamic.DynamicTableNameUtil;
+import com.tapdata.tm.commons.dag.dynamic.DynamicTableResult;
 import com.tapdata.tm.commons.dag.event.WriteEvent;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.JoinTable;
-import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import lombok.Data;
@@ -40,6 +42,17 @@ public class TableNode extends DataNode {
     /** */
     @EqField
     private String tableName;
+
+    /** Do you want to enable dynamic table names and add suffixes according to the rules*/
+    @EqField
+    private Boolean needDynamicTableName;
+
+    /** Default rule is DateTime{yyyy-mm-dd}
+     * @see com.tapdata.tm.commons.dag.dynamic.DynamicTableRule
+     * */
+    @EqField
+    private DynamicTableConfig dynamicTableRule;
+
     /** 全量自定义sql*/
     @EqField
     private String totalsql;
@@ -195,6 +208,7 @@ public class TableNode extends DataNode {
 
     @Override
     public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
+        DynamicTableResult dynamicTableResult = this.dynamicTableName(schema);
         if (StringUtils.isBlank(tableName)) {
             return null;
         }
@@ -230,6 +244,7 @@ public class TableNode extends DataNode {
                 result.setSourceFieldCount((int) (result.getSourceFieldCount() - count1));
         }
         outputSchema.setOriginalName(tableName);
+        updateSchemaAfterDynamicTableName(outputSchema, dynamicTableResult.getOldName(), dynamicTableResult.getDynamicName());
         handleAppendWrite(outputSchema);
         return outputSchema;
     }
@@ -297,5 +312,50 @@ public class TableNode extends DataNode {
         private String field;
         /** 指定的轮询字段默认值 */
         private String defaultValue;
+    }
+
+    protected DynamicTableResult dynamicTableName(Schema schema) {
+        if (!Boolean.TRUE.equals(needDynamicTableName)) {
+            this.tableName = getSchemaName(schema);
+            updateSchemaAfterDynamicTableName(schema, tableName, schema.getAfterDynamicTableName());
+            return DynamicTableResult.of();
+        }
+        if (null == dynamicTableRule) {
+            dynamicTableRule = DynamicTableConfig.of();
+        }
+        String baseTable = Optional.ofNullable(getSchemaName(schema)).orElse(tableName);
+        if (null != tableName && tableName.equals(schema.getAfterDynamicTableName())) {
+            baseTable = Optional.ofNullable(schema.getBeforeDynamicTableName()).orElse(tableName);
+        }
+        DynamicTableResult dynamicTable = DynamicTableNameUtil.getDynamicTable(
+                baseTable,
+                dynamicTableRule
+        );
+        if (null != dynamicTable) {
+            this.tableName = dynamicTable.getDynamicName();
+            updateSchemaAfterDynamicTableName(schema, dynamicTable.getOldName(), this.tableName);
+        }
+        return dynamicTable;
+    }
+
+    protected String getSchemaName(Schema schema) {
+        if (null != dynamicTableRule) {
+            String afterDynamicTableName = schema.getAfterDynamicTableName();
+            if (null != afterDynamicTableName && !afterDynamicTableName.equals(tableName)) {
+                return tableName;
+            }
+        }
+        String beforeDynamicTableName = schema.getBeforeDynamicTableName();
+        if (null == beforeDynamicTableName) {
+            return tableName;
+        }
+        return beforeDynamicTableName;
+    }
+
+    protected void updateSchemaAfterDynamicTableName(Schema schema, String before, String after) {
+        if (null != schema) {
+            schema.setAfterDynamicTableName(after);
+            schema.setBeforeDynamicTableName(before);
+        }
     }
 }

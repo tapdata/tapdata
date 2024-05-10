@@ -301,17 +301,7 @@ public class TaskServiceImpl extends TaskService{
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
             } else {
-                transformSchemaService.transformSchema(dag, user, taskDto.getId());
-                //暂时先这样子更新，为了保存join节点中的推演中产生的primarykeys数据
-                long count = dag.getNodes().stream()
-                        .filter(n -> NodeEnum.join_processor.name().equals(n.getType()))
-                        .count();
-
-                if (count != 0) {
-                    Update update = new Update();
-                    update.set("dag", taskDto.getDag());
-                    updateById(taskDto.getId(), update, user);
-                }
+                transformSchemaService.transformSchemaAndUpdateTask(taskDto, user);
             }
         }
 

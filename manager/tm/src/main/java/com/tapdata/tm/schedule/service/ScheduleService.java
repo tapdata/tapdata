@@ -8,6 +8,7 @@ import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
@@ -33,6 +34,8 @@ public class ScheduleService {
 
 	@Autowired
 	private TaskRecordService taskRecordService;
+    @Autowired
+    private TransformSchemaService transformSchema;
 
     public void executeTask(TaskDto taskDto) {
         WorkerService workerService = SpringContextHelper.getBean(WorkerService.class);
@@ -106,6 +109,7 @@ public class ScheduleService {
 						taskDto.setCrontabScheduleMsg("");
 						taskService.save(taskDto, userDetail);
 						// 执行记录
+                        transformSchema.transformSchemaBeforeDynamicTableName(taskDto, userDetail);
 						taskService.start(taskDto.getId(), userDetail, true);
 					} else if (TaskDto.TYPE_INITIAL_SYNC_CDC.equals(taskDto.getType()) && TaskDto.STATUS_RUNNING.equals(status)) {
                 CompletableFuture<String> pause = CompletableFuture.supplyAsync(() -> {
@@ -122,6 +126,7 @@ public class ScheduleService {
                 });
                 CompletableFuture<String> start = renew.thenCompose(result -> CompletableFuture.supplyAsync(() -> {
                     performTaskWithSpin(taskId, TaskDto.STATUS_WAIT_START, taskService);
+                    transformSchema.transformSchemaBeforeDynamicTableName(taskDto, userDetail);
                     taskService.start(taskId, userDetail, true);
                     return "ok";
                 })).exceptionally(ex -> {
@@ -138,6 +143,7 @@ public class ScheduleService {
                 });
                 CompletableFuture<String> start = renew.thenCompose(result -> CompletableFuture.supplyAsync(() -> {
                     performTaskWithSpin(taskId, TaskDto.STATUS_WAIT_START, taskService);
+                    transformSchema.transformSchemaBeforeDynamicTableName(taskDto, userDetail);
                     taskService.start(taskId, userDetail, true);
                     return "ok";
                 })).exceptionally(ex -> {
@@ -147,6 +153,7 @@ public class ScheduleService {
 
                 start.join();
             } else if (TaskDto.STATUS_WAIT_START.equals(status)) {
+                transformSchema.transformSchemaBeforeDynamicTableName(taskDto, userDetail);
                 taskService.start(taskId, userDetail, true);
             } else {
                 log.warn("other status can not run, need check taskId:{} status:{}", taskId, status);
