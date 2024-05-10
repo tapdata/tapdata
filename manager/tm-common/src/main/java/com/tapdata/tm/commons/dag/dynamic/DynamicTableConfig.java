@@ -16,7 +16,6 @@ public class DynamicTableConfig implements Serializable {
 
     private transient Map<String, Object> params;
 
-    private String afterDynamicTableName;
 
     public static DynamicTableConfig of() {
         return new DynamicTableConfig();
@@ -72,13 +71,5 @@ public class DynamicTableConfig implements Serializable {
 
     public Map<String, Object> getParams() {
         return params;
-    }
-
-    public String getAfterDynamicTableName() {
-        return afterDynamicTableName;
-    }
-
-    public void setAfterDynamicTableName(String afterDynamicTableName) {
-        this.afterDynamicTableName = afterDynamicTableName;
     }
 }
