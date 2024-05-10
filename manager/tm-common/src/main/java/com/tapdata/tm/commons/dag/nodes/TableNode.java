@@ -246,7 +246,7 @@ public class TableNode extends DataNode {
         outputSchema.setOriginalName(tableName);
         updateSchemaAfterDynamicTableName(outputSchema, dynamicTableResult.getOldName(), dynamicTableResult.getDynamicName());
         handleAppendWrite(outputSchema);
-        return outputSchema;
+        return SchemaUtils.removeSubFieldsWhichFromFreeSchema(service.getDataSource(connectionId), outputSchema);
     }
 
     @Override
