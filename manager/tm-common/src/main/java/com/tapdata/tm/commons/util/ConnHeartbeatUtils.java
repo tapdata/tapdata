@@ -136,7 +136,7 @@ public class ConnHeartbeatUtils {
             this.put("initial_totals", 1);
             this.put("incremental_interval", 1000);
             this.put("incremental_interval_totals", 1);
-            this.put("incremental_types", new int[]{2});
+            this.put("incremental_types", new int[]{1});
             this.put("table_name", TABLE_NAME);
             this.put("table_fields", new ArrayList<Map<String, Object>>() {{
                 add(new HashMap<String, Object>() {{
