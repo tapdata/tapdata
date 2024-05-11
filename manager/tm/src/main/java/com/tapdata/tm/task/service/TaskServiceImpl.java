@@ -715,7 +715,18 @@ public class TaskServiceImpl extends TaskService{
 
         //saveInspect(existedTask, taskDto, user);
 
+        checkShareCdcStatus(taskDto, user);
+
         return confirmById(taskDto, user, confirm, false);
+    }
+
+    protected void checkShareCdcStatus(TaskDto taskDto,UserDetail user){
+        if( null != taskDto.getShareCdcEnable() && !taskDto.getShareCdcEnable() &&  null != taskDto.getShareCdcStop() && StringUtils.isNotBlank(taskDto.getShareCdcStopMessage())){
+            Update set = new Update();
+            set.unset("shareCdcStop").unset("shareCdcStopMessage");
+            Criteria criteriaTask = Criteria.where("_id").is(taskDto.getId());
+            update(new Query(criteriaTask), set,user);
+        }
     }
 
     protected void checkDDLConflict(TaskDto taskDto) {
@@ -3271,7 +3282,9 @@ public class TaskServiceImpl extends TaskService{
                 .set("scheduleTimes", null)
                 .set("scheduleTime", null)
                 .set("messages", null)
-                .set("errorEvents", null);
+                .set("errorEvents", null)
+                .unset("shareCdcStop")
+                .unset("shareCdcStopMessage");
 
 
         if (taskDto.getAttrs() != null) {

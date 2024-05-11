@@ -33,6 +33,7 @@ import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import org.bson.BsonValue;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1579,6 +1580,91 @@ public class TaskServiceTest {
             taskService.renewNotSendMq(taskDto, mock(UserDetail.class));
         }
 
+    }
+    @Nested
+    class CheckShareCdcStatusTest{
+        TaskRepository taskRepository = mock(TaskRepository.class);
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(taskRepository));
+        @DisplayName("Main process")
+        @Test
+        void test() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setShareCdcEnable(false);
+            taskDto.setShareCdcStop(true);
+            taskDto.setShareCdcStopMessage("test");
+            doAnswer(invocationOnMock -> {
+                Update set = invocationOnMock.getArgument(1);
+                Document result = (Document) set.getUpdateObject().get("$unset");
+                Assertions.assertTrue(result.containsKey("shareCdcStop"));
+                Assertions.assertTrue(result.containsKey("shareCdcStopMessage"));
+                return null;
+            }).when(taskService).update(any(),any(),any());
+            taskService.checkShareCdcStatus(taskDto,mock(UserDetail.class));
+        }
+
+        @DisplayName("ShareCdcEnable is Null")
+        @Test
+        void test1() {
+            TaskDto taskDto = new TaskDto();
+            taskService.checkShareCdcStatus(taskDto,mock(UserDetail.class));
+            verify(taskService,times(0)).update(any(),any(),any());
+        }
+
+        @DisplayName("ShareCdcEnable is true")
+        @Test
+        void test2() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setShareCdcEnable(true);
+            taskService.checkShareCdcStatus(taskDto,mock(UserDetail.class));
+            verify(taskService,times(0)).update(any(),any(),any());
+        }
+
+        @DisplayName("ShareCdcStop is null")
+        @Test
+        void test3() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setShareCdcEnable(false);
+            taskService.checkShareCdcStatus(taskDto,mock(UserDetail.class));
+            verify(taskService,times(0)).update(any(),any(),any());
+        }
+
+        @DisplayName("ShareCdcStopMessage is null")
+        @Test
+        void test4() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setShareCdcEnable(false);
+            taskDto.setShareCdcStop(true);
+            taskService.checkShareCdcStatus(taskDto,mock(UserDetail.class));
+            verify(taskService,times(0)).update(any(),any(),any());
+        }
+    }
+
+    @Nested
+    class ConfirmByIdTest{
+        TaskRepository taskRepository = mock(TaskRepository.class);
+        TaskServiceImpl taskService = spy(new TaskServiceImpl(taskRepository));
+        @DisplayName("Main process")
+        @Test
+        void test() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setShareCdcEnable(false);
+            taskDto.setShareCdcStop(true);
+            taskDto.setShareCdcStopMessage("test");
+            UserDetail userDetail = mock(UserDetail.class);
+            doNothing().when(taskService).checkTaskInspectFlag(any());
+            doNothing().when(taskService).checkDagAgentConflict(taskDto,userDetail,true);
+            doNothing().when(taskService).checkDDLConflict(any());
+            doAnswer(invocationOnMock -> {
+                Update set = invocationOnMock.getArgument(1);
+                Document result = (Document) set.getUpdateObject().get("$unset");
+                Assertions.assertTrue(result.containsKey("shareCdcStop"));
+                Assertions.assertTrue(result.containsKey("shareCdcStopMessage"));
+                return null;
+            }).when(taskService).update(any(),any(),any());
+            doReturn(taskDto).when(taskService).confirmById(taskDto,userDetail,true,false);
+            taskService.confirmById(taskDto,userDetail,true);
+        }
     }
 
 
