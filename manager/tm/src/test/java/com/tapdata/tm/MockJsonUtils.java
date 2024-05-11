@@ -28,7 +28,7 @@ public class MockJsonUtils {
     public static void main(String[] args) {
         MetadataInstancesDto metadataInstancesDto = getDtoFromJsonFile(MOCK_JSON_DIR,"metadataInstancesDto.json", MetadataInstancesDto.class);
         String connectionsDir="mockjsonfile/connections";
-        DataSourceConnectionDto dtoFromJsonFile = getDtoFromJsonFile(connectionsDir, "mysqljson.json", DataSourceConnectionDto.class);
-        System.out.println(dtoFromJsonFile);
+//        DataSourceConnectionDto dtoFromJsonFile = getDtoFromJsonFile(connectionsDir, "mysqljson.json", DataSourceConnectionDto.class);
+//        System.out.println(dtoFromJsonFile);
     }
 }
