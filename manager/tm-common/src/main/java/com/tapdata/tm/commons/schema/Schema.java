@@ -113,6 +113,9 @@ public class Schema implements Cloneable, Serializable {
     private Map<String, PossibleDataTypes> findPossibleDataTypes;
     private boolean hasUpdateField;
 
+    private String beforeDynamicTableName;
+    private String afterDynamicTableName;
+
     /**
      * 是否是虚拟表 'virtual' 'source'
      */

@@ -222,6 +222,9 @@ public class TaskServiceImpl extends TaskService{
         return TABLE_NAME;
     }
 
+    protected static final String CATALOG = "catalog";
+    protected static final String SHARE_CDC_STOP = "shareCdcStop";
+    protected static final String SHARE_CDC_STOP_MESSAGE = "shareCdcStopMessage";
     private MessageServiceImpl messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private InspectService inspectService;
@@ -366,17 +369,7 @@ public class TaskServiceImpl extends TaskService{
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
             } else {
-                transformSchemaService.transformSchema(dag, user, taskDto.getId());
-                //暂时先这样子更新，为了保存join节点中的推演中产生的primarykeys数据
-                long count = dag.getNodes().stream()
-                        .filter(n -> NodeEnum.join_processor.name().equals(n.getType()))
-                        .count();
-
-                if (count != 0) {
-                    Update update = new Update();
-                    update.set("dag", taskDto.getDag());
-                    updateById(taskDto.getId(), update, user);
-                }
+                transformSchemaService.transformSchemaAndUpdateTask(taskDto, user);
             }
         }
 
@@ -704,7 +697,18 @@ public class TaskServiceImpl extends TaskService{
 
         //saveInspect(existedTask, taskDto, user);
 
+        checkShareCdcStatus(taskDto, user);
+
         return confirmById(taskDto, user, confirm, false);
+    }
+
+    protected void checkShareCdcStatus(TaskDto taskDto,UserDetail user){
+        if( null != taskDto.getShareCdcEnable() && !taskDto.getShareCdcEnable() &&  null != taskDto.getShareCdcStop() && StringUtils.isNotBlank(taskDto.getShareCdcStopMessage())){
+            Update set = new Update();
+            set.unset(SHARE_CDC_STOP).unset(SHARE_CDC_STOP_MESSAGE);
+            Criteria criteriaTask = Criteria.where("_id").is(taskDto.getId());
+            update(new Query(criteriaTask), set,user);
+        }
     }
 
     protected void checkDDLConflict(TaskDto taskDto) {
@@ -3196,7 +3200,9 @@ public class TaskServiceImpl extends TaskService{
                 .set("scheduleTimes", null)
                 .set("scheduleTime", null)
                 .set("messages", null)
-                .set("errorEvents", null);
+                .set("errorEvents", null)
+                .unset(SHARE_CDC_STOP)
+                .unset(SHARE_CDC_STOP_MESSAGE);
 
 
         if (taskDto.getAttrs() != null) {
@@ -4351,7 +4357,7 @@ public class TaskServiceImpl extends TaskService{
             return null;
         try {
             TaskEntity entity = new TaskEntity();
-            BeanUtils.copyProperties(dto, entity, AGENT_ID, START_TIME, "lastStartDate", "shareCdcStop", "shareCdcStopMessage");
+            BeanUtils.copyProperties(dto, entity, AGENT_ID, START_TIME, "lastStartDate", SHARE_CDC_STOP, SHARE_CDC_STOP_MESSAGE);
             return entity;
         } catch (Exception e) {
             log.error("Convert entity " + entityClass + " failed. {}", ThrowableUtils.getStackTraceByPn(e));
@@ -4361,7 +4367,7 @@ public class TaskServiceImpl extends TaskService{
 
     @Override
     public <T extends BaseDto> T convertToDto(TaskEntity entity, Class<T> dtoClass, String... ignoreProperties) {
-        T dto = super.convertToDto(entity, dtoClass, "shareCdcStopMessage");
+        T dto = super.convertToDto(entity, dtoClass, SHARE_CDC_STOP_MESSAGE);
         try {
             if (dto instanceof TaskDto) {
                 TaskDto taskDto = (TaskDto) dto;
