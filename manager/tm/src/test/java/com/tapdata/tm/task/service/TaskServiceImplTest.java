@@ -1461,7 +1461,7 @@ class TaskServiceImplTest {
             assertEquals("ok",responseMessages.get(0).getCode());
         }
         @Test
-        @DisplayName("test batchRenew method with BizExcception")
+        @DisplayName("test batchRenew method with BizException")
         void test2(){
             BizException exception = new BizException("Task.ResetAgentNotFound");
             doThrow(exception).when(taskService).renew(id,user);

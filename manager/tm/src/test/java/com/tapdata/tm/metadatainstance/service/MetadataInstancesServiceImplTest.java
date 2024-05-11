@@ -51,6 +51,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MetadataUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SchemaTransformUtils;
+import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.mapping.TypeExprResult;
 import io.tapdata.entity.mapping.type.TapStringMapping;
@@ -58,6 +59,9 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.pdk.core.constants.SystemConstants;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.bson.Document;
@@ -2342,19 +2346,30 @@ public class MetadataInstancesServiceImplTest {
 		}
 		@Test
 		void testDataType2TapTypeNormal(){
+			CommonUtils.setProperty(SystemConstants.JUNIT_TEST_PROP_KEY, "true");
 			try (MockedStatic<DefaultExpressionMatchingMap> mb = Mockito
 					.mockStatic(DefaultExpressionMatchingMap.class)) {
-				mb.when(() -> DefaultExpressionMatchingMap.map(anyString())).thenReturn(mock(DefaultExpressionMatchingMap.class));
-				DataType2TapTypeDto dto = new DataType2TapTypeDto();
-				dto.setDatabaseType("databaseType");
-				Set<String> dataTypes = new HashSet<>();
-				dataTypes.add("dataType");
-				dto.setDataTypes(dataTypes);
-				DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
-				definitionDto.setExpression("expression");
-				when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(definitionDto);
-				Map<String, TapType> actual = metadataInstancesService.dataType2TapType(dto, userDetail);
-				assertEquals(1,actual.size());
+				try (MockedStatic<InstanceFactory> instanceFactory = Mockito
+						.mockStatic(InstanceFactory.class)) {
+					instanceFactory.when(()->InstanceFactory.instance(TableFieldTypesGenerator.class)).thenReturn(mock(TableFieldTypesGenerator.class));
+					try (MockedStatic<PdkSchemaConvert> pdkSchemaConvertMockedStatic = Mockito
+							.mockStatic(PdkSchemaConvert.class)) {
+						mb.when(() -> DefaultExpressionMatchingMap.map(anyString())).thenReturn(mock(DefaultExpressionMatchingMap.class));
+						TableFieldTypesGenerator generator = mock(TableFieldTypesGenerator.class);
+						pdkSchemaConvertMockedStatic.when(PdkSchemaConvert::getTableFieldTypesGenerator).thenReturn(generator);
+						doNothing().when(generator).autoFill(any(LinkedHashMap.class),any(DefaultExpressionMatchingMap.class));
+						DataType2TapTypeDto dto = new DataType2TapTypeDto();
+						dto.setDatabaseType("databaseType");
+						Set<String> dataTypes = new HashSet<>();
+						dataTypes.add("dataType");
+						dto.setDataTypes(dataTypes);
+						DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+						definitionDto.setExpression("expression");
+						when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(definitionDto);
+						Map<String, TapType> actual = metadataInstancesService.dataType2TapType(dto, userDetail);
+						assertEquals(1,actual.size());
+					}
+				}
 			}
 		}
 	}
