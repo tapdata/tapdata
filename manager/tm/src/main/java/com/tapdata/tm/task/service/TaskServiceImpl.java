@@ -221,8 +221,6 @@ public class TaskServiceImpl extends TaskService{
     private static String getTableName() {
         return TABLE_NAME;
     }
-
-    protected static final String CATALOG = "catalog";
     protected static final String SHARE_CDC_STOP = "shareCdcStop";
     protected static final String SHARE_CDC_STOP_MESSAGE = "shareCdcStopMessage";
     private MessageServiceImpl messageService;
