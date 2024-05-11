@@ -24,6 +24,5 @@ import java.util.Map;
 @Document(collection = "WebHookHistory")
 public class WebHookHistory extends BaseEntity {
     String hookId;
-    String sendBy;
     List<HookOneHistory> hookEvent;
 }

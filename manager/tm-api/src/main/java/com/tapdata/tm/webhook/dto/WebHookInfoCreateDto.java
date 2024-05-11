@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Locale;
 
 @Data
-public class WebHookInfoDto extends BaseDto {
+public class WebHookInfoCreateDto extends BaseDto {
     String userId;
 
     /**  WebHook name*/

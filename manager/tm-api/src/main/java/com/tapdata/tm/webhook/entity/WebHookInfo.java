@@ -9,6 +9,8 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.List;
+
 /**
  * @author Gavin'Xiao
  * @date 2024/5/10
@@ -38,6 +40,14 @@ public class WebHookInfo extends BaseEntity {
     /**  是否默认告警方式*/
     Boolean defaultType;
 
+    String token;
+
+    String httpUser;
+
+    String httpPwd;
+
+    String customHttpHead;
+
     /**  */
     String customTemplate;
 
@@ -46,6 +56,11 @@ public class WebHookInfo extends BaseEntity {
 
     /**备注*/
     String mark;
+
+    /**
+     * @see com.tapdata.tm.webhook.enums.HookType hookName
+     * */
+    List<String> hookTypes;
 
     boolean deleted;
 }

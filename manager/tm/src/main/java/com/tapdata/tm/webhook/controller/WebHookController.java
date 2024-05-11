@@ -3,14 +3,22 @@ package com.tapdata.tm.webhook.controller;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.webhook.dto.WebHookInfoDto;
+import com.tapdata.tm.webhook.entity.WebHookEvent;
+import com.tapdata.tm.webhook.enums.HookType;
 import com.tapdata.tm.webhook.server.WebHookService;
-import com.tapdata.tm.webhook.vo.WebHookHistoryInfoVo;
 import com.tapdata.tm.webhook.vo.WebHookInfoVo;
+import com.tapdata.tm.webhook.work.WebHookAdapter;
+import com.tapdata.tm.webhook.work.stage.PingWebHookConverter;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,19 +51,26 @@ import java.util.Locale;
 @Setter(onMethod_ = {@Autowired})
 @Slf4j
 public class WebHookController extends BaseController {
-    private WebHookService<WebHookInfoVo> webHookService;
+    WebHookService<WebHookInfoVo> webHookService;
+    WebHookAdapter webHookAdapter;
 
     @Operation(summary = "find all web hook info of current user")
     @GetMapping("list")
-    public ResponseMessage<Page<WebHookInfoVo>> currentUserWebHookInfoList(@RequestParam(required = false) String status,
-                                                                           @RequestParam(required = false) Long start,
-                                                                           @RequestParam(required = false) Long end,
-                                                                           @RequestParam(required = false) String keyword,
-                                                                           @RequestParam(defaultValue = "1") Integer page,
-                                                                           @RequestParam(defaultValue = "20") Integer size,
+    public ResponseMessage<Page<WebHookInfoVo>> currentUserWebHookInfoList(@Parameter(in = ParameterIn.QUERY,
+            description = "Filter defining fields, where, sort, skip, and limit - must be a JSON-encoded string (`{\"where\":{\"something\":\"value\"},\"fields\":{\"something\":true|false},\"sort\": [\"name desc\"],\"page\":1,\"size\":20}`)."
+    )
+                                                                           @RequestParam(value = "filter", required = false) String filterJson,
                                                                            HttpServletRequest request) {
         Locale locale = WebUtils.getLocale(request);
-        return success(webHookService.list(status, start, end, keyword, page, size, getLoginUser(), locale));
+        return success(webHookService.list(parseFilter(filterJson), getLoginUser(), locale));
+    }
+
+    @Operation(summary = "update web hook info")
+    @PostMapping("create")
+    public ResponseMessage<WebHookInfoVo> create(@RequestBody WebHookInfoDto dto, HttpServletRequest request) {
+        Locale locale = WebUtils.getLocale(request);
+        dto.setLocale(locale);
+        return success(webHookService.create(dto, getLoginUser()));
     }
 
     @Operation(summary = "find web hook info by hook id")
@@ -103,8 +118,20 @@ public class WebHookController extends BaseController {
     }
 
     @Operation(summary = "ping test")
-    @DeleteMapping("ping")
-    public ResponseMessage<WebHookHistoryInfoVo> ping(@RequestBody WebHookInfoDto dto) {
-        return success(webHookService.ping(dto, getLoginUser()));
+    @PostMapping("ping")
+    public ResponseMessage<WebHookInfoDto> ping(@RequestBody WebHookInfoDto webHookEvent) {
+        if (null == webHookEvent.getId()) {
+            webHookEvent.setId(new ObjectId());
+        }
+        WebHookEvent event = WebHookEvent.of()
+                .withEvent(PingWebHookConverter.PING_TEMPLATE)
+                .withUserId(Lists.newArrayList(getLoginUser().getUserId()))
+                .withType(HookType.PING);
+        //@TODO 检查URL
+        webHookAdapter.send(event, Lists.newArrayList(webHookEvent));
+        ResponseMessage<WebHookInfoDto> res = new ResponseMessage<>();
+        res.setMessage(MessageUtil.getMessage("webhook.ping.succeed"));
+        res.setData(webHookEvent);
+        return res;
     }
 }
