@@ -157,6 +157,8 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 @Setter(onMethod_ = {@Autowired})
 public class TaskServiceImpl extends TaskService{
     protected static final String CATALOG = "catalog";
+    protected static final String SHARE_CDC_STOP = "shareCdcStop";
+    protected static final String SHARE_CDC_STOP_MESSAGE = "shareCdcStopMessage";
     private MessageServiceImpl messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private InspectService inspectService;
@@ -723,7 +725,7 @@ public class TaskServiceImpl extends TaskService{
     protected void checkShareCdcStatus(TaskDto taskDto,UserDetail user){
         if( null != taskDto.getShareCdcEnable() && !taskDto.getShareCdcEnable() &&  null != taskDto.getShareCdcStop() && StringUtils.isNotBlank(taskDto.getShareCdcStopMessage())){
             Update set = new Update();
-            set.unset("shareCdcStop").unset("shareCdcStopMessage");
+            set.unset(SHARE_CDC_STOP).unset(SHARE_CDC_STOP_MESSAGE);
             Criteria criteriaTask = Criteria.where("_id").is(taskDto.getId());
             update(new Query(criteriaTask), set,user);
         }
@@ -3283,8 +3285,8 @@ public class TaskServiceImpl extends TaskService{
                 .set("scheduleTime", null)
                 .set("messages", null)
                 .set("errorEvents", null)
-                .unset("shareCdcStop")
-                .unset("shareCdcStopMessage");
+                .unset(SHARE_CDC_STOP)
+                .unset(SHARE_CDC_STOP_MESSAGE);
 
 
         if (taskDto.getAttrs() != null) {
@@ -4516,7 +4518,7 @@ public class TaskServiceImpl extends TaskService{
             return null;
         try {
             TaskEntity entity = new TaskEntity();
-            BeanUtils.copyProperties(dto, entity, "agentId", "startTime", "lastStartDate", "shareCdcStop", "shareCdcStopMessage");
+            BeanUtils.copyProperties(dto, entity, "agentId", "startTime", "lastStartDate", SHARE_CDC_STOP, SHARE_CDC_STOP_MESSAGE);
             return entity;
         } catch (Exception e) {
             log.error("Convert entity " + entityClass + " failed. {}", ThrowableUtils.getStackTraceByPn(e));
@@ -4526,7 +4528,7 @@ public class TaskServiceImpl extends TaskService{
 
     @Override
     public <T extends BaseDto> T convertToDto(TaskEntity entity, Class<T> dtoClass, String... ignoreProperties) {
-        T dto = super.convertToDto(entity, dtoClass, "shareCdcStopMessage");
+        T dto = super.convertToDto(entity, dtoClass, SHARE_CDC_STOP_MESSAGE);
         try {
             if (dto instanceof TaskDto) {
                 TaskDto taskDto = (TaskDto) dto;
