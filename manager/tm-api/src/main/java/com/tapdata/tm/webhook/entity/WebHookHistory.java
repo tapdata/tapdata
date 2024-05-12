@@ -8,9 +8,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.util.Date;
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author Gavin'Xiao
@@ -23,6 +21,6 @@ import java.util.Map;
 @NoArgsConstructor
 @Document(collection = "WebHookHistory")
 public class WebHookHistory extends BaseEntity {
-    String hookId;
-    List<HookOneHistory> hookEvent;
+    private String hookId;
+    private List<HookOneHistory> hookEvent;
 }

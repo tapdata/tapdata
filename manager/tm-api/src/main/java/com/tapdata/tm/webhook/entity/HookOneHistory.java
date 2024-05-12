@@ -5,26 +5,33 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Map;
-
 @AllArgsConstructor
 @NoArgsConstructor
 @Data
 public class HookOneHistory extends BaseEntity {
-    String url;
-    String requestHeard;
-    String requestBody;
-    String requestParams;
-    long requestAt;
+    private String url;
+    private String requestHeard;
+    private String requestBody;
+    private String requestParams;
+    private Long requestAt;
 
-    String responseHeard;
-    String responseResult;
-    String responseStatus;
-    int responseCode;
-    long responseAt;
+    private String responseHeard;
+    private String responseResult;
+    private String responseStatus;
+    private Integer responseCode;
+    private Long responseAt;
 
 
-    String eventType;
-    Map<String,Object> httpResponse;
-    int status;
+    private String eventType;
+
+    /**
+     * @see com.tapdata.tm.webhook.enums.PingResult
+     */
+    private String status;
+
+    /**
+     * @see com.tapdata.tm.webhook.enums.WebHookHistoryStatus
+     */
+    private String historyStatus;
+    private String historyMessage;
 }

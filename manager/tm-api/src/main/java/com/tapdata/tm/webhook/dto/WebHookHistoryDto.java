@@ -8,9 +8,9 @@ import java.util.List;
 
 @Data
 public class WebHookHistoryDto extends BaseDto {
-    String hookId;
-    String sendBy;
-    List<HookOneHistory> hookEvent;
-    Boolean delete;
-    long eventCount;
+    private String hookId;
+    private String sendBy;
+    private List<HookOneHistory> hookEvent;
+    private Boolean delete;
+    private Long eventCount;
 }

@@ -9,36 +9,55 @@ import java.util.Locale;
 
 @Data
 public class WebHookInfoDto extends BaseDto {
-    String userId;
+    private String userId;
 
-    /**  WebHook name*/
-    String hookName;
+    /**
+     * WebHook name
+     */
+    private String hookName;
 
-    /**  WebHook URL*/
-    String url;
+    /**
+     * WebHook URL
+     */
+    private String url;
 
-    /**  是否启用*/
-    Boolean open;
+    /**
+     * 是否启用
+     */
+    private Boolean open;
 
-    /**  http timout, default 5s*/
-    Long timeout;
+    /**
+     * 是否默认告警方式
+     */
+    private Boolean defaultType;
 
-    /**  是否默认告警方式*/
-    Boolean defaultType;
+    private String token;
 
-    /**  */
-    String customTemplate;
+    private String httpUser;
 
-    /** ping状态*/
-    PingResult pingResult;
+    private String httpPwd;
+
+    private String customHttpHead;
+
+    /**
+     *
+     */
+    private String customTemplate;
+
+    /**
+     * ping状态
+     */
+    private PingResult pingResult;
 
     /**
      * @see com.tapdata.tm.webhook.enums.HookType hookName
-     * */
-    List<String> hookTypes;
+     */
+    private List<String> hookTypes;
 
-    /**备注*/
-    String mark;
+    /**
+     * 备注
+     */
+    private String mark;
 
-    Locale locale;
+    private Locale locale;
 }

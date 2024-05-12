@@ -4,7 +4,6 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.webhook.dto.WebHookInfoDto;
-import com.tapdata.tm.webhook.vo.WebHookHistoryInfoVo;
 
 import java.util.List;
 import java.util.Locale;
@@ -24,5 +23,5 @@ public interface WebHookService<V> {
 
     List<WebHookInfoDto> findMyOpenHookInfoList(String hookType, List<String> userId);
 
-    WebHookHistoryInfoVo ping(WebHookInfoDto dto, UserDetail user);
+    void checkUrl(String url);
 }

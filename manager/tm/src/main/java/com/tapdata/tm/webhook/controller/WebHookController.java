@@ -3,22 +3,24 @@ package com.tapdata.tm.webhook.controller;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.webhook.dto.WebHookInfoDto;
+import com.tapdata.tm.webhook.entity.HookOneHistory;
 import com.tapdata.tm.webhook.entity.WebHookEvent;
 import com.tapdata.tm.webhook.enums.HookType;
 import com.tapdata.tm.webhook.server.WebHookService;
+import com.tapdata.tm.webhook.util.WebHookHttpUtil;
 import com.tapdata.tm.webhook.vo.WebHookInfoVo;
 import com.tapdata.tm.webhook.work.WebHookAdapter;
-import com.tapdata.tm.webhook.work.stage.PingWebHookConverter;
+import com.tapdata.tm.webhook.impl.convert.stage.PingWebHookConverter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,15 +35,6 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Locale;
 
-
-//新增webhook配置
-//修改webhook配置
-//删除webhook配置
-//根据id查询webhook配置
-//分页查询webhook配置
-//查询webhook发送记录
-//webhook Ping测试
-
 /**
  * @author gavin'xiao
  * @date 2024/5/10
@@ -53,6 +46,7 @@ import java.util.Locale;
 public class WebHookController extends BaseController {
     WebHookService<WebHookInfoVo> webHookService;
     WebHookAdapter webHookAdapter;
+    WebHookHttpUtil webHookHttpUtil;
 
     @Operation(summary = "find all web hook info of current user")
     @GetMapping("list")
@@ -65,7 +59,7 @@ public class WebHookController extends BaseController {
         return success(webHookService.list(parseFilter(filterJson), getLoginUser(), locale));
     }
 
-    @Operation(summary = "update web hook info")
+    @Operation(summary = "create a web hook info")
     @PostMapping("create")
     public ResponseMessage<WebHookInfoVo> create(@RequestBody WebHookInfoDto dto, HttpServletRequest request) {
         Locale locale = WebUtils.getLocale(request);
@@ -96,21 +90,21 @@ public class WebHookController extends BaseController {
         return success(closed.get(0));
     }
 
-    @Operation(summary = "close alarm")
+    @Operation(summary = "close many web hook info by hook ids")
     @PostMapping("close")
     public ResponseMessage<List<WebHookInfoVo>> closeWebHookByHookIds(@RequestParam String[] ids) {
         return success(webHookService.close(ids, getLoginUser()));
     }
 
 
-    @Operation(summary = "close one web hook info by hook id")
+    @Operation(summary = "delete one web hook info by hook id")
     @DeleteMapping("deleteOne/{id}")
     public ResponseMessage<Void> deleteOneWebHookByHookId(@PathVariable(value = "id") String hookId) {
         webHookService.delete(new String[]{hookId}, getLoginUser());
         return success();
     }
 
-    @Operation(summary = "close alarm")
+    @Operation(summary = "delete many web hook info by hook ids")
     @DeleteMapping("delete")
     public ResponseMessage<Void> deleteWebHookByHookIds(@RequestParam String[] ids) {
         webHookService.delete(ids, getLoginUser());
@@ -119,19 +113,24 @@ public class WebHookController extends BaseController {
 
     @Operation(summary = "ping test")
     @PostMapping("ping")
-    public ResponseMessage<WebHookInfoDto> ping(@RequestBody WebHookInfoDto webHookEvent) {
-        if (null == webHookEvent.getId()) {
-            webHookEvent.setId(new ObjectId());
-        }
+    public ResponseMessage<HookOneHistory> ping(@RequestBody WebHookInfoDto webHookEvent) {
         WebHookEvent event = WebHookEvent.of()
                 .withEvent(PingWebHookConverter.PING_TEMPLATE)
                 .withUserId(Lists.newArrayList(getLoginUser().getUserId()))
                 .withType(HookType.PING);
-        //@TODO 检查URL
-        webHookAdapter.send(event, Lists.newArrayList(webHookEvent));
-        ResponseMessage<WebHookInfoDto> res = new ResponseMessage<>();
-        res.setMessage(MessageUtil.getMessage("webhook.ping.succeed"));
-        res.setData(webHookEvent);
+        String url = webHookEvent.getUrl();
+        if (!webHookHttpUtil.checkURL(url)) {
+            throw new BizException("webhook.url.invalid", url);
+        }
+        HookOneHistory send;
+        ResponseMessage<HookOneHistory> res = new ResponseMessage<>();
+        if (null == webHookEvent.getId()) {
+            send = webHookAdapter.send(event, webHookEvent);
+        } else {
+            send = webHookAdapter.sendAndSave(event, webHookEvent);
+            res.setMessage(MessageUtil.getMessage("webhook.ping.succeed"));
+        }
+        res.setData(send);
         return res;
     }
 }

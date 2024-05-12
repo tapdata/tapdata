@@ -4,6 +4,7 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.utils.WebUtils;
+import com.tapdata.tm.webhook.dto.HookOneHistoryDto;
 import com.tapdata.tm.webhook.params.HistoryPageParam;
 import com.tapdata.tm.webhook.server.WebHookHistoryService;
 import com.tapdata.tm.webhook.vo.WebHookHistoryInfoVo;
@@ -11,7 +12,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.repository.query.Param;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,7 +32,7 @@ import java.util.Locale;
 public class WebHookHistoryController extends BaseController {
     WebHookHistoryService<WebHookHistoryInfoVo> webHookHistoryService;
 
-    @Operation(summary = "find all web hook info of current user")
+    @Operation(summary = "find all web hook send history of current user")
     @GetMapping("list")
     public ResponseMessage<Page<WebHookHistoryInfoVo>> currentUserWebHookInfoList(@RequestBody HistoryPageParam pageParam,
                                                                                   HttpServletRequest request) {
@@ -40,9 +40,9 @@ public class WebHookHistoryController extends BaseController {
         return success(webHookHistoryService.list(pageParam, getLoginUser(), locale));
     }
 
-    @Operation(summary = "Re-send message")
+    @Operation(summary = "Re-send a history message")
     @PostMapping("re-send")
-    public ResponseMessage<WebHookHistoryInfoVo> reSend(@Param(value = "hookId") String hookId, @Param(value = "historyId") String historyId) {
-        return success(webHookHistoryService.reSend(hookId, historyId, getLoginUser()));
+    public ResponseMessage<WebHookHistoryInfoVo> reSend(@RequestBody HookOneHistoryDto historyDto) {
+        return success(webHookHistoryService.reSend(historyDto, getLoginUser()));
     }
 }

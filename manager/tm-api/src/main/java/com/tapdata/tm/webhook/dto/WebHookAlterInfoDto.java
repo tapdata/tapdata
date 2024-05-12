@@ -34,6 +34,7 @@ public class WebHookAlterInfoDto extends BaseDto {
     private Date closeTime;
     private String closeBy;
     private String inspectId;
-    private Map<String, Object> param;
+
+    private transient Map<String, Object> param;
 
 }
