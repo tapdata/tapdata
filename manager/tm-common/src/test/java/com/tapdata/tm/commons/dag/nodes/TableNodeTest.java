@@ -67,6 +67,15 @@ class TableNodeTest {
             }
         }
         @Test
+        void testNotNeedDynamicTableNameSchemaIsNull() {
+            doCallRealMethod().when(node).dynamicTableName(null);
+            try(MockedStatic<DynamicTableNameUtil> dtnu = mockStatic(DynamicTableNameUtil.class)) {
+                dtnu.when(() -> DynamicTableNameUtil.getDynamicTable(anyString(), any(DynamicTableConfig.class))).thenReturn(dynamicTable);
+                Assertions.assertDoesNotThrow(() -> node.dynamicTableName(null));
+                Assertions.assertNull(node.getTableName());
+            }
+        }
+        @Test
         void testNeedDynamicTableNameButResultIsEmpty() {
             ReflectionTestUtils.setField(node, "needDynamicTableName", true);
             try(MockedStatic<DynamicTableNameUtil> dtnu = mockStatic(DynamicTableNameUtil.class)) {
@@ -82,6 +91,17 @@ class TableNodeTest {
             try(MockedStatic<DynamicTableNameUtil> dtnu = mockStatic(DynamicTableNameUtil.class)) {
                 dtnu.when(() -> DynamicTableNameUtil.getDynamicTable(anyString(), any(DynamicTableConfig.class))).thenReturn(dynamicTable);
                 Assertions.assertDoesNotThrow(() -> node.dynamicTableName(schema));
+                Assertions.assertEquals("newName", node.getTableName());
+            }
+        }
+
+        @Test
+        void testNeedDynamicTableNameSchemaIsNull() {
+            doCallRealMethod().when(node).dynamicTableName(null);
+            ReflectionTestUtils.setField(node, "needDynamicTableName", true);
+            try(MockedStatic<DynamicTableNameUtil> dtnu = mockStatic(DynamicTableNameUtil.class)) {
+                dtnu.when(() -> DynamicTableNameUtil.getDynamicTable(anyString(), any(DynamicTableConfig.class))).thenReturn(dynamicTable);
+                Assertions.assertDoesNotThrow(() -> node.dynamicTableName(null));
                 Assertions.assertEquals("newName", node.getTableName());
             }
         }
