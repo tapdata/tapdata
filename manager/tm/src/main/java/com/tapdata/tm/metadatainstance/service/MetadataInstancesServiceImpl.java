@@ -139,7 +139,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                 }
             }
         }
-
+        if (null == record) return;
         beforeCreateOrUpdate(record, user);
     }
 
@@ -406,7 +406,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     }
 
 
-    private void afterFindById(MetadataInstancesDto result) {
+    protected void afterFindById(MetadataInstancesDto result) {
         if (result != null && CollectionUtils.isNotEmpty(result.getFields())) {
             List<Field> fields = result.getFields();
             for (Field field : fields) {
@@ -1396,7 +1396,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         return kv;
     }
 
-    private Map<String, String> getNodeMapping(UserDetail user, TaskDto taskDto, Map<String, String> kv, Node node) {
+    protected Map<String, String> getNodeMapping(UserDetail user, TaskDto taskDto, Map<String, String> kv, Node node) {
         if (node instanceof ProcessorNode) {
             kv.put(node.getId(), getQualifiedNameByNodeId(node, user, null, null, taskDto.getId().toHexString()));
             if (node instanceof MergeTableNode) {
