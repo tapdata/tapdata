@@ -1,41 +1,31 @@
 package com.tapdata.tm.webhook.controller;
 
 
-import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
-import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.webhook.dto.WebHookInfoDto;
-import com.tapdata.tm.webhook.entity.HookOneHistory;
-import com.tapdata.tm.webhook.entity.WebHookEvent;
-import com.tapdata.tm.webhook.enums.PingResult;
 import com.tapdata.tm.webhook.server.WebHookAdapterService;
 import com.tapdata.tm.webhook.server.WebHookHttpUtilService;
 import com.tapdata.tm.webhook.server.WebHookService;
-import com.tapdata.tm.webhook.vo.WebHookHistoryInfoVo;
 import com.tapdata.tm.webhook.vo.WebHookInfoVo;
-import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Locale;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,11 +45,7 @@ class WebHookControllerTest {
         webHookAdapter = mock(WebHookAdapterService.class);
 
         doCallRealMethod().when(webHookController).setWebHookService(webHookService);
-        doCallRealMethod().when(webHookController).setWebHookAdapter(webHookAdapter);
-        doCallRealMethod().when(webHookController).setWebHookHttpUtil(webHookHttpUtil);
         webHookController.setWebHookService(webHookService);
-        webHookController.setWebHookAdapter(webHookAdapter);
-        webHookController.setWebHookHttpUtil(webHookHttpUtil);
 
         when(webHookController.getLoginUser()).thenReturn(user);
     }

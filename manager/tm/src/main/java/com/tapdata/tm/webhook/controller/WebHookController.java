@@ -6,8 +6,6 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.webhook.dto.WebHookInfoDto;
 import com.tapdata.tm.webhook.entity.HookOneHistory;
-import com.tapdata.tm.webhook.server.WebHookAdapterService;
-import com.tapdata.tm.webhook.server.WebHookHttpUtilService;
 import com.tapdata.tm.webhook.server.WebHookService;
 import com.tapdata.tm.webhook.vo.WebHookInfoVo;
 import io.swagger.v3.oas.annotations.Operation;
