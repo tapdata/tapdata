@@ -11,6 +11,7 @@ import com.tapdata.tm.webhook.dto.WebHookInfoDto;
 import com.tapdata.tm.webhook.entity.HookOneHistory;
 import com.tapdata.tm.webhook.entity.WebHookEvent;
 import com.tapdata.tm.webhook.enums.HookType;
+import com.tapdata.tm.webhook.enums.PingResult;
 import com.tapdata.tm.webhook.server.WebHookService;
 import com.tapdata.tm.webhook.util.WebHookHttpUtil;
 import com.tapdata.tm.webhook.vo.WebHookInfoVo;
@@ -21,6 +22,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -124,11 +126,16 @@ public class WebHookController extends BaseController {
         }
         HookOneHistory send;
         ResponseMessage<HookOneHistory> res = new ResponseMessage<>();
-        if (null == webHookEvent.getId()) {
+        ObjectId webHookId = webHookEvent.getId();
+        if (null == webHookId) {
             send = webHookAdapter.send(event, webHookEvent);
         } else {
             send = webHookAdapter.sendAndSave(event, webHookEvent);
             res.setMessage(MessageUtil.getMessage("webhook.ping.succeed"));
+            WebHookInfoDto updatePingResult = new WebHookInfoDto();
+            updatePingResult.setId(webHookId);
+            updatePingResult.setPingResult(PingResult.valueOf(send.getStatus()));
+            webHookService.updatePingResult(updatePingResult);
         }
         res.setData(send);
         return res;

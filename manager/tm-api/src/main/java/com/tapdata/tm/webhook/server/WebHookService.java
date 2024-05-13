@@ -17,6 +17,8 @@ public interface WebHookService<V> {
 
     V update(WebHookInfoDto dto, UserDetail user);
 
+    V updatePingResult(WebHookInfoDto dto);
+
     List<V> close(String[] ids, UserDetail userDetail);
 
     void delete(String[] ids, UserDetail userDetail);
