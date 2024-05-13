@@ -3,16 +3,9 @@ package com.tapdata.tm.webhook.controller;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
-import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.webhook.dto.WebHookInfoDto;
 import com.tapdata.tm.webhook.entity.HookOneHistory;
-import com.tapdata.tm.webhook.entity.WebHookEvent;
-import com.tapdata.tm.webhook.enums.HookType;
-import com.tapdata.tm.webhook.enums.PingResult;
-import com.tapdata.tm.webhook.impl.convert.stage.PingWebHookConverter;
 import com.tapdata.tm.webhook.server.WebHookAdapterService;
 import com.tapdata.tm.webhook.server.WebHookHttpUtilService;
 import com.tapdata.tm.webhook.server.WebHookService;
@@ -22,7 +15,6 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -47,8 +39,6 @@ import java.util.Locale;
 @Slf4j
 public class WebHookController extends BaseController {
     WebHookService<WebHookInfoVo> webHookService;
-    WebHookAdapterService webHookAdapter;
-    WebHookHttpUtilService webHookHttpUtil;
 
     @Operation(summary = "find all web hook info of current user")
     @GetMapping("list")
@@ -116,28 +106,6 @@ public class WebHookController extends BaseController {
     @Operation(summary = "ping test")
     @PostMapping("ping")
     public ResponseMessage<HookOneHistory> ping(@RequestBody WebHookInfoDto webHookEvent) {
-        WebHookEvent event = WebHookEvent.of()
-                .withEvent(PingWebHookConverter.PING_TEMPLATE)
-                .withUserId(Lists.newArrayList(getLoginUser().getUserId()))
-                .withType(HookType.PING.getHookName());
-        String url = webHookEvent.getUrl();
-        if (!webHookHttpUtil.checkURL(url)) {
-            throw new BizException("webhook.url.invalid", url);
-        }
-        HookOneHistory send;
-        ResponseMessage<HookOneHistory> res = new ResponseMessage<>();
-        ObjectId webHookId = webHookEvent.getId();
-        if (null == webHookId) {
-            send = webHookAdapter.send(event, webHookEvent);
-        } else {
-            send = webHookAdapter.sendAndSave(event, webHookEvent);
-            res.setMessage(MessageUtil.getMessage("webhook.ping.succeed"));
-            WebHookInfoDto updatePingResult = new WebHookInfoDto();
-            updatePingResult.setId(webHookId);
-            updatePingResult.setPingResult(PingResult.valueOf(send.getStatus()));
-            webHookService.updatePingResult(updatePingResult);
-        }
-        res.setData(send);
-        return res;
+        return success(webHookService.ping(webHookEvent, getLoginUser()));
     }
 }
