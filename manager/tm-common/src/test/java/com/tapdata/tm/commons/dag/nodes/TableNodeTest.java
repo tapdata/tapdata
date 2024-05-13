@@ -125,6 +125,7 @@ class TableNodeTest {
         @BeforeEach
         void init() {
             when(node.getSchemaName(schema)).thenCallRealMethod();
+            when(node.getSchemaName(null)).thenCallRealMethod();
         }
 
         @Test
@@ -186,6 +187,11 @@ class TableNodeTest {
             DynamicTableConfig of = DynamicTableConfig.of();
             ReflectionTestUtils.setField(node, "dynamicTableRule", of);
             Assertions.assertEquals("table", node.getSchemaName(schema));
+        }
+        @Test
+        void testSchemaIsNull() {
+            ReflectionTestUtils.setField(node, "dynamicTableRule", null);
+            Assertions.assertEquals("table", node.getSchemaName(null));
         }
     }
 
