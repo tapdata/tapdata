@@ -82,8 +82,25 @@ public class WebHookController extends BaseController {
 
     @Operation(summary = "close many web hook info by hook ids")
     @PostMapping("close")
-    public ResponseMessage<List<WebHookInfoVo>> closeWebHookByHookIds(@RequestParam String[] ids) {
+    public ResponseMessage<List<WebHookInfoVo>> closeWebHookByHookIds(@RequestParam(value = "ids") String[] ids) {
         return success(webHookService.close(ids, getLoginUser()));
+    }
+
+
+    @Operation(summary = "Re-Open one web hook info by hook id")
+    @PostMapping("re-open-one/{id}")
+    public ResponseMessage<WebHookInfoVo> reOpenOne(@PathVariable(value = "id") String hookId) {
+        List<WebHookInfoVo> closed = webHookService.reOpen(new String[]{hookId}, getLoginUser());
+        if (closed.isEmpty()) {
+            return failed("webhook.reOpen.failed");
+        }
+        return success(closed.get(0));
+    }
+
+    @Operation(summary = "Re-Open many web hook info by hook ids")
+    @PostMapping("re-open")
+    public ResponseMessage<List<WebHookInfoVo>> reOpenAll(@RequestParam(value = "ids") String[] ids) {
+        return success(webHookService.reOpen(ids, getLoginUser()));
     }
 
 
@@ -96,7 +113,7 @@ public class WebHookController extends BaseController {
 
     @Operation(summary = "delete many web hook info by hook ids")
     @DeleteMapping("delete")
-    public ResponseMessage<Void> deleteWebHookByHookIds(@RequestParam String[] ids) {
+    public ResponseMessage<Void> deleteWebHookByHookIds(@RequestParam(value = "ids") String[] ids) {
         webHookService.delete(ids, getLoginUser());
         return success();
     }

@@ -29,4 +29,6 @@ public interface WebHookService<V> {
     void checkUrl(String url);
 
     HookOneHistory ping(WebHookInfoDto webHookEvent, UserDetail userDetail);
+
+    List<V> reOpen(String[] strings, UserDetail loginUser);
 }

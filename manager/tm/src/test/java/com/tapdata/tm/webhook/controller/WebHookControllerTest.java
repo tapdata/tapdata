@@ -4,9 +4,11 @@ package com.tapdata.tm.webhook.controller;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.webhook.dto.WebHookInfoDto;
+import com.tapdata.tm.webhook.entity.HookOneHistory;
 import com.tapdata.tm.webhook.server.WebHookAdapterService;
 import com.tapdata.tm.webhook.server.WebHookHttpUtilService;
 import com.tapdata.tm.webhook.server.WebHookService;
@@ -26,6 +28,7 @@ import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -144,6 +147,35 @@ class WebHookControllerTest {
             verify(webHookService).close(any(String[].class), any(UserDetail.class));
         }
     }
+    @Nested
+    class ReOpenIdTest {
+        @Test
+        void testCloseOneWebHookByHookId() {
+            WebHookInfoVo vo = new WebHookInfoVo();
+            when(webHookController.success(vo)).thenReturn(mock(ResponseMessage.class));
+            List mock = mock(List.class);
+            when(mock.isEmpty()).thenReturn(false);
+            when(mock.get(0)).thenReturn(vo);
+            when(webHookService.reOpen(any(String[].class), any(UserDetail.class))).thenReturn(mock);
+            when(webHookController.reOpenOne("id")).thenCallRealMethod();
+            ResponseMessage<WebHookInfoVo> hook = webHookController.reOpenOne("id");
+            Assertions.assertNotNull(hook);
+            verify(webHookController).success(vo);
+            verify(webHookService).reOpen(any(String[].class), any(UserDetail.class));
+        }
+        @Test
+        void testEmpty() {
+            when(webHookController.failed("webhook.reOpen.failed")).thenReturn(mock(ResponseMessage.class));
+            List mock = mock(List.class);
+            when(mock.isEmpty()).thenReturn(true);
+            when(webHookService.reOpen(any(String[].class), any(UserDetail.class))).thenReturn(mock);
+            when(webHookController.reOpenOne("id")).thenCallRealMethod();
+            ResponseMessage<WebHookInfoVo> hook = webHookController.reOpenOne("id");
+            Assertions.assertNotNull(hook);
+            verify(webHookController).failed("webhook.reOpen.failed");
+            verify(webHookService).reOpen(any(String[].class), any(UserDetail.class));
+        }
+    }
 
     @Test
     void testCloseWebHookByHookIds() {
@@ -156,6 +188,18 @@ class WebHookControllerTest {
         Assertions.assertNotNull(hook);
         verify(webHookController).success(mock);
         verify(webHookService).close(ids, user);
+    }
+    @Test
+    void testReOpenAll() {
+        List<WebHookInfoVo> mock = mock(List.class);
+        when(webHookController.success(mock)).thenReturn(mock(ResponseMessage.class));
+        String[] ids = new String[]{"id"};
+        when(webHookService.reOpen(ids, user)).thenReturn(mock);
+        when(webHookController.reOpenAll(ids)).thenCallRealMethod();
+        ResponseMessage<List<WebHookInfoVo>> hook = webHookController.reOpenAll(ids);
+        Assertions.assertNotNull(hook);
+        verify(webHookController).success(mock);
+        verify(webHookService).reOpen(ids, user);
     }
 
     @Test
@@ -180,5 +224,18 @@ class WebHookControllerTest {
         verify(webHookService).delete(ids, user);
     }
 
+    @Test
+    void testPing() {
+        HookOneHistory vo = new HookOneHistory();
+        WebHookInfoDto dto = new WebHookInfoDto();
+        when(webHookController.success(vo)).thenReturn(mock(ResponseMessage.class));
+        when(webHookService.ping(dto, user)).thenReturn(vo);
+        when(webHookController.ping(dto)).thenCallRealMethod();
+        ResponseMessage<HookOneHistory> hook = webHookController.ping(dto);
+        Assertions.assertNotNull(hook);
+        verify(webHookController).success(vo);
+        verify(webHookService).ping(dto, user);
+        verify(webHookController).ping(dto);
+    }
 
 }
