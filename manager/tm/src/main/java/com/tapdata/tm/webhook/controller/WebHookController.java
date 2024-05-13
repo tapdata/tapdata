@@ -12,11 +12,11 @@ import com.tapdata.tm.webhook.entity.HookOneHistory;
 import com.tapdata.tm.webhook.entity.WebHookEvent;
 import com.tapdata.tm.webhook.enums.HookType;
 import com.tapdata.tm.webhook.enums.PingResult;
-import com.tapdata.tm.webhook.server.WebHookService;
-import com.tapdata.tm.webhook.util.WebHookHttpUtil;
-import com.tapdata.tm.webhook.vo.WebHookInfoVo;
-import com.tapdata.tm.webhook.work.WebHookAdapter;
 import com.tapdata.tm.webhook.impl.convert.stage.PingWebHookConverter;
+import com.tapdata.tm.webhook.server.WebHookAdapterService;
+import com.tapdata.tm.webhook.server.WebHookHttpUtilService;
+import com.tapdata.tm.webhook.server.WebHookService;
+import com.tapdata.tm.webhook.vo.WebHookInfoVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -47,8 +47,8 @@ import java.util.Locale;
 @Slf4j
 public class WebHookController extends BaseController {
     WebHookService<WebHookInfoVo> webHookService;
-    WebHookAdapter webHookAdapter;
-    WebHookHttpUtil webHookHttpUtil;
+    WebHookAdapterService webHookAdapter;
+    WebHookHttpUtilService webHookHttpUtil;
 
     @Operation(summary = "find all web hook info of current user")
     @GetMapping("list")
