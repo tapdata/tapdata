@@ -339,6 +339,7 @@ public class TableNode extends DataNode {
     }
 
     protected String getSchemaName(Schema schema) {
+        if (null == schema) return tableName;
         if (null != dynamicTableRule) {
             String afterDynamicTableName = schema.getAfterDynamicTableName();
             if (null != afterDynamicTableName && !afterDynamicTableName.equals(tableName)) {
