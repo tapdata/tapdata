@@ -237,13 +237,13 @@ public class PartitionConcurrentProcessor {
 
 		try {
 			AtomicBoolean singleMode = new AtomicBoolean(false);
-			TapdataEvent offsetEvent = null;
+            TapdataEvent offsetEvent = null;
 			for (TapdataEvent tapdataEvent : tapdataEvents) {
 				if (!isRunning()) {
 					break;
 				}
 				if (tapdataEvent.isDML()) {
-					offsetEvent = processDML(tapdataEvent, singleMode);
+					processDML(tapdataEvent, singleMode);
 				} else if (tapdataEvent.isDDL()) {
 					processDDL(tapdataEvent);
 				} else {
@@ -253,6 +253,9 @@ public class PartitionConcurrentProcessor {
 						processSignalWithWait(tapdataEvent);
 					}
 				}
+                if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
+                    offsetEvent = tapdataEvent;
+                }
 			}
 			if (null != offsetEvent) {
 				generateWatermarkEvent(offsetEvent);
@@ -266,7 +269,7 @@ public class PartitionConcurrentProcessor {
 		}
 	}
 
-	protected TapdataEvent processDML(TapdataEvent tapdataEvent, AtomicBoolean singleMode) throws InterruptedException {
+	protected void processDML(TapdataEvent tapdataEvent, AtomicBoolean singleMode) throws InterruptedException {
 		String tableName = "";
 		try {
 			final TapEvent tapEvent = tapdataEvent.getTapEvent();
@@ -286,16 +289,12 @@ public class PartitionConcurrentProcessor {
 			final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(partition);
 			final NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
 			offer2QueueIfRunning(queue, normalEvent, wrapPartitionErrorMsg(partition, PROCESS_QUEUE_IF_FULL_WAITING_FOR_ENQUEUE_MESSAGE));
-			if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
-				return tapdataEvent;
-			}
 		} catch (InterruptedException e) {
 			throw e;
 		} catch (Exception e) {
 			String msg = String.format(" tableName: %s, %s", tableName, e.getMessage());
 			throw new RuntimeException(msg, e);
 		}
-		return null;
 	}
 
 	protected void processDDL(TapdataEvent tapdataEvent) throws InterruptedException {

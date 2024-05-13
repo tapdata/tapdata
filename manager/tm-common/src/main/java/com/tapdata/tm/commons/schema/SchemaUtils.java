@@ -1,15 +1,17 @@
 package com.tapdata.tm.commons.schema;
 
+import cn.hutool.core.collection.CollUtil;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import io.tapdata.entity.schema.type.TapArray;
+import io.tapdata.entity.schema.type.TapMap;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import lombok.Getter;
-import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +24,9 @@ import java.util.stream.Stream;
  * create at 2021/11/10 下午10:37
  */
 public class SchemaUtils {
+    public static final String SCHEMA_FREE = "schema-free";
+    public static final String TAP_MAP = TapSimplify.toJson(new TapMap());
+    public static final String TAP_ARRAY = TapSimplify.toJson(new TapArray());
 
     private static Logger log = LoggerFactory.getLogger(SchemaUtils.class);
 
@@ -186,4 +191,58 @@ public class SchemaUtils {
         }
     }
 
+    public static List<Schema> removeSubFieldsWhichFromFreeSchema(DataSourceConnectionDto dataSource, List<Schema> schemas) {
+        if (!SchemaUtils.dataBaseIsFreeSchema(dataSource)) {
+            return schemas;
+        }
+        schemas.stream().filter(Objects::nonNull).forEach(SchemaUtils::removeSubFieldsWhichFromFreeSchema);
+        return schemas;
+    }
+    public static Schema removeSubFieldsWhichFromFreeSchema(DataSourceConnectionDto dataSource, Schema schema) {
+        if (SchemaUtils.dataBaseIsFreeSchema(dataSource)) {
+            return schema;
+        }
+        SchemaUtils.removeSubFieldsWhichFromFreeSchema(schema);
+        return schema;
+    }
+
+    public static boolean dataBaseIsFreeSchema(DataSourceConnectionDto dataSource) {
+        List<String> definitionTags = dataSource.getDefinitionTags();
+        return CollUtil.isNotEmpty(definitionTags) && definitionTags.contains(SCHEMA_FREE);
+    }
+
+    public static void removeSubFieldsWhichFromFreeSchema(Schema schema) {
+        List<Field> fields = schema.getFields();
+        if (CollUtil.isEmpty(fields)) {
+            return;
+        }
+        Map<String, Field> fieldMap = fields.stream()
+                .collect(Collectors.toMap(Field::getFieldName, f -> f, (f1, f2) -> f1));
+
+        List<Field> afterFilterField = fieldMap.entrySet()
+                .stream()
+                .filter(entry -> SchemaUtils.isFreeSchemaFields(fieldMap, entry))
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toList());
+        //4. Otherwise, delete the current attribute
+        fields.removeAll(afterFilterField);
+    }
+
+    public static boolean isFreeSchemaFields(Map<String, Field> allFieldMap, Map.Entry<String, Field> fieldEntry) {
+        String fieldName = fieldEntry.getKey();
+        int index = fieldName.lastIndexOf(".");
+        if (index <= 0) {
+            return false;
+        }
+        //2. Traverse attribute names with a length greater than 2
+        String fatherFieldName = fieldName.substring(0, index);
+        //3. If the parent attribute does not exist, skip it
+        if (!allFieldMap.containsKey(fatherFieldName)) {
+            return false;
+        }
+        Field field = allFieldMap.get(fatherFieldName);
+        String tapType = field.getTapType();
+        //3. If the type of the parent property is not TapMap and TapArray, it will jump out
+        return TAP_MAP.equals(tapType) || TAP_ARRAY.equals(tapType);
+    }
 }

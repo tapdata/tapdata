@@ -159,7 +159,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             }
             handleAppendWrite(schema);
         }
-        return outputSchema;
+        return SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, outputSchema);
     }
 
     private List<TableIndex> updateIndexDelField(List<TableIndex> indices, Map<String, String> filedMapping) {
