@@ -32,11 +32,6 @@ public class WebHookInfoCreateDto extends BaseDto {
     private Long timeout;
 
     /**
-     * 是否默认告警方式
-     */
-    private Boolean defaultType;
-
-    /**
      *
      */
     private String customTemplate;

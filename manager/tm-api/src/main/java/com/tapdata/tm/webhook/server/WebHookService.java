@@ -21,7 +21,7 @@ public interface WebHookService<V> {
 
     void delete(String[] ids, UserDetail userDetail);
 
-    List<WebHookInfoDto> findMyOpenHookInfoList(String hookType, List<String> userId);
+    List<WebHookInfoDto> findMyOpenHookInfoList(String hookType, String metric, List<String> userId);
 
     void checkUrl(String url);
 }

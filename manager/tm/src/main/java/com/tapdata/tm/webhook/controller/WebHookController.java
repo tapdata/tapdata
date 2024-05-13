@@ -117,7 +117,7 @@ public class WebHookController extends BaseController {
         WebHookEvent event = WebHookEvent.of()
                 .withEvent(PingWebHookConverter.PING_TEMPLATE)
                 .withUserId(Lists.newArrayList(getLoginUser().getUserId()))
-                .withType(HookType.PING);
+                .withType(HookType.PING.getHookName());
         String url = webHookEvent.getUrl();
         if (!webHookHttpUtil.checkURL(url)) {
             throw new BizException("webhook.url.invalid", url);

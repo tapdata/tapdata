@@ -26,11 +26,6 @@ public class WebHookInfoDto extends BaseDto {
      */
     private Boolean open;
 
-    /**
-     * 是否默认告警方式
-     */
-    private Boolean defaultType;
-
     private String token;
 
     private String httpUser;
