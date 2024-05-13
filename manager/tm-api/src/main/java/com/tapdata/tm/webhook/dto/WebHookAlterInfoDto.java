@@ -35,6 +35,10 @@ public class WebHookAlterInfoDto extends BaseDto {
     private String closeBy;
     private String inspectId;
 
+    private String title;
+    private String content;
+    private String smsEvent;
+
     private transient Map<String, Object> param;
 
 }
