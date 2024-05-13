@@ -1,6 +1,8 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent;
 
 import com.tapdata.entity.*;
+import com.tapdata.entity.dataflow.TableBatchReadStatus;
+import com.tapdata.entity.dataflow.batch.BatchOffset;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
@@ -27,6 +29,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -624,6 +627,44 @@ class PartitionConcurrentProcessorTest {
         }).when(processor).isRunning();
         processor.process(Collections.singletonList(generateInsertEvent("i", 1, null)), false);
         assertTrue(Thread.currentThread().isInterrupted());
+    }
+
+    @Test
+    @SneakyThrows
+    void testProcessOffset() {
+        AtomicReference<TapdataEvent> offsetEvent = new AtomicReference<>();
+
+        PartitionConcurrentProcessor processor = mock(PartitionConcurrentProcessor.class);
+        when(processor.isRunning()).thenReturn(true);
+        doCallRealMethod().when(processor).process(anyList(), anyBoolean());
+        doAnswer(invocationOnMock -> {
+            offsetEvent.set(invocationOnMock.getArgument(0));
+            return null;
+        }).when(processor).generateWatermarkEvent(any());
+
+        // test null offset
+        offsetEvent.set(null);
+        TapdataHeartbeatEvent heartbeatEvent = new TapdataHeartbeatEvent();
+        processor.process(Collections.singletonList(heartbeatEvent), true);
+        assertNull(offsetEvent.get());
+
+        // test batchOffset
+        offsetEvent.set(null);
+        heartbeatEvent = Optional.of(new TapdataHeartbeatEvent()).map(event -> {
+            event.setBatchOffset(new BatchOffset(1, TableBatchReadStatus.RUNNING.name()));
+            return event;
+        }).get();
+        processor.process(Collections.singletonList(heartbeatEvent), true);
+        assertEquals(heartbeatEvent, offsetEvent.get());
+
+        // test steamOffset
+        offsetEvent.set(null);
+        heartbeatEvent = Optional.of(new TapdataHeartbeatEvent()).map(event -> {
+            event.setStreamOffset(System.currentTimeMillis());
+            return event;
+        }).get();
+        processor.process(Collections.singletonList(heartbeatEvent), true);
+        assertEquals(heartbeatEvent, offsetEvent.get());
     }
 
     @Test
