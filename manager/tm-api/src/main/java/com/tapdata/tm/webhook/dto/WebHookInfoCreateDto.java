@@ -26,10 +26,14 @@ public class WebHookInfoCreateDto extends BaseDto {
      */
     private Boolean open;
 
-    /**
-     * http timout, default 5s
-     */
-    private Long timeout;
+
+    private String token;
+
+    private String httpUser;
+
+    private String httpPwd;
+
+    private String customHttpHeaders;
 
     /**
      *

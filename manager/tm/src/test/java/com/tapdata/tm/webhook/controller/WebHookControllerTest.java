@@ -7,6 +7,7 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.utils.WebUtils;
+import com.tapdata.tm.webhook.dto.HookOneHistoryDto;
 import com.tapdata.tm.webhook.dto.WebHookInfoDto;
 import com.tapdata.tm.webhook.entity.HookOneHistory;
 import com.tapdata.tm.webhook.server.WebHookAdapterService;
@@ -226,12 +227,12 @@ class WebHookControllerTest {
 
     @Test
     void testPing() {
-        HookOneHistory vo = new HookOneHistory();
+        HookOneHistoryDto vo = new HookOneHistoryDto();
         WebHookInfoDto dto = new WebHookInfoDto();
         when(webHookController.success(vo)).thenReturn(mock(ResponseMessage.class));
         when(webHookService.ping(dto, user)).thenReturn(vo);
         when(webHookController.ping(dto)).thenCallRealMethod();
-        ResponseMessage<HookOneHistory> hook = webHookController.ping(dto);
+        ResponseMessage<HookOneHistoryDto> hook = webHookController.ping(dto);
         Assertions.assertNotNull(hook);
         verify(webHookController).success(vo);
         verify(webHookService).ping(dto, user);

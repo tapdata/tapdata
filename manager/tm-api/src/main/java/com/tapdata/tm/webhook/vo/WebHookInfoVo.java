@@ -26,6 +26,14 @@ public class WebHookInfoVo {
      */
     private Boolean open;
 
+    private String token;
+
+    private String httpUser;
+
+    private String httpPwd;
+
+    private String customHttpHeaders;
+
     /**
      *
      */

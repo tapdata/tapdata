@@ -11,12 +11,12 @@ public class WebHookHistoryInfoVo {
     String status;
 
     String requestId;
-    String requestHeard;
+    String requestHeaders;
     String requestBody;
     String requestParams;
     Long requestAt;
 
-    String responseHeard;
+    String responseHeaders;
     String responseResult;
     String responseStatus;
     Integer responseCode;

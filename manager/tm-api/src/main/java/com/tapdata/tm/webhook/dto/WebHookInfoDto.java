@@ -32,7 +32,7 @@ public class WebHookInfoDto extends BaseDto {
 
     private String httpPwd;
 
-    private String customHttpHead;
+    private String customHttpHeaders;
 
     /**
      *

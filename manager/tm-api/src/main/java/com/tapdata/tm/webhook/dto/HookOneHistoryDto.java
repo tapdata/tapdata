@@ -10,9 +10,10 @@ public class HookOneHistoryDto extends BaseDto {
     String requestHeard;
     String requestBody;
     String requestParams;
+    String requestHeaders;
     Long requestAt;
 
-    String responseHeard;
+    String responseHeaders;
     String responseResult;
     String responseStatus;
     Integer responseCode;

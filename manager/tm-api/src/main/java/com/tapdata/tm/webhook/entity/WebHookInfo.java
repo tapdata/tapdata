@@ -46,7 +46,7 @@ public class WebHookInfo extends BaseEntity {
 
     private String httpPwd;
 
-    private String customHttpHead;
+    private String customHttpHeaders;
 
     /**
      *

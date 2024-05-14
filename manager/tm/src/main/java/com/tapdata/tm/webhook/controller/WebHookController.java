@@ -4,8 +4,8 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.utils.WebUtils;
+import com.tapdata.tm.webhook.dto.HookOneHistoryDto;
 import com.tapdata.tm.webhook.dto.WebHookInfoDto;
-import com.tapdata.tm.webhook.entity.HookOneHistory;
 import com.tapdata.tm.webhook.server.WebHookService;
 import com.tapdata.tm.webhook.vo.WebHookInfoVo;
 import io.swagger.v3.oas.annotations.Operation;
@@ -120,7 +120,7 @@ public class WebHookController extends BaseController {
 
     @Operation(summary = "ping test")
     @PostMapping("ping")
-    public ResponseMessage<HookOneHistory> ping(@RequestBody WebHookInfoDto webHookEvent) {
+    public ResponseMessage<HookOneHistoryDto> ping(@RequestBody WebHookInfoDto webHookEvent) {
         return success(webHookService.ping(webHookEvent, getLoginUser()));
     }
 }

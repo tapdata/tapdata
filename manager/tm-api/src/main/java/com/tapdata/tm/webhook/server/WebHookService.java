@@ -3,8 +3,8 @@ package com.tapdata.tm.webhook.server;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.webhook.dto.HookOneHistoryDto;
 import com.tapdata.tm.webhook.dto.WebHookInfoDto;
-import com.tapdata.tm.webhook.entity.HookOneHistory;
 
 import java.util.List;
 import java.util.Locale;
@@ -28,7 +28,7 @@ public interface WebHookService<V> {
 
     void checkUrl(String url);
 
-    HookOneHistory ping(WebHookInfoDto webHookEvent, UserDetail userDetail);
+    HookOneHistoryDto ping(WebHookInfoDto webHookEvent, UserDetail userDetail);
 
     List<V> reOpen(String[] strings, UserDetail loginUser);
 }

@@ -10,12 +10,12 @@ import lombok.NoArgsConstructor;
 @Data
 public class HookOneHistory extends BaseEntity {
     private String url;
-    private String requestHeard;
+    private String requestHeaders;
     private String requestBody;
     private String requestParams;
     private Long requestAt;
 
-    private String responseHeard;
+    private String responseHeaders;
     private String responseResult;
     private String responseStatus;
     private Integer responseCode;
