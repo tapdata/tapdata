@@ -17,15 +17,6 @@
 [![Official Website](<https://img.shields.io/badge/-Official%20Website%20%E2%86%92-rgb(59,71,229)?style=for-the-badge>)](https://cloud.tapdata.net)
 [![Docs](<https://img.shields.io/badge/-Online%20Document%20%E2%86%92-rgb(0,205,102)?style=for-the-badge>)](https://docs.tapdata.io)
 
-<p align="left">
-  <a href="#key-features" target="_blank"><b>Key Features</b></a><br/>
-  <a href="#primary-use-cases"><b>Use Cases</b></a><br/>
-  <a href="#quick-start" target="_blank"><b>Quick Start</b></a><br/>
-  <a href="#examples"><b>Examples</b></a><br/>
-  <a href="#license"><b>License</b></a><br/>
-  <a href="#contact-us"><b>Contact Us</b></a><br/>
-</p>
-
 ## What is Tapdata ?
 Tapdata is a CDC-based, Real-Time data integration platform that enables data to be synchronized in real-time among various systems such as databases, SaaS services, applications, and files.
 The synchronization tasks can be easily built through drag-and-drop operations, from table creation to full and incremental synchronization, all processes are fully automated.
@@ -34,6 +25,16 @@ The synchronization tasks can be easily built through drag-and-drop operations, 
 2. [FAQ](https://docs.tapdata.io/faq/)
 
 For more details, please read [docs](https://docs.tapdata.io/)
+
+### Summary
+<p align="left">
+  1. <a href="#key-features" target="_blank"><b>Key Features</b></a><br/>
+  2. <a href="#primary-use-cases"><b>Use Cases</b></a><br/>
+  3. <a href="#quick-start" target="_blank"><b>Quick Start</b></a><br/>
+  4. <a href="#examples"><b>Examples</b></a><br/>
+  5. <a href="#license"><b>License</b></a><br/>
+  6. <a href="#contact-us"><b>Contact Us</b></a><br/>
+</p>
 
 ## Key Features
 ### End-To-End Visual UI
