@@ -32,7 +32,7 @@ For more details, please read [docs](https://docs.tapdata.io/)
 
 |                                                                                                                                                                                                                                                                                                                                                       |                                       |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| <b>Full Process Automation</b><br/><br/>Heterogeneous table creation, switch Full and Incremental automation.<br /><br/><b>Drag-And-Drop</b><br /><br/>Operate through a visual interface, Easy to use<br /><br /><b>Monitor</b><br/><br/>sync performance, task progress, key events, and logs.                                                                    | <img src="./assets/monitor.jpg"/>     |
+| <b>Full Process Automation</b><br/>Heterogeneous table creation, switch Full and Incremental automation.<br/><br/><b>Drag-And-Drop</b><br/>Operate through a visual interface, Easy to use<br/><br/><b>Monitor</b><br/>sync performance, task progress, key events, and logs.                                                                    | <img src="./assets/monitor.jpg"/>     |
 
 <br />
 
@@ -40,7 +40,7 @@ For more details, please read [docs](https://docs.tapdata.io/)
 
 |                                                                                                                                                                                                                                                                                                                                                       |                                       |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| <b>Table Filter and Mapping</b><br/><br/>Rich visual processors that allow table selection, renaming, adding or deleting fields, and renaming.<br /><br/><b>Record Transformation</b><br />Easily use JS/Python code to do transformation<br /><br /><br/><b>Union</b><br/>Union multi tables to one target.                                                   | <img src="./assets/tapdata-etl.jpg"/> |
+| <b>Table Filter and Mapping</b><br/>Rich visual processors that allow table selection, renaming, adding or deleting fields, and renaming.<br/><br/><b>Record Transformation</b><br/>Easily use JS/Python code to do transformation<br/><br/><b>Union</b><br/>Union multi tables to one target.                                                   | <img src="./assets/tapdata-etl.jpg"/> |
 
 <br />
 
@@ -48,7 +48,7 @@ For more details, please read [docs](https://docs.tapdata.io/)
 
 |                                                                                                                                                                                                                                                                                                                                                       |                                        |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| <b>Document-style view</b><br/><br/>Support Embedded documents and arrays, deeply integrated with MongoDB.<br /><br/><b>Multi-table association</b><br /><br/>hierarchical nesting, and convenient construction of 1:1 and 1:N models.<br /><br /><b>Multi-table stream merging</b><br/><br/>Unified batch and stream processing, multi-table updates in any order. | <img src="./assets/tapdata-view.jpg"/> |
+| <b>Document-style view</b><br/>Support Embedded documents and arrays, deeply integrated with MongoDB.<br/><br/><b>Multi-table association</b><br/>hierarchical nesting, and convenient construction of 1:1 and 1:N models.<br /><br/><b>Multi-table stream merging</b><br/>Unified batch and stream processing, multi-table updates in any order. | <img src="./assets/tapdata-view.jpg"/> |
 
 <br />
 
