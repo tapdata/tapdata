@@ -17,11 +17,11 @@
         <sonar.organization>tapdata</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.coverage.exclusions>
-            manager/tm/**/dto/*,
-            manager/tm/**/entity/*,
-            manager/tm/**/vo/*,
+            manager/**/dto/*,
+            manager/**/entity/*,
+            manager/**/vo/*,
             manager/tm/**/controller/*,
-            manager/tm/**/constant/*,
+            manager/**/constant/*,
             manager/tm/**/ex/*,
             **/*Dto.java,
             **/*Enum.java,
@@ -33,9 +33,9 @@
             manager/tm/src/main/java/com/tapdata/tm/init/patches/dfs/*
         </sonar.coverage.exclusions>
         <sonar.exclusions>
-            manager/tm/**/dto/*,
-            manager/tm/**/entity/*,
-            manager/tm/**/vo/*,
+            manager/**/dto/*,
+            manager/**/entity/*,
+            manager/**/vo/*,
             manager/tm/**/controller/*,
             manager/tm/**/constant/*,
             manager/tm/**/ex/*,
