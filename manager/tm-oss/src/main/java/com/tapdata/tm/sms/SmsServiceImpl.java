@@ -15,36 +15,36 @@ import org.springframework.stereotype.Service;
 public class SmsServiceImpl implements SmsService {
     @Override
     public boolean enableSms() {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public String getType() {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public SendStatus sendShortMessage(String templateCode, String phoneNumbers, String system, String jobName) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public SendStatus sendShortMessage(String templateCode, String phoneNumbers, String templateParam) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public String getTemplateCode(MessageDto messageDto) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public String getTemplateCode(MsgTypeEnum msgTypeEnum) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public String getTemplateCode(String msgType) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 }

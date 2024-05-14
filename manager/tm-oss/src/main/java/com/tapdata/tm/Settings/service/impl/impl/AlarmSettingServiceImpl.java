@@ -39,7 +39,7 @@ public class AlarmSettingServiceImpl extends AlarmSettingService{
     }
     @Override
     public void saveAlarmSetting(List<AlarmSettingDto> alarms, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
@@ -49,7 +49,7 @@ public class AlarmSettingServiceImpl extends AlarmSettingService{
 
     @Override
     public void updateSystemNotify(UpdateRuleDto ruleDto, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
@@ -59,6 +59,6 @@ public class AlarmSettingServiceImpl extends AlarmSettingService{
 
     @Override
     protected void beforeSave(AlarmSettingDto dto, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 }

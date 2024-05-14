@@ -31,51 +31,51 @@ public class InspectResultServiceImpl extends InspectResultService{
 
     @Override
     protected void beforeSave(InspectResultDto dto, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public Page<InspectResultDto> find(Filter filter, UserDetail userDetail, boolean inspectGroupByFirstCheckId) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public void joinResult(List<InspectResultDto> inspectResultDtos) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public void fillInspectInfo(List<InspectResultDto> inspectResultDtos) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public void setSourceConnectName(Source source, Map<String, DataSourceConnectionDto> connectionMap) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public InspectResultDto saveInspectResult(SaveInspectResultParam saveInspectResultParam, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public InspectResultDto getLatestInspectResult(ObjectId inspectId) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public InspectResultDto findById(Filter filter, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public InspectResultDto upsertInspectResultByWhere(Where where, SaveInspectResultParam saveInspectResultParam, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public void createAndPatch(InspectResultDto result) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 }

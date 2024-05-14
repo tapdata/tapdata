@@ -36,7 +36,7 @@ public class AlarmRuleServiceImpl extends  AlarmRuleService {
     }
     @Override
     public void saveAlarm(List<AlarmRuleDto> rules, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override

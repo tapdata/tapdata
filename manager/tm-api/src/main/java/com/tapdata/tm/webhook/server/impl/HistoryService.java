@@ -1,6 +1,7 @@
 package com.tapdata.tm.webhook.server.impl;
 
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.webhook.dto.HookOneHistoryDto;
 import com.tapdata.tm.webhook.entity.HookOneHistory;
@@ -16,24 +17,24 @@ import java.util.Locale;
 public class HistoryService implements WebHookHistoryService<WebHookHistoryInfoVo> {
     @Override
     public Page<WebHookHistoryInfoVo> list(HistoryPageParam pageParam, UserDetail userDetail, Locale locale) {
-        throw new UnsupportedOperationException(ConstVariable.UN_SUPPORT_FUNCTION);
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public void deleteHookHistory(String hookId, UserDetail user) {
-        throw new UnsupportedOperationException(ConstVariable.UN_SUPPORT_FUNCTION);
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public WebHookHistoryInfoVo reSend(HookOneHistoryDto history, UserDetail user) {
-        throw new UnsupportedOperationException(ConstVariable.UN_SUPPORT_FUNCTION);    }
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);    }
 
     @Override
     public long pushManyHistory(List<Pair<String, List<HookOneHistory>>> historyInfos) {
-        throw new UnsupportedOperationException(ConstVariable.UN_SUPPORT_FUNCTION);    }
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);    }
 
     @Override
     public long pushHistory(String hookId, List<HookOneHistory> history) {
-        throw new UnsupportedOperationException(ConstVariable.UN_SUPPORT_FUNCTION);
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 }

@@ -40,7 +40,7 @@ public class DataPermissionServiceImpl extends DataPermissionService{
     }
 
     public Set<String> filterNotCreator(UserDetail userDetail, DataPermissionDataTypeEnums dataType, Set<ObjectId> dataIds) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     public Set<String> findDataActions(UserDetail userDetail, DataPermissionDataTypeEnums dataType, ObjectId dataId) {
@@ -56,11 +56,11 @@ public class DataPermissionServiceImpl extends DataPermissionService{
     }
 
     public DataPermissionAuthInfoVo setDataActions(DataPermissionAuthInfoVo authInfoVo, DataPermissionTypeVo... inTypes) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     public long saveDataPermissions(UserDetail userDetail, DataPermissionDataTypeEnums dataType, ObjectId dataId, List<DataPermissionAction> actions) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     public Set<String> findDataActionsOfType(DataPermissionTypeEnums type, String typeId, DataPermissionDataTypeEnums dataType, Set<ObjectId> dataIds) {
@@ -71,6 +71,6 @@ public class DataPermissionServiceImpl extends DataPermissionService{
     }
 
     public void dataAuth(DataPermissionDataTypeEnums dataType, Set<ObjectId> dataIds, DataPermissionTypeEnums type, Set<String> typeIds, Set<String> actions) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 }

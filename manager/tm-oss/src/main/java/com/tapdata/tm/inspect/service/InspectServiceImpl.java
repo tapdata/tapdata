@@ -91,32 +91,32 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     protected void beforeSave(InspectDto dto, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public Map<String, Long> delete(String id, UserDetail user) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public Page<InspectDto> list(Filter filter, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public InspectDto findById(Filter filter, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public void saveInspect(TaskDto taskDto, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public InspectDto createCheckByTask(TaskDto taskDto, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
@@ -132,27 +132,27 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public InspectDto updateInspectByWhere(Where where, InspectDto updateDto, UserDetail user) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public InspectDto executeInspect(Where where, InspectDto updateDto, UserDetail user) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public InspectDto updateById(ObjectId objectId, InspectDto inspectDto, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public List<InspectDto> findByName(String name) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public void importData(String json, String upsert, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
@@ -161,27 +161,27 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public UpdateResult updateStatusById(String id, InspectStatusEnum inspectStatusEnum) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public UpdateResult updateStatusByIds(List<ObjectId> idList, InspectStatusEnum status) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public Map<String, Integer> inspectPreview(UserDetail user) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public List<InspectDto> findByStatus(InspectStatusEnum inspectStatusEnum) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public List<InspectDto> findByResult(boolean passed) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
@@ -190,16 +190,16 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public void supplementAlarm(InspectDto inspectDto, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public List<InspectDto> findAllByIds(List<String> inspectIds) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
     public void fieldHandler(List<Task> tasks,UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 }

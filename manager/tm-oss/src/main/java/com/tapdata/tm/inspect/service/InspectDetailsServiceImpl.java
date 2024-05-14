@@ -27,7 +27,7 @@ public class InspectDetailsServiceImpl extends InspectDetailsService {
     }
     @Override
     protected void beforeSave(InspectDetailsDto dto, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
 }

@@ -34,17 +34,17 @@ public class RoleServiceImpl extends RoleService{
 
     @Override
     protected void beforeSave(RoleDto dto, UserDetail userDetail) {
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
     public Page<RoleDto> find(Filter filter, UserDetail userDetail){
         return super.find(filter, userDetail);
     }
 
     public boolean deleteById(ObjectId objectId, UserDetail userDetail){
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     public <T extends BaseDto> RoleDto save(RoleDto dto, UserDetail userDetail){
-        throw new BizException("TapOssNonSupportFunctionException");
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 }
