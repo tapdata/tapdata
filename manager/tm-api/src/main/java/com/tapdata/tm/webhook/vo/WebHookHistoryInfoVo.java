@@ -27,4 +27,6 @@ public class WebHookHistoryInfoVo {
      */
     String historyStatus;
     String historyMessage;
+
+    Long createAt;
 }

@@ -7,7 +7,6 @@ import lombok.Data;
 public class HookOneHistoryDto extends BaseDto {
     String hookId;
     String url;
-    String requestHeard;
     String requestBody;
     String requestParams;
     String requestHeaders;

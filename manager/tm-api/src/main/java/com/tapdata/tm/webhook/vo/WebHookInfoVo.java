@@ -1,13 +1,13 @@
 package com.tapdata.tm.webhook.vo;
 
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.webhook.enums.PingResult;
 import lombok.Data;
 
 import java.util.List;
 
 @Data
-public class WebHookInfoVo {
-    private String hookId;
+public class WebHookInfoVo extends BaseDto {
 
     private String userId;
 
