@@ -317,14 +317,14 @@ public class TableNode extends DataNode {
     protected DynamicTableResult dynamicTableName(Schema schema) {
         if (!Boolean.TRUE.equals(needDynamicTableName)) {
             this.tableName = getSchemaName(schema);
-            updateSchemaAfterDynamicTableName(schema, tableName, schema.getAfterDynamicTableName());
+            updateSchemaAfterDynamicTableName(schema, tableName, null == schema ? null : schema.getAfterDynamicTableName());
             return DynamicTableResult.of();
         }
         if (null == dynamicTableRule) {
             dynamicTableRule = DynamicTableConfig.of();
         }
         String baseTable = Optional.ofNullable(getSchemaName(schema)).orElse(tableName);
-        if (null != tableName && tableName.equals(schema.getAfterDynamicTableName())) {
+        if (null != tableName && null != schema && tableName.equals(schema.getAfterDynamicTableName())) {
             baseTable = Optional.ofNullable(schema.getBeforeDynamicTableName()).orElse(tableName);
         }
         DynamicTableResult dynamicTable = DynamicTableNameUtil.getDynamicTable(
@@ -339,6 +339,7 @@ public class TableNode extends DataNode {
     }
 
     protected String getSchemaName(Schema schema) {
+        if (null == schema) return tableName;
         if (null != dynamicTableRule) {
             String afterDynamicTableName = schema.getAfterDynamicTableName();
             if (null != afterDynamicTableName && !afterDynamicTableName.equals(tableName)) {
