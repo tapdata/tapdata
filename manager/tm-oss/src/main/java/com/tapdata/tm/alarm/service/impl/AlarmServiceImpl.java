@@ -83,7 +83,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class AlarmServiceImpl implements AlarmService {
-    private final static String ERROR = ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION;
+    private final static String ERROR = "TapOssNonSupportFunctionException";
     @Override
     public void save(AlarmInfo info) {
         throw new BizException(ERROR);

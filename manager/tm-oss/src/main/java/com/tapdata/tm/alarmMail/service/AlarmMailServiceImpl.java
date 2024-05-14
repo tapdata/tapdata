@@ -24,7 +24,7 @@ public class AlarmMailServiceImpl extends AlarmMailService {
     }
 
     public <T extends BaseDto> long upsert(Query query, T dto, UserDetail userDetail) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        throw new BizException("TapOssNonSupportFunctionException");
     }
 
 }

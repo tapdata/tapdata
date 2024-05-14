@@ -29,12 +29,12 @@ public class RoleMappingServiceImpl extends RoleMappingService{
 
     @Override
     protected void beforeSave(RoleMappingDto dto, UserDetail userDetail) {
-//        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+//        throw new BizException("TapOssNonSupportFunctionException");
     }
 
     @Override
     public void initUserDefaultRole(User user, UserDetail userDetail) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        throw new BizException("TapOssNonSupportFunctionException");
     }
 
     @Override
@@ -55,6 +55,6 @@ public class RoleMappingServiceImpl extends RoleMappingService{
 
     @Override
     public List<RoleMappingDto> saveAll(List<RoleMappingDto> roleDtos, UserDetail userDetail) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        throw new BizException("TapOssNonSupportFunctionException");
     }
 }

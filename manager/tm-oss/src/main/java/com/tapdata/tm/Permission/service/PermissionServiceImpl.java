@@ -66,21 +66,21 @@ public class PermissionServiceImpl implements PermissionService {
 
     @Override
     public List<PermissionEntity> find(Filter filter) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        throw new BizException("TapOssNonSupportFunctionException");
     }
 
     @Override
     public long count(Where where) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        throw new BizException("TapOssNonSupportFunctionException");
     }
 
     @Override
     public List<String> getAllParentIds() {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        throw new BizException("TapOssNonSupportFunctionException");
     }
 
     @Override
     public List<PermissionEntity> getTopPermissionAndNoChild(Set<String> codes) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        throw new BizException("TapOssNonSupportFunctionException");
     }
 }
