@@ -28,57 +28,28 @@ The synchronization tasks can be easily built through drag-and-drop operations, 
 For more details, please read [docs](https://docs.tapdata.io/)
 
 ## Key Features
-
 ### End-To-End Visual UI
 
-<table>
-  <thead>
-    <tr>
-      <th style="width:30%"></th>
-      <th style="width:70%"></th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><b>Full Process Automation</b><br />Heterogeneous table creation, switch Full and Incremental automation.<br /><br/><b>Drag-And-Drop</b><br />Operate through a visual interface, Easy to use<br /><br /><b>Monitor</b><br/>sync performance, task progress, key events, and logs.</td>
-      <td><img src="./assets/monitor.jpg"/></td>
-    </tr>
-  </tbody>
-</table>
-<br/>
+|                                                                                                                                                                                                                                                                                                                                                       |                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| <b>Full Process Automation</b><br />Heterogeneous table creation, switch Full and Incremental automation.<br /><br/><b>Drag-And-Drop</b><br />Operate through a visual interface, Easy to use<br /><br /><b>Monitor</b><br/>sync performance, task progress, key events, and logs.                                                                    | <img src="./assets/monitor.jpg"/>     |
+
+<br />
 
 ### Lightweight ETL Solution
-<table>
-  <thead>
-    <tr>
-      <th style="width:30%"></th>
-      <th style="width:70%"></th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><b>Table Filter and Mapping</b><br />Rich visual processors that allow table selection, renaming, adding or deleting fields, and renaming.<br /><br/><b>Record Transformation</b><br />Easily use JS/Python code to do transformation<br /><br /><b>Union</b><br/>Union multi tables to one target.</td>
-      <td><img src="./assets/tapdata-etl.jpg"/></td>
-    </tr>
-  </tbody>
-</table>
-<br/>
+
+|                                                                                                                                                                                                                                                                                                                                                       |                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| <b>Table Filter and Mapping</b><br />Rich visual processors that allow table selection, renaming, adding or deleting fields, and renaming.<br /><br/><b>Record Transformation</b><br />Easily use JS/Python code to do transformation<br /><br /><b>Union</b><br/>Union multi tables to one target.                                                   | <img src="./assets/tapdata-etl.jpg"/> |
+
+<br />
 
 ### Build materialized views in MongoDB
-<table>
-  <thead>
-    <tr>
-      <th style="width:30%"></th>
-      <th style="width:70%"></th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><b>Document-style view</b><br />Support Embedded documents and arrays, deeply integrated with MongoDB.<br /><br/><b>Multi-table association</b><br />hierarchical nesting, and convenient construction of 1:1 and 1:N models.<br /><br /><b>Multi-table stream merging</b><br/>Unified batch and stream processing, multi-table updates in any order.</td>
-      <td><img src="./assets/tapdata-view.jpg"/></td>
-    </tr>
-  </tbody>
-</table>
+
+|                                                                                                                                                                                                                                                                                                                                                       |                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| <b>Document-style view</b><br />Support Embedded documents and arrays, deeply integrated with MongoDB.<br /><br/><b>Multi-table association</b><br />hierarchical nesting, and convenient construction of 1:1 and 1:N models.<br /><br /><b>Multi-table stream merging</b><br/>Unified batch and stream processing, multi-table updates in any order. | <img src="./assets/tapdata-view.jpg"/> |
+
 <br />
 
 ## Primary Use Cases
