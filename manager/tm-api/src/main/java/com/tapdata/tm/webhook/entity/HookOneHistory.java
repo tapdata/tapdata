@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Data
 public class HookOneHistory extends BaseEntity {
+    private String hookId;
     private String url;
     private String requestHeaders;
     private String requestBody;

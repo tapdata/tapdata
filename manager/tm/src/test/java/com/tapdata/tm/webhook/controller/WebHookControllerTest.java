@@ -6,6 +6,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.webhook.dto.HookOneHistoryDto;
 import com.tapdata.tm.webhook.dto.WebHookInfoDto;
@@ -227,16 +228,19 @@ class WebHookControllerTest {
 
     @Test
     void testPing() {
-        HookOneHistoryDto vo = new HookOneHistoryDto();
-        WebHookInfoDto dto = new WebHookInfoDto();
-        when(webHookController.success(vo)).thenReturn(mock(ResponseMessage.class));
-        when(webHookService.ping(dto, user)).thenReturn(vo);
-        when(webHookController.ping(dto)).thenCallRealMethod();
-        ResponseMessage<HookOneHistoryDto> hook = webHookController.ping(dto);
-        Assertions.assertNotNull(hook);
-        verify(webHookController).success(vo);
-        verify(webHookService).ping(dto, user);
-        verify(webHookController).ping(dto);
+        try(MockedStatic<MessageUtil> mu = mockStatic(MessageUtil.class)) {
+            mu.when(() -> MessageUtil.getMessage("webhook.ping.succeed")).thenReturn("ducceed");
+            HookOneHistoryDto vo = new HookOneHistoryDto();
+            WebHookInfoDto dto = new WebHookInfoDto();
+            when(webHookController.success(vo)).thenReturn(mock(ResponseMessage.class));
+            when(webHookService.ping(dto, user)).thenReturn(vo);
+            when(webHookController.ping(dto)).thenCallRealMethod();
+            ResponseMessage<HookOneHistoryDto> hook = webHookController.ping(dto);
+            Assertions.assertNotNull(hook);
+            verify(webHookController).success(vo);
+            verify(webHookService).ping(dto, user);
+            verify(webHookController).ping(dto);
+        }
     }
 
 }

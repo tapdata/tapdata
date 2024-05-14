@@ -3,6 +3,7 @@ package com.tapdata.tm.webhook.controller;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.webhook.dto.HookOneHistoryDto;
 import com.tapdata.tm.webhook.dto.WebHookInfoDto;
@@ -121,6 +122,8 @@ public class WebHookController extends BaseController {
     @Operation(summary = "ping test")
     @PostMapping("ping")
     public ResponseMessage<HookOneHistoryDto> ping(@RequestBody WebHookInfoDto webHookEvent) {
-        return success(webHookService.ping(webHookEvent, getLoginUser()));
+        ResponseMessage<HookOneHistoryDto> success = success(webHookService.ping(webHookEvent, getLoginUser()));
+        success.setMessage(MessageUtil.getMessage("webhook.ping.succeed"));
+        return success;
     }
 }
