@@ -26,7 +26,7 @@ The synchronization tasks can be easily built through drag-and-drop operations, 
 
 For more details, please read [docs](https://docs.tapdata.io/)
 
-### Summary
+### Table of contents
 <p align="left">
   1. <a href="#key-features" target="_blank"><b>Key Features</b></a><br/>
   2. <a href="#primary-use-cases"><b>Use Cases</b></a><br/>
