@@ -1,0 +1,60 @@
+% VERSION 2
+% WARNING: this file is auto-generated; do not edit
+% UNSUPPORTED: this file and its format may change and/or
+%   may be removed in a future release
+! cldrdata.jar
+sun/text
+sun/util
+# dnsns.jar
+META-INF/services/sun.net.spi.nameservice.NameServiceDescriptor
+sun/net
+! jaccess.jar
+com/sun/java/accessibility/
+# jfxrt.jar
+javafx/scene/
+javafx/geometry/
+com/sun/scenario/
+javafx/beans/
+javafx/util/
+javafx/stage/
+com/sun/media/
+com/sun/glass/
+com/sun/pisces/
+com/sun/javafx/
+javafx/fxml/
+com/sun/deploy/
+javafx/application/
+javafx/print/
+javafx/collections/
+javafx/event/
+com/sun/prism/
+javafx/embed/
+javafx/css/
+javafx/concurrent/
+javafx/animation/
+com/sun/webkit/
+META-INF/INDEX.LIST
+netscape/javascript/
+com/sun/openpisces/
+# localedata.jar
+sun/text
+sun/util
+# nashorn.jar
+jdk/nashorn
+META-INF/services/javax.script.ScriptEngineFactory
+jdk/internal
+# sunec.jar
+sun/security
+META-INF/ORACLE_J.RSA
+META-INF/ORACLE_J.SF
+# sunjce_provider.jar
+com/sun/crypto/
+META-INF/ORACLE_J.RSA
+META-INF/ORACLE_J.SF
+# sunpkcs11.jar
+sun/security
+META-INF/ORACLE_J.RSA
+META-INF/ORACLE_J.SF
+# zipfs.jar
+META-INF/services/java.nio.file.spi.FileSystemProvider
+com/sun/nio/

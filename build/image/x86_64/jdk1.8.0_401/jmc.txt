@@ -1,0 +1,1 @@
+This version of the JDK no longer includes a copy of Java Mission Control (JMC). JMC is now available as a separate download. Please visit https://www.oracle.com/javase/jmc for more information.

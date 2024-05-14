@@ -1,0 +1,1 @@
+This version of the JDK no longer includes a copy of Java VisualVM. VisualVM is now available as a separate download. Please visit https://visualvm.github.io for more information.

@@ -1,0 +1,5 @@
+build/image/aarch_64/mongod filter=lfs diff=lfs merge=lfs -text
+build/image/x86_64/mongod filter=lfs diff=lfs merge=lfs -text
+build/image/aarch_64/jdk1.8.0_401/jre/lib/rt.jar filter=lfs diff=lfs merge=lfs -text
+build/image/x86_64/jdk1.8.0_401/jre/lib/rt.jar filter=lfs diff=lfs merge=lfs -text
+build/image/x86_64/jdk1.8.0_401/jre/lib/amd64/libjfxwebkit.so filter=lfs diff=lfs merge=lfs -text
