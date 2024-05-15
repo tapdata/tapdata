@@ -4,6 +4,7 @@ import base.hazelcast.BaseHazelcastNodeTest;
 import com.google.common.collect.Lists;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DmlPolicy;
@@ -16,9 +17,15 @@ import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -29,6 +36,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -387,4 +395,166 @@ public class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
         }
     }
 
+    @Nested
+    class HandleTapdataShareLogEventTest{
+        List<TapdataShareLogEvent> tapdataShareLogEvents;
+        TapdataEvent tapdataEvent;
+        Consumer<TapdataEvent> consumer;
+        @Test
+        @DisplayName("test handleTapdataShareLogEvent method for TapRecordEvent")
+        void test1(){
+            tapdataShareLogEvents = new ArrayList<>();
+            tapdataEvent = new TapdataShareLogEvent();
+            TapRecordEvent event = new TapInsertRecordEvent();
+            tapdataEvent.setTapEvent(event);
+            doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataShareLogEvent(tapdataShareLogEvents,tapdataEvent,consumer);
+            hazelcastTargetPdkBaseNode.handleTapdataShareLogEvent(tapdataShareLogEvents,tapdataEvent,consumer);
+            verify(hazelcastTargetPdkBaseNode).replaceIllegalDateWithNullIfNeed(any(TapRecordEvent.class));
+        }
+    }
+    @Nested
+    class HandleTapdataRecordEventTest{
+        private TapdataEvent tapdataEvent = new TapdataEvent();
+        @BeforeEach
+        void beforeEach(){
+        }
+        @Test
+        @DisplayName("test handleTapdataRecordEvent method for TapUpdateRecordEvent")
+        void test1(){
+            String writeStrategy = "appendWrite";
+            ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"writeStrategy",writeStrategy);
+            TapRecordEvent tapRecordEvent = new TapUpdateRecordEvent();
+            Map<String, Object> after = new HashMap<>();
+            ((TapUpdateRecordEvent)tapRecordEvent).setAfter(after);
+            tapdataEvent.setTapEvent(tapRecordEvent);
+            doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataRecordEvent(tapdataEvent);
+            hazelcastTargetPdkBaseNode.handleTapdataRecordEvent(tapdataEvent);
+            verify(hazelcastTargetPdkBaseNode).replaceIllegalDateWithNullIfNeed(any(TapRecordEvent.class));
+        }
+        @Test
+        @DisplayName("test handleTapdataRecordEvent method for TapDeleteRecordEvent")
+        void test2(){
+            String writeStrategy = "appendWrite";
+            ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"writeStrategy",writeStrategy);
+            TapRecordEvent tapRecordEvent = new TapDeleteRecordEvent();
+            Map<String, Object> after = new HashMap<>();
+            ((TapDeleteRecordEvent)tapRecordEvent).setBefore(after);
+            tapdataEvent.setTapEvent(tapRecordEvent);
+            doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataRecordEvent(tapdataEvent);
+            hazelcastTargetPdkBaseNode.handleTapdataRecordEvent(tapdataEvent);
+            verify(hazelcastTargetPdkBaseNode).replaceIllegalDateWithNullIfNeed(any(TapRecordEvent.class));
+        }
+    }
+    @Nested
+    class ReplaceIllegalDateWithNullIfNeedTest{
+        private TapRecordEvent event;
+        private List<Capability> capabilities;
+        private Connections connections;
+        @BeforeEach
+        void beforeEach(){
+            dataProcessorContext = mock(DataProcessorContext.class);
+            ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"dataProcessorContext",dataProcessorContext);
+            connections = mock(Connections.class);
+            when(dataProcessorContext.getConnections()).thenReturn(connections);
+            capabilities = new ArrayList<>();
+            Capability capability = mock(Capability.class);
+            capabilities.add(capability);
+            when(connections.getCapabilities()).thenReturn(capabilities);
+            when(capability.getId()).thenReturn(ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
+        }
+        @Test
+        @DisplayName("test replaceIllegalDateWithNullIfNeed method when containsIllegalDate is false")
+        void test1(){
+            event = new TapInsertRecordEvent();
+            event.setContainsIllegalDate(true);
+            Map<String, Object> after = new HashMap<>();
+            after.put("id","1");
+            after.put("name","test");
+            ((TapInsertRecordEvent)event).setAfter(after);
+            event.setContainsIllegalDate(false);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDateWithNullIfNeed(event);
+			hazelcastTargetPdkBaseNode.replaceIllegalDateWithNullIfNeed(event);
+            assertEquals(after,((TapInsertRecordEvent) event).getAfter());
+        }
+        @Test
+        @DisplayName("test replaceIllegalDateWithNullIfNeed method when containsIllegalDate is true for TapInsertRecordEvent")
+        void test2(){
+            event = new TapInsertRecordEvent();
+            event.setContainsIllegalDate(true);
+            Map<String, Object> after = new HashMap<>();
+            after.put("id","1");
+            after.put("name","test");
+            after.put("date",new Date());
+            after.put("last_date",new Date());
+            ((TapInsertRecordEvent)event).setAfter(after);
+            event.setContainsIllegalDate(true);
+            List<String> illegalDateFiledName = new ArrayList<>();
+            illegalDateFiledName.add("date");
+            illegalDateFiledName.add("last_date");
+            illegalDateFiledName.add("test_date");
+			((TapInsertRecordEvent) event).setAfterIllegalDateFieldName(illegalDateFiledName);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDateWithNullIfNeed(event);
+            hazelcastTargetPdkBaseNode.replaceIllegalDateWithNullIfNeed(event);
+            assertNull(((TapInsertRecordEvent) event).getAfter().get("date"));
+            assertNull(((TapInsertRecordEvent) event).getAfter().get("last_date"));
+        }
+        @Test
+        @DisplayName("test replaceIllegalDateWithNullIfNeed method when containsIllegalDate is true for TapUpdateRecordEvent")
+        void test3(){
+            event = new TapUpdateRecordEvent();
+            event.setContainsIllegalDate(true);
+            Map<String, Object> after = new HashMap<>();
+            after.put("id","1");
+            after.put("name","test");
+            after.put("date",new Date());
+            ((TapUpdateRecordEvent)event).setBefore(after);
+            ((TapUpdateRecordEvent)event).setAfter(after);
+            event.setContainsIllegalDate(true);
+            List<String> illegalDateFiledName = new ArrayList<>();
+            illegalDateFiledName.add("date");
+            illegalDateFiledName.add("last_date");
+			((TapUpdateRecordEvent) event).setBeforeIllegalDateFieldName(illegalDateFiledName);
+			((TapUpdateRecordEvent) event).setAfterIllegalDateFieldName(illegalDateFiledName);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDateWithNullIfNeed(event);
+            hazelcastTargetPdkBaseNode.replaceIllegalDateWithNullIfNeed(event);
+            assertNull(((TapUpdateRecordEvent) event).getBefore().get("date"));
+            assertNull(((TapUpdateRecordEvent) event).getAfter().get("date"));
+        }
+        @Test
+        @DisplayName("test replaceIllegalDateWithNullIfNeed method when containsIllegalDate is true for TapDeleteRecordEvent")
+        void test4(){
+            event = new TapDeleteRecordEvent();
+            event.setContainsIllegalDate(true);
+            Map<String, Object> before = new HashMap<>();
+            ((TapDeleteRecordEvent)event).setBefore(before);
+            event.setContainsIllegalDate(true);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDateWithNullIfNeed(event);
+            hazelcastTargetPdkBaseNode.replaceIllegalDateWithNullIfNeed(event);
+            assertEquals(before,((TapDeleteRecordEvent) event).getBefore());
+        }
+        @Test
+        @DisplayName("test replaceIllegalDateWithNullIfNeed method when illegalDateAcceptable is true")
+        void test5(){
+            capabilities = new ArrayList<>();
+            Capability capability = mock(Capability.class);
+            capabilities.add(capability);
+            when(connections.getCapabilities()).thenReturn(capabilities);
+            when(capability.getId()).thenReturn(ConnectionOptions.DML_ILLEGAL_DATE_ACCEPTABLE);
+            event = new TapInsertRecordEvent();
+            event.setContainsIllegalDate(true);
+            Map<String, Object> after = new HashMap<>();
+            after.put("date",new Date());
+            after.put("last_date",new Date());
+            ((TapInsertRecordEvent)event).setAfter(after);
+            event.setContainsIllegalDate(true);
+            List<String> illegalDateFiledName = new ArrayList<>();
+            illegalDateFiledName.add("date");
+            illegalDateFiledName.add("last_date");
+			((TapInsertRecordEvent) event).setAfterIllegalDateFieldName(illegalDateFiledName);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDateWithNullIfNeed(event);
+            hazelcastTargetPdkBaseNode.replaceIllegalDateWithNullIfNeed(event);
+            assertNotNull(((TapInsertRecordEvent) event).getAfter().get("date"));
+            assertNotNull(((TapInsertRecordEvent) event).getAfter().get("last_date"));
+        }
+    }
 }

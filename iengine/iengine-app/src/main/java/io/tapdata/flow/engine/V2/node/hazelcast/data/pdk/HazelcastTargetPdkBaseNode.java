@@ -830,11 +830,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private void handleTapdataShareLogEvent(List<TapdataShareLogEvent> tapdataShareLogEvents, TapdataEvent tapdataEvent, Consumer<TapdataEvent> consumer) {
+	protected void handleTapdataShareLogEvent(List<TapdataShareLogEvent> tapdataShareLogEvents, TapdataEvent tapdataEvent, Consumer<TapdataEvent> consumer) {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		if (tapEvent instanceof TapRecordEvent) {
 			TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
 			String targetTableName = getTgtTableNameFromTapEvent(tapEvent);
+			replaceIllegalDateWithNullIfNeed(tapRecordEvent);
 			fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager, targetTableName);
 			fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
 		}
@@ -863,7 +864,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		flushOffsetByTapdataEventForNoConcurrent(new AtomicReference<>(tapdataEvent));
 	}
 
-	private TapRecordEvent handleTapdataRecordEvent(TapdataEvent tapdataEvent) {
+	protected TapRecordEvent handleTapdataRecordEvent(TapdataEvent tapdataEvent) {
 		TapRecordEvent tapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
 		if (writeStrategy.equals(MergeTableProperties.MergeType.appendWrite.name())) {
 			// When append write, update and delete event turn into insert event
@@ -882,6 +883,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		}
 		String targetTableName = getTgtTableNameFromTapEvent(tapRecordEvent);
+		replaceIllegalDateWithNullIfNeed(tapRecordEvent);
 		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager, targetTableName);
 		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
 		fromTapValueMergeInfo(tapdataEvent);
@@ -890,6 +892,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected void fromTapValueMergeInfo(TapdataEvent tapdataEvent) {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		if (tapEvent instanceof TapRecordEvent){
+			replaceIllegalDateWithNullIfNeed((TapRecordEvent) tapEvent);
+		}
 		Object mergeInfoObj = tapEvent.getInfo(MergeInfo.EVENT_INFO_KEY);
 		if (mergeInfoObj instanceof MergeInfo) {
 			MergeInfo mergeInfo = (MergeInfo) mergeInfoObj;
@@ -911,7 +916,33 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		}
 	}
-
+	protected void replaceIllegalDateWithNullIfNeed(TapRecordEvent event){
+		boolean illegalDateAcceptable = false;
+		List<Capability> capabilities = dataProcessorContext.getConnections().getCapabilities();
+		if(CollectionUtils.isNotEmpty(capabilities) && capabilities.stream().anyMatch(cap -> null != cap && ConnectionOptions.DML_ILLEGAL_DATE_ACCEPTABLE.equals(cap.getId()))) {
+			illegalDateAcceptable = true;
+		}
+		boolean containsIllegalDate = event.getContainsIllegalDate();
+		if (containsIllegalDate && !illegalDateAcceptable){
+			Map<String, Object> before = Optional.ofNullable(TapEventUtil.getBefore(event)).orElse(new HashMap<>());
+			Map<String, List<String>> illegalFieldMap = Optional.ofNullable(TapEventUtil.getIllegalField(event)).orElse(new HashMap<>());
+			List<String> beforeIllegal = Optional.ofNullable(illegalFieldMap.get("before")).orElse(new ArrayList<>());
+			List<String> afterIllegal = Optional.ofNullable(illegalFieldMap.get("after")).orElse(new ArrayList<>());
+			for (String filedName : beforeIllegal) {
+				Object value = before.get(filedName);
+				if (null != value){
+					before.put(filedName, null);
+				}
+			}
+			Map<String, Object> after = TapEventUtil.getAfter(event);
+			for (String filedName : afterIllegal) {
+				Object value = after.get(filedName);
+				if (null != value){
+					after.put(filedName, null);
+				}
+			}
+		}
+	}
 	private boolean handleExactlyOnceWriteCacheIfNeed(TapdataEvent tapdataEvent, List<TapRecordEvent> exactlyOnceWriteCache) {
 		if (!tableEnableExactlyOnceWrite(tapdataEvent.getSyncStage(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()))) {
 			return false;
