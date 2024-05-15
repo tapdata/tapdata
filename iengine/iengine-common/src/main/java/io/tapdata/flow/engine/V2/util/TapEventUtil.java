@@ -9,6 +9,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -40,6 +41,21 @@ public class TapEventUtil {
 			return ((TapInsertRecordEvent) tapEvent).getAfter();
 		} else if (tapEvent instanceof TapUpdateRecordEvent) {
 			return ((TapUpdateRecordEvent) tapEvent).getAfter();
+		}
+		return null;
+	}
+	public static Map<String, List<String>> getIllegalField(TapEvent tapEvent) {
+		Map<String, List<String>> map = new HashMap<>();
+		if (tapEvent instanceof TapInsertRecordEvent) {
+			map.put("after",((TapInsertRecordEvent) tapEvent).getAfterIllegalDateFieldName());
+			return map;
+		} else if (tapEvent instanceof TapUpdateRecordEvent) {
+			map.put("before",((TapUpdateRecordEvent) tapEvent).getBeforeIllegalDateFieldName());
+			map.put("after",((TapUpdateRecordEvent) tapEvent).getAfterIllegalDateFieldName());
+			return map;
+		} else if (tapEvent instanceof TapDeleteRecordEvent) {
+			map.put("before",((TapDeleteRecordEvent) tapEvent).getBeforeIllegalDateFieldName());
+			return map;
 		}
 		return null;
 	}
