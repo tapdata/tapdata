@@ -10,10 +10,12 @@ import com.tapdata.tm.webhook.params.HistoryPageParam;
 import com.tapdata.tm.webhook.server.WebHookHistoryService;
 import com.tapdata.tm.webhook.vo.WebHookHistoryInfoVo;
 import org.springframework.data.util.Pair;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Locale;
 
+@Service("HistoryService")
 public class HistoryService implements WebHookHistoryService<WebHookHistoryInfoVo> {
     @Override
     public Page<WebHookHistoryInfoVo> list(HistoryPageParam pageParam, UserDetail userDetail, Locale locale) {

@@ -6,10 +6,11 @@ import com.tapdata.tm.webhook.entity.HookOneHistory;
 import com.tapdata.tm.webhook.entity.WebHookEvent;
 import com.tapdata.tm.webhook.enums.ConstVariable;
 import com.tapdata.tm.webhook.server.WebHookAdapterService;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-
+@Service("AdapterService")
 public class AdapterService implements WebHookAdapterService {
     @Override
     public void send(WebHookEvent event) {

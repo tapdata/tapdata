@@ -4,9 +4,11 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.webhook.entity.HookOneHistory;
 import com.tapdata.tm.webhook.enums.ConstVariable;
 import com.tapdata.tm.webhook.server.WebHookHttpUtilService;
+import org.springframework.stereotype.Service;
 
 import java.util.Map;
 
+@Service("HttpUtilService")
 public class HttpUtilService implements WebHookHttpUtilService {
     @Override
     public boolean checkURL(String url) {

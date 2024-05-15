@@ -9,10 +9,12 @@ import com.tapdata.tm.webhook.dto.WebHookInfoDto;
 import com.tapdata.tm.webhook.enums.ConstVariable;
 import com.tapdata.tm.webhook.server.WebHookService;
 import com.tapdata.tm.webhook.vo.WebHookInfoVo;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Locale;
 
+@Service("WebHookDefaultService")
 public class WebHookDefaultService implements WebHookService<WebHookInfoVo> {
     @Override
     public Page<WebHookInfoVo> list(Filter filter, UserDetail userDetail, Locale locale) {
