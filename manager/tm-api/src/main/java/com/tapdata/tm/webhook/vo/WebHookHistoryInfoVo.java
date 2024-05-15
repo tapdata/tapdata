@@ -8,6 +8,7 @@ public class WebHookHistoryInfoVo {
     String hookId;
     String url;
     String eventType;
+    String type;
     String status;
 
     String requestId;

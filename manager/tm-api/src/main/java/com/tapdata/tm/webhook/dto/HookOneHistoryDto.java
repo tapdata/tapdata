@@ -19,6 +19,7 @@ public class HookOneHistoryDto extends BaseDto {
     Long responseAt;
 
     String eventType;
+    String type;
 
     /**
      * @see com.tapdata.tm.webhook.enums.PingResult

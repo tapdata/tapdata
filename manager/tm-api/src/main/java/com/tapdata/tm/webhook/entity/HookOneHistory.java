@@ -24,6 +24,7 @@ public class HookOneHistory extends BaseEntity {
 
 
     private String eventType;
+    private String type;
 
     /**
      * @see com.tapdata.tm.webhook.enums.PingResult
