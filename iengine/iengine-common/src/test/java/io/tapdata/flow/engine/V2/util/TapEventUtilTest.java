@@ -2,12 +2,17 @@ package io.tapdata.flow.engine.V2.util;
 
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.control.HeartbeatEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
@@ -80,5 +85,45 @@ class TapEventUtilTest {
 		TapInsertRecordEvent tapInsertRecordEvent=new TapInsertRecordEvent();
 		Boolean isReplaceEvent = TapEventUtil.getIsReplaceEvent(tapInsertRecordEvent);
 		assertEquals(Boolean.FALSE,isReplaceEvent);
+	}
+	@Nested
+	class getIllegalField{
+		@Test
+		@DisplayName("test getIllegalField method for TapInsertRecordEvent")
+		void test1(){
+			TapEvent tapEvent = new TapInsertRecordEvent();
+			List mock = mock(List.class);
+			((TapInsertRecordEvent)tapEvent).setAfterIllegalDateFieldName(mock);
+			Map<String, List<String>> actual = TapEventUtil.getIllegalField(tapEvent);
+			assertEquals(mock, actual.get("after"));
+		}
+		@Test
+		@DisplayName("test getIllegalField method for TapUpdateRecordEvent")
+		void test2(){
+			TapEvent tapEvent = new TapUpdateRecordEvent();
+			List before = mock(List.class);
+			List after = mock(List.class);
+			((TapUpdateRecordEvent)tapEvent).setBeforeIllegalDateFieldName(before);
+			((TapUpdateRecordEvent)tapEvent).setAfterIllegalDateFieldName(after);
+			Map<String, List<String>> actual = TapEventUtil.getIllegalField(tapEvent);
+			assertEquals(before, actual.get("before"));
+			assertEquals(after, actual.get("after"));
+		}
+		@Test
+		@DisplayName("test getIllegalField method for TapDeleteRecordEvent")
+		void test3(){
+			TapEvent tapEvent = new TapDeleteRecordEvent();
+			List mock = mock(List.class);
+			((TapDeleteRecordEvent)tapEvent).setBeforeIllegalDateFieldName(mock);
+			Map<String, List<String>> actual = TapEventUtil.getIllegalField(tapEvent);
+			assertEquals(mock, actual.get("before"));
+		}
+		@Test
+		@DisplayName("test getIllegalField method for other event")
+		void test4(){
+			TapEvent tapEvent = new HeartbeatEvent();
+			Map<String, List<String>> actual = TapEventUtil.getIllegalField(tapEvent);
+			assertNull(actual);
+		}
 	}
 }
