@@ -769,12 +769,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		handleTapTablePrimaryKeys(tapTable);
 		events.forEach(this::addPropertyForMergeEvent);
 		tapRecordEvents.forEach(t -> removeNotSupportFields(t, tapTable.getId()));
-		AtomicBoolean illegalDateAcceptable = new AtomicBoolean(false);
-		List<Capability> capabilities = dataProcessorContext.getConnections().getCapabilities();
-		if(CollectionUtils.isNotEmpty(capabilities) && capabilities.stream().anyMatch(cap -> null != cap && ConnectionOptions.DML_ILLEGAL_DATE_ACCEPTABLE.equals(cap.getId()))) {
-			illegalDateAcceptable.set(true);
-		}
-		tapRecordEvents.forEach(t -> replaceIllegalDateWithNullIfNeed(t,illegalDateAcceptable.get()));
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		if (writeRecordFunction != null) {
@@ -853,28 +847,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}
 		} else {
 			throw new TapCodeException(TaskTargetProcessorExCode_15.WRITE_RECORD_PDK_NONSUPPORT, String.format("PDK connector id: %s", getConnectorNode().getConnectorContext().getSpecification().getId()));
-		}
-	}
-	protected void replaceIllegalDateWithNullIfNeed(TapRecordEvent event, boolean illegalDateAcceptable){
-		boolean containsIllegalDate = event.getContainsIllegalDate();
-		if (containsIllegalDate && !illegalDateAcceptable){
-			if (event instanceof TapInsertRecordEvent){
-				Map<String, Object> after = ((TapInsertRecordEvent) event).getAfter();
-				for (String filedName : event.getIllegalDateFiledName()) {
-					Object value = after.get(filedName);
-					if (null != value){
-						after.put(filedName, null);
-					}
-				}
-			}else if (event instanceof TapUpdateRecordEvent){
-				Map<String, Object> after = ((TapUpdateRecordEvent) event).getAfter();
-				for (String filedName : event.getIllegalDateFiledName()) {
-					Object value = after.get(filedName);
-					if (null != value){
-						after.put(filedName, null);
-					}
-				}
-			}
 		}
 	}
 
