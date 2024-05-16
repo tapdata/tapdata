@@ -64,12 +64,6 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 		initConfig();
 	}
 
-	@Override
-	protected TapCodecsFilterManager initFilterCodec() {
-		TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
-		return TapCodecUtil.getCodecsFilterManager(tapCodecsRegistry);
-	}
-
 	private void initConfig() {
 		Node node = getNode();
 		if (node instanceof DateProcessorNode) {
