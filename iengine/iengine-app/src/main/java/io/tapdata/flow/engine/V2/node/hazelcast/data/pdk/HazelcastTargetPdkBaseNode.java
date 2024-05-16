@@ -918,6 +918,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 	protected void replaceIllegalDateWithNullIfNeed(TapRecordEvent event){
 		boolean illegalDateAcceptable = false;
+		if (null == dataProcessorContext.getConnections()) {
+			return;
+		}
 		List<Capability> capabilities = dataProcessorContext.getConnections().getCapabilities();
 		if(CollectionUtils.isNotEmpty(capabilities) && capabilities.stream().anyMatch(cap -> null != cap && ConnectionOptions.DML_ILLEGAL_DATE_ACCEPTABLE.equals(cap.getId()))) {
 			illegalDateAcceptable = true;
