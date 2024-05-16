@@ -124,12 +124,8 @@ public class TapEventUtil {
 	}
 
 	public static void setContainsIllegalDate(TapEvent tapEvent, boolean containsIllegalDate) {
-		if (tapEvent instanceof TapInsertRecordEvent) {
-			((TapInsertRecordEvent) tapEvent).setContainsIllegalDate(containsIllegalDate);
-		} else if (tapEvent instanceof TapUpdateRecordEvent) {
-			((TapUpdateRecordEvent) tapEvent).setContainsIllegalDate(containsIllegalDate);
-		} else if (tapEvent instanceof TapDeleteRecordEvent) {
-			((TapDeleteRecordEvent) tapEvent).setContainsIllegalDate(containsIllegalDate);
+		if (tapEvent instanceof TapRecordEvent){
+			((TapRecordEvent) tapEvent).setContainsIllegalDate(containsIllegalDate);
 		}
 	}
 
