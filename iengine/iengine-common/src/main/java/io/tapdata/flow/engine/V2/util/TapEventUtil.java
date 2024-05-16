@@ -9,6 +9,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -120,5 +121,39 @@ public class TapEventUtil {
 			return ((TapUpdateRecordEvent) tapEvent).getIsReplaceEvent();
 		}
 		return false;
+	}
+
+	public static void setContainsIllegalDate(TapEvent tapEvent, boolean containsIllegalDate) {
+		if (tapEvent instanceof TapRecordEvent){
+			((TapRecordEvent) tapEvent).setContainsIllegalDate(containsIllegalDate);
+		}
+	}
+
+	public static void addBeforeIllegalDateField(TapEvent tapEvent, String fieldName) {
+		if (tapEvent instanceof TapUpdateRecordEvent) {
+			if (((TapUpdateRecordEvent) tapEvent).getBeforeIllegalDateFieldName() == null) {
+				((TapUpdateRecordEvent) tapEvent).setBeforeIllegalDateFieldName(new ArrayList<>());
+			}
+			((TapUpdateRecordEvent) tapEvent).getBeforeIllegalDateFieldName().add(fieldName);
+		} else if (tapEvent instanceof TapDeleteRecordEvent) {
+			if (((TapDeleteRecordEvent) tapEvent).getBeforeIllegalDateFieldName() == null) {
+				((TapDeleteRecordEvent) tapEvent).setBeforeIllegalDateFieldName(new ArrayList<>());
+			}
+			((TapDeleteRecordEvent) tapEvent).getBeforeIllegalDateFieldName().add(fieldName);
+		}
+	}
+
+	public static void addAfterIllegalDateField(TapEvent tapEvent, String fieldName) {
+		if (tapEvent instanceof TapInsertRecordEvent) {
+			if (((TapInsertRecordEvent) tapEvent).getAfterIllegalDateFieldName() == null) {
+				((TapInsertRecordEvent) tapEvent).setAfterIllegalDateFieldName(new ArrayList<>());
+			}
+			((TapInsertRecordEvent) tapEvent).getAfterIllegalDateFieldName().add(fieldName);
+		} else if (tapEvent instanceof TapUpdateRecordEvent) {
+			if (((TapUpdateRecordEvent) tapEvent).getAfterIllegalDateFieldName() == null) {
+				((TapUpdateRecordEvent) tapEvent).setAfterIllegalDateFieldName(new ArrayList<>());
+			}
+			((TapUpdateRecordEvent) tapEvent).getAfterIllegalDateFieldName().add(fieldName);
+		}
 	}
 }
