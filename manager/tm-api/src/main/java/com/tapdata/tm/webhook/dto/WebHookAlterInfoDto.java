@@ -74,8 +74,9 @@ public class WebHookAlterInfoDto {
         }
     }
     public void withComponentTxt(AlarmComponentEnum component) {
-        if (component == AlarmComponentEnum.FE) {
+        if (AlarmComponentEnum.FE.equals(component)) {
             this.componentTxt = "引擎";
+            return;
         }
         this.componentTxt = "-";
     }
