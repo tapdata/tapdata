@@ -561,11 +561,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		@Test
 		@DisplayName("test replaceIllegalDateWithNullIfNeed method when illegalDateAcceptable is true")
 		void test5() {
-			capabilities = new ArrayList<>();
-			Capability capability = mock(Capability.class);
-			capabilities.add(capability);
-			when(connections.getCapabilities()).thenReturn(capabilities);
-			when(capability.getId()).thenReturn(ConnectionOptions.DML_ILLEGAL_DATE_ACCEPTABLE);
+			hazelcastTargetPdkBaseNode.illegalDateAcceptable = true;
 			event = new TapInsertRecordEvent();
 			event.setContainsIllegalDate(true);
 			Map<String, Object> after = new HashMap<>();
