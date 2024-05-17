@@ -148,14 +148,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     protected ISyncMetricCollector syncMetricCollector;
 
 	protected Boolean unwindProcess = false;
+	protected boolean illegalDateAcceptable = false;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-//        queueConsumerThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), r -> {
-//            Thread thread = new Thread(r);
-//            thread.setName(String.format("Target-Queue-Consumer-%s[%s]", getNode().getName(), getNode().getId()));
-//            return thread;
-//        });
 		queueConsumerThreadPool = AsyncUtils.createThreadPoolExecutor(String.format("Target-Queue-Consumer-%s[%s]@task-%s", getNode().getName(), getNode().getId(), dataProcessorContext.getTaskDto().getName()), 1, new ConnectorOnTaskThreadGroup(dataProcessorContext), TAG);
 		//threadPoolExecutorEx = AsyncUtils.createThreadPoolExecutor("Target-" + getNode().getName() + "@task-" + dataProcessorContext.getTaskDto().getName(), 1, new ConnectorOnTaskThreadGroup(dataProcessorContext), TAG);
 		flushOffsetExecutor = new ScheduledThreadPoolExecutor(1, r->{
@@ -177,6 +173,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			initTargetQueueConsumer();
 			initTargetConcurrentProcessorIfNeed();
 			initTapEventFilter();
+			initIllegalDateAcceptable();
 			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
@@ -192,7 +189,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 	}
 
-	private void initExactlyOnceWriteIfNeed() {
+	protected void initExactlyOnceWriteIfNeed() {
 		checkExactlyOnceWriteEnableResult = enableExactlyOnceWrite();
 		if (!checkExactlyOnceWriteEnableResult.getEnable()) {
 			if (StringUtils.isNotBlank(checkExactlyOnceWriteEnableResult.getMessage())) {
@@ -314,12 +311,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		return createdTable;
 	}
 
-	private void initTargetQueueConsumer() {
+	protected void initTargetQueueConsumer() {
 		this.queueConsumerThreadPool.submit(this::queueConsume);
 		obsLogger.debug("Initialize target event handler complete");
 	}
 
-	private void initTargetConcurrentProcessorIfNeed() {
+	protected void initTargetConcurrentProcessorIfNeed() {
 		if (getNode() instanceof DataParentNode) {
 			DataParentNode<?> dataParentNode = (DataParentNode<?>) getNode();
 			final Boolean initialConcurrentInConfig = dataParentNode.getInitialConcurrent();
@@ -377,7 +374,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		return cdcConcurrent;
 	}
 
-	private void initTargetVariable() {
+	protected void initTargetVariable() {
 		this.uploadDagService = new AtomicBoolean(false);
 		this.insertMetadata = new CopyOnWriteArrayList<>();
 		this.updateMetadata = new ConcurrentHashMap<>();
@@ -399,7 +396,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		obsLogger.debug("Initialize target write queue complete, capacity: {}", writeQueueCapacity);
 	}
 
-	private void createPdkAndInit(@NotNull Context context) {
+	protected void createPdkAndInit(@NotNull Context context) {
 		if (getNode() instanceof TableNode || getNode() instanceof DatabaseNode) {
 			try {
 				createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
@@ -410,7 +407,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private void initTapEventFilter() {
+	protected void initTapEventFilter() {
 		this.targetTapEventFilter = TargetTapEventFilter.create();
 		//this.targetTapEventFilter.addFilter(new DeleteConditionFieldFilter());
 	}
@@ -892,9 +889,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected void fromTapValueMergeInfo(TapdataEvent tapdataEvent) {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
-		if (tapEvent instanceof TapRecordEvent){
-			replaceIllegalDateWithNullIfNeed((TapRecordEvent) tapEvent);
-		}
 		Object mergeInfoObj = tapEvent.getInfo(MergeInfo.EVENT_INFO_KEY);
 		if (mergeInfoObj instanceof MergeInfo) {
 			MergeInfo mergeInfo = (MergeInfo) mergeInfoObj;
@@ -916,8 +910,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		}
 	}
-	protected void replaceIllegalDateWithNullIfNeed(TapRecordEvent event){
-		boolean illegalDateAcceptable = false;
+
+	protected void initIllegalDateAcceptable() {
 		if (null == dataProcessorContext.getConnections()) {
 			return;
 		}
@@ -925,6 +919,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if(CollectionUtils.isNotEmpty(capabilities) && capabilities.stream().anyMatch(cap -> null != cap && ConnectionOptions.DML_ILLEGAL_DATE_ACCEPTABLE.equals(cap.getId()))) {
 			illegalDateAcceptable = true;
 		}
+	}
+
+	protected void replaceIllegalDateWithNullIfNeed(TapRecordEvent event){
 		boolean containsIllegalDate = event.getContainsIllegalDate();
 		if (containsIllegalDate && !illegalDateAcceptable){
 			Map<String, Object> before = Optional.ofNullable(TapEventUtil.getBefore(event)).orElse(new HashMap<>());
