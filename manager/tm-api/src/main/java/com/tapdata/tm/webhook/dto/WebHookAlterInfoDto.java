@@ -3,7 +3,6 @@ package com.tapdata.tm.webhook.dto;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
-import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.message.constant.Level;
 import lombok.Data;
@@ -75,10 +74,11 @@ public class WebHookAlterInfoDto {
         }
     }
     public void withComponentTxt(AlarmComponentEnum component) {
-        if (component == AlarmComponentEnum.FE) {
-            this.statusTxt = "引擎";
+        if (AlarmComponentEnum.FE.equals(component)) {
+            this.componentTxt = "引擎";
+            return;
         }
-        this.statusTxt = "-";
+        this.componentTxt = "-";
     }
     public void withTypeTxt(AlarmTypeEnum type) {
         this.typeTxt = type.getDesc();
