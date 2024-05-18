@@ -37,7 +37,7 @@ public class TapCodecUtil {
 		return tapCodecsFilterManager;
 	}
 
-	private static void registerFromTapValue(TapCodecsRegistry tapCodecsRegistry) {
+	public static void registerFromTapValue(TapCodecsRegistry tapCodecsRegistry) {
 		tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> {
 			if (tapValue.getValue().isContainsIllegal()) {
 				tapValue.getValue().setTimeZone(TimeZone.getDefault());
@@ -51,7 +51,7 @@ public class TapCodecUtil {
 		tapCodecsRegistry.registerFromTapValue(TapTimeValue.class, tapValue -> addTag(OBJECT_SERIALIZABLE.fromObject(tapValue.getValue()), TAP_TIME_BYTE_TAG_V2));
 	}
 
-	private static void registerToTapValue(TapCodecsRegistry tapCodecsRegistry) {
+	public static void registerToTapValue(TapCodecsRegistry tapCodecsRegistry) {
 		tapCodecsRegistry.registerToTapValue(byte[].class, (o, tapType) -> {
 			byte[] bytes = (byte[]) o;
 			Object result = toTapValueV2(bytes);
