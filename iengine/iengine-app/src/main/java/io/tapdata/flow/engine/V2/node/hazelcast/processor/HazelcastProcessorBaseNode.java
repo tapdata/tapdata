@@ -170,6 +170,13 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	}
 
 	@Override
+	protected TapCodecsFilterManager initFilterCodec() {
+		TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
+		TapCodecUtil.registerToTapValue(tapCodecsRegistry);
+		return TapCodecsFilterManager.create(tapCodecsRegistry);
+	}
+
+	@Override
 	protected final boolean tryProcess(int ordinal, @NotNull Object item) throws Exception {
 		AtomicBoolean result = new AtomicBoolean(true);
 		try {
