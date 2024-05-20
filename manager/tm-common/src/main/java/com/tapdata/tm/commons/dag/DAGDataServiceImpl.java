@@ -397,6 +397,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setDeleted(false);
             metadataInstancesDto.setSource(sourceDto);
 
+            metadataInstancesDto.setBeforeDynamicTableName(schema.getBeforeDynamicTableName());
+            metadataInstancesDto.setAfterDynamicTableName(schema.getAfterDynamicTableName());
+
             // 需要将 Connections 的id 转换为 metadata instance 中 meta_type=database 的 id
             //   使用 qualified name 作为条件查询
             metadataInstancesDto.setDatabaseId(dataSourceMetadataInstance.getId().toHexString());

@@ -104,6 +104,9 @@ public class MetadataInstancesEntity extends BaseEntity {
     private Long tmCurrentTime;
     private String transformUuid;
 
+    private String beforeDynamicTableName;
+    private String afterDynamicTableName;
+
     /**
      * 是否是虚拟表 'virtual' 'source'
      */

@@ -14,6 +14,7 @@ import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
@@ -55,6 +56,7 @@ public class TaskRestartSchedule {
     private WorkerService workerService;
     private MonitoringLogsService monitoringLogsService;
     private StateMachineService stateMachineService;
+    private TransformSchemaService transformSchema;
 
     /**
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
@@ -72,6 +74,7 @@ public class TaskRestartSchedule {
 
             try {
                 UserDetail user = userService.loadUserById(MongoUtils.toObjectId(task.getRestartUserId()));
+                transformSchema.transformSchemaBeforeDynamicTableName(task, user);
                 taskService.start(task.getId(), user, true);
             } catch (Exception e) {
                 log.warn("restart subtask error, task id = {}, e = {}", task.getId(), e.getMessage());
@@ -132,6 +135,7 @@ public class TaskRestartSchedule {
 
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
             if (stateMachineResult.isOk()) {
+                transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
                 taskScheduleService.scheduling(taskDto, user);
             }
         }
@@ -231,6 +235,7 @@ public class TaskRestartSchedule {
 
             long heartExpire = getHeartExpire();
 
+            transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
             if (Objects.nonNull(taskDto.getSchedulingTime()) && (
                     System.currentTimeMillis() - taskDto.getSchedulingTime().getTime() > heartExpire)) {
 

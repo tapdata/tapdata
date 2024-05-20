@@ -64,12 +64,6 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 		initConfig();
 	}
 
-	@Override
-	protected TapCodecsFilterManager initFilterCodec() {
-		TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
-		return TapCodecUtil.getCodecsFilterManager(tapCodecsRegistry);
-	}
-
 	private void initConfig() {
 		Node node = getNode();
 		if (node instanceof DateProcessorNode) {
@@ -162,9 +156,12 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 		}
 	}
 
-	private void addTime(List<String> addTimeFields, Map<String, Object> after, String tableName, String k, String oldK, Object v) {
+	protected void addTime(List<String> addTimeFields, Map<String, Object> after, String tableName, String k, String oldK, Object v) {
 		if (addTimeFields.contains(k)) {
 			if (v instanceof DateTime) {
+				if (((DateTime) v).isContainsIllegal()) {
+					return;
+				}
 				v = ((DateTime) v).toInstant();
 				if (add) {
 					v = ((Instant) v).plus(hours, ChronoUnit.HOURS);
@@ -173,7 +170,8 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 				}
 				after.replace(oldK, new DateTime((Instant) v));
 			} else if (v != null) {
-				throw new TapCodeException(TaskDateProcessorExCode_17.SELECTED_TYPE_IS_NON_TIME + "table: " + tableName + "type :" + k + "value: " + v);
+				throw new TapCodeException(TaskDateProcessorExCode_17.SELECTED_TYPE_IS_NON_TIME, "table: " + tableName
+						+ ", key: " + k + ", type: " + v.getClass().getName() + ", value: " + v);
 			}
 		}
 	}

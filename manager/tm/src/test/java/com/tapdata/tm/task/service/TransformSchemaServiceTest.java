@@ -1,9 +1,12 @@
 package com.tapdata.tm.task.service;
 
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.NodeEnum;
+import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -31,6 +34,7 @@ import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
@@ -52,6 +56,7 @@ class TransformSchemaServiceTest {
     AgentGroupService agentGroupService;
     WorkerService workerService;
     UserDetail user;
+    TaskService taskService;
 
     @BeforeEach
     void buildTransformSchemaService(){
@@ -70,6 +75,8 @@ class TransformSchemaServiceTest {
         ReflectionTestUtils.setField(transformSchemaService,"agentGroupService",agentGroupService);
         workerService = mock(WorkerService.class);
         ReflectionTestUtils.setField(transformSchemaService,"workerService",workerService);
+        taskService = mock(TaskService.class);
+        ReflectionTestUtils.setField(transformSchemaService,"taskService",taskService);
         user = mock(UserDetail.class);
     }
 
@@ -300,6 +307,111 @@ class TransformSchemaServiceTest {
                     1,
                     0,
                     1);
+        }
+    }
+
+    @Nested
+    class TransformSchemaTest {
+        TaskDto taskDto;
+        DAG dag;
+        List<Node> targets;
+        TableNode target;
+        CacheNode cacheNode;
+        ObjectId taskId;
+        @BeforeEach
+        void init() {
+            taskId = mock(ObjectId.class);
+            target = mock(TableNode.class);
+            when(target.getType()).thenReturn(NodeEnum.database.name());
+            when(target.getNeedDynamicTableName()).thenReturn(true);
+            targets = new ArrayList<>();
+            targets.add(target);
+            cacheNode = mock(CacheNode.class);
+            when(cacheNode.getType()).thenReturn(NodeEnum.mem_cache.name());
+            targets.add(cacheNode);
+
+            taskDto = mock(TaskDto.class);
+            dag = mock(DAG.class);
+            when(taskDto.getDag()).thenReturn(dag);
+            when(dag.getTargets()).thenReturn(targets);
+            when(taskDto.getId()).thenReturn(taskId);
+            when(taskDto.getSyncType()).thenReturn(TaskDto.SYNC_TYPE_SYNC);
+        }
+
+        @Nested
+        class TransformSchemaBeforeDynamicTableNameTest {
+            @BeforeEach
+            void init() {
+                doNothing().when(transformSchemaService).transformSchemaAndUpdateTask(taskDto, user);
+                doCallRealMethod().when(transformSchemaService).transformSchemaBeforeDynamicTableName(taskDto, user);
+            }
+
+            @Test
+            void testNormal() {
+                transformSchemaService.transformSchemaBeforeDynamicTableName(taskDto, user);
+                verify(taskDto).getSyncType();
+                verify(taskDto).getDag();
+                verify(dag).getTargets();
+                verify(target).getNeedDynamicTableName();
+                verify(transformSchemaService).transformSchemaAndUpdateTask(taskDto, user);
+            }
+            @Test
+            void testTaskNotSync() {
+                when(taskDto.getSyncType()).thenReturn(TaskDto.SYNC_TYPE_MIGRATE);
+                transformSchemaService.transformSchemaBeforeDynamicTableName(taskDto, user);
+                verify(taskDto).getSyncType();
+                verify(taskDto, times(0)).getDag();
+                verify(dag, times(0)).getTargets();
+                verify(target, times(0)).getNeedDynamicTableName();
+                verify(transformSchemaService, times(0)).transformSchemaAndUpdateTask(taskDto, user);
+            }
+            @Test
+            void testNotNeedDynamicTableName() {
+                when(target.getNeedDynamicTableName()).thenReturn(false);
+                transformSchemaService.transformSchemaBeforeDynamicTableName(taskDto, user);
+                verify(taskDto).getSyncType();
+                verify(taskDto).getDag();
+                verify(dag).getTargets();
+                verify(target).getNeedDynamicTableName();
+                verify(transformSchemaService, times(0)).transformSchemaAndUpdateTask(taskDto, user);
+            }
+        }
+
+        @Nested
+        class TransformSchemaAndUpdateTaskTest {
+
+            @BeforeEach
+            void init() {
+                when(dag.getNodes()).thenReturn(targets);
+                doNothing().when(transformSchemaService).transformSchema(dag, user, taskId);
+                doCallRealMethod().when(transformSchemaService).transformSchemaAndUpdateTask(taskDto, user);
+                when(taskService.updateById(any(ObjectId.class), any(Update.class), any(UserDetail.class))).thenReturn(mock(UpdateResult.class));
+            }
+
+            @Test
+            void testNormal() {
+                transformSchemaService.transformSchemaAndUpdateTask(taskDto, user);
+                verify(taskDto).getDag();
+                verify(taskDto).getId();
+                verify(transformSchemaService).transformSchema(dag, user, taskId);
+                verify(dag).getNodes();
+                verify(target).getType();
+                verify(cacheNode).getType();
+                verify(taskService, times(0)).updateById(any(ObjectId.class), any(Update.class), any(UserDetail.class));
+            }
+
+            @Test
+            void testContainsJs() {
+                when(cacheNode.getType()).thenReturn(NodeEnum.join_processor.name());
+                transformSchemaService.transformSchemaAndUpdateTask(taskDto, user);
+                verify(taskDto).getDag();
+                verify(taskDto).getId();
+                verify(transformSchemaService).transformSchema(dag, user, taskId);
+                verify(dag).getNodes();
+                verify(target).getType();
+                verify(cacheNode).getType();
+                verify(taskService).updateById(any(ObjectId.class), any(Update.class), any(UserDetail.class));
+            }
         }
     }
 }
