@@ -11,8 +11,8 @@ import java.util.List;
 import java.util.Map;
 
 public class BatchOffsetUtil {
-    protected static final String OFFSET = "offset";
-    protected static final String STATUS = "status";
+    protected static final String BATCH_READ_CONNECTOR_OFFSET = "batch_read_connector_offset";
+    protected static final String BATCH_READ_CONNECTOR_STATUS = "batch_read_connector_status";
     private BatchOffsetUtil(){
 
     }
@@ -23,8 +23,8 @@ public class BatchOffsetUtil {
             /** 86 Iteration New Function - Full Scale Synchronization Breakpoint **/
             return TableBatchReadStatus.OVER.name().equals(((BatchOffset)offsetValue).getStatus());
         } else if (offsetValue instanceof Map
-                && ((Map<?, ?>)offsetValue).containsKey(STATUS)) {
-            return TableBatchReadStatus.OVER.name().equals(((Map<String, Object>)offsetValue).get(STATUS));
+                && ((Map<?, ?>)offsetValue).containsKey(BATCH_READ_CONNECTOR_STATUS)) {
+            return TableBatchReadStatus.OVER.name().equals(((Map<String, Object>)offsetValue).get(BATCH_READ_CONNECTOR_STATUS));
         }
         /** history data*/
         return false;
@@ -36,8 +36,8 @@ public class BatchOffsetUtil {
             /** 86 Iteration New Function - Full Scale Synchronization Breakpoint **/
             return ((BatchOffset) offsetValue).getOffset();
         } else if (offsetValue instanceof Map
-                && ((Map<?, ?>)offsetValue).containsKey(OFFSET)) {
-            return ((Map<String, Object>)offsetValue).get(OFFSET);
+                && ((Map<?, ?>)offsetValue).containsKey(BATCH_READ_CONNECTOR_OFFSET)) {
+            return ((Map<String, Object>)offsetValue).get(BATCH_READ_CONNECTOR_OFFSET);
         }
 
         /** history data*/
@@ -58,8 +58,8 @@ public class BatchOffsetUtil {
             Map<String, Object> batchOffsetObjTemp = (Map<String, Object>) batchOffsetObj;
             Object batchOffsetObject = batchOffsetObjTemp.computeIfAbsent(tableId, k -> new HashMap<>());
             if (batchOffsetObject instanceof Map
-                    && ((Map<?, ?>)batchOffsetObject).containsKey(OFFSET)
-                    && ((Map<?, ?>)batchOffsetObject).containsKey(STATUS)) {
+                    && ((Map<?, ?>)batchOffsetObject).containsKey(BATCH_READ_CONNECTOR_OFFSET)
+                    && ((Map<?, ?>)batchOffsetObject).containsKey(BATCH_READ_CONNECTOR_STATUS)) {
                 updateBatchOffset((Map<String, Object>)batchOffsetObject, offset, isOverTag);
             } else {
                 /** update history offset of table which id is ${tableId} **/
@@ -72,8 +72,8 @@ public class BatchOffsetUtil {
         if (null == offsetMap) {
             offsetMap = new HashMap<>();
         }
-        offsetMap.put(STATUS, isOverTag);
-        offsetMap.put(OFFSET, offset);
+        offsetMap.put(BATCH_READ_CONNECTOR_STATUS, isOverTag);
+        offsetMap.put(BATCH_READ_CONNECTOR_OFFSET, offset);
         return offsetMap;
     }
 

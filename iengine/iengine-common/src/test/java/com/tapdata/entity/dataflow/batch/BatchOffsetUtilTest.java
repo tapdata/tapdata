@@ -3,9 +3,6 @@ package com.tapdata.entity.dataflow.batch;
 
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
-import com.tapdata.entity.dataflow.batch.BatchOffset;
-import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
-import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
 import io.tapdata.entity.event.ddl.table.TapRenameTableEvent;
@@ -15,7 +12,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,7 +22,6 @@ import java.util.function.Function;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -93,11 +88,19 @@ class BatchOffsetUtilTest {
         @Test
         void testContainsKey() {
             HashMap<Object, Object> objectObjectHashMap = new HashMap<>();
-            objectObjectHashMap.put(BatchOffsetUtil.STATUS, "0");
+            objectObjectHashMap.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, "0");
             when(syncProgress.getBatchOffsetObj()).thenReturn(objectObjectHashMap);
             try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId)).thenCallRealMethod();
                 bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenReturn(objectObjectHashMap);
+                Assertions.assertFalse(BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId));
+            }
+        }
+        @Test
+        void testNotContainsAnyKey() {
+            try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
+                bou.when(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId)).thenCallRealMethod();
+                bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenReturn(0L);
                 Assertions.assertFalse(BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId));
             }
         }
@@ -162,9 +165,17 @@ class BatchOffsetUtilTest {
         @Test
         void testContainsKey() {
             Map<String, Object> map = new HashMap<>();
-            map.put(BatchOffsetUtil.OFFSET, 0);
+            map.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET, 0);
             try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenReturn(map);
+                bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenCallRealMethod();
+                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+            }
+        }
+        @Test
+        void testNotContainsAnyKey() {
+            try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
+                bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenReturn(0L);
                 bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenCallRealMethod();
                 Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
             }
@@ -245,8 +256,8 @@ class BatchOffsetUtilTest {
             Object offset = BatchOffsetUtil.updateBatchOffset(null, 1L, "OK");
             Assertions.assertNotNull(offset);
             Assertions.assertEquals(HashMap.class.getName(), offset.getClass().getName());
-            Assertions.assertEquals(1L, ((HashMap<String, Object>)offset).get(BatchOffsetUtil.OFFSET));
-            Assertions.assertEquals("OK", ((HashMap<String, Object>)offset).get(BatchOffsetUtil.STATUS));
+            Assertions.assertEquals(1L, ((HashMap<String, Object>)offset).get(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
+            Assertions.assertEquals("OK", ((HashMap<String, Object>)offset).get(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS));
         }
 
         @Test
@@ -257,41 +268,41 @@ class BatchOffsetUtilTest {
             SyncProgress syncProgress = new SyncProgress();
             syncProgress.setBatchOffsetObj(objectObjectHashMap);
             BatchOffsetUtil.updateBatchOffset(syncProgress, "tableId", offset, "NOT_OK");
-            Assertions.assertEquals("NOT_OK", ((Map<String, Object>)offset).get(BatchOffsetUtil.STATUS));
+            Assertions.assertEquals("NOT_OK", ((Map<String, Object>)offset).get(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS));
         }
         @Test
         void testUpdateBatchOffsetWithOffsetMapNotHaveOffset() {
             Map<String, Object> offset = new HashMap<>();
-            offset.put(BatchOffsetUtil.STATUS, "OK");
+            offset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, "OK");
             HashMap<Object, Object> objectObjectHashMap = new HashMap<>();
             objectObjectHashMap.put("tableId", offset);
             SyncProgress syncProgress = new SyncProgress();
             syncProgress.setBatchOffsetObj(objectObjectHashMap);
             BatchOffsetUtil.updateBatchOffset(syncProgress, "tableId", offset, "NOT_OK");
-            Assertions.assertEquals("NOT_OK", ((Map<String, Object>)objectObjectHashMap.get("tableId")).get(BatchOffsetUtil.STATUS));
+            Assertions.assertEquals("NOT_OK", ((Map<String, Object>)objectObjectHashMap.get("tableId")).get(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS));
         }
         @Test
         void testUpdateBatchOffsetWithOffsetMapNotHaveStatus() {
             Map<String, Object> offset = new HashMap<>();
-            offset.put(BatchOffsetUtil.OFFSET, "OK");
+            offset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET, "OK");
             Map<Object, Object> objectObjectHashMap = new HashMap<>();
             objectObjectHashMap.put("tableId", offset);
             SyncProgress syncProgress = new SyncProgress();
             syncProgress.setBatchOffsetObj(objectObjectHashMap);
             BatchOffsetUtil.updateBatchOffset(syncProgress, "tableId", offset, "NOT_OK");
-            Assertions.assertEquals("NOT_OK", ((Map<String, Object>)objectObjectHashMap.get("tableId")).get(BatchOffsetUtil.STATUS));
+            Assertions.assertEquals("NOT_OK", ((Map<String, Object>)objectObjectHashMap.get("tableId")).get(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS));
         }
         @Test
         void testUpdateBatchOffsetWithOffsetMapAllHaveStatus() {
             Map<String, Object> offset = new HashMap<>();
-            offset.put(BatchOffsetUtil.OFFSET, "OK");
-            offset.put(BatchOffsetUtil.STATUS, "OK");
+            offset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET, "OK");
+            offset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, "OK");
             HashMap<Object, Object> objectObjectHashMap = new HashMap<>();
             objectObjectHashMap.put("tableId", offset);
             SyncProgress syncProgress = new SyncProgress();
             syncProgress.setBatchOffsetObj(objectObjectHashMap);
             BatchOffsetUtil.updateBatchOffset(syncProgress, "tableId", offset, "NOT_OK");
-            Assertions.assertEquals("NOT_OK", ((Map<String, Object>)objectObjectHashMap.get("tableId")).get(BatchOffsetUtil.STATUS));
+            Assertions.assertEquals("NOT_OK", ((Map<String, Object>)objectObjectHashMap.get("tableId")).get(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS));
         }
     }
 
