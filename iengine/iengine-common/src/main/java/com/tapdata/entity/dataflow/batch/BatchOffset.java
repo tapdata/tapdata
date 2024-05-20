@@ -8,7 +8,8 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
-public class BatchOffset implements Cloneable {
+public class BatchOffset implements Serializable, Cloneable {
+    private static final long serialVersionUID = 5599838762323297718L;
 
     public BatchOffset() {
     }
