@@ -6,10 +6,13 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapRenameTableEvent;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class BatchOffsetUtil {
+    protected static final String OFFSET = "offset";
+    protected static final String STATUS = "status";
     private BatchOffsetUtil(){
 
     }
@@ -19,6 +22,9 @@ public class BatchOffsetUtil {
         if (offsetValue instanceof BatchOffset) {
             /** 86 Iteration New Function - Full Scale Synchronization Breakpoint **/
             return TableBatchReadStatus.OVER.name().equals(((BatchOffset)offsetValue).getStatus());
+        } else if (offsetValue instanceof Map
+                && ((Map<?, ?>)offsetValue).containsKey(STATUS)) {
+            return TableBatchReadStatus.OVER.name().equals(((Map<String, Object>)offsetValue).get(STATUS));
         }
         /** history data*/
         return false;
@@ -29,6 +35,9 @@ public class BatchOffsetUtil {
         if (offsetValue instanceof BatchOffset) {
             /** 86 Iteration New Function - Full Scale Synchronization Breakpoint **/
             return ((BatchOffset) offsetValue).getOffset();
+        } else if (offsetValue instanceof Map
+                && ((Map<?, ?>)offsetValue).containsKey(OFFSET)) {
+            return ((Map<String, Object>)offsetValue).get(OFFSET);
         }
 
         /** history data*/
@@ -47,16 +56,25 @@ public class BatchOffsetUtil {
         Object batchOffsetObj = syncProgress.getBatchOffsetObj();
         if (batchOffsetObj instanceof Map) {
             Map<String, Object> batchOffsetObjTemp = (Map<String, Object>) batchOffsetObj;
-            Object batchOffsetObject = batchOffsetObjTemp.computeIfAbsent(tableId, k -> new BatchOffset(offset, isOverTag));
-            if (batchOffsetObject instanceof BatchOffset) {
-                BatchOffset batchOffset = (BatchOffset) batchOffsetObject;
-                batchOffset.setOffset(offset);
-                batchOffset.setStatus(isOverTag);
+            Object batchOffsetObject = batchOffsetObjTemp.computeIfAbsent(tableId, k -> new HashMap<>());
+            if (batchOffsetObject instanceof Map
+                    && ((Map<?, ?>)batchOffsetObject).containsKey(OFFSET)
+                    && ((Map<?, ?>)batchOffsetObject).containsKey(STATUS)) {
+                updateBatchOffset((Map<String, Object>)batchOffsetObject, offset, isOverTag);
             } else {
                 /** update history offset of table which id is ${tableId} **/
-                batchOffsetObjTemp.put(tableId, new BatchOffset(offset, isOverTag));
+                batchOffsetObjTemp.put(tableId, updateBatchOffset(new HashMap<>(), offset, isOverTag));
             }
         }
+    }
+
+    protected static Object updateBatchOffset(Map<String, Object> offsetMap, Object offset, String isOverTag) {
+        if (null == offsetMap) {
+            offsetMap = new HashMap<>();
+        }
+        offsetMap.put(STATUS, isOverTag);
+        offsetMap.put(OFFSET, offset);
+        return offsetMap;
     }
 
     protected static void tableUpdateName(SyncProgress syncProgress, String oldName, String newName) {
