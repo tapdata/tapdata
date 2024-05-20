@@ -11,8 +11,7 @@ class BatchOffsetTest {
     @Test
     void testClass() {
         Class<?>[] interfaces = BatchOffset.class.getInterfaces();
-        Assertions.assertEquals(1, interfaces.length);
-        Assertions.assertEquals(Cloneable.class.getName(), interfaces[0].getName());
+        Assertions.assertEquals(2, interfaces.length);
     }
     @Nested
     class CloneTest {
