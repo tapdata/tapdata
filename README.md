@@ -76,8 +76,13 @@ For the differences between the three versions, you can refer to: https://tapdat
  
 ## Quick Start
 ### Start with docker
-RUN `docker run -d -p 3030:3030 github.com/tapdata/tapdata-opensource:latest`, wait for 3 minutes, then you can get it from http://localhost:3030/, if everything is ok, you can 
+To run the complete service, the basic resource requirements are:
+1. At least 5GB of available memory
+2. At least 20GB of available disk space
+3. At least 1 free CPU core
 
+RUN `docker run -d -p 3030:3030 github.com/tapdata/tapdata-opensource:latest`, wait for 3 minutes, then you can get it from http://localhost:3030/, if everything is ok, you can see login page like this:
+<img src="./assets/tapdata-login.jpg" width="900px"/>
 default username is: admin@admin.com, default password is admin
 
 ### Start with cloud service
