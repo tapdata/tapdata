@@ -38,6 +38,8 @@ For the differences between the three versions, you can refer to: https://tapdat
   4. <a href="#examples"><b>Examples</b></a><br/>
   5. <a href="#license"><b>License</b></a><br/>
   6. <a href="#contact-us"><b>Contact Us</b></a><br/>
+  7. <a href="./build.md"><b>Build From Source</b></a><br/>
+  8. <a href="./contributing.md"><b>Contributing</b></a><br/>
 </p>
 
 ## Key Features
@@ -45,7 +47,7 @@ For the differences between the three versions, you can refer to: https://tapdat
 
 |                                                                                                                                                                                                                                                                                                                                                       |                                       |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| <b>Full Process Automation</b><br/>Heterogeneous table creation, switch Full and Incremental automation.<br/><br/><b>Drag-And-Drop</b><br/>Operate through a visual interface, Easy to use<br/><br/><b>Monitor</b><br/>sync performance, task progress, key events, and logs.                                                                    | <img src="./assets/monitor.jpg"/>     |
+| <b>Full Process Automation</b><br/>Automatic table creation, and Automatic switching between Full and Incremental synchronization.<br/><br/><b>Drag-And-Drop</b><br/>Operate through a visual interface, Easy to use<br/><br/><b>Monitor</b><br/>sync performance, task progress, key events, and logs.                                                                    | <img src="./assets/monitor.jpg"/>     |
 
 <br />
 
