@@ -231,7 +231,7 @@ Using the data verification feature, you can quickly check whether the synchroni
 </details>
 
 ## Architecture
-![Alt Text](./assets/tapdata-ldp.png)
+![Alt Text](./assets/architecture.jpg)
 
 ## License
 Tapdata is under the Apache 2.0 license. See the [LICENSE](https://github.com/tapdata/tapdata/blob/main/LICENSE) file for details.
