@@ -16,6 +16,7 @@ import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.schema.TapTable;
@@ -25,8 +26,11 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
+import io.tapdata.flow.engine.util.TaskDtoUtil;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -381,6 +385,58 @@ public class HazelcastTaskServiceTest {
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastAddDateFieldProcessNode.class, actual.getClass());
+        }
+    }
+
+    @Nested
+    class CleanAllUnselectedErrorTest {
+        HazelcastTaskService hazelcastTaskService;
+        TaskDto taskDto;
+        ObsLogger obsLogger;
+        ClientMongoOperator clientMongoOperator;
+
+        List<ErrorEvent> errorEvents;
+        ErrorEvent errorEvent;
+        @BeforeEach
+        void init() {
+            clientMongoOperator = mock(ClientMongoOperator.class);
+            hazelcastTaskService = mock(HazelcastTaskService.class);
+            ReflectionTestUtils.setField(hazelcastTaskService, "clientMongoOperator", clientMongoOperator);
+
+            taskDto = mock(TaskDto.class);
+            obsLogger = mock(ObsLogger.class);
+
+            errorEvents = new ArrayList<>();
+            errorEvent = new ErrorEvent();
+
+
+            when(taskDto.getErrorEvents()).thenReturn(errorEvents);
+            doNothing().when(taskDto).setErrorEvents(anyList());
+            when(taskDto.getId()).thenReturn(new ObjectId());
+
+            doCallRealMethod().when(hazelcastTaskService).cleanAllUnselectedError(taskDto, obsLogger);
+        }
+        @Test
+        void testNormal() {
+            errorEvents.add(errorEvent);
+            try(MockedStatic<TaskDtoUtil> tdu = mockStatic(TaskDtoUtil.class)) {
+                tdu.when(() -> TaskDtoUtil.updateErrorEvent(any(ClientMongoOperator.class), anyList(), any(ObjectId.class), any(ObsLogger.class), anyString())).thenAnswer(a -> null);
+                hazelcastTaskService.cleanAllUnselectedError(taskDto, obsLogger);
+                verify(taskDto).getErrorEvents();
+                verify(taskDto).setErrorEvents(anyList());
+                verify(taskDto).getId();
+            }
+        }
+
+        @Test
+        void testEmpty() {
+            try(MockedStatic<TaskDtoUtil> tdu = mockStatic(TaskDtoUtil.class)) {
+                tdu.when(() -> TaskDtoUtil.updateErrorEvent(any(ClientMongoOperator.class), anyList(), any(ObjectId.class), any(ObsLogger.class), anyString())).thenAnswer(a -> null);
+                hazelcastTaskService.cleanAllUnselectedError(taskDto, obsLogger);
+                verify(taskDto).getErrorEvents();
+                verify(taskDto, times(0)).setErrorEvents(anyList());
+                verify(taskDto, times(0)).getId();
+            }
         }
     }
 }

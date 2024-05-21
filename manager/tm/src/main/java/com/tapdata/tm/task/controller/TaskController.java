@@ -95,6 +95,7 @@ public class TaskController extends BaseController {
     private TaskRecordService taskRecordService;
     private WorkerService workerService;
     private UserService userService;
+    private TaskErrorEventService taskErrorEventService;
 
 		private <T> T dataPermissionUnAuth() {
 			throw new RuntimeException("Un auth");
@@ -1288,11 +1289,14 @@ public class TaskController extends BaseController {
         return success();
     }
 
+    @GetMapping("errors/{taskId}")
+    public ResponseMessage<List<ErrorEvent>> getErrorEventByTaskId(@PathVariable("taskId") String taskId) {
+        return success(taskErrorEventService.getErrorEventByTaskId(taskId, getLoginUser()));
+    }
+
     @PostMapping("skipErrorEvents/{taskId}")
     public ResponseMessage<Void> skipErrorEvents(@PathVariable("taskId") String taskId,@RequestBody List<String> ids) {
-        Criteria criteria = Criteria.where("_id").is(taskId);
-        Update update = new Update().set("errorEvents.$[element].skip",true).filterArray(Criteria.where("element._id").in(ids.stream().map(MongoUtils::toObjectId).collect(Collectors.toList())));
-        taskService.update(new Query(criteria),update);
+        taskErrorEventService.signSkipErrorEvents(taskId, ids);
         return success();
     }
 

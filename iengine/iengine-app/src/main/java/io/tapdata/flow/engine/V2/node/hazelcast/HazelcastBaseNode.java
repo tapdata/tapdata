@@ -59,6 +59,7 @@ import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -564,6 +565,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	public synchronized TapCodeException errorHandle(Throwable throwable, String errorMessage) {
+		if (null == clientMongoOperator) {
+			clientMongoOperator = initClientMongoOperator();
+		}
 		TapCodeException currentEx = wrapTapCodeException(throwable);
 		TaskDto taskDto = processorBaseContext.getTaskDto();
 		handleWhenTestRun(taskDto, currentEx);
@@ -578,13 +582,19 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				message = currentEx.getMessage();
 			}
 			String finalMessage = StringUtils.isBlank(message) ? errorMessage:message;
-			errorEvent.set(new ErrorEvent(finalMessage,currentEx.getCode(),Log4jUtil.getStackString(currentEx)));
+			ErrorEvent event = new ErrorEvent(finalMessage, currentEx.getCode(), Log4jUtil.getStackString(currentEx));
+			errorEvent.set(event);
 			if(whetherToSkip(taskDto.getErrorEvents(), errorEvent.get(), skipError)){
 				obsLogger.info("The current exception match the skip exception strategy, message: "+errorMessage);
 				isSkip.set(true);
 			}
 		},err->obsLogger.warn("Skip error failed:{}",err.getMessage()));
-		if(isSkip.get())return null;
+		if (isSkip.get()) {
+			List<ErrorEvent> errorEvents = taskDto.getErrorEvents();
+			errorEvents.remove(errorEvent.get());
+			TaskDtoUtil.updateErrorEvent(clientMongoOperator, taskDto.getErrorEvents(), taskDto.getId(), obsLogger, "Update task'error events failed: {}");
+			return null;
+		}
 		try {
 			if (globalErrorIsNull()) {
 				this.error = currentEx;
@@ -858,11 +868,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (errorEvents.size() > ERROR_EVENT_LIMIT) {
 			return;
 		}
-		try {
-			clientMongoOperator.insertOne(errorEvents,ConnectorConstant.TASK_COLLECTION + "/errorEvents/" + taskId);
-		}catch (Exception e){
-			obsLogger.warn("Save error event failed:{}",e.getMessage());
-		}
+		TaskDtoUtil.updateErrorEvent(clientMongoOperator, errorEvents, taskId, obsLogger, "Save error event failed: {}");
 	}
 
 	public static class TapValueTransform {
