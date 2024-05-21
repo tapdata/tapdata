@@ -13,9 +13,9 @@
 
 ---
 
-[![Try It Online](<https://img.shields.io/badge/-Try%20It%20Online%20%E2%86%92-rgb(255,140,0)?style=for-the-badge>)](https://cloud.tapdata.net)
-[![Official Website](<https://img.shields.io/badge/-Official%20Website%20%E2%86%92-rgb(59,71,229)?style=for-the-badge>)](https://tapdata.net)
-[![Docs](<https://img.shields.io/badge/-Online%20Document%20%E2%86%92-rgb(0,205,102)?style=for-the-badge>)](https://docs.tapdata.io)
+[![Try Cloud Service](<https://img.shields.io/badge/-Try%20Cloud%20Service%20%E2%86%92-rgb(255,140,0)?style=for-the-badge>)](https://cloud.tapdata.net)
+[![Official Website](<https://img.shields.io/badge/-Official%20Website%20%E2%86%92-rgb(59,71,229)?style=for-the-badge>)](https://tapdata.io)
+[![Docs](<https://img.shields.io/badge/-Online%20Documentation%20%E2%86%92-rgb(0,205,102)?style=for-the-badge>)](https://docs.tapdata.io)
 
 ## What is Tapdata ?
 Tapdata is a Change Data Capture(CDC) based, Real-Time data integration platform that enables data to be synchronized in real-time among various systems such as databases, SaaS services, applications, and files.
@@ -38,7 +38,7 @@ For the differences between the three versions, you can refer to: https://tapdat
   4. <a href="#examples"><b>Examples</b></a><br/>
   5. <a href="#license"><b>License</b></a><br/>
   6. <a href="#contact-us"><b>Contact Us</b></a><br/>
-  7. <a href="./build.md"><b>Build From Source</b></a><br/>
+  7. <a href="./building.md"><b>Build From Source</b></a><br/>
   8. <a href="./contributing.md"><b>Contributing</b></a><br/>
 </p>
 
