@@ -81,7 +81,7 @@ To run the complete service, the basic resource requirements are:
 2. At least 20GB of available disk space
 3. At least 1 free CPU core
 
-RUN `docker run -d -p 3030:3030 github.com/tapdata/tapdata-opensource:latest`, wait for 3 minutes, then you can get it from http://localhost:3030/, if everything is ok, you can see login page like this:
+RUN `docker run -d -p 3030:3030 github.com/tapdata/tapdata:latest`, wait for 3 minutes, then you can get it from http://localhost:3030/, if everything is ok, you can see login page like this:
 <img src="./assets/tapdata-login.jpg" width="900px"/>
 default username is: admin@admin.com, default password is admin
 
