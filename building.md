@@ -102,15 +102,13 @@ If you want to start the complete Tapdata service on your machine, please follow
     - Copy all files from the `dist` directory of the WebUI into the `webroot` directory.
 
 3. **Set Environment Variables**:
-    - Set the MongoDB URI as an environment variable. This URI is your MongoDB replica set connection string:
+    - Set some environment variable. This URI is your MongoDB replica set connection string:
     
         ```sh
         export mongodb_uri='mongodb://127.0.0.1:27017/tapdata'
-        ```
-
-    - Set the working directory for Tapdata. This is the path where you placed the management JAR file:
-
-        ```sh
+        export TAPDATA_MONGO_URI=$mongodb_uri
+        export app_type='DAAS'
+        export backend_url='http://127.0.0.1:3030/api/'
         export TAPDATA_WORK_DIR=<path-to-your-management-directory>
         ```
 
@@ -125,7 +123,7 @@ If you want to start the complete Tapdata service on your machine, please follow
     - Run the following command to start the engine:
 
         ```sh
-        java -Dspring.config.location=file:./application-12345.yml -jar components/tapdata-agent.jar
+        java -Xmx2G -jar components/tapdata-agent.jar
         ```
 
 By following these steps, you can start the complete Tapdata service on your machine.
