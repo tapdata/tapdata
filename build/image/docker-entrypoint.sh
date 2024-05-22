@@ -1,214 +1,147 @@
-#! /bin/bash
+#!/bin/bash
 
-print_message() {
-  # Print message with color and bold
-  local message="$1"
-  local color="$2"
-  local is_bold="$3"
+# logging functions
+daas_log() {
+	local type="$1"; shift
+	printf '%s [%s] [Entrypoint]: %s\n' "$(date --rfc-3339=seconds)" "$type" "$*"
+}
+daas_note() {
+	daas_log INFO "$@"
+}
+daas_warn() {
+	daas_log Warn "$@" >&2
+}
+daas_error() {
+	daas_log ERROR "$@" >&2
+	exit 1
+}
 
-  local reset="\e[0m"
-  local color_code=""
-  local bold_code=""
 
-  # Set color code
-  case $color in
-    "red") color_code="\e[31m" ;;
-    "green") color_code="\e[32m" ;;
-    "yellow") color_code="\e[33m" ;;
-    "blue") color_code="\e[34m" ;;
-    "magenta") color_code="\e[35m" ;;
-    "cyan") color_code="\e[36m" ;;
-  esac
+# 检查是否是其它脚本引用
+_is_sourced() {
+	# https://unix.stackexchange.com/a/215279
+	[ "${#FUNCNAME[@]}" -ge 2 ] \
+		&& [ "${FUNCNAME[0]}" = '_is_sourced' ] \
+		&& [ "${FUNCNAME[1]}" = 'source' ]
+}
 
-  # Set bold code
-  if [[ $is_bold == true ]]; then
-    bold_code="\e[1m"
+# usage: file_env VAR [DEFAULT]
+#    ie: file_env 'XYZ_DB_PASSWORD' 'example'
+# (will allow for "$XYZ_DB_PASSWORD_FILE" to fill in the value of
+#  "$XYZ_DB_PASSWORD" from a file, especially for Docker's secrets feature)
+file_env() {
+	local var="$1"
+	local fileVar="${var}_FILE"
+	local def="${2:-}"
+	if [ "${!var:-}" ] && [ "${!fileVar:-}" ]; then
+		daas_error "Both $var and $fileVar are set (but are exclusive)"
+	fi
+	local val="$def"
+	if [ "${!var:-}" ]; then
+		val="${!var}"
+	elif [ "${!fileVar:-}" ]; then
+		val="$(< "${!fileVar}")"
+	fi
+	export "$var"="$val"
+	unset "$fileVar"
+}
+
+
+docker_setup_env() {
+	file_env 'MONGODB_USER'
+  file_env 'MONGODB_PASSWORD'
+  file_env 'MONGODB_CONNECTION_STRING'
+  file_env 'BACKENDURL'
+  file_env 'MODULE'
+}
+
+docker_tapdata_start() {
+	daas_note "Waiting for tapdata startup"
+
+  if [ -z "$MODULE" ]; then
+    rm -rf ~/.local/*
+    chmod +x /tapdata/apps/tapdata
+    /tapdata/apps/tapdata start
+  else
+    rm -rf ~/.local/*
+    /tapdata/apps/tapdata start $MODULE
+  fi
+}
+
+
+docker_setup_tapdata(){
+  if [ -n "$MONGODB_USER" ]; then
+    sed -ri "s#username:.*#username: $MONGODB_USER#"  /tapdata/apps/application.yml
   fi
 
-  # Print message with color and bold
-  echo -e "${bold_code}${color_code}${message}${reset}"
+  if [ -n "$MONGODB_PASSWORD" ]; then
+    /tapdata/apps/tapdata resetpassword $MONGODB_PASSWORD
+  fi
+
+  if [ -z "$MONGODB_CONNECTION_STRING" ]; then
+    daas_error "MONGODB_CONNECTION_STRING not set.\n Did you forget to add -e MONGODB_CONNECTION_STRING=... ?"
+  else
+      sed -ri "s#(mongoConnectionString:.*').*(')#\1$MONGODB_CONNECTION_STRING\2#"  /tapdata/apps/application.yml
+  fi
+
+  if [ -n "$BACKENDURL" ]; then
+    sed -ri "s#(backendUrl:.*').*(')#\1$BACKENDURL\2#"  /tapdata/apps/application.yml
+  fi
 }
 
-get_env() {
-    # Set default env
+start_mongodb_if_miss(){
+  if [[ "x"$MONGODB_CONNECTION_STRING != "x" ]]; then
+    return
+  fi
 
-    MONGO_URI=${MONGO_URI}  # mongodb uri
-    ACCESS_CODE=${ACCESS_CODE:-"3324cfdf-7d3e-4792-bd32-571638d4562f"}  # access code
-
-    print_message "MONGO_URI  :   $MONGO_URI" "blue" false
-    print_message "ACCESS_CODE:   $ACCESS_CODE" "blue" false
-}
-
-start_mongo() {
-    # start a mongodb replSet
-
-    mkdir -p /tapdata/data/logs /tapdata/data/db/
-    mongod --dbpath=/tapdata/data/db/ --replSet=rs0 --wiredTigerCacheSizeGB=1 --bind_ip_all --logpath=/tapdata/data/logs/mongod.log --fork
-    while [[ 1 ]]; do
-        mongo --quiet --eval "db" &> /dev/null
-        if [[ $? -eq 0 ]]; then
-            break
-        fi
-        sleep 1
-    done
-    mongo --quiet --eval 'rs.initiate({"_id":"rs0","members":[{"_id":0,"host":"127.0.0.1:27017"}]})'
-    while [[ 1 ]]; do
-        mongo --quiet --eval "rs.status()"|grep PRIMARY &> /dev/null
-        if [[ $? -eq 0 ]]; then
-            break
-        fi
-        sleep 1
-    done
-    while [[ 1 ]]; do
-        mongo --quiet --eval 'db.getSiblingDB("tapdata").getCollection("AccessToken").exists()'|grep "NotPrimaryNoSecondaryOk" &> /dev/null
-        if [[ $? -ne 0 ]]; then
-            break
-        fi
-        sleep 1
-    done
-    mongo --quiet --eval 'db.getSiblingDB("tapdata").getCollection("AccessToken").exists()'|grep -v null &> /dev/null
-}
-
-wait_tm_start() {
-    local timeout=$((SECONDS + 300))  # timeout 300 seconds
-    local counter=0
-    while [[ $SECONDS -lt $timeout ]]; do
-        local seconds_left=$((timeout - SECONDS))
-        printf "\r* Wait Starting, Left %02d / 300 Seconds..." "$seconds_left"
-        sleep 1
-        curl --fail "http://localhost:3000" &> /dev/null
-        if [[ $? -ne 0 ]]; then
-            continue
-        else
-            printf "\n~ Manager server started\n"
-            return 0
-        fi
-        counter=$((counter + 1))
-    done
-    printf "\n~ Manager Starting Timeout\n"
-    return 1
-}
-
-exec_with_log() {
-    command=$1
-    log=$2
-    color=$3
-
-    print_message "~ $log" "$color" false
-    eval $command
-    if [[ $? -ne 0 ]]; then
-        print_message "~ $log Failed" "red" false
-        return 1
-    else
-        print_message "~ $log Success" "$color" false
+  mkdir -p /tapdata/data/logs
+  mongod --dbpath=/tapdata/data/db/ --wiredTigerCacheSizeGB=1 --replSet=rs0 --bind_ip_all --logpath=/tapdata/data/logs/mongod.log --fork
+  while [[ 1 ]]; do
+    mongo --quiet --eval "db" &> /dev/null
+    if [[ $? -eq 0 ]]; then
+        break
     fi
-}
+    sleep 1
+  done
+  mongo --quiet --eval 'rs.initiate({"_id":"rs0","members":[{"_id":0,"host":"127.0.0.1:27017"}]})'
 
-_register_connectors() {
-    print_message "* Register Connector: $i" "blue" false
-    java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -f GA -t http://localhost:3000 $dir/connectors/dist 2>&1
-    if [[ $? -ne 0 ]]; then
-        print_message "* Register Connector: $i Failed" "red" false
-        exit 1
-    else
-        print_message "* Register Connector: $i Success" "blue" false
+  while [[ 1 ]]; do
+    mongo --quiet --eval "rs.status()"|grep PRIMARY &> /dev/null
+    if [[ $? -eq 0 ]]; then
+        break
     fi
-}
-
-register_connectors() {
-    if [[ -d /tapdata/apps/connectors ]]; then
-      dir=/tapdata/apps
-    else
-      dir=./
-    fi
-    _register_connectors
-}
-
-start_server() {
-    # 1. start manager server
-    # 2. register all connectors
-    # 3. start iengine server
-    #
-    # 1. start manager server
-    if [[ -d /tapdata/apps/manager ]]; then
-      mkdir -p /tapdata/apps/logs /tapdata/apps/logs/iengine
-      exec_with_log "cd /tapdata/apps/ && bash bin/manager/start.sh $MONGO_URI" "Start Manager Server" "blue" || return 1
-    else
-      mkdir -p ./logs ./logs/iengine
-      exec_with_log "bash bin/manager/start.sh $MONGO_URI" "Start Manager Server" "blue" || return 1
-    fi
-    # 2. register all connectors
-    # waiting for manager server start
-    exec_with_log wait_tm_start "Waiting for Manager Server Start" "blue" || return 1
-    # Register all connectors
-    exec_with_log register_connectors "Register all connectors" "blue" || return 1
-    # 3. start iengine server
-    if [[ -d /tapdata/apps/iengine ]]; then
-      exec_with_log "cd /tapdata/apps/ && bash bin/iengine/start.sh" "Start Iengine Server" "blue" || return 1
-    else
-      exec_with_log "bash bin/iengine/start.sh" "Start Iengine Server" "blue" || return 1
-    fi
+    sleep 1
+  done
+  MONGODB_CONNECTION_STRING="127.0.0.1/tapdata"
 }
 
 unzip_files() {
-    if [[ -d /tapdata/apps/connectors/ ]]; then
-      tar xzf /tapdata/apps/connectors/dist.tar.gz -C /tapdata/apps/connectors
-      rm -rf /tapdata/apps/connectors/dist.tar.gz
-    elif [[ -d ./connectors ]]; then
-      tar xzf ./connectors/dist.tar.gz -C connectors
-      rm -rf ./connectors/dist.tar.gz
-    fi
+  tar xzf /tapdata/apps/connectors/dist.tar.gz -C /tapdata/apps/connectors/
 }
-
-cat << "EOF"
-  _______       _____  _____       _______
- |__   __|/\   |  __ \|  __ \   /\|__   __|/\
-    | |  /  \  | |__) | |  | | /  \  | |  /  \
-    | | / /\ \ |  ___/| |  | |/ /\ \ | | / /\ \
-    | |/ ____ \| |    | |__| / ____ \| |/ ____ \
-    |_/_/    \_\_|    |_____/_/    \_\_/_/    \_\
-EOF
 
 _main() {
-    # 1. get env settings
-    # 2. unzip connectors
-    # 3. start mongo if $MONGO_URI is not set
-    # 4. start tm server, register connectors and start iengine
-    # 5. hold the container
-    #
-    # 1. get env settings
-    print_message ">>> Get Env Settings [START]" "green" true
-    get_env
-    print_message "<<< Get Env Settings [SUCCESS]" "green" true
-    # 2. unzip connectors
-    print_message ">>> Unzip Connectors [START]" "green" true
-    unzip_files
-    print_message "<<< Unzip Connectors [SUCCESS]" "green" true
-    # 3. start mongo if $MONGO_URI is not set
-    print_message ">>> Start Mongo [START]" "green" true
-    if [[ -z $MONGO_URI ]]; then
-        start_mongo
-        ps -ef | grep -v grep | grep mongo > /dev/null
-        if [[ $? -ne 0 ]]; then
-            print_message "<<< Mongodb is Not Running" "red" true
-            exit 1
-        fi
-        MONGO_URI="mongodb://127.0.0.1:27017/tapdata"
-    fi
-    print_message "<<< Mongodb is Already Running" "green" true
-    # 4. start tm server, register connectors and start iengine
-    print_message ">>> Start Server [START]" "green" true
-    start_server
-    if [[ $? -ne 0 ]]; then
-        print_message "<<< Start Server [FAILED]" "red" true
-        exit 1
-    fi
-    print_message "<<< Start Server [SUCCESS]" "green" true
-    # Print Visit Url
-    print_message "All Done, Please Visit http://localhost:3000" "green" true
-
-    # 5. hold the container
-    sleep infinity
+  if [[ $WORKDIR != "" && -d /tapdata/apps/components/webroot/ ]]; then
+    mkdir -p $WORKDIR/components/webroot/
+    cp -r /tapdata/apps/components/webroot/* $WORKDIR/components/webroot/
+  fi
+  unzip_files
+	daas_note "Entrypoint script for tapmanager Server started."
+  start_mongodb_if_miss
+	# Load various environment variables
+	docker_setup_env "$@"
+  docker_setup_tapdata
+	daas_note "Starting tapdata server"
+	docker_tapdata_start
+	daas_note "tapdata server started."
+    rm -rf /tapdata/apps/connectors/dist/*
+	exec "$@"
 }
 
-_main "$@"
+# 如果是其它脚本引用，则不执行操作
+if ! _is_sourced; then
+	_main "$@"
+fi
+
+while [[ 1 ]]; do
+  sleep 10
+done

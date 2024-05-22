@@ -6,12 +6,12 @@ COPY connectors/dist.tar.gz /tapdata/apps/connectors/dist.tar.gz
 COPY lib/ /tapdata/apps/lib
 COPY components/ /tapdata/apps/components
 COPY docker-entrypoint.sh /tapdata/docker-entrypoint.sh
-COPY bin/ /tapdata/apps/bin
 
-# Add tini
-ENV TINI_VERSION v0.19.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
-RUN chmod +x /tini
+ARG TARGETPLATFORM
+
+COPY ${TARGETPLATFORM:-linux/amd64}/tapdata /tapdata/apps/tapdata
+
+COPY application.yaml /tapdata/apps/application.yaml
 
 ENV TAPDATA_WORK_DIR /tapdata/apps
 
