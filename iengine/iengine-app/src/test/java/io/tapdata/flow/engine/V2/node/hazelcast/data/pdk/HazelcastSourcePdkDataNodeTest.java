@@ -32,6 +32,7 @@ import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapTimeForm;
@@ -42,9 +43,11 @@ import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
@@ -1417,5 +1420,37 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			List<QueryOperator> result = hazelcastSourcePdkDataNode.constructQueryOperator(timeList,new QueryOperator());
 			Assertions.assertEquals(2,result.size());
 		}
+	}
+	@Nested
+	class StreamReadConsumerStateListenerTest{
+		private ConnectorNode connectorNode;
+		@BeforeEach
+		void before(){
+			connectorNode = mock(ConnectorNode.class);
+			TapNodeInfo tapNodeInfo = mock(TapNodeInfo.class);
+			when(connectorNode.getTapNodeInfo()).thenReturn(tapNodeInfo);
+			TapNodeSpecification tapNodeSpecification = mock(TapNodeSpecification.class);
+			when(tapNodeInfo.getTapNodeSpecification()).thenReturn(tapNodeSpecification);
+			when(tapNodeSpecification.getName()).thenReturn("123");
+		}
+		@DisplayName("test stateListener STATE_STREAM_READ_STARTED")
+		@Test
+		void test1(){
+			try (MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class)) {
+				ObsLogger obsLogger = mock(ObsLogger.class);
+				ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "obsLogger", obsLogger);
+				doNothing().when(obsLogger).info(anyString(), any(), any());
+				PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
+				pdkInvocationMonitorMockedStatic.when(() -> PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker)).thenAnswer((invocationOnMock) -> {
+					PDKMethodInvoker pdkMethodArgs = (PDKMethodInvoker) invocationOnMock.getArgument(0);
+					assertEquals(pdkMethodInvoker, pdkMethodArgs);
+					return null;
+				});
+				StreamReadConsumer streamReadConsumer = hazelcastSourcePdkDataNode.generateStreamReadConsumer(connectorNode, pdkMethodInvoker);
+				streamReadConsumer.streamReadStarted();
+				verify(obsLogger, times(1)).info(anyString(), any(), any());
+			}
+		}
+
 	}
 }
