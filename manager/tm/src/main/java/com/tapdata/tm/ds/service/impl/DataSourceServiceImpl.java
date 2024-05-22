@@ -41,6 +41,7 @@ import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
+import com.tapdata.tm.ds.utils.DataSourceServiceUtil;
 import com.tapdata.tm.ds.utils.UriRootConvertUtils;
 import com.tapdata.tm.ds.vo.SupportListVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
@@ -243,6 +244,8 @@ public class DataSourceServiceImpl extends DataSourceService{
                 updateDto.setLastStatus(oldConnection.getStatus());
             }
         }
+        //Fix: TAP-2686, After manually specifying the agent and saving it, the specified agent information should not be automatically cleared
+        DataSourceServiceUtil.setAccessNodeInfoFromOldConnectionDto(oldConnection, updateDto);
         Map<String, Object> config = updateDto.getConfig();
         if (oldConnection != null) {
 
@@ -266,7 +269,6 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
 
         DataSourceEntity entity = convertToEntity(DataSourceEntity.class, updateDto);
-        entity.setAccessNodeProcessIdList(updateDto.getAccessNodeProcessIdList());
 
         Update update = repository.buildUpdateSet(entity, user);
 
