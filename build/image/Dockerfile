@@ -1,4 +1,4 @@
-FROM ghcr.io/tapdata/tapdata/base:0.1
+FROM ghcr.io/tapdata/base:0.1
 
 ENV JAVA_TOOL_OPTIONS -Dfile.encoding=UTF8
 COPY etc/ /tapdata/apps/etc
@@ -11,7 +11,7 @@ ARG TARGETPLATFORM
 
 COPY ${TARGETPLATFORM:-linux/amd64}/tapdata /tapdata/apps/tapdata
 
-COPY application.yaml /tapdata/apps/application.yaml
+COPY application.yml /tapdata/apps/application.yml
 
 ENV TAPDATA_WORK_DIR /tapdata/apps
 
