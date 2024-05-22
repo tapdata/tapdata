@@ -1,4 +1,4 @@
-FROM ghcr.io/tapdata/tapdata/tldp/runtime-ee:0.5
+FROM ghcr.io/tapdata/tapdata/base:0.1
 
 ENV JAVA_TOOL_OPTIONS -Dfile.encoding=UTF8
 COPY etc/ /tapdata/apps/etc
