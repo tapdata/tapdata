@@ -33,6 +33,10 @@ get_env() {
     # Set default env
 
     MONGO_URI=${MONGO_URI}  # mongodb uri
+    dbMem=${dbMem:-"1G"}
+    engineMem=${engineMem:-"1G"}
+    managerMem=${managerMem:-"1G"}
+    tm_port=${tm_port:-"3030"}
     ACCESS_CODE=${ACCESS_CODE:-"3324cfdf-7d3e-4792-bd32-571638d4562f"}  # access code
 
     print_message "MONGO_URI  :   $MONGO_URI" "blue" false
@@ -76,7 +80,7 @@ wait_tm_start() {
         local seconds_left=$((timeout - SECONDS))
         printf "\r* Wait Starting, Left %02d / 300 Seconds..." "$seconds_left"
         sleep 1
-        curl --fail "http://localhost:3000" &> /dev/null
+        curl --fail "http://localhost:3030" &> /dev/null
         if [[ $? -ne 0 ]]; then
             continue
         else
@@ -106,7 +110,7 @@ exec_with_log() {
 
 _register_connectors() {
     print_message "* Register Connector: $i" "blue" false
-    java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -f GA -t http://localhost:3000 $dir/connectors/dist 2>&1
+    java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -t http://localhost:3030 $dir/connectors/dist 2>&1
     if [[ $? -ne 0 ]]; then
         print_message "* Register Connector: $i Failed" "red" false
         exit 1
@@ -151,10 +155,10 @@ start_server() {
 }
 
 unzip_files() {
-    if [[ -d /tapdata/apps/connectors/ ]]; then
+    if [[ -d /tapdata/apps/connectors/ && -f /tapdata/apps/connectors/dist.tar.gz ]]; then
       tar xzf /tapdata/apps/connectors/dist.tar.gz -C /tapdata/apps/connectors
       rm -rf /tapdata/apps/connectors/dist.tar.gz
-    elif [[ -d ./connectors ]]; then
+    elif [[ -d ./connectors && -f /tapdata/apps/connectors/dist.tar.gz ]]; then
       tar xzf ./connectors/dist.tar.gz -C connectors
       rm -rf ./connectors/dist.tar.gz
     fi
@@ -205,7 +209,7 @@ _main() {
     fi
     print_message "<<< Start Server [SUCCESS]" "green" true
     # Print Visit Url
-    print_message "All Done, Please Visit http://localhost:3000" "green" true
+    print_message "All Done, Please Visit http://localhost:3030" "green" true
 
     # 5. hold the container
     sleep infinity
