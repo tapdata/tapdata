@@ -29,6 +29,8 @@ OUTPUT_DIR="$PROJECT_ROOT_DIR/output"
 PACKAGE_COMPONENTS=""
 # output type (docker or tar)
 OUTPUT_TYPE=""
+# filter connectors list
+CONNECTORS_LIST=$(cat $SCRIPT_BASE_DIR/.connectors_list)
 
 while getopts 'c:l:u:p:t:o:' OPT; do
 	case "$OPT" in
@@ -95,6 +97,13 @@ make_package_tapdata() {
 }
 
 make_package_connectors() {
+  # filter connectors
+  mv $CONNECTOR_DIR/connectors/dist $CONNECTOR_DIR/connectors/backup
+  mkdir -p $CONNECTOR_DIR/connectors/dist/
+  for item in $CONNECTORS_LIST; do
+    find $CONNECTOR_DIR/connectors/backup/ -type f -name "${item}" | xargs -I {} mv {} $CONNECTOR_DIR/connectors/dist/
+  done
+
   mkdir -p $OUTPUT_DIR/connectors/dist/
   cd $OUTPUT_DIR/
   tar cfz connectors/dist.tar.gz -C $CONNECTOR_DIR/connectors/ dist/
