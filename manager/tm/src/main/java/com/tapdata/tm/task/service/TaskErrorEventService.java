@@ -25,6 +25,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class TaskErrorEventService {
+    protected static final String ERROR_EVENTS_SKIP_KEY = "errorEvents.$[element].skip";
+    protected static final String ELEMENT_ID = "element._id";
     private TaskRepository taskRepository;
     private TaskService taskService;
 
@@ -40,15 +42,15 @@ public class TaskErrorEventService {
         Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(taskId));
         Query query = Query.query(criteria);
         if (CollUtil.isEmpty(ids)) {
-            taskService.update(query, new Update().set("errorEvents.$[element].skip", false));
+            taskService.update(query, new Update().set(ERROR_EVENTS_SKIP_KEY, false));
             return;
         }
         BulkOperations bulkOperations = taskRepository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
         List<ObjectId> objectIds = ids.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-        bulkOperations.updateMulti(query, new Update().set("errorEvents.$[element].skip", true)
-                    .filterArray(Criteria.where("element._id").in(objectIds)))
-                .updateMulti(query, new Update().set("errorEvents.$[element].skip", false)
-                    .filterArray(Criteria.where("element._id").nin(objectIds)));
+        bulkOperations.updateMulti(query, new Update().set(ERROR_EVENTS_SKIP_KEY, true)
+                    .filterArray(Criteria.where(ELEMENT_ID).in(objectIds)))
+                .updateMulti(query, new Update().set(ERROR_EVENTS_SKIP_KEY, false)
+                    .filterArray(Criteria.where(ELEMENT_ID).nin(objectIds)));
         bulkOperations.execute();
     }
 }

@@ -9,6 +9,7 @@ import org.bson.types.ObjectId;
 import java.util.List;
 
 public class TaskDtoUtil {
+    private TaskDtoUtil() {}
     public static void updateErrorEvent(ClientMongoOperator clientMongoOperator, List<ErrorEvent> errorEvents, ObjectId taskId, ObsLogger obsLogger, String errorMsg) {
         try {
             clientMongoOperator.insertOne(errorEvents, ConnectorConstant.TASK_COLLECTION + "/errorEvents/" + taskId);
