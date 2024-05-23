@@ -29,7 +29,76 @@ print_message() {
   echo -e "${bold_code}${color_code}${message}${reset}"
 }
 
+install_supervisor() {
+    print_message "Supervisor Not Found, it's better to install supervisor first" "yellow" false
+    # install by pip/pip3
+    print_message "Try to installing Supervisor by pip/pip3" "yellow" false
+    which pip > /dev/null
+    if [[ $? -ne 0 ]]; then
+        which pip3 > /dev/null
+        if [[ $? -ne 0 ]]; then
+            print_message "pip or pip3 Not Found" "yellow" false
+            export LAUNCH_SUPERVISOR=false
+        else
+            pip3 install supervisor
+        fi
+    else
+        pip install supervisor
+    fi
+    if [[ $? -eq 0 ]]; then
+        which supervisord > /dev/null
+        if [[ $? -eq 0 ]]; then
+            print_message "Install Supervisor Success" "green" false
+            export LAUNCH_SUPERVISOR=true
+            return 0
+        fi
+    fi
+    print_message "Install Supervisor by pip/pip3 Failed" "yellow" false
+    print_message "Try to install by system package manager" "yellow" false
+    # Linux or Macos
+    if [[ -f /etc/redhat-release ]]; then
+        yum install -y supervisor
+    elif [[ -f /etc/lsb-release ]]; then
+        apt-get install -y supervisor
+    elif [[ $(uname) == "Darwin" ]]; then
+        brew install supervisor
+    else
+        print_message "Not Support OS" "yellow" false
+        return 1
+    fi
+    if [[ $? -ne 0 ]]; then
+        print_message "Install Supervisor Failed" "yellow" false
+        export LAUNCH_SUPERVISOR=false
+        return 1
+    else
+        which supervisord > /dev/null
+        if [[ $? -ne 0 ]]; then
+            print_message "Install Supervisor Failed" "yellow" false
+            export LAUNCH_SUPERVISOR=false
+            return 1
+        fi
+        export LAUNCH_SUPERVISOR=true
+        print_message "Install Supervisor Success" "green" false
+        return 0
+    fi
+}
+
 start_supervisord() {
+    # install supervisor first
+    which supervisord > /dev/null
+    if [[ $? -ne 0 ]]; then
+        install_supervisor
+    else
+        export LAUNCH_SUPERVISOR=true
+    fi
+    if [[ $LAUNCH_SUPERVISOR == "false" ]]; then
+        print_message "Skip Start Supervisor" "yellow" false
+        echo 'false' > .launch_supervisor
+        return 0
+    else
+        echo 'true' > .launch_supervisor
+    fi
+
     # if supervisord is already running, skip start
     ps -ef | grep -v grep | grep supervisord > /dev/null
     if [[ $? -eq 0 ]]; then
@@ -48,6 +117,7 @@ start_supervisord() {
     # check supervisor start
     ps -ef | grep -v grep | grep supervisord > /dev/null
     if [[ $? -ne 0 ]]; then
+        export LAUNCH_SUPERVISOR=false
         print_message "Supervisor Start Failed" "red" false
         return 1
     fi
@@ -62,16 +132,19 @@ get_env() {
     export managerMem=${managerMem:-"1G"} # manager memory
     export tm_port=${tm_port:-"3030"} # manager port
     export ACCESS_CODE=${ACCESS_CODE:-"3324cfdf-7d3e-4792-bd32-571638d4562f"}  # access code
+    export LAUNCH_SUPERVISOR=${LAUNCH_SUPERVISOR:-"false"}  # launch supervisor
 
+    # Export env
     export MONGO_URI dbMem engineMem managerMem tm_port ACCESS_CODE
 
 cat <<EOF
-MONGO_URI   :       $MONGO_URI
-dbMem       :       $dbMem
-engineMem   :       $engineMem
-managerMem  :       $managerMem
-tm_port     :       $tm_port
-ACCESS_CODE :      $ACCESS_CODE
+MONGO_URI         : $MONGO_URI
+dbMem             : $dbMem
+engineMem         : $engineMem
+managerMem        : $managerMem
+tm_port           : $tm_port
+ACCESS_CODE       : $ACCESS_CODE
+LAUNCH_SUPERVISOR : $LAUNCH_SUPERVISOR
 EOF
 
     start_supervisord
@@ -163,6 +236,24 @@ register_connectors() {
     _register_connectors
 }
 
+start_tm() {
+    if [[ $LAUNCH_SUPERVISOR == "true" ]]; then
+        supervisorctl -c supervisor/supervisord.conf start manager
+    else
+        nohup java -Xmx$managerMem -jar -Dserver.port=$tm_port -server components/tm.jar --spring.config.additional-location=file:etc/ --logging.config=file:etc/logback.xml --spring.data.mongodb.default.uri=$MONGO_URI --spring.data.mongodb.obs.uri=$MONGO_URI --spring.data.mongodb.log.uri=$MONGO_URI &> logs/nohup.out &
+        echo $! > .manager.pid
+    fi
+}
+
+start_iengine() {
+    if [[ $LAUNCH_SUPERVISOR == "true" ]]; then
+        supervisorctl -c supervisor/supervisord.conf start iengine
+    else
+        nohup java -Xmx$engineMem -jar components/tapdata-agent.jar &> logs/iengine/tapdata-agent.jar.log &
+        echo $! > .iengine.pid
+    fi
+}
+
 start_server() {
     # 1. start manager server
     # 2. register all connectors
@@ -171,21 +262,21 @@ start_server() {
     supervisorctl -c supervisor/supervisord.conf reread && supervisorctl -c supervisor/supervisord.conf update
     # 1. start manager server
     print_message "Start Manager Server" "blue" false
-    supervisorctl -c supervisor/supervisord.conf start manager
+    start_tm
     # 2. register all connectors
     # waiting for manager server start
     exec_with_log wait_tm_start "Waiting for Manager Server Start" "blue" || return 1
     # Register all connectors
     exec_with_log register_connectors "Register all connectors" "blue" || return 1
     # 3. start iengine server
-    supervisorctl -c supervisor/supervisord.conf start iengine
+    start_iengine
 }
 
 unzip_files() {
-    if [[ -d /tapdata/apps/connectors/ ]]; then
+    if [[ -f /tapdata/apps/connectors/dist.tar.gz ]]; then
       tar xzf /tapdata/apps/connectors/dist.tar.gz -C /tapdata/apps/connectors
       rm -rf /tapdata/apps/connectors/dist.tar.gz
-    elif [[ -d ./connectors ]]; then
+    elif [[ -f ./connectors/dist.tar.gz ]]; then
       tar xzf ./connectors/dist.tar.gz -C connectors
       rm -rf ./connectors/dist.tar.gz
     fi
