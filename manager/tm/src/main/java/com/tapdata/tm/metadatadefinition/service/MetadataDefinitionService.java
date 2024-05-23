@@ -294,12 +294,12 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     }
 
 
-    public Page<MetadataDefinitionDto> findAndChildAccount(Filter filter, UserDetail user) {
+    public Page<MetadataDefinitionDto> findAndChildAccount(Filter filter, boolean seachAll, UserDetail user) {
         if (filter == null) {
             filter = new Filter();
         }
 
-        List<MetadataDefinitionEntity> entityList = repository.findAllAndChildAccount(filter, user);
+        List<MetadataDefinitionEntity> entityList = repository.findAllAndChildAccount(filter, seachAll, user);
 
         long total = repository.count(filter.getWhere(), user);
 

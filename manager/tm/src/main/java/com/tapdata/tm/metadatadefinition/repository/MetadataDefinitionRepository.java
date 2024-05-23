@@ -1,5 +1,6 @@
 package com.tapdata.tm.metadatadefinition.repository;
 
+import cn.hutool.core.collection.CollUtil;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.reporitory.BaseRepository;
@@ -12,7 +13,12 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.Assert;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static com.tapdata.tm.utils.MongoUtils.*;
 
@@ -48,7 +54,7 @@ public class MetadataDefinitionRepository extends BaseRepository<MetadataDefinit
         return query;
     }
 
-    public List<MetadataDefinitionEntity> findAllAndChildAccount(Filter filter, UserDetail userDetail) {
+    public List<MetadataDefinitionEntity> findAllAndChildAccount(Filter filter, boolean seachAll, UserDetail userDetail) {
 
         if (filter == null)
             filter = new Filter();
@@ -67,7 +73,9 @@ public class MetadataDefinitionRepository extends BaseRepository<MetadataDefinit
         applyField(query, filter.getFields());
         applySort(query, filter.getSort());
 
-        super.applyUserDetail(query, userDetail);
+        if (!seachAll) {
+            super.applyUserDetail(query, userDetail);
+        }
 
         return mongoOperations.find(query, entityInformation.getJavaType(), entityInformation.getCollectionName());
     }

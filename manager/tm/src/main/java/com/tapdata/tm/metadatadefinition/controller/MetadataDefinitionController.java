@@ -25,7 +25,7 @@ import java.util.Map;
  */
 @Tag(name = "MetadataDefinition", description = "MetadataDefinition相关接口")
 @RestController
-@RequestMapping(value = {"/api/MetadataDefinition","/api/MetadataDefinitions"})
+@RequestMapping(value = {"/api/MetadataDefinition","/api/MetadataDefinitions", "/api/metadata-definitions"})
 public class MetadataDefinitionController extends BaseController {
 
     @Autowired
@@ -98,7 +98,15 @@ public class MetadataDefinitionController extends BaseController {
 
         //数据目录不需要分页
         filter.setLimit(10000);
-        return success(metadataDefinitionService.findAndChildAccount(filter, getLoginUser()));
+        return success(metadataDefinitionService.findAndChildAccount(filter, false, getLoginUser()));
+    }
+
+    @Operation(summary = "Find all MetadataDefinition of the model matched by filter from the data source")
+    @GetMapping("all-data-flow")
+    public ResponseMessage<Page<MetadataDefinitionDto>> findAllMetadataDefinition() {
+        Filter filter = parseFilter("{\"where\":{\"or\":[{\"item_type\":\"dataflow\"}]}}");
+        filter.setLimit(10000);
+        return success(metadataDefinitionService.findAndChildAccount(filter, true, getLoginUser()));
     }
 
     /**
