@@ -7,7 +7,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 public class QueryUtil {
     private QueryUtil() {}
     /**
-     * 处理filter转换成Criteria
+     * Convert filter to Criteria
      *
      * @param where
      * @return

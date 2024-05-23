@@ -159,7 +159,7 @@ public class InspectController extends BaseController {
 
 
     /**
-     * @param filterJson 获取校验任务列表
+     * @param filterJson Get inspect task list
      * @return
      */
     @GetMapping
@@ -184,7 +184,7 @@ public class InspectController extends BaseController {
     }
 
     /**
-     * 获取校验详情
+     * Get inspect task details
      *
      * @return
      */
@@ -274,9 +274,9 @@ public class InspectController extends BaseController {
      * @return
      */
     @Operation(summary = "页面点击 更新inspect的时候，会调用这个方法")
-    @PostMapping("update")
-    public ResponseMessage<InspectDto> updateByWhere(HttpServletRequest request, @RequestParam("where") String whereJson, @RequestBody InspectDto inspect) throws Exception {
-        log.info("InspectController--updateByWhere。whereJson：{}， InspectDto：{} ", whereJson, JSON.toJSONString(inspect));
+    @PostMapping("execute")
+    public ResponseMessage<InspectDto> updateByWhere(HttpServletRequest request, @RequestParam("where") String whereJson, @RequestBody InspectDto inspect) {
+        log.info("Inspect Controller -- do execute -  where json：{}, inspect：{} ", whereJson, JSON.toJSONString(inspect));
         whereJson = whereJson.replace("\"_id\"", "\"id\"");
         Where where = parseWhere(whereJson);
         ObjectId id = Optional.ofNullable(inspect.getId()).orElse(MongoUtils.toObjectId(String.valueOf(where.get("id"))));
@@ -311,8 +311,8 @@ public class InspectController extends BaseController {
 
 
     @Operation(summary = "engine 更新inspect的时候，都会调用这个方法")
-    @PostMapping("do-execute-for-engine")
-    public ResponseMessage<InspectDto> updateByWhere(@RequestParam("where") String whereJson, @RequestBody InspectDto inspect) throws Exception {
+    @PostMapping("update")
+    public ResponseMessage<InspectDto> updateByWhere(@RequestParam("where") String whereJson, @RequestBody InspectDto inspect) {
         log.info("InspectController--updateByWhere。whereJson：{}， InspectDto：{} ", whereJson, JSON.toJSONString(inspect));
         whereJson = whereJson.replace("\"_id\"", "\"id\"");
         Where where = parseWhere(whereJson);
