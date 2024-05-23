@@ -70,6 +70,7 @@ import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.schedule.ChartSchedule;
@@ -86,9 +87,9 @@ import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.batchin.ParseRelMig;
-import com.tapdata.tm.task.service.batchin.ParseRelMigFile;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
+import com.tapdata.tm.task.service.chart.ChartViewService;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
@@ -285,6 +286,7 @@ public class TaskServiceImpl extends TaskService{
     private AgentGroupService agentGroupService;
     private DataSourceDefinitionService dataSourceDefinitionService;
     private BatchUpChecker batchUpChecker;
+    private ChartViewService chartViewService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -2033,20 +2035,8 @@ public class TaskServiceImpl extends TaskService{
      */
     public Map<String, Object> chart(UserDetail user) {
         Map<String, Object> resultChart = new HashMap<>();
-        Criteria criteria = new Criteria()
-                .and(IS_DELETED).ne(true)
-                .and(SYNC_TYPE).in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
-                .and(STATUS).nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
-                //共享缓存的任务设计的有点问题
-                .and("shareCache").ne(true);
-
-
-        Query query = Query.query(criteria);
-        query.fields().include(SYNC_TYPE, STATUS, "statuses");
         //把任务都查询出来
-        List<TaskDto> taskDtoList = DataPermissionMenuEnums.MigrateTack.checkAndSetFilter(
-                user, DataPermissionActionEnums.View, () -> findAllDto(query, user)
-        );
+        List<TaskDto> taskDtoList = chartViewService.getViewTaskDtoByUser(user);
         Map<String, List<TaskDto>> syncTypeToTaskList = taskDtoList.stream().collect(Collectors.groupingBy(TaskDto::getSyncType));
 
         List<TaskDto> migrateList =  syncTypeToTaskList.getOrDefault(SyncType.MIGRATE.getValue(), Collections.emptyList());
@@ -2058,7 +2048,7 @@ public class TaskServiceImpl extends TaskService{
         resultChart.put("chart5", inspectChart(user));
         Chart6Vo chart6Vo = ChartSchedule.cache.get(user.getUserId());
         if (chart6Vo == null) {
-            chart6Vo = chart6(user);
+            chart6Vo = chartViewService.transmissionOverviewChartData(taskDtoList);
             ChartSchedule.put(user.getUserId(), chart6Vo);
         }
         resultChart.put("chart6", chart6Vo);
@@ -4052,77 +4042,6 @@ public class TaskServiceImpl extends TaskService{
         Update update = new Update();
         update.set("logSetting", logSetting);
         updateById(taskObjectId, update, userDetail);
-    }
-
-    public Chart6Vo chart6(UserDetail user) {
-        Criteria criteria = Criteria.where(IS_DELETED).ne(true).and(SYNC_TYPE).in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE);
-        Query query = new Query(criteria);
-        query.fields().include("_id");
-        List<TaskDto> allDto = findAllDto(query, user);
-        List<String> ids = allDto.stream().map(a->a.getId().toHexString()).collect(Collectors.toList());
-
-        List<MeasurementEntity>  allMeasurements = new ArrayList<>();
-        if (CollectionUtils.isNotEmpty(ids)) {
-            ids.stream().forEach(id -> {
-                MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
-                if (measurement != null) {
-                    allMeasurements.add(measurement);
-                }
-            });
-        }
-
-        BigInteger output = BigInteger.ZERO;
-        BigInteger input = BigInteger.ZERO;
-        BigInteger insert = BigInteger.ZERO;
-        BigInteger update = BigInteger.ZERO;
-        BigInteger delete = BigInteger.ZERO;
-
-        for (MeasurementEntity allMeasurement : allMeasurements) {
-            if (allMeasurement == null) {
-                continue;
-            }
-            List<Sample> samples = allMeasurement.getSamples();
-            if (CollectionUtils.isNotEmpty(samples)) {
-                Optional<Sample> max = samples.stream().max(Comparator.comparing(Sample::getDate));
-                if (max.isPresent()) {
-                    Sample sample = max.get();
-                    Map<String, Number> vs = sample.getVs();
-                    BigInteger inputInsertTotal = NumberUtil.parseDataTotal(vs.get("inputInsertTotal"));
-                    BigInteger inputOthersTotal = NumberUtil.parseDataTotal(vs.get("inputOthersTotal"));
-                    BigInteger inputDdlTotal = NumberUtil.parseDataTotal(vs.get("inputDdlTotal"));
-                    BigInteger inputUpdateTotal = NumberUtil.parseDataTotal(vs.get("inputUpdateTotal"));
-                    BigInteger inputDeleteTotal = NumberUtil.parseDataTotal(vs.get("inputDeleteTotal"));
-
-                    BigInteger outputInsertTotal = NumberUtil.parseDataTotal(vs.get("outputInsertTotal"));
-                    BigInteger outputOthersTotal = NumberUtil.parseDataTotal(vs.get("outputOthersTotal"));
-                    BigInteger outputDdlTotal = NumberUtil.parseDataTotal(vs.get("outputDdlTotal"));
-                    BigInteger outputUpdateTotal = NumberUtil.parseDataTotal(vs.get("outputUpdateTotal"));
-                    BigInteger outputDeleteTotal = NumberUtil.parseDataTotal(vs.get("outputDeleteTotal"));
-                    output = output.add(outputInsertTotal);
-                    output = output.add(outputOthersTotal);
-                    output = output.add(outputDdlTotal);
-                    output = output.add(outputUpdateTotal);
-                    output = output.add(outputDeleteTotal);
-
-                    input = input.add(inputInsertTotal);
-                    input = input.add(inputOthersTotal);
-                    input = input.add(inputDdlTotal);
-                    input = input.add(inputUpdateTotal);
-                    input = input.add(inputDeleteTotal);
-
-                    insert = insert.add(inputInsertTotal);
-                    update = update.add(inputUpdateTotal);
-                    delete = delete.add(inputDeleteTotal);
-
-                }
-            }
-        }
-
-
-        Chart6Vo chart6Vo = Chart6Vo.builder().outputTotal(output).inputTotal(input)
-                .insertedTotal(insert).updatedTotal(update).deletedTotal(delete)
-                .build();
-        return chart6Vo;
     }
 
     public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {

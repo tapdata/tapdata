@@ -19,6 +19,7 @@ public enum DataPermissionMenuEnums {
 	LogCollectorTack(DataPermissionDataTypeEnums.Task, ""),
 	ConnHeartbeatTack(DataPermissionDataTypeEnums.Task, ""),
 	MemCacheTack(DataPermissionDataTypeEnums.Task, ""),
+	InspectTack(DataPermissionDataTypeEnums.Inspect, ""),
 	;
 
 	private final DataPermissionDataTypeEnums dataType;
