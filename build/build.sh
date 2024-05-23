@@ -92,7 +92,6 @@ make_package_tapdata() {
   cp $TAPDATA_DIR/manager/tm/target/tm-*-exec.jar components/tm.jar
   cp $TAPDATA_DIR/iengine/ie.jar components/tapdata-agent.jar
   cp $TAPDATA_DIR/tapdata-cli/target/pdk.jar lib/pdk-deploy.jar
-  # copy script files to start manager and iengine
 }
 
 make_package_connectors() {
@@ -124,6 +123,7 @@ make_docker() {
   cd $OUTPUT_DIR/
   cp $TAPDATA_DIR/build/image/Dockerfile .
   cp $TAPDATA_DIR/build/image/docker-entrypoint.sh .
+  cp $TAPDATA_DIR/build/image/bin .
   # docker build -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME .
   docker buildx build --platform linux/arm64,linux/amd64 -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME . --push
 }
@@ -131,6 +131,7 @@ make_docker() {
 make_tar() {
   cd $OUTPUT_DIR/
   cp $TAPDATA_DIR/build/image/docker-entrypoint.sh ./start.sh
+  cp $TAPDATA_DIR/build/image/bin .
   chmod +x start.sh
   tar cfz tapdata-$TAG_NAME.tar.gz *
 }

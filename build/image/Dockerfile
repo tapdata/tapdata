@@ -6,12 +6,11 @@ COPY connectors/dist.tar.gz /tapdata/apps/connectors/dist.tar.gz
 COPY lib/ /tapdata/apps/lib
 COPY components/ /tapdata/apps/components
 COPY docker-entrypoint.sh /tapdata/docker-entrypoint.sh
+COPY bin/ .
 
-ARG TARGETPLATFORM
+RUN apt install supervisor -y
 
-COPY ${TARGETPLATFORM:-linux/amd64}/tapdata /tapdata/apps/tapdata
-
-COPY application.yml /tapdata/apps/application.yml
+COPY supervisor/ /tapdata/apps/supervisor/
 
 ENV TAPDATA_WORK_DIR /tapdata/apps
 
