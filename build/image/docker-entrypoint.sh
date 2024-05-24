@@ -66,6 +66,7 @@ install_supervisor() {
         brew install supervisor
     else
         print_message "Not Support OS" "yellow" false
+        export LAUNCH_SUPERVISOR=false
         return 1
     fi
     if [[ $? -ne 0 ]]; then
@@ -90,8 +91,6 @@ start_supervisord() {
     which supervisord > /dev/null
     if [[ $? -ne 0 ]]; then
         install_supervisor
-    else
-        export LAUNCH_SUPERVISOR=true
     fi
     if [[ $LAUNCH_SUPERVISOR == "false" ]]; then
         print_message "Skip Start Supervisor" "yellow" false
@@ -149,15 +148,25 @@ ACCESS_CODE       : $ACCESS_CODE
 LAUNCH_SUPERVISOR : $LAUNCH_SUPERVISOR
 EOF
 
-    start_supervisord
-
+    if [[ $LAUNCH_SUPERVISOR == "true" ]]; then
+        start_supervisord
+        echo 'true' > .launch_supervisor
+    else
+        echo 'false' > .launch_supervisor
+    fi
 }
 
 start_mongo() {
     # start a mongodb replSet
 
     mkdir -p /tapdata/data/logs /tapdata/data/db/
-    supervisorctl -c supervisor/supervisord.conf start mongodb
+    if [[ $LAUNCH_SUPERVISOR == "true" ]]; then
+        supervisorctl -c supervisor/supervisord.conf start mongodb
+    else
+        mongod --dbpath=/tapdata/data/db/ --wiredTigerCacheSizeGB=$dbMem --replSet=rs0 --bind_ip_all --logpath=/tapdata/data/logs/mongod.log --fork
+        sleep 2
+        pgrep mongod > .mongodb.pid
+    fi
     while [[ 1 ]]; do
         mongo --quiet --eval "db" &> /dev/null
         if [[ $? -eq 0 ]]; then
@@ -251,6 +260,10 @@ start_iengine() {
     if [[ $LAUNCH_SUPERVISOR == "true" ]]; then
         supervisorctl -c supervisor/supervisord.conf start iengine
     else
+        mkdir -p logs/iengine/ && touch logs/iengine/tapdata-agent.jar.log
+        export app_type="DAAS"
+        export backend_url="http://127.0.0.1:$tm_port/api/"
+        export TAPDATA_MONGO_URI=$MONGO_URI
         nohup java -Xmx$engineMem -jar components/tapdata-agent.jar &> logs/iengine/tapdata-agent.jar.log &
         echo $! > .iengine.pid
     fi
@@ -261,7 +274,9 @@ start_server() {
     # 2. register all connectors
     # 3. start iengine server
     #
-    supervisorctl -c supervisor/supervisord.conf reread && supervisorctl -c supervisor/supervisord.conf update
+    if [[ $LAUNCH_SUPERVISOR == "true" ]]; then
+        supervisorctl -c supervisor/supervisord.conf reread && supervisorctl -c supervisor/supervisord.conf update
+    fi
     # 1. start manager server
     print_message "Start Manager Server" "blue" false
     start_tm

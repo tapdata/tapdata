@@ -3,6 +3,8 @@
 SCRIPT_BASE_DIR=$(dirname "$0")
 cd $SCRIPT_BASE_DIR
 
+components=${1:-"all"}
+
 print_message() {
     # Print message with color and bold
     local message="$1"
@@ -34,27 +36,50 @@ print_message() {
 
 print_message "Stopping Manager and IEngine..." "cyan" true
 
-if [[ `cat .launch_supervisor` == "false" ]]; then
-    # stop manager
-    if [[ -f .manager.pid ]]; then
-        kill -9 $(cat .manager.pid)
+stop_service() {
+    local service_name="$1"
+    if [[ -f .$service_name.pid ]]; then
+        ps -p $(cat .$service_name.pid) > /dev/null && kill -9 $(cat .$service_name.pid)
+        print_message "$service_name stopped." "green" false
+        rm -rf .$service_name.pid
     else
-        print_message "Manager not running, or no .manager.pid file found." "yellow" false
+        print_message "$service_name not running, or no .$service_name.pid file found." "yellow" false
     fi
-    # stop iengine
-    if [[ -f .iengine.pid ]]; then
-        kill -9 $(cat .iengine.pid)
-    else
-        print_message "IEngine not running, or no .iengine.pid file found." "yellow" false
+}
+
+if [[ `cat .launch_supervisor` == "false" ]]; then
+
+    if [[ $components == "all" ]]; then
+        # stop manager
+        stop_service "manager"
+        # stop iengine
+        stop_service "iengine"
+    elif [[ $components == "manager" ]]; then
+        # stop manager
+        stop_service "manager"
+    elif [[ $components == "iengine" ]]; then
+        # stop iengine
+        stop_service "iengine"
+    elif [[ $components == "mongodb" ]]; then
+        # stop mongodb
+        stop_service "mongodb"
     fi
 else
-    # stop manager and iengine
-    supervisorctl -c supervisor/supervisord.conf stop iengine
-    supervisorctl -c supervisor/supervisord.conf stop manager
-
-    # stop supervisord
-    supervisorctl -c supervisor/supervisord.conf shutdown
-    print_message "Done." "green" false
+    if [[ $components == "all" ]]; then
+        # stop manager and iengine
+        supervisorctl -c supervisor/supervisord.conf stop iengine
+        supervisorctl -c supervisor/supervisord.conf stop manager
+    elif [[ $components == "manager" ]]; then
+        # stop manager
+        supervisorctl -c supervisor/supervisord.conf stop manager
+    elif [[ $components == "iengine" ]]; then
+        # stop iengine
+        supervisorctl -c supervisor/supervisord.conf stop iengine
+    elif [[ $components == "supervisord" ]]; then
+        # stop supervisord
+        supervisorctl -c supervisor/supervisord.conf shutdown
+    elif [[ $components == "mongodb" ]]; then
+        # stop mongodb
+        supervisorctl -c supervisor/supervisord.conf stop mongodb
+    fi
 fi
-
-rm -rf .launch_supervisor
