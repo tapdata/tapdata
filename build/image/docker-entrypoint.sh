@@ -251,6 +251,7 @@ start_tm() {
     if [[ $LAUNCH_SUPERVISOR == "true" ]]; then
         supervisorctl -c supervisor/supervisord.conf start manager
     else
+        mkdir -p logs/ && touch logs/nohup.out
         nohup java -Xmx$managerMem -jar -Dserver.port=$tm_port -server components/tm.jar --spring.config.additional-location=file:etc/ --logging.config=file:etc/logback.xml --spring.data.mongodb.default.uri=$MONGO_URI --spring.data.mongodb.obs.uri=$MONGO_URI --spring.data.mongodb.log.uri=$MONGO_URI &> logs/nohup.out &
         echo $! > .manager.pid
     fi
