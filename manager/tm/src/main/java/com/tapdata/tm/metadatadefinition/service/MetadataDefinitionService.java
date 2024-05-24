@@ -11,6 +11,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.service.DiscoveryService;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -18,7 +19,6 @@ import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.entity.MetadataDefinitionEntity;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.repository.MetadataDefinitionRepository;
-import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.task.constant.LdpDirEnum;
@@ -37,7 +37,13 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -294,14 +300,14 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     }
 
 
-    public Page<MetadataDefinitionDto> findAndChildAccount(Filter filter, boolean seachAll, UserDetail user) {
+    public Page<MetadataDefinitionDto> findAndChildAccount(Filter filter, boolean searchAll, UserDetail user) {
         if (filter == null) {
             filter = new Filter();
         }
 
-        List<MetadataDefinitionEntity> entityList = repository.findAllAndChildAccount(filter, seachAll, user);
+        List<MetadataDefinitionEntity> entityList = repository.findAllAndChildAccount(filter, searchAll, user);
 
-        long total = repository.count(filter.getWhere(), user);
+        long total = searchAll ?  repository.count(filter.getWhere()) : repository.count(filter.getWhere(), user);
 
         List<MetadataDefinitionDto> items = convertToDto(entityList, dtoClass);
 
