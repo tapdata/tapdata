@@ -218,7 +218,7 @@ exec_with_log() {
 
 _register_connectors() {
     print_message "* Register Connector: $i" "blue" false
-    java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -f GA -t http://localhost:$tm_port $dir/connectors/dist 2>&1
+    java -jar $dir/lib/pdk-deploy.jar register -a $ACCESS_CODE -t http://localhost:$tm_port $dir/connectors/dist 2>&1
     if [[ $? -ne 0 ]]; then
         print_message "* Register Connector: $i Failed" "red" false
         exit 1
@@ -307,7 +307,8 @@ _main() {
     unzip_files
     print_message "<<< Unzip Connectors [SUCCESS]" "green" true
     # 3. start mongo if $MONGO_URI is not set and in docker
-    if [[ -z $MONGO_URI && -f /.dockerenv ]]; then
+    ps -ef | grep -v grep | grep mongo > /dev/null
+    if [[ -f /.dockerenv && $? -ne 0 ]]; then
         print_message ">>> Start Mongo [START]" "green" true
         start_mongo
         ps -ef | grep -v grep | grep mongo > /dev/null
