@@ -12,6 +12,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.bean.Source;
@@ -24,6 +25,8 @@ import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
+import com.tapdata.tm.permissions.service.DataPermissionService;
+import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
@@ -37,6 +40,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -55,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -73,6 +78,7 @@ public class InspectController extends BaseController {
     private InspectService inspectService;
     private InspectTaskService inspectTaskService;
     private TaskService taskService;
+    private DataPermissionService dataPermissionService;
 
     private <T> T dataPermissionUnAuth(DataPermissionActionEnums action, List<DataPermissionActionEnums> need) {
         throw new BizException("insufficient.permissions",
@@ -214,6 +220,7 @@ public class InspectController extends BaseController {
                 Lists.newArrayList(DataPermissionActionEnums.View),
                 () -> inspectService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(id))))
         );
+        checkTask(inspectDto.getFlowId());
         return success(inspectDto);
     }
 
@@ -232,6 +239,7 @@ public class InspectController extends BaseController {
                 Lists.newArrayList(DataPermissionActionEnums.View),
                 () -> inspectService.findById(filter, getLoginUser())
         );
+        checkTask(inspectDto.getFlowId());
         return success(inspectDto);
     }
 
@@ -281,6 +289,7 @@ public class InspectController extends BaseController {
                 Lists.newArrayList(DataPermissionActionEnums.View),
                 () -> inspectService.findOne(finalFilter, getLoginUser())
         );
+        checkTask(inspectDto.getFlowId());
         return success(inspectDto);
     }
 
@@ -348,22 +357,30 @@ public class InspectController extends BaseController {
     @Operation(summary = "详情页查询任务列表的时候，都会调用这个方法")
     @GetMapping("task-list/{inspectId}")
     public ResponseMessage<List<TaskDto>> getTaskDtoListInInspectInfoPage(@PathVariable("inspectId") String inspectId) {
-        InspectDto inspectDto = getDto(inspectId);
-        String taskId = inspectDto.getFlowId();
-        Supplier<TaskDto> taskDtoSupplier = taskService.dataPermissionFindById(MongoUtils.toObjectId(taskId), null);
-        TaskDto taskDto = taskDtoSupplier.get();
-        if (null == taskDto) {
-            throw new BizException("insufficient.permissions.inspect.task.not.exists");
+        boolean isCreate = StringUtils.isNotBlank(inspectId) && null != MongoUtils.toObjectId(inspectId);
+        String taskId = "";
+        if (isCreate) {
+            InspectDto inspectDto = getDto(inspectId);
+            taskId = inspectDto.getFlowId();
+            checkTask(taskId);
         }
+
         List<TaskDto> taskList = inspectTaskService.findTaskList(getLoginUser());
-        if (CollUtil.isEmpty(taskList)) {
-            throw new BizException("insufficient.permissions.inspect.task");
-        }
-        Optional<TaskDto> first = taskList.stream().filter(Objects::nonNull).filter(t -> taskId.equals(t.getId().toHexString())).findFirst();
-        if (!first.isPresent()) {
-            throw new BizException("insufficient.permissions.inspect.task");
+        String finalTaskId = taskId;
+        if (!isCreate) {
+            Optional<TaskDto> first = taskList.stream().filter(Objects::nonNull).filter(t -> finalTaskId.equals(t.getId().toHexString())).findFirst();
+            if (!first.isPresent()) {
+                throw new BizException("insufficient.permissions.inspect.task");
+            }
         }
         return success(taskList);
+    }
+
+    protected void checkTask(String taskId) {
+        Set<String> dataActions = dataPermissionService.findDataActions(getLoginUser(), DataPermissionDataTypeEnums.Task, MongoUtils.toObjectId(taskId));
+        if (CollUtil.isEmpty(dataActions) || !dataActions.contains(DataPermissionActionEnums.View.name())) {
+            throw new BizException("insufficient.permissions.inspect.task");
+        }
     }
 
     protected InspectDto getDto(String inspectId) {
