@@ -592,6 +592,7 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).create(taskDto,user);
             TaskDto actual = taskService.create(taskDto, user);
             assertEquals(taskDto, actual);
+            assertFalse(actual.getOldVersionTimezone());
         }
         @Test
         @DisplayName("test create method when cron schedule error")
