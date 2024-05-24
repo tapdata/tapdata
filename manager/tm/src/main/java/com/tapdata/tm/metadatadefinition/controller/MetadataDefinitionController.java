@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -102,9 +103,11 @@ public class MetadataDefinitionController extends BaseController {
     }
 
     @Operation(summary = "Find all MetadataDefinition of the model matched by filter from the data source")
-    @GetMapping("all-data-flow")
-    public ResponseMessage<Page<MetadataDefinitionDto>> findAllMetadataDefinition() {
-        Filter filter = parseFilter("{\"where\":{\"or\":[{\"item_type\":\"dataflow\"}]}}");
+    @GetMapping("all-tag/{type}")
+    public ResponseMessage<Page<MetadataDefinitionDto>> findAllMetadataDefinition(@PathVariable("type") String type) {
+        Filter filter = new Filter();
+        Where where = Where.where("or", Lists.newArrayList(new Document().append("item_type", type)));
+        filter.setWhere(where);
         filter.setLimit(10000);
         return success(metadataDefinitionService.findAndChildAccount(filter, true, getLoginUser()));
     }
