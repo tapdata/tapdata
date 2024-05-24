@@ -1,5 +1,7 @@
 #! /bin/bash
 
+SCRIPT_BASE_DIR=$(dirname "$0")
+
 print_message() {
   # Print message with color and bold
   local message="$1"
@@ -292,6 +294,7 @@ cat << "EOF"
 EOF
 
 _main() {
+    cd $SCRIPT_BASE_DIR
     # 1. get env settings
     # 2. unzip connectors
     # 3. start mongo if $MONGO_URI is not set

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+SCRIPT_BASE_DIR=$(dirname "$0")
+cd $SCRIPT_BASE_DIR
+
 print_message() {
     # Print message with color and bold
     local message="$1"
