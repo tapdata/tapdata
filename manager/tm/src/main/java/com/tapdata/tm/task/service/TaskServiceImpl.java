@@ -360,6 +360,7 @@ public class TaskServiceImpl extends TaskService{
 
         //模型推演
         setDefault(taskDto);
+        taskDto.setOldVersionTimezone(false);
         taskDto = save(taskDto, user);
         if (dag != null) {
             dag.setTaskId(taskDto.getId());
