@@ -16,8 +16,6 @@ import java.util.Map;
 @Component
 @Setter(onMethod_ = {@Autowired})
 public class ChartSchedule {
-
-
     public static Map<String, Chart6Vo> cache = new HashMap<>();
 
     private ChartViewService chartViewService;
@@ -34,7 +32,7 @@ public class ChartSchedule {
     }
 
 
-    public static void  put(String key, Chart6Vo chart6Vo) {
+    public static void put(String key, Chart6Vo chart6Vo) {
         if (chart6Vo != null && !chart6Vo.empty()) {
             cache.put(key, chart6Vo);
         }

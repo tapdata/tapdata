@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -33,6 +34,10 @@ public class ChartViewService {
     private MeasurementServiceV2 measurementServiceV2;
 
     public List<TaskDto> getViewTaskDtoByUser(UserDetail user) {
+        return DataPermissionMenuEnums.MigrateTack.checkAndSetFilter(user, DataPermissionActionEnums.View, () -> getViewTaskDto(user));
+    }
+
+    protected List<TaskDto> getViewTaskDto(UserDetail user) {
         Criteria criteria = new Criteria()
                 .and(TaskServiceImpl.IS_DELETED).ne(true)
                 .and(TaskServiceImpl.SYNC_TYPE).in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
@@ -41,20 +46,21 @@ public class ChartViewService {
                 .and("shareCache").ne(true);
         Query query = Query.query(criteria);
         query.fields().include(TaskServiceImpl.SYNC_TYPE, TaskServiceImpl.STATUS, "statuses");
-        return DataPermissionMenuEnums.MigrateTack.checkAndSetFilter(
-                user, DataPermissionActionEnums.View, () -> taskService.findAllDto(query, user)
-        );
+        return taskService.findAllDto(query, user);
     }
 
-    public Chart6Vo transmissionOverviewChartData(UserDetail user){
+    public Chart6Vo transmissionOverviewChartData(UserDetail user) {
         List<TaskDto> allDto = getViewTaskDtoByUser(user);
         return transmissionOverviewChartData(allDto);
     }
 
     public Chart6Vo transmissionOverviewChartData(List<TaskDto> allDto) {
-        List<String> ids = allDto.stream().map(a->a.getId().toHexString()).collect(Collectors.toList());
+        List<String> ids = allDto.stream()
+                .filter(Objects::nonNull)
+                .map(a -> a.getId().toHexString())
+                .collect(Collectors.toList());
 
-        List<MeasurementEntity>  allMeasurements = new ArrayList<>();
+        List<MeasurementEntity> allMeasurements = new ArrayList<>();
         if (CollectionUtils.isNotEmpty(ids)) {
             allMeasurements.addAll(measurementServiceV2.findLastMinuteByTaskId(ids));
         }
@@ -105,11 +111,11 @@ public class ChartViewService {
                 }
             }
         }
-
-
-        Chart6Vo chart6Vo = Chart6Vo.builder().outputTotal(output).inputTotal(input)
-                .insertedTotal(insert).updatedTotal(update).deletedTotal(delete)
+        return Chart6Vo.builder().outputTotal(output)
+                .inputTotal(input)
+                .insertedTotal(insert)
+                .updatedTotal(update)
+                .deletedTotal(delete)
                 .build();
-        return chart6Vo;
     }
 }
