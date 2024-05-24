@@ -125,3 +125,11 @@ task:
     times: 2  #任务重置重试次数
     interval: 30000 #任务重置重试间隔，单位毫秒
     timeoutInterval: 50 #任务重置引擎没有返回时的超时时间，单位秒
+
+report:
+  url:
+    measurementId: 'G-XWF69Y4KY3'
+    apiSecret: 'noI4OfyaSuCOaFbr7AKbxA'
+    clientId: '796104786.1713955139'
+  data:
+    oss: ${REPORT_DATA_OSS:false}
