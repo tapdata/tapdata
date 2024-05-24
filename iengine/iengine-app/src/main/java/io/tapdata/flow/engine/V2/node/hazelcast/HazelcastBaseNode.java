@@ -585,8 +585,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			ErrorEvent event = new ErrorEvent(finalMessage, currentEx.getCode(), Log4jUtil.getStackString(currentEx));
 			errorEvent.set(event);
 			if(whetherToSkip(taskDto.getErrorEvents(), errorEvent.get(), skipError)){
-				obsLogger.info("The current exception match the skip exception strategy, message: "+errorMessage);
+				obsLogger.info("Exception skipping - The current exception match the skip exception strategy, message: {}", finalMessage);
 				isSkip.set(true);
+			} else {
+				obsLogger.info("Exception skipping - The current exception does not match the skip exception strategy, message: {}", finalMessage);
 			}
 		},err->obsLogger.warn("Skip error failed:{}",err.getMessage()));
 		if (isSkip.get()) {

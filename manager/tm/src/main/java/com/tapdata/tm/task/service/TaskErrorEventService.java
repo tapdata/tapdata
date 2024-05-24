@@ -42,7 +42,7 @@ public class TaskErrorEventService {
         Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(taskId));
         Query query = Query.query(criteria);
         if (CollUtil.isEmpty(ids)) {
-            taskService.update(query, new Update().set(ERROR_EVENTS_SKIP_KEY, false));
+            taskService.update(query, new Update().set(ERROR_EVENTS_SKIP_KEY, false).filterArray(Criteria.where(ELEMENT_ID).nin(Lists.newArrayList())));
             return;
         }
         BulkOperations bulkOperations = taskRepository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
