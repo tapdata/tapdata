@@ -12,13 +12,12 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.inspect.bean.Source;
 import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
-import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.inspect.service.InspectTaskService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
@@ -26,6 +25,7 @@ import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.StringJoiner;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -71,28 +72,41 @@ import java.util.stream.Collectors;
 public class InspectController extends BaseController {
     private InspectService inspectService;
     private InspectTaskService inspectTaskService;
-    private InspectResultService inspectResultService;
     private TaskService taskService;
-    private DataSourceService dataSourceService;
 
-    private <T> T dataPermissionUnAuth() {
-        throw new RuntimeException("Un auth");
+    private <T> T dataPermissionUnAuth(DataPermissionActionEnums action, List<DataPermissionActionEnums> need) {
+        throw new BizException("insufficient.permissions",
+                needAction(DataPermissionDataTypeEnums.Inspect, Lists.newArrayList(action)),
+                needAction(DataPermissionDataTypeEnums.Inspect, need)
+                );
     }
 
-    private <T> T dataPermissionCheckOfMenu(UserDetail userDetail, DataPermissionActionEnums actionEnums, Supplier<T> supplier) {
+    protected String needAction(DataPermissionDataTypeEnums dataTypeEnums, List<DataPermissionActionEnums> need) {
+        StringJoiner joiner = new StringJoiner(", ");
+        need.forEach(a ->
+            joiner.add(String.format("%s.%s", dataTypeEnums.getCollection().toLowerCase(), a.name().toLowerCase()))
+        );
+        return joiner.toString();
+    }
+
+    private <T> T dataPermissionCheckOfMenu(UserDetail userDetail,
+                                            DataPermissionActionEnums actionEnums,
+                                            List<DataPermissionActionEnums> need,
+                                            Supplier<T> supplier) {
         return DataPermissionHelper.check(userDetail,
                 DataPermissionMenuEnums.InspectTack,
                 actionEnums,
                 DataPermissionDataTypeEnums.Inspect,
                 null,
                 supplier,
-                this::dataPermissionUnAuth);
+                () -> dataPermissionUnAuth(actionEnums, need));
     }
 
     private <T> T dataPermissionCheckOfId(HttpServletRequest request,
                                           UserDetail userDetail,
                                           ObjectId id,
                                           DataPermissionActionEnums actionEnums,
+                                          List<DataPermissionActionEnums> need,
                                           Supplier<T> supplier) {
         id = Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString())).map(MongoUtils::toObjectId).orElse(id);
         return DataPermissionHelper.checkOfQuery(
@@ -102,7 +116,7 @@ public class InspectController extends BaseController {
                 inspectService.dataPermissionFindById(id, new Field()),
                 (dto) -> DataPermissionMenuEnums.InspectTack,
                 supplier,
-                this::dataPermissionUnAuth
+                () -> dataPermissionUnAuth(actionEnums, need)
         );
     }
 
@@ -152,9 +166,10 @@ public class InspectController extends BaseController {
                 getLoginUser(),
                 inspect.getId(),
                 DataPermissionActionEnums.Edit,
+                Lists.newArrayList(DataPermissionActionEnums.Edit),
                 () -> inspectService.updateById(inspect.getId(), inspect, getLoginUser())
         );
-        return success(inspect);
+        return success(resultTask);
     }
 
 
@@ -177,7 +192,7 @@ public class InspectController extends BaseController {
                         DataPermissionDataTypeEnums.Inspect,
                         null,
                         supplier,
-                        this::dataPermissionUnAuth)
+                        () -> dataPermissionUnAuth(DataPermissionActionEnums.View, Lists.newArrayList(DataPermissionActionEnums.View)))
         )
                 .orElseGet(() -> inspectService.list(finalFilter, getLoginUser()));
         return success(result);
@@ -196,6 +211,7 @@ public class InspectController extends BaseController {
                 getLoginUser(),
                 MongoUtils.toObjectId(id),
                 DataPermissionActionEnums.View,
+                Lists.newArrayList(DataPermissionActionEnums.View),
                 () -> inspectService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(id))))
         );
         return success(inspectDto);
@@ -213,6 +229,7 @@ public class InspectController extends BaseController {
         InspectDto inspectDto = dataPermissionCheckOfMenu(
                 getLoginUser(),
                 DataPermissionActionEnums.View,
+                Lists.newArrayList(DataPermissionActionEnums.View),
                 () -> inspectService.findById(filter, getLoginUser())
         );
         return success(inspectDto);
@@ -233,6 +250,7 @@ public class InspectController extends BaseController {
                 getLoginUser(),
                 MongoUtils.toObjectId(id),
                 DataPermissionActionEnums.Delete,
+                Lists.newArrayList(DataPermissionActionEnums.Delete),
                 () -> inspectService.delete(id, getLoginUser())
         );
         return success(deleteResult);
@@ -260,6 +278,7 @@ public class InspectController extends BaseController {
         InspectDto inspectDto = dataPermissionCheckOfMenu(
                 getLoginUser(),
                 DataPermissionActionEnums.View,
+                Lists.newArrayList(DataPermissionActionEnums.View),
                 () -> inspectService.findOne(finalFilter, getLoginUser())
         );
         return success(inspectDto);
@@ -282,18 +301,24 @@ public class InspectController extends BaseController {
         ObjectId id = Optional.ofNullable(inspect.getId()).orElse(MongoUtils.toObjectId(String.valueOf(where.get("id"))));
         String status = inspect.getStatus();
         DataPermissionActionEnums verifyAction = null;
+        List<DataPermissionActionEnums> needActionEnums = Lists.newArrayList(DataPermissionActionEnums.Edit);
+        //按照操作类型来确认需要校验的权限
+        if (InspectStatusEnum.SCHEDULING.getValue().equals(status)) {
+            verifyAction = DataPermissionActionEnums.Start;
+            needActionEnums.add(verifyAction);
+        } else if (InspectStatusEnum.STOPPING.getValue().equals(status)) {
+            verifyAction = DataPermissionActionEnums.Stop;
+            needActionEnums.add(verifyAction);
+        }
         //检查是否有编辑权限
         dataPermissionCheckOfId(
                 request,
                 getLoginUser(),
                 id,
-                DataPermissionActionEnums.Edit, () -> inspect);
-        //按照操作类型来确认需要校验的权限
-        if (InspectStatusEnum.SCHEDULING.getValue().equals(status)) {
-            verifyAction = DataPermissionActionEnums.Start;
-        } else if (InspectStatusEnum.STOPPING.getValue().equals(status)) {
-            verifyAction = DataPermissionActionEnums.Stop;
-        }
+                DataPermissionActionEnums.Edit,
+                needActionEnums,
+                () -> inspect);
+
         InspectDto inspectDto;
         if (null != verifyAction) {
             inspectDto = dataPermissionCheckOfId(
@@ -301,6 +326,7 @@ public class InspectController extends BaseController {
                     getLoginUser(),
                     id,
                     verifyAction,
+                    needActionEnums,
                     () -> inspectService.doExecuteInspect(where, inspect, getLoginUser())
             );
         } else {
@@ -313,7 +339,7 @@ public class InspectController extends BaseController {
     @Operation(summary = "engine 更新inspect的时候，都会调用这个方法")
     @PostMapping("update")
     public ResponseMessage<InspectDto> updateByWhere(@RequestParam("where") String whereJson, @RequestBody InspectDto inspect) {
-        log.info("InspectController--updateByWhere。whereJson：{}， InspectDto：{} ", whereJson, JSON.toJSONString(inspect));
+        log.info("engine 调用了 updateByWhere.  where :{}  InspectDto:{} ", whereJson, JsonUtil.toJson(inspect));
         whereJson = whereJson.replace("\"_id\"", "\"id\"");
         Where where = parseWhere(whereJson);
         return success(inspectService.doExecuteInspect(where, inspect, getLoginUser()));
@@ -327,15 +353,15 @@ public class InspectController extends BaseController {
         Supplier<TaskDto> taskDtoSupplier = taskService.dataPermissionFindById(MongoUtils.toObjectId(taskId), null);
         TaskDto taskDto = taskDtoSupplier.get();
         if (null == taskDto) {
-            throw new BizException("Task Not exists");
+            throw new BizException("insufficient.permissions.inspect.task.not.exists");
         }
         List<TaskDto> taskList = inspectTaskService.findTaskList(getLoginUser());
         if (CollUtil.isEmpty(taskList)) {
-            throw new BizException("Not Auth to get Tasks");
+            throw new BizException("insufficient.permissions.inspect.task");
         }
         Optional<TaskDto> first = taskList.stream().filter(Objects::nonNull).filter(t -> taskId.equals(t.getId().toHexString())).findFirst();
         if (!first.isPresent()) {
-            throw new BizException("查看权限不完整，部分任务为开放查询权限，请联系管理员Not Auth to get Tasks");
+            throw new BizException("insufficient.permissions.inspect.task");
         }
         return success(taskList);
     }
@@ -344,6 +370,7 @@ public class InspectController extends BaseController {
         return dataPermissionCheckOfMenu(
                 getLoginUser(),
                 DataPermissionActionEnums.View,
+                Lists.newArrayList(DataPermissionActionEnums.View),
                 () -> inspectService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(inspectId))), getLoginUser())
         );
     }
@@ -369,7 +396,7 @@ public class InspectController extends BaseController {
         String connectionId = connection.getConnectionId();
         DataSourceConnectionDto connectionDto = collect.get(connectionId);
         if (null == connectionDto) {
-            throw new BizException("查看权限不完整，部分任务为开放查询权限，请联系管理员Not Auth to get Tasks");
+            throw new BizException("insufficient.permissions.inspect.connection");
         }
     }
 
