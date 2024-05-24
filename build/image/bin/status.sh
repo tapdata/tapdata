@@ -44,6 +44,16 @@ service_status() {
     fi
 }
 
+help() {
+    print_message "Usage: status.sh" "green" true
+    print_message "Check the status of Manager, IEngine and Mongodb services." "cyan" false
+}
+
+if [[ $1 == "help" || $1 == "--help" || $1 == "-h" ]]; then
+    help
+    exit 0
+fi
+
 if [[ `cat .launch_supervisor` == 'true' ]]; then
     supervisorctl -c supervisor/supervisord.conf status
 else

@@ -150,7 +150,11 @@ EOF
 
     if [[ $LAUNCH_SUPERVISOR == "true" ]]; then
         start_supervisord
-        echo 'true' > .launch_supervisor
+        if [[ $? -ne 0 ]]; then
+            echo 'false' > .launch_supervisor
+        else
+            echo 'true' > .launch_supervisor
+        fi
     else
         echo 'false' > .launch_supervisor
     fi

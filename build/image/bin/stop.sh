@@ -34,7 +34,21 @@ print_message() {
     echo -e "${bold_code}${color_code}${message}${reset}"
 }
 
-print_message "Stopping Manager and IEngine..." "cyan" true
+help() {
+    print_message "Usage: stop.sh [all|manager|iengine|mongodb]" "green" true
+    print_message "Stop Manager and IEngine services." "cyan" false
+    print_message "  [all]: stop manager and service" "cyan" false
+    print_message "  manager: stop Manager service" "cyan" false
+    print_message "  iengine: stop IEngine service" "cyan" false
+    print_message "  mongodb: stop MongoDB service" "cyan" false
+}
+
+print_message "Stopping Manager and IEngine..." "green" true
+
+if [[ $components == "help" || $components == "--help" || $components == "-h" ]]; then
+    help
+    exit 0
+fi
 
 stop_service() {
     local service_name="$1"
