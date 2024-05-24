@@ -134,9 +134,10 @@ get_env() {
     export tm_port=${tm_port:-"3030"} # manager port
     export ACCESS_CODE=${ACCESS_CODE:-"3324cfdf-7d3e-4792-bd32-571638d4562f"}  # access code
     export LAUNCH_SUPERVISOR=${LAUNCH_SUPERVISOR:-"false"}  # launch supervisor
+    export REPORT_DATA_OSS=true # report data oss
 
     # Export env
-    export MONGO_URI dbMem engineMem managerMem tm_port ACCESS_CODE
+    export MONGO_URI dbMem engineMem managerMem tm_port ACCESS_CODE LAUNCH_SUPERVISOR REPORT_DATA_OSS
 
 cat <<EOF
 MONGO_URI         : $MONGO_URI
@@ -146,6 +147,7 @@ managerMem        : $managerMem
 tm_port           : $tm_port
 ACCESS_CODE       : $ACCESS_CODE
 LAUNCH_SUPERVISOR : $LAUNCH_SUPERVISOR
+REPORT_DATA_OSS   : $REPORT_DATA_OSS
 EOF
 
     if [[ $LAUNCH_SUPERVISOR == "true" ]]; then
