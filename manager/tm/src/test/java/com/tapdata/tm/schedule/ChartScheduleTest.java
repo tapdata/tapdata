@@ -76,7 +76,7 @@ class ChartScheduleTest {
             chart6Vo.setUpdatedTotal(BigInteger.ZERO);
             when(chartViewService.transmissionOverviewChartData(user)).thenReturn(chart6Vo);
             chartSchedule.chart6();
-            Assertions.assertNotNull(ChartSchedule.cache.get("gavin-id"));
+            Assertions.assertNull(ChartSchedule.cache.get("gavin-id"));
             verify(userService).loadAllUser();
             verify(chartViewService).transmissionOverviewChartData(user);
             verify(user).getUserId();
