@@ -101,6 +101,7 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public void setRepeatInspectTask() {
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
     @Override
