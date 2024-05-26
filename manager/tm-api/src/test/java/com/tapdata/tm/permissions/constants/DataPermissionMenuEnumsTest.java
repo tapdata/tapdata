@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 class DataPermissionMenuEnumsTest {
     @Test
     void testInspect() {
-        Assertions.assertEquals("", DataPermissionMenuEnums.InspectTack.getAllDataPermissionName());
-        Assertions.assertEquals(DataPermissionDataTypeEnums.Inspect, DataPermissionMenuEnums.InspectTack.getDataType());
+        Assertions.assertEquals("", DataPermissionMenuEnums.INSPECT_TACK.getAllDataPermissionName());
+        Assertions.assertEquals(DataPermissionDataTypeEnums.INSPECT, DataPermissionMenuEnums.INSPECT_TACK.getDataType());
     }
 }

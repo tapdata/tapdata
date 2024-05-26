@@ -8,9 +8,13 @@ import java.util.LinkedHashSet;
 class DataPermissionDataTypeEnumsTest {
     @Test
     void testInspect() {
-        Assertions.assertEquals("Inspect", DataPermissionDataTypeEnums.Inspect.getCollection());
-        LinkedHashSet<String> actions = DataPermissionDataTypeEnums.Inspect.allActions();
+        Assertions.assertEquals("Inspect", DataPermissionDataTypeEnums.INSPECT.getCollection());
+        LinkedHashSet<String> actions = DataPermissionDataTypeEnums.INSPECT.allActions();
         Assertions.assertEquals(5, actions.size());
     }
 
+    @Test
+    void testParse() {
+        Assertions.assertNotNull(DataPermissionDataTypeEnums.parse("Inspect"));
+    }
 }

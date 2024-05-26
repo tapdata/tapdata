@@ -79,8 +79,8 @@ public class InspectController extends BaseController {
 
     private <T> T dataPermissionUnAuth(DataPermissionActionEnums action, List<DataPermissionActionEnums> need) {
         throw new BizException("insufficient.permissions",
-                needAction(DataPermissionDataTypeEnums.Inspect, Lists.newArrayList(action)),
-                needAction(DataPermissionDataTypeEnums.Inspect, need)
+                needAction(DataPermissionDataTypeEnums.INSPECT, Lists.newArrayList(action)),
+                needAction(DataPermissionDataTypeEnums.INSPECT, need)
                 );
     }
 
@@ -97,9 +97,9 @@ public class InspectController extends BaseController {
                                             List<DataPermissionActionEnums> need,
                                             Supplier<T> supplier) {
         return DataPermissionHelper.check(userDetail,
-                DataPermissionMenuEnums.InspectTack,
+                DataPermissionMenuEnums.INSPECT_TACK,
                 actionEnums,
-                DataPermissionDataTypeEnums.Inspect,
+                DataPermissionDataTypeEnums.INSPECT,
                 null,
                 supplier,
                 () -> dataPermissionUnAuth(actionEnums, need));
@@ -114,10 +114,10 @@ public class InspectController extends BaseController {
         id = Optional.ofNullable(DataPermissionHelper.signDecode(request, id.toHexString())).map(MongoUtils::toObjectId).orElse(id);
         return DataPermissionHelper.checkOfQuery(
                 userDetail,
-                DataPermissionDataTypeEnums.Inspect,
+                DataPermissionDataTypeEnums.INSPECT,
                 actionEnums,
                 inspectService.dataPermissionFindById(id, new Field()),
-                (dto) -> DataPermissionMenuEnums.InspectTack,
+                (dto) -> DataPermissionMenuEnums.INSPECT_TACK,
                 supplier,
                 () -> dataPermissionUnAuth(actionEnums, need)
         );
@@ -190,9 +190,9 @@ public class InspectController extends BaseController {
         Supplier<Page<InspectDto>> supplier = () -> inspectService.list(finalFilter, getLoginUser());
         Page<InspectDto> result = Optional.ofNullable(
                 DataPermissionHelper.check(getLoginUser(),
-                        DataPermissionMenuEnums.InspectTack,
+                        DataPermissionMenuEnums.INSPECT_TACK,
                         DataPermissionActionEnums.View,
-                        DataPermissionDataTypeEnums.Inspect,
+                        DataPermissionDataTypeEnums.INSPECT,
                         null,
                         supplier,
                         () -> dataPermissionUnAuth(DataPermissionActionEnums.View, Lists.newArrayList(DataPermissionActionEnums.View)))
