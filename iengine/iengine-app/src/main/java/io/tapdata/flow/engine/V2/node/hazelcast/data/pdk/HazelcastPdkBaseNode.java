@@ -82,6 +82,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	protected Integer readBatchSize;
 	protected Integer increaseReadSize;
+	public static final String FUNCTION_RETRY_STATUS = "functionRetryStatus";
 	protected TapRecordSkipDetector skipDetector;
 	private PdkStateMap pdkStateMap;
 
@@ -152,16 +153,20 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	public void signFunctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() -> {
 			Update update = new Update();
-			update.set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING);
+			update.set(FUNCTION_RETRY_STATUS, TaskDto.RETRY_STATUS_RUNNING);
 			update.set("taskRetryStartTime", System.currentTimeMillis());
-			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
+			Criteria functionRetryStatusExists = Criteria.where(FUNCTION_RETRY_STATUS).exists(false);
+			Criteria functionRetryStatusNone = Criteria.where(FUNCTION_RETRY_STATUS).is(TaskDto.RETRY_STATUS_NONE);
+			Query query = Query.query(Criteria.where("_id").is(new ObjectId(taskId))
+					.orOperator(functionRetryStatusExists, functionRetryStatusNone));
+			clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 		}, "Faild to sign function retry status");
 	}
 
 	public void cleanFuctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() -> {
 			Update update = new Update();
-			update.set("functionRetryStatus", TaskDto.RETRY_STATUS_NONE);
+			update.set(FUNCTION_RETRY_STATUS, TaskDto.RETRY_STATUS_NONE);
 			update.set("taskRetryStartTime", 0);
 			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
 		}, "Faild to clean function retry status");
