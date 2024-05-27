@@ -5,14 +5,10 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.dto.InspectDto;
-import org.bson.types.ObjectId;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 public interface InspectTaskService {
-    Supplier<InspectDto> dataPermissionFindById(ObjectId inspectId, com.tapdata.tm.base.dto.Field fields);
-
     InspectDto inspectTaskRun(Where where, InspectDto updateDto, UserDetail user);
 
     InspectDto inspectTaskStop(String id, InspectDto updateDto, UserDetail user);

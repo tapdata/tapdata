@@ -1,21 +1,17 @@
 package com.tapdata.tm.inspect.service;
 
-import com.tapdata.tm.base.dto.Field;
-import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.webhook.enums.ConstVariable;
-import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 
@@ -24,21 +20,6 @@ class InspectTaskServiceOOSImplTest {
     @BeforeEach
     void init() {
         impl = new InspectTaskServiceOOSImpl();
-    }
-
-    @Test
-    void dataPermissionFindById() {
-        try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
-            messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    impl.dataPermissionFindById(mock(ObjectId.class), mock(Field.class));
-                } catch (BizException e) {
-                    Assertions.assertEquals(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION, e.getErrorCode());
-                    throw e;
-                }
-            });
-        }
     }
 
     @Test
