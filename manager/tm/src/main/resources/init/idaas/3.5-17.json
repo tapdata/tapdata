@@ -1,0 +1,13 @@
+[
+  {
+    "insert": "FeatureCheck",
+    "documents": [
+      {
+        "featureType": "feature",
+        "featureCode" : "filter-count",
+        "minAgentVersion": "3.5.16",
+        "description": "源端过滤时count按照过滤的sql计算数量"
+      }
+    ]
+  }
+]

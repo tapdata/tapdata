@@ -11,4 +11,5 @@ import lombok.Data;
 public class TcmInfo {
     private String agentId;
     private String agentName;
+    private String version;
 }
