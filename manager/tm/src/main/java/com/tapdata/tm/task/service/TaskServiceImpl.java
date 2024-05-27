@@ -107,6 +107,9 @@ import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.schedule.ChartSchedule;
 import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
@@ -218,6 +221,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.*;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
 
@@ -2128,44 +2132,65 @@ public class TaskServiceImpl extends TaskService{
         return resultChart;
     }
 
+    protected List<InspectDto> inspectTaskList(Filter filter, UserDetail user) {
+        return DataPermissionHelper.check(
+                user,
+                DataPermissionMenuEnums.INSPECT_TACK,
+                DataPermissionActionEnums.View,
+                DataPermissionDataTypeEnums.INSPECT,
+                null,
+                () -> inspectService.list(filter, user).getItems(),
+                ArrayList::new);
+
+    }
 
     public Map<String, Integer> inspectChart(UserDetail user) {
-        Criteria criteria = Criteria.where(SYNC_TYPE).is(TaskDto.SYNC_TYPE_MIGRATE)
-                .and("isAutoInspect").is(true)
-                .and(IS_DELETED).ne(true);
-        Query query = new Query(criteria);
-        query.fields().include("_id", STATUS, "isAutoInspect", "canOpenInspect", "attrs.autoInspectProgress.tableCounts", "attrs.autoInspectProgress.tableIgnore", "attrs.autoInspectProgress.step");
-
-        int openTaskNum = 0;
-        int canTaskNum = 0;
-        int errorTaskNum = 0;
-        int diffTaskNum = 0;
-        List<TaskDto> taskDtos = findAllDto(query, user);
-
-        Set<String> taskSet = taskAutoInspectResultsService.groupByTask(user);
-        if (CollectionUtils.isNotEmpty(taskDtos)) {
-            openTaskNum = taskDtos.size();
-            for (TaskDto taskDto : taskDtos) {
-                if (taskDto.getCanOpenInspect() != null && taskDto.getCanOpenInspect()) {
-                    canTaskNum++;
+        int error = 0;
+        int running = 0;
+        int done = 0;
+        int waiting = 0;
+        int scheduling = 0;
+        int stopping = 0;
+        int total = 0;
+        List<InspectDto> inspectDtoList = inspectTaskList(new Filter(), user);
+        if (CollectionUtils.isNotEmpty(inspectDtoList)) {
+            total = inspectDtoList.size();
+            for (InspectDto taskDto : inspectDtoList) {
+                String status = String.valueOf(taskDto.getStatus()).toLowerCase();
+                if (ERROR.getValue().equals(status)) {
+                    error++;
+                    continue;
                 }
-
-                if (TaskDto.STATUS_ERROR.equals(taskDto.getStatus())) {
-                    errorTaskNum++;
+                if (RUNNING.getValue().equals(status)) {
+                    running++;
+                    continue;
                 }
-
-                if (taskSet.contains(taskDto.getId().toHexString())) {
-                    diffTaskNum++;
+                if (DONE.getValue().equals(status)) {
+                    done++;
+                    continue;
                 }
-
+                if (WAITING.getValue().equals(status)) {
+                    waiting++;
+                    continue;
+                }
+                if (SCHEDULING.getValue().equals(status)) {
+                    scheduling++;
+                    continue;
+                }
+                if (STOPPING.getValue().equals(status)) {
+                    stopping++;
+                }
             }
         }
 
         Map<String, Integer> chart5 = new HashMap<>();
-        chart5.put(TOTAL, openTaskNum);
-        chart5.put("error", errorTaskNum);
-        chart5.put("can", canTaskNum);
-        chart5.put("diff", diffTaskNum);
+        chart5.put(TOTAL, total);
+        chart5.put("error", error);
+        chart5.put("running", running);
+        chart5.put("done", done);
+        chart5.put("waiting", waiting);
+        chart5.put("scheduling", scheduling);
+        chart5.put("stopping", stopping);
         return chart5;
     }
 
@@ -4220,11 +4245,11 @@ public class TaskServiceImpl extends TaskService{
             for (Stats stats : statsList) {
                 Source target = stats.getTarget();
                 if (connectionId.equals(target.getConnectionId()) && tableName.equals(target.getTable())) {
-                    if (StringUtils.equalsAny(stats.getStatus(), InspectStatusEnum.FAILED.name(),
-                            InspectStatusEnum.ERROR.name())) {
+                    if (StringUtils.equalsAny(stats.getStatus(), FAILED.name(),
+                            ERROR.name())) {
                         return false;
-                    } else if (StringUtils.equalsAny(stats.getStatus(), InspectStatusEnum.DONE.name(),
-                            InspectStatusEnum.PASSED.name())) {
+                    } else if (StringUtils.equalsAny(stats.getStatus(), DONE.name(),
+                            PASSED.name())) {
                         return InspectResultEnum.PASSED.name().equals(stats.getResult());
                     } else {
                         return true;

@@ -34,6 +34,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceServiceImpl;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.inspect.bean.Source;
 import com.tapdata.tm.inspect.bean.Stats;
+import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.service.InspectResultService;
@@ -1954,30 +1955,59 @@ class TaskServiceImplTest {
     }
     @Nested
     class InspectChartTest{
-        private TaskAutoInspectResultsService taskAutoInspectResultsService;
+        List<InspectDto> list;
         @BeforeEach
         void beforeEach(){
-            taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
-            ReflectionTestUtils.setField(taskService,"taskAutoInspectResultsService",taskAutoInspectResultsService);
+            list = new ArrayList<>();
+            InspectDto error = new InspectDto();
+            error.setStatus(InspectStatusEnum.ERROR.getValue());
+            list.add(error);
+            InspectDto running = new InspectDto();
+            running.setStatus(InspectStatusEnum.RUNNING.getValue());
+            list.add(running);
+            InspectDto done = new InspectDto();
+            done.setStatus(InspectStatusEnum.DONE.getValue());
+            list.add(done);
+            InspectDto waiting = new InspectDto();
+            waiting.setStatus(InspectStatusEnum.WAITING.getValue());
+            list.add(waiting);
+            InspectDto scheduling = new InspectDto();
+            scheduling.setStatus(InspectStatusEnum.SCHEDULING.getValue());
+            list.add(scheduling);
+            InspectDto stopping = new InspectDto();
+            stopping.setStatus(InspectStatusEnum.STOPPING.getValue());
+            list.add(stopping);
+            InspectDto o = new InspectDto();
+            o.setStatus(InspectStatusEnum.PASSED.getValue());
+            list.add(o);
+            when(taskService.inspectTaskList(any(Filter.class), any(UserDetail.class))).thenReturn(list);
+            when(taskService.inspectChart(user)).thenCallRealMethod();
         }
         @Test
         void testInspectChartNormal(){
-            List<TaskDto> taskDtos = new ArrayList<>();
-            TaskDto dto = mock(TaskDto.class);
-            taskDtos.add(dto);
-            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(taskDtos);
-            when(dto.getCanOpenInspect()).thenReturn(true);
-            when(dto.getStatus()).thenReturn("error");
-            ObjectId id = mock(ObjectId.class);
-            when(dto.getId()).thenReturn(id);
-            Set<String> taskSet = new HashSet<>();
-            taskSet.add(id.toHexString());
-            when(taskAutoInspectResultsService.groupByTask(user)).thenReturn(taskSet);
-            doCallRealMethod().when(taskService).inspectChart(user);
             Map<String, Integer> actual = taskService.inspectChart(user);
-            assertEquals(1,actual.get("error"));
-            assertEquals(1,actual.get("can"));
-            assertEquals(1,actual.get("diff"));
+            Assertions.assertNotNull(actual);
+            assertEquals(list.size(), actual.get("total"));
+            assertEquals(1, actual.get("error"));
+            assertEquals(1, actual.get("running"));
+            assertEquals(1, actual.get("done"));
+            assertEquals(1, actual.get("waiting"));
+            assertEquals(1, actual.get("scheduling"));
+            assertEquals(1, actual.get("stopping"));
+        }
+
+        @Test
+        void testEmpty() {
+            list.clear();
+            Map<String, Integer> actual = taskService.inspectChart(user);
+            Assertions.assertNotNull(actual);
+            assertEquals(list.size(), actual.get("total"));
+            assertEquals(0, actual.get("error"));
+            assertEquals(0, actual.get("running"));
+            assertEquals(0, actual.get("done"));
+            assertEquals(0, actual.get("waiting"));
+            assertEquals(0, actual.get("scheduling"));
+            assertEquals(0, actual.get("stopping"));
         }
     }
     @Nested
