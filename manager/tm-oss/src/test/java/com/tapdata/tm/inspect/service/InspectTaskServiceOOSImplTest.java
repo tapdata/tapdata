@@ -42,21 +42,6 @@ class InspectTaskServiceOOSImplTest {
     }
 
     @Test
-    void list() {
-        try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
-            messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    impl.list(mock(Filter.class), mock(UserDetail.class));
-                } catch (BizException e) {
-                    Assertions.assertEquals(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION, e.getErrorCode());
-                    throw e;
-                }
-            });
-        }
-    }
-
-    @Test
     void inspectTaskRun() {
         try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
             messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");

@@ -1,8 +1,6 @@
 package com.tapdata.tm.inspect.service;
 
 import com.tapdata.tm.base.dto.Field;
-import com.tapdata.tm.base.dto.Filter;
-import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -20,11 +18,6 @@ import java.util.function.Supplier;
 public class InspectTaskServiceOOSImpl implements InspectTaskService {
     @Override
     public Supplier<InspectDto> dataPermissionFindById(ObjectId inspectId, Field fields) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
-    }
-
-    @Override
-    public Page<InspectDto> list(Filter filter, UserDetail userDetail) {
         throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
