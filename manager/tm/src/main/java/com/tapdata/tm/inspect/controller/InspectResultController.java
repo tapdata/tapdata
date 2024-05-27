@@ -1,26 +1,48 @@
 package com.tapdata.tm.inspect.controller;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import com.alibaba.fastjson.JSON;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
-import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.inspect.bean.GroupByFilter;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.param.SaveInspectResultParam;
 import com.tapdata.tm.inspect.param.UpdateInspectResultParam;
 import com.tapdata.tm.inspect.service.InspectResultService;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
+import com.tapdata.tm.permissions.service.DataPermissionService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.StringJoiner;
 
 
 /**
@@ -31,12 +53,10 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/InspectResults")
 @Slf4j
+@Setter(onMethod_ = {@Autowired})
 public class InspectResultController extends BaseController {
-
-    @Autowired
     private InspectResultService inspectResultService;
-
-
+    private DataPermissionService dataPermissionService;
     /**
      *  engine 通过这个接口 保存校验结果，，这时候会把inspect的内容整个传过来，保存到数据库中。
      *  因为校验历史，需要看到每一次校验的内容，所以InspectReuslt 里面还得保存Inspect的具体数据，不能去掉
@@ -67,6 +87,24 @@ public class InspectResultController extends BaseController {
         return success(save);
     }
 
+    protected void checkInspect(String inspectId, DataPermissionActionEnums... enums) {
+        Set<String> dataActions = dataPermissionService.findDataActions(getLoginUser(), DataPermissionDataTypeEnums.INSPECT, MongoUtils.toObjectId(inspectId));
+        if (CollUtil.isEmpty(dataActions)) {
+            throw new BizException("insufficient.permissions", "", needAction(DataPermissionDataTypeEnums.INSPECT, enums));
+        }
+        for (DataPermissionActionEnums dataAction : enums) {
+            if (!dataActions.contains(dataAction.name())) {
+                throw new BizException("insufficient.permissions", needAction(DataPermissionDataTypeEnums.INSPECT, dataAction), needAction(DataPermissionDataTypeEnums.INSPECT, enums));
+            }
+        }
+    }
+    protected String needAction(DataPermissionDataTypeEnums dataTypeEnums, DataPermissionActionEnums... need) {
+        StringJoiner joiner = new StringJoiner(", ");
+        for (DataPermissionActionEnums a : need) {
+            joiner.add(String.format("%s.%s", dataTypeEnums.getCollection().toLowerCase(), a.name().toLowerCase()));
+        }
+        return joiner.toString();
+    }
 
     /**
      * 查询校验结果列表
@@ -90,6 +128,12 @@ public class InspectResultController extends BaseController {
                 inspectGroupByFirstCheckId = filter.getInspectGroupByFirstCheckId();
             }
         }
+        InspectResultDto one = inspectResultService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(String.valueOf(filter.getWhere().get("id"))))));
+        if (null == one || null == one.getInspect_id()) {
+            throw new BizException("inspect.result.not.exists", filter.getWhere().get("id"));
+        }
+        String inspectId = one.getInspect_id();
+        checkInspect(inspectId, DataPermissionActionEnums.View);
         return success(inspectResultService.find(filter, getLoginUser(), inspectGroupByFirstCheckId));
     }
 
@@ -101,6 +145,12 @@ public class InspectResultController extends BaseController {
     @Operation(summary = "Replace an existing model instance or insert a new one into the data source")
     @PutMapping
     public ResponseMessage<InspectResultDto> put(@RequestBody InspectResultDto inspectResult) {
+        InspectResultDto one = inspectResultService.findOne(Query.query(Criteria.where("_id").is(inspectResult.getId())));
+        if (null == one || null == one.getInspect_id()) {
+            throw new BizException("inspect.result.not.exists", inspectResult.getId());
+        }
+        String inspectId = one.getInspect_id();
+        checkInspect(inspectId, DataPermissionActionEnums.Edit);
         return success(inspectResultService.replaceOrInsert(inspectResult, getLoginUser()));
     }
 
@@ -115,6 +165,12 @@ public class InspectResultController extends BaseController {
     @PatchMapping("{id}")
     public ResponseMessage<InspectResultDto> updateById(@PathVariable("id") String id, @RequestBody InspectResultDto inspectResult) {
         log.info("InspectResultController--updateById。 inspectResult：{} ",  JSON.toJSONString(inspectResult));
+        InspectResultDto one = inspectResultService.findOne(Query.query(Criteria.where("_id").is(inspectResult.getId())));
+        if (null == one || null == one.getInspect_id()) {
+            throw new BizException("inspect.result.not.exists", id);
+        }
+        String inspectId = one.getInspect_id();
+        checkInspect(inspectId, DataPermissionActionEnums.Edit);
         inspectResult.setId(MongoUtils.toObjectId(id));
         return success(inspectResultService.save(inspectResult, getLoginUser()));
     }
@@ -129,7 +185,13 @@ public class InspectResultController extends BaseController {
     @GetMapping("findById")
     public ResponseMessage<InspectResultDto> findById(@RequestParam("filter") String filter) {
         Filter f = parseFilter(filter);
-        return success(inspectResultService.findById(f,getLoginUser()));
+        InspectResultDto one = inspectResultService.findOne(Query.query(Criteria.where("_id").is(f.getWhere().get("id"))));
+        if (null == one || null == one.getInspect_id()) {
+            throw new BizException("inspect.result.not.exists", f.getWhere().get("id"));
+        }
+        String inspectId = one.getInspect_id();
+        checkInspect(inspectId, DataPermissionActionEnums.View);
+        return success(inspectResultService.findById(f, getLoginUser()));
     }
 
     /**
@@ -140,6 +202,12 @@ public class InspectResultController extends BaseController {
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
+        InspectResultDto one = inspectResultService.findOne(Query.query(Criteria.where("_id").is(id)));
+        if (null == one || null == one.getInspect_id()) {
+            throw new BizException("inspect.result.not.exists", id);
+        }
+        String inspectId = one.getInspect_id();
+        checkInspect(inspectId, DataPermissionActionEnums.Delete);
         inspectResultService.deleteById(MongoUtils.toObjectId(id), getLoginUser());
         return success();
     }
@@ -161,6 +229,15 @@ public class InspectResultController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
+        Object id = filter.getWhere().get("id");
+        if (null != id) {
+            InspectResultDto one = inspectResultService.findOne(Query.query(Criteria.where("_id").is(id)));
+            if (null == one || null == one.getInspect_id()) {
+                throw new BizException("inspect.result.not.exists", id);
+            }
+            String inspectId = one.getInspect_id();
+            checkInspect(inspectId, DataPermissionActionEnums.Delete);
+        }
         return success(inspectResultService.findOne(filter, getLoginUser()));
     }
 
@@ -175,6 +252,8 @@ public class InspectResultController extends BaseController {
         log.info("InspectResultController--updateByWhere 。whereJson：{}， InspectDto：{} ", whereJson, JSON.toJSONString(updateInspectResultParam));
         Where where = parseWhere(whereJson);
         InspectResultDto inspectResultDto= BeanUtil.copyProperties(updateInspectResultParam,InspectResultDto.class);
+        String inspectId = inspectResultDto.getInspect_id();
+        checkInspect(inspectId, DataPermissionActionEnums.Edit);
         long count = inspectResultService.updateByWhere(where, inspectResultDto, getLoginUser());
         HashMap<String, Long> countValue = new HashMap<>();
         countValue.put("count", count);
