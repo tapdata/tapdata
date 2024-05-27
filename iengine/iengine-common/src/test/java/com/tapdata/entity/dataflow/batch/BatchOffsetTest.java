@@ -8,6 +8,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 class BatchOffsetTest {
+    @Test
+    void testClass() {
+        Class<?>[] interfaces = BatchOffset.class.getInterfaces();
+        Assertions.assertEquals(2, interfaces.length);
+    }
     @Nested
     class CloneTest {
         @Test

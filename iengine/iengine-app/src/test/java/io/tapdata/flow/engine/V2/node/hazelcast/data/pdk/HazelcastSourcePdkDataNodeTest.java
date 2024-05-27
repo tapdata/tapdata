@@ -1,6 +1,5 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
-import base.ex.TestException;
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.SyncStage;
@@ -9,13 +8,9 @@ import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
-import com.tapdata.entity.task.config.TaskConfig;
-import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DataNode;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
@@ -32,12 +27,12 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapDateTime;
-import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapTimeForm;
@@ -46,20 +41,19 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
-import org.bson.types.ObjectId;
 import org.junit.Assert;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -263,11 +257,11 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 	}
 
 
-	public void queryOperator(String dateTime, QueryOperator queryOperator) {
+	public void queryOperator(String dateTime,QueryOperator queryOperator){
 		List<QueryOperator> conditions = new ArrayList<>();
 
 		conditions.add(queryOperator);
-		TableNode tableNodeTemp = new TableNode();
+		TableNode tableNodeTemp =new TableNode();
 		tableNodeTemp.setIsFilter(true);
 		tableNodeTemp.setConditions(conditions);
 		tableNodeTemp.setTableName("test");
@@ -276,14 +270,14 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 		LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap<>();
 		TapField tapField = new TapField("createTime", "TapDateTime");
 		tapField.setTapType(new TapDateTime());
-		nameFieldMap.put("createTime", tapField);
+		nameFieldMap.put("createTime",tapField);
 		tapTable.setNameFieldMap(nameFieldMap);
 		tapTable.setName("test");
 		tapTable.setId("test");
-		TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("test", tapTable);
+		TapTableMap<String, TapTable>  tapTableMap = TapTableMap.create("test",tapTable);
 
 		when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
-		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode, "batchFilterRead");
+		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode,"batchFilterRead");
 
 	}
 
@@ -353,7 +347,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			Object tableOffset;
 			PDKMethodInvoker pdkMethodInvoker;
 			AutoCloseable ignoreTableCountCloseable;
-
 			@BeforeEach
 			void init() throws Exception {
 				tableId = "id";
@@ -430,7 +423,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					CommonUtils.AnyErrorConsumer<BatchReadFuncAspect> errorConsumer = a.getArgument(2, CommonUtils.AnyErrorConsumer.class);
 					Object call = callable.call();
 
-					try (MockedStatic<PDKInvocationMonitor> pdk = mockStatic(PDKInvocationMonitor.class)) {
+					try(MockedStatic<PDKInvocationMonitor> pdk = mockStatic(PDKInvocationMonitor.class)) {
 						pdk.when(() -> PDKInvocationMonitor.invoke(
 								connectorNode,
 								PDKMethod.SOURCE_BATCH_READ,
@@ -502,7 +495,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				verify(instance, times(v.createPdkMethodInvoker())).createPdkMethodInvoker();
 				verify(instance, times(v.doAsyncTableCount())).doAsyncTableCount(batchCountFunction, tableId);
 				verify(ignoreTableCountCloseable, times(v.close())).close();
-				verify(instance, times(v.executeDataFuncAspect())).executeDataFuncAspect(any(Class.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class));
+				verify(instance,times(v.executeDataFuncAspect())).executeDataFuncAspect(any(Class.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class));
 				verify(obsLogger, times(v.obsLoggerInfo4())).info("Table [{}] has been completed batch read, will skip batch read on the next run", "id");
 				verify(instance, times(v.removePdkMethodInvoker())).removePdkMethodInvoker(pdkMethodInvoker);
 				verify(instance, times(v.snapshotReadTableEndAspect())).executeAspect(any(SnapshotReadTableEndAspect.class));
@@ -561,169 +554,132 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				public int isRunning() {
 					return isRunning;
 				}
-
 				public VerifyDifferent isRunning(int isRunning) {
 					this.isRunning = isRunning;
 					return this;
 				}
-
 				public int getProcessorBaseContext() {
 					return getProcessorBaseContext;
 				}
-
 				public VerifyDifferent getProcessorBaseContext(int getProcessorBaseContext) {
 					this.getProcessorBaseContext = getProcessorBaseContext;
 					return this;
 				}
-
 				public int warn() {
 					return warn;
 				}
-
 				public VerifyDifferent warn(int warn) {
 					this.warn = warn;
 					return this;
 				}
-
 				public int sourceRunnerFirstTimeGet() {
 					return sourceRunnerFirstTimeGet;
 				}
-
 				public VerifyDifferent sourceRunnerFirstTimeGet(int sourceRunnerFirstTimeGet) {
 					this.sourceRunnerFirstTimeGet = sourceRunnerFirstTimeGet;
 					return this;
 				}
-
 				public int setDefaultRowSizeMap() {
 					return setDefaultRowSizeMap;
 				}
-
 				public VerifyDifferent setDefaultRowSizeMap(int setDefaultRowSizeMap) {
 					this.setDefaultRowSizeMap = setDefaultRowSizeMap;
 					return this;
 				}
-
 				public int snapshotReadEndAspect() {
 					return snapshotReadEndAspect;
 				}
-
 				public VerifyDifferent snapshotReadEndAspect(int snapshotReadEndAspect) {
 					this.snapshotReadEndAspect = snapshotReadEndAspect;
 					return this;
 				}
-
 				public int stateCOMPLETED() {
 					return stateCOMPLETED;
 				}
-
 				public VerifyDifferent stateCOMPLETED(int stateCOMPLETED) {
 					this.stateCOMPLETED = stateCOMPLETED;
 					return this;
 				}
-
 				public int tapdataCompleteSnapshotEvent() {
 					return tapdataCompleteSnapshotEvent;
 				}
-
 				public VerifyDifferent tapdataCompleteSnapshotEvent(int tapdataCompleteSnapshotEvent) {
 					this.tapdataCompleteSnapshotEvent = tapdataCompleteSnapshotEvent;
 					return this;
 				}
-
 				public int endSnapshotLoopSet() {
 					return endSnapshotLoopSet;
 				}
-
 				public VerifyDifferent endSnapshotLoopSet(int endSnapshotLoopSet) {
 					this.endSnapshotLoopSet = endSnapshotLoopSet;
 					return this;
 				}
-
 				public int newTablesToArray() {
 					return newTablesToArray;
 				}
-
 				public VerifyDifferent newTablesToArray(int newTablesToArray) {
 					this.newTablesToArray = newTablesToArray;
 					return this;
 				}
-
 				public int newTablesIsEmpty() {
 					return newTablesIsEmpty;
 				}
-
 				public VerifyDifferent newTablesIsEmpty(int newTablesIsEmpty) {
 					this.newTablesIsEmpty = newTablesIsEmpty;
 					return this;
 				}
-
 				public int unlock() {
 					return unlock;
 				}
-
 				public VerifyDifferent unlock(int unlock) {
 					this.unlock = unlock;
 					return this;
 				}
-
 				public int snapshotReadTableErrorAspect() {
 					return snapshotReadTableErrorAspect;
 				}
-
 				public VerifyDifferent snapshotReadTableErrorAspect(int snapshotReadTableErrorAspect) {
 					this.snapshotReadTableErrorAspect = snapshotReadTableErrorAspect;
 					return this;
 				}
-
 				public int tapDataCompleteTableSnapshotEvent() {
 					return tapDataCompleteTableSnapshotEvent;
 				}
-
 				public VerifyDifferent tapDataCompleteTableSnapshotEvent(int tapdataCompleteTableSnapshotEvent) {
 					this.tapDataCompleteTableSnapshotEvent = tapdataCompleteTableSnapshotEvent;
 					return this;
 				}
-
 				public int snapshotReadTableEndAspect() {
 					return snapshotReadTableEndAspect;
 				}
-
 				public VerifyDifferent snapshotReadTableEndAspect(int snapshotReadTableEndAspect) {
 					this.snapshotReadTableEndAspect = snapshotReadTableEndAspect;
 					return this;
 				}
-
 				public int removePdkMethodInvoker() {
 					return removePdkMethodInvoker;
 				}
-
 				public VerifyDifferent removePdkMethodInvoker(int removePdkMethodInvoker) {
 					this.removePdkMethodInvoker = removePdkMethodInvoker;
 					return this;
 				}
-
 				public int obsLoggerInfo4() {
 					return obsLoggerInfo4;
 				}
-
 				public VerifyDifferent obsLoggerInfo4(int obsLoggerInfo4) {
 					this.obsLoggerInfo4 = obsLoggerInfo4;
 					return this;
 				}
-
 				public int updateBatchOffset() {
 					return updateBatchOffset;
 				}
-
 				public VerifyDifferent updateBatchOffset(int updateBatchOffset) {
 					this.updateBatchOffset = updateBatchOffset;
 					return this;
 				}
-
 				public int stateINITIAL() {
 					return stateINITIAL;
 				}
-
 				public VerifyDifferent stateINITIAL(int stateINITIAL) {
 					this.stateINITIAL = stateINITIAL;
 					return this;
@@ -746,7 +702,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					this.getTapTableMap = getTapTableMap;
 					return this;
 				}
-
 				public int getTable() {
 					return getTable;
 				}
@@ -755,7 +710,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					this.getTable = getTable;
 					return this;
 				}
-
 				public int tableGetId() {
 					return tableGetId;
 				}
@@ -764,7 +718,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					this.tableGetId = tableGetId;
 					return this;
 				}
-
 				public int batchIsOverOfTable() {
 					return batchIsOverOfTable;
 				}
@@ -773,133 +726,107 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					this.batchIsOverOfTable = batchIsOverOfTable;
 					return this;
 				}
-
 				public int obsLoggerInfo1() {
 					return obsLoggerInfo1;
 				}
-
 				public VerifyDifferent obsLoggerInfo1(int obsLoggerInfo1) {
 					this.obsLoggerInfo1 = obsLoggerInfo1;
 					return this;
 				}
-
 				public int getBatchOffsetOfTable() {
 					return getBatchOffsetOfTable;
 				}
-
 				public VerifyDifferent getBatchOffsetOfTable(int getBatchOffsetOfTable) {
 					this.getBatchOffsetOfTable = getBatchOffsetOfTable;
 					return this;
 				}
-
 				public int snapshotReadTableBeginAspect() {
 					return snapshotReadTableBeginAspect;
 				}
-
 				public VerifyDifferent snapshotReadTableBeginAspect(int snapshotReadTableBeginAspect) {
 					this.snapshotReadTableBeginAspect = snapshotReadTableBeginAspect;
 					return this;
 				}
-
 				public int lockBySourceRunnerLock() {
 					return lockBySourceRunnerLock;
 				}
-
 				public VerifyDifferent lockBySourceRunnerLock(int lockBySourceRunnerLock) {
 					this.lockBySourceRunnerLock = lockBySourceRunnerLock;
 					return this;
 				}
-
 				public int removeTablesContains() {
 					return removeTablesContains;
 				}
-
 				public VerifyDifferent removeTablesContains(int removeTablesContains) {
 					this.removeTablesContains = removeTablesContains;
 					return this;
 				}
-
 				public int obsLoggerInfo2() {
 					return obsLoggerInfo2;
 				}
-
 				public VerifyDifferent obsLoggerInfo2(int obsLoggerInfo2) {
 					this.obsLoggerInfo2 = obsLoggerInfo2;
 					return this;
 				}
-
 				public int removeTablesRemove() {
 					return removeTablesRemove;
 				}
-
 				public VerifyDifferent removeTablesRemove(int removeTablesRemove) {
 					this.removeTablesRemove = removeTablesRemove;
 					return this;
 				}
-
 				public int obsLoggerInfo3() {
 					return obsLoggerInfo3;
 				}
-
 				public VerifyDifferent obsLoggerInfo3(int obsLoggerInfo3) {
 					this.obsLoggerInfo3 = obsLoggerInfo3;
 					return this;
 				}
-
 				public int createPdkMethodInvoker() {
 					return createPdkMethodInvoker;
 				}
-
 				public VerifyDifferent createPdkMethodInvoker(int createPdkMethodInvoker) {
 					this.createPdkMethodInvoker = createPdkMethodInvoker;
 					return this;
 				}
-
 				public int doAsyncTableCount() {
 					return doAsyncTableCount;
 				}
-
 				public VerifyDifferent doAsyncTableCount(int doAsyncTableCount) {
 					this.doAsyncTableCount = doAsyncTableCount;
 					return this;
 				}
-
 				public int close() {
 					return close;
 				}
-
 				public VerifyDifferent close(int close) {
 					this.close = close;
 					return this;
 				}
-
 				public int executeDataFuncAspect() {
 					return executeDataFuncAspect;
 				}
-
 				public VerifyDifferent executeDataFuncAspect(int executeDataFuncAspect) {
 					this.executeDataFuncAspect = executeDataFuncAspect;
 					return this;
 				}
 			}
 
-			void verifyAll(VerifyDifferent v) throws Exception {
+			void verifyAll(VerifyDifferent v) throws Exception  {
 				verifyAll(v, false);
 			}
-
 			void verifyAll(VerifyDifferent v, boolean batchIsOverOfTable) throws Exception {
-				try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
+				try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
 					bou.when(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId)).thenReturn(batchIsOverOfTable);
 					bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenReturn(tableOffset);
-					bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name())).thenAnswer(a -> null);
+					bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name())).thenAnswer(a->null);
 					Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
 					bou.verify(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId), times(v.batchIsOverOfTable()));
 					bou.verify(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId), times(v.getBatchOffsetOfTable()));
-					bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
+					bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
 					verifyAssert(v);
 				}
 			}
-
 			@Test
 			void testNormal() throws Exception {
 				doCallRealMethod().when(instance).doSnapshot(tableList);
@@ -937,7 +864,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						.snapshotReadEndAspect(1);
 				verifyAll(v);
 			}
-
 			@Test
 			void testLastIsRunningIsFalse() throws Exception {
 				VerifyDifferent v = new VerifyDifferent()
@@ -968,7 +894,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				doCallRealMethod().when(instance).doSnapshot(tableList);
 				verifyAll(v);
 			}
-
 			@Test
 			void testNewTablesIsEmpty() throws Exception {
 				VerifyDifferent v = new VerifyDifferent()
@@ -1036,7 +961,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					CommonUtils.AnyErrorConsumer<BatchReadFuncAspect> errorConsumer = a.getArgument(2, CommonUtils.AnyErrorConsumer.class);
 					Object call = callable.call();
 
-					try (MockedStatic<PDKInvocationMonitor> pdk = mockStatic(PDKInvocationMonitor.class)) {
+					try(MockedStatic<PDKInvocationMonitor> pdk = mockStatic(PDKInvocationMonitor.class)) {
 						pdk.when(() -> PDKInvocationMonitor.invoke(
 								connectorNode,
 								PDKMethod.SOURCE_BATCH_READ,
@@ -1049,12 +974,12 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					throw new IllegalArgumentException();
 				});
 				doCallRealMethod().when(instance).doSnapshot(tableList);
-				try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
+				try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
 					bou.when(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId)).thenReturn(false);
 					bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenReturn(tableOffset);
-					bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name())).thenAnswer(a -> null);
+					bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name())).thenAnswer(a->null);
 					Assertions.assertThrows(TapCodeException.class, () -> {
-						try {
+						try{
 							instance.doSnapshot(tableList);
 						} catch (TapCodeException e) {
 							Assertions.assertEquals(TaskProcessorExCode_11.UNKNOWN_ERROR, e.getCode());
@@ -1063,7 +988,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					});
 					bou.verify(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId), times(v.batchIsOverOfTable()));
 					bou.verify(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId), times(v.getBatchOffsetOfTable()));
-					bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
+					bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
 				}
 				verifyAssert(v);
 			}
@@ -1100,7 +1025,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					CommonUtils.AnyErrorConsumer<BatchReadFuncAspect> errorConsumer = a.getArgument(2, CommonUtils.AnyErrorConsumer.class);
 					Object call = callable.call();
 
-					try (MockedStatic<PDKInvocationMonitor> pdk = mockStatic(PDKInvocationMonitor.class)) {
+					try(MockedStatic<PDKInvocationMonitor> pdk = mockStatic(PDKInvocationMonitor.class)) {
 						pdk.when(() -> PDKInvocationMonitor.invoke(
 								connectorNode,
 								PDKMethod.SOURCE_BATCH_READ,
@@ -1113,10 +1038,10 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					throw new TapCodeException("");
 				});
 				doCallRealMethod().when(instance).doSnapshot(tableList);
-				try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
+				try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
 					bou.when(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId)).thenReturn(false);
 					bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenReturn(tableOffset);
-					bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name())).thenAnswer(a -> null);
+					bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name())).thenAnswer(a->null);
 					Assertions.assertThrows(TapCodeException.class, () -> {
 						try {
 							instance.doSnapshot(tableList);
@@ -1127,7 +1052,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					});
 					bou.verify(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId), times(v.batchIsOverOfTable()));
 					bou.verify(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId), times(v.getBatchOffsetOfTable()));
-					bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
+					bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
 				}
 
 				verifyAssert(v);
@@ -1195,7 +1120,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
 				verifyAssert(v);
 			}
-
 			@Test
 			void testSecIsRunningIsFalse() throws Exception {
 				VerifyDifferent v = new VerifyDifferent()
@@ -1222,7 +1146,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				doCallRealMethod().when(instance).doSnapshot(tableList);
 				verifyAll(v);
 			}
-
 			@Test
 			void testSyncProgressBatchIsOverOfTableIsTrue() throws Exception {
 				VerifyDifferent v = new VerifyDifferent()
@@ -1324,14 +1247,14 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				when(instance.doAsyncTableCount(batchCountFunction, tableId)).thenReturn(ignoreTableCountCloseable);
 
 				doCallRealMethod().when(instance).doSnapshot(tableList);
-				try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
+				try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
 					bou.when(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId)).thenReturn(false);
 					bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenReturn(tableOffset);
-					bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name())).thenAnswer(a -> null);
+					bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name())).thenAnswer(a->null);
 					Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
 					bou.verify(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId), times(v.batchIsOverOfTable()));
 					bou.verify(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId), times(v.getBatchOffsetOfTable()));
-					bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
+					bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
 					verifyAssert(v);
 				}
 			}
@@ -1341,14 +1264,14 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				VerifyDifferent v = new VerifyDifferent().getProcessorBaseContext(1);
 				when(connectorFunctions.getBatchReadFunction()).thenReturn(null);
 				doCallRealMethod().when(instance).doSnapshot(tableList);
-				try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
+				try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
 					bou.when(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId)).thenReturn(false);
 					bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenReturn(tableOffset);
-					bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name())).thenAnswer(a -> null);
+					bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name())).thenAnswer(a->null);
 					Assertions.assertThrows(NodeException.class, () -> instance.doSnapshot(tableList));
 					bou.verify(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId), times(v.batchIsOverOfTable()));
 					bou.verify(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId), times(v.getBatchOffsetOfTable()));
-					bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null, TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
+					bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
 					verifyAssert(v);
 				}
 			}
@@ -1400,18 +1323,16 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 
 			@Test
 			void testInterruptedException() throws InterruptedException {
-				when(sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)).then(a -> {
+				when(sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)).then(a-> {
 					throw new InterruptedException("");
 				});
 				Assertions.assertDoesNotThrow(() -> instance.lockBySourceRunnerLock());
 			}
 		}
-
 		@Nested
 		@DisplayName("Method unLockBySourceRunnerLock test")
 		class UlLockBySourceRunnerLockTest {
 			Exception e;
-
 			@BeforeEach
 			void init() {
 				e = new Exception("exp");
@@ -1439,7 +1360,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				verify(obsLogger, times(1)).isDebugEnabled();
 				verify(obsLogger, times(1)).debug("An error when sourceRunnerLock.unlock(), message: {}", "exp", e);
 			}
-
 			@Test
 			void testExceptionButNotSupportDebug() {
 				when(obsLogger.isDebugEnabled()).thenReturn(false);
@@ -1455,10 +1375,10 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
-	class timeTransformationTest {
+	class timeTransformationTest{
 		@DisplayName("Query the data of the previous day")
 		@Test
-		void test() {
+		void test(){
 			List<QueryOperator> conditions = new ArrayList<>();
 			QueryOperator queryOperator = new QueryOperator();
 			queryOperator.setFastQuery(true);
@@ -1466,128 +1386,70 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			queryOperator.setUnit(TapTimeUnit.HOUR);
 			queryOperator.setNumber(1L);
 			conditions.add(queryOperator);
-			List<QueryOperator> result = hazelcastSourcePdkDataNode.timeTransformation(conditions, null);
-			Assertions.assertEquals(result.size(), 2);
-			Assertions.assertEquals(result.get(0).getOperator(), 2);
-			Assertions.assertEquals(result.get(1).getOperator(), 4);
+			List<QueryOperator> result =  hazelcastSourcePdkDataNode.timeTransformation(conditions,null);
+			Assertions.assertEquals(result.size(),2);
+			Assertions.assertEquals(result.get(0).getOperator(),2);
+			Assertions.assertEquals(result.get(1).getOperator(),4);
 		}
-
 		@DisplayName("Specify query conditions")
 		@Test
-		void test1() {
+		void test1(){
 			List<QueryOperator> conditions = new ArrayList<>();
 			QueryOperator queryOperator = new QueryOperator();
 			queryOperator.setFastQuery(false);
 			conditions.add(queryOperator);
-			List<QueryOperator> result = hazelcastSourcePdkDataNode.timeTransformation(conditions, null);
-			Assertions.assertEquals(result.size(), 1);
+			List<QueryOperator> result =  hazelcastSourcePdkDataNode.timeTransformation(conditions,null);
+			Assertions.assertEquals(result.size(),1);
 		}
 	}
-
 	@Nested
-	class constructQueryOperatorTest {
+	class constructQueryOperatorTest{
 		@DisplayName("timeList is null")
 		@Test
-		void test() {
-			List<QueryOperator> result = hazelcastSourcePdkDataNode.constructQueryOperator(null, new QueryOperator());
-			Assertions.assertEquals(0, result.size());
+		void test(){
+			List<QueryOperator> result = hazelcastSourcePdkDataNode.constructQueryOperator(null,new QueryOperator());
+			Assertions.assertEquals(0,result.size());
 		}
 
 		@DisplayName("Main process")
 		@Test
-		void test1() {
+		void test1(){
 			List<String> timeList = new ArrayList<>();
 			timeList.add("test1");
 			timeList.add("test2");
-			List<QueryOperator> result = hazelcastSourcePdkDataNode.constructQueryOperator(timeList, new QueryOperator());
-			Assertions.assertEquals(2, result.size());
+			List<QueryOperator> result = hazelcastSourcePdkDataNode.constructQueryOperator(timeList,new QueryOperator());
+			Assertions.assertEquals(2,result.size());
 		}
 	}
-
 	@Nested
-	class doBatchCountFunction {
-		long expectedValue = 99;
-		TapTable testTable = new TapTable("testTable");
-		BatchCountFunction mockBatchCountFunction = mock(BatchCountFunction.class);
-
+	class StreamReadConsumerStateListenerTest{
+		private ConnectorNode connectorNode;
 		@BeforeEach
-		void init(){
-			TaskConfig taskConfig = TaskConfig.create();
-			taskConfig.taskRetryConfig(TaskRetryConfig.create());
-			taskConfig.getTaskRetryConfig().retryIntervalSecond(1000L);
-			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
-
+		void before(){
+			connectorNode = mock(ConnectorNode.class);
+			TapNodeInfo tapNodeInfo = mock(TapNodeInfo.class);
+			when(connectorNode.getTapNodeInfo()).thenReturn(tapNodeInfo);
+			TapNodeSpecification tapNodeSpecification = mock(TapNodeSpecification.class);
+			when(tapNodeInfo.getTapNodeSpecification()).thenReturn(tapNodeSpecification);
+			when(tapNodeSpecification.getName()).thenReturn("123");
 		}
-
+		@DisplayName("test stateListener STATE_STREAM_READ_STARTED")
 		@Test
-		@SneakyThrows
-		@DisplayName("Exception test")
-		void testException() {
-
-			when(dataProcessorContext.getNode()).thenReturn((Node) new DatabaseNode());
-
-			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(hazelcastSourcePdkDataNode);
-			doReturn(new ConnectorNode()).when(spyInstance).getConnectorNode();
-			when(mockBatchCountFunction.count(any(), any())).thenThrow(new Exception());
-
-			try {
-				spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
-			} catch (Exception e) {
-				assertTrue(null != e.getCause() && null != e.getCause().getCause() && (e.getCause().getCause() instanceof NodeException), e.getMessage());
+		void test1(){
+			try (MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class)) {
+				ObsLogger obsLogger = mock(ObsLogger.class);
+				ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "obsLogger", obsLogger);
+				doNothing().when(obsLogger).info(anyString(), any(), any());
+				PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
+				pdkInvocationMonitorMockedStatic.when(() -> PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker)).thenAnswer((invocationOnMock) -> {
+					PDKMethodInvoker pdkMethodArgs = (PDKMethodInvoker) invocationOnMock.getArgument(0);
+					assertEquals(pdkMethodInvoker, pdkMethodArgs);
+					return null;
+				});
+				StreamReadConsumer streamReadConsumer = hazelcastSourcePdkDataNode.generateStreamReadConsumer(connectorNode, pdkMethodInvoker);
+				streamReadConsumer.streamReadStarted();
+				verify(obsLogger, times(1)).info(anyString(), any(), any());
 			}
-		}
-
-		@Test
-		@SneakyThrows
-		@DisplayName("Normal  BatchCount test")
-		void testNormalBatchCount() {
-
-			when(dataProcessorContext.getNode()).thenReturn((Node) new DatabaseNode());
-			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(hazelcastSourcePdkDataNode);
-			doReturn(new ConnectorNode()).when(spyInstance).getConnectorNode();
-			when(mockBatchCountFunction.count(any(), any())).thenReturn(expectedValue);
-
-
-			long actualData = spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
-			Assertions.assertTrue(expectedValue == actualData);
-		}
-
-		@Test
-		@SneakyThrows
-		@DisplayName("Filter BatchCount test")
-		void testFilterBatchCount() {
-
-			TableNode testTableTemp = new TableNode();
-			testTableTemp.setIsFilter(true);
-			testTableTemp.setTableName("testTable");
-			List<QueryOperator> conditions = new ArrayList<>();
-			QueryOperator queryOperator = new QueryOperator();
-			queryOperator.setKey("id");
-			queryOperator.setValue("1");
-			queryOperator.setOperator(5);
-
-			conditions.add(queryOperator);
-			testTableTemp.setConditions(conditions);
-			when(dataProcessorContext.getNode()).thenReturn((Node) testTableTemp);
-			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(hazelcastSourcePdkDataNode);
-			ConnectorNode connectorNode = new ConnectorNode();
-			ConnectorFunctions connectorFunctions = new ConnectorFunctions();
-			CountByPartitionFilterFunction countByPartitionFilterFunction = mock(CountByPartitionFilterFunction.class);
-			connectorFunctions.supportCountByPartitionFilterFunction(countByPartitionFilterFunction);
-			ReflectionTestUtils.setField(connectorNode, "connectorFunctions", connectorFunctions);
-			doReturn(connectorNode).when(spyInstance).getConnectorNode();
-			LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap<>();
-			TapField tapField = new TapField();
-			tapField.setTapType(new TapString());
-			nameFieldMap.put("id",tapField);
-			testTable.setNameFieldMap(nameFieldMap);
-			TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("testTable", testTable);
-            when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
-			when(countByPartitionFilterFunction.countByPartitionFilter(any(),any(),any())).thenReturn(expectedValue);
-
-			long actualData = spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
-			Assertions.assertTrue(expectedValue == actualData);
-
 		}
 
 	}
