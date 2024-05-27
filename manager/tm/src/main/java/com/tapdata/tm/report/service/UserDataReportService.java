@@ -40,18 +40,18 @@ public class UserDataReportService {
         if (!acceptReportData) return;
         ExecutorService executorService = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
         CompletableFuture.runAsync(() -> {
-            try {
-                Thread.currentThread().setName("report-user-data-thread");
-                Object reportData;
-                while (!Thread.currentThread().isInterrupted()){
+            Thread.currentThread().setName("report-user-data-thread");
+            Object reportData;
+            while (!Thread.currentThread().isInterrupted()){
+                try {
                     reportData = reportQueue.poll(1, TimeUnit.SECONDS);
                     if (null == reportData) continue;
                     consumeData(reportData);
+                }catch (InterruptedException e){
+                    Thread.currentThread().interrupt();
+                } catch (Exception e){
+                    log.info("report event poll failed", e);
                 }
-            }catch (Exception e){
-                log.info("report event poll failed", e);
-            }finally {
-                executorService.shutdownNow();
             }
         }, executorService);
     }
@@ -74,7 +74,7 @@ public class UserDataReportService {
         try {
             reportQueue.offer(object, 100, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
-            // do nothing
+            Thread.currentThread().interrupt();
         }
     }
 

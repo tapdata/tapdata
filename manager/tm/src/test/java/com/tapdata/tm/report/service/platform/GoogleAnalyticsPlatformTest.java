@@ -25,8 +25,6 @@ public class GoogleAnalyticsPlatformTest {
             GoogleAnalyticsPlatform platform = new GoogleAnalyticsPlatform();
             CloseableHttpClient client = platform.getClient();
             assertNotNull(client);
-            GoogleAnalyticsPlatform platform1 = new GoogleAnalyticsPlatform();
-            assertEquals(client, platform1.getClient());
             try {
                 client.close();
             } catch (IOException e) {

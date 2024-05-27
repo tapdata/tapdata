@@ -92,7 +92,7 @@ public class UserDataReportServiceTest {
             userDataReportService.initReportDataThread();
             Thread.sleep(2000);
             verify(userDataReportService).consumeData(any(Object.class));
-//            verify(logger).info(anyString(),any(Exception.class));
+            verify(logger).info(anyString(),any(Exception.class));
         }
     }
     @Nested

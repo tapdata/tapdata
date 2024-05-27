@@ -20,27 +20,25 @@ public class GoogleAnalyticsPlatform implements ReportPlatform{
     private String apiSecret;
     @Value("${report.url.clientId}")
     private String clientId;
-    private static CloseableHttpClient client;
+    private final CloseableHttpClient client;
 
     protected CloseableHttpClient getClient() {
         return client;
     }
 
     public GoogleAnalyticsPlatform(){
-        if (client == null){
-            RequestConfig requestConfig = RequestConfig.custom()
-                    .setConnectTimeout(5000)
-                    .setSocketTimeout(5000)
-                    .setConnectionRequestTimeout(5000)
-                    .build();
+        RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectTimeout(5000)
+                .setSocketTimeout(5000)
+                .setConnectionRequestTimeout(5000)
+                .build();
 
-            HttpRequestRetryHandler retryHandler = new DefaultHttpRequestRetryHandler(3, true);
-            client = HttpClientBuilder.create()
-                    .setDefaultRequestConfig(requestConfig)
-                    .evictExpiredConnections()
-                    .setRetryHandler(retryHandler)
-                    .build();
-        }
+        HttpRequestRetryHandler retryHandler = new DefaultHttpRequestRetryHandler(3, true);
+        client = HttpClientBuilder.create()
+                .setDefaultRequestConfig(requestConfig)
+                .evictExpiredConnections()
+                .setRetryHandler(retryHandler)
+                .build();
     }
 
     @Override

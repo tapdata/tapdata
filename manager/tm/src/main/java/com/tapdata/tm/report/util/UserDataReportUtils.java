@@ -11,6 +11,8 @@ import java.util.List;
 public class UserDataReportUtils {
 
     public static String PARAM_MAX_LENGTH = System.getenv().getOrDefault("PRELOAD_SCHEMA_WAIT_TIME","100");
+    private UserDataReportUtils(){
+    }
 
     public static String generateMachineId() {
         List<String> machineIdList = new ArrayList<>();
