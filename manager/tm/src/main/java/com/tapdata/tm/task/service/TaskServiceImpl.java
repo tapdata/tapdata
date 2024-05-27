@@ -87,7 +87,6 @@ import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.inspect.bean.Source;
 import com.tapdata.tm.inspect.bean.Stats;
 import com.tapdata.tm.inspect.constant.InspectResultEnum;
-import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.service.InspectResultService;
@@ -221,7 +220,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static com.tapdata.tm.inspect.constant.InspectStatusEnum.*;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.DONE;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.ERROR;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.FAILED;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.PASSED;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.RUNNING;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.SCHEDULING;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.STOPPING;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.WAITING;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
 
@@ -2159,25 +2165,15 @@ public class TaskServiceImpl extends TaskService{
                 String status = String.valueOf(taskDto.getStatus()).toLowerCase();
                 if (ERROR.getValue().equals(status)) {
                     error++;
-                    continue;
-                }
-                if (RUNNING.getValue().equals(status)) {
+                } else if(RUNNING.getValue().equals(status)) {
                     running++;
-                    continue;
-                }
-                if (DONE.getValue().equals(status)) {
+                } else if (DONE.getValue().equals(status)) {
                     done++;
-                    continue;
-                }
-                if (WAITING.getValue().equals(status)) {
+                } else if (WAITING.getValue().equals(status)) {
                     waiting++;
-                    continue;
-                }
-                if (SCHEDULING.getValue().equals(status)) {
+                }else if (SCHEDULING.getValue().equals(status)) {
                     scheduling++;
-                    continue;
-                }
-                if (STOPPING.getValue().equals(status)) {
+                }else if (STOPPING.getValue().equals(status)) {
                     stopping++;
                 }
             }
