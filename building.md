@@ -91,9 +91,9 @@ If everything is ok, you will get:
 3. webui: build/tapdata-web/dist
 
 ### Start Guidelines
+
 If you want to start the complete Tapdata service on your machine, please follow these steps:
 ### Instructions for Starting the Complete Tapdata Service on Your Machine
-
 1. **Deploy a MongoDB Replica Set and Record the Access URI**:
     - Set up a MongoDB replica set and make a note of the URI that you will use to access it.
 
@@ -123,7 +123,21 @@ If you want to start the complete Tapdata service on your machine, please follow
     - Run the following command to start the engine:
 
         ```sh
-        java -Xmx2G -jar components/tapdata-agent.jar
+        java -Xmx2G -jar components/ie.jar
         ```
+
+### HA Deployment
+The open-source version supports all high-availability features of the enterprise version, but it does not support visual multi-node management. You can follow the steps below to deploy a high-availability cluster.
+
+#### Meta Database
+Tapdata uses MongoDB as the metadata repository. You can deploy a MongoDB replica set with more than three nodes to provide high availability for the metadata database.
+
+#### Manager
+Tapdata Manager is a stateless node. If you need high availability for this component, simply start multiple instances on different machines.
+
+Please note that if you deploy multiple Manager nodes, when starting the engine, you need to add the addresses of all Manager nodes to `backend_url`, separating multiple addresses with commas.
+
+#### Engine
+You only need to deploy multiple engines on different machines. In the event of an engine failure, tasks will automatically transfer between different engines. You may observe that some tasks have no progress for a period, but they will automatically resume. The default high availability switch time is 10 minutes, which we understand to be an appropriate value. This ensures that tasks can switch in a timely manner when a failure occurs and avoids unnecessary task migration due to network fluctuations.
 
 By following these steps, you can start the complete Tapdata service on your machine.
