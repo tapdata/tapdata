@@ -11,12 +11,19 @@ import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
+import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
@@ -26,6 +33,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 @DisplayName("HazelcastSourcePdkDataNode Class Test")
 public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
@@ -178,6 +186,40 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 
 			verify(hazelcastSourcePdkDataNode, times(1)).getNode();
 			verify(tapInsertRecordEvent, times(0)).getAfter();
+		}
+	}
+
+	@Nested
+	class StreamReadConsumerStateListenerTest {
+		private ConnectorNode connectorNode;
+
+		@BeforeEach
+		void before() {
+			connectorNode = mock(ConnectorNode.class);
+			TapNodeInfo tapNodeInfo = mock(TapNodeInfo.class);
+			when(connectorNode.getTapNodeInfo()).thenReturn(tapNodeInfo);
+			TapNodeSpecification tapNodeSpecification = mock(TapNodeSpecification.class);
+			when(tapNodeInfo.getTapNodeSpecification()).thenReturn(tapNodeSpecification);
+			when(tapNodeSpecification.getName()).thenReturn("123");
+		}
+
+		@DisplayName("test stateListener STATE_STREAM_READ_STARTED")
+		@Test
+		void test1() {
+			try (MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class)) {
+				ObsLogger obsLogger = mock(ObsLogger.class);
+				ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "obsLogger", obsLogger);
+				doNothing().when(obsLogger).info(anyString(), any(), any());
+				PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
+				pdkInvocationMonitorMockedStatic.when(() -> PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker)).thenAnswer((invocationOnMock) -> {
+					PDKMethodInvoker pdkMethodArgs = (PDKMethodInvoker) invocationOnMock.getArgument(0);
+					assertEquals(pdkMethodInvoker, pdkMethodArgs);
+					return null;
+				});
+				StreamReadConsumer streamReadConsumer = hazelcastSourcePdkDataNode.generateStreamReadConsumer(connectorNode, pdkMethodInvoker);
+				streamReadConsumer.streamReadStarted();
+				verify(obsLogger, times(1)).info(anyString(), any(), any());
+			}
 		}
 	}
 }
