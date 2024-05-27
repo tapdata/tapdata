@@ -49,7 +49,7 @@ public class FeatureCheckService extends BaseService<FeatureCheckDto, FeatureChe
     }
 
 
-    public FeatureCheckResult queryFeatureCheck(List<FeatureCheckDto> featureCheckDtoList, UserDetail userDetail) {
+    public FeatureCheckResult checkVersionDependencies(List<FeatureCheckDto> featureCheckDtoList, UserDetail userDetail) {
         if (CollectionUtils.isEmpty(featureCheckDtoList)) {
             log.error("FeatureCheck param is empty");
             throw new BizException("featureCheck.param.empty");

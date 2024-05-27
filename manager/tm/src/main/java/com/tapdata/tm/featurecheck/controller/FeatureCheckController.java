@@ -28,6 +28,6 @@ public class FeatureCheckController extends BaseController {
     @Operation(summary = "check feature min version")
     @PostMapping
     public ResponseMessage<FeatureCheckResult> queryFeatureCheck(@RequestBody List<FeatureCheckDto> featureCheckDtoList) {
-        return success(featureCheckService.queryFeatureCheck(featureCheckDtoList, getLoginUser()));
+        return success(featureCheckService.checkVersionDependencies(featureCheckDtoList, getLoginUser()));
     }
 }

@@ -74,7 +74,7 @@ public class FeatureCheckTest {
     @Test
     void testQueryFeatureCheckParamEmpty() {
         try {
-            ReflectionTestUtils.invokeMethod(featureCheckService, "queryFeatureCheck", new ArrayList<>(), user);
+            ReflectionTestUtils.invokeMethod(featureCheckService, "checkVersionDependencies", new ArrayList<>(), user);
         }catch (BizException e){
             Assertions.assertEquals("featureCheck.param.empty", e.getErrorCode());
         }
@@ -105,7 +105,7 @@ public class FeatureCheckTest {
         featureCheckDto1.setDescription("有新的功能");
         featureCheckDtoTemp.add(featureCheckDto1);
         Mockito.doReturn(featureCheckDtoTemp).when(featureCheckService).findAll(any(Query.class));
-        FeatureCheckResult actualData =  ReflectionTestUtils.invokeMethod(featureCheckService, "queryFeatureCheck", featureCheckDtoList, user);
+        FeatureCheckResult actualData =  ReflectionTestUtils.invokeMethod(featureCheckService, "checkVersionDependencies", featureCheckDtoList, user);
         Assertions.assertTrue(CollectionUtils.isNotEmpty(actualData.getEligibleAgents()));
         Assertions.assertTrue(actualData.getResult().get(0).getMinAgentVersion() ==null);
 
