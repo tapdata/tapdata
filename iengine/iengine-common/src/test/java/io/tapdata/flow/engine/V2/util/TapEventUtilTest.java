@@ -1,15 +1,21 @@
 package io.tapdata.flow.engine.V2.util;
 
+import com.tapdata.entity.TapdataShareLogEvent;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.control.HeartbeatEvent;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -80,5 +86,174 @@ class TapEventUtilTest {
 		TapInsertRecordEvent tapInsertRecordEvent=new TapInsertRecordEvent();
 		Boolean isReplaceEvent = TapEventUtil.getIsReplaceEvent(tapInsertRecordEvent);
 		assertEquals(Boolean.FALSE,isReplaceEvent);
+	}
+	@Nested
+	class getIllegalField{
+		@Test
+		@DisplayName("test getIllegalField method for TapInsertRecordEvent")
+		void test1(){
+			TapEvent tapEvent = new TapInsertRecordEvent();
+			List mock = mock(List.class);
+			((TapInsertRecordEvent)tapEvent).setAfterIllegalDateFieldName(mock);
+			Map<String, List<String>> actual = TapEventUtil.getIllegalField(tapEvent);
+			assertEquals(mock, actual.get("after"));
+		}
+		@Test
+		@DisplayName("test getIllegalField method for TapUpdateRecordEvent")
+		void test2(){
+			TapEvent tapEvent = new TapUpdateRecordEvent();
+			List before = mock(List.class);
+			List after = mock(List.class);
+			((TapUpdateRecordEvent)tapEvent).setBeforeIllegalDateFieldName(before);
+			((TapUpdateRecordEvent)tapEvent).setAfterIllegalDateFieldName(after);
+			Map<String, List<String>> actual = TapEventUtil.getIllegalField(tapEvent);
+			assertEquals(before, actual.get("before"));
+			assertEquals(after, actual.get("after"));
+		}
+		@Test
+		@DisplayName("test getIllegalField method for TapDeleteRecordEvent")
+		void test3(){
+			TapEvent tapEvent = new TapDeleteRecordEvent();
+			List mock = mock(List.class);
+			((TapDeleteRecordEvent)tapEvent).setBeforeIllegalDateFieldName(mock);
+			Map<String, List<String>> actual = TapEventUtil.getIllegalField(tapEvent);
+			assertEquals(mock, actual.get("before"));
+		}
+		@Test
+		@DisplayName("test getIllegalField method for other event")
+		void test4(){
+			TapEvent tapEvent = new HeartbeatEvent();
+			Map<String, List<String>> actual = TapEventUtil.getIllegalField(tapEvent);
+			assertNull(actual);
+		}
+	}
+	@Nested
+	class setContainsIllegalDate{
+		private TapEvent event;
+		private boolean containsIllegalDate;
+		@Test
+		@DisplayName("test setContainsIllegalDate method for TapRecordEvent")
+		void test1(){
+			event = new TapInsertRecordEvent();
+			containsIllegalDate = true;
+			TapEventUtil.setContainsIllegalDate(event,containsIllegalDate);
+			assertEquals(containsIllegalDate, ((TapInsertRecordEvent)event).getContainsIllegalDate());
+		}
+		@Test
+		@DisplayName("test setContainsIllegalDate method for TapAlterFieldNameEvent")
+		void test2(){
+			event = new TapAlterFieldNameEvent();
+			containsIllegalDate = true;
+			TapEventUtil.setContainsIllegalDate(event,containsIllegalDate);
+			assertNotNull(event);
+		}
+	}
+	@Nested
+	class addBeforeIllegalDateField{
+		private TapEvent tapEvent;
+		private String fieldName;
+		@Test
+		@DisplayName("test addBeforeIllegalDateField method for TapUpdateRecordEvent")
+		void test1(){
+			tapEvent = new TapUpdateRecordEvent();
+			fieldName = "test_field";
+			TapEventUtil.addBeforeIllegalDateField(tapEvent,fieldName);
+			assertEquals(fieldName, ((TapUpdateRecordEvent)tapEvent).getBeforeIllegalDateFieldName().get(0));
+			assertNull(((TapUpdateRecordEvent)tapEvent).getAfterIllegalDateFieldName());
+		}
+		@Test
+		@DisplayName("test addBeforeIllegalDateField method for TapUpdateRecordEvent when fieldNameList is not null")
+		void test2(){
+			tapEvent = new TapUpdateRecordEvent();
+			List<String> fieldNameList = new ArrayList<>();
+			fieldNameList.add("field");
+			((TapUpdateRecordEvent)tapEvent).setBeforeIllegalDateFieldName(fieldNameList);
+			fieldName = "test_field";
+			TapEventUtil.addBeforeIllegalDateField(tapEvent,fieldName);
+			assertEquals(fieldNameList, ((TapUpdateRecordEvent)tapEvent).getBeforeIllegalDateFieldName());
+			assertEquals(2, ((TapUpdateRecordEvent)tapEvent).getBeforeIllegalDateFieldName().size());
+			assertNull(((TapUpdateRecordEvent)tapEvent).getAfterIllegalDateFieldName());
+		}
+		@Test
+		@DisplayName("test addBeforeIllegalDateField method for TapDeleteRecordEvent")
+		void test3(){
+			tapEvent = new TapDeleteRecordEvent();
+			fieldName = "test_field";
+			TapEventUtil.addBeforeIllegalDateField(tapEvent,fieldName);
+			assertEquals(fieldName, ((TapDeleteRecordEvent)tapEvent).getBeforeIllegalDateFieldName().get(0));
+		}
+		@Test
+		@DisplayName("test addBeforeIllegalDateField method for TapDeleteRecordEvent when fieldNameList is not null")
+		void test4(){
+			tapEvent = new TapDeleteRecordEvent();
+			List<String> fieldNameList = new ArrayList<>();
+			fieldNameList.add("field");
+			((TapDeleteRecordEvent)tapEvent).setBeforeIllegalDateFieldName(fieldNameList);
+			fieldName = "test_field";
+			TapEventUtil.addBeforeIllegalDateField(tapEvent,fieldName);
+			assertEquals(fieldNameList, ((TapDeleteRecordEvent)tapEvent).getBeforeIllegalDateFieldName());
+			assertEquals(2, ((TapDeleteRecordEvent)tapEvent).getBeforeIllegalDateFieldName().size());
+		}
+		@Test
+		@DisplayName("test addBeforeIllegalDateField method for TapInsertRecordEvent")
+		void test5(){
+			tapEvent = new TapInsertRecordEvent();
+			TapEventUtil.addBeforeIllegalDateField(tapEvent, "test_field");
+			assertNotNull(tapEvent);
+		}
+	}
+	@Nested
+	class addAfterIllegalDateField{
+		private TapEvent tapEvent;
+		private String fieldName;
+		@Test
+		@DisplayName("test addAfterIllegalDateField method for TapInsertRecordEvent")
+		void test1(){
+			tapEvent = new TapInsertRecordEvent();
+			fieldName = "test_field";
+			TapEventUtil.addAfterIllegalDateField(tapEvent,fieldName);
+			assertEquals(fieldName, ((TapInsertRecordEvent)tapEvent).getAfterIllegalDateFieldName().get(0));
+		}
+		@Test
+		@DisplayName("test addBeforeIllegalDateField method for TapInsertRecordEvent when fieldNameList is not null")
+		void test2(){
+			tapEvent = new TapInsertRecordEvent();
+			List<String> fieldNameList = new ArrayList<>();
+			fieldNameList.add("field");
+			((TapInsertRecordEvent)tapEvent).setAfterIllegalDateFieldName(fieldNameList);
+			fieldName = "test_field";
+			TapEventUtil.addAfterIllegalDateField(tapEvent,fieldName);
+			assertEquals(fieldNameList, ((TapInsertRecordEvent)tapEvent).getAfterIllegalDateFieldName());
+			assertEquals(2, ((TapInsertRecordEvent)tapEvent).getAfterIllegalDateFieldName().size());
+		}
+		@Test
+		@DisplayName("test addBeforeIllegalDateField method for TapUpdateRecordEvent")
+		void test3(){
+			tapEvent = new TapUpdateRecordEvent();
+			fieldName = "test_field";
+			TapEventUtil.addAfterIllegalDateField(tapEvent,fieldName);
+			assertEquals(fieldName, ((TapUpdateRecordEvent)tapEvent).getAfterIllegalDateFieldName().get(0));
+			assertNull(((TapUpdateRecordEvent)tapEvent).getBeforeIllegalDateFieldName());
+		}
+		@Test
+		@DisplayName("test addBeforeIllegalDateField method for TapUpdateRecordEvent when fieldNameList is not null")
+		void test4(){
+			tapEvent = new TapUpdateRecordEvent();
+			List<String> fieldNameList = new ArrayList<>();
+			fieldNameList.add("field");
+			((TapUpdateRecordEvent)tapEvent).setAfterIllegalDateFieldName(fieldNameList);
+			fieldName = "test_field";
+			TapEventUtil.addAfterIllegalDateField(tapEvent,fieldName);
+			assertEquals(fieldNameList, ((TapUpdateRecordEvent)tapEvent).getAfterIllegalDateFieldName());
+			assertEquals(2, ((TapUpdateRecordEvent)tapEvent).getAfterIllegalDateFieldName().size());
+			assertNull(((TapUpdateRecordEvent)tapEvent).getBeforeIllegalDateFieldName());
+		}
+		@Test
+		@DisplayName("test addBeforeIllegalDateField method for TapDeleteRecordEvent")
+		void test5(){
+			tapEvent = new TapDeleteRecordEvent();
+			TapEventUtil.addAfterIllegalDateField(tapEvent, "test_field");
+			assertNotNull(tapEvent);
+		}
 	}
 }

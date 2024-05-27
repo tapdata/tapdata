@@ -17,23 +17,25 @@
         <sonar.organization>tapdata</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.coverage.exclusions>
-            manager/tm/**/dto/*,
-            manager/tm/**/entity/*,
-            manager/tm/**/vo/*,
+            manager/**/dto/*,
+            manager/**/entity/*,
+            manager/**/vo/*,
             manager/tm/**/controller/*,
-            manager/tm/**/constant/*,
+            manager/**/constant/*,
             manager/tm/**/ex/*,
             **/*Dto.java,
             **/*Enum.java,
             iengine/iengine-common/src/main/java/com/tapdata/entity/**,
             tapdata-cli/**,
             iengine/iengine-common/src/main/java/com/tapdata/exception/**,
-            manager/tm-common/src/main/java/com/tapdata/tm/commons/task/dto/**
+            manager/tm-common/src/main/java/com/tapdata/tm/commons/task/dto/**,
+            manager/tm/src/main/java/com/tapdata/tm/init/patches/daas/*,
+            manager/tm/src/main/java/com/tapdata/tm/init/patches/dfs/*
         </sonar.coverage.exclusions>
         <sonar.exclusions>
-            manager/tm/**/dto/*,
-            manager/tm/**/entity/*,
-            manager/tm/**/vo/*,
+            manager/**/dto/*,
+            manager/**/entity/*,
+            manager/**/vo/*,
             manager/tm/**/controller/*,
             manager/tm/**/constant/*,
             manager/tm/**/ex/*,
@@ -41,7 +43,9 @@
             **/*Enum.java,
             iengine/iengine-common/src/main/java/com/tapdata/entity/**,
             tapdata-cli/**,
-            manager/tm-common/src/main/java/com/tapdata/tm/commons/task/dto/**
+            manager/tm-common/src/main/java/com/tapdata/tm/commons/task/dto/**,
+            manager/tm/src/main/java/com/tapdata/tm/init/patches/daas/*,
+            manager/tm/src/main/java/com/tapdata/tm/init/patches/dfs/*
         </sonar.exclusions>
         <sonar.test.exclusions>
             **/src/test/**

@@ -310,7 +310,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected TapCodecsFilterManager initFilterCodec() {
-		return TapCodecUtil.genericCodecsFilterManager();
+		return TapCodecUtil.createEngineCodecsFilterManger();
 	}
 
 	protected TapValueTransform transformFromTapValue(TapdataEvent tapdataEvent) {

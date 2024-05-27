@@ -12,7 +12,7 @@ import java.lang.reflect.Constructor;
 import java.util.List;
 import java.util.Map;
 
-public interface ParseRelMig<T extends ParentTaskDto>  {
+public interface ParseRelMig<T extends ParentTaskDto> {
     String PROCESSOR_THREAD_NUM = "processorThreadNum";
     String CATALOG = "catalog";
     String ELEMENT_TYPE = "elementType";
@@ -21,18 +21,17 @@ public interface ParseRelMig<T extends ParentTaskDto>  {
 
     List<T> parse();
 
-    static ParseRelMigFile redirect(ParseParam param) {
+    static ParseRelMig<?> redirect(ParseParam param) {
         try {
             MultipartFile multipartFile = param.getMultipartFile();
             String relMig = new String(multipartFile.getBytes());
             param.setRelMigStr(relMig);
-            Map<String, Object> relMigInfo;
-            relMigInfo = new ObjectMapper().readValue(param.getRelMigStr(), Map.class);
+            Map<String, Object> relMigInfo = (Map<String, Object>) new ObjectMapper().readValue(param.getRelMigStr(), Map.class);
             param.setRelMigInfo(relMigInfo);
             String version = String.valueOf(relMigInfo.get(KeyWords.VERSION));
             Class<? extends ParseRelMig> instance = ParseRelMigFileVersionMapping.getInstance(version);
             Constructor<? extends ParseRelMig> declaredConstructor = instance.getDeclaredConstructor(ParseParam.class);
-            return (ParseRelMigFile) declaredConstructor.newInstance(param);
+            return declaredConstructor.newInstance(param);
         } catch (Exception e) {
             throw new BizException("relMig.parse.failed", e.getMessage());
         }

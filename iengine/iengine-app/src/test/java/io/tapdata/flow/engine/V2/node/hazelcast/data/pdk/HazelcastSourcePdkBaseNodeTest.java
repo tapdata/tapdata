@@ -11,6 +11,7 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
+import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.DDLConfiguration;
@@ -27,6 +28,7 @@ import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -39,6 +41,7 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.node.pdk.ConnectorNodeService;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -53,6 +56,7 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
+import org.junit.Assert;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -66,6 +70,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -1169,5 +1174,43 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(instance, times(1)).errorHandle(any(Throwable.class), anyString());
 		}
 	}
+
+
+	@Test
+	void testHandleCustomCommandResultForList() {
+        HazelcastSourcePdkDataNode hazelcastSourcePdkDataNode = Mockito.mock(HazelcastSourcePdkDataNode.class);
+		List<Map<String, Object>> list = new ArrayList<>();
+		Map<String, Object> map = new HashMap<>();
+		map.put("id",1);
+		list.add(map);
+		String tableName = "test";
+		BiConsumer<List<TapEvent>, Object> consumer = new BiConsumer<List<TapEvent>, Object>() {
+			@Override
+			public void accept(List<TapEvent> tapEvents, Object o) {
+				TapEvent tapEvent = tapEvents.get(0);
+				Assert.assertEquals(tableName,((TapInsertRecordEvent)tapEvent).getTableId());
+			}
+		};
+		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode,"handleCustomCommandResult",
+				list,tableName,consumer);
+	}
+
+
+	@Test
+	void testHandleCustomCommandResultForLong() {
+		HazelcastSourcePdkDataNode hazelcastSourcePdkDataNode = Mockito.mock(HazelcastSourcePdkDataNode.class);
+		String tableName = "test";
+		long excepted = 8L;
+		BiConsumer<List<TapEvent>, Object> consumer = new BiConsumer<List<TapEvent>, Object>() {
+			@Override
+			public void accept(List<TapEvent> tapEvents, Object o) {
+				Assert.assertTrue(!tapEvents.isEmpty());
+			}
+		};
+		ReflectionTestUtils.setField(hazelcastSourcePdkDataNode,"obsLogger",Mockito.mock(ObsLogger.class));
+		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode,"handleCustomCommandResult",
+				excepted,tableName,consumer);
+	}
+
 
 }

@@ -80,7 +80,7 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
 		}
 
 		this.codecsFilterManager = connectorNode.getCodecsFilterManager();
-		this.genericCodecFilterManager = TapCodecUtil.genericCodecsFilterManager();
+		this.genericCodecFilterManager = TapCodecUtil.createEngineCodecsFilterManger();
 		;
 	}
 

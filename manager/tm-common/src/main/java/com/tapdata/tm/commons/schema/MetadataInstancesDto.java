@@ -110,6 +110,8 @@ public class MetadataInstancesDto extends BaseDto {
 
      private String description;
 
+    private String beforeDynamicTableName;
+    private String afterDynamicTableName;
 
     /**
      * 是否是虚拟表 'virtual' 'source'

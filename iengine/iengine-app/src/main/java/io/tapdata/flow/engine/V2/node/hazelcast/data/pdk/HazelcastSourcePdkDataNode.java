@@ -413,9 +413,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																		obsLogger.info("Execute result is null");
 																		return;
 																	}
-																	List<Map<String, Object>> maps = (List<Map<String, Object>>) executeResult.getResult();
-																	List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
-																	consumer.accept(events, null);
+
+																	Object result= executeResult.getResult();
+																	handleCustomCommandResult(result,tableName,consumer);
 																});
 															} else {
 																batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
@@ -465,6 +465,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 		}
 		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
+	}
+
+	private void handleCustomCommandResult(Object result, String tableName, BiConsumer<List<TapEvent>, Object> consumer){
+		if (result instanceof List) {
+			List<Map<String, Object>> maps = (List<Map<String, Object>>) result;
+			List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
+			consumer.accept(events, null);
+		}else {
+			obsLogger.info("The execution result is:{}, because the result is not a list it will be ignored.",result);
+		}
 	}
 
 	private void createTargetIndex(List<String> updateConditionFields, boolean createUnique, String tableId, TapTable tapTable) {
@@ -668,7 +678,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		});
 		StreamReadMultiConnectionFunction streamReadMultiConnectionFunction = Optional.ofNullable(connectionConfigWithTables).map(configWithTables -> {
 			// first config add heartbeat table to list
-			Optional.of(cdcDelayCalculation.addHeartbeatTable(configWithTables.get(0).getTables())).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+			Optional.of(cdcDelayCalculation.addHeartbeatTable(configWithTables.get(0).getTables())).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 			return connectorNode.getConnectorFunctions().getStreamReadMultiConnectionFunction();
 		}).orElse(null);
 
@@ -706,7 +716,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				}
 				tables.addAll(tapTableMap.keySet());
 				excludeRemoveTable(tables);
-				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
 					if (null != streamReadFuncAspect) {
 						executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA).streamReadConsumer(streamReadConsumer));
@@ -724,7 +734,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
 				tables.addAll(tapTableMap.keySet());
 				excludeRemoveTable(tables);
-				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
 					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
 							syncProgress.getStreamOffsetObj(), increaseReadSize, streamReadConsumer);
