@@ -1294,6 +1294,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		tableNames.removeAll(removeTables);
 	}
 
+	@Override
 	protected Long doBatchCountFunction(BatchCountFunction batchCountFunction, TapTable table) {
 		AtomicReference<Long> counts = new AtomicReference<>();
 
