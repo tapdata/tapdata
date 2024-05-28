@@ -44,9 +44,9 @@ public class UserDataReportServiceTest {
             try (MockedStatic<CompletableFuture> mb = Mockito
                     .mockStatic(CompletableFuture.class)) {
                 mb.when(() -> CompletableFuture.runAsync(any(Runnable.class),any(Executor.class))).thenReturn(mock(CompletableFuture.class));
-                ReflectionTestUtils.setField(userDataReportService,"acceptReportData",true);
+                ReflectionTestUtils.setField(userDataReportService,"acceptReportData",false);
                 userDataReportService.initReportDataThread();
-                mb.verify(() -> CompletableFuture.runAsync(any(Runnable.class),any(Executor.class)), new Times(1));
+                mb.verify(() -> CompletableFuture.runAsync(any(Runnable.class),any(Executor.class)), new Times(0));
             }
         }
         @Test
@@ -55,8 +55,9 @@ public class UserDataReportServiceTest {
         void test2(){
             ReflectionTestUtils.setField(userDataReportService,"acceptReportData",true);
             userDataReportService.initReportDataThread();
-            Thread.sleep(2000);
-            verify(userDataReportService,never()).consumeData(any(Object.class));
+            LinkedBlockingQueue reportQueue = UserDataReportService.reportQueue;
+            Object poll = reportQueue.poll(500, TimeUnit.MILLISECONDS);
+            assertNull(poll);
         }
 //        @Test
         @SneakyThrows

@@ -66,4 +66,23 @@ public class GoogleAnalyticsPlatformTest {
             verify(logger,new Times(1)).info(anyString(),any(Exception.class));
         }
     }
+    @Nested
+    class ProcessParamIfNeedTest{
+        @Test
+        void testProcessParamIfNeedNormal(){
+            String value = "100";
+            GoogleAnalyticsPlatform platform = mock(GoogleAnalyticsPlatform.class);
+            doCallRealMethod().when(platform).processParamIfNeed(value);
+            int actual = platform.processParamIfNeed(value);
+            assertEquals(100, actual);
+        }
+        @Test
+        void testProcessParamIfNeedWithEx(){
+            String value = "100l";
+            GoogleAnalyticsPlatform platform = mock(GoogleAnalyticsPlatform.class);
+            doCallRealMethod().when(platform).processParamIfNeed(value);
+            int actual = platform.processParamIfNeed(value);
+            assertEquals(5000, actual);
+        }
+    }
 }

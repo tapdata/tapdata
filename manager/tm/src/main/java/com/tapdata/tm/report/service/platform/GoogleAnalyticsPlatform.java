@@ -14,6 +14,9 @@ import org.springframework.stereotype.Component;
 @Component
 @Slf4j
 public class GoogleAnalyticsPlatform implements ReportPlatform{
+    public static final String CONNECT_TIMEOUT = System.getenv().getOrDefault("GOOGLE_CLIENT_CONNECT_TIMEOUT","5000");
+    public static final String SOCKET_TIMEOUT = System.getenv().getOrDefault("GOOGLE_CLIENT_SOCKET_TIMEOUT","5000");
+    public static final String CONNECTION_REQUEST_TIMEOUT = System.getenv().getOrDefault("GOOGLE_CLIENT_CONNECTION_REQUEST_TIMEOUT","5000");
     @Value("${report.url.measurementId}")
     private String measurementId;
     @Value("${report.url.apiSecret}")
@@ -28,9 +31,9 @@ public class GoogleAnalyticsPlatform implements ReportPlatform{
 
     public GoogleAnalyticsPlatform(){
         RequestConfig requestConfig = RequestConfig.custom()
-                .setConnectTimeout(5000)
-                .setSocketTimeout(5000)
-                .setConnectionRequestTimeout(5000)
+                .setConnectTimeout(processParamIfNeed(CONNECT_TIMEOUT))
+                .setSocketTimeout(processParamIfNeed(SOCKET_TIMEOUT))
+                .setConnectionRequestTimeout(processParamIfNeed(CONNECTION_REQUEST_TIMEOUT))
                 .build();
 
         HttpRequestRetryHandler retryHandler = new DefaultHttpRequestRetryHandler(3, true);
@@ -62,6 +65,14 @@ public class GoogleAnalyticsPlatform implements ReportPlatform{
             client.execute(httpPost);
         } catch (Exception e) {
             log.info("report user data failed", e);
+        }
+    }
+    protected int processParamIfNeed(String value){
+        int param = 5000;
+        try {
+            return Integer.parseInt(value);
+        }catch (Exception e){
+            return param;
         }
     }
 }
