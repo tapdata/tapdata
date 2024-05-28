@@ -373,6 +373,12 @@ public class InspectController extends BaseController {
         return success(taskList);
     }
 
+    @Operation(summary = "详情页查询任务列表的时候，都会调用这个方法")
+    @GetMapping("task-list")
+    public ResponseMessage<List<TaskDto>> getTaskDtoList() {
+        return success(inspectTaskService.findTaskList(getLoginUser()));
+    }
+
     protected void checkTask(String taskId) {
         Set<String> dataActions = dataPermissionService.findDataActions(getLoginUser(), DataPermissionDataTypeEnums.Task, MongoUtils.toObjectId(taskId));
         if (CollUtil.isEmpty(dataActions) || !dataActions.contains(DataPermissionActionEnums.View.name())) {
@@ -403,6 +409,11 @@ public class InspectController extends BaseController {
             checkConnection(task.getTarget(), collect);
         }
         return success(connectionList);
+    }
+    @Operation(summary = "详情页查询数据源列表的时候，都会调用这个方法")
+    @GetMapping("connector-list")
+    public ResponseMessage<List<DataSourceConnectionDto>> getConnectorDtoList() {
+        return success(inspectTaskService.findConnectionList(getLoginUser()));
     }
 
     protected void checkConnection(Source connection, Map<String, DataSourceConnectionDto> collect) {
