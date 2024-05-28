@@ -128,11 +128,17 @@ public class InspectResultController extends BaseController {
                 inspectGroupByFirstCheckId = filter.getInspectGroupByFirstCheckId();
             }
         }
-        InspectResultDto one = inspectResultService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(String.valueOf(filter.getWhere().get("id"))))));
-        if (null == one || null == one.getInspect_id()) {
-            throw new BizException("inspect.result.not.exists", filter.getWhere().get("id"));
+        Object inspectIdObj = filter.getWhere().get("inspect_id");
+        String inspectId;
+        if (null == inspectIdObj) {
+            InspectResultDto one = inspectResultService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(String.valueOf(filter.getWhere().get("id"))))));
+            if (null == one || null == one.getInspect_id()) {
+                throw new BizException("inspect.result.not.exists", filter.getWhere().get("id"));
+            }
+            inspectId = one.getInspect_id();
+        } else {
+            inspectId = String.valueOf(inspectIdObj);
         }
-        String inspectId = one.getInspect_id();
         checkInspect(inspectId, DataPermissionActionEnums.View);
         return success(inspectResultService.find(filter, getLoginUser(), inspectGroupByFirstCheckId));
     }
