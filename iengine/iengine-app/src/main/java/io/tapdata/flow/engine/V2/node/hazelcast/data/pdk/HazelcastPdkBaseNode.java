@@ -70,6 +70,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	public static final int DEFAULT_READ_BATCH_SIZE = 2000;
 	public static final int DEFAULT_INCREASE_BATCH_SIZE = 1;
 	public static final String OLD_VERSION_TIMEZONE = "oldVersionTimezone";
+	public static final String OLD_VERSION_TIME_ZONE_PROP_KEY = "OLD_VERSION_TIME_ZONE";
 	private final Logger logger = LogManager.getLogger(HazelcastPdkBaseNode.class);
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
 	protected static final String COMPLETED_INITIAL_SYNC_KEY_PREFIX = "COMPLETED-INITIAL-SYNC-";
@@ -230,7 +231,9 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			nodeConfig = new HashMap<>();
 		}
 		nodeConfig.put(DOUBLE_ACTIVE, taskDto.getDoubleActive());
-		nodeConfig.put(OLD_VERSION_TIMEZONE, taskDto.getOldVersionTimezone());
+		Boolean oldVersionTimezone = taskDto.getOldVersionTimezone();
+		oldVersionTimezone = CommonUtils.getPropertyBool(OLD_VERSION_TIME_ZONE_PROP_KEY, oldVersionTimezone);
+		nodeConfig.put(OLD_VERSION_TIMEZONE, oldVersionTimezone);
 		return nodeConfig;
 	}
 

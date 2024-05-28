@@ -513,7 +513,7 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
-		@DisplayName("test oldVersionTimezone property")
+		@DisplayName("test oldVersionTimezone")
 		void testOldVersionTimezone() {
 			TableNode node = new TableNode();
 			taskDto.setOldVersionTimezone(true);
@@ -522,6 +522,17 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertTrue((Boolean) nodeConfig.get(HazelcastPdkBaseNode.OLD_VERSION_TIMEZONE));
 			taskDto.setOldVersionTimezone(false);
 			nodeConfig = hazelcastPdkBaseNode.generateNodeConfig(node, taskDto);
+			assertTrue(nodeConfig.containsKey(HazelcastPdkBaseNode.OLD_VERSION_TIMEZONE));
+			assertFalse((Boolean) nodeConfig.get(HazelcastPdkBaseNode.OLD_VERSION_TIMEZONE));
+		}
+
+		@Test
+		@DisplayName("test oldVersionTimezone when set system property")
+		void testOldVersionTimezone1() {
+			TableNode node = new TableNode();
+			taskDto.setOldVersionTimezone(true);
+			System.setProperty(HazelcastPdkBaseNode.OLD_VERSION_TIME_ZONE_PROP_KEY, "false");
+			Map<String, Object> nodeConfig = hazelcastPdkBaseNode.generateNodeConfig(node, taskDto);
 			assertTrue(nodeConfig.containsKey(HazelcastPdkBaseNode.OLD_VERSION_TIMEZONE));
 			assertFalse((Boolean) nodeConfig.get(HazelcastPdkBaseNode.OLD_VERSION_TIMEZONE));
 		}
