@@ -30,7 +30,7 @@ public class UserDataReportService {
     private static String machineId = UserDataReportUtils.generateMachineId();
 
     @Value("${report.data.oss}")
-    private static boolean acceptReportData;
+    private boolean acceptReportData;
     protected static LinkedBlockingQueue reportQueue = new LinkedBlockingQueue(100);
     @Autowired
     private ReportPlatform reportPlatform;

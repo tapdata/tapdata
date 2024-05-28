@@ -7,15 +7,8 @@ import lombok.SneakyThrows;
 import org.junit.jupiter.api.*;
 import org.mockito.*;
 import org.mockito.internal.verification.Times;
-import org.slf4j.Logger;
 import org.springframework.test.util.ReflectionTestUtils;
-
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -51,49 +44,21 @@ public class UserDataReportServiceTest {
         }
         @Test
         @SneakyThrows
-        @DisplayName("test initReportDataThread method when acceptReportData is true and reportQueue is empty")
+        @DisplayName("test initReportDataThread method when acceptReportData is true")
         void test2(){
-            ReflectionTestUtils.setField(userDataReportService,"acceptReportData",true);
-            userDataReportService.initReportDataThread();
-            LinkedBlockingQueue reportQueue = UserDataReportService.reportQueue;
-            Object poll = reportQueue.poll(500, TimeUnit.MILLISECONDS);
-            assertNull(poll);
-        }
-//        @Test
-        @SneakyThrows
-        @DisplayName("test initReportDataThread method when acceptReportData is true and reportQueue is not empty")
-        void test3(){
-            ReflectionTestUtils.setField(userDataReportService,"acceptReportData",true);
-            LinkedBlockingQueue reportQueue = UserDataReportService.reportQueue;
-            reportQueue.offer(mock(Object.class),100,TimeUnit.MILLISECONDS);
-            reportQueue.offer(mock(Object.class),100,TimeUnit.MILLISECONDS);
-            reportQueue.offer(mock(Object.class),100,TimeUnit.MILLISECONDS);
-            userDataReportService.initReportDataThread();
-            Thread.sleep(2000);
-            verify(userDataReportService).consumeData(any(Object.class));
-        }
-//        @Test
-        @SneakyThrows
-        @DisplayName("test initReportDataThread method when acceptReportData is true and consumeData throw exception")
-        void test4(){
-            Logger logger = mock(Logger.class);
-            Field log = UserDataReportService.class.getDeclaredField("log");
-            log.setAccessible(true);
-            Field modifiers = Field.class.getDeclaredField("modifiers");
-            modifiers.setAccessible(true);
-            modifiers.setInt(log, log.getModifiers() & ~Modifier.FINAL);
-            log.set(userDataReportService, logger);
-            ReflectionTestUtils.setField(userDataReportService,"acceptReportData",true);
-            LinkedBlockingQueue reportQueue = UserDataReportService.reportQueue;
-            reportQueue.offer(mock(Object.class),100,TimeUnit.MILLISECONDS);
-            reportQueue.offer(mock(Object.class),100,TimeUnit.MILLISECONDS);
-            reportQueue.offer(mock(Object.class),100,TimeUnit.MILLISECONDS);
-            doThrow(RuntimeException.class).when(userDataReportService).consumeData(any(Object.class));
-            MockitoAnnotations.openMocks(this);
-            userDataReportService.initReportDataThread();
-            Thread.sleep(2000);
-            verify(userDataReportService).consumeData(any(Object.class));
-            verify(logger).info(anyString(),any(Exception.class));
+            try (MockedStatic<CompletableFuture> mb = Mockito
+                    .mockStatic(CompletableFuture.class)) {
+                mb.when(() -> CompletableFuture.runAsync(any(Runnable.class),any(ExecutorService.class))).thenAnswer((invocationOnMock -> {
+                    ExecutorService actual = invocationOnMock.getArgument(1, ExecutorService.class);
+                    assertEquals(1, ((ThreadPoolExecutor)actual).getCorePoolSize());
+                    assertEquals(1, ((ThreadPoolExecutor)actual).getMaximumPoolSize());
+                    assertEquals(0, ((ThreadPoolExecutor)actual).getKeepAliveTime(TimeUnit.MILLISECONDS));
+                    return null;
+                }));
+                ReflectionTestUtils.setField(userDataReportService,"acceptReportData",true);
+                userDataReportService.initReportDataThread();
+                mb.verify(() -> CompletableFuture.runAsync(any(Runnable.class),any(Executor.class)), new Times(1));
+            }
         }
     }
     @Nested
