@@ -650,7 +650,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
     }
 
-    private void hiddenMqPasswd(DataSourceConnectionDto item) {
+    protected void hiddenMqPasswd(DataSourceConnectionDto item) {
         if (item != null && !isAgentReq() && !Objects.isNull(item.getConfig())
                 && !item.getConfig().isEmpty()) {
             if (item.getConfig().containsKey("password")) {
@@ -665,17 +665,13 @@ public class DataSourceServiceImpl extends DataSourceService{
                 String uri = (String) item.getConfig().get("uri");
                 ConnectionString connectionString = null;
                 try {
-                    connectionString = new ConnectionString(uri);
-                } catch (Exception e) {
-                    if (uri.startsWith("mongodb+srv:")) {
-                        try {
-                            connectionString = new ConnectionString(uri.replace("mongodb+srv:", "mongodb:"));
-                        } catch (Exception e1) {
-                            log.error("Parse connection string failed ({}) {}", uri, e.getMessage());
-                        }
-                    } else {
-                        log.error("Parse connection string failed ({}) {}", uri, e.getMessage());
+                    if(uri.startsWith("mongodb+srv:")){
+                        connectionString = new ConnectionString(uri.replace("mongodb+srv:", "mongodb:"));
+                    }else{
+                        connectionString = new ConnectionString(uri);
                     }
+                } catch (Exception e) {
+                    log.error("Parse connection string failed ({}) {}", uri, e.getMessage());
                 }
 
                 if (connectionString != null) {
