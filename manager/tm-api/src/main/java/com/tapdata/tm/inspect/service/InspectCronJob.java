@@ -51,7 +51,7 @@ public class InspectCronJob implements Job {
 
             Where where=new Where();
             where.put("id",inspectId);
-            inspectService.executeInspect(where,inspectDto,userDetail);
+            inspectService.doExecuteInspect(where,inspectDto,userDetail);
         }
     }
 }

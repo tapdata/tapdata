@@ -8,6 +8,7 @@ import com.hazelcast.jet.Job;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.TapdataEvent;
@@ -1354,11 +1355,17 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 	@Nested
 	@DisplayName("ErrorHandle method test")
 	class ErrorHandleTest {
+		HttpClientMongoOperator clientMongoOperator;
+		ObsLogger obsLogger;
 		@BeforeEach
 		void beforeEach() {
+			obsLogger = mock(ObsLogger.class);
+			clientMongoOperator = mock(HttpClientMongoOperator.class);
 			hazelcastBaseNode = spy(hazelcastBaseNode);
-			ReflectionTestUtils.setField(hazelcastBaseNode,"clientMongoOperator",mock(HttpClientMongoOperator.class));
+			ReflectionTestUtils.setField(hazelcastBaseNode,"clientMongoOperator", clientMongoOperator);
 			ReflectionTestUtils.setField(hazelcastBaseNode,"obsLogger",mock(ObsLogger.class));
+			doNothing().when(clientMongoOperator).insertOne(anyList(), anyString());
+			doNothing().when(obsLogger).warn(anyString(), anyString());
 		}
 
 		@Test
@@ -1423,6 +1430,14 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 
 		@Test
 		void testErrorHandleSkipTapMessageIsNull() {
+			TapCodeException tapCodeException = new TapCodeException("1001");
+			Assertions.assertNull(hazelcastBaseNode.errorHandle(tapCodeException,"error3"));
+		}
+
+		@Test
+		void testClientMongoOperatorIsNull() {
+			ReflectionTestUtils.setField(hazelcastBaseNode,"clientMongoOperator", null);
+			when(hazelcastBaseNode.initClientMongoOperator()).thenReturn(clientMongoOperator);
 			TapCodeException tapCodeException = new TapCodeException("1001");
 			Assertions.assertNull(hazelcastBaseNode.errorHandle(tapCodeException,"error3"));
 		}

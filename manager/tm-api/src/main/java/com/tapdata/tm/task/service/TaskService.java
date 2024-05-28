@@ -258,8 +258,6 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract void updateTaskLogSetting(String taskId, LogSettingParam logSettingParam, UserDetail userDetail);
 
-    public abstract Chart6Vo chart6(UserDetail user);
-
     public abstract void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail);
 
     public abstract List<TaskDto> getTaskStatsByTableNameOrConnectionId(String connectionId, String tableName, UserDetail userDetail);

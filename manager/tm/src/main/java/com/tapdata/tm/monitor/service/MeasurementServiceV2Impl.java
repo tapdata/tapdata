@@ -1,5 +1,6 @@
 package com.tapdata.tm.monitor.service;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
 import com.mongodb.client.result.DeleteResult;
@@ -40,7 +41,17 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.MongoExpression;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.*;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationExpression;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperationContext;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.Fields;
+import org.springframework.data.mongodb.core.aggregation.GroupOperation;
+import org.springframework.data.mongodb.core.aggregation.LimitOperation;
+import org.springframework.data.mongodb.core.aggregation.MatchOperation;
+import org.springframework.data.mongodb.core.aggregation.SortOperation;
+import org.springframework.data.mongodb.core.aggregation.UnwindOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -48,7 +59,16 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1076,15 +1096,22 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
      * @return MeasurementEntity
      */
     @Override
-    public MeasurementEntity findLastMinuteByTaskId(String taskId) {
-        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
+    public List<MeasurementEntity> findLastMinuteByTaskId(List<String> taskId) {
+        Criteria criteria = Criteria.where("tags.taskId").in(taskId)
                 .and("grnty").is("minute")
                 .and("tags.type").is("task");
 
         Query query = new Query(criteria);
         query.fields().include("ss", "tags");
         query.with(Sort.by("date").descending());
-        return mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+        List<MeasurementEntity> entities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+        return entities.stream().filter(Objects::nonNull).collect(Collectors.toList());
+    }
+
+    @Override
+    public MeasurementEntity findLastMinuteByTaskId(String taskId) {
+        List<MeasurementEntity> lastMinuteByTaskId = findLastMinuteByTaskId(Lists.newArrayList(taskId));
+        return CollUtil.isEmpty(lastMinuteByTaskId) ? null : lastMinuteByTaskId.get(0);
     }
 
 

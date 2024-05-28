@@ -2,7 +2,7 @@ package com.tapdata.tm.schedule;
 
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.bean.Chart6Vo;
-import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.service.chart.ChartViewService;
 import com.tapdata.tm.user.service.UserService;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,11 +16,9 @@ import java.util.Map;
 @Component
 @Setter(onMethod_ = {@Autowired})
 public class ChartSchedule {
-
-
     public static Map<String, Chart6Vo> cache = new HashMap<>();
 
-    private TaskService taskService;
+    private ChartViewService chartViewService;
 
     private UserService userService;
 
@@ -28,13 +26,13 @@ public class ChartSchedule {
     public void chart6() {
         List<UserDetail> userDetails = userService.loadAllUser();
         for (UserDetail userDetail : userDetails) {
-            Chart6Vo chart6Vo = taskService.chart6(userDetail);
+            Chart6Vo chart6Vo = chartViewService.transmissionOverviewChartData(userDetail);
             put(userDetail.getUserId(), chart6Vo);
         }
     }
 
 
-    public static void  put(String key, Chart6Vo chart6Vo) {
+    public static void put(String key, Chart6Vo chart6Vo) {
         if (chart6Vo != null && !chart6Vo.empty()) {
             cache.put(key, chart6Vo);
         }

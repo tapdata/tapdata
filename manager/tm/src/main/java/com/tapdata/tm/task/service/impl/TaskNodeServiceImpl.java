@@ -388,16 +388,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
         predecessors.add(currentNode);
 
-        // table rename
-        LinkedList<TableRenameProcessNode> tableRenameProcessNodes = predecessors
-                .stream()
-                .filter(node -> node instanceof TableRenameProcessNode)
-                .map(node -> (TableRenameProcessNode) node)
-                .collect(Collectors.toCollection(LinkedList::new));
-        Map<String, TableRenameTableInfo> tableNameMapping = null;
-        if (CollectionUtils.isNotEmpty(tableRenameProcessNodes)) {
-            tableNameMapping = tableRenameProcessNodes.getLast().originalMap();
-        }
         // field rename
         LinkedList<MigrateFieldRenameProcessorNode> fieldRenameProcessorNodes = predecessors
                 .stream()
@@ -455,12 +445,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
             MetadataTransformerItemDto item = new MetadataTransformerItemDto();
             item.setSourceObjectName(tableName);
-            String sinkTableName = metadataInstancesDto.getOriginalName();
-            String previousTableName = metadataInstancesDto.getOriginalName();
-            if (Objects.nonNull(tableNameMapping) && !tableNameMapping.isEmpty() && Objects.nonNull(tableNameMapping.get(tableName))) {
-                sinkTableName = tableNameMapping.get(tableName).getCurrentTableName();
-                previousTableName = tableNameMapping.get(tableName).getPreviousTableName();
-            }
+            String sinkTableName = metadataInstancesDto.getName();
+            String previousTableName = metadataInstancesDto.getAncestorsName();
             item.setSinkObjectName(sinkTableName);
 
             List<FieldsMapping> fieldsMapping = new LinkedList<>();

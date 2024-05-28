@@ -278,8 +278,6 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
             if (CollectionUtils.isEmpty(tableNames)) {
                 tableNode.setTableNames(new LinkedHashSet<>());
-            } else if (CollectionUtils.isNotEmpty(tableNode.getTableNames())) {
-                tableNode.getTableNames().removeIf(t -> !tableNames.contains(t.getOriginTableName()));
             }
 
             if (CollectionUtils.isNotEmpty(tableNode.getTableNames())) {

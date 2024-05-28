@@ -18,25 +18,62 @@ import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
 import com.tapdata.tm.base.dto.Field;
-import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.MutiResponseMessage;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.dto.TmPageable;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.base.dto.BaseDto;
-import com.tapdata.tm.commons.dag.*;
-import com.tapdata.tm.commons.dag.nodes.*;
-import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.DmlPolicyEnum;
+import com.tapdata.tm.commons.dag.Edge;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.CacheNode;
+import com.tapdata.tm.commons.dag.nodes.DataNode;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
+import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
+import com.tapdata.tm.commons.dag.process.JsProcessorNode;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import com.tapdata.tm.commons.dag.process.script.ScriptProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
-import com.tapdata.tm.commons.dag.vo.*;
+import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.MetadataTransformerDto;
+import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
+import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
-import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.Dag;
+import com.tapdata.tm.commons.task.dto.DataSyncMq;
+import com.tapdata.tm.commons.task.dto.MergeTableProperties;
+import com.tapdata.tm.commons.task.dto.Message;
+import com.tapdata.tm.commons.task.dto.Milestone;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.TaskHistory;
+import com.tapdata.tm.commons.task.dto.TaskRunHistoryDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
-import com.tapdata.tm.commons.util.*;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.customNode.dto.CustomNodeDto;
 import com.tapdata.tm.customNode.service.CustomNodeService;
@@ -50,7 +87,6 @@ import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.inspect.bean.Source;
 import com.tapdata.tm.inspect.bean.Stats;
 import com.tapdata.tm.inspect.constant.InspectResultEnum;
-import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.service.InspectResultService;
@@ -71,6 +107,7 @@ import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.report.dto.TasksNumBatch;
 import com.tapdata.tm.report.service.UserDataReportService;
@@ -79,8 +116,21 @@ import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
-import com.tapdata.tm.task.bean.*;
-import com.tapdata.tm.task.constant.*;
+import com.tapdata.tm.task.bean.Chart6Vo;
+import com.tapdata.tm.task.bean.FullSyncVO;
+import com.tapdata.tm.task.bean.LogCollectorResult;
+import com.tapdata.tm.task.bean.RunTimeInfo;
+import com.tapdata.tm.task.bean.SampleTaskVo;
+import com.tapdata.tm.task.bean.SyncTaskStatusDto;
+import com.tapdata.tm.task.bean.TableStatusInfoDto;
+import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
+import com.tapdata.tm.task.constant.InputNumCache;
+import com.tapdata.tm.task.constant.SyncStatus;
+import com.tapdata.tm.task.constant.SyncType;
+import com.tapdata.tm.task.constant.TableStatusEnum;
+import com.tapdata.tm.task.constant.TaskEnum;
+import com.tapdata.tm.task.constant.TaskOpStatusEnum;
+import com.tapdata.tm.task.constant.TaskStatusEnum;
 import com.tapdata.tm.task.dto.CheckEchoOneNodeParam;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
@@ -90,6 +140,7 @@ import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.batchin.ParseRelMig;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
+import com.tapdata.tm.task.service.chart.ChartViewService;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
@@ -100,14 +151,27 @@ import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
-import com.tapdata.tm.utils.*;
+import com.tapdata.tm.utils.FunctionUtils;
+import com.tapdata.tm.utils.GZIPUtil;
+import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MapUtils;
+import com.tapdata.tm.utils.MessageUtil;
+import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.NumberUtil;
+import com.tapdata.tm.utils.SpringContextHelper;
+import com.tapdata.tm.utils.TimeUtil;
+import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.exception.TapCodeException;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.NonNull;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -136,7 +200,20 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -145,6 +222,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.DONE;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.ERROR;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.FAILED;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.PASSED;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.RUNNING;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.SCHEDULING;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.STOPPING;
+import static com.tapdata.tm.inspect.constant.InspectStatusEnum.WAITING;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
 
@@ -286,6 +371,7 @@ public class TaskServiceImpl extends TaskService{
     private AgentGroupService agentGroupService;
     private DataSourceDefinitionService dataSourceDefinitionService;
     private BatchUpChecker batchUpChecker;
+    private ChartViewService chartViewService;
     private UserDataReportService userDataReportService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
@@ -2036,20 +2122,8 @@ public class TaskServiceImpl extends TaskService{
      */
     public Map<String, Object> chart(UserDetail user) {
         Map<String, Object> resultChart = new HashMap<>();
-        Criteria criteria = new Criteria()
-                .and(IS_DELETED).ne(true)
-                .and(SYNC_TYPE).in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
-                .and(STATUS).nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
-                //共享缓存的任务设计的有点问题
-                .and("shareCache").ne(true);
-
-
-        Query query = Query.query(criteria);
-        query.fields().include(SYNC_TYPE, STATUS, "statuses");
         //把任务都查询出来
-        List<TaskDto> taskDtoList = DataPermissionMenuEnums.MigrateTack.checkAndSetFilter(
-                user, DataPermissionActionEnums.View, () -> findAllDto(query, user)
-        );
+        List<TaskDto> taskDtoList = chartViewService.getViewTaskDtoByUser(user);
         Map<String, List<TaskDto>> syncTypeToTaskList = taskDtoList.stream().collect(Collectors.groupingBy(TaskDto::getSyncType));
 
         List<TaskDto> migrateList =  syncTypeToTaskList.getOrDefault(SyncType.MIGRATE.getValue(), Collections.emptyList());
@@ -2061,51 +2135,62 @@ public class TaskServiceImpl extends TaskService{
         resultChart.put("chart5", inspectChart(user));
         Chart6Vo chart6Vo = ChartSchedule.cache.get(user.getUserId());
         if (chart6Vo == null) {
-            chart6Vo = chart6(user);
+            chart6Vo = chartViewService.transmissionOverviewChartData(taskDtoList);
             ChartSchedule.put(user.getUserId(), chart6Vo);
         }
         resultChart.put("chart6", chart6Vo);
         return resultChart;
     }
 
+    protected List<InspectDto> inspectTaskList(Filter filter, UserDetail user) {
+        return DataPermissionHelper.check(
+                user,
+                DataPermissionMenuEnums.INSPECT_TACK,
+                DataPermissionActionEnums.View,
+                DataPermissionDataTypeEnums.INSPECT,
+                null,
+                () -> inspectService.list(filter, user).getItems(),
+                ArrayList::new);
+
+    }
 
     public Map<String, Integer> inspectChart(UserDetail user) {
-        Criteria criteria = Criteria.where(SYNC_TYPE).is(TaskDto.SYNC_TYPE_MIGRATE)
-                .and("isAutoInspect").is(true)
-                .and(IS_DELETED).ne(true);
-        Query query = new Query(criteria);
-        query.fields().include("_id", STATUS, "isAutoInspect", "canOpenInspect", "attrs.autoInspectProgress.tableCounts", "attrs.autoInspectProgress.tableIgnore", "attrs.autoInspectProgress.step");
-
-        int openTaskNum = 0;
-        int canTaskNum = 0;
-        int errorTaskNum = 0;
-        int diffTaskNum = 0;
-        List<TaskDto> taskDtos = findAllDto(query, user);
-
-        Set<String> taskSet = taskAutoInspectResultsService.groupByTask(user);
-        if (CollectionUtils.isNotEmpty(taskDtos)) {
-            openTaskNum = taskDtos.size();
-            for (TaskDto taskDto : taskDtos) {
-                if (taskDto.getCanOpenInspect() != null && taskDto.getCanOpenInspect()) {
-                    canTaskNum++;
+        int error = 0;
+        int running = 0;
+        int done = 0;
+        int waiting = 0;
+        int scheduling = 0;
+        int stopping = 0;
+        int total = 0;
+        List<InspectDto> inspectDtoList = inspectTaskList(new Filter(), user);
+        if (CollectionUtils.isNotEmpty(inspectDtoList)) {
+            total = inspectDtoList.size();
+            for (InspectDto taskDto : inspectDtoList) {
+                String status = String.valueOf(taskDto.getStatus()).toLowerCase();
+                if (ERROR.getValue().equals(status)) {
+                    error++;
+                } else if(RUNNING.getValue().equals(status)) {
+                    running++;
+                } else if (DONE.getValue().equals(status)) {
+                    done++;
+                } else if (WAITING.getValue().equals(status)) {
+                    waiting++;
+                }else if (SCHEDULING.getValue().equals(status)) {
+                    scheduling++;
+                }else if (STOPPING.getValue().equals(status)) {
+                    stopping++;
                 }
-
-                if (TaskDto.STATUS_ERROR.equals(taskDto.getStatus())) {
-                    errorTaskNum++;
-                }
-
-                if (taskSet.contains(taskDto.getId().toHexString())) {
-                    diffTaskNum++;
-                }
-
             }
         }
 
         Map<String, Integer> chart5 = new HashMap<>();
-        chart5.put(TOTAL, openTaskNum);
-        chart5.put("error", errorTaskNum);
-        chart5.put("can", canTaskNum);
-        chart5.put("diff", diffTaskNum);
+        chart5.put(TOTAL, total);
+        chart5.put("error", error);
+        chart5.put("running", running);
+        chart5.put("done", done);
+        chart5.put("waiting", waiting);
+        chart5.put("scheduling", scheduling);
+        chart5.put("stopping", stopping);
         return chart5;
     }
 
@@ -4061,77 +4146,6 @@ public class TaskServiceImpl extends TaskService{
         updateById(taskObjectId, update, userDetail);
     }
 
-    public Chart6Vo chart6(UserDetail user) {
-        Criteria criteria = Criteria.where(IS_DELETED).ne(true).and(SYNC_TYPE).in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE);
-        Query query = new Query(criteria);
-        query.fields().include("_id");
-        List<TaskDto> allDto = findAllDto(query, user);
-        List<String> ids = allDto.stream().map(a->a.getId().toHexString()).collect(Collectors.toList());
-
-        List<MeasurementEntity>  allMeasurements = new ArrayList<>();
-        if (CollectionUtils.isNotEmpty(ids)) {
-            ids.stream().forEach(id -> {
-                MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
-                if (measurement != null) {
-                    allMeasurements.add(measurement);
-                }
-            });
-        }
-
-        BigInteger output = BigInteger.ZERO;
-        BigInteger input = BigInteger.ZERO;
-        BigInteger insert = BigInteger.ZERO;
-        BigInteger update = BigInteger.ZERO;
-        BigInteger delete = BigInteger.ZERO;
-
-        for (MeasurementEntity allMeasurement : allMeasurements) {
-            if (allMeasurement == null) {
-                continue;
-            }
-            List<Sample> samples = allMeasurement.getSamples();
-            if (CollectionUtils.isNotEmpty(samples)) {
-                Optional<Sample> max = samples.stream().max(Comparator.comparing(Sample::getDate));
-                if (max.isPresent()) {
-                    Sample sample = max.get();
-                    Map<String, Number> vs = sample.getVs();
-                    BigInteger inputInsertTotal = NumberUtil.parseDataTotal(vs.get("inputInsertTotal"));
-                    BigInteger inputOthersTotal = NumberUtil.parseDataTotal(vs.get("inputOthersTotal"));
-                    BigInteger inputDdlTotal = NumberUtil.parseDataTotal(vs.get("inputDdlTotal"));
-                    BigInteger inputUpdateTotal = NumberUtil.parseDataTotal(vs.get("inputUpdateTotal"));
-                    BigInteger inputDeleteTotal = NumberUtil.parseDataTotal(vs.get("inputDeleteTotal"));
-
-                    BigInteger outputInsertTotal = NumberUtil.parseDataTotal(vs.get("outputInsertTotal"));
-                    BigInteger outputOthersTotal = NumberUtil.parseDataTotal(vs.get("outputOthersTotal"));
-                    BigInteger outputDdlTotal = NumberUtil.parseDataTotal(vs.get("outputDdlTotal"));
-                    BigInteger outputUpdateTotal = NumberUtil.parseDataTotal(vs.get("outputUpdateTotal"));
-                    BigInteger outputDeleteTotal = NumberUtil.parseDataTotal(vs.get("outputDeleteTotal"));
-                    output = output.add(outputInsertTotal);
-                    output = output.add(outputOthersTotal);
-                    output = output.add(outputDdlTotal);
-                    output = output.add(outputUpdateTotal);
-                    output = output.add(outputDeleteTotal);
-
-                    input = input.add(inputInsertTotal);
-                    input = input.add(inputOthersTotal);
-                    input = input.add(inputDdlTotal);
-                    input = input.add(inputUpdateTotal);
-                    input = input.add(inputDeleteTotal);
-
-                    insert = insert.add(inputInsertTotal);
-                    update = update.add(inputUpdateTotal);
-                    delete = delete.add(inputDeleteTotal);
-
-                }
-            }
-        }
-
-
-        Chart6Vo chart6Vo = Chart6Vo.builder().outputTotal(output).inputTotal(input)
-                .insertedTotal(insert).updatedTotal(update).deletedTotal(delete)
-                .build();
-        return chart6Vo;
-    }
-
     public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {
         Query query = Query.query(Criteria.where(AGENT_ID).is(agentId).and(STATUS).is(TaskDto.STATUS_STOPPING));
         query.fields().include("_id");
@@ -4235,11 +4249,11 @@ public class TaskServiceImpl extends TaskService{
             for (Stats stats : statsList) {
                 Source target = stats.getTarget();
                 if (connectionId.equals(target.getConnectionId()) && tableName.equals(target.getTable())) {
-                    if (StringUtils.equalsAny(stats.getStatus(), InspectStatusEnum.FAILED.name(),
-                            InspectStatusEnum.ERROR.name())) {
+                    if (StringUtils.equalsAny(stats.getStatus(), FAILED.name(),
+                            ERROR.name())) {
                         return false;
-                    } else if (StringUtils.equalsAny(stats.getStatus(), InspectStatusEnum.DONE.name(),
-                            InspectStatusEnum.PASSED.name())) {
+                    } else if (StringUtils.equalsAny(stats.getStatus(), DONE.name(),
+                            PASSED.name())) {
                         return InspectResultEnum.PASSED.name().equals(stats.getResult());
                     } else {
                         return true;

@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.task.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import com.hazelcast.config.Config;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
@@ -45,6 +46,7 @@ import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
+import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
@@ -87,6 +89,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProc
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.util.*;
+import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -170,6 +173,10 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		try {
 			taskDto.setDag(taskDto.getDag());
 			ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
+
+			//Sprint 90- TAP2489: Unchecked errors will be cleared directly upon startup
+			cleanAllUnselectedError(taskDto, obsLogger);
+
 			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).log(InstanceFactory.instance(LogFactory.class).getLog(taskDto)));
 //            return threadPoolExecutorEx.submitSync(() -> {
 			JobConfig jobConfig = new JobConfig();
@@ -185,6 +192,18 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
 			throw throwable;
+		}
+	}
+
+	protected void cleanAllUnselectedError(TaskDto taskDto, ObsLogger obsLogger) {
+		List<ErrorEvent> errorEvents = taskDto.getErrorEvents();
+		if (!CollUtil.isEmpty(errorEvents)) {
+			List<ErrorEvent> newErrorEvents = errorEvents.stream()
+					.filter(Objects::nonNull)
+					.filter(ErrorEvent::getSkip)
+					.collect(Collectors.toList());
+			taskDto.setErrorEvents(newErrorEvents);
+			TaskDtoUtil.updateErrorEvent(clientMongoOperator, newErrorEvents, taskDto.getId(), obsLogger, "Task initialization error list error, message: {}");
 		}
 	}
 
