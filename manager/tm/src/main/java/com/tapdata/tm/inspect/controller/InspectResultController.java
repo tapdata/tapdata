@@ -25,6 +25,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -128,16 +129,13 @@ public class InspectResultController extends BaseController {
                 inspectGroupByFirstCheckId = filter.getInspectGroupByFirstCheckId();
             }
         }
-        Object inspectIdObj = filter.getWhere().get("inspect_id");
-        String inspectId;
-        if (null == inspectIdObj) {
+        String inspectId = String.valueOf(filter.getWhere().get("inspect_id"));
+        if (null == MongoUtils.toObjectId(inspectId)) {
             InspectResultDto one = inspectResultService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(String.valueOf(filter.getWhere().get("id"))))));
             if (null == one || null == one.getInspect_id()) {
                 throw new BizException("inspect.result.not.exists", filter.getWhere().get("id"));
             }
             inspectId = one.getInspect_id();
-        } else {
-            inspectId = String.valueOf(inspectIdObj);
         }
         checkInspect(inspectId, DataPermissionActionEnums.View);
         return success(inspectResultService.find(filter, getLoginUser(), inspectGroupByFirstCheckId));
