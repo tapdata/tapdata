@@ -1498,7 +1498,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("Normal  BatchCount test")
 		void testNormalBatchCount() {
 
-			when(dataProcessorContext.getNode()).thenReturn((Node) new DatabaseNode());
+			when(dataProcessorContext.getNode()).thenReturn((Node) new TableNode());
 			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(hazelcastSourcePdkDataNode);
 			doReturn(new ConnectorNode()).when(spyInstance).getConnectorNode();
 			when(mockBatchCountFunction.count(any(), any())).thenReturn(expectedValue);

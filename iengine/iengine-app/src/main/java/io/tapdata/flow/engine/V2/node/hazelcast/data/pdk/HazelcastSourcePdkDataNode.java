@@ -1312,10 +1312,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 								CountByPartitionFilterFunction countByPartitionFilterFunction = connectorFunctions.getCountByPartitionFilterFunction();
 								TapAdvanceFilter tapAdvanceFilter = batchFilterRead();
 								counts.set(countByPartitionFilterFunction.countByPartitionFilter(connectorNode.getConnectorContext(), table, tapAdvanceFilter));
+							} else {
+								counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
 							}
-						}else {
+						} else {
 							counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
 						}
+
 
 						if (null != tableCountFuncAspect) {
 							AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), counts.get());
