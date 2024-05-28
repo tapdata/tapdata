@@ -11,12 +11,12 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
-import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.schema.TapTableMap;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -348,12 +348,18 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
-		void signFunctionRetryTest(){
+		void signFunctionRetryTest() {
 			when(mongoCollection.update(any(), any(), anyString())).thenAnswer(a -> {
-				Update update = (Update)a.getArgument(1);
-				Document updateObject = (Document)update.getUpdateObject().get("$set");
+				Query query = (Query) a.getArgument(0);
+				assertEquals(true, query.getQueryObject().containsKey("_id"));
+				Document orCriteria = (Document) query.getQueryObject().get("$or");
+				Document existDocument = (Document) orCriteria.get("functionRetryStatus");
+				assertEquals(true, existDocument.get("$exists"));
+				assertEquals(TaskDto.RETRY_STATUS_NONE, orCriteria.get("functionRetryStatus"));
+				Update update = (Update) a.getArgument(1);
+				Document updateObject = (Document) update.getUpdateObject().get("$set");
 				String functionRetryStatus = (String) updateObject.get("functionRetryStatus");
-				assertEquals("Retrying",functionRetryStatus);
+				assertEquals("Retrying", functionRetryStatus);
 				return null;
 			});
 			spyhazelcastPdkBaseNode.signFunctionRetry("65aa211475a5ac694df51c69");
