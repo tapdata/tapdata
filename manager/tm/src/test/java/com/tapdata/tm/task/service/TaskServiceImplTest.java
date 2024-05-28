@@ -34,6 +34,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceServiceImpl;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.inspect.bean.Source;
 import com.tapdata.tm.inspect.bean.Stats;
+import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.service.InspectResultService;
@@ -70,6 +71,7 @@ import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.batchin.ParseRelMigFile;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
+import com.tapdata.tm.task.service.chart.ChartViewService;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
@@ -131,6 +133,7 @@ class TaskServiceImplTest {
     WorkerService workerService;
     TaskDto taskDto;
     UserDetail user;
+    ChartViewService chartViewService;
     @BeforeEach
     void init() {
         taskService = mock(TaskServiceImpl.class);
@@ -138,6 +141,8 @@ class TaskServiceImplTest {
         ReflectionTestUtils.setField(taskService, "agentGroupService", agentGroupService);
         workerService = mock(WorkerService.class);
         ReflectionTestUtils.setField(taskService, "workerService", workerService);
+        chartViewService = mock(ChartViewService.class);
+        ReflectionTestUtils.setField(taskService, "chartViewService", chartViewService);
         taskDto = mock(TaskDto.class);
         user = mock(UserDetail.class);
     }
@@ -1951,30 +1956,59 @@ class TaskServiceImplTest {
     }
     @Nested
     class InspectChartTest{
-        private TaskAutoInspectResultsService taskAutoInspectResultsService;
+        List<InspectDto> list;
         @BeforeEach
         void beforeEach(){
-            taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
-            ReflectionTestUtils.setField(taskService,"taskAutoInspectResultsService",taskAutoInspectResultsService);
+            list = new ArrayList<>();
+            InspectDto error = new InspectDto();
+            error.setStatus(InspectStatusEnum.ERROR.getValue());
+            list.add(error);
+            InspectDto running = new InspectDto();
+            running.setStatus(InspectStatusEnum.RUNNING.getValue());
+            list.add(running);
+            InspectDto done = new InspectDto();
+            done.setStatus(InspectStatusEnum.DONE.getValue());
+            list.add(done);
+            InspectDto waiting = new InspectDto();
+            waiting.setStatus(InspectStatusEnum.WAITING.getValue());
+            list.add(waiting);
+            InspectDto scheduling = new InspectDto();
+            scheduling.setStatus(InspectStatusEnum.SCHEDULING.getValue());
+            list.add(scheduling);
+            InspectDto stopping = new InspectDto();
+            stopping.setStatus(InspectStatusEnum.STOPPING.getValue());
+            list.add(stopping);
+            InspectDto o = new InspectDto();
+            o.setStatus(InspectStatusEnum.PASSED.getValue());
+            list.add(o);
+            when(taskService.inspectTaskList(any(Filter.class), any(UserDetail.class))).thenReturn(list);
+            when(taskService.inspectChart(user)).thenCallRealMethod();
         }
         @Test
         void testInspectChartNormal(){
-            List<TaskDto> taskDtos = new ArrayList<>();
-            TaskDto dto = mock(TaskDto.class);
-            taskDtos.add(dto);
-            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(taskDtos);
-            when(dto.getCanOpenInspect()).thenReturn(true);
-            when(dto.getStatus()).thenReturn("error");
-            ObjectId id = mock(ObjectId.class);
-            when(dto.getId()).thenReturn(id);
-            Set<String> taskSet = new HashSet<>();
-            taskSet.add(id.toHexString());
-            when(taskAutoInspectResultsService.groupByTask(user)).thenReturn(taskSet);
-            doCallRealMethod().when(taskService).inspectChart(user);
             Map<String, Integer> actual = taskService.inspectChart(user);
-            assertEquals(1,actual.get("error"));
-            assertEquals(1,actual.get("can"));
-            assertEquals(1,actual.get("diff"));
+            Assertions.assertNotNull(actual);
+            assertEquals(list.size(), actual.get("total"));
+            assertEquals(1, actual.get("error"));
+            assertEquals(1, actual.get("running"));
+            assertEquals(1, actual.get("done"));
+            assertEquals(1, actual.get("waiting"));
+            assertEquals(1, actual.get("scheduling"));
+            assertEquals(1, actual.get("stopping"));
+        }
+
+        @Test
+        void testEmpty() {
+            list.clear();
+            Map<String, Integer> actual = taskService.inspectChart(user);
+            Assertions.assertNotNull(actual);
+            assertEquals(list.size(), actual.get("total"));
+            assertEquals(0, actual.get("error"));
+            assertEquals(0, actual.get("running"));
+            assertEquals(0, actual.get("done"));
+            assertEquals(0, actual.get("waiting"));
+            assertEquals(0, actual.get("scheduling"));
+            assertEquals(0, actual.get("stopping"));
         }
     }
     @Nested
@@ -3349,7 +3383,7 @@ class TaskServiceImplTest {
                 when(permission.MigrateTack.checkAndSetFilter(user, DataPermissionActionEnums.View, () -> taskService.findAllDto(any(),any()))).thenReturn(taskDtoList);
                 doReturn(new HashMap()).when(taskService).inspectChart(user);
                 Chart6Vo chart6Vo = mock(Chart6Vo.class);
-                doReturn(chart6Vo).when(taskService).chart6(user);
+                doReturn(chart6Vo).when(chartViewService).transmissionOverviewChartData(taskDtoList);
                 Map<String, Object> actual = taskService.chart(user);
                 Map chart1 = (Map) actual.get("chart1");
                 assertEquals(3,chart1.get("total"));
@@ -4334,95 +4368,7 @@ class TaskServiceImplTest {
             verify(taskService).updateById(any(ObjectId.class),any(Update.class),any(UserDetail.class));
         }
     }
-    @Nested
-    class Chart6Test{
-        private MeasurementServiceV2 measurementServiceV2;
-        @BeforeEach
-        void beforeEach(){
-            measurementServiceV2 = mock(MeasurementServiceV2.class);
-            ReflectionTestUtils.setField(taskService,"measurementServiceV2",measurementServiceV2);
-        }
-        @Test
-        @DisplayName("test chart6 method normal")
-        void test1(){
-            List<TaskDto> allDto = new ArrayList<>();
-            TaskDto task = new TaskDto();
-            String id = "65bc933c6129fe73d7858b40";
-            task.setId(new ObjectId(id));
-            allDto.add(task);
-            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(allDto);
-            MeasurementEntity measurement = new MeasurementEntity();
-            List<Sample> samples = new ArrayList<>();
-            Sample sample = new Sample();
-            sample.setDate(new Date());
-            Map<String, Number> vs = new HashMap<>();
-            vs.put("inputInsertTotal",1);
-            vs.put("outputInsertTotal",1);
-            vs.put("inputUpdateTotal",1);
-            vs.put("inputDeleteTotal",1);
-            sample.setVs(vs);
-            samples.add(sample);
-            measurement.setSamples(samples);
-            when(measurementServiceV2.findLastMinuteByTaskId(id)).thenReturn(measurement);
-            doCallRealMethod().when(taskService).chart6(user);
-            Chart6Vo actual = taskService.chart6(user);
-            assertNotEquals(3,actual.getInputTotal());
-            assertNotEquals(1,actual.getInsertedTotal());
-            assertNotEquals(1,actual.getOutputTotal());
-            assertNotEquals(1,actual.getUpdatedTotal());
-            assertNotEquals(1,actual.getDeletedTotal());
-        }
-        @Test
-        @DisplayName("test chart6 method when ids is empty")
-        void test2(){
-            List<TaskDto> allDto = new ArrayList<>();
-            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(allDto);
-            doCallRealMethod().when(taskService).chart6(user);
-            Chart6Vo actual = taskService.chart6(user);
-            assertNotEquals(0,actual.getInputTotal());
-            assertNotEquals(0,actual.getInsertedTotal());
-            assertNotEquals(0,actual.getOutputTotal());
-            assertNotEquals(0,actual.getUpdatedTotal());
-            assertNotEquals(0,actual.getDeletedTotal());
-        }
-        @Test
-        @DisplayName("test chart6 method when measurement is null")
-        void test3(){
-            List<TaskDto> allDto = new ArrayList<>();
-            TaskDto task = new TaskDto();
-            String id = "65bc933c6129fe73d7858b40";
-            task.setId(new ObjectId(id));
-            allDto.add(task);
-            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(allDto);
-            when(measurementServiceV2.findLastMinuteByTaskId(id)).thenReturn(null);
-            doCallRealMethod().when(taskService).chart6(user);
-            Chart6Vo actual = taskService.chart6(user);
-            assertNotEquals(0,actual.getInputTotal());
-            assertNotEquals(0,actual.getInsertedTotal());
-            assertNotEquals(0,actual.getOutputTotal());
-            assertNotEquals(0,actual.getUpdatedTotal());
-            assertNotEquals(0,actual.getDeletedTotal());
-        }
-        @Test
-        @DisplayName("test chart6 method when samples is empty")
-        void test4(){
-            List<TaskDto> allDto = new ArrayList<>();
-            TaskDto task = new TaskDto();
-            String id = "65bc933c6129fe73d7858b40";
-            task.setId(new ObjectId(id));
-            allDto.add(task);
-            when(taskService.findAllDto(any(Query.class),any(UserDetail.class))).thenReturn(allDto);
-            MeasurementEntity measurement = new MeasurementEntity();
-            when(measurementServiceV2.findLastMinuteByTaskId(id)).thenReturn(measurement);
-            doCallRealMethod().when(taskService).chart6(user);
-            Chart6Vo actual = taskService.chart6(user);
-            assertNotEquals(0,actual.getInputTotal());
-            assertNotEquals(0,actual.getInsertedTotal());
-            assertNotEquals(0,actual.getOutputTotal());
-            assertNotEquals(0,actual.getUpdatedTotal());
-            assertNotEquals(0,actual.getDeletedTotal());
-        }
-    }
+
     @Nested
     class StopTaskIfNeedByAgentIdTest{
         @Test

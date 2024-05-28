@@ -14,7 +14,9 @@ import org.springframework.util.Assert;
 
 import java.util.List;
 
-import static com.tapdata.tm.utils.MongoUtils.*;
+import static com.tapdata.tm.utils.MongoUtils.applyField;
+import static com.tapdata.tm.utils.MongoUtils.applySort;
+import static com.tapdata.tm.utils.MongoUtils.buildCriteria;
 
 /**
  * @Author:
@@ -48,7 +50,7 @@ public class MetadataDefinitionRepository extends BaseRepository<MetadataDefinit
         return query;
     }
 
-    public List<MetadataDefinitionEntity> findAllAndChildAccount(Filter filter, UserDetail userDetail) {
+    public List<MetadataDefinitionEntity> findAllAndChildAccount(Filter filter, boolean searchAll, UserDetail userDetail) {
 
         if (filter == null)
             filter = new Filter();
@@ -67,7 +69,9 @@ public class MetadataDefinitionRepository extends BaseRepository<MetadataDefinit
         applyField(query, filter.getFields());
         applySort(query, filter.getSort());
 
-        super.applyUserDetail(query, userDetail);
+        if (!searchAll) {
+            super.applyUserDetail(query, userDetail);
+        }
 
         return mongoOperations.find(query, entityInformation.getJavaType(), entityInformation.getCollectionName());
     }

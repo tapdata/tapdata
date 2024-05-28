@@ -27,6 +27,7 @@ import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.batchin.ParseRelMigFile;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
+import com.tapdata.tm.task.service.chart.ChartViewService;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -63,6 +64,12 @@ import static org.springframework.beans.BeanUtils.*;
 @ExtendWith(MockitoExtension.class)
 public class TaskServiceTest {
     private TaskServiceImpl taskService;
+    ChartViewService chartViewService;
+
+    @BeforeEach
+    void init() {
+        chartViewService = mock(ChartViewService.class);
+    }
 
     @Test
     void testFindRunningTasksByAgentIdWithoutId() {
@@ -621,6 +628,7 @@ public class TaskServiceTest {
                     .mockStatic(DataPermissionService.class)) {
                 mb.when(DataPermissionService::isCloud).thenReturn(true);
                 taskService = spy(new TaskServiceImpl(taskRepository));
+                ReflectionTestUtils.setField(taskService, "chartViewService", chartViewService);
                 UserDetail user = mock(UserDetail.class);
                 DataPermissionMenuEnums permission = mock(DataPermissionMenuEnums.class);
                 List<TaskDto> taskDtoList = new ArrayList<>();
@@ -648,7 +656,7 @@ public class TaskServiceTest {
                 when(permission.MigrateTack.checkAndSetFilter(user, DataPermissionActionEnums.View, () -> taskService.findAllDto(any(), any()))).thenReturn(taskDtoList);
                 doReturn(new HashMap()).when(taskService).inspectChart(user);
                 Chart6Vo chart6Vo = mock(Chart6Vo.class);
-                doReturn(chart6Vo).when(taskService).chart6(user);
+                doReturn(chart6Vo).when(chartViewService).transmissionOverviewChartData(taskDtoList);
                 Map<String, Object> actual = taskService.chart(user);
                 Map chart1 = (Map) actual.get("chart1");
                 assertEquals(3, chart1.get("total"));

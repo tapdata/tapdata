@@ -1,6 +1,7 @@
 package com.tapdata.tm.inspect.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
@@ -19,7 +20,7 @@ import java.util.List;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class InspectDto extends SchedulableDto {
+public class InspectDto extends SchedulableDto implements IDataPermissionDto {
     /**
      *
      */
