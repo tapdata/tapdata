@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.inspect.bean.Limit;
 import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.bean.Timing;
+import com.tapdata.tm.inspect.vo.InspectTaskVo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -29,6 +30,10 @@ public class InspectDto extends SchedulableDto implements IDataPermissionDto {
      *
      */
     private String flowId;
+    /**
+     * 查询详情的时候需要返回关联的task详情
+     * */
+    private InspectTaskVo taskDto;
     /**
      *
      */
