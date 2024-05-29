@@ -1,7 +1,6 @@
 package com.tapdata.tm.ds.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.lang.Assert;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,7 +17,6 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.classification.dto.ClassificationDto;
 import com.tapdata.tm.classification.service.ClassificationService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -58,6 +56,8 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.report.dto.ConfigureSourceBatch;
+import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
@@ -65,7 +65,6 @@ import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
@@ -167,6 +166,8 @@ public class DataSourceServiceImpl extends DataSourceService{
 
 	@Autowired
     private AgentGroupService agentGroupService;
+    @Autowired
+    private UserDataReportService userDataReportService;
 
     public DataSourceServiceImpl(@NonNull DataSourceRepository repository) {
         super(repository);
@@ -184,6 +185,9 @@ public class DataSourceServiceImpl extends DataSourceService{
         sendTestConnection(connectionDto, updateSchema, submit, userDetail);
         connectionDto.setConfig(null);
         defaultDataDirectoryService.addConnection(connectionDto, userDetail);
+        ConfigureSourceBatch configureSourceBatch = new ConfigureSourceBatch();
+        configureSourceBatch.setPdkId(connectionDto.getDefinitionPdkId());
+        userDataReportService.produceData(configureSourceBatch);
         return connectionDto;
     }
 

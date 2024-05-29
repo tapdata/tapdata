@@ -57,6 +57,7 @@ import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.permissions.service.DataPermissionService;
+import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
@@ -2374,6 +2375,8 @@ class TaskServiceImplTest {
             lockControlService = mock(LockControlService.class);
             disruptorService = mock(DisruptorService.class);
             logCollectorService = mock(LogCollectorService.class);
+            UserDataReportService userDataReportService = mock(UserDataReportService.class);
+            ReflectionTestUtils.setField(taskService,"userDataReportService",userDataReportService);
             ReflectionTestUtils.setField(taskService,"lockControlService",lockControlService);
             ReflectionTestUtils.setField(taskService,"disruptorService",disruptorService);
             ReflectionTestUtils.setField(taskService,"logCollectorService",logCollectorService);

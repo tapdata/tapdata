@@ -13,6 +13,7 @@ import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.worker.service.WorkerService;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -140,6 +141,8 @@ class DataSourceServiceImplTest {
         }
         @Test
         void test() {
+            UserDataReportService userDataReportService = mock(UserDataReportService.class);
+            ReflectionTestUtils.setField(dataSourceService,"userDataReportService",userDataReportService);
             doNothing().when(dataSourceService).beforeSave(any(),any());
             when(dataSourceRepository.save(any(),any())).thenReturn(mock(DataSourceEntity.class));
             DataSourceConnectionDto result = dataSourceService.add(new DataSourceConnectionDto(),mock(UserDetail.class));

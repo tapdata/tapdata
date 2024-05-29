@@ -109,6 +109,8 @@ import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
+import com.tapdata.tm.report.dto.TasksNumBatch;
+import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.schedule.ChartSchedule;
 import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
@@ -370,6 +372,7 @@ public class TaskServiceImpl extends TaskService{
     private DataSourceDefinitionService dataSourceDefinitionService;
     private BatchUpChecker batchUpChecker;
     private ChartViewService chartViewService;
+    private UserDataReportService userDataReportService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -3474,6 +3477,10 @@ public class TaskServiceImpl extends TaskService{
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
+        String taskType = taskDto.getSyncType();
+        TasksNumBatch tasksNumBatch = new TasksNumBatch();
+        tasksNumBatch.setTaskType(taskType);
+        userDataReportService.produceData(tasksNumBatch);
 
         if (taskDto.getShareCdcEnable() && !TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())) {
             //如果是共享挖掘任务给一个队列，避免混乱
