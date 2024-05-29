@@ -1257,6 +1257,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected AutoCloseable doAsyncTableCount(BatchCountFunction batchCountFunction, String tableName) {
 		if (null == batchCountFunction) return () -> {
+			obsLogger.warn("Node can not support batchCountFunction");
 		};
 
 		CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {

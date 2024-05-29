@@ -1294,4 +1294,46 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		tableNames.removeAll(removeTables);
 	}
 
+	@Override
+	protected Long doBatchCountFunction(BatchCountFunction batchCountFunction, TapTable table) {
+		AtomicReference<Long> counts = new AtomicReference<>();
+
+		executeDataFuncAspect(
+				TableCountFuncAspect.class,
+				() -> new TableCountFuncAspect().dataProcessorContext(getDataProcessorContext()).start(),
+				tableCountFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT, createPdkMethodInvoker().runnable(() -> {
+					try {
+						Node<?> node = getNode();
+						if (node instanceof TableNode) {
+							TableNode tableNode = (TableNode) dataProcessorContext.getNode();
+							if (isTableFilter(tableNode) || isPollingCDC(tableNode)) {
+								ConnectorNode connectorNode = getConnectorNode();
+								ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+								CountByPartitionFilterFunction countByPartitionFilterFunction = connectorFunctions.getCountByPartitionFilterFunction();
+								if (countByPartitionFilterFunction == null) {
+									counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
+								}else {
+									TapAdvanceFilter tapAdvanceFilter = batchFilterRead();
+									counts.set(countByPartitionFilterFunction.countByPartitionFilter(connectorNode.getConnectorContext(), table, tapAdvanceFilter));
+								}
+							} else {
+								counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
+							}
+						} else {
+							counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
+						}
+
+
+						if (null != tableCountFuncAspect) {
+							AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), counts.get());
+						}
+					} catch (Throwable e) {
+						throw new NodeException("Query table '" + table.getName() + "'  count failed: " + e.getMessage(), e)
+								.context(getProcessorBaseContext());
+					}
+				}))
+		);
+		return counts.get();
+	}
+
 }
