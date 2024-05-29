@@ -16,6 +16,7 @@ import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.inspect.service.InspectTaskService;
+import com.tapdata.tm.inspect.vo.InspectTaskVo;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
@@ -281,13 +282,19 @@ public class InspectController extends BaseController {
         return success(inspectDto);
     }
 
-    protected TaskDto findTaskDto(String taskId) {
+    protected InspectTaskVo findTaskDto(String taskId) {
         ObjectId id = MongoUtils.toObjectId(taskId);
-        TaskDto dto = null;
+        InspectTaskVo vo = new InspectTaskVo();
         if (null != id) {
-            dto = taskService.findOne(Query.query(Criteria.where("_id").is(id)));
+            Query query = Query.query(Criteria.where("_id").is(id));
+            query.fields().include("id", "name", "syncType", "dag");
+            TaskDto dto = Optional.ofNullable(taskService.findOne(query)).orElse(new TaskDto());
+            vo.setDag(dto.getDag());
+            vo.setId(dto.getId());
+            vo.setName(dto.getName());
+            vo.setSyncType(dto.getSyncType());
         }
-        return Optional.ofNullable(dto).orElse(new TaskDto());
+        return vo;
     }
 
 
