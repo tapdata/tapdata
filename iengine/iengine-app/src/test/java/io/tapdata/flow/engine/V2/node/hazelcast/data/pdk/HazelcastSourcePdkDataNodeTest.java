@@ -1546,5 +1546,26 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 
 		}
 
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Filter filterBatchCount  not support")
+		void testFilterBatchCountNotSupport() {
+
+			TableNode testTableTemp = new TableNode();
+			when(dataProcessorContext.getNode()).thenReturn((Node) testTableTemp);
+			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(hazelcastSourcePdkDataNode);
+			ConnectorNode connectorNode = new ConnectorNode();
+			ConnectorFunctions connectorFunctions = new ConnectorFunctions();
+			ReflectionTestUtils.setField(connectorNode, "connectorFunctions", connectorFunctions);
+			doReturn(connectorNode).when(spyInstance).getConnectorNode();
+			try {
+				spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
+			} catch (Exception e) {
+				assertTrue(null != e.getCause() && null != e.getCause() && (e.getCause() instanceof TapCodeException));
+			}
+
+		}
+
 	}
 }
