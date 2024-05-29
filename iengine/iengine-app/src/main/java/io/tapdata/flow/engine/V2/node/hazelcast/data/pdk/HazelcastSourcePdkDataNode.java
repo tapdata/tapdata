@@ -1311,11 +1311,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 								ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 								CountByPartitionFilterFunction countByPartitionFilterFunction = connectorFunctions.getCountByPartitionFilterFunction();
 								if (countByPartitionFilterFunction == null) {
-									throw new TapCodeException(TaskProcessorExCode_11.SOURCE_NOT_SUPPORT_COUNT_BY_PARTITION_FILTER_FUNCTION,
-											"Source node can not support countByPartitionFilterFunction");
+									counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
+								}else {
+									TapAdvanceFilter tapAdvanceFilter = batchFilterRead();
+									counts.set(countByPartitionFilterFunction.countByPartitionFilter(connectorNode.getConnectorContext(), table, tapAdvanceFilter));
 								}
-								TapAdvanceFilter tapAdvanceFilter = batchFilterRead();
-								counts.set(countByPartitionFilterFunction.countByPartitionFilter(connectorNode.getConnectorContext(), table, tapAdvanceFilter));
 							} else {
 								counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
 							}

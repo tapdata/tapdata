@@ -1584,11 +1584,10 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			ConnectorFunctions connectorFunctions = new ConnectorFunctions();
 			ReflectionTestUtils.setField(connectorNode, "connectorFunctions", connectorFunctions);
 			doReturn(connectorNode).when(spyInstance).getConnectorNode();
-			try {
-				spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
-			} catch (Exception e) {
-				assertTrue(null != e.getCause() && null != e.getCause() && (e.getCause() instanceof TapCodeException));
-			}
+			when(mockBatchCountFunction.count(any(), any())).thenReturn(expectedValue);
+
+			long actualData = spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
+			Assertions.assertTrue(expectedValue == actualData);
 
 		}
 
