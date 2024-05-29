@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.inspect.bean.Limit;
@@ -29,6 +30,10 @@ public class InspectDto extends SchedulableDto implements IDataPermissionDto {
      *
      */
     private String flowId;
+    /**
+     * 查询详情的时候需要返回关联的task详情
+     * */
+    private TaskDto taskDto;
     /**
      *
      */

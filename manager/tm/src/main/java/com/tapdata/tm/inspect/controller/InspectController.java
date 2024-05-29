@@ -75,7 +75,6 @@ public class InspectController extends BaseController {
     private InspectService inspectService;
     private InspectTaskService inspectTaskService;
     private TaskService taskService;
-    private DataPermissionService dataPermissionService;
 
     private <T> T dataPermissionUnAuth(DataPermissionActionEnums action, List<DataPermissionActionEnums> need) {
         throw new BizException("insufficient.permissions",
@@ -217,7 +216,7 @@ public class InspectController extends BaseController {
                 Lists.newArrayList(DataPermissionActionEnums.View),
                 () -> inspectService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(id))))
         );
-        checkTask(inspectDto.getFlowId());
+        inspectDto.setTaskDto(findTaskDto(inspectDto.getFlowId()));
         return success(inspectDto);
     }
 
@@ -236,7 +235,7 @@ public class InspectController extends BaseController {
                 Lists.newArrayList(DataPermissionActionEnums.View),
                 () -> inspectService.findById(filter, getLoginUser())
         );
-        checkTask(inspectDto.getFlowId());
+        inspectDto.setTaskDto(findTaskDto(inspectDto.getFlowId()));
         return success(inspectDto);
     }
 
@@ -286,8 +285,17 @@ public class InspectController extends BaseController {
                 Lists.newArrayList(DataPermissionActionEnums.View),
                 () -> inspectService.findOne(finalFilter, getLoginUser())
         );
-        checkTask(inspectDto.getFlowId());
+        inspectDto.setTaskDto(findTaskDto(inspectDto.getFlowId()));
         return success(inspectDto);
+    }
+
+    protected TaskDto findTaskDto(String taskId) {
+        ObjectId id = MongoUtils.toObjectId(taskId);
+        TaskDto dto = null;
+        if (null != id) {
+            dto = taskService.findOne(Query.query(Criteria.where("_id").is(id)));
+        }
+        return Optional.ofNullable(dto).orElse(new TaskDto());
     }
 
 
@@ -352,77 +360,9 @@ public class InspectController extends BaseController {
     }
 
     @Operation(summary = "详情页查询任务列表的时候，都会调用这个方法")
-    @GetMapping("task-list/{inspectId}")
-    public ResponseMessage<List<TaskDto>> getTaskDtoListInInspectInfoPage(@PathVariable("inspectId") String inspectId) {
-        boolean isCreate = StringUtils.isNotBlank(inspectId) && null != MongoUtils.toObjectId(inspectId);
-        String taskId = "";
-        if (isCreate) {
-            InspectDto inspectDto = getDto(inspectId);
-            taskId = inspectDto.getFlowId();
-            checkTask(taskId);
-        }
-
-        List<TaskDto> taskList = inspectTaskService.findTaskList(getLoginUser());
-        String finalTaskId = taskId;
-        if (!isCreate) {
-            Optional<TaskDto> first = taskList.stream().filter(Objects::nonNull).filter(t -> finalTaskId.equals(t.getId().toHexString())).findFirst();
-            if (!first.isPresent()) {
-                throw new BizException("insufficient.permissions.inspect.task");
-            }
-        }
-        return success(taskList);
-    }
-
-    @Operation(summary = "详情页查询任务列表的时候，都会调用这个方法")
     @GetMapping("task-list")
     public ResponseMessage<List<TaskDto>> getTaskDtoList() {
         return success(inspectTaskService.findTaskList(getLoginUser()));
-    }
-
-    protected void checkTask(String taskId) {
-        Set<String> dataActions = dataPermissionService.findDataActions(getLoginUser(), DataPermissionDataTypeEnums.Task, MongoUtils.toObjectId(taskId));
-        if (CollUtil.isEmpty(dataActions) || !dataActions.contains(DataPermissionActionEnums.View.name())) {
-            throw new BizException("insufficient.permissions.inspect.task");
-        }
-    }
-
-    protected InspectDto getDto(String inspectId) {
-        return dataPermissionCheckOfMenu(
-                getLoginUser(),
-                DataPermissionActionEnums.View,
-                Lists.newArrayList(DataPermissionActionEnums.View),
-                () -> inspectService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(inspectId))), getLoginUser())
-        );
-    }
-
-    @Operation(summary = "详情页查询数据源列表的时候，都会调用这个方法")
-    @GetMapping("connector-list/{inspectId}")
-    public ResponseMessage<List<DataSourceConnectionDto>> getConnectorDtoListInInspectInfoPage(@PathVariable("inspectId") String inspectId) {
-        InspectDto inspectDto = getDto(inspectId);
-        List<DataSourceConnectionDto> connectionList = inspectTaskService.findConnectionList(getLoginUser());
-        Map<String, DataSourceConnectionDto> collect = connectionList.stream().filter(Objects::nonNull).collect(Collectors.toMap(c -> c.getId().toHexString(), c -> c, (c1, c2) -> c1));
-        //检查能否获取数据源列表
-        List<Task> tasks = inspectDto.getTasks();
-        for (int index = 0; index < tasks.size(); index++) {
-            Task task = tasks.get(index);
-            checkConnection(task.getSource(), collect);
-            checkConnection(task.getTarget(), collect);
-        }
-        return success(connectionList);
-    }
-    @Operation(summary = "详情页查询数据源列表的时候，都会调用这个方法")
-    @GetMapping("connector-list")
-    public ResponseMessage<List<DataSourceConnectionDto>> getConnectorDtoList() {
-        return success(inspectTaskService.findConnectionList(getLoginUser()));
-    }
-
-    protected void checkConnection(Source connection, Map<String, DataSourceConnectionDto> collect) {
-        //查看权限不完整，部分数据源连接未开放查询权限，请联系管理员
-        String connectionId = connection.getConnectionId();
-        DataSourceConnectionDto connectionDto = collect.get(connectionId);
-        if (null == connectionDto) {
-            throw new BizException("insufficient.permissions.inspect.connection");
-        }
     }
 
     /**
