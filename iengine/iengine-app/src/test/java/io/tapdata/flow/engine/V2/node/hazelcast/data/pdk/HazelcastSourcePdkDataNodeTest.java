@@ -1508,6 +1508,21 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertTrue(expectedValue == actualData);
 		}
 
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Normal  BatchCount WithDataNode test")
+		void testNormalBatchCountWithDataNode() {
+
+			when(dataProcessorContext.getNode()).thenReturn((Node) new DatabaseNode());
+			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(hazelcastSourcePdkDataNode);
+			doReturn(new ConnectorNode()).when(spyInstance).getConnectorNode();
+			when(mockBatchCountFunction.count(any(), any())).thenReturn(expectedValue);
+
+
+			long actualData = spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
+			Assertions.assertTrue(expectedValue == actualData);
+		}
 		@Test
 		@SneakyThrows
 		@DisplayName("Filter BatchCount test")
@@ -1553,6 +1568,16 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 		void testFilterBatchCountNotSupport() {
 
 			TableNode testTableTemp = new TableNode();
+			testTableTemp.setIsFilter(true);
+			testTableTemp.setTableName("testTable");
+			List<QueryOperator> conditions = new ArrayList<>();
+			QueryOperator queryOperator = new QueryOperator();
+			queryOperator.setKey("id");
+			queryOperator.setValue("1");
+			queryOperator.setOperator(5);
+
+			conditions.add(queryOperator);
+			testTableTemp.setConditions(conditions);
 			when(dataProcessorContext.getNode()).thenReturn((Node) testTableTemp);
 			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(hazelcastSourcePdkDataNode);
 			ConnectorNode connectorNode = new ConnectorNode();
