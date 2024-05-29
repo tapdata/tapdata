@@ -2439,10 +2439,21 @@ class TaskServiceImplTest {
             when(taskDto.getTaskRecordId()).thenReturn("");
             when(taskDto.getDag()).thenReturn(mock(DAG.class));
             when(taskDto.getStatus()).thenReturn("edit");
-            when(taskDto.getSyncType()).thenReturn("heartbeat");
+            when(taskDto.getSyncType()).thenReturn("connHeartbeat");
             doCallRealMethod().when(taskService).start(taskDto,user,startFlag);
             taskService.start(taskDto,user,startFlag);
             verify(taskService,new Times(1)).run(taskDto,user);
+        }
+        @Test
+        @DisplayName("test start method when sync type heartbeat and status is renew failed")
+        void test6(){
+            when(taskDto.getTaskRecordId()).thenReturn("");
+            when(taskDto.getDag()).thenReturn(mock(DAG.class));
+            when(taskDto.getStatus()).thenReturn("renew_failed");
+            when(taskDto.getSyncType()).thenReturn("connHeartbeat");
+            doCallRealMethod().when(taskService).start(taskDto,user,startFlag);
+            taskService.start(taskDto,user,startFlag);
+            verify(taskService,new Times(0)).run(taskDto,user);
         }
     }
     @Nested
