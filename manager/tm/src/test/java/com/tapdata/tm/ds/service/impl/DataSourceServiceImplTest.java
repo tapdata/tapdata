@@ -357,5 +357,21 @@ class DataSourceServiceImplTest {
             Assertions.assertEquals("mongodb+srv://tapdata:******@test/test", dto.getConfig().get("uri"),
                     "MongoDB URI password should be masked");
         }
+
+        @Test
+        void testHiddenMqPasswd_WithMongoAtlasUriError() {
+            String originalUri = "test";
+            Map<String, Object> config = new HashMap<>();
+            config.put("uri", originalUri);
+
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setConfig(config);
+            dto.setDatabase_type("mongo");
+            doReturn(false).when(dataSourceService).isAgentReq();
+            dataSourceService.hiddenMqPasswd(dto);
+
+            Assertions.assertEquals("test", dto.getConfig().get("uri"),
+                    "MongoDB URI password should be masked");
+        }
     }
 }
