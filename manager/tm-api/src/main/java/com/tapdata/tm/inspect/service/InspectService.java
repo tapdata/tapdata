@@ -1,6 +1,7 @@
 package com.tapdata.tm.inspect.service;
 
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
@@ -18,11 +19,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public abstract class InspectService extends BaseService<InspectDto, InspectEntity, ObjectId, InspectRepository> {
     public InspectService(@NonNull InspectRepository repository) {
         super(repository, InspectDto.class, InspectEntity.class);
     }
+
+    public abstract Supplier<InspectDto> dataPermissionFindById(ObjectId taskId, Field fields);
+
     @Transactional
     public abstract Map<String, Long> delete(String id, UserDetail user);
 
@@ -42,9 +47,7 @@ public abstract class InspectService extends BaseService<InspectDto, InspectEnti
 
     public abstract UpdateResult deleteByTaskId(String taskId);
 
-    public abstract InspectDto updateInspectByWhere(Where where, InspectDto updateDto, UserDetail user);
-
-    public abstract InspectDto executeInspect(Where where, InspectDto updateDto, UserDetail user);
+    public abstract InspectDto doExecuteInspect(Where where, InspectDto updateDto, UserDetail user);
 
     public abstract InspectDto updateById(ObjectId objectId, InspectDto inspectDto, UserDetail userDetail);
 

@@ -13,6 +13,7 @@ import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.worker.service.WorkerService;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -140,6 +141,8 @@ class DataSourceServiceImplTest {
         }
         @Test
         void test() {
+            UserDataReportService userDataReportService = mock(UserDataReportService.class);
+            ReflectionTestUtils.setField(dataSourceService,"userDataReportService",userDataReportService);
             doNothing().when(dataSourceService).beforeSave(any(),any());
             when(dataSourceRepository.save(any(),any())).thenReturn(mock(DataSourceEntity.class));
             DataSourceConnectionDto result = dataSourceService.add(new DataSourceConnectionDto(),mock(UserDetail.class));
@@ -297,6 +300,81 @@ class DataSourceServiceImplTest {
             doReturn(null).when(dataSourceService).findById(any(ObjectId.class), eq(userDetail));
             assertDoesNotThrow(() -> dataSourceService.flushDatabaseMetadataInstanceLastUpdate("finished", connectionId, time, null));
             verify(dataSourceRepository, never()).update(any(Query.class), any(Update.class), eq(userDetail));
+        }
+    }
+
+    @Nested
+    @DisplayName("Method hiddenMqPasswd test")
+    class hiddenMqPasswdTest {
+        private DataSourceServiceImpl dataSourceService;
+        private DataSourceRepository dataSourceRepository;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceRepository = mock(DataSourceRepository.class);
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+        }
+
+        @Test
+        void testHiddenMqPasswd_NullOrEmpty() {
+            DataSourceConnectionDto dto = null;
+            doReturn(false).when(dataSourceService).isAgentReq();
+            dataSourceService.hiddenMqPasswd(dto);
+
+            dto = new DataSourceConnectionDto();
+            dataSourceService.hiddenMqPasswd(dto);
+            Assertions.assertNull(dto.getConfig(), "Config should be null when DataSourceConnectionDto is empty");
+
+            dto.setConfig(new HashMap<>());
+            dataSourceService.hiddenMqPasswd(dto);
+            Assertions.assertTrue(dto.getConfig().isEmpty(), "Config should be empty when DataSourceConnectionDto is empty");
+        }
+        @Test
+        void testHiddenMqPasswd_WithMongoUri() {
+            String originalUri = "mongodb://user:password@localhost:27017/db";
+            Map<String, Object> config = new HashMap<>();
+            config.put("uri", originalUri);
+
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setConfig(config);
+            dto.setDatabase_type("mongo");
+            doReturn(false).when(dataSourceService).isAgentReq();
+            dataSourceService.hiddenMqPasswd(dto);
+
+            Assertions.assertEquals("mongodb://user:******@localhost:27017/db", dto.getConfig().get("uri"),
+                    "MongoDB URI password should be masked");
+        }
+
+        @Test
+        void testHiddenMqPasswd_WithMongoAtlasUri() {
+            String originalUri = "mongodb+srv://tapdata:123456@test/test";
+            Map<String, Object> config = new HashMap<>();
+            config.put("uri", originalUri);
+
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setConfig(config);
+            dto.setDatabase_type("mongo");
+            doReturn(false).when(dataSourceService).isAgentReq();
+            dataSourceService.hiddenMqPasswd(dto);
+
+            Assertions.assertEquals("mongodb+srv://tapdata:******@test/test", dto.getConfig().get("uri"),
+                    "MongoDB URI password should be masked");
+        }
+
+        @Test
+        void testHiddenMqPasswd_WithMongoAtlasUriError() {
+            String originalUri = "test";
+            Map<String, Object> config = new HashMap<>();
+            config.put("uri", originalUri);
+
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setConfig(config);
+            dto.setDatabase_type("mongo");
+            doReturn(false).when(dataSourceService).isAgentReq();
+            dataSourceService.hiddenMqPasswd(dto);
+
+            Assertions.assertEquals("test", dto.getConfig().get("uri"),
+                    "MongoDB URI password should be masked");
         }
     }
 }

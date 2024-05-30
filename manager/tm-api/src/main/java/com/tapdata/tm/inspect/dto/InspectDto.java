@@ -1,6 +1,7 @@
 package com.tapdata.tm.inspect.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
@@ -8,6 +9,7 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.inspect.bean.Limit;
 import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.bean.Timing;
+import com.tapdata.tm.inspect.vo.InspectTaskVo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -19,7 +21,7 @@ import java.util.List;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class InspectDto extends SchedulableDto {
+public class InspectDto extends SchedulableDto implements IDataPermissionDto {
     /**
      *
      */
@@ -28,6 +30,10 @@ public class InspectDto extends SchedulableDto {
      *
      */
     private String flowId;
+    /**
+     * 查询详情的时候需要返回关联的task详情
+     * */
+    private InspectTaskVo taskDto;
     /**
      *
      */

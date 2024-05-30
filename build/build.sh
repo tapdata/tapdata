@@ -29,6 +29,8 @@ OUTPUT_DIR="$PROJECT_ROOT_DIR/output"
 PACKAGE_COMPONENTS=""
 # output type (docker or tar)
 OUTPUT_TYPE=""
+# filter connectors list
+CONNECTORS_LIST=$(cat $SCRIPT_BASE_DIR/.connectors_list)
 
 while getopts 'c:l:u:p:t:o:' OPT; do
 	case "$OPT" in
@@ -85,7 +87,6 @@ done
 
 make_package_tapdata() {
   mkdir -p $OUTPUT_DIR/etc/init/ $OUTPUT_DIR/components/ $OUTPUT_DIR/lib/
-  mkdir -p $OUTPUT_DIR/bin/manager/ $OUTPUT_DIR/bin/iengine/
   cd $OUTPUT_DIR/
   cp $TAPDATA_DIR/manager/tm/target/classes/logback.xml etc/logback.xml
   cp $TAPDATA_DIR/manager/tm/target/classes/application.yml etc/application-tm.yml
@@ -93,12 +94,16 @@ make_package_tapdata() {
   cp $TAPDATA_DIR/manager/tm/target/tm-*-exec.jar components/tm.jar
   cp $TAPDATA_DIR/iengine/ie.jar components/tapdata-agent.jar
   cp $TAPDATA_DIR/tapdata-cli/target/pdk.jar lib/pdk-deploy.jar
-  # copy script files to start manager and iengine
-  cp $TAPDATA_DIR/manager/build/start.sh $OUTPUT_DIR/bin/manager/start.sh
-  cp $TAPDATA_DIR/iengine/build/start.sh $OUTPUT_DIR/bin/iengine/start.sh
 }
 
 make_package_connectors() {
+  # filter connectors
+  mv $CONNECTOR_DIR/connectors/dist $CONNECTOR_DIR/connectors/backup
+  mkdir -p $CONNECTOR_DIR/connectors/dist/
+  for item in $CONNECTORS_LIST; do
+    find $CONNECTOR_DIR/connectors/backup/ -type f -name "${item}" | xargs -I {} mv {} $CONNECTOR_DIR/connectors/dist/
+  done
+
   mkdir -p $OUTPUT_DIR/connectors/dist/
   cd $OUTPUT_DIR/
   tar cfz connectors/dist.tar.gz -C $CONNECTOR_DIR/connectors/ dist/
@@ -127,13 +132,19 @@ make_docker() {
   cd $OUTPUT_DIR/
   cp $TAPDATA_DIR/build/image/Dockerfile .
   cp $TAPDATA_DIR/build/image/docker-entrypoint.sh .
-  docker build -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME .
+  cp -r $TAPDATA_DIR/build/image/bin .
+  cp -r $TAPDATA_DIR/build/image/supervisor .
+  # docker build -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME .
+  docker buildx create --use --name multi-platform --platform linux/amd64,linux/arm64
+  docker buildx build --platform linux/arm64,linux/amd64 -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME . --push
 }
 
 make_tar() {
   cd $OUTPUT_DIR/
   cp $TAPDATA_DIR/build/image/docker-entrypoint.sh ./start.sh
-  chmod +x start.sh
+  rsync -a $TAPDATA_DIR/build/image/bin/ ./
+  rsync -a $TAPDATA_DIR/build/image/supervisor ./
+  chmod +x start.sh stop.sh status.sh
   tar cfz tapdata-$TAG_NAME.tar.gz *
 }
 

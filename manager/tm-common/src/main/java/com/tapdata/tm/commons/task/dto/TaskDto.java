@@ -207,6 +207,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      * 任务导入导出需要用到
      * */
     private Map<String, Object> agentGroupInfo;
+    private Boolean oldVersionTimezone = true;
 
     public DAG getDag() {
         if (dag != null) {

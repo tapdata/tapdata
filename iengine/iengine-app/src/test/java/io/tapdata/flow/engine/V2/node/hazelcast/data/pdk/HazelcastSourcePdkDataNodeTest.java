@@ -8,9 +8,12 @@ import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
+import com.tapdata.entity.task.config.TaskConfig;
+import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
@@ -27,11 +30,13 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapTimeForm;
@@ -40,17 +45,21 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.junit.Assert;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -1417,5 +1426,170 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			List<QueryOperator> result = hazelcastSourcePdkDataNode.constructQueryOperator(timeList,new QueryOperator());
 			Assertions.assertEquals(2,result.size());
 		}
+	}
+	@Nested
+	class StreamReadConsumerStateListenerTest{
+		private ConnectorNode connectorNode;
+		@BeforeEach
+		void before(){
+			connectorNode = mock(ConnectorNode.class);
+			TapNodeInfo tapNodeInfo = mock(TapNodeInfo.class);
+			when(connectorNode.getTapNodeInfo()).thenReturn(tapNodeInfo);
+			TapNodeSpecification tapNodeSpecification = mock(TapNodeSpecification.class);
+			when(tapNodeInfo.getTapNodeSpecification()).thenReturn(tapNodeSpecification);
+			when(tapNodeSpecification.getName()).thenReturn("123");
+		}
+		@DisplayName("test stateListener STATE_STREAM_READ_STARTED")
+		@Test
+		void test1(){
+			try (MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class)) {
+				ObsLogger obsLogger = mock(ObsLogger.class);
+				ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "obsLogger", obsLogger);
+				doNothing().when(obsLogger).info(anyString(), any(), any());
+				PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
+				pdkInvocationMonitorMockedStatic.when(() -> PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker)).thenAnswer((invocationOnMock) -> {
+					PDKMethodInvoker pdkMethodArgs = (PDKMethodInvoker) invocationOnMock.getArgument(0);
+					assertEquals(pdkMethodInvoker, pdkMethodArgs);
+					return null;
+				});
+				StreamReadConsumer streamReadConsumer = hazelcastSourcePdkDataNode.generateStreamReadConsumer(connectorNode, pdkMethodInvoker);
+				streamReadConsumer.streamReadStarted();
+				verify(obsLogger, times(1)).info(anyString(), any(), any());
+			}
+		}
+
+	}
+
+	@Nested
+	class doBatchCountFunction {
+		long expectedValue = 99;
+		TapTable testTable = new TapTable("testTable");
+		BatchCountFunction mockBatchCountFunction = mock(BatchCountFunction.class);
+
+		@BeforeEach
+		void init(){
+			TaskConfig taskConfig = TaskConfig.create();
+			taskConfig.taskRetryConfig(TaskRetryConfig.create());
+			taskConfig.getTaskRetryConfig().retryIntervalSecond(1000L);
+			when(dataProcessorContext.getTaskConfig()).thenReturn(taskConfig);
+
+		}
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Exception test")
+		void testException() {
+
+			when(dataProcessorContext.getNode()).thenReturn((Node) new DatabaseNode());
+
+			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(hazelcastSourcePdkDataNode);
+			doReturn(new ConnectorNode()).when(spyInstance).getConnectorNode();
+			when(mockBatchCountFunction.count(any(), any())).thenThrow(new Exception());
+
+			try {
+				spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
+			} catch (Exception e) {
+				assertTrue(null != e.getCause() && null != e.getCause().getCause() && (e.getCause().getCause() instanceof NodeException), e.getMessage());
+			}
+		}
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Normal  BatchCount test")
+		void testNormalBatchCount() {
+
+			when(dataProcessorContext.getNode()).thenReturn((Node) new TableNode());
+			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(hazelcastSourcePdkDataNode);
+			doReturn(new ConnectorNode()).when(spyInstance).getConnectorNode();
+			when(mockBatchCountFunction.count(any(), any())).thenReturn(expectedValue);
+
+
+			long actualData = spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
+			Assertions.assertTrue(expectedValue == actualData);
+		}
+
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Normal  BatchCount WithDataNode test")
+		void testNormalBatchCountWithDataNode() {
+
+			when(dataProcessorContext.getNode()).thenReturn((Node) new DatabaseNode());
+			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(hazelcastSourcePdkDataNode);
+			doReturn(new ConnectorNode()).when(spyInstance).getConnectorNode();
+			when(mockBatchCountFunction.count(any(), any())).thenReturn(expectedValue);
+
+
+			long actualData = spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
+			Assertions.assertTrue(expectedValue == actualData);
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("Filter BatchCount test")
+		void testFilterBatchCount() {
+
+			TableNode testTableTemp = new TableNode();
+			testTableTemp.setIsFilter(true);
+			testTableTemp.setTableName("testTable");
+			List<QueryOperator> conditions = new ArrayList<>();
+			QueryOperator queryOperator = new QueryOperator();
+			queryOperator.setKey("id");
+			queryOperator.setValue("1");
+			queryOperator.setOperator(5);
+
+			conditions.add(queryOperator);
+			testTableTemp.setConditions(conditions);
+			when(dataProcessorContext.getNode()).thenReturn((Node) testTableTemp);
+			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(hazelcastSourcePdkDataNode);
+			ConnectorNode connectorNode = new ConnectorNode();
+			ConnectorFunctions connectorFunctions = new ConnectorFunctions();
+			CountByPartitionFilterFunction countByPartitionFilterFunction = mock(CountByPartitionFilterFunction.class);
+			connectorFunctions.supportCountByPartitionFilterFunction(countByPartitionFilterFunction);
+			ReflectionTestUtils.setField(connectorNode, "connectorFunctions", connectorFunctions);
+			doReturn(connectorNode).when(spyInstance).getConnectorNode();
+			LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap<>();
+			TapField tapField = new TapField();
+			tapField.setTapType(new TapString());
+			nameFieldMap.put("id",tapField);
+			testTable.setNameFieldMap(nameFieldMap);
+			TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("testTable", testTable);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			when(countByPartitionFilterFunction.countByPartitionFilter(any(),any(),any())).thenReturn(expectedValue);
+
+			long actualData = spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
+			Assertions.assertTrue(expectedValue == actualData);
+
+		}
+
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Filter filterBatchCount  not support")
+		void testFilterBatchCountNotSupport() {
+
+			TableNode testTableTemp = new TableNode();
+			testTableTemp.setIsFilter(true);
+			testTableTemp.setTableName("testTable");
+			List<QueryOperator> conditions = new ArrayList<>();
+			QueryOperator queryOperator = new QueryOperator();
+			queryOperator.setKey("id");
+			queryOperator.setValue("1");
+			queryOperator.setOperator(5);
+
+			conditions.add(queryOperator);
+			testTableTemp.setConditions(conditions);
+			when(dataProcessorContext.getNode()).thenReturn((Node) testTableTemp);
+			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(hazelcastSourcePdkDataNode);
+			ConnectorNode connectorNode = new ConnectorNode();
+			ConnectorFunctions connectorFunctions = new ConnectorFunctions();
+			ReflectionTestUtils.setField(connectorNode, "connectorFunctions", connectorFunctions);
+			doReturn(connectorNode).when(spyInstance).getConnectorNode();
+			when(mockBatchCountFunction.count(any(), any())).thenReturn(expectedValue);
+
+			long actualData = spyInstance.doBatchCountFunction(mockBatchCountFunction, testTable);
+			Assertions.assertTrue(expectedValue == actualData);
+
+		}
+
 	}
 }

@@ -53,7 +53,7 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
     protected Class<Entity> entityClass;
 
 
-    protected boolean isAgentReq() {
+    public boolean isAgentReq() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
         HttpServletRequest request = attributes.getRequest();
         String userAgent = request.getHeader("user-agent");

@@ -1,0 +1,14 @@
+bigquery-connector-v1.0-SNAPSHOT.jar
+clickhouse-connector-v1.0-SNAPSHOT.jar
+doris-connector-v1.0-SNAPSHOT.jar
+dummy-connector-v1.0-SNAPSHOT.jar
+elasticsearch-connector-v1.0-SNAPSHOT.jar
+kafka-connector-v1.0-SNAPSHOT.jar
+mariadb-connector-v1.0-SNAPSHOT.jar
+mongodb-connector-v1.0-SNAPSHOT.jar
+mongodb-lower-connector-v1.0-SNAPSHOT.jar
+mongodb-atlas-connector-v1.0-SNAPSHOT.jar
+mysql-connector-v1.0-SNAPSHOT.jar
+postgres-connector-v1.0-SNAPSHOT.jar
+redis-connector-v1.0-SNAPSHOT.jar
+tdengine-connector-v1.0-SNAPSHOT.jar
