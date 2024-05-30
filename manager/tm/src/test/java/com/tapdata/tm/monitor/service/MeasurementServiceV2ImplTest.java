@@ -91,34 +91,30 @@ class MeasurementServiceV2ImplTest {
     @Nested
     class FindLastMinuteByTaskIdTest {
         MongoTemplate mongoOperations;
-        List<MeasurementEntity> entities;
 
         @BeforeEach
         void init() {
             mongoOperations = mock(MongoTemplate.class);
             ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
-            entities = new ArrayList<>();
             when(measurementServiceV2.findLastMinuteByTaskId(anyString())).thenCallRealMethod();
-            when(measurementServiceV2.findLastMinuteByTaskId(anyList())).thenCallRealMethod();
-            when(mongoOperations.find(any(Query.class), any(Class.class), anyString())).thenReturn(entities);
+            when(mongoOperations.findOne(any(Query.class), any(Class.class), anyString())).thenReturn(mock(MeasurementEntity.class));
         }
 
         @Test
         void testNormal() {
-            measurementServiceV2.findLastMinuteByTaskId(new ArrayList<>());
-            verify(mongoOperations).find(any(Query.class), any(Class.class), anyString());
+            measurementServiceV2.findLastMinuteByTaskId("");
+            verify(mongoOperations).findOne(any(Query.class), any(Class.class), anyString());
         }
 
         @Test
         void testOne() {
             measurementServiceV2.findLastMinuteByTaskId(new ObjectId().toHexString());
-            verify(mongoOperations).find(any(Query.class), any(Class.class), anyString());
+            verify(mongoOperations).findOne(any(Query.class), any(Class.class), anyString());
         }
         @Test
         void testOneHasResult() {
-            entities.add(new MeasurementEntity());
             measurementServiceV2.findLastMinuteByTaskId(new ObjectId().toHexString());
-            verify(mongoOperations).find(any(Query.class), any(Class.class), anyString());
+            verify(mongoOperations).findOne(any(Query.class), any(Class.class), anyString());
         }
     }
 }

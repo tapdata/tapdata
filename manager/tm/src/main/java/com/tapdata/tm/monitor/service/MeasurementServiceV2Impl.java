@@ -1096,22 +1096,15 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
      * @return MeasurementEntity
      */
     @Override
-    public List<MeasurementEntity> findLastMinuteByTaskId(List<String> taskId) {
-        Criteria criteria = Criteria.where("tags.taskId").in(taskId)
+    public MeasurementEntity findLastMinuteByTaskId(String taskId) {
+        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
                 .and("grnty").is("minute")
                 .and("tags.type").is("task");
 
         Query query = new Query(criteria);
         query.fields().include("ss", "tags");
         query.with(Sort.by("date").descending());
-        List<MeasurementEntity> entities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
-        return entities.stream().filter(Objects::nonNull).collect(Collectors.toList());
-    }
-
-    @Override
-    public MeasurementEntity findLastMinuteByTaskId(String taskId) {
-        List<MeasurementEntity> lastMinuteByTaskId = findLastMinuteByTaskId(Lists.newArrayList(taskId));
-        return CollUtil.isEmpty(lastMinuteByTaskId) ? null : lastMinuteByTaskId.get(0);
+        return mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
     }
 
 

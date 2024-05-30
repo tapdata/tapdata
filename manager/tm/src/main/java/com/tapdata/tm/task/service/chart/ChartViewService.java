@@ -9,6 +9,7 @@ import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.bean.Chart6Vo;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TaskServiceImpl;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.NumberUtil;
 import io.tapdata.common.sample.request.Sample;
 import lombok.Setter;
@@ -62,7 +63,12 @@ public class ChartViewService {
 
         List<MeasurementEntity> allMeasurements = new ArrayList<>();
         if (CollectionUtils.isNotEmpty(ids)) {
-            allMeasurements.addAll(measurementServiceV2.findLastMinuteByTaskId(ids));
+            ids.forEach(id -> {
+                MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
+                if (measurement != null) {
+                    allMeasurements.add(measurement);
+                }
+            });
         }
 
         BigInteger output = BigInteger.ZERO;
