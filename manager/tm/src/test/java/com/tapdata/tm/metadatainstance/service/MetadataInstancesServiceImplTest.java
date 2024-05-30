@@ -128,18 +128,22 @@ public class MetadataInstancesServiceImplTest {
 			metadataInstancesDto1.setLastUpdate(1L);
 			metadataInstancesDto1.setSource(sourceDto1);
 			metadataInstancesDto1.setConnectionId(connectionId1);
+			metadataInstancesDto1.setQualifiedName("qualifiedName1");
 			metadataInstancesDtoList.add(metadataInstancesDto1);
 			MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
 			metadataInstancesDto2.setSource(sourceDto1);
 			metadataInstancesDto2.setLastUpdate(null);
+			metadataInstancesDto2.setQualifiedName("qualifiedName2");
 			metadataInstancesDtoList.add(metadataInstancesDto2);
 			MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
 			metadataInstancesDto3.setSource(sourceDto1);
 			metadataInstancesDto3.setLastUpdate(null);
+			metadataInstancesDto3.setQualifiedName("qualifiedName3");
 			metadataInstancesDtoList.add(metadataInstancesDto3);
 			MetadataInstancesDto metadataInstancesDto4 = new MetadataInstancesDto();
 			metadataInstancesDto4.setSource(sourceDto2);
 			metadataInstancesDto4.setLastUpdate(null);
+			metadataInstancesDto4.setQualifiedName("qualifiedName4");
 			metadataInstancesDtoList.add(metadataInstancesDto4);
 
 			doReturn(time1).when(metadataInstancesService).findDatabaseMetadataInstanceLastUpdate(connectionId1, userDetail);

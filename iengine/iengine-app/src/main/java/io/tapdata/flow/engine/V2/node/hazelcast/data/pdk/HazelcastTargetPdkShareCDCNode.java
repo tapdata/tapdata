@@ -32,9 +32,10 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		this.targetBatch = 10000;
 		this.targetBatchIntervalMs = 1000;
 		this.processorNode.doInit(context,tapProcessorNodeContext);
+		this.illegalDateAcceptable = true;
 	}
 
-	private TapProcessorNodeContext initTapProcessorNodeContext() {
+	protected TapProcessorNodeContext initTapProcessorNodeContext() {
 		return TapProcessorNodeContext.builder()
 				.codecsFilterManager(codecsFilterManager)
 				.running(running)

@@ -172,7 +172,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	@Override
 	protected TapCodecsFilterManager initFilterCodec() {
 		TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
-		return TapCodecUtil.getCodecsFilterManager(tapCodecsRegistry);
+		TapCodecUtil.registerToTapValue(tapCodecsRegistry);
+		return TapCodecsFilterManager.create(tapCodecsRegistry);
 	}
 
 	@Override

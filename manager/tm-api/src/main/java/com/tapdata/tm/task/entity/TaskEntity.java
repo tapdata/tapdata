@@ -280,6 +280,12 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
     private Boolean doubleActive = false;
 
     private List<ErrorEvent> errorEvents;
+    /**
+     * Compatible with old versions of timezone processing
+     * true: The data source reads the date according to the old version logic
+     * false: The data source reads the date according to the new version logic
+     */
+    private Boolean oldVersionTimezone = true;
 
     public String getAccessNodeProcessId() {
         if (AccessNodeTypeEnum.isGroupManually(accessNodeType)) {

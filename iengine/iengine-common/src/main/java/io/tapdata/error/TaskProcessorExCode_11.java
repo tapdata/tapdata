@@ -153,4 +153,10 @@ public interface TaskProcessorExCode_11 {
 			describeCN = "在封装tapdata事件时，源节点克隆批量断点信息失败"
 	)
 	String SOURCE_CLONE_BATCH_OFFSET_FAILED = "11028";
+
+	@TapExCode(
+			describe = "Source node can not support countByPartitionFilterFunction",
+			describeCN = "源节点在不支持过滤count的方法"
+	)
+	String SOURCE_NOT_SUPPORT_COUNT_BY_PARTITION_FILTER_FUNCTION = "11029";
 }

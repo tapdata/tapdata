@@ -3,6 +3,8 @@ package com.tapdata.tm;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.ds.service.impl.RepairCreateTimeComponent;
 import com.tapdata.tm.listener.StartupListener;
+import com.tapdata.tm.report.dto.RunsNumBatch;
+import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
@@ -56,6 +58,11 @@ public class TMApplication {
 				.build().run(args);
 		SpringContextHelper.applicationContext = applicationContext;
 
+		UserDataReportService userDataReportService = applicationContext.getBean(UserDataReportService.class);
+		long currentTimeMillis = System.currentTimeMillis();
+		RunsNumBatch runsNumBatch = new RunsNumBatch();
+		runsNumBatch.setTimestamp(currentTimeMillis);
+		userDataReportService.produceData(runsNumBatch);
 		new Thread(()->{
 			RepairCreateTimeComponent repairCreateTimeComponent = applicationContext.getBean("repairCreateTimeComponent", RepairCreateTimeComponent.class);
 			repairCreateTimeComponent.repair();

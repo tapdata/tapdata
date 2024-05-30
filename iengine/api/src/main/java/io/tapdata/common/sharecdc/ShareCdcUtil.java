@@ -9,8 +9,10 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.functions.connector.source.ConnectionConfigWithTables;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
@@ -178,31 +180,52 @@ public class ShareCdcUtil {
 	public static void iterateAndHandleSpecialType(Map<String, Object> map, Function<Object, Object> handleFunc) {
 		if(null == map) return;
 		if(null == handleFunc) return;
-		iterateAndHandleMap(map, handleFunc);
+		iterateAndHandleMap(map, handleFunc, null, null, null);
 	}
 
-	private static void iterateAndHandleMap(Map<String, Object> map, Function<Object, Object> handleFunc) {
-		if(null == map) return;
+	public static void iterateAndHandleSpecialType(Map<String, Object> map, Function<Object, Object> handleFunc,
+												   IllegalDatePredicate illegalDatePredicate, TapEvent tapEvent, EventType eventType) {
+		if (null == map) return;
+		if (null == handleFunc) return;
+		iterateAndHandleMap(map, handleFunc, illegalDatePredicate, tapEvent, eventType);
+	}
+
+	private static void iterateAndHandleMap(Map<String, Object> map, Function<Object, Object> handleFunc, IllegalDatePredicate illegalDatePredicate, TapEvent tapEvent, EventType eventType) {
+		if (null == map) return;
 		for (Map.Entry<String, Object> entry : map.entrySet()) {
 			Object value = entry.getValue();
 
 			if (value instanceof Map) {
-				iterateAndHandleMap((Map<String, Object>) value, handleFunc);
+				iterateAndHandleMap((Map<String, Object>) value, handleFunc, illegalDatePredicate, tapEvent, eventType);
 			} else if (value instanceof Collection) {
-				iterateAndHandleCollection((Collection<?>) value, handleFunc);
-			}else{
-				map.put(entry.getKey(), handleFunc.apply(value));
+				iterateAndHandleCollection((Collection<?>) value, handleFunc, illegalDatePredicate, tapEvent, eventType);
+			} else {
+				Object result = handleFunc.apply(value);
+				if (null != illegalDatePredicate && null != tapEvent && null != eventType && illegalDatePredicate.test(result)) {
+					TapEventUtil.setContainsIllegalDate(tapEvent, true);
+					switch (eventType) {
+						case BEFORE:
+							TapEventUtil.addBeforeIllegalDateField(tapEvent, entry.getKey());
+							break;
+						case AFTER:
+							TapEventUtil.addAfterIllegalDateField(tapEvent, entry.getKey());
+							break;
+						default:
+							break;
+					}
+				}
+				map.put(entry.getKey(), result);
 			}
 		}
 	}
 
-	private static void iterateAndHandleCollection(Collection<?> _collection, Function<Object, Object> handleFunc) {
-		if(null == _collection) return;
+	private static void iterateAndHandleCollection(Collection<?> _collection, Function<Object, Object> handleFunc, IllegalDatePredicate illegalDatePredicate, TapEvent tapEvent, EventType eventType) {
+		if (null == _collection) return;
 		for (Object obj : _collection) {
 			if (obj instanceof Map) {
-				iterateAndHandleMap((Map<String, Object>) obj, handleFunc);
+				iterateAndHandleMap((Map<String, Object>) obj, handleFunc, illegalDatePredicate, tapEvent, eventType);
 			} else if (obj instanceof Collection) {
-				iterateAndHandleCollection((Collection<?>) obj, handleFunc);
+				iterateAndHandleCollection((Collection<?>) obj, handleFunc, illegalDatePredicate, tapEvent, eventType);
 			} else {
 				// This situation will not be processed temporarily
 				// 1. Replacing elements in collection has performance issues

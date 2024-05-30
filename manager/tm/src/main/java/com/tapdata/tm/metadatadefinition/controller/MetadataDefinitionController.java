@@ -1,5 +1,6 @@
 package com.tapdata.tm.metadatadefinition.controller;
 
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
@@ -11,6 +12,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.utils.AppType;
+import lombok.Setter;
+import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,12 +29,11 @@ import java.util.Map;
  */
 @Tag(name = "MetadataDefinition", description = "MetadataDefinition相关接口")
 @RestController
-@RequestMapping(value = {"/api/MetadataDefinition","/api/MetadataDefinitions"})
+@RequestMapping(value = {"/api/MetadataDefinition","/api/MetadataDefinitions", "/api/metadata-definitions"})
+@Setter(onMethod_ = {@Autowired})
 public class MetadataDefinitionController extends BaseController {
-
-    @Autowired
     private MetadataDefinitionService metadataDefinitionService;
-
+    private SettingsService settingsService;
     /**
      * 创建分类
      * @param metadataDefinition
@@ -86,6 +89,7 @@ public class MetadataDefinitionController extends BaseController {
      */
     @Operation(summary = "Find all instances of the model matched by filter from the data source")
     @GetMapping("and/child_account")
+    @Deprecated
     public ResponseMessage<Page<MetadataDefinitionDto>> findAndChildAccount(
             @Parameter(in = ParameterIn.QUERY,
                     description = "Filter defining fields, where, sort, skip, and limit - must be a JSON-encoded string (`{\"where\":{\"something\":\"value\"},\"fields\":{\"something\":true|false},\"sort\": [\"name desc\"],\"page\":1,\"size\":20}`)."
@@ -98,7 +102,17 @@ public class MetadataDefinitionController extends BaseController {
 
         //数据目录不需要分页
         filter.setLimit(10000);
-        return success(metadataDefinitionService.findAndChildAccount(filter, getLoginUser()));
+        return success(metadataDefinitionService.findAndChildAccount(filter, settingsService.isCloud(), getLoginUser()));
+    }
+
+    @Operation(summary = "Find all MetadataDefinition of the model matched by filter from the data source")
+    @GetMapping("all-tag/{type}")
+    public ResponseMessage<Page<MetadataDefinitionDto>> findAllMetadataDefinition(@PathVariable("type") String type) {
+        Filter filter = new Filter();
+        Where where = Where.where("or", Lists.newArrayList(new Document().append("item_type", type)));
+        filter.setWhere(where);
+        filter.setLimit(10000);
+        return success(metadataDefinitionService.findAndChildAccount(filter, !settingsService.isCloud(), getLoginUser()));
     }
 
     /**

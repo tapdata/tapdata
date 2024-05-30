@@ -22,7 +22,14 @@ public enum DataPermissionDataTypeEnums implements IDataPermissionAction {
 		DataPermissionActionEnums.Reset,
 		DataPermissionActionEnums.Start,
 		DataPermissionActionEnums.Stop
-	),
+	), INSPECT(
+		"Inspect",
+		DataPermissionActionEnums.View,
+		DataPermissionActionEnums.Edit,
+		DataPermissionActionEnums.Delete,
+		DataPermissionActionEnums.Start,
+		DataPermissionActionEnums.Stop
+	)
 	;
 	private final String collection;
 	private final LinkedHashSet<String> allActions;

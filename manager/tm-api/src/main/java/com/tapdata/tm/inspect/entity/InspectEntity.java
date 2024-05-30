@@ -1,6 +1,7 @@
 package com.tapdata.tm.inspect.entity;
 
 import com.tapdata.tm.base.entity.SchedulableEntity;
+import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
@@ -20,7 +21,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document("Inspect")
-public class InspectEntity extends SchedulableEntity {
+public class InspectEntity extends SchedulableEntity implements IDataPermissionEntity {
     private String name;        // 校验任务名称
     private String flowId;      // 任务ID
     private String mode;        // 运行方式: 手工执行, 定时调度执行, manual/cron

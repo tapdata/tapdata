@@ -1,7 +1,6 @@
 package com.tapdata.tm.ds.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.lang.Assert;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,7 +17,6 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.classification.dto.ClassificationDto;
 import com.tapdata.tm.classification.service.ClassificationService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -41,6 +39,7 @@ import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
+import com.tapdata.tm.ds.utils.DataSourceServiceUtil;
 import com.tapdata.tm.ds.utils.UriRootConvertUtils;
 import com.tapdata.tm.ds.vo.SupportListVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
@@ -57,6 +56,8 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.report.dto.ConfigureSourceBatch;
+import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
@@ -64,7 +65,6 @@ import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
@@ -166,6 +166,8 @@ public class DataSourceServiceImpl extends DataSourceService{
 
 	@Autowired
     private AgentGroupService agentGroupService;
+    @Autowired
+    private UserDataReportService userDataReportService;
 
     public DataSourceServiceImpl(@NonNull DataSourceRepository repository) {
         super(repository);
@@ -183,6 +185,9 @@ public class DataSourceServiceImpl extends DataSourceService{
         sendTestConnection(connectionDto, updateSchema, submit, userDetail);
         connectionDto.setConfig(null);
         defaultDataDirectoryService.addConnection(connectionDto, userDetail);
+        ConfigureSourceBatch configureSourceBatch = new ConfigureSourceBatch();
+        configureSourceBatch.setPdkId(connectionDto.getDefinitionPdkId());
+        userDataReportService.produceData(configureSourceBatch);
         return connectionDto;
     }
 
@@ -243,6 +248,8 @@ public class DataSourceServiceImpl extends DataSourceService{
                 updateDto.setLastStatus(oldConnection.getStatus());
             }
         }
+        //Fix: TAP-2686, After manually specifying the agent and saving it, the specified agent information should not be automatically cleared
+        DataSourceServiceUtil.setAccessNodeInfoFromOldConnectionDto(oldConnection, updateDto);
         Map<String, Object> config = updateDto.getConfig();
         if (oldConnection != null) {
 
@@ -266,7 +273,6 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
 
         DataSourceEntity entity = convertToEntity(DataSourceEntity.class, updateDto);
-        entity.setAccessNodeProcessIdList(updateDto.getAccessNodeProcessIdList());
 
         Update update = repository.buildUpdateSet(entity, user);
 
@@ -648,7 +654,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
     }
 
-    private void hiddenMqPasswd(DataSourceConnectionDto item) {
+    protected void hiddenMqPasswd(DataSourceConnectionDto item) {
         if (item != null && !isAgentReq() && !Objects.isNull(item.getConfig())
                 && !item.getConfig().isEmpty()) {
             if (item.getConfig().containsKey("password")) {
@@ -663,17 +669,13 @@ public class DataSourceServiceImpl extends DataSourceService{
                 String uri = (String) item.getConfig().get("uri");
                 ConnectionString connectionString = null;
                 try {
-                    connectionString = new ConnectionString(uri);
-                } catch (Exception e) {
-                    if (uri.startsWith("mongodb+srv:")) {
-                        try {
-                            connectionString = new ConnectionString(uri.replace("mongodb+srv:", "mongodb:"));
-                        } catch (Exception e1) {
-                            log.error("Parse connection string failed ({}) {}", uri, e.getMessage());
-                        }
-                    } else {
-                        log.error("Parse connection string failed ({}) {}", uri, e.getMessage());
+                    if(uri.startsWith("mongodb+srv:")){
+                        connectionString = new ConnectionString(uri.replace("mongodb+srv:", "mongodb:"));
+                    }else{
+                        connectionString = new ConnectionString(uri);
                     }
+                } catch (Exception e) {
+                    log.error("Parse connection string failed ({}) {}", uri, e.getMessage());
                 }
 
                 if (connectionString != null) {
