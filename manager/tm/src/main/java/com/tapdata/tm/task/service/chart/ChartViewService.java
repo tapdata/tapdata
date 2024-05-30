@@ -9,7 +9,6 @@ import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.task.bean.Chart6Vo;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TaskServiceImpl;
-import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.NumberUtil;
 import io.tapdata.common.sample.request.Sample;
 import lombok.Setter;
