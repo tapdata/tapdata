@@ -62,7 +62,12 @@ public class ChartViewService {
 
         List<MeasurementEntity> allMeasurements = new ArrayList<>();
         if (CollectionUtils.isNotEmpty(ids)) {
-            allMeasurements.addAll(measurementServiceV2.findLastMinuteByTaskId(ids));
+            ids.forEach(id -> {
+                MeasurementEntity measurement = measurementServiceV2.findLastMinuteByTaskId(id);
+                if (measurement != null) {
+                    allMeasurements.add(measurement);
+                }
+            });
         }
 
         BigInteger output = BigInteger.ZERO;

@@ -23,6 +23,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -80,11 +81,7 @@ class ChartViewServiceTest {
             samples.add(sample);
             measurement.setSamples(samples);
 
-            List<String> ids = Lists.newArrayList(id);
-            List<MeasurementEntity> entities = Lists.newArrayList(measurement);
-            entities.add(null);
-
-            when(measurementServiceV2.findLastMinuteByTaskId(ids)).thenReturn(entities);
+            when(measurementServiceV2.findLastMinuteByTaskId(anyString())).thenReturn(measurement);
             Chart6Vo actual = chartViewService.transmissionOverviewChartData(user);
             assertNotEquals(3, actual.getInputTotal());
             assertNotEquals(1, actual.getInsertedTotal());
@@ -116,10 +113,7 @@ class ChartViewServiceTest {
             allDto.add(task);
             when(taskService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(allDto);
 
-            List<String> ids = Lists.newArrayList(id);
-            List<MeasurementEntity> entities = Lists.newArrayList();
-
-            when(measurementServiceV2.findLastMinuteByTaskId(ids)).thenReturn(entities);
+            when(measurementServiceV2.findLastMinuteByTaskId(anyString())).thenReturn(null);
 
             Chart6Vo actual = chartViewService.transmissionOverviewChartData(user);
             assertNotEquals(0, actual.getInputTotal());
@@ -139,9 +133,7 @@ class ChartViewServiceTest {
             allDto.add(task);
             when(taskService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(allDto);
             MeasurementEntity measurement = new MeasurementEntity();
-            List<String> ids = Lists.newArrayList(id);
-            List<MeasurementEntity> entities = Lists.newArrayList(measurement);
-            when(measurementServiceV2.findLastMinuteByTaskId(ids)).thenReturn(entities);
+            when(measurementServiceV2.findLastMinuteByTaskId(anyString())).thenReturn(measurement);
             Chart6Vo actual = chartViewService.transmissionOverviewChartData(user);
             assertNotEquals(0, actual.getInputTotal());
             assertNotEquals(0, actual.getInsertedTotal());

@@ -42,8 +42,6 @@ public interface MeasurementServiceV2 {
 
     MeasurementEntity findLastMinuteByTaskId(String taskId);
 
-    List<MeasurementEntity> findLastMinuteByTaskId(List<String> taskId);
-
     void queryTableMeasurement(String taskId, TableStatusInfoDto tableStatusInfoDto);
 
 }
