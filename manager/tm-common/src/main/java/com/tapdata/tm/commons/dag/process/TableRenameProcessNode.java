@@ -4,15 +4,13 @@ package com.tapdata.tm.commons.dag.process;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
-import io.tapdata.entity.event.ddl.TapDDLEvent;
-import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import com.tapdata.tm.error.TapDynamicTableNameExCode_35;
+import io.tapdata.exception.TapCodeException;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -20,11 +18,8 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId;
 
 @NodeType("table_rename_processor")
 @Getter
@@ -33,7 +28,6 @@ import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId
 public class TableRenameProcessNode extends MigrateProcessorNode {
     /**
      * 创建处理器节点
-     *
      **/
     public TableRenameProcessNode() {
         super(NodeEnum.table_rename_processor.name(), NodeCatalog.processor);
@@ -57,9 +51,8 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
     private String transferCase;
 
 
-
-    public Map<String, TableRenameTableInfo> originalMap () {
-        if (Objects.isNull(tableNames) || tableNames.isEmpty()) {
+    public Map<String, TableRenameTableInfo> originalMap() {
+        if (null == tableNames) {
             return Maps.newLinkedHashMap();
         }
 
@@ -67,11 +60,23 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
     }
 
     public Map<String, TableRenameTableInfo> currentMap() {
-        if (Objects.isNull(tableNames) || tableNames.isEmpty()) {
+        if (null == tableNames) {
             return Maps.newLinkedHashMap();
         }
 
         return tableNames.stream().collect(Collectors.toMap(TableRenameTableInfo::getCurrentTableName, Function.identity()));
+    }
+
+    public Map<String, TableRenameTableInfo> previousMap() {
+        Map<String, TableRenameTableInfo> resultMap = Maps.newLinkedHashMap();
+        if (null == tableNames) {
+            return resultMap;
+        }
+
+        for (TableRenameTableInfo tableRenameTableInfo : tableNames) {
+            resultMap.put(tableRenameTableInfo.getPreviousTableName(), tableRenameTableInfo);
+        }
+        return resultMap;
     }
 
     @Override
@@ -80,111 +85,46 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
             return Lists.newArrayList();
         }
 
-        if (Objects.isNull(tableNames) || tableNames.isEmpty()) {
-            return inputSchemas.get(0);
-        }
+        // 'schemas' is null because node not exists physical model
+        List<Schema> outputSchemas = SchemaUtils.cloneSchema(inputSchemas.get(0));
 
-        inputSchemas.get(0).forEach(schema -> {
-            String originalName = schema.getAncestorsName();
-            Map<String, TableRenameTableInfo> originalMap = originalMap();
-            if (originalMap.containsKey(originalName)) {
-                String currentTableName = originalMap.get(originalName).getCurrentTableName();
-                schema.setName(currentTableName);
-                schema.setOriginalName(currentTableName);
-                schema.setAncestorsName(originalName);
-                //schema.setDatabaseId(null);
-                //schema.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), getId()));
-            } else {
-                String currentTableName = convertTableName(schema.getOriginalName());
-                TableRenameTableInfo tableInfo = new TableRenameTableInfo(originalName, schema.getOriginalName(), currentTableName);
-                tableNames.add(tableInfo);
-                schema.setName(currentTableName);
-                schema.setOriginalName(currentTableName);
-                schema.setAncestorsName(originalName);
-            }
-        });
-
-        Set<String> lastTable = inputSchemas.get(0).stream().map(Schema::getAncestorsName).collect(Collectors.toSet());
-
-        List<TableRenameTableInfo> removeTables = new ArrayList<>();
-        if (CollectionUtils.isNotEmpty(tableNames)) {
-            for (TableRenameTableInfo tableName : tableNames) {
-                if (!lastTable.contains(tableName.getOriginTableName())) {
-                    removeTables.add(tableName);
-                }
-            }
-
-            removeTables.forEach(tableNames::remove);
-        }
-
-        return inputSchemas.get(0);
-    }
-
-
-
-
-    @Override
-    public void fieldDdlEvent(TapDDLEvent event) throws Exception {
-        if (event instanceof TapCreateTableEvent) {
-            String tableName = event.getTableId();
-
-            List<Node> sources = this.getDag().getSources();
-            Node node = sources.get(0);
-            LinkedList<TableRenameProcessNode> linkedList = new LinkedList<>();
-            while (!node.getId().equals(this.getId())) {
-                if (node instanceof TableRenameProcessNode) {
-                    linkedList.add((TableRenameProcessNode) node);
-                }
-                List successors = node.successors();
-                if (CollectionUtils.isEmpty(successors)) {
-                    break;
-                }
-                node = (Node) successors.get(0);
-            }
-            TableRenameTableInfo tableInfo = null;
-            if (CollectionUtils.isNotEmpty(linkedList)) {
-                for (TableRenameProcessNode node1 : linkedList) {
-                    Map<String, TableRenameTableInfo> tableRenameTableInfoMap = node1.originalMap();
-                    TableRenameTableInfo tableInfo1 = tableRenameTableInfoMap.get(tableName);
-                    if (tableInfo1 != null) {
-                        tableInfo = tableInfo1;
+        outputSchemas.forEach(schema -> {
+            Map<String, TableRenameTableInfo> originaledMap = originalMap();
+            String ancestorsName = schema.getAncestorsName();
+            String currentTableName = convertTableName(originaledMap, ancestorsName, false);
+            schema.setName(currentTableName);
+            schema.setOriginalName(currentTableName);
+            Optional.ofNullable(options.getIncludes()).ifPresent(includes -> {
+                for (int i = 0; i < includes.size(); i++) {
+                    if (ancestorsName.equals(includes.get(i))) {
+                        includes.set(i, currentTableName);
                     }
                 }
-            }
+            });
+        });
 
-            String lastTableName = tableName;
-            if (tableInfo != null) {
-                lastTableName = tableInfo.getCurrentTableName();
-            }
-
-            if (CollectionUtils.isEmpty(tableNames))  {
-                tableNames = new LinkedHashSet<>();
-            }
-
-            boolean already = tableNames.stream().anyMatch(t -> t.getOriginTableName().equals(tableName));
-            if (!already) {
-                String currentTableName = convertTableName(lastTableName);
-                boolean exist = tableNames.stream().anyMatch(t -> t.getCurrentTableName().equals(currentTableName));
-                if (exist) {
-                    throw new IllegalArgumentException("The new table [" + currentTableName + "] already exists when it is converted as  [" + currentTableName + "]");
-                }
-                tableInfo = new TableRenameTableInfo(tableName, lastTableName, currentTableName);
-                tableNames.add(tableInfo);
-            } else {
-                log.info("The table [{}] has been added to the configuration", tableName);
-            }
-        } else if (event instanceof TapDropTableEvent) {
-            String tableName = event.getTableId();
-            for (TableRenameTableInfo tableInfo : tableNames) {
-                if (tableInfo.getOriginTableName().equals(tableName)) {
-                    tableNames.remove(tableInfo);
-                    break;
-                }
-            }
-        }
+        return outputSchemas;
     }
 
-    private String convertTableName(String tableName) {
+
+    public String convertTableName(Map<String, TableRenameTableInfo> infoMap, String tableName, boolean isRenameDDL) {
+        TableRenameTableInfo tableInfo = infoMap.get(tableName);
+        if (null != tableInfo) {
+            if (isRenameDDL) {
+                throw new TapCodeException(TapDynamicTableNameExCode_35.RENAME_DDL_CONFLICTS_WITH_CUSTOM_TABLE_NAME
+                    , String.format("Can't apply table rename DDL because it conflicts with custom-table-name from '%s' to '%s'", tableName, tableInfo.getCurrentTableName())
+                );
+            }
+            String currentTableName = tableInfo.getCurrentTableName();
+            if (StringUtils.isNotBlank(currentTableName)) {
+                return currentTableName;
+            }
+            return tableName;
+        }
+        return convertTableName(tableName);
+    }
+
+    public String convertTableName(String tableName) {
         if (StringUtils.isNotBlank(prefix)) {
             tableName = prefix + tableName;
         }

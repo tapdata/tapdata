@@ -53,4 +53,14 @@ public interface TapDynamicTableNameExCode_35 {
             level = TapExLevel.NORMAL
     )
     String DYNAMIC_METHOD_ACCESS_FAILED = "35005";
+
+    @TapExCode(
+        describe = "Table renamed DDL conflicts with the custom table name.\n" +
+            "Reason:\n1. The task assigns a new table name to the table, which cannot be automatically processed when the table is renamed DDL.",
+        solution = "1. The task configuration needs to be analyzed and resolved.",
+        describeCN = "表改名DDL与自定义表名冲突\n" +
+            "原因\n1. 任务为表指定新表名，这个表发生改名DDL时无法自动处理",
+        solutionCN = "1. 需要分析任务配置，并进行解决"
+    )
+    String RENAME_DDL_CONFLICTS_WITH_CUSTOM_TABLE_NAME = "35006";
 }

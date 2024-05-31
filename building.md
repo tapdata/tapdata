@@ -94,6 +94,7 @@ If everything is ok, you will get:
 
 If you want to start the complete Tapdata service on your machine, please follow these steps:
 ### Instructions for Starting the Complete Tapdata Service on Your Machine
+
 1. **Deploy a MongoDB Replica Set and Record the Access URI**:
     - Set up a MongoDB replica set and make a note of the URI that you will use to access it.
 

@@ -69,6 +69,8 @@ import java.util.concurrent.TimeUnit;
 public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	public static final int DEFAULT_READ_BATCH_SIZE = 2000;
 	public static final int DEFAULT_INCREASE_BATCH_SIZE = 1;
+	public static final String OLD_VERSION_TIMEZONE = "oldVersionTimezone";
+	public static final String OLD_VERSION_TIME_ZONE_PROP_KEY = "OLD_VERSION_TIME_ZONE";
 	private final Logger logger = LogManager.getLogger(HazelcastPdkBaseNode.class);
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
 	protected static final String COMPLETED_INITIAL_SYNC_KEY_PREFIX = "COMPLETED-INITIAL-SYNC-";
@@ -79,6 +81,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	protected Integer readBatchSize;
 	protected Integer increaseReadSize;
+
+	public static final String FUNCTION_RETRY_STATUS = "functionRetryStatus";
 	private static final String DOUBLE_ACTIVE = "doubleActive";
 	protected TapRecordSkipDetector skipDetector;
 	private PdkStateMap pdkStateMap;
@@ -150,16 +154,20 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	public void signFunctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() -> {
 			Update update = new Update();
-			update.set("functionRetryStatus", TaskDto.RETRY_STATUS_RUNNING);
+			update.set(FUNCTION_RETRY_STATUS, TaskDto.RETRY_STATUS_RUNNING);
 			update.set("taskRetryStartTime", System.currentTimeMillis());
-			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
+			Criteria functionRetryStatusExists = Criteria.where(FUNCTION_RETRY_STATUS).exists(false);
+			Criteria functionRetryStatusNone = Criteria.where(FUNCTION_RETRY_STATUS).is(TaskDto.RETRY_STATUS_NONE);
+			Query query = Query.query(Criteria.where("_id").is(new ObjectId(taskId))
+					.orOperator(functionRetryStatusExists, functionRetryStatusNone));
+			clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 		}, "Faild to sign function retry status");
 	}
 
 	public void cleanFuctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() -> {
 			Update update = new Update();
-			update.set("functionRetryStatus", TaskDto.RETRY_STATUS_NONE);
+			update.set(FUNCTION_RETRY_STATUS, TaskDto.RETRY_STATUS_NONE);
 			update.set("taskRetryStartTime", 0);
 			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
 		}, "Faild to clean function retry status");
@@ -189,7 +197,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Node<?> node = dataProcessorContext.getNode();
 		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
 		initDmlPolicy(node, connectorCapabilities);
-		Map<String, Object> nodeConfig = generateNodeConfig(node, taskDto.getDoubleActive());
+		Map<String, Object> nodeConfig = generateNodeConfig(node, taskDto);
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
 				PdkUtil.createNode(taskDto.getId().toHexString(),
 						databaseType,
@@ -210,7 +218,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		AspectUtils.executeAspect(PDKNodeInitAspect.class, () -> new PDKNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 	}
 
-	protected Map<String, Object> generateNodeConfig(Node<?> node, Boolean doubleActive) {
+	protected Map<String, Object> generateNodeConfig(Node<?> node, TaskDto taskDto) {
 		Map<String, Object> nodeConfig = null;
 		if (node instanceof TableNode) {
 			nodeConfig = ((TableNode) node).getNodeConfig();
@@ -222,7 +230,10 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		if (null == nodeConfig) {
 			nodeConfig = new HashMap<>();
 		}
-		nodeConfig.put(DOUBLE_ACTIVE, doubleActive);
+		nodeConfig.put(DOUBLE_ACTIVE, taskDto.getDoubleActive());
+		Boolean oldVersionTimezone = taskDto.getOldVersionTimezone();
+		oldVersionTimezone = CommonUtils.getPropertyBool(OLD_VERSION_TIME_ZONE_PROP_KEY, oldVersionTimezone);
+		nodeConfig.put(OLD_VERSION_TIMEZONE, oldVersionTimezone);
 		return nodeConfig;
 	}
 
