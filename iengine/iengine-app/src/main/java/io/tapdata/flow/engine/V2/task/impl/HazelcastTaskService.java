@@ -283,6 +283,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			for (Node node : nodes) {
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
+				TableNode tableNode = null;
 				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
 						&& !(node instanceof CacheNode)
@@ -300,6 +301,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				if (node instanceof DataParentNode) {
 					connection = getConnection(((DataParentNode<?>) node).getConnectionId());
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
+					if (node instanceof TableNode) {
+						tableNode = (TableNode) node;
+					}
 				} else if (node.isLogCollectorNode()) {
 					LogCollectorNode logCollectorNode = (LogCollectorNode) node;
 					String connectionId = logCollectorNode.getConnectionIds().get(0);
@@ -351,7 +355,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 				vertex.localParallelism(1);
 				dag.vertex(vertex);
-				this.singleTaskFilterEventDataIfNeed(connection, needFilterEvent);
+				this.singleTaskFilterEventDataIfNeed(connection, needFilterEvent,tableNode);
 			}
 
 			handleEdge(dag, edges, nodeMap, vertexMap);
@@ -360,11 +364,11 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
 	}
 
-	private void singleTaskFilterEventDataIfNeed(Connections conn, AtomicBoolean needFilterEvent) {
-		if (null == conn || null == needFilterEvent) return;
+	private void singleTaskFilterEventDataIfNeed(Connections conn, AtomicBoolean needFilterEvent, TableNode tableNode) {
+		if (null == conn || null == needFilterEvent || null == tableNode) return;
 		List<String> tags = conn.getDefinitionTags();
 		if (Boolean.TRUE.equals(needFilterEvent.get())) {
-			needFilterEvent.set(null == tags || !tags.contains("schema-free"));
+			needFilterEvent.set(null == tags || (!tags.contains("schema-free") && !tableNode.isEnableCustomCommand()));
 		}
 	}
 
