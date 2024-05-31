@@ -18,8 +18,8 @@ RUN if [ "$(uname -m)" = "x86_64" ]; then \
     else \
         wget "https://github.com/async-profiler/async-profiler/releases/download/v3.0/async-profiler-3.0-linux-arm64.tar.gz" -O async-profiler.tar.gz; \
     fi && \
-    tar -xf async-profiler.tar.gz -C /tapdata/apps && \
-    mv /tapdata/apps/async-profiler-* /tapdata/apps/async-profiler && \
+    tar -xf async-profiler.tar.gz -C /tapdata/apps/components/ && \
+    mv /tapdata/apps/components/async-profiler-* /tapdata/apps/components/async-profiler && \
     rm -rf async-profiler.tar.gz
 
 COPY supervisor/ /tapdata/apps/supervisor/

@@ -136,7 +136,7 @@ make_docker() {
   cp -r $TAPDATA_DIR/build/image/supervisor .
   # docker build -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME .
   docker buildx create --use --name multi-platform --platform linux/amd64,linux/arm64
-  docker buildx build --platform linux/arm64,linux/amd64 -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME . --push
+  docker buildx build --platform linux/arm64,linux/amd64 -t harbor.internal.tapdata.io/tapdata/tapdata:latest -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME . --push
 }
 
 make_tar() {
