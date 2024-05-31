@@ -10,6 +10,18 @@ COPY bin/ /tapdata/apps
 
 RUN apt install supervisor -y
 
+# if linux-arm64, download https://github.com/async-profiler/async-profiler/releases/download/v3.0/async-profiler-3.0-linux-arm64.tar.gz
+# if linux-x86_64, download https://github.com/async-profiler/async-profiler/releases/download/v3.0/async-profiler-3.0-linux-x64.tar.gz
+# unzip and copy to /tapdata/apps
+RUN if [ "$(uname -m)" = "x86_64" ]; then \
+        wget "https://github.com/async-profiler/async-profiler/releases/download/v3.0/async-profiler-3.0-linux-x64.tar.gz" -O async-profiler.tar.gz; \
+    else \
+        wget "https://github.com/async-profiler/async-profiler/releases/download/v3.0/async-profiler-3.0-linux-arm64.tar.gz" -O async-profiler.tar.gz; \
+    fi && \
+    tar -xf async-profiler.tar.gz -C /tapdata/apps && \
+    mv /tapdata/apps/async-profiler-* /tapdata/apps/async-profiler && \
+    rm -rf async-profiler.tar.gz
+
 COPY supervisor/ /tapdata/apps/supervisor/
 
 ENV TAPDATA_WORK_DIR /tapdata/apps
