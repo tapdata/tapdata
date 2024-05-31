@@ -267,7 +267,7 @@ public class TaskServiceImpl extends TaskService{
 
         checkTaskName(taskDto.getName(), user, taskDto.getId());
 
-        customSqlService.checkCustomSqlTask(taskDto, user);
+//        customSqlService.checkCustomSqlTask(taskDto, user);
         dateNodeService.checkTaskDateNode(taskDto, user);
 
         boolean rename = false;
@@ -503,7 +503,7 @@ public class TaskServiceImpl extends TaskService{
         }
 
 
-        customSqlService.checkCustomSqlTask(taskDto, user);
+//        customSqlService.checkCustomSqlTask(taskDto, user);
         dateNodeService.checkTaskDateNode(taskDto, user);
 
         boolean agentReq = isAgentReq();
