@@ -77,6 +77,7 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
+    public static final String REPLICATE_LAG = "replicateLag";
     private final MongoTemplate mongoOperations;
     private final MetadataInstancesService metadataInstancesService;
     private final TaskService taskService;
@@ -142,7 +143,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             bulkOperations.upsert(query, update);
             if ("task".equals(tags.get("type"))) {
                 Map vs = (Map) sampleMap.get("vs");
-                Object replicateLag = Optional.ofNullable(vs.get("replicateLag")).orElse(0);
+                Object replicateLag = Optional.ofNullable(vs.get(REPLICATE_LAG)).orElse(0);
                 taskService.updateDelayTime(new ObjectId(tags.get("taskId")), Long.parseLong(replicateLag.toString()));
             }
         }
@@ -151,7 +152,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     }
 
     private Sample supplyKeyData(Sample requestSample, Map<String, Number> data, Map<String, Number> requestMap) {
-        List<String> list = Lists.newArrayList( "timeCostAvg", "targetWriteTimeCostAvg", "replicateLag");
+        List<String> list = Lists.newArrayList( "timeCostAvg", "targetWriteTimeCostAvg", REPLICATE_LAG);
 
         for (String key : list) {
             Number value = data.get(key);
@@ -445,7 +446,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 // 按照延迟逻辑,源端无事件时,应该为全量同步开始到现在的时间差
                 if (Objects.isNull(currentEventTimestamp) && Objects.nonNull(snapshotStartAt)) {
                     Number maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAt.longValue());
-                    values.put("replicateLag", maxRep);
+                    values.put(REPLICATE_LAG, maxRep);
                 }
 
             }
@@ -1129,8 +1130,8 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             Sample sample = samples.get(0);
             Long cdcDelayTime = null;
             Date lastData = null;
-            if (sample.getVs().get("replicateLag") != null) {
-                cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
+            if (sample.getVs().get(REPLICATE_LAG) != null) {
+                cdcDelayTime = Long.valueOf(sample.getVs().get(REPLICATE_LAG).toString());
             }
             tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
             if (sample.getVs().get("currentEventTimestamp") != null) {
