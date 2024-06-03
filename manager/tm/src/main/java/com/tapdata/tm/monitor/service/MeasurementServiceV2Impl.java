@@ -78,6 +78,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     public static final String REPLICATE_LAG = "replicateLag";
+    public static final String TASK_ID = "taskId";
     private final MongoTemplate mongoOperations;
     private final MetadataInstancesService metadataInstancesService;
     private final TaskService taskService;
@@ -146,35 +147,17 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             if ("task".equals(tags.get("type"))) {
                 Map<String, Object> vs = (Map) sampleMap.get("vs");
                 Object replicateLag = Optional.ofNullable(vs.get(REPLICATE_LAG)).orElse(0);
-                Long taskDelayTime = taskDelayTimeMap.get(tags.get("taskId"));
+                Long taskDelayTime = taskDelayTimeMap.get(tags.get(TASK_ID));
                 long delayTime = Long.parseLong(replicateLag.toString());
                 if (null == taskDelayTime || taskDelayTime != delayTime){
-                    taskDelayTimeMap.put(tags.get("taskId"), delayTime);
-                    taskService.updateDelayTime(new ObjectId(tags.get("taskId")), delayTime);
+                    taskDelayTimeMap.put(tags.get(TASK_ID), delayTime);
+                    taskService.updateDelayTime(new ObjectId(tags.get(TASK_ID)), delayTime);
                 }
             }
         }
 
         bulkOperations.execute();
     }
-
-//    private Sample supplyKeyData(Sample requestSample, Map<String, Number> data, Map<String, Number> requestMap) {
-//        List<String> list = Lists.newArrayList( "timeCostAvg", "targetWriteTimeCostAvg", REPLICATE_LAG);
-//
-//        for (String key : list) {
-//            Number value = data.get(key);
-//            if (requestMap.containsKey(key)
-//                    && Objects.nonNull(requestMap.get(key))
-//                    && requestMap.get(key).doubleValue() == 0
-//                    && Objects.nonNull(value)
-//                    && value.doubleValue() > 0) {
-//                requestSample.getVs().put(key, value);
-//            } else if (!requestMap.containsKey(key) && data.containsKey(key)) {
-//                requestSample.getVs().put(key, value);
-//            }
-//        }
-//        return requestSample;
-//    }
 
     private static final String TAG_FORMAT = String.format("%s.%%s", MeasurementEntity.FIELD_TAGS);
     private static final String FIELD_FORMAT = String.format("%s.%s.%%s",
