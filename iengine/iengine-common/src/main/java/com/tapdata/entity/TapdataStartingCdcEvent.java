@@ -7,4 +7,9 @@ package com.tapdata.entity;
  **/
 public class TapdataStartingCdcEvent extends TapdataEvent {
 	private static final long serialVersionUID = 5362695192942352471L;
+
+	@Override
+	public boolean isConcurrentWrite() {
+		return false;
+	}
 }

@@ -33,6 +33,11 @@ public class TapdataAdjustMemoryEvent extends TapdataEvent implements Serializab
 	}
 
 	@Override
+	public boolean isConcurrentWrite() {
+		return false;
+	}
+
+	@Override
 	protected void clone(TapdataEvent tapdataEvent) {
 		super.clone(tapdataEvent);
 		if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {

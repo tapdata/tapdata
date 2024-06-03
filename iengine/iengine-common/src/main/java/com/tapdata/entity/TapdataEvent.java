@@ -264,6 +264,10 @@ public class TapdataEvent implements Serializable, Cloneable {
 		this.exactlyOnceWriteCache = exactlyOnceWriteCache;
 	}
 
+	public boolean isConcurrentWrite() {
+		return true;
+	}
+
 	@Override
 	public String toString() {
 		final StringBuilder sb = new StringBuilder("TapdataEvent{");
