@@ -92,6 +92,16 @@ server:
     min-spare-threads: 100 #最小工作线程数量
     max-connections: 1000 #一瞬间最大支持的并发的连接数
     accept-count: 20 #等待队列长度
+    basedir: ${TAPDATA_HOME:.}/logs/tomcat
+    accesslog:
+      enabled: true                # 启用访问日志
+      directory: logs              # 日志文件的目录
+      pattern: "%h %t \"%r\" %s %b \"%{Referer}i\" \"%{User-Agent}i\" %D"
+      prefix: access_log
+      suffix: .log
+      rotate: true
+      renameOnRotate: true
+      fileDateFormat: ".yyyy-MM-dd" # 添加日期后缀
   max-http-header-size: 2MB
 
 mail:
