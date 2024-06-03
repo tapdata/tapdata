@@ -140,6 +140,11 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             }
 
             bulkOperations.upsert(query, update);
+            if ("task".equals(tags.get("type"))) {
+                Map vs = (Map) sampleMap.get("vs");
+                Object replicateLag = Optional.ofNullable(vs.get("replicateLag")).orElse(0);
+                taskService.updateDelayTime(new ObjectId(tags.get("taskId")), Long.parseLong(replicateLag.toString()));
+            }
         }
 
         bulkOperations.execute();

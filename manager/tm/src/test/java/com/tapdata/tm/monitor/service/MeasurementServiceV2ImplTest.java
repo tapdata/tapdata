@@ -5,18 +5,18 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.monitor.constant.KeyWords;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
+import com.tapdata.tm.task.service.TaskService;
+import io.tapdata.common.sample.request.Sample;
+import io.tapdata.common.sample.request.SampleRequest;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -115,6 +115,63 @@ class MeasurementServiceV2ImplTest {
         void testOneHasResult() {
             measurementServiceV2.findLastMinuteByTaskId(new ObjectId().toHexString());
             verify(mongoOperations).findOne(any(Query.class), any(Class.class), anyString());
+        }
+    }
+    @Nested
+    class AddBulkAgentMeasurementTest{
+        private MongoTemplate mongoOperations;
+        private TaskService taskService;
+        @BeforeEach
+        void beforeEach(){
+            mongoOperations = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(measurementServiceV2,"mongoOperations",mongoOperations);
+            when(mongoOperations.bulkOps(BulkOperations.BulkMode.UNORDERED, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME)).thenReturn(mock(BulkOperations.class));
+            taskService = mock(TaskService.class);
+            ReflectionTestUtils.setField(measurementServiceV2,"taskService",taskService);
+        }
+        @Test
+        @DisplayName("test addBulkAgentMeasurement method normal")
+        void test1(){
+            List<SampleRequest> samples = new ArrayList<>();
+            SampleRequest sampleRequest = mock(SampleRequest.class);
+            samples.add(sampleRequest);
+            Map<String, String> tags = new HashMap<>();
+            String id = "665d2b9b889245e73373cf49";
+            tags.put("type","task");
+            tags.put("taskId",id);
+            when(sampleRequest.getTags()).thenReturn(tags);
+            Sample sample = new Sample();
+            Date date = new Date();
+            sample.setDate(date);
+            Map vs = new HashMap();
+            vs.put("replicateLag",111);
+            sample.setVs(vs);
+            when(sampleRequest.getSample()).thenReturn(sample);
+            doCallRealMethod().when(measurementServiceV2).addAgentMeasurement(samples);
+            measurementServiceV2.addAgentMeasurement(samples);
+            verify(taskService).updateDelayTime(new ObjectId("665d2b9b889245e73373cf49"), 111L);
+        }
+        @Test
+        @DisplayName("test addBulkAgentMeasurement method when replicateLag is null")
+        void test2(){
+            List<SampleRequest> samples = new ArrayList<>();
+            SampleRequest sampleRequest = mock(SampleRequest.class);
+            samples.add(sampleRequest);
+            Map<String, String> tags = new HashMap<>();
+            String id = "665d2b9b889245e73373cf49";
+            tags.put("type","task");
+            tags.put("taskId",id);
+            when(sampleRequest.getTags()).thenReturn(tags);
+            Sample sample = new Sample();
+            Date date = new Date();
+            sample.setDate(date);
+            Map vs = new HashMap();
+            vs.put("replicateLag",null);
+            sample.setVs(vs);
+            when(sampleRequest.getSample()).thenReturn(sample);
+            doCallRealMethod().when(measurementServiceV2).addAgentMeasurement(samples);
+            measurementServiceV2.addAgentMeasurement(samples);
+            verify(taskService).updateDelayTime(new ObjectId("665d2b9b889245e73373cf49"), 0L);
         }
     }
 }
