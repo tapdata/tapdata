@@ -510,6 +510,16 @@ public class HazelcastTaskServiceTest {
             hazelcastTaskService.singleTaskFilterEventDataIfNeed(connections, needFilterEvent, tableNode);
             assertEquals(false, needFilterEvent.get());
         }
+        @DisplayName("test SingleTaskFilterEventDataIfNeed when connections tags is null")
+        @Test
+        void test6(){
+            Connections connections = new Connections();
+            connections.setDefinitionTags(null);
+            AtomicBoolean needFilterEvent = new AtomicBoolean(true);
+            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections,needFilterEvent,null);
+            hazelcastTaskService.singleTaskFilterEventDataIfNeed(connections, needFilterEvent, null);
+            assertEquals(true, needFilterEvent.get());
+        }
 
 
     }
