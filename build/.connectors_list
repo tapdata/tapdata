@@ -12,3 +12,5 @@ mysql-connector-v1.0-SNAPSHOT.jar
 postgres-connector-v1.0-SNAPSHOT.jar
 redis-connector-v1.0-SNAPSHOT.jar
 tdengine-connector-v1.0-SNAPSHOT.jar
+mock-source-connector-v1.0-SNAPSHOT.jar
+mock-target-connector-v1.0-SNAPSHOT.jar
